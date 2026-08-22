@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from .. import extensions as extensions_noyau
-from ..schemas import ExtensionEtatUpdate
+from ..schemas import ExtensionEtatUpdate, ExtensionsAnnonceesUpdate
 
 router = APIRouter(prefix="/extensions", tags=["extensions"])
 
@@ -38,9 +38,30 @@ def list_extensions():
     (cf. app/extensions.py, en-tête)."""
     trouvees = extensions_noyau.decouvrir()
     return [
-        extension.en_dict(extensions_noyau.est_active(extension_id))
+        extension.en_dict(
+            extensions_noyau.est_active(extension_id),
+            extensions_noyau.est_annoncee(extension_id),
+        )
         for extension_id, extension in trouvees.items()
     ]
+
+
+@router.post("/annoncees")
+def marquer_annoncees(payload: ExtensionsAnnonceesUpdate):
+    """Acquitte la fenêtre d'annonce : ces extensions ne la déclencheront plus.
+
+    APPELÉ À LA FERMETURE de la fenêtre, pas à son ouverture. « Annoncée »
+    veut dire « l'utilisateur l'a vue et fermée » : si l'application se ferme
+    pendant que la fenêtre est encore ouverte, il n'a rien acquitté et
+    l'annonce revient au lancement suivant, ce qui est le comportement voulu.
+
+    Rangée avec les autres chemins fixes, avant ceux à paramètre : rien ne
+    l'impose ici (POST, là où `/{extension_id}` est un PUT — aucune collision
+    possible), mais garder l'ordre « fixes d'abord » évite d'avoir à vérifier
+    la méthode HTTP le jour où l'un des deux change.
+    """
+    extensions_noyau.marquer_annoncees(payload.ids)
+    return {"annoncees": payload.ids}
 
 
 @router.get("/erreurs")

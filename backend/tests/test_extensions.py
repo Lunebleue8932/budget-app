@@ -146,9 +146,8 @@ def test_l_etat_survit_a_un_redemarrage(faux_projet):
     extensions.definir_active("placements", False)
 
     # Relecture depuis le disque, sans passer par le cache d'un appel précédent.
-    assert json.loads((faux_projet / "extensions.json").read_text(encoding="utf-8")) == {
-        "placements": False
-    }
+    contenu = json.loads((faux_projet / "extensions.json").read_text(encoding="utf-8"))
+    assert contenu["actives"] == {"placements": False}
     assert extensions.est_active("placements") is False
 
 
@@ -158,6 +157,99 @@ def test_un_fichier_d_etat_abime_laisse_les_defauts(faux_projet):
     (faux_projet / "extensions.json").write_text("pas du JSON", encoding="utf-8")
 
     assert extensions.est_active("placements") is True
+
+
+def test_l_ancien_format_du_fichier_d_etat_reste_lu(faux_projet):
+    """Le fichier était un simple {id: bool} avant l'ajout des annonces. Une
+    installation existante doit garder ses désactivations plutôt que de tout
+    rallumer sans prévenir."""
+    (faux_projet / "extensions.json").write_text(
+        json.dumps({"placements": False, "autre": True}), encoding="utf-8"
+    )
+
+    assert extensions.est_active("placements") is False
+    assert extensions.est_active("autre") is True
+    # Aucune annonce dans l'ancien format : tout est donc à annoncer.
+    assert extensions.est_annoncee("placements") is False
+
+
+def test_le_fichier_est_reecrit_au_nouveau_format(faux_projet):
+    (faux_projet / "extensions.json").write_text(
+        json.dumps({"placements": False}), encoding="utf-8"
+    )
+
+    extensions.definir_active("placements", True)
+
+    contenu = json.loads((faux_projet / "extensions.json").read_text(encoding="utf-8"))
+    assert contenu == {"actives": {"placements": True}, "annoncees": []}
+
+
+# ---------- Annonce au lancement ----------
+
+
+def test_une_extension_jamais_vue_est_a_annoncer(faux_projet):
+    """C'est ce drapeau qui déclenche la fenêtre de lancement : une extension
+    qu'on vient de déposer doit se signaler."""
+    assert extensions.est_annoncee("placements") is False
+
+
+def test_marquer_annoncee_empeche_de_la_reannoncer(faux_projet):
+    _creer_extension(faux_projet, "extensions", "placements")
+
+    extensions.marquer_annoncees(["placements"])
+
+    assert extensions.est_annoncee("placements") is True
+
+
+def test_l_annonce_survit_a_un_redemarrage(faux_projet):
+    """Retenu dans un fichier, pas en mémoire : c'est tout l'objet du
+    changement — ne plus revoir la fenêtre à chaque lancement."""
+    _creer_extension(faux_projet, "extensions", "placements")
+    extensions.marquer_annoncees(["placements"])
+
+    contenu = json.loads((faux_projet / "extensions.json").read_text(encoding="utf-8"))
+    assert contenu["annoncees"] == ["placements"]
+
+
+def test_annoncer_ne_touche_pas_a_l_activation(faux_projet):
+    """Les deux réglages vivent dans le même fichier : écrire l'un ne doit pas
+    effacer l'autre."""
+    _creer_extension(faux_projet, "extensions", "placements")
+    extensions.definir_active("placements", False)
+
+    extensions.marquer_annoncees(["placements"])
+
+    assert extensions.est_active("placements") is False
+    assert extensions.est_annoncee("placements") is True
+
+
+def test_une_extension_retiree_puis_remise_est_de_nouveau_annoncee(faux_projet):
+    """La remettre est un geste délibéré : on veut la confirmation qu'il a été
+    pris en compte. C'est aussi ce qui empêche le fichier de gonfler
+    indéfiniment au fil des essais."""
+    _creer_extension(faux_projet, "extensions", "placements")
+    extensions.marquer_annoncees(["placements"])
+    assert extensions.est_annoncee("placements") is True
+
+    # L'utilisateur retire le dossier, puis en installe un autre.
+    import shutil
+
+    shutil.rmtree(faux_projet / "extensions" / "placements")
+    _creer_extension(faux_projet, "extensions", "autre")
+    extensions.marquer_annoncees(["autre"])
+
+    # « placements » a été oubliée : la redéposer la fera réannoncer.
+    _creer_extension(faux_projet, "extensions", "placements")
+    assert extensions.est_annoncee("placements") is False
+    assert extensions.est_annoncee("autre") is True
+
+
+def test_le_drapeau_nouvelle_est_expose_au_frontend(faux_projet):
+    _creer_extension(faux_projet, "extensions", "placements")
+    extension = extensions.decouvrir()["placements"]
+
+    assert extension.en_dict(actif=True, annoncee=False)["nouvelle"] is True
+    assert extension.en_dict(actif=True, annoncee=True)["nouvelle"] is False
 
 
 def test_la_dependance_refuse_une_extension_desactivee(faux_projet):

@@ -1299,3 +1299,14 @@ class ExtensionEtatUpdate(BaseModel):
     contient."""
 
     actif: bool
+
+
+class ExtensionsAnnonceesUpdate(BaseModel):
+    """Extensions dont l'utilisateur vient de fermer la fenêtre d'annonce.
+
+    Une LISTE et non un identifiant unique : la fenêtre les annonce toutes
+    ensemble et se ferme d'un seul geste — les acquitter une par une
+    multiplierait les allers-retours pour un même clic, et laisserait la
+    moitié de la liste non acquittée si l'un d'eux échouait."""
+
+    ids: list[str]

@@ -197,8 +197,12 @@ function majVisibiliteNavigation(id, actif) {
 
 window.BudgetApp.extensions.majVisibilite = majVisibiliteNavigation;
 
+// Extensions actuellement annoncées par la fenêtre : acquittées auprès du
+// serveur à sa fermeture, quel que soit le geste qui l'a fermée.
+let extensionsAnnoncees = [];
+
 /**
- * Annonce les extensions trouvées au lancement.
+ * Annonce les extensions trouvées au lancement, UNE SEULE FOIS CHACUNE.
  *
  * POURQUOI CETTE ANNONCE EXISTE. L'application est livrée SANS aucune
  * extension : le dossier `extensions/` arrive vide, et c'est l'utilisateur qui
@@ -206,23 +210,27 @@ window.BudgetApp.extensions.majVisibilite = majVisibiliteNavigation;
  * banal — c'est la confirmation que ce qu'il vient d'installer a bien été vu,
  * et le seul moment où l'on peut le lui dire avant qu'il aille le chercher.
  *
- * À CHAQUE LANCEMENT, sans mémoire de ce qui a déjà été annoncé : rien n'est
- * enregistré ici. La modale répond à « qu'est-ce qui est chargé aujourd'hui »,
- * pas à « qu'y a-t-il de nouveau », et elle disparaît d'elle-même le jour où
- * le dossier redevient vide.
+ * SEULEMENT CELLES JAMAIS ANNONCÉES (`nouvelle`, cf. app/extensions.py). Une
+ * fois l'installation confirmée, redire la même chose à chaque démarrage n'
+ * apprendrait plus rien et deviendrait une porte à claquer avant d'atteindre
+ * son budget. L'état est retenu côté SERVEUR, pas dans le navigateur : c'est
+ * une propriété de l'installation, et le stockage local d'une fenêtre webview
+ * ne survit pas toujours à une mise à jour de l'application.
  */
 function afficherModaleExtensions(extensions) {
-  if (extensions.length === 0) return;
+  const nouvelles = extensions.filter((e) => e.nouvelle);
+  if (nouvelles.length === 0) return;
+  extensionsAnnoncees = nouvelles.map((e) => e.id);
 
   const fond = document.getElementById("modale-extensions");
   document.getElementById("modale-extensions-texte").textContent =
-    extensions.length === 1
+    nouvelles.length === 1
       ? t("Une extension a été trouvée dans le dossier « extensions » et chargée :")
       : t("{n} extensions ont été trouvées dans le dossier « extensions » et chargées :", {
-          n: extensions.length,
+          n: nouvelles.length,
         });
 
-  document.getElementById("modale-extensions-liste").innerHTML = extensions
+  document.getElementById("modale-extensions-liste").innerHTML = nouvelles
     .map(
       (e) => `<li>
         <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
@@ -242,9 +250,31 @@ function afficherModaleExtensions(extensions) {
   document.getElementById("btn-modale-extensions-aller").focus();
 }
 
+/**
+ * Ferme la fenêtre et ACQUITTE les extensions qu'elle annonçait : elles ne la
+ * déclencheront plus au prochain lancement.
+ *
+ * L'acquittement part À LA FERMETURE, jamais à l'ouverture : « annoncée » veut
+ * dire « vue et fermée ». Si l'application se ferme pendant que la fenêtre est
+ * encore ouverte, rien n'a été acquitté et l'annonce revient — ce qui est le
+ * comportement voulu, l'utilisateur n'ayant rien lu.
+ *
+ * L'échec de l'appel n'est pas remonté à l'écran : la conséquence est de
+ * revoir la fenêtre une fois de plus, pas de perdre quoi que ce soit. Une
+ * alerte d'erreur coûterait plus d'attention que le problème qu'elle
+ * signale.
+ */
 function fermerModaleExtensions() {
   document.getElementById("modale-extensions").style.display = "none";
   document.body.classList.remove("modale-ouverte");
+
+  if (extensionsAnnoncees.length === 0) return;
+  const ids = extensionsAnnoncees;
+  extensionsAnnoncees = []; // évite un second envoi si la fermeture se rejoue
+  apiFetch("/extensions/annoncees", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+  }).catch((err) => console.warn("Annonce non acquittée :", err.message));
 }
 
 document

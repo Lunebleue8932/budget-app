@@ -147,7 +147,7 @@ class Extension:
             return None
         return cible if cible.is_file() else None
 
-    def en_dict(self, actif: bool) -> dict:
+    def en_dict(self, actif: bool, annoncee: bool = True) -> dict:
         return {
             "id": self.id,
             "nom": self.nom,
@@ -155,6 +155,11 @@ class Extension:
             "version": self.version,
             "type": self.type,
             "actif": actif,
+            # « Jamais annoncée » plutôt que « annoncée » : c'est cet état-là
+            # qui déclenche quelque chose côté frontend (la fenêtre de
+            # lancement), et un drapeau se lit mieux quand il nomme le cas
+            # qu'il provoque.
+            "nouvelle": not annoncee,
             "frontend": self.frontend,
             "navigation": self.navigation,
         }
@@ -251,14 +256,22 @@ def charger_routeur(extension: Extension):
     return routeur, None
 
 
-# ---------- État activé / désactivé ----------
+# ---------- État : activation, et annonce déjà faite ----------
 #
 # Persisté DANS UN FICHIER À CÔTÉ DE LA BASE, et non dans la base elle-même :
-# activer une extension est une préférence de l'INSTALLATION, pas une donnée
-# du budget. Le stocker en base ferait changer les extensions actives en même
-# temps que la base de données (cf. l'extension de développement « Base de
-# données »), ce qui n'a aucun sens — et le ferait disparaître à la première
-# restauration de sauvegarde.
+# ce sont des préférences de l'INSTALLATION, pas des données du budget. Les
+# stocker en base ferait changer les extensions actives en même temps que la
+# base de données (cf. l'extension de développement « Base de données »), ce
+# qui n'a aucun sens — et le ferait disparaître à la première restauration de
+# sauvegarde.
+#
+# Deux informations, deux clés :
+#
+#     {"actives": {"placements": false}, "annoncees": ["placements"]}
+#
+# `actives` ne retient que les DÉSACTIVATIONS explicites (tout est actif par
+# défaut) ; `annoncees` retient les extensions dont l'utilisateur a déjà vu la
+# fenêtre d'annonce au lancement, pour ne pas la lui remontrer à chaque fois.
 
 _NOM_FICHIER_ETAT = "extensions.json"
 
@@ -269,22 +282,58 @@ def _fichier_etat() -> Path:
     return DEV_DB_PATH.parent / _NOM_FICHIER_ETAT
 
 
-def _charger_etat() -> dict[str, bool]:
-    """{id: actif}. Un fichier absent ou abîmé rend un état vide, ce qui laisse
-    chaque extension à son défaut plutôt que de tout désactiver."""
+def _charger_etat() -> dict:
+    """{"actives": {id: bool}, "annoncees": {id}}.
+
+    Un fichier absent ou abîmé rend un état vide, ce qui laisse chaque
+    extension à son défaut plutôt que de tout désactiver.
+
+    LIT AUSSI L'ANCIEN FORMAT — un dict plat {id: bool}, celui d'avant l'ajout
+    des annonces. Une installation existante garde donc ses désactivations au
+    lieu de tout rallumer sans prévenir ; le fichier est réécrit au nouveau
+    format à la première modification.
+    """
+    vide = {"actives": {}, "annoncees": set()}
     try:
         contenu = json.loads(_fichier_etat().read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return {}
+        return vide
     if not isinstance(contenu, dict):
-        return {}
-    return {str(cle): bool(valeur) for cle, valeur in contenu.items()}
+        return vide
+
+    actives = contenu.get("actives")
+    if not isinstance(actives, dict):
+        # Ancien format : le fichier EST la table d'activation. Reconnu sur la
+        # forme (des valeurs booléennes) plutôt que sur l'absence de la clé,
+        # pour qu'un fichier à moitié écrit ne fasse pas passer des identifiants
+        # d'extensions pour des réglages.
+        actives = {
+            cle: valeur
+            for cle, valeur in contenu.items()
+            if isinstance(valeur, bool)
+        }
+
+    annoncees = contenu.get("annoncees")
+    if not isinstance(annoncees, list):
+        annoncees = []
+
+    return {
+        "actives": {str(cle): bool(valeur) for cle, valeur in actives.items()},
+        "annoncees": {str(identifiant) for identifiant in annoncees},
+    }
 
 
-def _ecrire_etat(etat: dict[str, bool]) -> None:
+def _ecrire_etat(etat: dict) -> None:
     fichier = _fichier_etat()
     fichier.parent.mkdir(parents=True, exist_ok=True)
-    fichier.write_text(json.dumps(etat, indent=2, ensure_ascii=False), encoding="utf-8")
+    # `sorted` sur les annonces : un ensemble n'a pas d'ordre, et un fichier
+    # dont les lignes changent de place à chaque écriture est pénible à relire
+    # comme à comparer.
+    contenu = {
+        "actives": etat["actives"],
+        "annoncees": sorted(etat["annoncees"]),
+    }
+    fichier.write_text(json.dumps(contenu, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def est_active(extension_id: str) -> bool:
@@ -292,12 +341,33 @@ def est_active(extension_id: str) -> bool:
     la découvrir dans les Paramètres pour l'allumer supposerait de savoir
     qu'elle existe. C'est la désactivation qui est un choix explicite, et c'est
     donc elle seule que le fichier d'état a besoin de retenir."""
-    return _charger_etat().get(extension_id, True)
+    return _charger_etat()["actives"].get(extension_id, True)
 
 
 def definir_active(extension_id: str, actif: bool) -> None:
     etat = _charger_etat()
-    etat[extension_id] = actif
+    etat["actives"][extension_id] = actif
+    _ecrire_etat(etat)
+
+
+def est_annoncee(extension_id: str) -> bool:
+    """Vrai si l'utilisateur a déjà vu — et fermé — la fenêtre annonçant cette
+    extension au lancement."""
+    return extension_id in _charger_etat()["annoncees"]
+
+
+def marquer_annoncees(identifiants: list[str]) -> None:
+    """Retient que ces extensions ont été annoncées : elles ne déclencheront
+    plus la fenêtre de lancement.
+
+    NETTOIE AU PASSAGE les identifiants qui ne correspondent plus à aucune
+    extension présente. Deux effets, tous deux voulus : le fichier ne gonfle
+    pas indéfiniment au fil des essais, et une extension retirée puis remise
+    est de nouveau annoncée — la remettre est un geste délibéré, dont on veut
+    la confirmation qu'il a été pris en compte."""
+    presentes = set(decouvrir())
+    etat = _charger_etat()
+    etat["annoncees"] = (etat["annoncees"] | set(identifiants)) & presentes
     _ecrire_etat(etat)
 
 

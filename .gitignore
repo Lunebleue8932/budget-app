@@ -17,6 +17,11 @@
 # Copies horodatées prises avant chaque reconstruction (cf. construire.sh).
 desktop/sauvegardes/
 
+# État LOCAL des extensions (activées, déjà annoncées) : propre à chaque
+# installation, comme la base à côté de laquelle il vit. Le versionner
+# imposerait à chaque testeur les réglages de la machine qui a commité.
+extensions.json
+
 # Journal écrit quand l'application ne parvient pas à démarrer : contient une
 # trace d'exécution avec des chemins locaux.
 erreur.log
