@@ -1,0 +1,8 @@
+# Dépendances de l'application de bureau, séparées de requirements.txt (serveur
+# + tests) : rien de tout ceci n'est nécessaire pour lancer l'API ou pytest.
+#
+# pywebview  : fenêtre native affichant l'app (Edge WebView2 sous Windows) ;
+#              tire pythonnet, l'interop .NET nécessaire à ce backend.
+# pyinstaller: uniquement pour construire l'exécutable (cf. desktop/budget_app.spec).
+pywebview
+pyinstaller

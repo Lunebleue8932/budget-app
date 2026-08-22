@@ -1,0 +1,3139 @@
+:root {
+  --bg-page: #0a0c12;
+  --bg-header: rgba(10, 12, 18, 0.85);
+  --bg-surface: #14171f;
+  --bg-surface-alt: #1b1f2a;
+  --bg-surface-hover: #1e2330;
+  --border: #2b303d;
+  --border-soft: #20232d;
+  --text-primary: #e7e8ec;
+  --text-secondary: #9ea3b0;
+  --text-muted: #6b7080;
+  --accent: #3b82f6;
+  --accent-light: #5b9bfb;
+  --accent-hover: #2563eb;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --negatif: #f87171;
+  --positif: #4ade80;
+  --depense: #fb923c;
+  --budget-line: #ef4444;
+  --success-bg: rgba(74, 222, 128, 0.15);
+  --success-text: #4ade80;
+  --error-bg: rgba(248, 113, 113, 0.15);
+  --error-text: #f87171;
+  --badge-remboursable-bg: rgba(234, 179, 8, 0.18);
+  --badge-remboursable-text: #eab308;
+  --badge-pret-bg: rgba(251, 146, 60, 0.18);
+  --badge-pret-text: #fb923c;
+  --badge-ok-bg: rgba(74, 222, 128, 0.15);
+  --badge-ok-text: #4ade80;
+  /* Les trois types de compte (cartes de la Vue globale, camembert du
+     dashboard) : SOURCE UNIQUE lue par les deux — cf. couleurTypeCompte()
+     dans app.js, qui relit ces variables plutôt que de dupliquer les teintes.
+     --accent sert déjà de couleur "courant" ailleurs dans l'app ; les deux
+     autres n'existaient pas avant le camembert. */
+  --compte-courant: var(--accent);
+  --compte-epargne: #7c3aed;
+  --compte-placements: #14b8a6;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  /* Léger dégradé radial en tête de page, façon dashboards fintech. */
+  background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(59, 130, 246, 0.08), transparent);
+  background-repeat: no-repeat;
+}
+
+header {
+  background: var(--bg-header);
+  backdrop-filter: blur(12px);
+  color: var(--text-primary);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--border-soft);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+header h1 {
+  font-size: 1.05rem;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+/* Langue et recherche : les deux outils qui portent sur l'app entière, collés
+   au titre — c'est `nav` (cf. plus bas) qui porte `margin-left: auto` et va
+   se placer seule à l'autre bout du header. */
+.outils-globaux {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Deux drapeaux carrés aux coins arrondis, comme deux boutons-icônes ordinaires
+   de l'app : pas de fond ni de bordure au repos, un liseré au survol, et un
+   contour plus marqué + une légère mise à l'échelle pour la langue active —
+   le même langage que les autres boutons à bascule (cf. .import-config-oeil). */
+.langue {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.langue-drapeau {
+  display: flex;
+  padding: 0.15rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.langue-drapeau svg {
+  display: block;
+  border-radius: 2px;
+}
+
+.langue-drapeau:hover {
+  opacity: 0.85;
+  border-color: var(--border);
+}
+
+.langue-drapeau[aria-pressed="true"] {
+  opacity: 1;
+  border-color: var(--border);
+  transform: scale(1.08);
+}
+
+.langue-drapeau:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+header h1::before {
+  content: "€";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-right: 0.55rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  color: white;
+  font-weight: 700;
+  font-size: 0.95rem;
+  vertical-align: -0.35rem;
+}
+
+/* Navigation en pilules, façon Linear/Notion. */
+/* `margin-left: auto` : nav est le seul bloc à s'écarter du titre, jusqu'à
+   l'autre bout du header. Titre et outils globaux, eux, restent groupés
+   ensemble à gauche (cf. header h1 / .outils-globaux). */
+nav {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0.25rem;
+}
+
+nav button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  transition: color 0.15s, background 0.15s;
+}
+
+nav button:hover {
+  color: var(--text-primary);
+}
+
+nav button.active {
+  color: var(--text-primary);
+  font-weight: 600;
+  background: var(--bg-surface-alt);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+main {
+  max-width: 1200px;
+  margin: 1.5rem auto;
+  padding: 0 1.25rem;
+}
+
+section {
+  display: none;
+}
+
+section.active {
+  display: block;
+  animation: fade-in 0.18s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+h2 {
+  margin-top: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 1.75rem 0 0.75rem;
+}
+
+/* Sous-titre de tableau (ex. sous-sections Dépenses / Virements internes de
+   l'aperçu d'import) : un cran en dessous de h3, sans majuscules forcées. */
+h4 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+}
+
+/* ---------- Cartes KPI (dashboard) ---------- */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-card .kpi-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.35rem;
+}
+
+.kpi-card .kpi-valeur {
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card .kpi-sous-texte {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.kpi-valeur.positif { color: var(--positif); }
+.kpi-valeur.negatif { color: var(--negatif); }
+
+/* Solde réel et solde projeté sur UNE SEULE LIGNE : le projeté annote le réel
+   (même question, deux échéances), il ne mérite ni sa carte ni sa propre
+   rangée. Aligné sur la LIGNE DE BASE du grand chiffre, pas sur son centre :
+   c'est ce qui les fait lire comme une seule information. */
+.kpi-valeur-ligne {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.kpi-valeur-annexe {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.kpi-valeur-annexe-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kpi-valeur-annexe-valeur {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Flux de la période (sous le sélecteur du dashboard) ---------- */
+
+/* Volontairement plus compacts que les cartes KPI du haut : ils commentent
+   l'histogramme qui suit, ils ne rivalisent pas avec les soldes. Trois colonnes
+   égales tant que la largeur le permet, puis empilées. */
+.flux-periode {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.6rem;
+  margin: 0.9rem 0 1.1rem;
+}
+
+.flux-carte {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+}
+
+.flux-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.2rem;
+}
+
+.flux-valeur {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.flux-valeur.positif { color: var(--positif); }
+.flux-valeur.negatif { color: var(--negatif); }
+
+/* ---------- Cartes de comptes (dashboard) ---------- */
+
+.comptes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.compte-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow-card);
+  border-left: 3px solid var(--compte-courant);
+  transition: transform 0.15s, border-color 0.15s;
+}
+
+.compte-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border);
+}
+
+.compte-card.epargne {
+  border-left-color: var(--compte-epargne);
+}
+
+.compte-card.placements {
+  border-left-color: var(--compte-placements);
+}
+
+.compte-card .compte-nom {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compte-card .compte-type-tag {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+}
+
+/* Un groupe par monnaie (solde + projeté), en flex plutôt qu'empilés en bloc :
+   un compte mono-devise n'a qu'un groupe, la ligne ne change donc rien pour
+   lui. Un compte multi-devises en a plusieurs, qui se rangent côte à côte
+   quand la carte est assez large et retombent à la ligne sinon — la largeur
+   de carte varie déjà d'un écran à l'autre (cf. .comptes-grid, auto-fill). */
+.compte-card .compte-soldes-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.3rem;
+  row-gap: 0.6rem;
+}
+
+.compte-card .compte-solde-groupe {
+  flex: 1 1 auto;
+  min-width: 6.5rem;
+}
+
+.compte-card .compte-solde {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.compte-card .compte-solde.negatif {
+  color: var(--negatif);
+}
+
+.compte-card .compte-projete {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tableaux ---------- */
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-surface);
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+th, td {
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+th {
+  background: var(--bg-surface-alt);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+tbody tr {
+  transition: background 0.1s;
+}
+
+tbody tr:hover {
+  background: var(--bg-surface-hover);
+}
+
+tr.negatif {
+  color: var(--negatif);
+}
+
+/* Montants colorés par sens (entrée / sortie), tabulaires pour l'alignement. */
+.montant {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.montant.entree { color: var(--positif); }
+.montant.sortie { color: var(--depense); }
+.montant.neutre { color: var(--text-secondary); }
+
+/* Liseré latéral : état de règlement d'une dépense remboursable / d'un prêt
+   (jaune = rien, orange = partiel, vert = total). Posé sur la première
+   cellule, pas sur la ligne — cf. .table-operations tr.tr-aucun td:first-child
+   plus bas, seule version encore utilisée : les lignes concernées vivent
+   toutes dans un tableau à coins arrondis, que le liseré doit suivre. */
+
+col.col-narrow {
+  width: 6.5rem;
+}
+
+col.col-wide {
+  width: auto;
+}
+
+/* ---------- Formulaires ---------- */
+
+form {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+  margin-bottom: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.7rem;
+  align-items: end;
+  box-shadow: var(--shadow-card);
+}
+
+form label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+}
+
+form input,
+form select,
+form textarea {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Les menus de comptes sont groupés par type (cf. fillComptesSelect). Le
+   navigateur pose déjà l'en-tête du groupe en gras et indente ses options ;
+   ces deux règles ajoutent l'air entre les groupes, et retirent aux noms de
+   compte l'italique dont certains moteurs affublent les options d'un optgroup.
+   Le menu déroulant natif ignore une partie de cette mise en forme selon la
+   plateforme — c'est un supplément, jamais ce sur quoi la lisibilité repose. */
+select optgroup {
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-top: 0.45rem;
+}
+
+select optgroup option {
+  font-weight: 400;
+  font-style: normal;
+  color: var(--text-primary);
+}
+
+/* Seule la hauteur se redimensionne : élargir un champ pleine largeur ne peut
+   que casser la grille du formulaire. */
+form textarea {
+  font-family: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+form input:focus,
+form select:focus,
+form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Pas de flèches sur les champs numériques, PARTOUT.
+   Elles n'ont d'intérêt que pour parcourir quelques valeurs voisines : sur un
+   montant (pas de 0,01 €) il faudrait des centaines de clics, et sur un numéro
+   de colonne elles ne font que rétrécir un champ déjà étroit et offrir une
+   cible à cliquer par erreur. La saisie au clavier reste la seule voie ; les
+   flèches HAUT/BAS du clavier continuent de fonctionner. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Champ non modifiable (ex. Montant d'un règlement, piloté par la checklist
+   en dessous) : grisé pour signaler clairement qu'il ne se saisit pas. */
+form input:disabled,
+form input:read-only {
+  background: var(--bg-page);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Ces trois classes utilitaires étaient cantonnées aux descendants de <form>
+   alors que la majorité de la page Paramètres les utilise hors formulaire :
+   tout ce contenu s'affichait donc sans style. Elles sont désormais globales,
+   `form .full-width` gardant en plus son comportement de grille. */
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+form .full-width {
+  grid-column: 1 / -1;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.checklist {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  background: var(--bg-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.checklist label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem !important;
+  font-size: 0.85rem;
+}
+
+.checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.checklist-row input[type="number"] {
+  width: 90px;
+}
+
+.checklist-row span {
+  flex: 1;
+}
+
+/* ---------- Onglets ---------- */
+
+.sous-onglets {
+  display: flex;
+  gap: 0.2rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.sous-onglets button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  transition: color 0.15s;
+}
+
+.sous-onglets button:hover {
+  color: var(--text-primary);
+}
+
+.sous-onglets button.active {
+  color: var(--accent-light);
+  font-weight: bold;
+  border-bottom-color: var(--accent-light);
+}
+
+.sous-section {
+  display: none;
+}
+
+.sous-section.active {
+  display: block;
+  animation: fade-in 0.18s ease-out;
+}
+
+/* Onglets de mois (2e niveau, sous les onglets d'année) : plus petits, pas de
+   bordure basse pleine largeur pour ne pas dupliquer celle des années. */
+.sous-onglets-mois {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  margin-top: -0.5rem;
+}
+
+.sous-onglets-mois button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}
+
+/* ---------- Navigation dans l'arborescence des filtres (année ↔ mois) ---------- */
+
+/* Deux niveaux, un seul actif à la fois, et les flèches qui passent de l'un à
+   l'autre. Le niveau inactif n'est PAS masqué : en vue mois, l'année reste
+   lisible (sinon on ne sait plus lequel des douze mois de quelle année on
+   regarde) ; en vue année, les mois restent là pour montrer ce que l'année
+   recouvre. Il est simplement mis en veille. */
+.periode-selecteur {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.periode-niveaux {
+  flex: 1;
+  min-width: 0;
+}
+
+.periode-fleches {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.35rem;
+}
+
+.periode-fleche {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.7rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.periode-fleche:hover:not(:disabled) {
+  color: var(--accent-light);
+  border-color: var(--accent-light);
+}
+
+/* Déjà au bout de l'arborescence : la flèche reste visible pour que les deux
+   sens soient toujours au même endroit, mais elle ne fait plus rien. */
+.periode-fleche:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Le niveau qui ne pilote pas le filtre : présent, lisible, mais visiblement en
+   retrait — y compris son onglet actif, qui ne doit plus se lire comme LE
+   filtre en vigueur. Il reste cliquable : cliquer un mois grisé redescend au
+   mois, et changer d'année en vue mois doit rester possible. */
+.sous-onglets.en-veille button {
+  color: var(--text-muted);
+  opacity: 0.65;
+}
+
+.sous-onglets.en-veille button.active {
+  color: var(--text-secondary);
+  font-weight: normal;
+  border-bottom-color: var(--border);
+}
+
+.sous-onglets.en-veille button:hover {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.tri {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.tri label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.tri select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+}
+
+/* ---------- Camembert « Répartition des avoirs » ---------- */
+
+.repartition-comptes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.3rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-card);
+}
+
+.repartition-comptes svg {
+  flex-shrink: 0;
+}
+
+.repartition-legende {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1 1 16rem;
+}
+
+.repartition-legende-ligne {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+}
+
+.repartition-pastille {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.repartition-etiquette {
+  color: var(--text-secondary);
+  flex: 1 1 auto;
+}
+
+.repartition-montant {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.repartition-montant.negatif {
+  color: var(--negatif);
+}
+
+.repartition-pourcentage {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6rem;
+  text-align: right;
+}
+
+#dashboard-histogramme {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-card);
+  /* Ancre de l'infobulle des barres, positionnée en absolu dedans. */
+  position: relative;
+}
+
+/* Infobulle d'une barre de l'histogramme : ce qui compose son montant.
+   Maison plutôt qu'un <title> SVG — celui-ci ne porte que du texte brut (ni
+   colonne de montants, ni italique) et n'apparaît qu'après le délai du
+   navigateur. `pointer-events: none` est indispensable : la bulle suit le
+   curseur, et s'interposer entre lui et la barre déclencherait un mouseleave
+   à chaque mouvement, donc un clignotement. */
+.histo-bulle {
+  position: absolute;
+  z-index: 30;
+  min-width: 13rem;
+  max-width: 20rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s ease-out, visibility 0.1s;
+}
+
+.histo-bulle.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.histo-bulle-titre {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.histo-bulle-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Libellé à gauche, montant à droite : les trois montants se lisent en
+   colonne, ce qui est tout l'intérêt d'un classement. */
+.histo-bulle-liste li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.histo-bulle-nature {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le nombre de dépenses fondues sous ce libellé (jamais affiché à 1). En
+   italique et en gris : c'est une précision sur le libellé, pas une donnée de
+   plus à mettre au même rang que lui. */
+.histo-bulle-compte {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.histo-bulle-montant {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.histo-bulle-vide {
+  color: var(--text-muted);
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  text-align: center;
+  width: 2rem;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+tr.dragging {
+  opacity: 0.4;
+}
+
+/* ---------- Badges ---------- */
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-text);
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
+/* Bandeau de règlement à 3 états, harmonisé entre Dépenses remboursables et
+   Prêts reçus : jaune = rien de reçu, orange = partiel, vert = soldé. */
+.badge-aucun {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--badge-remboursable-bg);
+  color: var(--badge-remboursable-text);
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
+.badge-partiel {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--badge-pret-bg);
+  color: var(--badge-pret-text);
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
+.badge-total {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-text);
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
+.cellule-reste {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+/* ---------- Boutons ---------- */
+
+button {
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--bg-surface-alt);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+
+button:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--text-muted);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.danger {
+  background: transparent;
+  color: var(--negatif);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+button.danger:hover {
+  background: var(--error-bg);
+  border-color: var(--danger);
+}
+
+/* ---------- Filtres ---------- */
+
+.filtres {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: end;
+  box-shadow: var(--shadow-card);
+}
+
+.filtres label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+}
+
+.filtres select,
+.filtres input {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  transition: border-color 0.15s;
+}
+
+.filtres select:focus,
+.filtres input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---------- Toasts (notifications) ---------- */
+
+#toast-container {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 360px;
+}
+
+.toast {
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  animation: toast-in 0.25s ease-out;
+  border: 1px solid;
+}
+
+.toast.sortant {
+  animation: toast-out 0.25s ease-in forwards;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(30px); }
+}
+
+.toast.error {
+  background: #2a1518;
+  color: var(--error-text);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.toast.success {
+  background: #12261a;
+  color: var(--success-text);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+/* Orange : ni une erreur (rien n'a échoué, rien n'est bloqué) ni une réussite.
+   Le ton des avertissements du reste de l'app — un doublon possible, une
+   configuration douteuse : quelque chose à vérifier, pas à réparer. */
+.toast.warning {
+  background: #2a2011;
+  color: var(--badge-remboursable-text);
+  border-color: rgba(234, 179, 8, 0.4);
+}
+
+/* ---------- Divers ---------- */
+
+.stat-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  box-shadow: var(--shadow-card);
+}
+
+.stat-box strong {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-box strong.positif {
+  color: var(--success-text);
+}
+
+.stat-box strong.negatif {
+  color: var(--negatif);
+}
+
+/* ---------- Import bancaire ---------- */
+
+.preset-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 1.25rem 1.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.preset-panel .hint {
+  margin-top: 0;
+}
+
+/* Presets affichés en "chips" cliquables plutôt qu'un <select> : plus visible
+   (correspond à la demande d'une interface plus grande) et cohérent avec les
+   autres bascules de l'app (mêmes boutons que .sous-onglets), en plus
+   prononcé (pilule pleine plutôt qu'un simple soulignement). */
+.preset-chips {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
+}
+
+.preset-chips button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  background: var(--bg-surface-alt);
+  font-size: 0.9rem;
+}
+
+.preset-chips button:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.preset-chips button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* Sélecteur "compte pour ce fichier" (aucune colonne Compte bancaire
+   configurée) : en dehors de tout <form>, donc ignoré par la règle
+   "form input, form select" -- stylé explicitement pour rester cohérent. */
+.import-compte-defaut-bloc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.import-compte-defaut-bloc label {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+/* Le même bloc, mais imbriqué dans le panneau de preset (compte lié au
+   preset) : il s'y confondrait avec le fond du panneau, qui est le même. */
+.preset-panel .import-compte-defaut-bloc {
+  background: var(--bg-surface-alt);
+  margin: 1rem 0 0;
+}
+
+.preset-panel .import-compte-defaut-bloc select {
+  background: var(--bg-surface);
+}
+
+.import-compte-defaut-bloc select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  min-width: 220px;
+}
+
+/* Option de configuration hors <form> (les règles form input/select ne
+   s'appliquent donc pas) : même rendu que le verrou de doublons. */
+.import-option-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* Barre d'actions de l'aperçu : "Tout sélectionner" à gauche, l'action
+   destructrice repoussée à l'autre bord pour éviter le clic réflexe. */
+.actions.barre-selection {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1.5rem;
+  margin-bottom: 1rem;
+  border: 2px dashed var(--text-muted);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.import-dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--bg-surface-hover);
+}
+
+.import-dropzone .hint {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.import-dropzone-bouton {
+  display: block;
+  margin: 0 auto;
+  width: fit-content;
+  min-width: 320px;
+  padding: 1.15rem 2.5rem;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.import-dropzone-nom {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.import-mappings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.import-mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+}
+
+.import-mapping-row .import-mapping-nom {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.import-mapping-row select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  min-width: 220px;
+}
+
+/* ---------- Groupes en cartes empilées (page Comptes) ----------
+
+   Un bloc par groupe, les uns sous les autres : le groupe porte l'information
+   commune (ici le type de compte), qui cesse donc de se répéter sur chaque
+   ligne. Et comme le groupe EST cette information, y déposer une ligne suffit à
+   la changer. */
+.groupe-carte {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.groupe-carte-titre {
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Hauteur minimale : un groupe vide doit rester une cible de dépôt visible et
+   atteignable à la souris, sinon on ne pourrait jamais y amener la première
+   ligne. */
+.groupe-carte-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.groupe-carte-vide {
+  padding: 0.25rem 0.25rem 0;
+}
+
+.import-mapping-row.dragging {
+  opacity: 0.4;
+}
+
+.import-mapping-row[draggable="true"] {
+  cursor: grab;
+}
+
+.import-mapping-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Colonnes secondaires d'une ligne de compte : elles n'ont plus de tableau pour
+   les aligner, une largeur fixe rend la lecture verticale malgré tout. */
+.compte-ligne-monnaies {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  min-width: 5rem;
+}
+
+.compte-ligne-solde {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-align: right;
+  min-width: 9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Galerie de correspondances (page Règles) ----------
+
+   Des colonnes verticales côte à côte, façon galerie Notion : chaque catégorie
+   de l'app est une colonne, les libellés bancaires qu'elle recouvre sont ses
+   cartes. Beaucoup plus dense qu'un empilement vertical, et le classement
+   complet tient à l'écran. */
+.galerie {
+  display: grid;
+  /* Quatre colonnes tant que la largeur le permet : chaque colonne fait au
+     moins un quart de la ligne (gouttières déduites), ce qui interdit d'en
+     tenir cinq. En dessous de 13 rem utiles, la grille en place moins et passe
+     à la ligne suivante. */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(13rem, calc((100% - 3 * 0.75rem) / 4)), 1fr)
+  );
+  /* Rangées d'un pixel : chaque colonne s'étend ensuite sur autant de rangées
+     que sa hauteur l'exige (`grid-row-end: span N`, posé par
+     ajusterHauteursGalerie). Sans ça, toutes les colonnes d'une même rangée
+     s'alignent sur la plus haute — une colonne à quinze libellés creusait un
+     trou vertical sous ses trois voisines, et déplacer une carte n'y changeait
+     rien. La grille native ne sait pas empiler ainsi (le `masonry` CSS n'est
+     pas disponible partout), d'où le calcul en JavaScript. */
+  grid-auto-rows: 1px;
+  gap: 0.75rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.galerie-colonne {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.galerie-colonne-titre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.galerie-compteur {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.galerie-colonne-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  min-height: 3rem;
+}
+
+.galerie-carte {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  cursor: grab;
+}
+
+.galerie-carte:active {
+  cursor: grabbing;
+}
+
+.galerie-carte.dragging {
+  opacity: 0.4;
+}
+
+.galerie-carte-nom {
+  flex: 1;
+  /* Un libellé bancaire peut être très long : il passe à la ligne plutôt que
+     d'élargir la colonne et de casser la grille. */
+  overflow-wrap: anywhere;
+}
+
+/* Une indication qui n'informe plus mais AVERTIT : la configuration en cours
+   ne sera pas acceptée telle quelle (sélection de doublons sans aucune
+   colonne). Reste une `hint` — même place, même taille — la couleur suffit à
+   la distinguer. */
+.hint.erreur-hint {
+  color: var(--error-text);
+}
+
+/* D'où vient le libellé bancaire (compte lié au preset, à défaut le preset) :
+   en retrait par l'italique et la couleur secondaire, parce qu'il ne sert qu'à
+   départager deux libellés voisins — ce qu'on lit, c'est le libellé. */
+.mapping-provenance {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
+/* Poubelle de suppression : discrète au repos, elle ne doit pas concurrencer le
+   libellé, qui est l'information utile. */
+.galerie-carte-supprimer {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 0 0.1rem;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.galerie-carte-supprimer:hover {
+  color: var(--danger, #e66767);
+}
+
+.galerie-colonne-vide {
+  font-size: 0.78rem;
+  padding: 0.15rem;
+}
+
+/* Champ de saisie sur une ligne de correspondance (cours d'un titre suivi,
+   page Placements financiers) : même habillage que le select ci-dessus, mais
+   nettement plus étroit — il ne reçoit qu'un nombre. */
+.import-mapping-row input[type="number"] {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  width: 8rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.import-resultat-carte {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-card);
+}
+
+.import-resultat-carte .kpi-valeur {
+  font-size: 1.5rem;
+}
+
+.import-lignes-ignorees {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.import-lignes-ignorees li {
+  margin-bottom: 0.2rem;
+}
+
+.import-config-index {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.import-config-index input {
+  width: 4.5rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+}
+
+/* Une ligne de configuration : la propriété d'abord (c'est elle qu'on cherche
+   du regard), puis le numéro de colonne qu'on lui affecte, puis l'œil. Le sens
+   de lecture suit la question posée — « la Date, je la prends où ? » — au lieu
+   de commencer par un numéro qui ne veut encore rien dire. */
+.import-config-ligne .import-config-propriete {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+/* Colonne éteinte : lisible, mais visiblement hors-jeu. Elles sont regroupées
+   sous les colonnes lues (cf. renderImportConfig), ce qui rend la
+   configuration réelle lisible d'un bloc. */
+.import-config-ligne.inactive {
+  background: transparent;
+  border-style: dashed;
+}
+
+/* L'EXTINCTION NE PASSE PLUS PAR UN `opacity` SUR LA LIGNE, et c'est le point :
+   `opacity` s'applique au sous-arbre entier, l'infobulle de la propriété
+   comprise. Une bulle rendue à 55 % laisse voir au travers le tableau qui la
+   suit et devient illisible — alors que c'est justement sur une propriété qu'on
+   n'utilise pas encore qu'on a le plus besoin de lire à quoi elle sert. Rien ne
+   permet de l'y soustraire depuis un descendant : `opacity` se compose, un
+   enfant ne peut pas remonter au-dessus de son parent. `opacity` ouvre en plus
+   un contexte d'empilement dont le `z-index: 40` de la bulle survolée ne peut
+   pas sortir, ce qui la faisait passer SOUS les lignes voisines.
+   Le libellé est donc éteint par sa COULEUR (l'infobulle porte la sienne, elle
+   ne l'hérite pas), et l'opacité réservée aux deux éléments sans bulle. */
+.import-config-ligne.inactive .import-config-propriete {
+  color: var(--text-muted);
+}
+
+.import-config-ligne.inactive .import-config-index,
+.import-config-ligne.inactive .import-config-oeil {
+  opacity: 0.55;
+}
+
+.import-config-ligne.inactive .import-config-index {
+  color: var(--text-muted);
+}
+
+/* L'œil remplace le couple "+ Ajouter" / "Supprimer" : toutes les propriétés
+   ont leur ligne, il n'y a plus qu'à dire lesquelles sont lues. Discret par
+   défaut, il s'éclaire au survol — c'est le seul geste de cette liste. */
+/* `.bouton-oeil` est la forme générique, `.import-config-oeil` le premier
+   endroit qui s'en est servi : l'œil de l'onglet Catégories (visibilité sur le
+   dashboard) doit être exactement le même bouton, sans quoi deux gestes
+   identiques n'auraient pas la même tête d'un écran à l'autre. */
+.import-config-oeil,
+.bouton-oeil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  min-width: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.import-config-oeil:hover:not(:disabled),
+.bouton-oeil:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-surface-alt);
+  border-color: var(--border);
+}
+
+.import-config-oeil:disabled,
+.bouton-oeil:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Ligne écartée de l'import sans que rien ne soit à corriger (refusée par la
+   banque) : un ton neutre, pas le rouge d'une erreur — il n'y a rien à réparer,
+   seulement à constater. */
+.badge-ecartee {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  margin-left: 0.3rem;
+  white-space: nowrap;
+}
+
+/* ---------- Configuration avancée d'un preset d'import ---------- */
+
+/* Repliée par défaut : elle ne concerne que les relevés qui décrivent une
+   opération sur plusieurs colonnes chiffrées (Wise), et l'imposer à tous
+   noierait la configuration ordinaire. Le résumé à côté du titre évite
+   qu'une configuration active reste invisible une fois la section refermée. */
+.config-avancee {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 0.2rem 1rem;
+  margin: 1.2rem 0;
+}
+
+.config-avancee > summary {
+  cursor: pointer;
+  padding: 0.7rem 0;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  user-select: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.config-avancee[open] > summary {
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 0.8rem;
+}
+
+/* Le repli de PREMIER niveau de la page Import (« Configuration du fichier »)
+   remplace un <h3> : son bandeau garde donc le poids d'un titre de section,
+   là où le repli imbriqué (« Configuration avancée ») reste secondaire. */
+.config-fichier > summary {
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.config-fichier > .config-avancee {
+  background: none;
+}
+
+.config-avancee-resume {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.config-avancee h4 {
+  margin-top: 1.2rem;
+}
+
+/* ---------- Vérification d'un solde (diagnostic d'écart) ---------- */
+
+.verif-solde-panneau {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.verif-solde-champs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.verif-solde-champs label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.verif-solde-champs select,
+.verif-solde-champs input {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  min-width: 11rem;
+}
+
+/* Les trois soldes en regard : c'est la lecture qui décide de tout le reste,
+   elle passe donc avant la liste des pistes. */
+.verif-solde-bilan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 1rem 0;
+  margin-top: 0.8rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.verif-solde-ok {
+  border-left-color: var(--positif);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--positif);
+}
+
+.verif-solde-pistes {
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.verif-solde-piste {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-surface-alt);
+}
+
+.verif-solde-explication {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.verif-solde-operations {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+/* Une opération par ligne, colonnes alignées d'une piste à l'autre : c'est ce
+   qui permet de balayer la liste sans relire chaque champ. */
+.verif-solde-operation {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto 7rem;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  font-size: 0.86rem;
+}
+
+.verif-solde-op-date {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.verif-solde-op-montant {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.verif-solde-op-sens {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 700px) {
+  .verif-solde-operation {
+    grid-template-columns: 1fr auto;
+  }
+  .verif-solde-op-sens {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Colonne d'action de l'historique d'imports : l'annulation est destructrice,
+   elle se range donc au bord opposé des chiffres qu'on vient lire, hors du
+   chemin du regard. */
+.import-historique-action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.import-historique-action button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+/* Réglages de lecture en dernier recours (délimiteur, séparateur décimal) :
+   un champ par ligne, comme les couples label/select du reste du panneau
+   d'import plutôt qu'un formulaire en grille -- il n'y en a que deux. */
+.import-reglage-champ {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.6rem 0;
+}
+
+.import-reglage-champ label {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  min-width: 11rem;
+}
+
+.import-reglage-champ select,
+.import-reglage-champ input[type="text"] {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.import-reglage-champ input[type="text"] {
+  width: 4rem;
+  text-align: center;
+}
+
+.import-mapping-row input[type="text"] {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  min-width: 12rem;
+}
+
+/* Mots-clés de la colonne « Sens », saisis en une ligne séparée par des
+   virgules : quelques mots courts, pas de quoi justifier une liste à puces. */
+.sens-libelles-champ {
+  margin-bottom: 0.9rem;
+}
+
+.sens-libelles-champ > label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+.sens-libelles-champ input[type="text"] {
+  width: 100%;
+  max-width: 26rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.sens-libelles-champ .hint {
+  margin: 0.25rem 0 0;
+}
+
+/* Un rattachement que l'app a fait seule : rien à décider, donc ni menu ni
+   bouton — de quoi vérifier, pas de quoi agir. */
+.import-mapping-lecture-seule {
+  color: var(--text-secondary);
+}
+
+.import-mapping-cible {
+  font-size: 0.85rem;
+}
+
+/* Ce que la configuration laisse d'ambigu sans être faux : un montant reçu ou
+   des frais lus sans leur devise. Ton d'avertissement, distinct du rouge d'une
+   erreur — rien n'est bloqué ici, mais l'hypothèse retenue doit être vue. */
+.import-avertissements {
+  margin: 0.8rem 0;
+}
+
+.import-avertissement {
+  border-left: 3px solid var(--badge-remboursable-text);
+  background: rgba(234, 179, 8, 0.08);
+  color: var(--badge-remboursable-text);
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  margin: 0 0 0.4rem;
+}
+
+.import-mapping-confirmer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Chaque ligne doublon (même format de tableau que les autres sections) est
+   suivie de la ligne déjà en base suspectée, en lecture seule : distinguées
+   par un léger changement de fond, séparées des paires suivantes par un
+   trait pointillé sous la ligne existante. */
+.import-doublon-nouvelle td {
+  background: var(--bg-surface);
+}
+
+.import-doublon-existante td {
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  border-bottom: 1px dashed var(--border);
+}
+
+/* Le suspect d'un doublon de VIREMENT n'est pas une ligne de fichier mais une
+   transaction : une phrase sur toute la largeur, et non des colonnes qu'on
+   n'aurait pas de quoi remplir. Le liseré orange la rattache visuellement au
+   message qui l'a annoncée. */
+.import-doublon-virement td {
+  border-left: 3px solid var(--badge-remboursable-text);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.7rem;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---------- Édition inline de l'aperçu d'import ---------- */
+
+tr.ligne-apercu-edition {
+  background: var(--bg-surface-hover);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+tr.ligne-apercu-edition > td {
+  vertical-align: middle;
+  padding: 0.5rem;
+}
+
+/* Le nombre de colonnes de l'entête varie selon la sous-section (catégorie
+   d'opération) ; la ligne en édition fusionne toutes les colonnes de données
+   en une seule cellule (colspan) pour rester correctement alignée quelle que
+   soit la sous-section d'origine — pratique aussi puisque les champs affichés
+   changent avec le type d'opération choisi (catégorie libre ou non, un seul
+   compte ou émetteur/récepteur). */
+.ligne-edition-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.ligne-edition-form label,
+.ligne-edition-champ label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.ligne-edition-champ {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.ligne-edition-form input,
+.ligne-edition-form select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  min-width: 8rem;
+}
+
+.ligne-edition-form textarea {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.ligne-edition-form input:focus,
+.ligne-edition-form select:focus,
+.ligne-edition-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Amortissement et Notes passent la ligne : ce sont les deux seuls champs de
+   ce formulaire qui ne décrivent pas la transaction mais ce qu'on en fait, et
+   les laisser s'intercaler entre compte et monnaie brouillait la lecture des
+   champs qu'on vient vérifier en priorité. */
+.ligne-edition-amortissement,
+.ligne-edition-notes {
+  flex-basis: 100%;
+}
+
+.ligne-edition-amortissement {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* La case et son libellé sur une seule ligne, contrairement aux <label> en
+   colonne du reste du formulaire. */
+.ligne-edition-form label.case-a-cocher {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.ligne-edition-form label.case-a-cocher input[type="checkbox"] {
+  min-width: auto;
+  margin: 0;
+}
+
+.ligne-edition-amortissement-champs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.ligne-edition-notes textarea {
+  width: 100%;
+}
+
+tr.ligne-apercu-edition td:has(> button) {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+/* Sélecteur de compte avec option "- À choisir -" (cf. creerChampCompteAvecIndice). */
+.champ-compte-indice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Mois + année en deux listes déroulantes (cf. creerChampMoisAnnee). Le mois
+   prend la place qu'il lui faut (« Septembre » est long), l'année la sienne,
+   qui ne varie pas — d'où une largeur fixe pour elle et le reste au mois. */
+.champ-mois-annee {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.champ-mois-annee .champ-mois {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
+/* `min-width` explicite : le formulaire d'édition de l'aperçu d'import impose
+   8 rem à tous ses champs (cf. .ligne-edition-form input), ce qui suffirait à
+   faire déborder la paire mois + année de sa cellule. */
+.champ-mois-annee .champ-annee {
+  flex: 0 0 5.5rem;
+  min-width: 0;
+}
+
+/* ---------- Règles de catégorisation ---------- */
+
+.regle-carte {
+  display: flex;
+  align-items: stretch;
+  gap: 0.9rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.6rem;
+}
+
+/* L'ordre est la sémantique de la fonctionnalité (première règle qui
+   correspond gagne) : le rang est donc affiché, pas seulement implicite. */
+.regle-carte-ordre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 2.2rem;
+}
+
+/* Poignée de glissement : la carte entière est déplaçable, mais c'est elle qui
+   le dit — sans repère visuel, personne n'essaie de glisser une carte. */
+.regle-poignee {
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: grab;
+}
+
+.regle-carte[draggable="true"] {
+  cursor: grab;
+}
+
+.regle-carte-glissee {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+/* Où la carte va atterrir. Un trait franc plutôt qu'un fond : il se lit sans
+   ambiguïté entre deux cartes, là où une surbrillance laisse hésiter entre
+   « au-dessus » et « en dessous ». */
+.regle-carte-cible-avant {
+  box-shadow: inset 0 3px 0 0 var(--accent-light);
+}
+
+.regle-carte-cible-apres {
+  box-shadow: inset 0 -3px 0 0 var(--accent-light);
+}
+
+.regle-rang {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.regle-carte-corps {
+  flex: 1;
+  min-width: 0;
+}
+
+.regle-carte-titre {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.regle-carte-conditions,
+.regle-carte-action {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.regle-carte-action {
+  color: var(--accent-light);
+}
+
+.regle-carte-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Une règle inactive reste lisible mais visiblement hors circuit. */
+.regle-inactive {
+  opacity: 0.55;
+}
+
+.regle-editeur {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.3rem;
+  margin-top: 1rem;
+}
+
+.regle-champ-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.regle-champ-ligne > label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  min-width: 11rem;
+}
+
+/* Ces contrôles vivent hors <form> : ils doivent porter leur propre style (les
+   règles `form input`/`form select` ne s'y appliquent pas).
+   `.regle-champ-ligne` est nommée d'après l'éditeur de règles, mais la page
+   Import la réutilise pour le mode de comparaison des doublons : là-bas, hors
+   `.regle-editeur`, le menu se retrouvait au style natif du navigateur, seul
+   contrôle de toute l'application à ne pas suivre le thème. */
+.regle-editeur input[type="text"],
+.regle-editeur select,
+.regle-champ-ligne input[type="text"],
+.regle-champ-ligne input[type="number"],
+.regle-champ-ligne select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.regle-editeur input[type="text"]:focus,
+.regle-editeur select:focus,
+.regle-champ-ligne input:focus,
+.regle-champ-ligne select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.regle-groupe {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.6rem;
+  background: var(--bg-surface-alt);
+}
+
+.regle-groupe-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.regle-groupe-titre {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.regle-groupe-entete label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.regle-condition {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0;
+}
+
+.regle-condition-champs {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.regle-champ-case {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.regle-condition input[type="text"] {
+  flex: 1;
+  min-width: 9rem;
+}
+
+/* Badge de traçabilité dans l'aperçu d'import : indique quelle règle a
+   classé la ligne (distinct des badges d'état OK / à confirmer). */
+.badge-regle {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  margin-left: 0.3rem;
+  white-space: nowrap;
+  background: rgba(91, 155, 251, 0.15);
+  color: var(--accent-light);
+}
+
+/* ---------- Visualisation du fichier importé ---------- */
+
+/* Un relevé a souvent 12+ colonnes et des centaines de lignes : le tableau
+   défile dans son propre conteneur, dans les deux sens, plutôt que d'élargir
+   toute la page ou de la faire dérouler sur des milliers de pixels.
+
+   La hauteur est bornée à 30 lignes (plus l'en-tête) : exactement ce que le
+   serveur renvoyait quand il tronquait à 30, pour que la vue garde la taille
+   qu'elle avait toujours eue. Le fichier entier est désormais là, accessible
+   en défilant (cf. services/import_bancaire.construire_apercu_fichier).
+
+   2.25rem est la hauteur d'une ligne à ce corps de texte (0.8rem + les
+   paddings de `th, td`) : la borne suit donc le nombre de lignes voulu, pas un
+   nombre de pixels choisi au hasard. */
+.apercu-fichier-defilement {
+  --apercu-lignes-visibles: 5;
+  overflow: auto;
+  max-height: calc((var(--apercu-lignes-visibles) + 1) * 2.25rem);
+  margin-bottom: 0.5rem;
+}
+
+.apercu-fichier-defilement table {
+  margin-bottom: 0;
+  min-width: 100%;
+  width: auto;
+}
+
+/* L'en-tête reste visible pendant le défilement vertical : sans lui, savoir à
+   quelle propriété correspond la colonne qu'on regarde demanderait de remonter
+   à chaque fois. La couleur de fond doit être OPAQUE (les lignes passent
+   dessous) : les teintes de propriété sont donc posées par-dessus, en
+   `background-image` — voir plus bas. */
+.apercu-fichier-defilement thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-surface-alt);
+}
+
+.apercu-fichier-defilement th,
+.apercu-fichier-defilement td {
+  white-space: nowrap;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+}
+
+.apercu-col-num {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Une couleur par propriété : repérer d'un coup d'œil qu'une colonne est
+   décalée est tout l'intérêt de cette vue. Teintes reprises des jetons
+   existants pour rester dans la palette de l'app.
+
+   Posées en `background-image` et non en `background` : la teinte est
+   translucide, et l'en-tête étant collant (voir plus haut), il lui faut une
+   `background-color` opaque en dessous — que le raccourci `background`
+   écraserait. Les deux couches se superposent, le rendu est identique. */
+.apercu-fichier-defilement th.col-date,
+.apercu-fichier-defilement td.col-date {
+  background-image: linear-gradient(rgba(91, 155, 251, 0.12), rgba(91, 155, 251, 0.12));
+  color: var(--accent-light);
+}
+
+.apercu-fichier-defilement th.col-nature,
+.apercu-fichier-defilement td.col-nature {
+  background-image: linear-gradient(rgba(74, 222, 128, 0.1), rgba(74, 222, 128, 0.1));
+  color: var(--positif);
+}
+
+/* Les trois montants partagent la même famille chromatique : ce sont trois
+   faces de la même transaction. Le montant (ce qui arrive) est le plus appuyé,
+   le montant envoyé plus clair, les frais discrets — ils ne sont qu'une part
+   de l'un des deux. */
+.apercu-fichier-defilement th.col-montant,
+.apercu-fichier-defilement td.col-montant {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.12), rgba(251, 146, 60, 0.12));
+  color: var(--depense);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Les deux moitiés d'un montant scindé sont le montant : même teinte pleine
+   que « Montant », dont elles prennent la place. */
+.apercu-fichier-defilement th.col-montant_debit,
+.apercu-fichier-defilement td.col-montant_debit,
+.apercu-fichier-defilement th.col-montant_credit,
+.apercu-fichier-defilement td.col-montant_credit {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.12), rgba(251, 146, 60, 0.12));
+  color: var(--depense);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-fichier-defilement th.col-montant_initial,
+.apercu-fichier-defilement td.col-montant_initial {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.08), rgba(251, 146, 60, 0.08));
+  color: var(--depense);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-fichier-defilement th.col-frais,
+.apercu-fichier-defilement td.col-frais {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.05), rgba(251, 146, 60, 0.05));
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-fichier-defilement th.col-categorie_banque,
+.apercu-fichier-defilement td.col-categorie_banque {
+  background-image: linear-gradient(rgba(234, 179, 8, 0.12), rgba(234, 179, 8, 0.12));
+  color: var(--badge-remboursable-text);
+}
+
+.apercu-fichier-defilement th.col-compte_banque,
+.apercu-fichier-defilement td.col-compte_banque {
+  background-image: linear-gradient(rgba(124, 58, 237, 0.14), rgba(124, 58, 237, 0.14));
+  color: #a78bfa;
+}
+
+/* Les trois devises, dans une teinte distincte des montants qu'elles
+   qualifient — et dégradée comme eux, dans le même ordre. */
+.apercu-fichier-defilement th.col-monnaie,
+.apercu-fichier-defilement td.col-monnaie {
+  background-image: linear-gradient(rgba(45, 212, 191, 0.12), rgba(45, 212, 191, 0.12));
+  color: #5eead4;
+}
+
+.apercu-fichier-defilement th.col-monnaie_initiale,
+.apercu-fichier-defilement td.col-monnaie_initiale {
+  background-image: linear-gradient(rgba(45, 212, 191, 0.08), rgba(45, 212, 191, 0.08));
+  color: #5eead4;
+}
+
+.apercu-fichier-defilement th.col-monnaie_frais,
+.apercu-fichier-defilement td.col-monnaie_frais {
+  background-image: linear-gradient(rgba(45, 212, 191, 0.05), rgba(45, 212, 191, 0.05));
+  color: var(--text-secondary);
+}
+
+/* Le sens, juste à côté du montant dont il porte le signe : même famille
+   chromatique que lui, en plus discret — c'est une précision sur le montant,
+   pas une donnée de plus. */
+.apercu-fichier-defilement th.col-sens,
+.apercu-fichier-defilement td.col-sens {
+  background-image: linear-gradient(rgba(248, 113, 113, 0.08), rgba(248, 113, 113, 0.08));
+  color: var(--text-secondary);
+}
+
+.apercu-fichier-defilement td.col-ignoree {
+  color: var(--text-muted);
+}
+
+/* Montant envoyé (ce qui part, écrit avant le montant qui arrive) et frais
+   rappelés dessous : secondaires par rapport au montant de l'opération, mais
+   visibles — c'est là qu'on vérifie qu'un change importé est correct. */
+.apercu-frais {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* La seconde jambe d'un virement avec change : ce qui ARRIVE, sous ce qui part.
+   Une ligne à part plutôt qu'une suite sur la même — deux montants et deux
+   devises côte à côte débordaient de la colonne. La flèche porte la lecture,
+   c'est elle qui dit que la seconde valeur découle de la première. */
+.apercu-montant-recu {
+  display: block;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Signe rappelé devant le montant quand le fichier le déclare dans une colonne
+   à part : le montant est écrit en positif, rien d'autre ne dirait qu'il sort. */
+.apercu-sens {
+  font-weight: 700;
+  margin-right: 0.15rem;
+}
+
+.apercu-sens.sortie {
+  color: var(--depense);
+}
+
+.apercu-sens.entree {
+  color: var(--positif);
+}
+
+/* L'en-tête ignoré reste visible mais barré : constater qu'il est bien exclu
+   vaut mieux que de le voir disparaître sans explication. */
+.apercu-ligne-ignoree td {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* ---------- Édition en ligne des opérations ---------- */
+
+/* Case d'ajout en tête d'onglet : volontairement discrète (grisée et
+   translucide) pour ne pas concurrencer les données, mais pleine largeur
+   pour rester la cible évidente. */
+.ajouter-operation {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  user-select: none;
+}
+
+.ajouter-operation:hover,
+.ajouter-operation:focus-visible {
+  background: rgba(59, 130, 246, 0.07);
+  border-color: var(--accent);
+  color: var(--accent-light);
+  outline: none;
+}
+
+/* Ligne d'édition insérée dans le tableau : le formulaire garde sa grille,
+   le liseré d'accent signale où l'on se trouve dans la liste. */
+.operation-edition-row > td {
+  background: var(--bg-surface-alt);
+  box-shadow: inset 4px 0 0 var(--accent);
+  padding: 1rem 1.15rem;
+}
+
+.operation-edition-row:hover > td {
+  background: var(--bg-surface-alt);
+}
+
+.operation-edition-row h3 {
+  margin-top: 0;
+}
+
+/* Signale que la ligne est éditable au double-clic sans ajouter de bruit
+   visuel permanent. */
+#section-operations tbody tr:not(.operation-edition-row) {
+  cursor: default;
+}
+
+/* ---------- Infobulles ---------- */
+
+/* Pastille d'information à côté d'un titre : déplace les explications longues
+   hors du flux, sans les perdre. CSS pur (pas de JS, pas de dépendance) --
+   il n'existait aucun système d'infobulle dans l'app. */
+.info-bulle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+  vertical-align: middle;
+  text-transform: none;
+  letter-spacing: 0;
+  /* Ancre du positionnement de la bulle, qui déborde largement. */
+  z-index: 1;
+}
+
+.info-bulle:hover,
+.info-bulle:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  outline: none;
+  z-index: 40;
+}
+
+.info-bulle::after {
+  content: attr(data-info);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 22rem;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  /* Masquée sans display:none, pour garder une transition possible et
+     rester lisible par les lecteurs d'écran. */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease-out, visibility 0.12s;
+  pointer-events: none;
+}
+
+.info-bulle:hover::after,
+.info-bulle:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Près du bord gauche, la bulle centrée sortirait de l'écran. */
+.info-bulle.info-bulle-gauche::after {
+  left: 0;
+  transform: none;
+}
+
+/* Bulle à PLUSIEURS PARAGRAPHES (les propriétés de la configuration avancée,
+   cf. INFOS_PROPRIETES_IMPORT). Les sauts de ligne du texte sont rendus tels
+   quels, ce que `white-space: normal` écraserait : ils séparent ce que la
+   propriété EST de ce qu'elle change, et c'est ce qui rend ces textes longs
+   lisibles d'un coup d'œil au lieu d'un pavé. Un peu plus large et un peu plus
+   aéré, pour la même raison. */
+.info-bulle.info-bulle-texte::after {
+  white-space: pre-line;
+  max-width: 26rem;
+  padding: 0.7rem 0.85rem;
+}
+
+/* ---------- Recherche dans la page ---------- */
+
+/* Repliée sur sa loupe tant qu'on ne s'en sert pas : une barre de recherche
+   permanente en haut d'une application de budget occuperait de la place pour
+   un usage occasionnel. Ctrl+F la déplie de n'importe où. */
+/* Posée juste après le sélecteur de langue (cf. .outils-globaux), à droite du
+   titre : chercher dans la page et changer de langue portent tous deux sur
+   l'application entière, avant la navigation entre pages. Dépliée, le champ
+   pousse la navigation vers la droite — rien ne saute, la barre étant déjà en
+   flex. */
+.recherche {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Boutons au trait, en gris : la loupe et les deux chevrons sont des SVG qui
+   héritent de `color` (cf. ICONE_LOUPE / ICONE_CHEVRON_* dans app.js), au même
+   ton que l'œil et la poubelle du reste de l'app. */
+.recherche button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.recherche button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+.recherche button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Les chevrons n'apparaissent qu'avec des correspondances (cf.
+   majBoutonsNavigation) : deux boutons inertes à côté d'un champ vide ne
+   feraient qu'encombrer une barre déjà repliée par défaut. */
+.recherche-navigation {
+  display: none;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.recherche-navigation button {
+  padding: 0.25rem 0.3rem;
+}
+
+/* La transition porte sur la largeur seule : le champ garde son padding, donc
+   sa hauteur, et la barre de navigation ne tressaute pas à l'ouverture. */
+.recherche input {
+  width: 0;
+  padding: 0.35rem 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: width 0.15s ease-out, padding 0.15s ease-out;
+}
+
+.recherche input:focus {
+  outline: none;
+}
+
+.recherche.recherche-ouverte input,
+.recherche input:focus {
+  width: 15rem;
+  padding: 0.35rem 0.55rem;
+  border-color: var(--border);
+}
+
+.recherche.recherche-ouverte input:focus {
+  border-color: var(--accent);
+}
+
+.recherche-resultat {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Une correspondance. Fond jaune sourd et texte inchangé : le surlignage doit
+   se repérer d'un coup d'œil sans rendre le montant ou le libellé moins
+   lisibles qu'ils ne l'étaient — le but est de retrouver la ligne, pas de la
+   remplacer par une tache de couleur. */
+mark.recherche-marque {
+  background: rgba(234, 179, 8, 0.28);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Celle où l'on se trouve, parmi toutes les autres : c'est elle que les
+   chevrons ont amenée au centre de l'écran, et sans distinction visuelle on ne
+   saurait pas laquelle des douze marques jaunes on vient d'atteindre. */
+mark.recherche-marque-courante {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+/* ---------- Bloc-notes du dashboard ---------- */
+
+.note-dashboard {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Ni bordure ni fond : la carte les porte déjà, et un cadre dans un cadre
+   ferait ressembler un pense-bête à un formulaire. La hauteur est pilotée en JS
+   (cf. ajusterHauteurNoteDashboard) — d'où `resize: none` et `overflow: hidden`,
+   qui empêchent la barre de défilement de réapparaître entre deux ajustements. */
+.note-dashboard textarea {
+  width: 100%;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  resize: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.note-dashboard textarea:focus {
+  outline: none;
+}
+
+.note-dashboard textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* L'état d'enregistrement, discret par construction : il ne doit se remarquer
+   que lorsqu'il annonce un échec. */
+.note-dashboard-etat {
+  min-height: 1.1rem;
+  margin-top: 0.4rem;
+  text-align: right;
+  font-size: 0.75rem;
+}
+
+/* ---------- Bulle « pourquoi ce bouton est-il désactivé ? » ---------- */
+
+/* Un bouton `disabled` ne reçoit aucun événement souris : ni :hover, ni tooltip
+   natif. La raison du blocage est donc portée par ce conteneur, qui l'entoure et
+   reste, lui, survolable. Sans data-info (rien ne bloque), il ne fait rien : pas
+   de bulle vide au survol d'un bouton actif. */
+.bulle-blocage {
+  position: relative;
+  display: inline-flex;
+  z-index: 1;
+}
+
+.bulle-blocage:hover {
+  z-index: 40;
+}
+
+.bulle-blocage[data-info]::after {
+  content: attr(data-info);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 26rem;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-line;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease-out, visibility 0.12s;
+  pointer-events: none;
+}
+
+.bulle-blocage[data-info]:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ---------- Regroupement par jour (page Opérations) ---------- */
+
+/* Un seul tableau par sous-section : l'en-tête de colonnes n'apparaît qu'en
+   haut, et chaque journée est introduite par une ligne pleine largeur. Les
+   colonnes restent ainsi alignées d'un jour à l'autre.
+
+   La journée se signale par sa date suivie d'un filet qui court jusqu'au bout
+   de la ligne, sans fond ni bordure : un repère, pas un bandeau. C'est l'espace
+   au-dessus et en dessous qui fait le gros du travail de séparation. */
+/* Le fond de la PAGE, pas celui du tableau : la bande de date se lit alors
+   comme une respiration entre deux blocs d'opérations plutôt que comme une
+   ligne du tableau. Même forme qu'avant (date + filet), seule la couleur
+   change — c'est elle qui fait la séparation. */
+.jour-separateur td {
+  background: var(--bg-page);
+  border: none;
+  padding: 0;
+}
+
+/* Le séparateur ne réagit pas au survol : ce n'est pas une opération. */
+.jour-separateur:hover td {
+  background: var(--bg-page);
+}
+
+/* Le retrait latéral disparaît : la bande doit toucher les deux bords du
+   tableau pour le trancher franchement, sinon deux liserés de la couleur du
+   tableau subsistent de part et d'autre et la coupure ne se lit plus. */
+.jour-separateur-contenu {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 0.75rem 0.9rem;
+}
+
+/* La première journée de la liste n'a rien au-dessus d'elle à séparer : lui
+   réserver autant d'espace ne ferait que décoller le tableau de son en-tête. */
+.jour-groupe:first-of-type .jour-separateur-contenu {
+  padding-top: 0.75rem;
+}
+
+.jour-separateur-date {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Le filet occupe tout ce qui reste après la date. */
+.jour-separateur-trait {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* CHAQUE JOURNÉE EST UN BLOC, LE TABLEAU N'EN EST PLUS UN.
+ *
+ * Le tableau ordinaire est une carte d'un seul tenant : un fond, un cadre, des
+ * coins arrondis. La bande de date, peinte à la couleur de la PAGE, tranchait
+ * bien ce fond — mais les deux bords verticaux du cadre, eux, la traversaient
+ * de part en part. Ces deux traits de 1 px reliaient visuellement la journée du
+ * dessus à celle du dessous, et la date se lisait comme une ligne au milieu
+ * d'un bloc continu plutôt que comme ce qui les sépare.
+ *
+ * Le cadre et le fond passent donc du TABLEAU aux CELLULES : chaque journée
+ * devient un bloc autonome, aux quatre coins arrondis, et il ne reste plus rien
+ * pour enjamber la bande de date. Une journée d'une seule opération arrondit
+ * ses quatre coins d'un coup, les deux règles s'appliquant à la même ligne.
+ *
+ * Le rayon vit sur les CELLULES et non sur les lignes : `border-radius` reste
+ * sans effet sur un <tr>, quel que soit le mode de fusion des bordures. */
+.table-operations {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.table-operations td {
+  background: var(--bg-surface);
+}
+
+/* Le fond passant sur les cellules, le survol doit les viser aussi : posé sur
+   la ligne, il resterait caché dessous. Deux lignes en sont exclues — la bande
+   de date, qui n'est pas une opération, et la ligne d'édition, qui garde le
+   fond du formulaire qu'elle contient. */
+.table-operations tbody tr:not(.operation-edition-row):not(.jour-separateur):hover td {
+  background: var(--bg-surface-hover);
+}
+
+/* Le fond propre de la ligne d'édition, reposé ici : à spécificité égale avec
+   la règle de cellule ci-dessus, c'est l'ordre du fichier qui tranche, et elle
+   est déclarée bien plus haut. */
+.table-operations .operation-edition-row > td {
+  background: var(--bg-surface-alt);
+}
+
+/* L'en-tête garde ses coins hauts : c'est lui qui coiffe la colonne, et le
+   tableau n'a plus de cadre pour le faire. */
+.table-operations thead th:first-child {
+  border-top-left-radius: var(--radius);
+}
+
+.table-operations thead th:last-child {
+  border-top-right-radius: var(--radius);
+}
+
+/* Première opération de la journée (celle qui suit la bande de date). */
+.table-operations .jour-separateur + tr td:first-child {
+  border-top-left-radius: var(--radius);
+}
+
+.table-operations .jour-separateur + tr td:last-child {
+  border-top-right-radius: var(--radius);
+}
+
+/* Dernière opération de la journée. */
+.table-operations .jour-groupe tr:last-child td:first-child {
+  border-bottom-left-radius: var(--radius);
+}
+
+.table-operations .jour-groupe tr:last-child td:last-child {
+  border-bottom-right-radius: var(--radius);
+}
+
+/* La bande de date ne porte aucun fond de cellule : c'est la page qui doit
+   s'y voir, sinon le bloc du dessus et celui du dessous restent collés. */
+.table-operations .jour-separateur td,
+.table-operations .jour-separateur:hover td {
+  background: var(--bg-page);
+}
+
+/* Le liseré d'état (dépense remboursable, prêt) était un `box-shadow` intérieur
+   posé sur la LIGNE : les cellules devenues opaques le recouvraient. Il passe
+   sur la première cellule, seule à toucher le bord gauche du bloc — et suit
+   ainsi son coin arrondi au lieu de dépasser en angle droit. */
+.table-operations tr.tr-aucun td:first-child {
+  box-shadow: inset 4px 0 0 var(--badge-remboursable-text);
+}
+
+.table-operations tr.tr-partiel td:first-child {
+  box-shadow: inset 4px 0 0 var(--badge-pret-text);
+}
+
+.table-operations tr.tr-total td:first-child {
+  box-shadow: inset 4px 0 0 var(--badge-ok-text);
+}
+
+/* Formulaire de création : hors tableau (il y a un tableau par jour, et
+   parfois aucun), encadré pour rester visuellement rattaché à l'onglet. */
+.operation-edition-encadre {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin-bottom: 1.1rem;
+}
+
+.operation-edition-encadre h3 {
+  margin-top: 0;
+}
+
+/* ---------- Panneau des extensions (Paramètres) ---------- */
+
+.extension-carte {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 0.7rem;
+  transition: opacity 0.15s;
+}
+
+/* Une extension éteinte reste lisible mais visiblement en retrait : c'est
+   ainsi qu'on repère d'un coup d'œil ce qui est allumé sans lire chaque case. */
+.extension-carte.inactive {
+  opacity: 0.55;
+}
+
+.extension-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.extension-nom {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.extension-version {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.extension-badge-dev {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--badge-remboursable-bg);
+  color: var(--badge-remboursable-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* La bascule est poussée au bord opposé du nom : c'est la colonne qu'on
+   parcourt du regard quand on cherche ce qui est actif. */
+.extension-bascule {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.extension-description {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}

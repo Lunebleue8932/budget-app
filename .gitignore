@@ -1,0 +1,58 @@
+# ---------- DONNÉES : rien de tout cela ne doit partir sur GitHub ----------
+#
+# Le dépôt publie du CODE, jamais des données. Une base « de test » contient
+# quand même des noms de comptes et des opérations, et un dépôt privé partagé
+# à des testeurs reste un dépôt partagé — une fois poussé, un fichier reste
+# dans l'historique même après suppression.
+#
+# La règle est donc large et négative : AUCUN .db, où qu'il soit. L'application
+# recrée une base vide au premier lancement, personne n'a besoin de la tienne.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Copies horodatées prises avant chaque reconstruction (cf. construire.sh).
+desktop/sauvegardes/
+
+# Journal écrit quand l'application ne parvient pas à démarrer : contient une
+# trace d'exécution avec des chemins locaux.
+erreur.log
+backend/*.log
+
+# ---------- VERSION DÉVELOPPEUR ----------
+#
+# Extensions réservées au développement : présentes sur cette machine, jamais
+# publiées. C'est cette ligne qui fait tenir la promesse « la version dev n'est
+# pas sur GitHub » — le code des extensions dev n'existe simplement pas dans le
+# dépôt distant, il n'est pas seulement désactivé.
+extensions-dev/
+
+# ---------- ENVIRONNEMENTS ET CACHES PYTHON ----------
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ---------- SORTIES DE CONSTRUCTION ----------
+# Régénérables : desktop/construire.sh, desktop/platforms/windows/construire.ps1,
+# ou le workflow .github/workflows/build.yml.
+desktop/build/
+desktop/dist/
+desktop/dist_nouveau/
+*.spec.bak
+
+# ---------- DIVERS SYSTÈME ET ÉDITEURS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+
+# Scripts de mise au point jetables, laissés à la racine du backend.
+backend/_debug*.py

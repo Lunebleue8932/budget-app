@@ -1,0 +1,23 @@
+[Desktop Entry]
+# Entrée de menu freedesktop — c'est ELLE qui donne à l'application son nom,
+# son icône et sa place dans le menu sous Linux : contrairement à Windows
+# (icône incrustée dans l'exécutable) et à macOS (Info.plist du bundle), rien
+# de tout cela ne peut vivre dans le binaire ELF lui-même.
+#
+# Installation (cf. installer.sh à côté) : copier ce fichier dans
+# ~/.local/share/applications/ après avoir remplacé les deux chemins ci-dessous
+# par ceux de l'application réellement installée.
+Type=Application
+Version=1.0
+Name=Budget App
+GenericName=Gestionnaire de budget
+Comment=Suivi de budget personnel, entièrement hors ligne
+# Remplacés à l'installation par le chemin réel (cf. installer.sh).
+Exec=__CHEMIN_EXECUTABLE__
+Icon=__CHEMIN_ICONE__
+Terminal=false
+Categories=Office;Finance;
+Keywords=budget;finance;comptes;dépenses;
+# Doit correspondre à la classe WM de la fenêtre pour que le bureau regroupe
+# l'application sous cette icône plutôt que sous une entrée générique.
+StartupWMClass=Budget App

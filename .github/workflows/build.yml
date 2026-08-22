@@ -1,0 +1,162 @@
+# Construit Budget App pour les trois systèmes et publie les archives.
+#
+# POURQUOI EN INTÉGRATION CONTINUE PLUTÔT QU'À LA MAIN. PyInstaller ne sait pas
+# compiler pour un autre système que celui sur lequel il tourne : il embarque
+# l'interpréteur Python et les bibliothèques natives de la machine hôte. Un
+# exécutable Linux ne peut donc être produit que sur Linux, un .app que sur
+# macOS. Sans machine de chaque système sous la main, la CI EST la seule façon
+# de produire les trois — d'où ce fichier.
+#
+# Déclenchement :
+#   - `git tag v1.0.0 && git push --tags` -> construit les trois et crée une
+#     Release GitHub avec les trois archives attachées ;
+#   - manuellement (onglet Actions > Run workflow) -> construit les trois et
+#     laisse les archives en artefacts, sans créer de Release.
+name: Construire les applications
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # nécessaire pour créer la Release et y attacher les archives
+
+jobs:
+  construire:
+    name: ${{ matrix.nom }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Un système qui échoue ne doit pas annuler les deux autres : mieux vaut
+      # deux applications livrables et un échec à corriger que rien du tout.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nom: Windows
+            archive: budget-app-windows
+          - os: ubuntu-latest
+            nom: Linux
+            archive: budget-app-linux
+          - os: macos-latest
+            nom: macOS
+            archive: budget-app-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Même version que l'environnement de développement : PyInstaller
+          # embarque l'interpréteur, une version différente changerait ce qui
+          # est livré à l'utilisateur.
+          python-version: "3.14"
+
+      # pywebview a besoin d'un moteur de rendu, fourni par le système sur
+      # Windows (WebView2) et macOS (WebKit) mais pas sur Linux : GTK et
+      # WebKit2GTK doivent y être installés explicitement. C'est la seule
+      # dépendance système du projet, et la raison pour laquelle le README
+      # Linux demande à l'utilisateur de l'installer aussi.
+      - name: Dépendances système (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository1.0-dev gir1.2-webkit2-4.1 \
+            libcairo2-dev python3-gi python3-gi-cairo
+
+      - name: Dépendances Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pyinstaller pywebview
+
+      # Les trois formats sont produits depuis n'importe quel système (encodeurs
+      # écrits en bibliothèque standard) : chaque runner régénère le sien plutôt
+      # que de dépendre d'un binaire commité.
+      - name: Générer les icônes
+        run: python desktop/generer_icone.py
+
+      # UNE SEULE COMMANDE POUR LES TROIS SYSTÈMES : c'est la spec qui lit la
+      # plateforme courante et en tire icône, options et bundle
+      # (cf. desktop/platforms/). Rien à brancher ici.
+      - name: Construire
+        run: python -m PyInstaller desktop/budget_app.spec --noconfirm --distpath desktop/dist --workpath desktop/build
+
+      # Vérification minimale mais réelle : le bundle contient-il ce sans quoi
+      # l'application ne démarre pas ? Une construction « réussie » à laquelle
+      # il manque les migrations produit un exécutable qui plante au premier
+      # lancement, chez l'utilisateur et pas ici.
+      - name: Vérifier le bundle
+        shell: bash
+        run: |
+          set -eu
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            racine="desktop/dist/Budget App.app"
+          else
+            racine="desktop/dist/Budget App"
+          fi
+          # `find` plutôt qu'un chemin exact : PyInstaller range les données
+          # sous _internal/ (Windows, Linux) mais sous Contents/Frameworks ou
+          # Contents/Resources selon sa version pour un bundle .app, avec des
+          # liens symboliques entre les deux. Ce qui compte est que le fichier
+          # soit là, pas l'endroit exact où cette version l'a mis.
+          for requis in "env.py" "index.html"; do
+            if [ -z "$(find "$racine" -name "$requis" -print -quit)" ]; then
+              echo "Bundle incomplet : $requis introuvable sous $racine" >&2
+              exit 1
+            fi
+          done
+          echo "Bundle complet."
+
+      - name: Archiver
+        shell: bash
+        run: |
+          cd desktop/dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a -tzip "../../${{ matrix.archive }}.zip" "Budget App"
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            # -y : préserve les liens symboliques, dont un bundle .app est
+            # rempli (frameworks). Les suivre produirait une archive énorme
+            # et une application que macOS refuse d'ouvrir.
+            zip -ry "../../${{ matrix.archive }}.zip" "Budget App.app"
+          else
+            zip -ry "../../${{ matrix.archive }}.zip" "Budget App"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}.zip
+
+  publier:
+    name: Publier la Release
+    needs: construire
+    runs-on: ubuntu-latest
+    # Seulement sur un tag : un lancement manuel sert à vérifier que la
+    # construction passe, pas à publier une version.
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: archives
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: archives/*.zip
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            Télécharge l'archive de ton système, décompresse-la où tu veux
+            (un dossier où tu peux écrire — pas « Program Files »), et lance
+            **Budget App**.
+
+            | Système | Archive | À savoir |
+            |---|---|---|
+            | Windows | `budget-app-windows.zip` | Rien à installer |
+            | macOS | `budget-app-macos.zip` | Application non signée : au premier lancement, **clic droit > Ouvrir** |
+            | Linux | `budget-app-linux.zip` | Nécessite WebKit2GTK (voir le README) |
+
+            L'application fonctionne **entièrement hors ligne** : aucune donnée
+            ne quitte ta machine.

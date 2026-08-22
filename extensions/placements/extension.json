@@ -1,0 +1,16 @@
+{
+  "nom": "Placements financiers",
+  "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "js": ["placements.js"]
+  },
+  "navigation": {
+    "type": "page",
+    "section": "placements",
+    "libelle": "Placements financiers",
+    "position": 3
+  }
+}
