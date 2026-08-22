@@ -105,6 +105,43 @@ if [ -d "$STAGING/data_conserve" ]; then
 fi
 rm -rf -- "$STAGING"
 
+# CE QUI FAIT DE CE BUNDLE UNE VERSION DÉVELOPPEUR.
+#
+# Les extensions ne sont plus embarquées dans l'exécutable (cf.
+# budget_app.spec) : une version publiée arrive avec un dossier `extensions/`
+# vide, à charge pour l'utilisateur d'y déposer ce qu'il télécharge.
+#
+# Une construction LOCALE, elle, sert à essayer ce qu'on est en train
+# d'écrire : les extensions du dépôt sont donc recopiées à côté de
+# l'exécutable, `extensions-dev/` comprise. C'est la seule différence entre ce
+# bundle et celui que produit la CI.
+#
+# macOS : les extensions vont dans Contents/MacOS, à côté du binaire — c'est
+# là que l'application les cherche (cf. extensions._racine_projet, qui part de
+# sys.executable), et là que `data/` se crée déjà.
+if [ "$(uname -s)" = "Darwin" ]; then
+    RACINE_EXEC="$BUNDLE/Contents/MacOS"
+else
+    RACINE_EXEC="$BUNDLE"
+fi
+
+for nom in extensions extensions-dev; do
+    [ -d "$RACINE/$nom" ] || continue
+    mkdir -p -- "$RACINE_EXEC/$nom"
+    for chemin in "$RACINE/$nom"/*/; do
+        [ -d "$chemin" ] || continue
+        ext=$(basename -- "$chemin")
+        # Remplacement dossier par dossier : une extension déposée à la main
+        # dans le bundle n'a pas à disparaître à chaque reconstruction.
+        rm -rf -- "$RACINE_EXEC/$nom/$ext"
+        cp -R -- "$chemin" "$RACINE_EXEC/$nom/$ext"
+        # Les caches Python du dépôt référencent les chemins de la machine de
+        # développement : ils n'ont rien à faire dans un bundle.
+        find "$RACINE_EXEC/$nom/$ext" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+        echo "Extension installée : $nom/$ext"
+    done
+done
+
 # Mise à niveau du schéma des bases présentes à côté de l'exécutable.
 if [ -d "$DATA" ]; then
     for fichier in "$DATA"/*.db; do

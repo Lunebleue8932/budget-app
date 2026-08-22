@@ -95,6 +95,37 @@ Copy-Item (Join-Path $Neuf "_internal") $Bundle -Recurse -Force
 Get-ChildItem -Path $Neuf -File | ForEach-Object { Copy-Item $_.FullName $Bundle -Force }
 Remove-Item $Staging -Recurse -Force
 
+# CE QUI FAIT DE CE BUNDLE UNE VERSION DÉVELOPPEUR.
+#
+# Les extensions ne sont plus embarquées dans l'exécutable (cf.
+# budget_app.spec) : une version publiée arrive avec un dossier `extensions/`
+# vide, à charge pour l'utilisateur d'y déposer ce qu'il télécharge.
+#
+# Une construction LOCALE, elle, sert à essayer ce qu'on est en train
+# d'écrire : les extensions du dépôt sont donc recopiées à côté de
+# l'exécutable, `extensions-dev/` comprise. C'est la seule différence entre ce
+# bundle et celui que produit la CI — et c'est ce qui rend les outils de
+# développement (« Base de données ») accessibles ici et nulle part ailleurs.
+foreach ($nom in @("extensions", "extensions-dev")) {
+    $source = Join-Path $Racine $nom
+    if (-not (Test-Path $source)) { continue }
+    $cible = Join-Path $Bundle $nom
+    New-Item -ItemType Directory -Force -Path $cible | Out-Null
+    foreach ($ext in Get-ChildItem -Path $source -Directory) {
+        # Remplacement dossier par dossier, et non du dossier entier : une
+        # extension déposée à la main dans le bundle (pour essayer une archive
+        # publiée, par exemple) n'a pas à disparaître à chaque reconstruction.
+        $destination = Join-Path $cible $ext.Name
+        if (Test-Path $destination) { Remove-Item $destination -Recurse -Force }
+        Copy-Item $ext.FullName $destination -Recurse -Force
+        # Les caches Python du dépôt n'ont rien à faire dans un bundle : ils
+        # référencent les chemins de la machine de développement.
+        Get-ChildItem -Path $destination -Filter "__pycache__" -Recurse -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+        Write-Host "Extension installée : $nom\$($ext.Name)"
+    }
+}
+
 # Mise à niveau du schéma des bases présentes à côté de l'exe.
 foreach ($base in Get-ChildItem -Path $Data -Filter *.db -ErrorAction SilentlyContinue) {
     $env:BUDGET_DB_PATH = $base.FullName

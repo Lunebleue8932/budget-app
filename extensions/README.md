@@ -22,6 +22,14 @@ vide et l'utilisateur y dépose ce qu'il télécharge. Une extension se distribu
 donc en archive séparée — c'est ce que produit le job `extensions` de
 `.github/workflows/build.yml`, une archive par dossier.
 
+**Sauf en construction locale.** `desktop/construire.sh` et
+`desktop/platforms/windows/construire.ps1` recopient les extensions du dépôt
+— `extensions-dev/` comprise — à côté de l'exécutable produit. C'est la seule
+différence entre un bundle construit chez soi et celui que publie la CI, et
+c'est ce qui rend les outils de développement accessibles pendant qu'on écrit
+le code. Un dossier déposé à la main dans le bundle n'est pas effacé pour
+autant : le remplacement se fait extension par extension.
+
 ```
 extensions/
   mon-extension/
