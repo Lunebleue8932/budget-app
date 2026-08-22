@@ -42,14 +42,16 @@ donnees = [
     (str(BACKEND / "alembic"), "alembic"),
 ]
 
-# Extensions, si le dépôt en contient. Conditionnel et non inconditionnel :
-# le dossier est absent d'une copie qui n'en installe aucune, et PyInstaller
-# échoue sur un chemin de données inexistant. C'est aussi ce qui permet à la
-# version développeur (extensions non publiées) de se construire avec la même
-# spec, sans ligne à décommenter.
-for dossier_extensions in (RACINE / "extensions", RACINE / "extensions-dev"):
-    if dossier_extensions.is_dir():
-        donnees.append((str(dossier_extensions), dossier_extensions.name))
+# LES EXTENSIONS NE SONT PAS EMBARQUÉES, et c'est délibéré. L'application est
+# livrée sans aucune : l'utilisateur télécharge celles qu'il veut et les dépose
+# dans le dossier `extensions/` créé À CÔTÉ de l'exécutable au premier
+# lancement (cf. app/extensions.py::preparer_dossiers).
+#
+# Les embarquer ici les extrairait sous sys._MEIPASS, un dossier temporaire
+# recréé à chaque lancement : elles y seraient en lecture seule, invisibles
+# pour l'utilisateur, et impossibles à compléter par les siennes. Le dossier
+# livré doit donc rester vide, y compris pour la version développeur —
+# `extensions-dev/` ne part jamais dans un binaire.
 
 # Linux n'incruste pas d'icône dans le binaire (le format ELF n'a pas de
 # section pour ça) : elle est copiée à côté et référencée par le .desktop.

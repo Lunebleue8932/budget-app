@@ -55,13 +55,41 @@ DOSSIERS = (
 def _racine_projet() -> Path:
     """Où chercher les dossiers d'extensions.
 
-    En application packagée, ils sont embarqués comme données du bundle et
-    extraits sous `sys._MEIPASS` (cf. desktop/budget_app.spec, qui les ajoute
-    conditionnellement). En développement, ils sont à la racine du dépôt, à
-    côté de `backend/`."""
+    À CÔTÉ DE L'EXÉCUTABLE en application packagée, jamais dans le bundle.
+    C'est le point qui rend les extensions installables : `sys._MEIPASS` est un
+    dossier temporaire, extrait à chaque lancement et effacé à la fermeture —
+    une extension qu'on y déposerait disparaîtrait avec lui, et de toute façon
+    l'utilisateur n'a aucun moyen de trouver ce dossier. Même raisonnement que
+    pour la base de données (cf. database._dossier_donnees_par_defaut), qui vit
+    à côté de l'exe pour survivre à une mise à jour de l'application.
+
+    En développement, la racine du dépôt, à côté de `backend/`."""
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS)
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[2]
+
+
+def preparer_dossiers() -> Path:
+    """Crée le dossier `extensions/` s'il manque, et rend son chemin.
+
+    L'application est livrée SANS AUCUNE EXTENSION : c'est à l'utilisateur d'y
+    déposer celles qu'il veut. Encore faut-il que le dossier existe pour qu'il
+    le trouve — un dossier absent se lit comme « cette version ne prend pas les
+    extensions », alors qu'il ne manque qu'un endroit où les mettre.
+
+    Seul `extensions/` est créé, jamais `extensions-dev/` : celui-là n'a de
+    sens que sur une machine de développement, et le voir apparaître dans une
+    installation ordinaire ne ferait qu'inviter à y déposer des choses qui n'y
+    ont pas leur place."""
+    dossier = _racine_projet() / "extensions"
+    try:
+        dossier.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Installation en lecture seule (bundle macOS dans /Applications, dossier
+        # sans droit d'écriture) : l'application doit démarrer quand même, elle
+        # n'aura simplement aucune extension à découvrir.
+        pass
+    return dossier
 
 
 class Extension:

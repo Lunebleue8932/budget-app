@@ -3137,3 +3137,93 @@ mark.recherche-marque-courante {
   color: var(--text-secondary);
   line-height: 1.5;
 }
+
+/* ---------- Boîte de dialogue modale ---------- */
+
+/* Le défilement de la page est gelé tant qu'une modale est ouverte : sans
+   cela, la molette fait glisser le contenu grisé derrière elle, ce qui donne
+   l'impression que le clic est passé au travers. */
+body.modale-ouverte {
+  overflow: hidden;
+}
+
+/* Le fond grise et neutralise toute la page : c'est lui qui dit qu'il faut
+   répondre avant de continuer. `position: fixed` et non `absolute` — la page
+   défile, la modale doit rester au centre de l'écran quoi qu'il arrive. */
+.modale-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(6, 8, 13, 0.72);
+  /* Le flou renforce la mise en retrait sans assombrir davantage : le contenu
+     derrière reste reconnaissable, il cesse simplement d'être lisible. */
+  backdrop-filter: blur(2px);
+}
+
+.modale {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  padding: 1.5rem 1.7rem;
+  max-width: 32rem;
+  width: 100%;
+  /* Une liste d'extensions inattendue peut être longue : elle défile dans la
+     modale plutôt que de la faire déborder de l'écran. */
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modale h2 {
+  margin: 0 0 0.7rem;
+  font-size: 1.15rem;
+}
+
+.modale-texte {
+  margin: 0 0 0.8rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.modale-liste {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.modale-liste li {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.modale-liste .modale-extension-nom {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modale-liste .modale-extension-version {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  margin-left: 0.4rem;
+}
+
+/* L'action principale à droite, la sortie à gauche : c'est l'ordre des boîtes
+   de dialogue du système sur les trois plateformes visées. */
+.modale-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}

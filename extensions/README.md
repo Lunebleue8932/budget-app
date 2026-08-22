@@ -4,6 +4,24 @@ Une extension est un **dossier autonome**. Le déposer ici l'ajoute à
 l'application ; le retirer l'en retire, sans laisser une ligne dans le code du
 noyau.
 
+## Où vit ce dossier
+
+Selon qu'on développe ou qu'on utilise l'application :
+
+| | Emplacement de `extensions/` |
+|---|---|
+| **Développement** | à la racine du dépôt, à côté de `backend/` |
+| **Application installée** | **à côté de l'exécutable**, avec `data/` |
+
+Jamais à l'intérieur du bundle : celui-ci est extrait dans un dossier
+temporaire à chaque lancement, une extension qu'on y déposerait disparaîtrait
+à la fermeture (cf. `app/extensions.py::_racine_projet`).
+
+Les extensions **ne sont pas livrées** avec l'application : le dossier arrive
+vide et l'utilisateur y dépose ce qu'il télécharge. Une extension se distribue
+donc en archive séparée — c'est ce que produit le job `extensions` de
+`.github/workflows/build.yml`, une archive par dossier.
+
 ```
 extensions/
   mon-extension/

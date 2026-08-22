@@ -363,6 +363,15 @@ const TRADUCTIONS = {
     "Import": "Import",
     "Base de donn\u00e9es": "Database",
 
+    // ---------- Modale d'annonce des extensions trouv\u00e9es au lancement ----------
+    "Extensions d\u00e9tect\u00e9es": "Extensions detected",
+    "Une extension a \u00e9t\u00e9 trouv\u00e9e dans le dossier \u00ab extensions \u00bb et charg\u00e9e :":
+      "One extension was found in the \u201cextensions\u201d folder and loaded:",
+    "{n} extensions ont \u00e9t\u00e9 trouv\u00e9es dans le dossier \u00ab extensions \u00bb et charg\u00e9es :":
+      "{n} extensions were found in the \u201cextensions\u201d folder and loaded:",
+    "Fermer": "Close",
+    "Aller au menu extensions": "Go to the extensions menu",
+
     // ---------- Param\u00e8tres : extensions ----------
     "Extensions": "Extensions",
     "Une extension ajoute une fonctionnalit\u00e9 \u00e0 l'application. La d\u00e9sactiver masque son \u00e9cran et ferme ses routes, mais ne supprime aucune donn\u00e9e : tout r\u00e9appara\u00eet intact \u00e0 la r\u00e9activation.":

@@ -44,9 +44,38 @@ def _creer_extension(racine, dossier, identifiant, manifeste=None, **fichiers):
 
 
 def test_aucune_extension_ne_casse_rien(faux_projet):
-    """Le cas d'une installation minimale : les dossiers existent mais sont
-    vides. C'est un état normal, pas une panne."""
+    """LE CAS PAR DÉFAUT, pas un cas limite : l'application est livrée sans
+    aucune extension, le dossier arrive vide et le reste tant que l'utilisateur
+    n'y dépose rien."""
     assert extensions.decouvrir() == {}
+
+
+def test_le_dossier_extensions_est_cree_s_il_manque(faux_projet):
+    """L'application est livrée SANS extension mais AVEC le dossier : un
+    dossier absent se lirait comme « cette version n'en accepte pas », alors
+    qu'il ne manque qu'un endroit où les déposer."""
+    import shutil
+
+    shutil.rmtree(faux_projet / "extensions")
+    assert not (faux_projet / "extensions").exists()
+
+    dossier = extensions.preparer_dossiers()
+
+    assert dossier.is_dir()
+    # `extensions-dev/` n'est jamais créé : il n'a de sens que sur une machine
+    # de développement.
+    assert dossier.name == "extensions"
+
+
+def test_preparer_les_dossiers_est_idempotent(faux_projet):
+    """Appelé à chaque démarrage : un dossier déjà là ne doit ni lever ni être
+    vidé."""
+    (faux_projet / "extensions" / "temoin.txt").write_text("x", encoding="utf-8")
+
+    extensions.preparer_dossiers()
+    extensions.preparer_dossiers()
+
+    assert (faux_projet / "extensions" / "temoin.txt").is_file()
 
 
 def test_decouvre_les_deux_dossiers_et_distingue_leur_type(faux_projet):

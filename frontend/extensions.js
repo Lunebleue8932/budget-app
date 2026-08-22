@@ -198,6 +198,85 @@ function majVisibiliteNavigation(id, actif) {
 window.BudgetApp.extensions.majVisibilite = majVisibiliteNavigation;
 
 /**
+ * Annonce les extensions trouvées au lancement.
+ *
+ * POURQUOI CETTE ANNONCE EXISTE. L'application est livrée SANS aucune
+ * extension : le dossier `extensions/` arrive vide, et c'est l'utilisateur qui
+ * y dépose ce qu'il télécharge. En trouver au démarrage n'est donc jamais
+ * banal — c'est la confirmation que ce qu'il vient d'installer a bien été vu,
+ * et le seul moment où l'on peut le lui dire avant qu'il aille le chercher.
+ *
+ * À CHAQUE LANCEMENT, sans mémoire de ce qui a déjà été annoncé : rien n'est
+ * enregistré ici. La modale répond à « qu'est-ce qui est chargé aujourd'hui »,
+ * pas à « qu'y a-t-il de nouveau », et elle disparaît d'elle-même le jour où
+ * le dossier redevient vide.
+ */
+function afficherModaleExtensions(extensions) {
+  if (extensions.length === 0) return;
+
+  const fond = document.getElementById("modale-extensions");
+  document.getElementById("modale-extensions-texte").textContent =
+    extensions.length === 1
+      ? t("Une extension a été trouvée dans le dossier « extensions » et chargée :")
+      : t("{n} extensions ont été trouvées dans le dossier « extensions » et chargées :", {
+          n: extensions.length,
+        });
+
+  document.getElementById("modale-extensions-liste").innerHTML = extensions
+    .map(
+      (e) => `<li>
+        <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
+        ${e.version ? `<span class="modale-extension-version">v${escapeHtml(e.version)}</span>` : ""}
+      </li>`
+    )
+    .join("");
+
+  fond.style.display = "";
+  // La page derrière ne doit plus défiler : une molette au-dessus d'une modale
+  // fait sinon glisser le contenu grisé, ce qui donne l'impression que le clic
+  // est passé au travers.
+  document.body.classList.add("modale-ouverte");
+  // Le focus part sur l'action principale : Entrée mène alors au menu des
+  // extensions, et Tab circule dans la modale plutôt que dans la page grisée
+  // derrière.
+  document.getElementById("btn-modale-extensions-aller").focus();
+}
+
+function fermerModaleExtensions() {
+  document.getElementById("modale-extensions").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+}
+
+document
+  .getElementById("btn-modale-extensions-fermer")
+  .addEventListener("click", fermerModaleExtensions);
+
+document.getElementById("btn-modale-extensions-aller").addEventListener("click", () => {
+  fermerModaleExtensions();
+  switchSection("parametres");
+  // Le clic sur l'onglet plutôt qu'un appel direct : c'est lui qui porte à la
+  // fois l'affichage de la sous-page et le chargement de ses données (cf. les
+  // deux gestionnaires délégués de app.js).
+  document
+    .querySelector('#parametres-sous-nav button[data-sous-section="parametres-extensions"]')
+    ?.click();
+});
+
+// Clic sur le fond (hors de la boîte) et Échap : les deux sorties qu'on essaie
+// d'instinct sur une modale. Rien n'est perdu en fermant — l'information reste
+// dans Paramètres → Extensions.
+document.getElementById("modale-extensions").addEventListener("click", (e) => {
+  if (e.target.id === "modale-extensions") fermerModaleExtensions();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("modale-extensions").style.display !== "none") {
+    fermerModaleExtensions();
+  }
+});
+
+/**
  * Charge toutes les extensions. Appelé une fois, au démarrage de app.js,
  * AVANT le premier rendu : une extension qui ajoute un écran doit avoir posé
  * son bouton avant que l'utilisateur ne regarde la barre de navigation.
@@ -213,6 +292,7 @@ async function chargerExtensions() {
     return;
   }
 
+  const abouties = [];
   for (const manifeste of extensions) {
     extensionsChargees.set(manifeste.id, { manifeste, chargeur: null });
     const fichiers = manifeste.frontend || {};
@@ -227,8 +307,16 @@ async function chargerExtensions() {
       for (const js of fichiers.js || []) {
         await chargerJs(manifeste.id, js);
       }
+      abouties.push(manifeste);
     } catch (err) {
       console.error(`Extension ${manifeste.id} : ${err.message}`);
     }
   }
+
+  // APRÈS la boucle, et seulement les ABOUTIES : la modale se veut la
+  // confirmation que ce qui a été déposé est en place. Une extension dont les
+  // fichiers manquent a échoué juste au-dessus — l'annoncer comme chargée
+  // enverrait chercher un écran qui n'existe pas. Son erreur, elle, reste
+  // visible dans Paramètres → Extensions.
+  afficherModaleExtensions(abouties);
 }

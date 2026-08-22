@@ -60,6 +60,9 @@ def _monter_extensions() -> list[str]:
     AVANT le montage statique du frontend plus bas : celui-ci capte `/` et
     tout ce qui suit, un routeur ajouté après lui ne serait jamais atteint.
     """
+    # Le dossier d'accueil d'abord : livré vide, il doit exister pour que
+    # l'utilisateur sache où déposer ce qu'il télécharge.
+    extensions_noyau.preparer_dossiers()
     problemes = []
     for extension_id, extension in extensions_noyau.decouvrir().items():
         routeur, erreur = extensions_noyau.charger_routeur(extension)

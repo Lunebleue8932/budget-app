@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=69" />
+  <link rel="stylesheet" href="style.css?v=71" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -72,6 +72,26 @@
   </header>
 
   <div id="toast-container"></div>
+
+  <!-- Signale les extensions trouvées dans le dossier `extensions/` au
+       lancement. L'application est livrée SANS aucune extension : en trouver
+       est donc un événement, qui mérite d'être dit une fois plutôt que laissé
+       à découvrir dans un onglet de réglages.
+       Masquée par défaut ; affichée par app.js seulement si le scan a trouvé
+       quelque chose (cf. afficherModaleExtensions). -->
+  <div id="modale-extensions" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-extensions-titre">
+      <h2 id="modale-extensions-titre">Extensions détectées</h2>
+      <p class="modale-texte" id="modale-extensions-texte"></p>
+      <ul class="modale-liste" id="modale-extensions-liste"></ul>
+      <div class="modale-actions">
+        <button type="button" id="btn-modale-extensions-fermer">Fermer</button>
+        <button type="button" class="primary" id="btn-modale-extensions-aller">
+          Aller au menu extensions
+        </button>
+      </div>
+    </div>
+  </div>
 
   <main>
     <!-- DASHBOARD -->
@@ -1193,8 +1213,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        dans switchSection, et l'appelle au démarrage. Il ne fait que DÉFINIR le
        mécanisme — le chargement effectif part de app.js, une fois `apiFetch`
        et `t()` disponibles. -->
-  <script src="i18n.js?v=19"></script>
-  <script src="extensions.js?v=2"></script>
+  <script src="i18n.js?v=20"></script>
+  <script src="extensions.js?v=4"></script>
   <script src="app.js?v=87"></script>
 </body>
 </html>

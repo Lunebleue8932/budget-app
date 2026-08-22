@@ -75,13 +75,34 @@ partout ailleurs le même code tourne sur les trois. Voir
 
 ## Extensions
 
-Une extension est un dossier autonome qui ajoute une fonctionnalité. Elle
-s'active et se désactive depuis **Paramètres → Extensions**, sans redémarrer.
+Une extension est un dossier autonome qui ajoute une fonctionnalité.
 
-**Désactiver ne supprime jamais de données** : l'écran disparaît, les routes se
-ferment, et tout réapparaît intact à la réactivation.
+**L'application est livrée sans aucune extension.** Le dossier `extensions/`
+arrive vide, à côté de l'exécutable : c'est à toi d'y déposer celles que tu
+veux. Rien n'est installé dans ton dos, et une extension que tu n'as pas
+téléchargée n'existe pas — ni son écran, ni ses routes.
 
-Livrée avec l'application :
+### Installer une extension
+
+1. télécharge son archive `extension-*.zip` depuis les
+   [Releases](../../releases) ;
+2. décompresse-la dans le dossier `extensions/`, à côté de l'exécutable ;
+3. relance l'application : elle te confirme l'avoir trouvée.
+
+```
+Budget App/
+  Budget App.exe        (ou « Budget App » sous Linux, « Budget App.app » sous macOS)
+  data/                 ta base de données
+  extensions/
+    placements/         <- le dossier décompressé
+```
+
+Une extension s'active et se désactive ensuite depuis **Paramètres →
+Extensions**, sans redémarrer. **Désactiver ne supprime jamais de données** :
+l'écran disparaît, les routes se ferment, et tout réapparaît intact à la
+réactivation.
+
+### Disponibles
 
 - **Placements financiers** — portefeuille de titres, achats/ventes,
   valorisation au dernier cours saisi.

@@ -128,9 +128,46 @@ jobs:
           name: ${{ matrix.archive }}
           path: ${{ matrix.archive }}.zip
 
+  # Les extensions sont publiées SÉPARÉMENT des applications, parce qu'elles ne
+  # sont plus embarquées dedans : l'utilisateur télécharge celles qu'il veut et
+  # les dépose dans le dossier `extensions/` créé à côté de l'exécutable.
+  #
+  # Une archive PAR extension, et non une archive commune : personne ne devrait
+  # avoir à prendre les cinq pour en installer une. Chaque archive contient le
+  # dossier de l'extension, prêt à être déposé tel quel.
+  #
+  # Un seul runner suffit : une extension est du code Python et JavaScript, sans
+  # rien de compilé — la même archive fonctionne sur les trois systèmes.
+  extensions:
+    name: Empaqueter les extensions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Archiver chaque extension
+        run: |
+          set -eu
+          mkdir -p archives-extensions
+          # `extensions-dev/` n'est pas dans le dépôt (cf. .gitignore) : rien à
+          # exclure ici, il n'y a simplement rien à trouver.
+          for dossier in extensions/*/; do
+            [ -f "$dossier/extension.json" ] || continue
+            nom=$(basename "$dossier")
+            # Les caches Python d'un éventuel test local n'ont rien à faire
+            # dans une archive distribuée.
+            (cd extensions && zip -r "../archives-extensions/extension-$nom.zip" "$nom" \
+              -x '*__pycache__*' '*.pyc')
+            echo "Archivée : extension-$nom.zip"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extensions
+          path: archives-extensions/*.zip
+
   publier:
     name: Publier la Release
-    needs: construire
+    needs: [construire, extensions]
     runs-on: ubuntu-latest
     # Seulement sur un tag : un lancement manuel sert à vérifier que la
     # construction passe, pas à publier une version.
@@ -160,3 +197,23 @@ jobs:
 
             L'application fonctionne **entièrement hors ligne** : aucune donnée
             ne quitte ta machine.
+
+            ## Extensions (facultatif)
+
+            L'application est livrée **sans aucune extension** : le dossier
+            `extensions/` arrive vide, à côté de l'exécutable.
+
+            Pour en ajouter une, télécharge son archive `extension-*.zip`
+            ci-dessous et **décompresse-la dans ce dossier `extensions/`**. Au
+            prochain lancement, l'application te confirmera l'avoir trouvée.
+
+            ```
+            Budget App/
+              Budget App.exe
+              data/
+              extensions/
+                placements/        <- le dossier décompressé
+            ```
+
+            Une extension s'active et se désactive ensuite depuis
+            **Paramètres → Extensions**. La désactiver ne supprime aucune donnée.
