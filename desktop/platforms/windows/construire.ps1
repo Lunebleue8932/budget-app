@@ -106,15 +106,27 @@ Remove-Item $Staging -Recurse -Force
 # l'exécutable, `extensions-dev/` comprise. C'est la seule différence entre ce
 # bundle et celui que produit la CI — et c'est ce qui rend les outils de
 # développement (« Base de données ») accessibles ici et nulle part ailleurs.
+# LE MARQUEUR dit « ce dossier vient du dépôt, ce script l'a posé ». Il permet
+# de retirer d'abord tout ce que la construction précédente avait installé —
+# sans quoi une extension renommée ou supprimée survivrait dans le bundle, en
+# double avec la nouvelle, et serait chargée comme si de rien n'était. Une
+# extension déposée À LA MAIN (pour essayer une archive publiée) n'a pas ce
+# marqueur : elle n'est jamais touchée.
+$Marqueur = ".installee-par-construire"
+
 foreach ($nom in @("extensions", "extensions-dev")) {
+    $cible = Join-Path $Bundle $nom
+    if (Test-Path $cible) {
+        foreach ($ancien in Get-ChildItem -Path $cible -Directory) {
+            if (Test-Path (Join-Path $ancien.FullName $Marqueur)) {
+                Remove-Item $ancien.FullName -Recurse -Force
+            }
+        }
+    }
     $source = Join-Path $Racine $nom
     if (-not (Test-Path $source)) { continue }
-    $cible = Join-Path $Bundle $nom
     New-Item -ItemType Directory -Force -Path $cible | Out-Null
     foreach ($ext in Get-ChildItem -Path $source -Directory) {
-        # Remplacement dossier par dossier, et non du dossier entier : une
-        # extension déposée à la main dans le bundle (pour essayer une archive
-        # publiée, par exemple) n'a pas à disparaître à chaque reconstruction.
         $destination = Join-Path $cible $ext.Name
         if (Test-Path $destination) { Remove-Item $destination -Recurse -Force }
         Copy-Item $ext.FullName $destination -Recurse -Force
@@ -122,6 +134,7 @@ foreach ($nom in @("extensions", "extensions-dev")) {
         # référencent les chemins de la machine de développement.
         Get-ChildItem -Path $destination -Filter "__pycache__" -Recurse -Directory -ErrorAction SilentlyContinue |
             ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+        New-Item -ItemType File -Force -Path (Join-Path $destination $Marqueur) | Out-Null
         Write-Host "Extension installée : $nom\$($ext.Name)"
     }
 }

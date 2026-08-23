@@ -125,19 +125,31 @@ else
     RACINE_EXEC="$BUNDLE"
 fi
 
+# LE MARQUEUR dit « ce dossier vient du dépôt, ce script l'a posé ». Il permet
+# de retirer d'abord tout ce que la construction précédente avait installé —
+# sans quoi une extension renommée ou supprimée survivrait dans le bundle, en
+# double avec la nouvelle, et serait chargée comme si de rien n'était. Une
+# extension déposée À LA MAIN (pour essayer une archive publiée) n'a pas ce
+# marqueur : elle n'est jamais touchée.
+MARQUEUR=".installee-par-construire"
+
 for nom in extensions extensions-dev; do
+    if [ -d "$RACINE_EXEC/$nom" ]; then
+        for ancien in "$RACINE_EXEC/$nom"/*/; do
+            [ -f "$ancien/$MARQUEUR" ] && rm -rf -- "$ancien"
+        done
+    fi
     [ -d "$RACINE/$nom" ] || continue
     mkdir -p -- "$RACINE_EXEC/$nom"
     for chemin in "$RACINE/$nom"/*/; do
         [ -d "$chemin" ] || continue
         ext=$(basename -- "$chemin")
-        # Remplacement dossier par dossier : une extension déposée à la main
-        # dans le bundle n'a pas à disparaître à chaque reconstruction.
         rm -rf -- "$RACINE_EXEC/$nom/$ext"
         cp -R -- "$chemin" "$RACINE_EXEC/$nom/$ext"
         # Les caches Python du dépôt référencent les chemins de la machine de
         # développement : ils n'ont rien à faire dans un bundle.
         find "$RACINE_EXEC/$nom/$ext" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+        : > "$RACINE_EXEC/$nom/$ext/$MARQUEUR"
         echo "Extension installée : $nom/$ext"
     done
 done
