@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=71" />
+  <link rel="stylesheet" href="style.css?v=72" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -566,7 +566,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <button type="button" data-sous-section="parametres-comptes" class="active">Comptes</button>
         <button type="button" data-sous-section="parametres-categories">Catégories</button>
         <button type="button" data-sous-section="parametres-monnaies">Monnaies</button>
-        <button type="button" data-sous-section="parametres-regles">Règles</button>
+        <button type="button" data-sous-section="parametres-correspondances">Correspondances</button>
         <button type="button" data-sous-section="parametres-import">Import</button>
         <button type="button" data-sous-section="parametres-extensions">Extensions</button>
       </div>
@@ -684,94 +684,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
 
-      <div id="sous-section-parametres-regles" class="sous-section">
-        <p class="hint">
-          Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul
-          moyen de marquer une ligne "remboursable" ou de la classer en Prêt / Remboursement sans le
-          faire à la main. Les règles sont communes à tous les presets d'import.
-        </p>
-        <p class="hint">
-          Elles sont évaluées de haut en bas : <strong>la première qui correspond gagne</strong>.
-          Place les cas particuliers au-dessus des cas généraux. Les règles passent
-          <strong>avant</strong> les correspondances mémorisées : un type reconnu ici ne peut plus
-          être défait par une correspondance de catégorie.
-        </p>
+      <!-- CORRESPONDANCES MÉMORISÉES — noyau.
 
-        <div class="actions">
-          <button type="button" class="primary" id="btn-regle-nouvelle">+ Nouvelle règle</button>
-        </div>
-
-        <div id="regles-liste"></div>
-
-        <div id="regle-editeur" class="regle-editeur" style="display:none">
-          <h3 id="regle-editeur-titre">Nouvelle règle</h3>
-          <input type="hidden" id="regle-id" />
-
-          <div class="regle-champ-ligne">
-            <label for="regle-nom">Nom de la règle</label>
-            <input type="text" id="regle-nom" placeholder="ex. Prêts reçus" />
-          </div>
-
-          <h4>Conditions</h4>
-          <p class="hint">
-            Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se
-            combinent selon leur propre connecteur. Deux niveaux suffisent à écrire
-            « (A ou B) et C ».
-          </p>
-          <div class="regle-champ-ligne">
-            <label for="regle-connecteur">Combiner les groupes avec</label>
-            <select id="regle-connecteur">
-              <option value="ET">ET (tous les groupes)</option>
-              <option value="OU">OU (au moins un groupe)</option>
-            </select>
-          </div>
-          <div id="regle-groupes"></div>
-          <div class="actions">
-            <button type="button" id="btn-regle-ajouter-groupe">+ Ajouter un groupe</button>
-          </div>
-
-          <h4>Action</h4>
-          <p class="hint">
-            Le type détermine ce qui suit : seules « Opération classique » et « Dépense
-            remboursable » laissent choisir une catégorie — les autres types imposent la leur.
-          </p>
-          <div class="regle-champ-ligne">
-            <label for="regle-type">Classer comme</label>
-            <select id="regle-type">
-              <option value="classique">Opération classique</option>
-              <option value="remboursable">Dépense remboursable</option>
-              <option value="remboursements">Remboursement reçu</option>
-              <option value="remboursement_pret">Remboursement de prêt</option>
-              <option value="pret">Prêt reçu</option>
-              <option value="virement">Virement interne</option>
-            </select>
-          </div>
-          <div class="regle-champ-ligne" id="regle-categorie-bloc">
-            <label for="regle-categorie">Dans la catégorie</label>
-            <select id="regle-categorie"><option value="">— ne pas changer —</option></select>
-          </div>
-          <p class="hint" id="regle-categorie-imposee" style="display:none"></p>
-          <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
-               Sans ce second compte, chaque ligne reconnue par la règle doit
-               être reprise à la main dans l'aperçu avant de pouvoir être
-               importée. -->
-          <div class="regle-champ-ligne" id="regle-compte-autre-bloc" style="display:none">
-            <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="Le compte qui n'apparaît pas dans le relevé : celui d'où vient l'argent si la ligne est une entrée, celui où il va si c'est une sortie. Le sens est déduit du signe du montant, tu n'as donc pas à le préciser. Sans lui, la ligne arrive incomplète dans l'aperçu et bloque l'import — et la détection des doublons de virements, qui a besoin des deux comptes, ne peut rien comparer.">i</i></label>
-            <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
-          </div>
-          <label class="import-option-ligne">
-            <input type="checkbox" id="regle-actif" checked />
-            Règle active
-          </label>
-
-          <div class="actions">
-            <button type="button" class="primary" id="btn-regle-enregistrer">Enregistrer</button>
-            <button type="button" id="btn-regle-annuler">Annuler</button>
-          </div>
-        </div>
-
-        <h3>Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info="Apprises à l'import : une fois confirmée, une catégorie ou un compte du relevé est réutilisé automatiquement les fois suivantes. Tous les presets sont réunis ici. Elles visent un libellé bancaire exact, mais elles ne décident que de la catégorie — le type, lui, vient des règles ci-dessus, évaluées avant.">i</i></h3>
-        <h4>Catégories bancaires<i class="info-bulle" tabindex="0" data-info="Tous les presets réunis : chaque libellé du relevé est rangé dans la catégorie de l'app vers laquelle il renvoie. En italique entre parenthèses, le compte dont le relevé provient — c'est ce qui distingue deux libellés de banques différentes qui portent presque le même nom (rien n'est affiché si le preset n'est lié à aucun compte). Fais glisser un libellé dans une autre colonne pour le reclasser ; il reste dans son preset d'origine. Les types sans catégorie (virement interne, prêt reçu, remboursements) ne figurent pas ici : ils sont détectés par les règles ci-dessus.">i</i></h4>
+           Elles restent ici, et non dans l'extension « Règles » : ce ne sont
+           pas des règles mais ce que l'import a RETENU d'un import précédent,
+           preset par preset. Elles servent même sans aucune règle écrite. -->
+      <div id="sous-section-parametres-correspondances" class="sous-section">
+        <h3>Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info="Apprises à l'import : une fois confirmée, une catégorie ou un compte du relevé est réutilisé automatiquement les fois suivantes. Tous les presets sont réunis ici. Elles visent un libellé bancaire exact, mais elles ne décident que de la catégorie — le type, lui, vient des règles, évaluées avant.">i</i></h3>
+        <h4>Catégories bancaires<i class="info-bulle" tabindex="0" data-info="Tous les presets réunis : chaque libellé du relevé est rangé dans la catégorie de l'app vers laquelle il renvoie. En italique entre parenthèses, le compte dont le relevé provient — c'est ce qui distingue deux libellés de banques différentes qui portent presque le même nom (rien n'est affiché si le preset n'est lié à aucun compte). Fais glisser un libellé dans une autre colonne pour le reclasser ; il reste dans son preset d'origine. Les types sans catégorie (virement interne, prêt reçu, remboursements) ne figurent pas ici : ils sont détectés par les règles.">i</i></h4>
         <div id="import-mapping-categories-liste" class="import-mappings"></div>
         <h4>Comptes bancaires<i class="info-bulle" tabindex="0" data-info="Correspondances entre les noms de compte lus dans le relevé et les comptes de l'app, tous presets réunis. Une entrée que plusieurs presets partagent à l'identique n'apparaît qu'une fois : la modifier ou la supprimer les met tous à jour.">i</i></h4>
         <div id="import-mapping-comptes-liste" class="import-mappings"></div>
@@ -1213,8 +1133,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        dans switchSection, et l'appelle au démarrage. Il ne fait que DÉFINIR le
        mécanisme — le chargement effectif part de app.js, une fois `apiFetch`
        et `t()` disponibles. -->
-  <script src="i18n.js?v=20"></script>
-  <script src="extensions.js?v=5"></script>
-  <script src="app.js?v=87"></script>
+  <script src="i18n.js?v=22"></script>
+  <script src="extensions.js?v=6"></script>
+  <script src="app.js?v=88"></script>
 </body>
 </html>

@@ -156,6 +156,14 @@ async function injecterHtml(id, fichier, navigation) {
   // l'hôte détruirait et recréerait les écrans du noyau, et avec eux tous les
   // écouteurs que app.js y a déjà posés.
   hote.insertAdjacentHTML("beforeend", html);
+
+  // TRADUIRE LE FRAGMENT QU'ON VIENT DE POSER. app.js traduit `document.body`
+  // au tout début, bien avant que les extensions ne soient lues : sans ce
+  // rappel, un écran d'extension resterait en français dans une application
+  // passée à l'anglais. La condition de sûreté de traduireDomStatique tient
+  // toujours — le fragment sort d'un fichier de l'extension, aucune donnée de
+  // l'utilisateur n'y a encore été rendue.
+  traduireDomStatique(hote.lastElementChild);
 }
 
 /**

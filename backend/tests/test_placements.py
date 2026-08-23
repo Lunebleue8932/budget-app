@@ -302,7 +302,7 @@ def test_type_titres_refuse_par_lendpoint_generique(db_session):
 
 
 def test_type_titres_refuse_dans_une_regle(db_session):
-    from app.routers import regles as routeur_regles
+    routeur_regles = charger_module_extension("regles", "routeur_regles.py")
 
     with pytest.raises(HTTPException) as erreur:
         routeur_regles._valider_action(db_session, get_type_id(db_session, "action"), None, None)

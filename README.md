@@ -137,6 +137,11 @@ ferment, et tout réapparaît intact à la réactivation.
 
 ### Disponibles
 
+- **Règles de catégorisation** — classe automatiquement les lignes d'un relevé
+  d'après leurs libellés (type d'opération, catégorie, compte en face d'un
+  virement), en vue liste ordonnée ou en vue galerie par dossiers. Sans elle,
+  les lignes importées arrivent à classer à la main ; les règles déjà écrites
+  restent en base et reprennent leur travail dès qu'on la rallume.
 - **Placements financiers** — portefeuille de titres, achats/ventes,
   valorisation au dernier cours saisi. Entièrement hors ligne.
 - **Placements financiers — cours en ligne** — se greffe sur la précédente

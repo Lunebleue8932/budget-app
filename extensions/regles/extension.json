@@ -1,0 +1,16 @@
+{
+  "nom": "Règles de catégorisation",
+  "description": "Classe automatiquement les lignes d'un relevé d'après leurs libellés : type d'opération, catégorie, compte en face d'un virement. Vue liste ordonnée ou vue galerie par dossiers. Les règles restent en base quand l'extension est éteinte — l'import cesse simplement de les consulter.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": ["regles.css"],
+    "js": ["regles.js"]
+  },
+  "navigation": {
+    "type": "parametres",
+    "sous_section": "regles",
+    "libelle": "Règles"
+  }
+}

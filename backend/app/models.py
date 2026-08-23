@@ -415,6 +415,17 @@ class Action(Base):
     nom = Column(String, nullable=False, unique=True)
     valeur = Column(Float, nullable=False, default=0.0)
     monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
+    # Page publique d'où relire le cours, et date de la dernière lecture RÉUSSIE
+    # (migration 0037). Le noyau ne s'en sert jamais : il n'émet aucune requête
+    # réseau, c'est l'extension « placements-web » qui lit ces deux colonnes.
+    # Elles vivent ici quand même, comme le reste du schéma des placements, pour
+    # que retirer l'extension ne fasse perdre aucun lien.
+    #
+    # `cours_maj_le` à NULL veut dire « jamais relu en ligne » : c'est le cas de
+    # tout titre dont le cours est saisi à la main, et le seul moyen de
+    # distinguer un cours frais d'un cours oublié.
+    url_cours = Column(String, nullable=True)
+    cours_maj_le = Column(DateTime, nullable=True)
 
     monnaie = relationship("Monnaie")
 
@@ -672,9 +683,11 @@ class RegleCategorisation(Base):
     Globale (pas de preset_id) : les mots-clés visés ("PRET", "REMBOURSEMENT",
     "REMBOURSABLE"...) ne dépendent pas de la banque, une même règle sert donc
     tous les formats. Évaluées dans l'ordre de `ordre`, la première qui
-    correspond gagne (voir services/regles_categorisation.appliquer_regles) —
-    c'est la hiérarchie qui permet de placer les cas particuliers avant les
-    cas généraux.
+    correspond pose le type (voir services/regles_categorisation) — c'est la
+    hiérarchie qui permet de placer les cas particuliers avant les cas
+    généraux. Une règle qui ne coche pas `arreter_apres` laisse l'évaluation
+    continuer : les suivantes complètent alors ce qu'elle a laissé ouvert,
+    sans jamais défaire ce qu'elle a décidé.
 
     L'action se lit en deux temps, comme dans le reste de l'app : d'abord le
     type d'opération, puis -- seulement pour les types qui l'admettent
@@ -690,6 +703,11 @@ class RegleCategorisation(Base):
     nom = Column(String, nullable=False)
     ordre = Column(Integer, nullable=False, default=0)
     actif = Column(Boolean, nullable=False, default=True)
+    # Faut-il s'arrêter là quand cette règle correspond ? Coché par défaut :
+    # c'est le comportement historique (première règle gagnante). Décoché,
+    # l'évaluation continue vers le bas, les règles suivantes ne pouvant que
+    # compléter ce qui n'a pas encore été décidé.
+    arreter_apres = Column(Boolean, nullable=False, default=True)
 
     # Action appliquée quand la règle correspond : le type d'abord, puis --
     # seulement pour les types à catégorie libre -- la catégorie. FK vers

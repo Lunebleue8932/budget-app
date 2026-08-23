@@ -665,6 +665,77 @@ class PlacementDetailRead(PlacementCompteRead):
     operations: list[OperationActionRead] = Field(default_factory=list)
 
 
+# ---------- Placements financiers : cours lus en ligne ----------
+#
+# Servent l'extension « placements-web », et elle seule — le noyau n'émet
+# aucune requête réseau. Ils vivent ici comme le reste du schéma des
+# placements : une extension ne devrait pas emporter ses données (cf.
+# extensions/README.md), sans quoi la désactiver imposerait de choisir entre
+# les perdre et refuser de s'éteindre.
+
+
+class UrlCoursUpdate(BaseModel):
+    """La page d'où relire le cours d'un titre, telle que collée par
+    l'utilisateur. Sa validité n'est pas vérifiée ici mais en l'ESSAYANT (cf.
+    l'extension) : une URL bien formée qui ne donne aucun cours est le vrai cas
+    à attraper, et aucune expression régulière ne le voit."""
+
+    url: str = Field(min_length=1)
+
+
+class SourceCoursRead(BaseModel):
+    """Une source de cotation reconnue, décrite pour l'écran."""
+
+    id: str
+    nom: str
+    exemple: str
+    couvre: str
+
+
+class CoursTitreRead(BaseModel):
+    """L'état de cotation d'un titre : son lien, son cours, sa fraîcheur.
+
+    `cours_maj_le` à None se lit « jamais relu en ligne » — cours saisi à la
+    main, ou lien ajouté mais encore jamais suivi d'une lecture réussie."""
+
+    action_id: int
+    action_nom: str
+    url_cours: Optional[str] = None
+    cours: float
+    monnaie_symbole: str
+    cours_maj_le: Optional[datetime] = None
+
+
+class ResultatCoursRead(BaseModel):
+    """Ce qu'un titre a donné lors d'un rafraîchissement.
+
+    `ancien_cours` accompagne le nouveau pour que l'écran puisse montrer le
+    mouvement : un cours qui n'a pas bougé et un cours qui vient de tomber de
+    3 % s'affichent autrement, et c'est l'information qu'on regarde."""
+
+    action_id: int
+    action_nom: str
+    ok: bool
+    cours: Optional[float] = None
+    ancien_cours: Optional[float] = None
+    source: Optional[str] = None
+    # Nom de l'instrument tel que la source le publie : la seule confirmation
+    # que le lien collé pointe bien sur le bon titre.
+    libelle_source: Optional[str] = None
+    erreur: Optional[str] = None
+
+
+class RafraichissementRead(BaseModel):
+    """Le compte rendu d'un rafraîchissement, et l'état de TOUS les titres
+    après coup — pour que l'écran se remette à jour sans second appel."""
+
+    horodatage: Optional[datetime] = None
+    reussis: int = 0
+    echecs: int = 0
+    resultats: list[ResultatCoursRead] = Field(default_factory=list)
+    titres: list[CoursTitreRead] = Field(default_factory=list)
+
+
 class ImportLigne(BaseModel):
     ligne: int  # numéro de ligne dans le fichier source, pour repérer une erreur
     date: Optional[date_type] = None
@@ -1260,6 +1331,10 @@ class RegleCategorisationBase(BaseModel):
     # type, comme categorie_id l'est déjà.
     compte_autre_id: Optional[int] = None
     actif: bool = True
+    # Faut-il cesser d'évaluer les règles quand celle-ci correspond ? True par
+    # défaut : c'est le comportement historique, et celui qu'on veut sur une
+    # règle qu'on vient d'écrire sans y réfléchir.
+    arreter_apres: bool = True
 
 
 class RegleCategorisationCreate(RegleCategorisationBase):
@@ -1277,6 +1352,7 @@ class RegleCategorisationRead(BaseModel):
     nom: str
     ordre: int
     actif: bool
+    arreter_apres: bool
     type_id: int
     # Code technique du type, pour que le frontend n'ait pas à recroiser la
     # table des types.

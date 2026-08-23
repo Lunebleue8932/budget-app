@@ -1151,6 +1151,43 @@ def update_action(
     return action
 
 
+def definir_url_cours(
+    db: Session, action: models.Action, url: Optional[str]
+) -> models.Action:
+    """Enregistre (ou retire, avec `None`) la page d'où relire le cours du titre.
+
+    Une fonction à part plutôt qu'un paramètre de plus sur `update_action` :
+    celle-ci traite `None` comme « ne change pas », convention qui rendrait
+    impossible d'EFFACER un lien. Ici `None` veut dire ce qu'il dit.
+
+    `cours_maj_le` n'est pas touché : retirer un lien n'invalide pas le dernier
+    cours lu, il cesse seulement d'être rafraîchi. Le remettre à NULL aurait
+    fait passer une valeur connue pour une valeur jamais lue.
+    """
+    action.url_cours = url
+    db.commit()
+    db.refresh(action)
+    return action
+
+
+def enregistrer_cours_en_ligne(
+    db: Session, action: models.Action, valeur: float, horodatage: datetime
+) -> models.Action:
+    """Écrit un cours relu en ligne, et date la lecture.
+
+    Les deux ensemble, jamais l'un sans l'autre : un cours sans date ne dit pas
+    s'il vaut encore quelque chose, et une date sans cours daterait une lecture
+    qui n'a rien changé. L'horodatage est passé par l'appelant (et non pris
+    ici) pour qu'un rafraîchissement de dix titres porte la MÊME date sur les
+    dix — ce qui se lit comme la seule action qu'il a été.
+    """
+    action.valeur = valeur
+    action.cours_maj_le = horodatage
+    db.commit()
+    db.refresh(action)
+    return action
+
+
 def action_est_utilisee(db: Session, action_id: int) -> bool:
     return (
         db.query(models.OperationAction)
@@ -1747,6 +1784,7 @@ def create_regle_categorisation(
     categorie_id: Optional[int] = None,
     compte_autre_id: Optional[int] = None,
     actif: bool = True,
+    arreter_apres: bool = True,
     ordre: Optional[int] = None,
 ) -> models.RegleCategorisation:
     if ordre is None:
@@ -1761,6 +1799,7 @@ def create_regle_categorisation(
         categorie_id=categorie_id,
         compte_autre_id=compte_autre_id,
         actif=actif,
+        arreter_apres=arreter_apres,
         ordre=ordre,
     )
     db.add(regle)
@@ -1782,6 +1821,7 @@ def update_regle_categorisation(
         "categorie_id",
         "compte_autre_id",
         "actif",
+        "arreter_apres",
         "ordre",
     ):
         if nom_champ in champs:

@@ -13,6 +13,10 @@ from fastapi import HTTPException
 
 from app import extensions
 
+# Ces tests portent sur l'activation elle-même : ils doivent voir l'état réel,
+# pas le « tout allumé » que conftest impose au reste de la suite.
+pytestmark = pytest.mark.extensions_reelles
+
 
 @pytest.fixture()
 def faux_projet(tmp_path, monkeypatch):
@@ -126,10 +130,66 @@ def test_une_extension_dev_ne_masque_pas_une_extension_livree(faux_projet):
 # ---------- Activation ----------
 
 
-def test_une_extension_est_active_par_defaut(faux_projet):
-    """Découvrir une extension dans les Paramètres pour l'allumer supposerait
-    de savoir qu'elle existe : c'est la désactivation qui est un choix."""
-    assert extensions.est_active("jamais-vue") is True
+def test_une_extension_est_inactive_tant_qu_on_ne_l_a_pas_allumee(faux_projet):
+    """LE DÉFAUT EST « ÉTEINTE ». Déposer un dossier ne doit pas suffire à
+    faire tourner du code : depuis « placements-web », une extension peut
+    ouvrir une connexion sortante, et décompresser une archive au mauvais
+    endroit ne peut pas valoir consentement."""
+    assert extensions.est_active("jamais-vue") is False
+
+
+def test_fermer_l_annonce_n_allume_rien(faux_projet):
+    """Le geste qui allume est la case à cocher, et lui seul. Fermer la fenêtre
+    d'annonce — bouton, Échap, clic à côté — acquitte l'annonce et rien
+    d'autre : on n'active pas quelque chose en s'en débarrassant."""
+    _creer_extension(faux_projet, "extensions", "placements")
+
+    extensions.marquer_annoncees(["placements"])
+
+    assert extensions.est_annoncee("placements") is True
+    assert extensions.est_active("placements") is False
+
+
+def test_une_extension_deja_en_service_reste_allumee_apres_mise_a_jour(faux_projet):
+    """Le rattrapage des installations d'avant l'opt-in.
+
+    Avant, être présent suffisait à tourner ; rien n'était donc écrit dans
+    `actives`. Appliquer le nouveau défaut tel quel éteindrait, à la faveur
+    d'une mise à jour, un écran dont l'utilisateur se sert tous les jours."""
+    (faux_projet / "extensions.json").write_text(
+        json.dumps({"actives": {}, "annoncees": ["placements"]}), encoding="utf-8"
+    )
+
+    extensions.rattraper_etat_avant_opt_in()
+
+    assert extensions.est_active("placements") is True
+
+
+def test_le_rattrapage_n_allume_pas_une_extension_jamais_annoncee(faux_projet):
+    """Une extension présente mais jamais annoncée est PRÉCISÉMENT la
+    nouveauté qu'on ne veut pas allumer sans être passé par la case."""
+    (faux_projet / "extensions.json").write_text(
+        json.dumps({"actives": {}, "annoncees": ["placements"]}), encoding="utf-8"
+    )
+
+    extensions.rattraper_etat_avant_opt_in()
+
+    assert extensions.est_active("placements-web") is False
+
+
+def test_le_rattrapage_ne_repasse_pas_sur_une_decision(faux_projet):
+    """Il tourne à CHAQUE démarrage : il ne doit rallumer que ce qui n'a jamais
+    été tranché, sinon une extension éteinte à la main se rallumerait toute
+    seule au lancement suivant."""
+    (faux_projet / "extensions.json").write_text(
+        json.dumps({"actives": {"placements": False}, "annoncees": ["placements"]}),
+        encoding="utf-8",
+    )
+
+    extensions.rattraper_etat_avant_opt_in()
+    extensions.rattraper_etat_avant_opt_in()
+
+    assert extensions.est_active("placements") is False
 
 
 def test_desactiver_puis_reactiver(faux_projet):
@@ -152,11 +212,12 @@ def test_l_etat_survit_a_un_redemarrage(faux_projet):
 
 
 def test_un_fichier_d_etat_abime_laisse_les_defauts(faux_projet):
-    """Mieux vaut tout allumer que tout éteindre : un fichier corrompu ne doit
-    pas faire disparaître les fonctionnalités sans explication."""
+    """Un fichier corrompu ne doit pas être lu comme une autorisation : le
+    défaut est « éteinte », et l'utilisateur rallume ce qu'il veut depuis les
+    Paramètres — geste explicite, exactement comme la première fois."""
     (faux_projet / "extensions.json").write_text("pas du JSON", encoding="utf-8")
 
-    assert extensions.est_active("placements") is True
+    assert extensions.est_active("placements") is False
 
 
 def test_l_ancien_format_du_fichier_d_etat_reste_lu(faux_projet):
@@ -254,7 +315,8 @@ def test_le_drapeau_nouvelle_est_expose_au_frontend(faux_projet):
 
 def test_la_dependance_refuse_une_extension_desactivee(faux_projet):
     dependance = extensions.exiger_extension("placements")
-    dependance()  # active par défaut : ne lève pas
+    extensions.definir_active("placements", True)
+    dependance()  # allumée : ne lève pas
 
     extensions.definir_active("placements", False)
 

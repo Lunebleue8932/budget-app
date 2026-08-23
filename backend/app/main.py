@@ -23,7 +23,6 @@ from .routers import (
     import_bancaire,
     monnaies,
     operations,
-    regles,
     types_comptes,
     types_operation,
     virements,
@@ -40,7 +39,6 @@ app.include_router(operations.router)
 app.include_router(virements.router)
 app.include_router(dashboard.router)
 app.include_router(import_bancaire.router)
-app.include_router(regles.router)
 app.include_router(extensions.router)
 
 
@@ -63,6 +61,11 @@ def _monter_extensions() -> list[str]:
     # Le dossier d'accueil d'abord : livré vide, il doit exister pour que
     # l'utilisateur sache où déposer ce qu'il télécharge.
     extensions_noyau.preparer_dossiers()
+    # Puis le rattrapage des installations d'avant l'opt-in : une extension qui
+    # tournait déjà ne doit pas s'éteindre à la faveur d'une mise à jour, sous
+    # prétexte que personne n'avait jamais eu à cocher sa case (cf.
+    # extensions.rattraper_etat_avant_opt_in). Sans effet dès le second appel.
+    extensions_noyau.rattraper_etat_avant_opt_in()
     problemes = []
     for extension_id, extension in extensions_noyau.decouvrir().items():
         routeur, erreur = extensions_noyau.charger_routeur(extension)

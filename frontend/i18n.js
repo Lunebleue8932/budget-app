@@ -355,6 +355,39 @@ const TRADUCTIONS = {
     "Cours actuel": "Current price",
     "Ajouter le titre": "Add security",
 
+    // ---------- Extension \u00ab Placements financiers \u2014 cours en ligne \u00bb ----------
+    // Greffe sur l'\u00e9cran Placements : lien de cotation par titre, bouton de mise
+    // \u00e0 jour, relecture au lancement (cf. extensions/placements-web).
+
+    "Mettre \u00e0 jour les cours": "Update prices",
+    "Lecture en cours\u2026": "Reading\u2026",
+    "Mettre \u00e0 jour": "Update",
+    "D\u00e9tacher": "Detach",
+    "Relire le cours maintenant": "Read this price now",
+    "Ne plus suivre ce cours en ligne": "Stop tracking this price online",
+    "Lien de la page de cotation (Google Finance, Yahoo Finance\u2026)":
+      "Link to the quote page (Google Finance, Yahoo Finance\u2026)",
+    "cours saisi \u00e0 la main": "price entered by hand",
+    "\u00e0 l'instant": "just now",
+    "il y a {n} min": "{n} min ago",
+    "il y a {n} h": "{n} h ago",
+    "jamais lus": "never read",
+    "derni\u00e8re lecture {quand}": "last read {quand}",
+    "{n} titre(s) suivi(s) en ligne": "{n} security(ies) tracked online",
+    "{n} en \u00e9chec": "{n} failed",
+    "{n} cours mis \u00e0 jour": "{n} prices updated",
+    "Aucun titre n'a de lien \u00e0 relire": "No security has a link to read",
+    "Aucun titre n'a de lien : ajoute-en un dans \u00ab Titres suivis \u00bb, en bas de page.":
+      "No security has a link yet: add one under \u201cTracked securities\u201d, at the bottom of the page.",
+    "Cours lu sur {source} : {nom} \u2014 {cours}": "Price read on {source}: {nom} \u2014 {cours}",
+    "Lien enregistr\u00e9": "Link saved",
+    "Lien retir\u00e9 \u2014 le cours redevient saisi \u00e0 la main":
+      "Link removed \u2014 the price goes back to being entered by hand",
+    "{n} cours n'ont pas pu \u00eatre relus au lancement (voir Placements)":
+      "{n} prices could not be read at startup (see Investments)",
+    "La liste des titres est commune \u00e0 tous les comptes de placement. Le cours peut \u00eatre saisi \u00e0 la main, ou relu automatiquement sur une page publique de cotation dont tu colles le lien ci-dessous \u2014 c'est la seule chose que l'application va chercher sur Internet, et seulement pour les titres qui ont un lien. Le cours ne sert qu'\u00e0 valoriser les portefeuilles : jamais \u00e0 recalculer un solde, qui ne d\u00e9pend que des prix r\u00e9ellement pay\u00e9s.":
+      "The list of securities is shared by every investment account. A price can be entered by hand, or read automatically from a public quote page whose link you paste below \u2014 that is the only thing the application fetches from the Internet, and only for securities that have a link. The price only serves to value portfolios: never to recompute a balance, which depends solely on the prices actually paid.",
+
     // ---------- Param\u00e8tres : onglets ----------
     "Comptes": "Accounts",
     "Cat\u00e9gories": "Categories",
@@ -365,10 +398,10 @@ const TRADUCTIONS = {
 
     // ---------- Modale d'annonce des extensions trouv\u00e9es au lancement ----------
     "Extensions d\u00e9tect\u00e9es": "Extensions detected",
-    "Une extension a \u00e9t\u00e9 trouv\u00e9e dans le dossier \u00ab extensions \u00bb et charg\u00e9e :":
-      "One extension was found in the \u201cextensions\u201d folder and loaded:",
-    "{n} extensions ont \u00e9t\u00e9 trouv\u00e9es dans le dossier \u00ab extensions \u00bb et charg\u00e9es :":
-      "{n} extensions were found in the \u201cextensions\u201d folder and loaded:",
+    "Une extension a \u00e9t\u00e9 trouv\u00e9e dans le dossier \u00ab extensions \u00bb. Elle ne fonctionnera qu'une fois coch\u00e9e ci-dessous \u2014 fermer cette fen\u00eatre ne l'active pas.":
+      "One extension was found in the \u201cextensions\u201d folder. It will not run until you tick it below \u2014 closing this window does not enable it.",
+    "{n} extensions ont \u00e9t\u00e9 trouv\u00e9es dans le dossier \u00ab extensions \u00bb. Elles ne fonctionneront qu'une fois coch\u00e9es ci-dessous \u2014 fermer cette fen\u00eatre n'en active aucune.":
+      "{n} extensions were found in the \u201cextensions\u201d folder. They will not run until you tick them below \u2014 closing this window enables none of them.",
     "Fermer": "Close",
     "Aller au menu extensions": "Go to the extensions menu",
 
@@ -431,11 +464,33 @@ const TRADUCTIONS = {
     // ---------- Param\u00e8tres : r\u00e8gles ----------
     "Une r\u00e8gle classe automatiquement les lignes import\u00e9es d'apr\u00e8s leurs libell\u00e9s \u2014 c'est le seul moyen de marquer une ligne \"remboursable\" ou de la classer en Pr\u00eat / Remboursement sans le faire \u00e0 la main. Les r\u00e8gles sont communes \u00e0 tous les presets d'import.":
       "A rule classifies imported rows automatically from their descriptions \u2014 it is the only way to mark a row as reimbursable, or to file it as a loan or a repayment, without doing it by hand. Rules are shared by every import preset.",
-    "Elles sont \u00e9valu\u00e9es de haut en bas :": "They are evaluated top to bottom:",
-    "la premi\u00e8re qui correspond gagne": "the first match wins",
-    ". Place les cas particuliers au-dessus des cas g\u00e9n\u00e9raux. Les r\u00e8gles passent":
-      ". Put the special cases above the general ones. Rules come",
+    "Elles sont \u00e9valu\u00e9es": "They are evaluated",
+    "de haut en bas": "top to bottom",
+    ", et s'arr\u00eatent \u00e0 la premi\u00e8re qui correspond \u2014 sauf si celle-ci d\u00e9coche \u00ab Arr\u00eater la lecture des r\u00e8gles ici \u00bb. Plusieurs r\u00e8gles peuvent alors s'appliquer \u00e0 une m\u00eame ligne, mais aucune ne d\u00e9fait ce qu'une r\u00e8gle plus haute a d\u00e9cid\u00e9 :":
+      ", stopping at the first one that matches \u2014 unless it unticks \u201cStop reading rules here\u201d. Several rules can then apply to the same row, but none undoes what a higher rule decided:",
+    "en cas de d\u00e9saccord, la plus haute gagne": "when they disagree, the highest one wins",
+    ". Place les cas particuliers au-dessus des cas g\u00e9n\u00e9raux.":
+      ". Put the special cases above the general ones.",
+    "Les r\u00e8gles passent": "Rules come",
     "avant": "before",
+    // ----- Vue galerie -----
+    "Vue liste": "List view",
+    "Vue galerie": "Gallery view",
+    "+ Nouveau dossier": "+ New folder",
+    "Les dossiers ne servent qu'\u00e0 s'y retrouver : ils": "Folders are only there to find your way around: they",
+    "ne changent pas l'ordre d'\u00e9valuation": "do not change the evaluation order",
+    ", qui reste celui de la vue liste (le num\u00e9ro sur chaque carte le rappelle). Fais glisser une r\u00e8gle d'un dossier \u00e0 l'autre pour la ranger. Ce classement reste sur cet ordinateur \u2014 il n'est pas enregistr\u00e9 dans la base.":
+      ", which stays that of the list view (the number on each card is a reminder). Drag a rule from one folder to another to file it. This filing stays on this computer \u2014 it is not stored in the database.",
+    "Glisse une r\u00e8gle ici.": "Drag a rule here.",
+    "Rang d'\u00e9valuation": "Evaluation rank",
+    "inactive": "inactive",
+    "Nom du nouveau dossier": "Name of the new folder",
+    "Nouveau nom du dossier": "New folder name",
+    "Un dossier porte d\u00e9j\u00e0 ce nom.": "A folder already has that name.",
+    "Supprimer le dossier": "Delete folder",
+    "Ses r\u00e8gles reviendront dans \u00ab Autres \u00bb.": "Its rules will move back to \u201cOthers\u201d.",
+    "\u21b3 la lecture continue avec les r\u00e8gles suivantes":
+      "\u21b3 reading continues with the rules below",
     "les correspondances m\u00e9moris\u00e9es : un type reconnu ici ne peut plus \u00eatre d\u00e9fait par une correspondance de cat\u00e9gorie.":
       "the remembered mappings: a type recognised here can no longer be undone by a category mapping.",
     "+ Nouvelle r\u00e8gle": "+ New rule",
@@ -460,12 +515,17 @@ const TRADUCTIONS = {
       "The account the statement does not name: where the money comes from if the row is money in, where it goes if it is money out. The direction is deduced from the sign of the amount, so you do not have to state it. Without it, the row arrives incomplete in the preview and blocks the import \u2014 and transfer duplicate detection, which needs both accounts, has nothing to compare.",
     "\u2014 \u00e0 renseigner \u00e0 l'import \u2014": "\u2014 to be filled in at import \u2014",
     "R\u00e8gle active": "Rule active",
+    "Arr\u00eater la lecture des r\u00e8gles ici": "Stop reading rules here",
+    "Coch\u00e9 (le r\u00e9glage habituel), cette r\u00e8gle d\u00e9cide seule du sort de la ligne : la lecture s'arr\u00eate sur elle. D\u00e9coch\u00e9, la lecture continue vers le bas et les r\u00e8gles suivantes peuvent compl\u00e9ter ce que celle-ci laisse ouvert \u2014 la cat\u00e9gorie, ou le compte en face d'un virement. Le type, lui, est fix\u00e9 par la premi\u00e8re r\u00e8gle qui correspond et ne change plus : une r\u00e8gle plus basse ne d\u00e9fait jamais une r\u00e8gle plus haute.":
+      "Ticked (the usual setting), this rule alone decides the fate of the row: reading stops on it. Unticked, reading carries on downwards and the rules below can fill in what this one leaves open \u2014 the category, or the facing account of a transfer. The type itself is fixed by the first rule that matches and never changes: a lower rule never undoes a higher one.",
+    // Onglet des Param\u00e8tres (les r\u00e8gles \u00e9tant parties dans une extension).
+    "Correspondances": "Mappings",
     "Correspondances m\u00e9moris\u00e9es": "Remembered mappings",
-    "Apprises \u00e0 l'import : une fois confirm\u00e9e, une cat\u00e9gorie ou un compte du relev\u00e9 est r\u00e9utilis\u00e9 automatiquement les fois suivantes. Tous les presets sont r\u00e9unis ici. Elles visent un libell\u00e9 bancaire exact, mais elles ne d\u00e9cident que de la cat\u00e9gorie \u2014 le type, lui, vient des r\u00e8gles ci-dessus, \u00e9valu\u00e9es avant.":
-      "Learned at import: once confirmed, a category or an account from the statement is reused automatically next time. Every preset is gathered here. They target an exact bank label, but they only decide the category \u2014 the type comes from the rules above, which are evaluated first.",
+    "Apprises \u00e0 l'import : une fois confirm\u00e9e, une cat\u00e9gorie ou un compte du relev\u00e9 est r\u00e9utilis\u00e9 automatiquement les fois suivantes. Tous les presets sont r\u00e9unis ici. Elles visent un libell\u00e9 bancaire exact, mais elles ne d\u00e9cident que de la cat\u00e9gorie \u2014 le type, lui, vient des r\u00e8gles, \u00e9valu\u00e9es avant.":
+      "Learned at import: once confirmed, a category or an account from the statement is reused automatically next time. Every preset is gathered here. They target an exact bank label, but they only decide the category \u2014 the type comes from the rules, which are evaluated first.",
     "Cat\u00e9gories bancaires": "Bank categories",
-    "Tous les presets r\u00e9unis : chaque libell\u00e9 du relev\u00e9 est rang\u00e9 dans la cat\u00e9gorie de l'app vers laquelle il renvoie. En italique entre parenth\u00e8ses, le compte dont le relev\u00e9 provient \u2014 c'est ce qui distingue deux libell\u00e9s de banques diff\u00e9rentes qui portent presque le m\u00eame nom (rien n'est affich\u00e9 si le preset n'est li\u00e9 \u00e0 aucun compte). Fais glisser un libell\u00e9 dans une autre colonne pour le reclasser ; il reste dans son preset d'origine. Les types sans cat\u00e9gorie (virement interne, pr\u00eat re\u00e7u, remboursements) ne figurent pas ici : ils sont d\u00e9tect\u00e9s par les r\u00e8gles ci-dessus.":
-      "Every preset together: each label from the statement sits in the app category it points to. In italics between brackets, the account the statement came from \u2014 that is what tells apart two nearly identical labels from different banks (nothing is shown if the preset is tied to no account). Drag a label into another column to refile it; it stays in its own preset. Types that carry no category (internal transfer, loan received, reimbursements) are absent here: they are detected by the rules above.",
+    "Tous les presets r\u00e9unis : chaque libell\u00e9 du relev\u00e9 est rang\u00e9 dans la cat\u00e9gorie de l'app vers laquelle il renvoie. En italique entre parenth\u00e8ses, le compte dont le relev\u00e9 provient \u2014 c'est ce qui distingue deux libell\u00e9s de banques diff\u00e9rentes qui portent presque le m\u00eame nom (rien n'est affich\u00e9 si le preset n'est li\u00e9 \u00e0 aucun compte). Fais glisser un libell\u00e9 dans une autre colonne pour le reclasser ; il reste dans son preset d'origine. Les types sans cat\u00e9gorie (virement interne, pr\u00eat re\u00e7u, remboursements) ne figurent pas ici : ils sont d\u00e9tect\u00e9s par les r\u00e8gles.":
+      "Every preset together: each label from the statement sits in the app category it points to. In italics between brackets, the account the statement came from \u2014 that is what tells apart two nearly identical labels from different banks (nothing is shown if the preset is tied to no account). Drag a label into another column to refile it; it stays in its own preset. Types that carry no category (internal transfer, loan received, reimbursements) are absent here: they are detected by the rules.",
     "Comptes bancaires": "Bank accounts",
     "Correspondances entre les noms de compte lus dans le relev\u00e9 et les comptes de l'app, tous presets r\u00e9unis. Une entr\u00e9e que plusieurs presets partagent \u00e0 l'identique n'appara\u00eet qu'une fois : la modifier ou la supprimer les met tous \u00e0 jour.":
       "Mappings between the account names read in the statement and the app's accounts, every preset together. An entry several presets share identically appears only once: editing or deleting it updates them all.",

@@ -1,0 +1,121 @@
+<!-- Écran de l'extension « Règles de catégorisation ».
+
+     L'id de la div est imposé par le manifeste (navigation.sous_section
+     = "regles") : le noyau cherche exactement `sous-section-parametres-regles`
+     pour y brancher le bouton d'onglet. -->
+<div id="sous-section-parametres-regles" class="sous-section">
+  <p class="hint">
+    Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul
+    moyen de marquer une ligne "remboursable" ou de la classer en Prêt / Remboursement sans le
+    faire à la main. Les règles sont communes à tous les presets d'import.
+  </p>
+  <p class="hint">
+    Elles sont évaluées <strong>de haut en bas</strong>, et s'arrêtent à la première qui
+    correspond — sauf si celle-ci décoche « Arrêter la lecture des règles ici ». Plusieurs règles peuvent alors s'appliquer à une même ligne, mais aucune ne
+    défait ce qu'une règle plus haute a décidé : <strong>en cas de désaccord, la plus haute
+    gagne</strong>. Place les cas particuliers au-dessus des cas généraux.
+  </p>
+  <p class="hint">
+    Les règles passent <strong>avant</strong> les correspondances mémorisées : un type reconnu ici
+    ne peut plus être défait par une correspondance de catégorie.
+  </p>
+
+  <div class="regles-barre">
+    <div class="actions">
+      <button type="button" class="primary" id="btn-regle-nouvelle">+ Nouvelle règle</button>
+    </div>
+    <!-- Deux vues sur les MÊMES règles, dans le MÊME ordre : la galerie ne
+         range pas, elle regroupe. Le rang affiché sur chaque carte reste celui
+         de l'évaluation, quel que soit le dossier où la carte est posée. -->
+    <div class="sous-onglets regles-vues">
+      <button type="button" class="active" data-vue-regles="liste">Vue liste</button>
+      <button type="button" data-vue-regles="galerie">Vue galerie</button>
+    </div>
+  </div>
+
+  <div id="regles-liste"></div>
+
+  <div id="regles-galerie" style="display:none">
+    <div class="actions">
+      <button type="button" id="btn-regle-dossier-nouveau">+ Nouveau dossier</button>
+    </div>
+    <p class="hint">
+      Les dossiers ne servent qu'à s'y retrouver : ils <strong>ne changent pas l'ordre
+      d'évaluation</strong>, qui reste celui de la vue liste (le numéro sur chaque carte le
+      rappelle). Fais glisser une règle d'un dossier à l'autre pour la ranger. Ce classement
+      reste sur cet ordinateur — il n'est pas enregistré dans la base.
+    </p>
+    <div id="regles-dossiers"></div>
+  </div>
+
+  <div id="regle-editeur" class="regle-editeur" style="display:none">
+    <h3 id="regle-editeur-titre">Nouvelle règle</h3>
+    <input type="hidden" id="regle-id" />
+
+    <div class="regle-champ-ligne">
+      <label for="regle-nom">Nom de la règle</label>
+      <input type="text" id="regle-nom" placeholder="ex. Prêts reçus" />
+    </div>
+
+    <h4>Conditions</h4>
+    <p class="hint">
+      Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se
+      combinent selon leur propre connecteur. Deux niveaux suffisent à écrire
+      « (A ou B) et C ».
+    </p>
+    <div class="regle-champ-ligne">
+      <label for="regle-connecteur">Combiner les groupes avec</label>
+      <select id="regle-connecteur">
+        <option value="ET">ET (tous les groupes)</option>
+        <option value="OU">OU (au moins un groupe)</option>
+      </select>
+    </div>
+    <div id="regle-groupes"></div>
+    <div class="actions">
+      <button type="button" id="btn-regle-ajouter-groupe">+ Ajouter un groupe</button>
+    </div>
+
+    <h4>Action</h4>
+    <p class="hint">
+      Le type détermine ce qui suit : seules « Opération classique » et « Dépense
+      remboursable » laissent choisir une catégorie — les autres types imposent la leur.
+    </p>
+    <div class="regle-champ-ligne">
+      <label for="regle-type">Classer comme</label>
+      <select id="regle-type">
+        <option value="classique">Opération classique</option>
+        <option value="remboursable">Dépense remboursable</option>
+        <option value="remboursements">Remboursement reçu</option>
+        <option value="remboursement_pret">Remboursement de prêt</option>
+        <option value="pret">Prêt reçu</option>
+        <option value="virement">Virement interne</option>
+      </select>
+    </div>
+    <div class="regle-champ-ligne" id="regle-categorie-bloc">
+      <label for="regle-categorie">Dans la catégorie</label>
+      <select id="regle-categorie"><option value="">— ne pas changer —</option></select>
+    </div>
+    <p class="hint" id="regle-categorie-imposee" style="display:none"></p>
+    <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
+         Sans ce second compte, chaque ligne reconnue par la règle doit
+         être reprise à la main dans l'aperçu avant de pouvoir être
+         importée. -->
+    <div class="regle-champ-ligne" id="regle-compte-autre-bloc" style="display:none">
+      <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="Le compte qui n'apparaît pas dans le relevé : celui d'où vient l'argent si la ligne est une entrée, celui où il va si c'est une sortie. Le sens est déduit du signe du montant, tu n'as donc pas à le préciser. Sans lui, la ligne arrive incomplète dans l'aperçu et bloque l'import — et la détection des doublons de virements, qui a besoin des deux comptes, ne peut rien comparer.">i</i></label>
+      <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
+    </div>
+    <label class="import-option-ligne">
+      <input type="checkbox" id="regle-actif" checked />
+      Règle active
+    </label>
+    <label class="import-option-ligne">
+      <input type="checkbox" id="regle-arreter-apres" checked />
+      Arrêter la lecture des règles ici<i class="info-bulle" tabindex="0" data-info="Coché (le réglage habituel), cette règle décide seule du sort de la ligne : la lecture s'arrête sur elle. Décoché, la lecture continue vers le bas et les règles suivantes peuvent compléter ce que celle-ci laisse ouvert — la catégorie, ou le compte en face d'un virement. Le type, lui, est fixé par la première règle qui correspond et ne change plus : une règle plus basse ne défait jamais une règle plus haute.">i</i>
+    </label>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-regle-enregistrer">Enregistrer</button>
+      <button type="button" id="btn-regle-annuler">Annuler</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,124 @@
+/* Extension « Règles de catégorisation » — vue galerie et chaînage.
+ *
+ * CE FICHIER NE CONTIENT QUE LE NEUF. Le style des cartes de la vue liste
+ * (.regle-carte, .regle-editeur, .regle-champ-ligne…) est resté dans
+ * frontend/style.css : `.regle-champ-ligne` y est aussi utilisée par l'écran
+ * d'import, qui n'a rien à voir avec cette extension et ne doit pas se
+ * dépeigner quand on la décoche. Le reste du bloc l'a suivi pour ne pas couper
+ * une famille de sélecteurs en deux.
+ *
+ * Les variables (--bg-surface, --border…) sont celles du noyau : une extension
+ * qui redéfinirait ses propres teintes détonnerait au premier changement de
+ * palette.
+ */
+
+/* Bouton « Nouvelle règle » à gauche, bascule de vue à droite. */
+.regles-barre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.regles-vues {
+  margin: 0;
+}
+
+/* La galerie : autant de colonnes que la largeur en permet, sans jamais
+   descendre sous une largeur où une carte redevient illisible. */
+#regles-dossiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.regle-dossier {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.8rem;
+}
+
+/* Cible de dépôt : sans retour visuel, on ne sait pas dans quel dossier la
+   règle va tomber — les boîtes sont côte à côte et se touchent. */
+.regle-dossier-cible {
+  border-color: var(--accent);
+  background: var(--bg-surface-hover);
+}
+
+.regle-dossier-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.regle-dossier-nom {
+  font-weight: 600;
+}
+
+/* Le nombre de règles du dossier, discret : il sert à repérer un dossier vide
+   ou un fourre-tout qui a débordé, pas à être lu à chaque fois. */
+.regle-dossier-compte {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  background: var(--bg-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 0.05rem 0.4rem;
+}
+
+.regle-dossier-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.3rem;
+}
+
+.regle-dossier-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  /* Un dossier vide doit rester une cible de dépôt visible : sans hauteur
+     minimale, il se réduit à son entête et on ne peut plus rien y glisser. */
+  min-height: 3rem;
+}
+
+.regle-vignette {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
+  cursor: grab;
+}
+
+.regle-vignette-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+}
+
+.regle-vignette-nom {
+  font-weight: 600;
+}
+
+/* Le rang d'évaluation, sur la vignette comme sur la carte de la liste : c'est
+   la seule chose que le rangement en dossiers NE change pas, et il faut que
+   ça se voie. */
+.regle-vignette .regle-rang {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Une règle qui ne s'arrête pas là : l'indiquer sur la carte évite d'ouvrir
+   l'éditeur pour savoir pourquoi deux règles s'appliquent à la même ligne. */
+.regle-carte-chainage {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}

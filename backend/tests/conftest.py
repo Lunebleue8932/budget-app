@@ -13,6 +13,35 @@ from app.constants import (
 )
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "extensions_reelles: laisse l'état d'activation réel décider "
+        "(pour les tests du mécanisme d'extensions lui-même)",
+    )
+
+
+@pytest.fixture(autouse=True)
+def extensions_allumees(request, monkeypatch):
+    """Les tests s'exécutent avec les extensions ALLUMÉES.
+
+    L'état réel se lit dans `data/extensions.json`, à côté de la base de
+    développement : le laisser décider ferait dépendre le résultat d'un fichier
+    qui n'appartient pas à la suite, et changerait selon la machine.
+
+    Le défaut d'une extension est « éteinte » (cf. app/extensions.est_active) ;
+    or la plupart des tests exercent justement ce que les extensions apportent —
+    le classement automatique à l'import, par exemple. Les tests qui vérifient
+    le comportement SANS l'extension repatchent `est_active` pour eux seuls.
+    """
+    if "extensions_reelles" in request.keywords:
+        return
+
+    from app import extensions
+
+    monkeypatch.setattr(extensions, "est_active", lambda extension_id: True)
+
+
 @pytest.fixture()
 def db_session():
     engine = create_engine(

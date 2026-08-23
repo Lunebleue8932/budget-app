@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
-from ..constants import TYPES_AVEC_CATEGORIE_LIBRE, TYPES_INTERNES, TypeOperation
-from ..database import get_db
+# Imports ABSOLUS vers le noyau : ce module n'est pas un sous-paquet de `app`,
+# il est chargé par chemin de fichier (cf. extensions/README.md).
+from app import crud, schemas
+from app.constants import TYPES_AVEC_CATEGORIE_LIBRE, TYPES_INTERNES, TypeOperation
+from app.database import get_db
 
 router = APIRouter(prefix="/regles-categorisation", tags=["regles"])
 
@@ -73,6 +75,7 @@ def create_regle(payload: schemas.RegleCategorisationCreate, db: Session = Depen
         categorie_id=categorie_id,
         compte_autre_id=compte_autre_id,
         actif=payload.actif,
+        arreter_apres=payload.arreter_apres,
     )
 
 
@@ -105,6 +108,7 @@ def update_regle(
         categorie_id=categorie_id,
         compte_autre_id=compte_autre_id,
         actif=payload.actif,
+        arreter_apres=payload.arreter_apres,
     )
 
 

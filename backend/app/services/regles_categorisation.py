@@ -119,35 +119,85 @@ def evaluer_regle(conditions: dict, brute: dict) -> bool:
 
 
 def appliquer_regles(regles, brute: dict) -> Optional[ResultatRegle]:
-    """Première règle active qui correspond, dans l'ordre de `ordre`.
+    """Descend les règles actives dans l'ordre de `ordre`, et s'arrête où on
+    lui a dit de s'arrêter.
 
-    Premier match gagnant (et non cumul des règles) : c'est ce qui rend la
-    hiérarchie lisible — placer un cas particulier avant un cas général suffit
-    à le faire primer, sans avoir à raisonner sur des effets combinés.
+    La première règle qui correspond pose le TYPE, et le type ne change plus :
+    c'est lui qui décide de ce que la ligne est, les règles suivantes ne
+    peuvent que compléter ce qu'il laisse ouvert (la catégorie, le compte en
+    face). Si elle porte `arreter_apres` — le cas par défaut, et le
+    comportement historique — l'évaluation s'arrête là.
+
+    Sinon on continue vers le bas, et chaque règle rencontrée ne remplit que
+    les cases encore vides. C'est ce qui fait que **la règle la plus haute
+    l'emporte toujours** en cas de désaccord : deux règles ne se disputent
+    jamais un champ, la première l'a déjà rempli. Sans cette priorité stricte,
+    l'ordre — qui est toute la lisibilité du système — ne voudrait plus rien
+    dire.
+
+    Une règle qui correspond sans rien apporter de neuf ne s'attribue pas le
+    résultat : seules celles qui ont réellement décidé quelque chose sont
+    nommées dans `nom_regle`, faute de quoi le badge « via … » de l'aperçu
+    citerait des règles sans effet.
 
     `brute` est le dict produit par import_bancaire.lire_lignes_brutes
     (clés `nature`, `categorie_banque`, `compte_banque`).
     """
+    resultat: Optional[ResultatRegle] = None
+    noms: list[str] = []
+
     for regle in sorted(regles, key=lambda r: (r.ordre, r.id)):
         if not regle.actif:
             continue
         if not evaluer_regle(regle.conditions, brute):
             continue
 
-        type_operation = TypeOperation(regle.type_operation.code)
-        return ResultatRegle(
-            nom_regle=regle.nom,
-            type_code=type_operation.value,
-            # Les types à catégorie imposée n'en portent plus aucune.
-            categorie_id=(
-                regle.categorie_id if type_operation in TYPES_AVEC_CATEGORIE_LIBRE else None
-            ),
-            # Seul un virement a un compte en face : sur tout autre type, ce
-            # serait un second compte sur une opération qui n'en touche qu'un.
-            compte_autre_id=(
-                regle.compte_autre_id
-                if type_operation == TypeOperation.virement
-                else None
-            ),
-        )
-    return None
+        if resultat is None:
+            type_operation = TypeOperation(regle.type_operation.code)
+            resultat = ResultatRegle(nom_regle=regle.nom, type_code=type_operation.value)
+            noms.append(regle.nom)
+            _completer(resultat, regle, type_operation)
+        else:
+            type_operation = TypeOperation(resultat.type_code)
+            if _completer(resultat, regle, type_operation):
+                noms.append(regle.nom)
+
+        if regle.arreter_apres:
+            break
+
+    if resultat is None:
+        return None
+    resultat.nom_regle = " + ".join(noms)
+    return resultat
+
+
+def _completer(resultat: ResultatRegle, regle, type_operation: TypeOperation) -> bool:
+    """Verse dans `resultat` ce que `regle` apporte et qui manque encore.
+
+    `type_operation` est celui DÉJÀ RETENU, pas celui de `regle` : une règle de
+    complément propose une catégorie ou un compte en face, jamais un autre type
+    — et ce qu'elle propose n'est retenu que si le type retenu l'admet. Une
+    catégorie posée par une règle sur un type à catégorie imposée serait une
+    incohérence en base, exactement celle que le routeur refuse à l'écriture.
+
+    Renvoie True si quelque chose a été posé, pour que l'appelant sache si
+    cette règle a compté.
+    """
+    pose = False
+    if (
+        resultat.categorie_id is None
+        and regle.categorie_id is not None
+        and type_operation in TYPES_AVEC_CATEGORIE_LIBRE
+    ):
+        resultat.categorie_id = regle.categorie_id
+        pose = True
+    # Seul un virement a un compte en face : sur tout autre type, ce serait un
+    # second compte sur une opération qui n'en touche qu'un.
+    if (
+        resultat.compte_autre_id is None
+        and regle.compte_autre_id is not None
+        and type_operation == TypeOperation.virement
+    ):
+        resultat.compte_autre_id = regle.compte_autre_id
+        pose = True
+    return pose

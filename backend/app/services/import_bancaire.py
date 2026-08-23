@@ -173,7 +173,7 @@ from pydantic import ValidationError
 
 import unicodedata
 
-from .. import crud, models, schemas
+from .. import crud, extensions, models, schemas
 from . import regles_categorisation
 from ..constants import (
     CATEGORIE_AUTRES,
@@ -1022,7 +1022,15 @@ class ContextePreset:
         # compte_id) : il court-circuite alors toute la résolution du compte.
         self.compte_lie_id = preset.compte_id
         self.monnaies = crud.get_monnaies(db)
-        self.regles = crud.list_regles_categorisation(db)
+        # Le classement automatique est une EXTENSION (extensions/regles) : sans
+        # elle, les règles dorment en base mais ne s'appliquent plus. Le moteur
+        # reste ici parce qu'il appartient à l'import ; ce qui est optionnel,
+        # c'est de s'en servir. Une liste vide plutôt qu'un `if` plus bas : tout
+        # le reste de la résolution continue de s'écrire sans se demander si
+        # l'extension est là.
+        self.regles = (
+            crud.list_regles_categorisation(db) if extensions.est_active("regles") else []
+        )
         # Le preset lit-il une colonne « Sens » ? Distingue une cellule vide
         # (erreur : la ligne ne dit pas son sens alors que le format l'annonce)
         # d'un preset qui ne lit simplement pas cette colonne (cas ordinaire,

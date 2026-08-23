@@ -9,9 +9,18 @@ from pydantic import ValidationError
 from app import crud, models, schemas
 from app.constants import COLONNES_IMPORT_PAR_DEFAUT
 from app.services import import_bancaire, regles_categorisation
-from app.routers.regles import create_regle
 
-from .conftest import creer_compte, get_categorie_id, get_monnaie_id, get_type_id
+from .conftest import (
+    charger_module_extension,
+    creer_compte,
+    get_categorie_id,
+    get_monnaie_id,
+    get_type_id,
+)
+
+# Les règles sont une EXTENSION depuis leur extraction : leur routeur se charge
+# par chemin de fichier, comme l'application le fait au démarrage.
+create_regle = charger_module_extension("regles", "routeur_regles.py").create_regle
 
 
 def _condition(champ, operateur, valeur):
@@ -686,3 +695,227 @@ def test_le_routeur_refuse_un_compte_en_face_inconnu(db_session):
             db_session,
         )
     assert erreur.value.status_code == 404
+
+
+# ---------- Chaînage : une règle peut laisser la lecture continuer ----------
+
+
+def _brute(nature):
+    return {"nature": nature, "categorie_banque": "", "compte_banque": ""}
+
+
+def test_par_defaut_la_lecture_sarrete_a_la_premiere_regle(db_session):
+    """Le comportement historique, et celui d'une règle qu'on vient d'écrire
+    sans se poser la question : `arreter_apres` vaut True par défaut."""
+    premiere = _make_regle(
+        db_session,
+        nom="Alimentaire",
+        conditions=_conditions(_condition("nature", "contient", "CARREFOUR")),
+        categorie_id=get_categorie_id(db_session, "Alimentaire"),
+    )
+    _make_regle(
+        db_session,
+        nom="Loisirs",
+        conditions=_conditions(_condition("nature", "contient", "CARREFOUR")),
+        categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+    )
+    assert premiere.arreter_apres is True
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("CARREFOUR CITY")
+    )
+    assert resultat.nom_regle == "Alimentaire"
+    assert resultat.categorie_id == get_categorie_id(db_session, "Alimentaire")
+
+
+def test_une_regle_qui_ne_sarrete_pas_laisse_la_suivante_completer(db_session):
+    """Le cas qui motive la fonctionnalité : une règle pose le TYPE sans savoir
+    quelle catégorie mettre, une autre plus bas pose la catégorie."""
+    _make_regle(
+        db_session,
+        nom="Remboursable",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Charges fixes",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        categorie_id=get_categorie_id(db_session, "Charges fixes"),
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("SNCF PARIS LYON")
+    )
+    assert resultat.type_code == "remboursable"
+    assert resultat.categorie_id == get_categorie_id(db_session, "Charges fixes")
+    # Les deux règles ont décidé quelque chose, les deux sont nommées.
+    assert resultat.nom_regle == "Remboursable + Charges fixes"
+
+
+def test_la_regle_la_plus_haute_gagne_en_cas_de_desaccord(db_session):
+    """Deux règles chaînées proposent une catégorie différente : c'est celle du
+    haut qui reste. Sans cette priorité stricte, l'ordre ne voudrait rien
+    dire."""
+    _make_regle(
+        db_session,
+        nom="Alimentaire",
+        conditions=_conditions(_condition("nature", "contient", "CARREFOUR")),
+        categorie_id=get_categorie_id(db_session, "Alimentaire"),
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Loisirs",
+        conditions=_conditions(_condition("nature", "contient", "CARREFOUR")),
+        categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("CARREFOUR CITY")
+    )
+    assert resultat.categorie_id == get_categorie_id(db_session, "Alimentaire")
+    # La seconde n'a rien pu poser : elle n'est pas citée.
+    assert resultat.nom_regle == "Alimentaire"
+
+
+def test_une_regle_chainee_ne_change_jamais_le_type(db_session):
+    """Le type est ce que la ligne EST : la première règle qui correspond le
+    fixe, une règle plus basse ne le renverse pas."""
+    _make_regle(
+        db_session,
+        nom="Prêt",
+        conditions=_conditions(_condition("nature", "contient", "VIREMENT")),
+        type_operation="pret",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Classique",
+        conditions=_conditions(_condition("nature", "contient", "VIREMENT")),
+        type_operation="classique",
+        categorie_id=get_categorie_id(db_session, "Alimentaire"),
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("VIREMENT RECU")
+    )
+    assert resultat.type_code == "pret"
+    # « Prêt reçu » ne porte pas de catégorie : celle de la seconde règle est
+    # incompatible avec le type retenu, elle n'est donc pas posée.
+    assert resultat.categorie_id is None
+    assert resultat.nom_regle == "Prêt"
+
+
+def test_une_regle_chainee_pose_le_compte_en_face_dun_virement(db_session):
+    livret = creer_compte(db_session, "Livret A", type_nom="épargne")
+    _make_regle(
+        db_session,
+        nom="Virement",
+        conditions=_conditions(_condition("nature", "contient", "VIR INTERNE")),
+        type_operation="virement",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Vers le Livret",
+        conditions=_conditions(_condition("nature", "contient", "LIVRET")),
+        type_operation="virement",
+        compte_autre_id=livret.id,
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("VIR INTERNE LIVRET A")
+    )
+    assert resultat.type_code == "virement"
+    assert resultat.compte_autre_id == livret.id
+    assert resultat.nom_regle == "Virement + Vers le Livret"
+
+
+def test_une_regle_chainee_inactive_est_sautee(db_session):
+    _make_regle(
+        db_session,
+        nom="Remboursable",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Charges fixes",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        categorie_id=get_categorie_id(db_session, "Charges fixes"),
+        actif=False,
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("SNCF PARIS LYON")
+    )
+    assert resultat.categorie_id is None
+    assert resultat.nom_regle == "Remboursable"
+
+
+def test_le_chainage_traverse_les_regles_qui_ne_correspondent_pas(db_session):
+    """Une règle intercalée qui ne matche pas n'interrompt rien, même si elle
+    demande l'arrêt : on ne s'arrête que sur une règle qui S'APPLIQUE."""
+    _make_regle(
+        db_session,
+        nom="Remboursable",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Sans rapport",
+        conditions=_conditions(_condition("nature", "contient", "AMAZON")),
+        categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+    )
+    _make_regle(
+        db_session,
+        nom="Charges fixes",
+        conditions=_conditions(_condition("nature", "contient", "SNCF")),
+        type_operation="remboursable",
+        categorie_id=get_categorie_id(db_session, "Charges fixes"),
+    )
+
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), _brute("SNCF PARIS LYON")
+    )
+    assert resultat.categorie_id == get_categorie_id(db_session, "Charges fixes")
+    assert resultat.nom_regle == "Remboursable + Charges fixes"
+
+
+def test_limport_nappelle_plus_les_regles_quand_lextension_est_eteinte(
+    db_session, monkeypatch
+):
+    """Éteindre l'extension « Règles » arrête le classement automatique, et ne
+    supprime rien : les règles restent en base, l'import cesse de les lire."""
+    from app import extensions
+
+    compte = _make_compte(db_session)
+    preset = crud.create_import_preset(db_session, "Défaut", COLONNES_IMPORT_PAR_DEFAUT)
+    crud.set_mapping_compte(db_session, preset.id, "CC Perso", compte.id)
+    _make_regle(
+        db_session,
+        nom="Prêts reçus",
+        conditions=_conditions(_condition("nature", "contient", "PRET")),
+        type_operation="pret",
+    )
+    contenu = _construire_fichier(
+        [{"date": date(2026, 7, 1), "nature": "PRET AMI", "montant": 200.0, "compte": "CC Perso"}]
+    )
+
+    monkeypatch.setattr(extensions, "est_active", lambda extension_id: False)
+    ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
+    assert ligne.regle_appliquee is None
+    assert ligne.type_code == "classique"
+
+    # La règle n'a pas bougé : rallumer suffit à la retrouver.
+    monkeypatch.setattr(extensions, "est_active", lambda extension_id: True)
+    ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
+    assert ligne.regle_appliquee == "Prêts reçus"
+    assert ligne.type_code == "pret"

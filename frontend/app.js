@@ -987,12 +987,12 @@ function switchSection(name) {
 
 // Comptes et Catégories vivaient dans la barre de navigation principale ; ce
 // sont des réglages, consultés rarement, pas des pages du quotidien — d'où leur
-// place ici, aux côtés des monnaies, des règles et de l'import.
+// place ici, aux côtés des monnaies, des correspondances et de l'import.
 function chargerSousPageParametres(page) {
   if (page === "parametres-comptes") loadComptes();
   if (page === "parametres-categories") loadCategories();
   if (page === "parametres-monnaies") loadMonnaies();
-  if (page === "parametres-regles") loadRegles();
+  if (page === "parametres-correspondances") loadCorrespondances();
   if (page === "parametres-import") loadImportSection();
   if (page === "parametres-extensions") loadExtensions();
   // Sous-pages apportées par une extension (« Base de données » en version
@@ -8228,10 +8228,24 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
 
 /* ----- Mapping actuel (toujours visible) ----- */
 
-// Tous presets confondus, et donc sans importUrl : la page Règles s'affiche
-// même sans preset sélectionné.
+// Tous presets confondus, et donc sans importUrl : la sous-page
+// « Correspondances » s'affiche même sans preset sélectionné.
 async function loadImportMappingsOverview() {
   renderImportMappingsOverview(await apiFetch("/import/mappings"));
+}
+
+// Sous-page « Correspondances » des Paramètres. Elle vivait avec les règles,
+// et l'a suivi jusqu'à ce que celles-ci deviennent une extension : ce qui est
+// affiché ici ne dépend d'aucune extension et ne peut donc pas partir avec.
+async function loadCorrespondances() {
+  try {
+    await refreshComptes();
+    await refreshCategories();
+    await loadImportPresets();
+    await loadImportMappingsOverview();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
 }
 
 function _creerLigneMappingActuel(nomBanque, valeur, options, { onChange, onSupprimer }) {
@@ -8649,43 +8663,6 @@ function afficherResultatImport(resultat) {
   bloc.innerHTML = html;
 }
 
-/* ---------- Règles de catégorisation ---------- */
-
-const OPERATEURS_REGLE = ["est", "n'est pas", "contient", "ne contient pas"];
-const CHAMPS_REGLE = [
-  ["nature", "Nature / libellé"],
-  ["categorie_banque", "Catégorie bancaire"],
-  ["compte_banque", "Compte bancaire"],
-];
-
-let reglesChargees = [];
-// Brouillon de la règle en cours d'édition : les groupes ne sont écrits en
-// base qu'à l'enregistrement, l'éditeur travaille sur cette structure.
-let regleBrouillonGroupes = [];
-
-
-// Le menu de types de l'éditeur est rempli depuis la table : les libellés sont
-// renommables, seule la valeur (le `code`) est stable.
-function remplirSelecteurTypesRegle() {
-  const select = document.getElementById("regle-type");
-  const precedent = select.value;
-  select.innerHTML = state.typesOperation
-    // Les types internes (titres) ne se posent pas par règle : il leur
-    // manquerait le titre, la quantité et le prix.
-    .filter((t) => !t.interne)
-    .map((t) => `<option value="${t.code}">${t.nom}</option>`)
-    .join("");
-  if (precedent) select.value = precedent;
-}
-
-function conditionVide() {
-  return { champ: "nature", operateur: "contient", valeur: "" };
-}
-
-function groupeVide() {
-  return { operateur: "ET", conditions: [conditionVide()] };
-}
-
 /* ---------- Extensions (Paramètres) ----------
  *
  * Le panneau qui liste les extensions présentes et permet de les allumer.
@@ -8766,9 +8743,12 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
       method: "PUT",
       body: JSON.stringify({ actif }),
     });
-    // L'écran de l'extension est déjà chargé : il n'y a que son entrée de
-    // navigation à montrer ou masquer, sans recharger la page.
-    BudgetApp.extensions.majVisibilite(id, actif);
+    // Une extension éteinte n'a RIEN de chargé (cf. frontend/extensions.js) :
+    // l'allumer va donc chercher sa feuille de style, son écran et son script
+    // maintenant. C'est ce qui évite le redémarrage tout en tenant la promesse
+    // qu'« inactive » veut dire « ne tourne pas ».
+    const abouti = await BudgetApp.extensions.appliquerActivation(id, actif);
+    if (actif && !abouti) throw new Error(t("Extension non chargée"));
     case_.closest(".extension-carte").classList.toggle("inactive", !actif);
     showMessage(
       actif ? t("Extension activée.") : t("Extension désactivée. Aucune donnée n'a été supprimée."),
@@ -8776,431 +8756,6 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     );
   } catch (err) {
     case_.checked = !actif; // l'écran doit refléter l'état réel du serveur
-    showMessage(err.message, "error");
-  }
-});
-
-async function loadRegles() {
-  try {
-    reglesChargees = await apiFetch("/regles-categorisation");
-    renderReglesListe();
-    // Les correspondances mémorisées vivent désormais sur cette page : elles
-    // relèvent de la même question (comment une ligne est classée), même si
-    // elles restent techniquement scopées au preset d'import.
-    await refreshComptes();
-    await refreshCategories();
-    await loadImportPresets();
-    await loadImportMappingsOverview();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-}
-
-function libelleConditionRegle(condition) {
-  // `champs` (pluriel) : ancienne forme, avant le passage au champ unique.
-  const champs = condition.champ ? [condition.champ] : condition.champs || [];
-  const libelle = champs
-    .map((c) => (CHAMPS_REGLE.find(([v]) => v === c) || [c, c])[1])
-    .join(` ${t("ou")} `);
-  return `${t(libelle)} ${t(condition.operateur)} « ${condition.valeur} »`;
-}
-
-function resumeRegle(regle) {
-  const groupes = (regle.conditions.groupes || []).map((groupe) => {
-    const conds = groupe.conditions.map(libelleConditionRegle);
-    return conds.length > 1 ? `(${conds.join(` ${t(groupe.operateur)} `)})` : conds[0];
-  });
-  return groupes.join(` ${t(regle.conditions.operateur)} `);
-}
-
-function actionRegleHtml(regle) {
-  const libelleType = libelleTypeOperation(regle.type_code);
-  if (regle.type_code === "virement") {
-    // Le compte en face fait partie de l'action : sans lui la ligne reste
-    // incomplète à l'import, autant que ça se lise depuis la liste.
-    return regle.compte_autre_id != null
-      ? `${libelleType}, avec « ${nomCompte(regle.compte_autre_id)} » en face`
-      : `${libelleType} <span class="badge-partiel">${t(
-          "compte en face à renseigner à l'import"
-        )}</span>`;
-  }
-  if (!TYPES_CATEGORIE_LIBRE.has(regle.type_code)) return libelleType;
-  return regle.categorie_id != null
-    ? `${libelleType}, catégorie « ${nomCategorie(regle.categorie_id)} »`
-    : libelleType;
-}
-
-function renderReglesListe() {
-  const bloc = document.getElementById("regles-liste");
-  bloc.innerHTML = "";
-  if (reglesChargees.length === 0) {
-    bloc.innerHTML =
-      '<p class="hint">Aucune règle pour le moment : les lignes importées resteront à classer à la main.</p>';
-    return;
-  }
-
-  reglesChargees.forEach((regle, i) => {
-    const carte = document.createElement("div");
-    carte.className = "regle-carte" + (regle.actif ? "" : " regle-inactive");
-    carte.draggable = true;
-    carte.dataset.index = i;
-    carte.innerHTML = `
-      <div class="regle-carte-ordre" title="Glisse pour changer l'ordre">
-        <span class="regle-poignee" aria-hidden="true">⠿</span>
-        <span class="regle-rang">${i + 1}</span>
-      </div>
-      <div class="regle-carte-corps">
-        <div class="regle-carte-titre">
-          ${regle.nom}
-          ${regle.actif ? "" : '<span class="badge-aucun">inactive</span>'}
-        </div>
-        <div class="regle-carte-conditions">${t("Si")} ${resumeRegle(regle)}</div>
-        <div class="regle-carte-action">→ ${actionRegleHtml(regle)}</div>
-      </div>
-      <div class="regle-carte-actions">
-        <button type="button" data-action="modifier">${t("Modifier")}</button>
-        <button type="button" data-action="supprimer" class="danger">${t("Supprimer")}</button>
-      </div>
-    `;
-
-    cablerGlisserDeposerRegle(carte);
-    carte.querySelector("[data-action='modifier']").addEventListener("click", () => ouvrirEditeurRegle(regle));
-    carte.querySelector("[data-action='supprimer']").addEventListener("click", async () => {
-      if (!confirm(`Supprimer la règle « ${regle.nom} » ?`)) return;
-      try {
-        await apiFetch(`/regles-categorisation/${regle.id}`, { method: "DELETE" });
-        showMessage(t("Règle supprimée"), "success");
-        fermerEditeurRegle();
-        await loadRegles();
-      } catch (err) {
-        showMessage(err.message, "error");
-      }
-    });
-
-    bloc.appendChild(carte);
-  });
-}
-
-/* ----- Ordre des règles : glisser-déposer ----- */
-
-// L'ordre EST la sémantique (première règle qui correspond gagne) : le
-// réorganiser doit être direct. Deux flèches obligeaient à autant de clics que
-// de rangs à franchir, et à relire le numéro entre chaque ; on attrape
-// maintenant la carte et on la pose où elle va.
-//
-// HTML5 natif plutôt qu'une bibliothèque : la liste est courte, verticale, et
-// n'a besoin ni de défilement automatique ni de multi-sélection.
-let regleGlisseeIndex = null;
-
-function cablerGlisserDeposerRegle(carte) {
-  carte.addEventListener("dragstart", (e) => {
-    regleGlisseeIndex = Number(carte.dataset.index);
-    carte.classList.add("regle-carte-glissee");
-    e.dataTransfer.effectAllowed = "move";
-    // Firefox n'amorce pas le glisser sans données attachées.
-    e.dataTransfer.setData("text/plain", String(regleGlisseeIndex));
-  });
-
-  carte.addEventListener("dragend", () => {
-    regleGlisseeIndex = null;
-    document
-      .querySelectorAll(".regle-carte-glissee, .regle-carte-cible-avant, .regle-carte-cible-apres")
-      .forEach((el) =>
-        el.classList.remove(
-          "regle-carte-glissee",
-          "regle-carte-cible-avant",
-          "regle-carte-cible-apres"
-        )
-      );
-  });
-
-  carte.addEventListener("dragover", (e) => {
-    if (regleGlisseeIndex === null) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    // Le trait se place au-dessus ou en dessous selon la moitié survolée :
-    // sans lui, on ne sait pas où la carte va atterrir avant de lâcher.
-    const rect = carte.getBoundingClientRect();
-    const avant = e.clientY < rect.top + rect.height / 2;
-    carte.classList.toggle("regle-carte-cible-avant", avant);
-    carte.classList.toggle("regle-carte-cible-apres", !avant);
-  });
-
-  carte.addEventListener("dragleave", () => {
-    carte.classList.remove("regle-carte-cible-avant", "regle-carte-cible-apres");
-  });
-
-  carte.addEventListener("drop", (e) => {
-    if (regleGlisseeIndex === null) return;
-    e.preventDefault();
-    const rect = carte.getBoundingClientRect();
-    const avant = e.clientY < rect.top + rect.height / 2;
-    const cible = Number(carte.dataset.index) + (avant ? 0 : 1);
-    deposerRegle(regleGlisseeIndex, cible);
-  });
-}
-
-// `cible` est la position d'insertion AVANT retrait de la carte déplacée : on
-// décale d'un rang quand elle vient d'au-dessus, sinon déposer une carte juste
-// sous sa voisine ne la déplacerait pas.
-async function deposerRegle(depuis, cible) {
-  const destination = cible > depuis ? cible - 1 : cible;
-  if (destination === depuis) return;
-  const ids = reglesChargees.map((r) => r.id);
-  const [deplace] = ids.splice(depuis, 1);
-  ids.splice(destination, 0, deplace);
-  try {
-    await apiFetch("/regles-categorisation/reordonner", {
-      method: "PUT",
-      body: JSON.stringify({ ids }),
-    });
-    await loadRegles();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-}
-
-function renderRegleGroupes() {
-  const bloc = document.getElementById("regle-groupes");
-  bloc.innerHTML = "";
-
-  regleBrouillonGroupes.forEach((groupe, iGroupe) => {
-    const carte = document.createElement("div");
-    carte.className = "regle-groupe";
-
-    const entete = document.createElement("div");
-    entete.className = "regle-groupe-entete";
-    entete.innerHTML = `
-      <span class="regle-groupe-titre">Groupe ${iGroupe + 1}</span>
-      <label>Combiner avec
-        <select data-role="connecteur">
-          <option value="ET" ${groupe.operateur === "ET" ? "selected" : ""}>ET</option>
-          <option value="OU" ${groupe.operateur === "OU" ? "selected" : ""}>OU</option>
-        </select>
-      </label>
-      <button type="button" class="danger" data-role="supprimer-groupe" ${
-        regleBrouillonGroupes.length === 1 ? "disabled" : ""
-      }>Supprimer le groupe</button>
-    `;
-    entete.querySelector("[data-role='connecteur']").addEventListener("change", (e) => {
-      groupe.operateur = e.target.value;
-    });
-    entete.querySelector("[data-role='supprimer-groupe']").addEventListener("click", () => {
-      regleBrouillonGroupes.splice(iGroupe, 1);
-      renderRegleGroupes();
-    });
-    carte.appendChild(entete);
-
-    groupe.conditions.forEach((condition, iCondition) => {
-      const ligne = document.createElement("div");
-      ligne.className = "regle-condition";
-
-      // Un seul champ par condition : des boutons radio, qui rendent
-      // l'exclusivité évidente et gèrent la désélection automatiquement.
-      // Pour viser plusieurs champs, on ajoute des conditions dans un groupe OU.
-      // `name` unique par condition, sinon toutes les lignes du formulaire
-      // partageraient le même groupe radio.
-      const nomGroupeRadio = `regle-champ-${iGroupe}-${iCondition}`;
-      const champsHtml = CHAMPS_REGLE.map(
-        ([valeur, label]) => `
-          <label class="regle-champ-case">
-            <input type="radio" name="${nomGroupeRadio}" value="${valeur}" ${
-          condition.champ === valeur ? "checked" : ""
-        } />
-            ${label}
-          </label>`
-      ).join("");
-
-      ligne.innerHTML = `
-        <div class="regle-condition-champs">${champsHtml}</div>
-        <select data-role="operateur">
-          ${OPERATEURS_REGLE.map(
-            (o) => `<option value="${o}" ${o === condition.operateur ? "selected" : ""}>${o}</option>`
-          ).join("")}
-        </select>
-        <input type="text" data-role="valeur" placeholder="ex. PRET" value="${(condition.valeur || "").replace(/"/g, "&quot;")}" />
-        <button type="button" class="danger" data-role="supprimer-condition" ${
-          groupe.conditions.length === 1 ? "disabled" : ""
-        }>×</button>
-      `;
-
-      ligne.querySelectorAll(".regle-condition-champs input").forEach((radio) => {
-        radio.addEventListener("change", () => {
-          if (radio.checked) condition.champ = radio.value;
-        });
-      });
-      ligne.querySelector("[data-role='operateur']").addEventListener("change", (e) => {
-        condition.operateur = e.target.value;
-      });
-      ligne.querySelector("[data-role='valeur']").addEventListener("input", (e) => {
-        condition.valeur = e.target.value;
-      });
-      ligne.querySelector("[data-role='supprimer-condition']").addEventListener("click", () => {
-        groupe.conditions.splice(iCondition, 1);
-        renderRegleGroupes();
-      });
-
-      carte.appendChild(ligne);
-    });
-
-    const ajout = document.createElement("div");
-    ajout.className = "actions";
-    ajout.innerHTML = '<button type="button">+ Ajouter une condition</button>';
-    ajout.querySelector("button").addEventListener("click", () => {
-      groupe.conditions.push(conditionVide());
-      renderRegleGroupes();
-    });
-    carte.appendChild(ajout);
-
-    bloc.appendChild(carte);
-  });
-}
-
-// Le type pilote la liste des catégories : les types à catégorie imposée n'en
-// proposent aucune. La valeur choisie est conservée en mémoire le temps de la
-// session d'édition, pour qu'un aller-retour entre deux types ne la perde pas ;
-// elle n'est envoyée que si le type final l'accepte.
-let regleCategorieMemorisee = "";
-
-// Le compte en face n'existe que pour le virement interne : seul type qui
-// touche DEUX comptes, dont le relevé ne nomme jamais que le premier.
-function majVisibiliteCompteAutreRegle() {
-  const type = document.getElementById("regle-type").value;
-  document.getElementById("regle-compte-autre-bloc").style.display =
-    type === "virement" ? "" : "none";
-}
-
-function majVisibiliteCategorieRegle() {
-  majVisibiliteCompteAutreRegle();
-  const type = document.getElementById("regle-type").value;
-  const bloc = document.getElementById("regle-categorie-bloc");
-  const info = document.getElementById("regle-categorie-imposee");
-  const select = document.getElementById("regle-categorie");
-  const libre = TYPES_CATEGORIE_LIBRE.has(type);
-
-  if (libre) {
-    bloc.style.display = "";
-    info.style.display = "none";
-    // Restaure le choix précédent, s'il est toujours proposé.
-    if (regleCategorieMemorisee && select.querySelector(`option[value="${regleCategorieMemorisee}"]`)) {
-      select.value = regleCategorieMemorisee;
-    }
-  } else {
-    // Mémorise avant de masquer, puis neutralise : le serveur ignore de toute
-    // façon la catégorie pour ces types (cf. _normaliser_categorie).
-    if (select.value) regleCategorieMemorisee = select.value;
-    select.value = "";
-    bloc.style.display = "none";
-    info.textContent = `« ${libelleTypeOperation(type)} » ne porte pas de catégorie : le type est à lui seul la classification.`;
-    info.style.display = "";
-  }
-}
-
-function ouvrirEditeurRegle(regle = null) {
-  document.getElementById("regle-editeur").style.display = "";
-  document.getElementById("regle-editeur-titre").textContent = regle
-    ? "Modifier la règle"
-    : "Nouvelle règle";
-  document.getElementById("regle-id").value = regle ? regle.id : "";
-  document.getElementById("regle-nom").value = regle ? regle.nom : "";
-  document.getElementById("regle-connecteur").value = regle ? regle.conditions.operateur : "ET";
-  document.getElementById("regle-actif").checked = regle ? regle.actif : true;
-  remplirSelecteurTypesRegle();
-  document.getElementById("regle-type").value = regle ? regle.type_code : "classique";
-
-  _refillPreservingSelection(document.getElementById("regle-categorie"), (el) =>
-    fillCategoriesSelect(el, state.categories, { keepFirst: true })
-  );
-  regleCategorieMemorisee = regle && regle.categorie_id != null ? String(regle.categorie_id) : "";
-  document.getElementById("regle-categorie").value = regleCategorieMemorisee;
-
-  _refillPreservingSelection(document.getElementById("regle-compte-autre"), (el) =>
-    fillComptesSelect(el, state.comptes, { keepFirst: true })
-  );
-  document.getElementById("regle-compte-autre").value =
-    regle && regle.compte_autre_id != null ? String(regle.compte_autre_id) : "";
-
-  majVisibiliteCategorieRegle();
-
-  // Copie profonde : annuler ne doit rien laisser derrière dans la liste.
-  regleBrouillonGroupes = regle
-    ? JSON.parse(JSON.stringify(regle.conditions.groupes))
-    : [groupeVide()];
-  renderRegleGroupes();
-  document.getElementById("regle-editeur").scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function fermerEditeurRegle() {
-  document.getElementById("regle-editeur").style.display = "none";
-  regleBrouillonGroupes = [];
-}
-
-document.getElementById("regle-type").addEventListener("change", majVisibiliteCategorieRegle);
-document.getElementById("regle-categorie").addEventListener("change", (e) => {
-  regleCategorieMemorisee = e.target.value;
-});
-document.getElementById("btn-regle-nouvelle").addEventListener("click", () => ouvrirEditeurRegle());
-document.getElementById("btn-regle-annuler").addEventListener("click", fermerEditeurRegle);
-document.getElementById("btn-regle-ajouter-groupe").addEventListener("click", () => {
-  regleBrouillonGroupes.push(groupeVide());
-  renderRegleGroupes();
-});
-
-document.getElementById("btn-regle-enregistrer").addEventListener("click", async () => {
-  const nom = document.getElementById("regle-nom").value.trim();
-  if (!nom) {
-    showMessage(t("Donne un nom à la règle."), "error");
-    return;
-  }
-  // Contrôles côté client pour un message immédiat et situé ; le serveur
-  // revalide de toute façon la même chose (schemas.ConditionRegle).
-  for (const groupe of regleBrouillonGroupes) {
-    for (const condition of groupe.conditions) {
-      if (!condition.champ) {
-        showMessage(t("Chaque condition doit porter sur un champ."), "error");
-        return;
-      }
-      if (!condition.valeur.trim()) {
-        showMessage(t("Chaque condition doit avoir une valeur à comparer."), "error");
-        return;
-      }
-    }
-  }
-
-  const type = document.getElementById("regle-type").value;
-  // La catégorie n'est transmise que si le type l'accepte : basculer vers un
-  // type à catégorie imposée l'outrepasse, sans avoir à la vider à la main.
-  const categorieVal = TYPES_CATEGORIE_LIBRE.has(type)
-    ? document.getElementById("regle-categorie").value
-    : "";
-  // Même règle pour le compte en face : seul un virement en porte un.
-  const compteAutreVal =
-    type === "virement" ? document.getElementById("regle-compte-autre").value : "";
-
-  const payload = {
-    nom,
-    conditions: {
-      operateur: document.getElementById("regle-connecteur").value,
-      groupes: regleBrouillonGroupes,
-    },
-    type_id: idTypeOperation(type),
-    categorie_id: categorieVal ? Number(categorieVal) : null,
-    compte_autre_id: compteAutreVal ? Number(compteAutreVal) : null,
-    actif: document.getElementById("regle-actif").checked,
-  };
-
-  const id = document.getElementById("regle-id").value;
-  try {
-    if (id) {
-      await apiFetch(`/regles-categorisation/${id}`, { method: "PUT", body: JSON.stringify(payload) });
-      showMessage(t("Règle modifiée"), "success");
-    } else {
-      await apiFetch("/regles-categorisation", { method: "POST", body: JSON.stringify(payload) });
-      showMessage(t("Règle créée"), "success");
-    }
-    fermerEditeurRegle();
-    await loadRegles();
-  } catch (err) {
     showMessage(err.message, "error");
   }
 });
