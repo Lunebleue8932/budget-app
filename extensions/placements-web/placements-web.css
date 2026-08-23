@@ -1,0 +1,80 @@
+/* ---------- Extension « Placements financiers — cours en ligne » ----------
+ *
+ * Tout est préfixé `pw-` et tout descend d'un élément que cette extension a
+ * elle-même posé : une feuille d'extension est chargée pour TOUTE
+ * l'application, pas seulement pour son écran (cf. frontend/extensions.js), et
+ * un sélecteur trop large repeindrait des pages qui ne la concernent pas.
+ *
+ * Aucune couleur en dur : les variables du noyau portent déjà le thème, et
+ * une valeur recopiée ici cesserait de le suivre au premier ajustement.
+ */
+
+/* La barre de mise à jour, sous le titre de la page. */
+.pw-barre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1.25rem;
+}
+
+/* Le compte rendu ne pousse pas la mise en page quand il s'allonge. */
+.pw-barre .hint {
+  margin: 0;
+}
+
+/* La seconde ligne d'un titre suivi : elle occupe toute la largeur sous le
+   nom, le cours et le bouton de suppression — d'où le `flex-wrap` posé sur la
+   ligne du noyau, qui n'attendait qu'une seule rangée. */
+#placements-actions-liste .import-mapping-row {
+  flex-wrap: wrap;
+}
+
+.pw-lien {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 0 100%;
+  /* Alignée sous le nom du titre plutôt que collée au bord : la seconde ligne
+     se lit alors comme un détail de la première, pas comme une nouvelle. */
+  padding-left: 0.25rem;
+}
+
+/* Le champ prend la place restante : une URL de cotation est longue, et un
+   lien tronqué ne se relit pas. */
+.pw-lien .pw-url {
+  flex: 1 1 auto;
+  min-width: 12rem;
+  font-size: 0.82rem;
+  /* Une URL se relit caractère par caractère (un « l » n'est pas un « 1 ») :
+     la chasse fixe est ici une aide à la vérification, pas un style. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+/* Un bouton désactivé (titre sans lien) reste visible mais éteint : il montre
+   ce qui deviendra possible, sans donner l'impression d'un raté. */
+.pw-lien button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.pw-lien button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pw-fraicheur {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* L'aide « pages reconnues », au-dessus de la liste des titres suivis. */
+.pw-sources {
+  line-height: 1.6;
+}
+
+.pw-sources code {
+  font-size: 0.78rem;
+  word-break: break-all;
+}

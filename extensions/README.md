@@ -94,6 +94,43 @@ Le fragment doit être une `<div id="sous-section-parametres-bdd" class="sous-se
 Sans `navigation`, l'extension n'ajoute aucun écran — c'est légitime (une
 extension purement serveur, ou qui se greffe sur un écran existant).
 
+### Se greffer sur l'écran d'une autre extension
+
+Une extension sans `navigation` peut ajouter des éléments à l'écran d'une
+autre — c'est ce que fait `placements-web` sur l'écran de `placements`. Le
+noyau n'offre pas d'API pour ça ; deux prises suffisent, et elles tiennent
+parce que les scripts d'extension s'exécutent dans la **portée globale**, dans
+l'**ordre alphabétique des dossiers** (`placements` avant `placements-web`) :
+
+```js
+// 1. Envelopper une fonction de rendu de l'autre extension, pour reposer ses
+//    propres éléments après chacun de ses passages.
+const rendreOrigine = renderTitresSuivis;
+window.renderTitresSuivis = function () {
+  rendreOrigine.apply(this, arguments);
+  maGreffe();
+};
+
+// 2. Ré-enregistrer le chargeur de l'autre extension — le noyau n'en garde
+//    qu'un par extension, et le nôtre appelle le sien.
+BudgetApp.extensions.enregistrer("placements", { chargeur: monChargeur });
+```
+
+Une greffe doit **vérifier ce qu'elle greffe** (`typeof loadPlacements ===
+"function"`) : l'extension hôte peut être absente ou éteinte, et son absence ne
+doit rien casser. Elle doit aussi consulter `BudgetApp.extensions.estActive(...)`
+à chaque rendu, pour disparaître quand on la décoche sans recharger la page.
+
+Et l'hôte peut être allumé **après** elle, au cours de la même session : le
+noyau émet alors un événement, qui permet de s'accrocher en retard plutôt que
+d'attendre un redémarrage.
+
+```js
+document.addEventListener("budgetapp:extension-chargee", (e) => {
+  if (e.detail.id === "placements") poserGreffe(); // idempotent, obligatoirement
+});
+```
+
 ## Le backend
 
 `backend.py` doit exposer une variable `router`, et **poser lui-même le

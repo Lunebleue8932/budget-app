@@ -16,12 +16,12 @@ DEUX DOSSIERS, DEUX PUBLICS :
 Rien ne les distingue techniquement : même format, même chargement. Seul leur
 emplacement change, et avec lui leur présence ou non dans le dépôt.
 
-ACTIVÉE / PRÉSENTE : DEUX ÉTATS DIFFÉRENTS. Une extension présente peut être
-désactivée depuis les Paramètres ; ses routes répondent alors 404 et son
-interface disparaît. Une extension ABSENTE n'a jamais existé pour
-l'application. La distinction compte pour les données : désactiver ne supprime
-RIEN (cf. `_charger_etat`), les tables et leurs lignes restent en base et
-réapparaissent intactes à la réactivation.
+ACTIVÉE / PRÉSENTE : DEUX ÉTATS DIFFÉRENTS. Une extension présente est
+INACTIVE tant que l'utilisateur ne l'a pas cochée (cf. `est_active`) ; ses
+routes répondent 404 et son interface n'existe pas. Une extension ABSENTE, elle,
+n'a jamais existé pour l'application. La distinction compte pour les données :
+désactiver ne supprime RIEN (cf. `_charger_etat`), les tables et leurs lignes
+restent en base et réapparaissent intactes à la réactivation.
 
 POURQUOI LES ROUTES SONT MONTÉES MÊME QUAND L'EXTENSION EST DÉSACTIVÉE.
 Démonter un routeur FastAPI à chaud n'est pas prévu par le framework : il
@@ -269,9 +269,11 @@ def charger_routeur(extension: Extension):
 #
 #     {"actives": {"placements": false}, "annoncees": ["placements"]}
 #
-# `actives` ne retient que les DÉSACTIVATIONS explicites (tout est actif par
-# défaut) ; `annoncees` retient les extensions dont l'utilisateur a déjà vu la
-# fenêtre d'annonce au lancement, pour ne pas la lui remontrer à chaque fois.
+# `actives` retient les DÉCISIONS explicites, dans les deux sens : rien par
+# défaut, et rien veut dire inactive (cf. `est_active`). `annoncees` retient
+# les extensions dont l'utilisateur a déjà vu la fenêtre d'annonce au
+# lancement, pour ne pas la lui remontrer à chaque fois — voir la fenêtre et
+# accepter d'allumer sont deux choses différentes, d'où les deux clés.
 
 _NOM_FICHIER_ETAT = "extensions.json"
 
@@ -337,11 +339,51 @@ def _ecrire_etat(etat: dict) -> None:
 
 
 def est_active(extension_id: str) -> bool:
-    """ACTIVE PAR DÉFAUT. Une extension qu'on vient d'installer doit se voir :
-    la découvrir dans les Paramètres pour l'allumer supposerait de savoir
-    qu'elle existe. C'est la désactivation qui est un choix explicite, et c'est
-    donc elle seule que le fichier d'état a besoin de retenir."""
-    return _charger_etat()["actives"].get(extension_id, True)
+    """INACTIVE PAR DÉFAUT : une extension ne tourne qu'après un OUI explicite.
+
+    C'était l'inverse jusqu'ici — déposer un dossier suffisait à l'allumer, au
+    motif qu'une extension qu'on vient d'installer doit se voir. Le
+    raisonnement tenait tant qu'une extension ne pouvait rien faire d'autre que
+    montrer un écran de plus. Il ne tient plus depuis qu'il en existe une qui
+    ouvre une connexion sortante (« placements-web ») : décompresser une
+    archive au mauvais endroit ne doit pas suffire à faire sortir une requête
+    de la machine.
+
+    Le consentement est donc UN GESTE, et un seul compte : cocher la case, dans
+    la fenêtre du lancement ou dans Paramètres → Extensions. Fermer la fenêtre
+    d'annonce — bouton, Échap, clic à côté — ne l'est pas : on n'active pas
+    quelque chose en s'en débarrassant.
+
+    L'extension reste bien sûr VISIBLE dans les Paramètres, avec sa
+    description : elle est découvrable, simplement pas en marche.
+    """
+    return _charger_etat()["actives"].get(extension_id, False)
+
+
+def rattraper_etat_avant_opt_in() -> None:
+    """Garde allumées les extensions qui tournaient déjà avant la règle ci-dessus.
+
+    À N'EXÉCUTER QU'UNE FOIS, au démarrage (cf. main._monter_extensions), et
+    c'est ce que ce code fait tout seul : il n'écrit que les décisions
+    MANQUANTES, et n'a donc plus rien à faire dès le deuxième passage.
+
+    Le repère est `annoncees` : une extension déjà annoncée à l'utilisateur
+    tournait forcément — sous l'ancienne règle, être présent suffisait. La
+    basculer à l'arrêt sous prétexte que personne n'a jamais coché sa case
+    ferait disparaître un écran dont on se sert quotidiennement, sans un mot
+    d'explication, à la faveur d'une mise à jour.
+
+    Une extension présente mais JAMAIS annoncée n'est pas rattrapée : c'est
+    précisément une nouveauté, et le défaut « inactive » est celui qu'on veut
+    pour elle.
+    """
+    etat = _charger_etat()
+    manquantes = etat["annoncees"] - set(etat["actives"])
+    if not manquantes:
+        return
+    for extension_id in manquantes:
+        etat["actives"][extension_id] = True
+    _ecrire_etat(etat)
 
 
 def definir_active(extension_id: str, actif: bool) -> None:

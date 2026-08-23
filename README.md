@@ -22,6 +22,34 @@ promesse mais une propriété du code, vérifiable :
 Ta base de données est un simple fichier `.db` que tu peux copier, sauvegarder
 ou supprimer toi-même.
 
+### Une seule extension communique avec le web, et c'est toi qui l'allumes
+
+Tout ce qui précède décrit l'application et les extensions livrées avec elle.
+**Une** extension fait exception, et elle seule : **Placements financiers —
+cours en ligne**, qui va lire le cours de tes titres sur la page de cotation
+dont **tu** as collé le lien.
+
+Deux gestes explicites sont nécessaires pour qu'elle communique, et l'un ne
+suffit pas sans l'autre :
+
+1. **la déposer** dans `extensions/` — tant qu'elle n'y est pas, le code
+   capable d'ouvrir une connexion sortante n'existe pas sur ta machine ;
+2. **cocher sa case**, au lancement ou dans Paramètres → Extensions. Une
+   extension trouvée arrive **éteinte** : ni son écran ni son code ne sont
+   chargés, et fermer la fenêtre qui l'annonce ne l'allume pas.
+
+Ce qu'elle fait, une fois allumée :
+
+- elle ne va que sur les pages que tu as désignées, titre par titre ;
+- elle envoie une requête `GET` et rien d'autre : **aucune donnée de ton budget**
+  ne quitte la machine — ni tes comptes, ni tes montants, ni le nombre de titres
+  que tu détiens. Le site visité apprend qu'une adresse IP a demandé une page
+  publique, ce qu'il apprend de n'importe quel visiteur ;
+- tout son code réseau tient dans un seul fichier lisible d'un trait,
+  [`extensions/placements-web/source_cours.py`](extensions/placements-web/source_cours.py) ;
+- la décocher arrête tout ; supprimer son dossier remet l'application dans
+  l'état décrit plus haut, sans exception.
+
 ## Installation
 
 Télécharge l'archive de ton système depuis la page
@@ -87,7 +115,8 @@ téléchargée n'existe pas — ni son écran, ni ses routes.
 1. télécharge son archive `extension-*.zip` depuis les
    [Releases](../../releases) ;
 2. décompresse-la dans le dossier `extensions/`, à côté de l'exécutable ;
-3. relance l'application : elle te confirme l'avoir trouvée.
+3. relance l'application : elle te dit l'avoir trouvée, et te propose de
+   l'allumer.
 
 ```
 Budget App/
@@ -97,15 +126,24 @@ Budget App/
     placements/         <- le dossier décompressé
 ```
 
-Une extension s'active et se désactive ensuite depuis **Paramètres →
-Extensions**, sans redémarrer. **Désactiver ne supprime jamais de données** :
-l'écran disparaît, les routes se ferment, et tout réapparaît intact à la
-réactivation.
+**Une extension trouvée arrive éteinte.** Rien d'elle n'est chargé — ni son
+écran, ni son code — tant que tu n'as pas coché sa case : dans la fenêtre du
+lancement, ou dans **Paramètres → Extensions**. Fermer cette fenêtre, d'un
+bouton, d'un Échap ou d'un clic à côté, ne l'allume pas.
+
+Cocher et décocher se fait ensuite à tout moment, sans redémarrer.
+**Désactiver ne supprime jamais de données** : l'écran disparaît, les routes se
+ferment, et tout réapparaît intact à la réactivation.
 
 ### Disponibles
 
 - **Placements financiers** — portefeuille de titres, achats/ventes,
-  valorisation au dernier cours saisi.
+  valorisation au dernier cours saisi. Entièrement hors ligne.
+- **Placements financiers — cours en ligne** — se greffe sur la précédente
+  (qu'elle exige) : un lien de page de cotation par titre, un bouton
+  « Mettre à jour les cours » sur l'écran Placements, et une relecture au
+  lancement de l'application. **Seule extension qui accède à Internet**, voir
+  plus haut.
 
 Pour en écrire une, voir [extensions/README.md](extensions/README.md).
 

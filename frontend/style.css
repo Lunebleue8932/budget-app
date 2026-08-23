@@ -3219,6 +3219,34 @@ body.modale-ouverte {
   margin-left: 0.4rem;
 }
 
+/* La case qui ALLUME l'extension : c'est la décision de la fenêtre, elle est
+   donc sur la même ligne que le nom, et toute la ligne est cliquable. */
+.modale-liste .modale-extension-bascule {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.modale-liste .modale-extension-bascule input {
+  /* Une case de la taille du texte se rate ; celle-ci se vise sans effort. */
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* Décrite sous son nom : cocher une case revient à autoriser quelque chose,
+   et on n'autorise pas ce qu'on ne peut pas lire. Alignée sur le texte, pas
+   sur la case. */
+.modale-liste .modale-extension-description {
+  margin: 0.35rem 0 0 1.55rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 /* L'action principale à droite, la sortie à gauche : c'est l'ordre des boîtes
    de dialogue du système sur les trois plateformes visées. */
 .modale-actions {

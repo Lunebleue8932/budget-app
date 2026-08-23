@@ -9,18 +9,27 @@
  * DÉROULÉ, dans cet ordre et pas un autre :
  *
  *   1. GET /extensions          -> la liste et l'état de chacune
- *   2. pour chaque extension :  CSS, puis fragment HTML, puis JS
+ *   2. pour chaque extension ACTIVE : CSS, puis fragment HTML, puis JS
  *   3. le JS appelle BudgetApp.extensions.enregistrer(...) en s'exécutant
- *   4. l'entrée de navigation apparaît, si l'extension est active
+ *   4. l'entrée de navigation apparaît
  *
  * Le HTML AVANT le JS : le script d'une extension accroche ses écouteurs sur
  * les éléments de son écran dès son exécution ; l'inverse le ferait travailler
  * sur une page où rien de tout cela n'existe encore.
  *
- * CHARGÉES MÊME QUAND ELLES SONT DÉSACTIVÉES, écran compris — seule l'entrée
- * de navigation est retenue. Basculer une extension depuis les Paramètres
- * n'a alors qu'à montrer ou masquer un bouton, sans recharger la page ni
- * refaire le moindre aller-retour.
+ * RIEN N'EST CHARGÉ D'UNE EXTENSION INACTIVE — ni sa feuille de style, ni son
+ * écran, ni une ligne de son script. « Inactive » doit vouloir dire « ne
+ * tourne pas », pas « tourne mais son bouton est caché » : depuis qu'une
+ * extension peut ouvrir une connexion sortante (« placements-web »), la
+ * nuance a cessé d'être théorique.
+ *
+ * Les fichiers sont donc chargés AU MOMENT OÙ ON L'ALLUME (cf.
+ * `appliquerActivation`), ce qui évite quand même le rechargement de la page —
+ * la propriété à laquelle tenait le chargement systématique d'avant.
+ *
+ * L'ÉTEINDRE, EN REVANCHE, NE DÉCHARGE RIEN : on ne retire pas un script d'une
+ * page. Ses routes répondent 404 (`exiger_extension`), son bouton disparaît, et
+ * son code dort jusqu'au prochain lancement où il ne sera plus chargé du tout.
  *
  * TOUT ÉCHEC EST LOCAL À UNE EXTENSION : une extension dont le JS casse ne
  * doit pas empêcher les autres de se charger, ni l'application de s'ouvrir.
@@ -195,20 +204,88 @@ function majVisibiliteNavigation(id, actif) {
     .forEach((bouton) => (bouton.style.display = actif ? "" : "none"));
 }
 
+/**
+ * Charge les fichiers d'une extension : CSS, puis écran, puis script.
+ *
+ * Appelée au démarrage pour les extensions déjà allumées, et à la volée quand
+ * l'utilisateur en coche une (fenêtre de lancement ou Paramètres). Le même
+ * chemin dans les deux cas : allumer une extension doit produire exactement ce
+ * qu'aurait produit un redémarrage, sans le redémarrage.
+ */
+async function chargerFichiers(manifeste) {
+  const fichiers = manifeste.frontend || {};
+  for (const css of fichiers.css || []) {
+    await chargerCss(manifeste.id, css);
+  }
+  if (fichiers.html) {
+    await injecterHtml(manifeste.id, fichiers.html, manifeste.navigation);
+    ajouterNavigation(manifeste);
+  }
+  for (const js of fichiers.js || []) {
+    await chargerJs(manifeste.id, js);
+  }
+}
+
+/**
+ * Applique une bascule décidée par l'utilisateur, sans recharger la page.
+ *
+ * Trois choses, et l'ordre compte : l'état retenu ici (c'est lui que lisent
+ * les extensions via `estActive`), les fichiers si c'est un premier
+ * allumage, la barre de navigation ensuite.
+ *
+ * Rend `false` si l'allumage a échoué (fichier manquant) : l'appelant peut
+ * alors le dire, plutôt que d'afficher un bouton qui n'ouvre rien.
+ */
+async function appliquerActivation(id, actif) {
+  const entree = extensionsChargees.get(id);
+  if (!entree) return false;
+  entree.manifeste.actif = actif;
+
+  if (actif && !entree.fichiersCharges) {
+    try {
+      await chargerFichiers(entree.manifeste);
+      entree.fichiersCharges = true;
+      // POUR LES GREFFES. Une extension qui se pose sur l'écran d'une autre
+      // (« placements-web » sur « placements ») n'a d'hôte que si celui-ci a
+      // été chargé avant elle. Allumer les deux dans le désordre au cours
+      // d'une même session est parfaitement possible : cet événement lui donne
+      // le moyen de s'accrocher en retard, au lieu d'attendre un redémarrage.
+      document.dispatchEvent(
+        new CustomEvent("budgetapp:extension-chargee", { detail: { id } })
+      );
+    } catch (err) {
+      console.error(`Extension ${id} : ${err.message}`);
+      entree.manifeste.actif = false;
+      return false;
+    }
+  }
+  majVisibiliteNavigation(id, actif);
+  return true;
+}
+
 window.BudgetApp.extensions.majVisibilite = majVisibiliteNavigation;
+window.BudgetApp.extensions.appliquerActivation = appliquerActivation;
 
 // Extensions actuellement annoncées par la fenêtre : acquittées auprès du
 // serveur à sa fermeture, quel que soit le geste qui l'a fermée.
 let extensionsAnnoncees = [];
 
 /**
- * Annonce les extensions trouvées au lancement, UNE SEULE FOIS CHACUNE.
+ * Annonce les extensions trouvées au lancement, UNE SEULE FOIS CHACUNE, et
+ * propose de les allumer.
  *
  * POURQUOI CETTE ANNONCE EXISTE. L'application est livrée SANS aucune
  * extension : le dossier `extensions/` arrive vide, et c'est l'utilisateur qui
  * y dépose ce qu'il télécharge. En trouver au démarrage n'est donc jamais
  * banal — c'est la confirmation que ce qu'il vient d'installer a bien été vu,
  * et le seul moment où l'on peut le lui dire avant qu'il aille le chercher.
+ *
+ * CE N'EST PAS UNE CONFIRMATION, C'EST UNE DEMANDE. Une extension trouvée est
+ * INACTIVE (cf. app/extensions.py::est_active) : cette fenêtre est l'endroit
+ * où on l'allume, en cochant sa case. La fermer — bouton, Échap, clic à côté —
+ * n'allume rien, par construction : le seul écouteur qui active est celui de
+ * la case. Ce qui reste vrai même si la fenêtre est fermée par accident, et
+ * c'est bien le but.
  *
  * SEULEMENT CELLES JAMAIS ANNONCÉES (`nouvelle`, cf. app/extensions.py). Une
  * fois l'installation confirmée, redire la même chose à chaque démarrage n'
@@ -225,16 +302,32 @@ function afficherModaleExtensions(extensions) {
   const fond = document.getElementById("modale-extensions");
   document.getElementById("modale-extensions-texte").textContent =
     nouvelles.length === 1
-      ? t("Une extension a été trouvée dans le dossier « extensions » et chargée :")
-      : t("{n} extensions ont été trouvées dans le dossier « extensions » et chargées :", {
-          n: nouvelles.length,
-        });
+      ? t(
+          "Une extension a été trouvée dans le dossier « extensions ». Elle ne " +
+            "fonctionnera qu'une fois cochée ci-dessous — fermer cette fenêtre " +
+            "ne l'active pas."
+        )
+      : t(
+          "{n} extensions ont été trouvées dans le dossier « extensions ». Elles " +
+            "ne fonctionneront qu'une fois cochées ci-dessous — fermer cette " +
+            "fenêtre n'en active aucune.",
+          { n: nouvelles.length }
+        );
 
   document.getElementById("modale-extensions-liste").innerHTML = nouvelles
     .map(
       (e) => `<li>
-        <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
-        ${e.version ? `<span class="modale-extension-version">v${escapeHtml(e.version)}</span>` : ""}
+        <label class="modale-extension-bascule">
+          <input type="checkbox" data-activer-extension="${escapeHtml(e.id)}"
+                 ${e.actif ? "checked" : ""} />
+          <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
+          ${e.version ? `<span class="modale-extension-version">v${escapeHtml(e.version)}</span>` : ""}
+        </label>
+        ${
+          e.description
+            ? `<p class="modale-extension-description">${escapeHtml(e.description)}</p>`
+            : ""
+        }
       </li>`
     )
     .join("");
@@ -244,11 +337,52 @@ function afficherModaleExtensions(extensions) {
   // fait sinon glisser le contenu grisé, ce qui donne l'impression que le clic
   // est passé au travers.
   document.body.classList.add("modale-ouverte");
-  // Le focus part sur l'action principale : Entrée mène alors au menu des
-  // extensions, et Tab circule dans la modale plutôt que dans la page grisée
+  // LE FOCUS VA SUR LA PREMIÈRE CASE, pas sur un bouton : la décision à
+  // prendre est là, et une fenêtre qui met le focus sur sa sortie invite à
+  // sortir. Tab circule ensuite dans la fenêtre plutôt que dans la page grisée
   // derrière.
-  document.getElementById("btn-modale-extensions-aller").focus();
+  const premiere = fond.querySelector("input[data-activer-extension]");
+  (premiere || document.getElementById("btn-modale-extensions-aller")).focus();
 }
+
+/**
+ * Cocher une case ALLUME l'extension, sur-le-champ.
+ *
+ * C'est le seul geste qui l'allume : ni l'ouverture de cette fenêtre, ni sa
+ * fermeture (bouton, Échap, clic à côté) ne touchent à l'activation. La case
+ * revient à sa position si le serveur refuse — l'écran doit dire l'état réel,
+ * pas l'intention.
+ */
+document
+  .getElementById("modale-extensions-liste")
+  .addEventListener("change", async (evenement) => {
+    const case_ = evenement.target.closest("input[data-activer-extension]");
+    if (!case_) return;
+    const id = case_.dataset.activerExtension;
+    const actif = case_.checked;
+    case_.disabled = true;
+    try {
+      await apiFetch(`/extensions/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ actif }),
+      });
+      const abouti = await BudgetApp.extensions.appliquerActivation(id, actif);
+      if (!abouti && actif) {
+        throw new Error(t("Extension non chargée"));
+      }
+      showMessage(
+        actif
+          ? t("Extension activée.")
+          : t("Extension désactivée. Aucune donnée n'a été supprimée."),
+        "success"
+      );
+    } catch (err) {
+      case_.checked = !actif;
+      showMessage(err.message, "error");
+    } finally {
+      case_.disabled = false;
+    }
+  });
 
 /**
  * Ferme la fenêtre et ACQUITTE les extensions qu'elle annonçait : elles ne la
@@ -322,31 +456,31 @@ async function chargerExtensions() {
     return;
   }
 
-  const abouties = [];
+  const annoncables = [];
   for (const manifeste of extensions) {
-    extensionsChargees.set(manifeste.id, { manifeste, chargeur: null });
-    const fichiers = manifeste.frontend || {};
+    extensionsChargees.set(manifeste.id, {
+      manifeste,
+      chargeur: null,
+      fichiersCharges: false,
+    });
+    if (!manifeste.actif) {
+      // Éteinte : on ne touche à aucun de ses fichiers. Elle reste annonçable
+      // — c'est même tout l'objet de la fenêtre de lancement, proposer de
+      // l'allumer.
+      annoncables.push(manifeste);
+      continue;
+    }
     try {
-      for (const css of fichiers.css || []) {
-        await chargerCss(manifeste.id, css);
-      }
-      if (fichiers.html) {
-        await injecterHtml(manifeste.id, fichiers.html, manifeste.navigation);
-        ajouterNavigation(manifeste);
-      }
-      for (const js of fichiers.js || []) {
-        await chargerJs(manifeste.id, js);
-      }
-      abouties.push(manifeste);
+      await chargerFichiers(manifeste);
+      extensionsChargees.get(manifeste.id).fichiersCharges = true;
+      annoncables.push(manifeste);
     } catch (err) {
+      // Une extension allumée dont les fichiers manquent n'est pas annoncée :
+      // proposer de l'ouvrir enverrait chercher un écran qui n'existe pas. Son
+      // erreur, elle, reste visible dans Paramètres → Extensions.
       console.error(`Extension ${manifeste.id} : ${err.message}`);
     }
   }
 
-  // APRÈS la boucle, et seulement les ABOUTIES : la modale se veut la
-  // confirmation que ce qui a été déposé est en place. Une extension dont les
-  // fichiers manquent a échoué juste au-dessus — l'annoncer comme chargée
-  // enverrait chercher un écran qui n'existe pas. Son erreur, elle, reste
-  // visible dans Paramètres → Extensions.
-  afficherModaleExtensions(abouties);
+  afficherModaleExtensions(annoncables);
 }

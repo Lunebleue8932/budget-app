@@ -195,8 +195,10 @@ jobs:
             | macOS | `budget-app-macos.zip` | Application non signée : au premier lancement, **clic droit > Ouvrir** |
             | Linux | `budget-app-linux.zip` | Nécessite WebKit2GTK (voir le README) |
 
-            L'application fonctionne **entièrement hors ligne** : aucune donnée
-            ne quitte ta machine.
+            L'application fonctionne **hors ligne** : aucune donnée ne quitte
+            ta machine. Seule exception, à installer soi-même : l'extension
+            « Placements financiers — cours en ligne », qui va lire les cours
+            sur les pages de cotation dont tu colles le lien.
 
             ## Extensions (facultatif)
 
@@ -205,7 +207,8 @@ jobs:
 
             Pour en ajouter une, télécharge son archive `extension-*.zip`
             ci-dessous et **décompresse-la dans ce dossier `extensions/`**. Au
-            prochain lancement, l'application te confirmera l'avoir trouvée.
+            prochain lancement, l'application te dira l'avoir trouvée et te
+            proposera de l'allumer.
 
             ```
             Budget App/
@@ -215,5 +218,6 @@ jobs:
                 placements/        <- le dossier décompressé
             ```
 
-            Une extension s'active et se désactive ensuite depuis
-            **Paramètres → Extensions**. La désactiver ne supprime aucune donnée.
+            Une extension trouvée arrive **éteinte** : rien d'elle n'est
+            chargé tant que tu n'as pas coché sa case, au lancement ou dans
+            **Paramètres → Extensions**. La décocher ne supprime aucune donnée.
