@@ -1,0 +1,22 @@
+<!-- Écran de l'extension « Monnaies ».
+
+     L'id de la div est imposé par le manifeste (navigation.sous_section
+     = "monnaies") : le noyau cherche exactement
+     `sous-section-parametres-monnaies` pour y brancher le bouton d'onglet. -->
+<div id="sous-section-parametres-monnaies" class="sous-section">
+        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info="L'app ne connaît aucun taux de change et n'additionne jamais deux monnaies : chaque solde, chaque KPI et chaque budget est suivi séparément par monnaie. Le symbole est ce qui s'affiche à côté des montants.">i</i></h3>
+        <div id="monnaies-liste" class="import-mappings"></div>
+        <form id="form-monnaie">
+          <input type="hidden" id="monnaie-id" />
+          <label>Nom
+            <input type="text" id="monnaie-nom" placeholder="ex. Dollar américain" required />
+          </label>
+          <label>Symbole
+            <input type="text" id="monnaie-symbole" placeholder="ex. $" maxlength="8" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Enregistrer</button>
+            <button type="button" id="monnaie-annuler" style="display:none">Annuler</button>
+          </div>
+        </form>
+</div>

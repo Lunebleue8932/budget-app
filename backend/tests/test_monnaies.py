@@ -15,7 +15,6 @@ from app import crud, models, schemas
 from app.constants import SensAction, Statut
 from app.routers import comptes as routeur_comptes
 from app.routers import dashboard as routeur_dashboard
-from app.routers import monnaies as routeur_monnaies
 from app.routers import operations as routeur_operations
 from app.routers import virements as routeur_virements
 from app.services import placements, soldes
@@ -23,6 +22,9 @@ from app.services import placements, soldes
 # Routeurs de l'extension « Placements financiers » (sortis du noyau).
 from .conftest import charger_module_extension  # noqa: E402
 
+# Créer/renommer/supprimer une monnaie relève de l'extension « Monnaies » ;
+# la lecture, elle, est restée dans le noyau.
+routeur_monnaies = charger_module_extension("monnaies", "routeur_monnaies.py")
 routeur_actions = charger_module_extension("placements", "routeur_actions.py")
 routeur_placements = charger_module_extension("placements", "routeur_placements.py")
 

@@ -3,7 +3,8 @@
 Gestionnaire de budget personnel, **entièrement hors ligne**. Suivi des comptes
 et des opérations, import de relevés bancaires (Excel/CSV), budgets par
 catégorie, virements internes, prêts et remboursements, amortissement des
-grosses dépenses, et suivi multi-devises sans jamais mélanger deux monnaies.
+grosses dépenses. Le multi-devises s'ajoute par une extension, et ne mélange
+jamais deux monnaies.
 
 ## Tes données ne quittent jamais ta machine
 
@@ -137,6 +138,11 @@ ferment, et tout réapparaît intact à la réactivation.
 
 ### Disponibles
 
+- **Monnaies** — ajoute, renomme et supprime des monnaies, pour suivre des
+  comptes et des budgets dans plusieurs devises. Sans elle, l'application est
+  mono-devise : l'interface se replie d'elle-même sur la monnaie posée à
+  l'installation. L'éteindre ne replie rien de force — une base qui porte déjà
+  plusieurs monnaies continue de les afficher toutes.
 - **Règles de catégorisation** — classe automatiquement les lignes d'un relevé
   d'après leurs libellés (type d'opération, catégorie, compte en face d'un
   virement), en vue liste ordonnée ou en vue galerie par dossiers. Sans elle,
