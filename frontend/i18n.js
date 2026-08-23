@@ -355,11 +355,31 @@ const TRADUCTIONS = {
     "Cours actuel": "Current price",
     "Ajouter le titre": "Add security",
 
-    // ---------- Extension \u00ab Placements financiers \u2014 cours en ligne \u00bb ----------
-    // Greffe sur l'\u00e9cran Placements : lien de cotation par titre, bouton de mise
-    // \u00e0 jour, relecture au lancement (cf. extensions/placements-web).
+    // ---------- Extension \u00ab Lecture de cours \u00bb ----------
+    // Deux greffes : l'\u00e9cran Placements (un lien de cotation par titre) et
+    // l'\u00e9cran Monnaies (un taux par couple). Cf. extensions/lecture-de-cours.
 
     "Mettre \u00e0 jour les cours": "Update prices",
+    "Pages reconnues": "Supported pages",
+    "mis \u00e0 jour {quand}": "updated {quand}",
+    // ----- Volet monnaies : les taux de change -----
+    "Taux de change": "Exchange rates",
+    "Le taux d'un couple de monnaies, relu sur la page de cotation dont tu colles le lien. Rien n'est converti avec : les soldes, les budgets et les KPI restent suivis monnaie par monnaie, et ce taux ne sert qu'\u00e0 \u00eatre lu ici.":
+      "The rate of a currency pair, read again from the quote page whose link you paste. Nothing is converted with it: balances, budgets and KPIs stay tracked currency by currency, and this rate is only there to be read.",
+    "Mettre \u00e0 jour les taux": "Update rates",
+    "Suivre ce couple": "Track this pair",
+    "Aucun couple suivi pour le moment.": "No pair tracked yet.",
+    "la page": "the page",
+    "Ne plus suivre": "Stop tracking",
+    "jamais relu": "never read",
+    "{n} couple(s) suivi(s)": "{n} pair(s) tracked",
+    "jamais mis \u00e0 jour": "never updated",
+    "{n} taux mis \u00e0 jour": "{n} rates updated",
+    "Colle le lien de la page de cotation.": "Paste the link to the quote page.",
+    "Taux lu sur {source} : {libelle} = {taux}": "Rate read on {source}: {libelle} = {taux}",
+    "Couple enregistr\u00e9": "Pair saved",
+    "Couple retir\u00e9. Aucun montant n'en d\u00e9pendait.":
+      "Pair removed. No amount depended on it.",
     "Lecture en cours\u2026": "Reading\u2026",
     "Mettre \u00e0 jour": "Update",
     "D\u00e9tacher": "Detach",
@@ -407,6 +427,8 @@ const TRADUCTIONS = {
 
     // ---------- Param\u00e8tres : extensions ----------
     "Extensions": "Extensions",
+    "N\u00e9cessite au moins une de ces extensions, install\u00e9e et activ\u00e9e :":
+      "Needs at least one of these extensions, installed and enabled:",
     "Une extension ajoute une fonctionnalit\u00e9 \u00e0 l'application. La d\u00e9sactiver masque son \u00e9cran et ferme ses routes, mais ne supprime aucune donn\u00e9e : tout r\u00e9appara\u00eet intact \u00e0 la r\u00e9activation.":
       "An extension adds a feature to the application. Disabling it hides its screen and closes its routes, but deletes no data: everything comes back intact when you re-enable it.",
     "Aucune extension install\u00e9e.": "No extensions installed.",

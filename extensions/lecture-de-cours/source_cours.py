@@ -64,7 +64,7 @@ TAILLE_MAX_OCTETS = 8 * 1024 * 1024
 # discret ; ce n'est pas la relation qu'on veut avec un site qu'on interroge
 # trois fois par jour. Un agent vide, lui, ne marche pas : celui par défaut
 # d'urllib se fait refuser par Yahoo (429).
-AGENT = "Budget App (extension placements-web ; lecture de cours pour usage personnel)"
+AGENT = "Budget App (extension lecture-de-cours ; lecture de cours pour usage personnel)"
 
 
 class CoursIllisible(Exception):

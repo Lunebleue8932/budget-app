@@ -3138,6 +3138,15 @@ mark.recherche-marque-courante {
   line-height: 1.5;
 }
 
+/* Ce qui manque à une extension pour pouvoir être allumée. En avertissement et
+   non en erreur : rien n'est cassé, il manque seulement une autre extension. */
+.extension-manque {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--badge-pret-text);
+}
+
 /* ---------- Boîte de dialogue modale ---------- */
 
 /* Le défilement de la page est gelé tant qu'une modale est ouverte : sans

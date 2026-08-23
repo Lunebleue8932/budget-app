@@ -123,6 +123,25 @@ class Extension:
         return self.manifeste.get("frontend", {})
 
     @property
+    def requiert_une_de(self) -> list[str]:
+        """Identifiants d'extensions dont AU MOINS UNE doit être présente et
+        allumée pour que celle-ci puisse servir. Vide = aucune dépendance.
+
+        « Au moins une » et non « toutes » : la dépendance qu'on a réellement à
+        exprimer est celle d'une extension qui se greffe sur d'autres écrans
+        — « Lecture de cours » a besoin de titres OU de monnaies à mettre à
+        jour, l'un des deux suffit à lui donner un sens. Une dépendance stricte
+        s'écrit avec une liste d'un seul élément, ce qui couvre l'autre cas
+        sans deuxième champ.
+        """
+        valeur = self.manifeste.get("requiert_une_de") or []
+        # Une valeur mal formée est ignorée plutôt que fatale, comme le reste
+        # du manifeste : une extension mal écrite ne bloque pas l'application.
+        if not isinstance(valeur, list):
+            return []
+        return [str(identifiant) for identifiant in valeur]
+
+    @property
     def navigation(self) -> Optional[dict]:
         """Où l'extension s'accroche dans l'interface, ou None si elle n'ajoute
         aucun écran. Deux formes possibles, cf. le frontend :
@@ -162,6 +181,11 @@ class Extension:
             "nouvelle": not annoncee,
             "frontend": self.frontend,
             "navigation": self.navigation,
+            # De quoi cette extension a besoin, et si elle l'a : le frontend
+            # grise sa case et DIT POURQUOI, plutôt que de proposer un
+            # interrupteur qui ne ferait rien.
+            "requiert_une_de": self.requiert_une_de,
+            "dependances_ok": dependances_satisfaites(self.id),
         }
 
 
@@ -192,7 +216,48 @@ def decouvrir() -> dict[str, Extension]:
             if dossier.name in trouvees:
                 continue
             trouvees[dossier.name] = Extension(dossier, manifeste, type_extension)
+
+    # L'INSTANTANÉ SERT `est_active`, appelée à chaque requête protégée : elle
+    # ne peut pas se permettre de reparcourir les dossiers pour savoir qui
+    # dépend de qui. Rafraîchi ici plutôt qu'au démarrage seulement, pour qu'une
+    # extension déposée à chaud (cf. routers/extensions.list_extensions) entre
+    # aussi dans le calcul.
+    global _PRESENTES, _DEPENDANCES
+    _PRESENTES = set(trouvees)
+    _DEPENDANCES = {
+        identifiant: extension.requiert_une_de for identifiant, extension in trouvees.items()
+    }
     return trouvees
+
+
+# Remplis par `decouvrir`. Vides tant qu'elle n'a pas tourné : aucune dépendance
+# connue signifie alors « rien à vérifier », ce qui est le bon défaut — c'est
+# l'état d'une application dont les extensions n'ont pas encore été lues.
+_PRESENTES: set[str] = set()
+_DEPENDANCES: dict[str, list[str]] = {}
+
+
+def dependances_satisfaites(extension_id: str) -> bool:
+    """Vrai si l'extension a ce dont elle a besoin pour servir.
+
+    Une seule des extensions listées suffit, et elle doit être PRÉSENTE ET
+    ALLUMÉE : une dépendance simplement posée sur le disque ne fournit ni écran
+    ni données à qui s'y greffe.
+
+    On ne regarde qu'un niveau — la dépendance d'une dépendance n'est pas
+    suivie. C'est volontaire : une extension éteinte parce que SA dépendance
+    manque rend déjà `est_active` faux, et la chaîne se résout donc d'elle-même
+    sans qu'on ait à écrire une descente récursive (et sa protection contre les
+    cycles) pour un dépôt qui compte cinq extensions.
+    """
+    requises = _DEPENDANCES.get(extension_id) or []
+    if not requises:
+        return True
+    actives = _charger_etat()["actives"]
+    return any(
+        identifiant in _PRESENTES and actives.get(identifiant, False)
+        for identifiant in requises
+    )
 
 
 # Extensions présentes sur le disque qui n'ont pas pu être chargées au
@@ -345,7 +410,7 @@ def est_active(extension_id: str) -> bool:
     motif qu'une extension qu'on vient d'installer doit se voir. Le
     raisonnement tenait tant qu'une extension ne pouvait rien faire d'autre que
     montrer un écran de plus. Il ne tient plus depuis qu'il en existe une qui
-    ouvre une connexion sortante (« placements-web ») : décompresser une
+    ouvre une connexion sortante (« lecture-de-cours ») : décompresser une
     archive au mauvais endroit ne doit pas suffire à faire sortir une requête
     de la machine.
 
@@ -357,7 +422,13 @@ def est_active(extension_id: str) -> bool:
     L'extension reste bien sûr VISIBLE dans les Paramètres, avec sa
     description : elle est découvrable, simplement pas en marche.
     """
-    return _charger_etat()["actives"].get(extension_id, False)
+    if not _charger_etat()["actives"].get(extension_id, False):
+        return False
+    # Une extension dont la dépendance vient d'être éteinte s'éteint AVEC ELLE,
+    # sans qu'on ait à toucher sa case : sa greffe n'a plus d'hôte, et laisser
+    # ses routes répondre donnerait une fonctionnalité à moitié là. Sa case
+    # reste cochée pour autant — rallumer l'hôte la fait revenir telle quelle.
+    return dependances_satisfaites(extension_id)
 
 
 def rattraper_etat_avant_opt_in() -> None:

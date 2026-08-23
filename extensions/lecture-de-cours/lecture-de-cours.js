@@ -22,7 +22,7 @@
  *
  * Les deux tiennent parce que les scripts d'extension s'exécutent dans la
  * portée globale, dans l'ORDRE ALPHABÉTIQUE des dossiers : « placements »
- * avant « placements-web ». Si un jour ce n'était plus vrai, la greffe ne se
+ * avant « lecture-de-cours ». Si un jour ce n'était plus vrai, la greffe ne se
  * poserait pas et le reste continuerait de marcher — d'où les vérifications
  * plus bas plutôt qu'une confiance aveugle.
  *
@@ -42,7 +42,7 @@ const coursParTitre = new Map();
 // l'écran ne fasse pas disparaître le résultat de la mise à jour au lancement.
 let dernierResume = null;
 
-const ID_EXTENSION = "placements-web";
+const ID_EXTENSION = "lecture-de-cours";
 
 function actif() {
   return BudgetApp.extensions.estActive(ID_EXTENSION);
@@ -494,7 +494,7 @@ if (!poserGreffe()) {
   // réessaie alors, plutôt que d'exiger un redémarrage pour deux cases cochées
   // dans le mauvais ordre.
   console.warn(
-    "placements-web : l'extension « placements » n'est pas chargée, la greffe attend."
+    "lecture-de-cours : l'extension « placements » n'est pas chargée, la greffe attend."
   );
   document.addEventListener("budgetapp:extension-chargee", (evenement) => {
     if (evenement.detail && evenement.detail.id === "placements") poserGreffe();

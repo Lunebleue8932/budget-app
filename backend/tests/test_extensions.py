@@ -12,6 +12,8 @@ import pytest
 from fastapi import HTTPException
 
 from app import extensions
+from app.routers import extensions as routeur_extensions
+from app.schemas import ExtensionEtatUpdate
 
 # Ces tests portent sur l'activation elle-même : ils doivent voir l'état réel,
 # pas le « tout allumé » que conftest impose au reste de la suite.
@@ -132,7 +134,7 @@ def test_une_extension_dev_ne_masque_pas_une_extension_livree(faux_projet):
 
 def test_une_extension_est_inactive_tant_qu_on_ne_l_a_pas_allumee(faux_projet):
     """LE DÉFAUT EST « ÉTEINTE ». Déposer un dossier ne doit pas suffire à
-    faire tourner du code : depuis « placements-web », une extension peut
+    faire tourner du code : depuis « lecture-de-cours », une extension peut
     ouvrir une connexion sortante, et décompresser une archive au mauvais
     endroit ne peut pas valoir consentement."""
     assert extensions.est_active("jamais-vue") is False
@@ -174,7 +176,7 @@ def test_le_rattrapage_n_allume_pas_une_extension_jamais_annoncee(faux_projet):
 
     extensions.rattraper_etat_avant_opt_in()
 
-    assert extensions.est_active("placements-web") is False
+    assert extensions.est_active("lecture-de-cours") is False
 
 
 def test_le_rattrapage_ne_repasse_pas_sur_une_decision(faux_projet):
@@ -425,3 +427,133 @@ def test_un_fichier_inexistant_ne_donne_aucun_chemin(faux_projet):
     extension = extensions.decouvrir()["demo"]
 
     assert extension.chemin_frontend("absent.js") is None
+
+
+# ---------- Dépendances entre extensions ----------
+
+
+def test_sans_dependance_declaree_rien_a_verifier(faux_projet):
+    _creer_extension(faux_projet, "extensions", "seule")
+    extensions.decouvrir()
+    assert extensions.dependances_satisfaites("seule") is True
+
+
+def test_une_dependance_eteinte_ne_satisfait_pas(faux_projet):
+    """Présente sur le disque ne suffit pas : une greffe a besoin d'un hôte qui
+    TOURNE, sinon elle n'a ni écran où s'accrocher ni données à mettre à
+    jour."""
+    _creer_extension(faux_projet, "extensions", "hote")
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
+    )
+    extensions.decouvrir()
+
+    assert extensions.dependances_satisfaites("greffe") is False
+    extensions.definir_active("hote", True)
+    assert extensions.dependances_satisfaites("greffe") is True
+
+
+def test_une_seule_des_dependances_suffit(faux_projet):
+    """« au moins une » : « Lecture de cours » sert dès qu'il y a des titres OU
+    des monnaies à mettre à jour."""
+    _creer_extension(faux_projet, "extensions", "titres")
+    _creer_extension(faux_projet, "extensions", "devises")
+    _creer_extension(
+        faux_projet,
+        "extensions",
+        "lecture",
+        manifeste={"requiert_une_de": ["titres", "devises"]},
+    )
+    extensions.decouvrir()
+
+    assert extensions.dependances_satisfaites("lecture") is False
+    extensions.definir_active("devises", True)
+    assert extensions.dependances_satisfaites("lecture") is True
+
+
+def test_une_dependance_absente_du_disque_ne_satisfait_pas(faux_projet):
+    """Un identifiant qui ne correspond à rien n'allume rien, même si le
+    fichier d'état porte une décision à son nom (extension retirée depuis)."""
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["fantome"]}
+    )
+    extensions.decouvrir()
+    extensions.definir_active("fantome", True)
+
+    assert extensions.dependances_satisfaites("greffe") is False
+
+
+def test_une_extension_s_eteint_avec_sa_dependance(faux_projet):
+    """Sa case reste cochée — on n'a pas pris de décision à sa place — mais
+    elle ne tourne plus : ses routes répondent 404 tant que l'hôte est éteint,
+    et tout revient quand il se rallume."""
+    _creer_extension(faux_projet, "extensions", "hote")
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
+    )
+    extensions.decouvrir()
+    extensions.definir_active("hote", True)
+    extensions.definir_active("greffe", True)
+    assert extensions.est_active("greffe") is True
+
+    extensions.definir_active("hote", False)
+    assert extensions.est_active("greffe") is False
+    # La décision de l'utilisateur n'a pas été réécrite.
+    assert extensions._charger_etat()["actives"]["greffe"] is True
+
+    extensions.definir_active("hote", True)
+    assert extensions.est_active("greffe") is True
+
+
+def test_le_routeur_refuse_d_allumer_une_extension_sans_hote(faux_projet):
+    """Une case qu'on coche et qui ne fait rien est pire qu'un refus : le refus
+    dit ce qui manque."""
+    _creer_extension(faux_projet, "extensions", "hote")
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
+    )
+    extensions.decouvrir()
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=True))
+    assert erreur.value.status_code == 409
+    assert "hote" in erreur.value.detail
+    # Rien n'a été enregistré : on ne garde pas une décision qu'on a refusée.
+    assert extensions._charger_etat()["actives"].get("greffe") is None
+
+
+def test_eteindre_une_extension_sans_hote_reste_possible(faux_projet):
+    """Le refus ne porte que sur l'allumage : on doit toujours pouvoir décocher,
+    ne serait-ce que pour défaire un état hérité d'une version antérieure."""
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
+    )
+    extensions.decouvrir()
+    reponse = routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=False))
+    assert reponse["actif"] is False
+
+
+def test_la_liste_dit_ce_qui_manque(faux_projet):
+    """Le frontend grise la case ET affiche pourquoi : les deux informations
+    voyagent avec l'extension."""
+    _creer_extension(faux_projet, "extensions", "hote")
+    _creer_extension(
+        faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
+    )
+
+    par_id = {e["id"]: e for e in routeur_extensions.list_extensions()}
+    assert par_id["greffe"]["requiert_une_de"] == ["hote"]
+    assert par_id["greffe"]["dependances_ok"] is False
+    assert par_id["hote"]["requiert_une_de"] == []
+    assert par_id["hote"]["dependances_ok"] is True
+
+
+def test_un_manifeste_mal_forme_ne_declare_aucune_dependance(faux_projet):
+    """Comme le reste du manifeste : une valeur aberrante est ignorée, pas
+    fatale. Une extension mal écrite ne bloque pas l'application."""
+    _creer_extension(
+        faux_projet, "extensions", "bancale", manifeste={"requiert_une_de": "hote"}
+    )
+    trouvees = extensions.decouvrir()
+    assert trouvees["bancale"].requiert_une_de == []
+    assert extensions.dependances_satisfaites("bancale") is True

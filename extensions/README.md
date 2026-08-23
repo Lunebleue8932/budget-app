@@ -68,6 +68,28 @@ distant, il n'est pas seulement désactivé.
 }
 ```
 
+### `requiert_une_de` — dépendre d'autres extensions
+
+Une extension qui se greffe sur d'autres n'a rien à faire quand aucune d'elles
+ne tourne. Elle le déclare :
+
+```json
+{ "requiert_une_de": ["placements", "monnaies"] }
+```
+
+**Au moins une** des extensions listées doit être présente **et allumée**. Le
+noyau en tire trois choses, sans que l'extension ait à s'en occuper :
+
+- sa case est **grisée** dans Paramètres → Extensions, avec ce qui lui manque ;
+- l'allumer est **refusé** (409) tant que rien ne la satisfait — une case qu'on
+  coche et qui ne fait rien est pire qu'un refus ;
+- elle **s'éteint avec sa dernière dépendance**, sans qu'on touche à sa case :
+  `est_active` répond faux, ses routes rendent 404, et tout revient quand on
+  rallume un hôte.
+
+Une dépendance stricte s'écrit avec une liste d'un seul élément. Absent, le
+champ ne déclare aucune dépendance — le cas de la plupart des extensions.
+
 L'**identifiant** de l'extension est le **nom de son dossier**, jamais un champ
 du manifeste : deux dossiers ne peuvent pas porter le même nom, là où un champ
 recopié pourrait diverger de ce qui le contient.
@@ -97,10 +119,10 @@ extension purement serveur, ou qui se greffe sur un écran existant).
 ### Se greffer sur l'écran d'une autre extension
 
 Une extension sans `navigation` peut ajouter des éléments à l'écran d'une
-autre — c'est ce que fait `placements-web` sur l'écran de `placements`. Le
-noyau n'offre pas d'API pour ça ; deux prises suffisent, et elles tiennent
-parce que les scripts d'extension s'exécutent dans la **portée globale**, dans
-l'**ordre alphabétique des dossiers** (`placements` avant `placements-web`) :
+autre — c'est ce que fait `lecture-de-cours` sur les écrans de `placements` et
+de `monnaies`. Le noyau n'offre pas d'API pour ça ; deux prises suffisent, et
+elles tiennent parce que les scripts d'extension s'exécutent dans la **portée
+globale** :
 
 ```js
 // 1. Envelopper une fonction de rendu de l'autre extension, pour reposer ses
@@ -121,14 +143,20 @@ Une greffe doit **vérifier ce qu'elle greffe** (`typeof loadPlacements ===
 doit rien casser. Elle doit aussi consulter `BudgetApp.extensions.estActive(...)`
 à chaque rendu, pour disparaître quand on la décoche sans recharger la page.
 
-Et l'hôte peut être allumé **après** elle, au cours de la même session : le
-noyau émet alors un événement, qui permet de s'accrocher en retard plutôt que
-d'attendre un redémarrage.
+**Ne compte jamais sur l'ordre de chargement.** Les extensions sont chargées
+dans l'ordre alphabétique de leurs dossiers, sur lequel personne ne choisit rien
+— `lecture-de-cours` passe avant `monnaies` comme avant `placements`, qu'elle
+greffe toutes deux. L'hôte peut donc arriver **après** la greffe, au chargement
+initial comme en cours de session (on allume les deux dans le désordre). Le
+noyau émet un événement chaque fois que les fichiers d'une extension sont
+chargés : c'est par là qu'on s'accroche en retard.
 
 ```js
-document.addEventListener("budgetapp:extension-chargee", (e) => {
-  if (e.detail.id === "placements") poserGreffe(); // idempotent, obligatoirement
-});
+if (!poserGreffe()) {
+  document.addEventListener("budgetapp:extension-chargee", (e) => {
+    if (e.detail.id === "placements") poserGreffe(); // idempotent, obligatoirement
+  });
+}
 ```
 
 ## Le backend

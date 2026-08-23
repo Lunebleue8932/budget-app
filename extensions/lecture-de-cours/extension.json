@@ -1,0 +1,19 @@
+{
+  "nom": "Lecture de cours",
+  "description": "Va lire un cours sur une page publique de cotation (Google Finance, Yahoo Finance, Boursorama…) : un lien par titre suivi et par couple de monnaies, un bouton de mise à jour sur l'écran concerné, et une relecture au lancement. Seule extension de l'application à émettre des requêtes vers Internet. Nécessite « Placements financiers » ou « Monnaies » : sans l'une des deux, elle n'a rien à mettre à jour.",
+  "version": "2.0.0",
+  "backend": "backend.py",
+  "requiert_une_de": [
+    "placements",
+    "monnaies"
+  ],
+  "frontend": {
+    "css": [
+      "lecture-de-cours.css"
+    ],
+    "js": [
+      "lecture-de-cours.js",
+      "taux-de-change.js"
+    ]
+  }
+}

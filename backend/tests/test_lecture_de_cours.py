@@ -22,7 +22,7 @@ from datetime import datetime
 import pytest
 from fastapi import HTTPException
 
-from app import crud, models
+from app import crud, models, schemas
 
 from .conftest import charger_module_extension, get_monnaie_id
 
@@ -35,7 +35,7 @@ from .conftest import charger_module_extension, get_monnaie_id
 # chemin en créerait une SECONDE copie, distincte de celle que `routeur_cours`
 # utilise réellement : les tests détourneraient alors une fonction que le code
 # testé n'appelle jamais, et passeraient en ne vérifiant rien.
-charger_module_extension("placements-web", "backend.py")
+charger_module_extension("lecture-de-cours", "backend.py")
 
 import routeur_cours  # noqa: E402
 import service_cours  # noqa: E402
@@ -557,3 +557,193 @@ def test_les_sources_annoncees_sont_celles_qui_savent_lire():
     annoncees = {source.id for source in routeur_cours.list_sources()}
 
     assert annoncees == {source["id"] for source in source_cours.SOURCES}
+
+
+# ---------- Volet monnaies : les taux de change ----------
+#
+# MÊME LECTEUR QUE LES TITRES : `source_cours` ne fait aucune différence entre
+# un cours de bourse et un taux de change, ce qui est précisément ce qui a
+# permis de n'avoir qu'UNE extension capable d'ouvrir une connexion sortante.
+# Ces tests portent donc sur ce que le volet monnaies fait du nombre lu, pas
+# sur la lecture elle-même (déjà couverte plus haut).
+
+import routeur_taux  # noqa: E402
+import service_taux  # noqa: E402
+
+
+def _creer_monnaie(db, nom, symbole):
+    return crud.create_monnaie(db, nom, symbole)
+
+
+def _couple(db, source, cible, url="https://exemple.fr/eur-usd", taux=None):
+    ligne = models.TauxChange(
+        monnaie_source_id=source.id, monnaie_cible_id=cible.id, url_cours=url, taux=taux
+    )
+    db.add(ligne)
+    db.commit()
+    db.refresh(ligne)
+    return ligne
+
+
+def _cours(valeur):
+    return lambda url: source_cours.Cours(valeur=valeur, devise=None, source="test")
+
+
+def test_creer_un_couple_lit_le_taux_tout_de_suite(db_session, monkeypatch):
+    """Le lien n'est enregistré que s'il a donné un nombre : un lien accepté
+    sans être essayé ne se découvre cassé que des semaines plus tard."""
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    monkeypatch.setattr(routeur_taux.source_cours, "lire_cours", _cours(1.0842))
+
+    reponse = routeur_taux.creer_couple(
+        schemas.TauxChangeCreate(
+            monnaie_source_id=source.id, monnaie_cible_id=dollar.id, url="https://exemple.fr/x"
+        ),
+        db_session,
+    )
+
+    assert reponse.reussis == 1
+    assert len(reponse.taux) == 1
+    assert reponse.taux[0].taux == 1.0842
+    assert reponse.taux[0].maj_le is not None
+
+
+def test_un_lien_illisible_n_enregistre_rien(db_session, monkeypatch):
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+
+    def illisible(url):
+        raise source_cours.CoursIllisible("Cours introuvable dans la page")
+
+    monkeypatch.setattr(routeur_taux.source_cours, "lire_cours", illisible)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_taux.creer_couple(
+            schemas.TauxChangeCreate(
+                monnaie_source_id=source.id, monnaie_cible_id=dollar.id, url="https://x.fr/y"
+            ),
+            db_session,
+        )
+
+    assert erreur.value.status_code == 400
+    assert db_session.query(models.TauxChange).count() == 0
+
+
+def test_un_couple_de_deux_fois_la_meme_monnaie_est_refuse(db_session):
+    source = db_session.query(models.Monnaie).first()
+    with pytest.raises(HTTPException) as erreur:
+        routeur_taux.creer_couple(
+            schemas.TauxChangeCreate(
+                monnaie_source_id=source.id, monnaie_cible_id=source.id, url="https://x.fr/y"
+            ),
+            db_session,
+        )
+    assert erreur.value.status_code == 400
+
+
+def test_reenregistrer_un_couple_change_son_lien(db_session, monkeypatch):
+    """Le geste qu'on fait quand une page a cessé de répondre : il n'y a rien à
+    conserver de l'ancienne adresse, et un refus obligerait à supprimer d'abord."""
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    _couple(db_session, source, dollar, url="https://ancien.fr/x", taux=1.0)
+    monkeypatch.setattr(routeur_taux.source_cours, "lire_cours", _cours(1.09))
+
+    reponse = routeur_taux.creer_couple(
+        schemas.TauxChangeCreate(
+            monnaie_source_id=source.id, monnaie_cible_id=dollar.id, url="https://nouveau.fr/y"
+        ),
+        db_session,
+    )
+
+    assert db_session.query(models.TauxChange).count() == 1
+    assert reponse.taux[0].url_cours == "https://nouveau.fr/y"
+    assert reponse.taux[0].taux == 1.09
+    assert reponse.resultats[0].ancien_taux == 1.0
+
+
+def test_les_deux_sens_sont_deux_couples(db_session, monkeypatch):
+    """EUR -> USD et USD -> EUR ne sont pas la même chose, et n'ont pas la même
+    page : l'application n'invente jamais l'inverse d'un taux."""
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    monkeypatch.setattr(routeur_taux.source_cours, "lire_cours", _cours(1.08))
+    routeur_taux.creer_couple(
+        schemas.TauxChangeCreate(
+            monnaie_source_id=source.id, monnaie_cible_id=dollar.id, url="https://x.fr/a"
+        ),
+        db_session,
+    )
+    monkeypatch.setattr(routeur_taux.source_cours, "lire_cours", _cours(0.92))
+    routeur_taux.creer_couple(
+        schemas.TauxChangeCreate(
+            monnaie_source_id=dollar.id, monnaie_cible_id=source.id, url="https://x.fr/b"
+        ),
+        db_session,
+    )
+
+    assert db_session.query(models.TauxChange).count() == 2
+
+
+def test_un_echec_n_empeche_pas_les_autres_lectures(db_session, monkeypatch):
+    """Le cas normal n'est pas « tout marche », c'est « la plupart marchent » :
+    les lectures réussies sont écrites même si d'autres ont échoué."""
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    livre = _creer_monnaie(db_session, "Livre sterling", "£")
+    bon = _couple(db_session, source, dollar, url="https://ok.fr/x")
+    casse = _couple(db_session, source, livre, url="https://casse.fr/x")
+
+    def lecture(url):
+        if "casse" in url:
+            raise source_cours.CoursIllisible("Site injoignable")
+        return source_cours.Cours(valeur=1.0842, devise=None, source="test")
+
+    monkeypatch.setattr(service_taux, "lire_cours", lecture)
+
+    resume = service_taux.rafraichir(db_session, [bon, casse])
+
+    assert resume.reussis == 1 and resume.echecs == 1
+    db_session.refresh(bon)
+    db_session.refresh(casse)
+    assert bon.taux == 1.0842
+    assert casse.taux is None
+
+
+def test_un_site_hostile_ne_casse_pas_le_lot(db_session, monkeypatch):
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    couple = _couple(db_session, source, dollar)
+
+    def explose(url):
+        raise ValueError("inattendu")
+
+    monkeypatch.setattr(service_taux, "lire_cours", explose)
+
+    resume = service_taux.rafraichir(db_session, [couple])
+
+    assert resume.echecs == 1
+    assert "ValueError" in resume.resultats[0].erreur
+
+
+def test_retirer_un_couple_ne_touche_a_aucun_montant(db_session):
+    """Rien dans l'application ne dépend d'un taux : le supprimer ne peut donc
+    rien casser ailleurs — c'est ce que ce test fige."""
+    source = db_session.query(models.Monnaie).first()
+    dollar = _creer_monnaie(db_session, "Dollar américain", "$")
+    couple = _couple(db_session, source, dollar, taux=1.08)
+
+    routeur_taux.supprimer_couple(couple.id, db_session)
+
+    assert db_session.query(models.TauxChange).count() == 0
+    # Les deux monnaies sont intactes : on a retiré un lien, pas une devise.
+    assert db_session.query(models.Monnaie).count() == 2
+
+
+def test_aucun_couple_a_rafraichir_ne_produit_pas_d_horodatage(db_session):
+    """Rien lu, rien daté : un horodatage sur un lot vide ferait croire à une
+    mise à jour qui n'a pas eu lieu."""
+    resume = service_taux.rafraichir(db_session, [])
+    assert resume.horodatage is None
+    assert resume.resultats == []

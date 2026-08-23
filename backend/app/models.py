@@ -119,6 +119,53 @@ class Monnaie(Base):
     ordre = Column(Integer, nullable=False, default=0)
 
 
+class TauxChange(Base):
+    """« 1 unité de `monnaie_source` vaut `taux` unités de `monnaie_cible` ».
+
+    REMPLIE PAR L'EXTENSION « Lecture de cours », jamais par le noyau : c'est
+    elle qui va lire la page désignée par `url_cours`. La table vit ici quand
+    même, comme le reste du schéma, pour que retirer l'extension ne fasse
+    perdre ni les liens ni les derniers taux connus (cf. extensions/README.md).
+
+    RIEN NE CONVERTIT AVEC. Aucun solde, aucun KPI, aucun budget ne consulte
+    cette table : les montants restent suivis monnaie par monnaie, et un taux
+    n'est qu'une information affichée là où l'utilisateur la demande. Lui faire
+    additionner deux devises reviendrait à défaire le choix central de l'app.
+
+    UN COUPLE, PAS UNE MONNAIE DE RÉFÉRENCE : l'application n'en a aucune. Le
+    sens compte — EUR -> USD et USD -> EUR sont deux lignes, avec deux pages
+    d'où les lire, parce que c'est ainsi que les sites les publient.
+
+    `taux` et `maj_le` sont NULL tant qu'aucune lecture n'a abouti : « jamais
+    relu », là où un 1.0 par défaut aurait menti.
+    """
+
+    __tablename__ = "taux_change"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    monnaie_source_id = Column(
+        Integer, ForeignKey("monnaie.id", ondelete="CASCADE"), nullable=False
+    )
+    monnaie_cible_id = Column(
+        Integer, ForeignKey("monnaie.id", ondelete="CASCADE"), nullable=False
+    )
+    url_cours = Column(String, nullable=False)
+    taux = Column(Float, nullable=True)
+    maj_le = Column(DateTime, nullable=True)
+
+    monnaie_source = relationship("Monnaie", foreign_keys=[monnaie_source_id])
+    monnaie_cible = relationship("Monnaie", foreign_keys=[monnaie_cible_id])
+
+    __table_args__ = (
+        UniqueConstraint("monnaie_source_id", "monnaie_cible_id", name="uq_taux_change_couple"),
+        CheckConstraint(
+            "monnaie_source_id <> monnaie_cible_id", name="ck_taux_change_monnaies_distinctes"
+        ),
+        Index("ix_taux_change_source", "monnaie_source_id"),
+        Index("ix_taux_change_cible", "monnaie_cible_id"),
+    )
+
+
 class CompteMonnaie(Base):
     """Une monnaie portée par un compte, et le solde initial du compte DANS
     cette monnaie.
@@ -417,7 +464,7 @@ class Action(Base):
     monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
     # Page publique d'où relire le cours, et date de la dernière lecture RÉUSSIE
     # (migration 0037). Le noyau ne s'en sert jamais : il n'émet aucune requête
-    # réseau, c'est l'extension « placements-web » qui lit ces deux colonnes.
+    # réseau, c'est l'extension « lecture-de-cours » qui lit ces deux colonnes.
     # Elles vivent ici quand même, comme le reste du schéma des placements, pour
     # que retirer l'extension ne fasse perdre aucun lien.
     #

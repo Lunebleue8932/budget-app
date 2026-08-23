@@ -26,9 +26,14 @@ ou supprimer toi-même.
 ### Une seule extension communique avec le web, et c'est toi qui l'allumes
 
 Tout ce qui précède décrit l'application et les extensions livrées avec elle.
-**Une** extension fait exception, et elle seule : **Placements financiers —
-cours en ligne**, qui va lire le cours de tes titres sur la page de cotation
-dont **tu** as collé le lien.
+**Une** extension fait exception, et elle seule : **Lecture de cours**, qui va
+lire un cours sur la page de cotation dont **tu** as collé le lien — le cours
+d'un titre, ou le taux d'un couple de monnaies.
+
+Une seule, et c'est délibéré : lire un cours de bourse et lire un taux de change
+sont le même geste, et les séparer en deux extensions aurait doublé la surface à
+auditer pour la même fonction. **Un seul dossier à retirer, et plus une ligne de
+code capable d'ouvrir une connexion sortante n'existe sur ta machine.**
 
 Deux gestes explicites sont nécessaires pour qu'elle communique, et l'un ne
 suffit pas sans l'autre :
@@ -41,15 +46,18 @@ suffit pas sans l'autre :
 
 Ce qu'elle fait, une fois allumée :
 
-- elle ne va que sur les pages que tu as désignées, titre par titre ;
+- elle ne va que sur les pages que tu as désignées, une par une ;
 - elle envoie une requête `GET` et rien d'autre : **aucune donnée de ton budget**
   ne quitte la machine — ni tes comptes, ni tes montants, ni le nombre de titres
   que tu détiens. Le site visité apprend qu'une adresse IP a demandé une page
   publique, ce qu'il apprend de n'importe quel visiteur ;
 - tout son code réseau tient dans un seul fichier lisible d'un trait,
-  [`extensions/placements-web/source_cours.py`](extensions/placements-web/source_cours.py) ;
+  [`extensions/lecture-de-cours/source_cours.py`](extensions/lecture-de-cours/source_cours.py) ;
 - la décocher arrête tout ; supprimer son dossier remet l'application dans
-  l'état décrit plus haut, sans exception.
+  l'état décrit plus haut, sans exception ;
+- **elle ne convertit rien.** Un taux de change lu ici s'affiche sur l'écran des
+  monnaies et n'entre dans aucun calcul : les soldes, les budgets et les KPI
+  restent suivis monnaie par monnaie, comme ils l'ont toujours été.
 
 ## Installation
 
@@ -150,11 +158,13 @@ ferment, et tout réapparaît intact à la réactivation.
   restent en base et reprennent leur travail dès qu'on la rallume.
 - **Placements financiers** — portefeuille de titres, achats/ventes,
   valorisation au dernier cours saisi. Entièrement hors ligne.
-- **Placements financiers — cours en ligne** — se greffe sur la précédente
-  (qu'elle exige) : un lien de page de cotation par titre, un bouton
-  « Mettre à jour les cours » sur l'écran Placements, et une relecture au
-  lancement de l'application. **Seule extension qui accède à Internet**, voir
-  plus haut.
+- **Lecture de cours** — se greffe sur les deux précédentes, et exige au moins
+  l'une d'elles : un lien de page de cotation par titre suivi (écran Placements)
+  et par couple de monnaies (écran Monnaies), un bouton de mise à jour sur
+  chacun des deux écrans, et une relecture au lancement de l'application.
+  **Seule extension qui accède à Internet**, voir plus haut. Elle s'éteint
+  d'elle-même si on décoche les deux extensions dont elle dépend, et revient
+  intacte dès qu'on en rallume une.
 
 Pour en écrire une, voir [extensions/README.md](extensions/README.md).
 

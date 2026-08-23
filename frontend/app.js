@@ -8610,6 +8610,20 @@ function renderErreursExtensions(reponse) {
     .join("");
 }
 
+/**
+ * « Il manque ceci pour pouvoir l'allumer ».
+ *
+ * Les noms cités sont les IDENTIFIANTS des extensions attendues, pas leurs
+ * noms d'affichage : une extension absente du disque n'a pas de nom
+ * d'affichage à donner — c'est justement le cas qu'on décrit.
+ */
+function manqueExtensionHtml(extension) {
+  const noms = (extension.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`);
+  return `${t("Nécessite au moins une de ces extensions, installée et activée :")} ${noms.join(
+    ` ${t("ou")} `
+  )}`;
+}
+
 function renderExtensions(extensions) {
   const bloc = document.getElementById("extensions-liste");
   if (extensions.length === 0) {
@@ -8632,11 +8646,18 @@ function renderExtensions(extensions) {
               : ""
           }
           <label class="extension-bascule">
-            <input type="checkbox" data-extension-id="${escapeHtml(e.id)}" ${e.actif ? "checked" : ""} />
+            <input type="checkbox" data-extension-id="${escapeHtml(e.id)}" ${e.actif ? "checked" : ""} ${
+              e.dependances_ok ? "" : "disabled"
+            } />
             <span>${t("Activée")}</span>
           </label>
         </div>
         <p class="extension-description">${escapeHtml(e.description)}</p>
+        ${
+          // Une case qu'on ne peut pas cocher doit DIRE POURQUOI : sans cette
+          // ligne, elle passerait pour une panne.
+          e.dependances_ok ? "" : `<p class="extension-manque">${manqueExtensionHtml(e)}</p>`
+        }
       </div>`
     )
     .join("");
@@ -8659,7 +8680,10 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     // qu'« inactive » veut dire « ne tourne pas ».
     const abouti = await BudgetApp.extensions.appliquerActivation(id, actif);
     if (actif && !abouti) throw new Error(t("Extension non chargée"));
-    case_.closest(".extension-carte").classList.toggle("inactive", !actif);
+    // On REDESSINE toute la liste, et pas seulement la carte touchée : éteindre
+    // une extension peut en priver une autre de son hôte, dont la case doit
+    // alors se griser sur-le-champ.
+    await loadExtensions();
     showMessage(
       actif ? t("Extension activée.") : t("Extension désactivée. Aucune donnée n'a été supprimée."),
       "success"

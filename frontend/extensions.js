@@ -20,7 +20,7 @@
  * RIEN N'EST CHARGÉ D'UNE EXTENSION INACTIVE — ni sa feuille de style, ni son
  * écran, ni une ligne de son script. « Inactive » doit vouloir dire « ne
  * tourne pas », pas « tourne mais son bouton est caché » : depuis qu'une
- * extension peut ouvrir une connexion sortante (« placements-web »), la
+ * extension peut ouvrir une connexion sortante (« lecture-de-cours »), la
  * nuance a cessé d'être théorique.
  *
  * Les fichiers sont donc chargés AU MOMENT OÙ ON L'ALLUME (cf.
@@ -254,7 +254,7 @@ async function appliquerActivation(id, actif) {
       await chargerFichiers(entree.manifeste);
       entree.fichiersCharges = true;
       // POUR LES GREFFES. Une extension qui se pose sur l'écran d'une autre
-      // (« placements-web » sur « placements ») n'a d'hôte que si celui-ci a
+      // (« lecture-de-cours » sur « placements ») n'a d'hôte que si celui-ci a
       // été chargé avant elle. Allumer les deux dans le désordre au cours
       // d'une même session est parfaitement possible : cet événement lui donne
       // le moyen de s'accrocher en retard, au lieu d'attendre un redémarrage.
@@ -327,7 +327,7 @@ function afficherModaleExtensions(extensions) {
       (e) => `<li>
         <label class="modale-extension-bascule">
           <input type="checkbox" data-activer-extension="${escapeHtml(e.id)}"
-                 ${e.actif ? "checked" : ""} />
+                 ${e.actif ? "checked" : ""} ${e.dependances_ok ? "" : "disabled"} />
           <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
           ${e.version ? `<span class="modale-extension-version">v${escapeHtml(e.version)}</span>` : ""}
         </label>
@@ -335,6 +335,16 @@ function afficherModaleExtensions(extensions) {
           e.description
             ? `<p class="modale-extension-description">${escapeHtml(e.description)}</p>`
             : ""
+        }
+        ${
+          // Une extension qu'on ne peut pas encore allumer est quand même
+          // annoncée — elle est bien là, on vient de l'installer — mais sa case
+          // est grisée et dit ce qui lui manque.
+          e.dependances_ok
+            ? ""
+            : `<p class="modale-extension-description">${t(
+                "Nécessite au moins une de ces extensions, installée et activée :"
+              )} ${(e.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`).join(` ${t("ou")} `)}</p>`
         }
       </li>`
     )
@@ -349,7 +359,9 @@ function afficherModaleExtensions(extensions) {
   // prendre est là, et une fenêtre qui met le focus sur sa sortie invite à
   // sortir. Tab circule ensuite dans la fenêtre plutôt que dans la page grisée
   // derrière.
-  const premiere = fond.querySelector("input[data-activer-extension]");
+  // `:not(:disabled)` : une case grisée ne peut pas recevoir le focus, et le
+  // lui donner le renverrait au corps de la page — donc hors de la fenêtre.
+  const premiere = fond.querySelector("input[data-activer-extension]:not(:disabled)");
   (premiere || document.getElementById("btn-modale-extensions-aller")).focus();
 }
 
@@ -481,6 +493,16 @@ async function chargerExtensions() {
     try {
       await chargerFichiers(manifeste);
       extensionsChargees.get(manifeste.id).fichiersCharges = true;
+      // MÊME ÉVÉNEMENT QU'À L'ALLUMAGE À CHAUD, et pour la même raison : une
+      // greffe chargée avant son hôte doit pouvoir s'accrocher en retard.
+      // L'ordre de chargement est l'ordre ALPHABÉTIQUE des dossiers, sur lequel
+      // personne ne choisit rien — « lecture-de-cours » passe avant
+      // « monnaies » et « placements », qu'elle greffe toutes deux. Sans cet
+      // événement ici, la greffe ne se poserait qu'au redémarrage suivant…
+      // c'est-à-dire jamais.
+      document.dispatchEvent(
+        new CustomEvent("budgetapp:extension-chargee", { detail: { id: manifeste.id } })
+      );
       annoncables.push(manifeste);
     } catch (err) {
       // Une extension allumée dont les fichiers manquent n'est pas annoncée :

@@ -1,7 +1,7 @@
 """Lien de cotation d'un titre, et date de sa dernière lecture en ligne.
 
 CES DEUX COLONNES SONT DANS LE NOYAU alors que seule l'extension
-« Placements financiers — cours en ligne » (extensions/placements-web) s'en
+« Placements financiers — cours en ligne » (extensions/lecture-de-cours) s'en
 sert. C'est la règle du dépôt et elle a une raison précise : une extension qui
 emporterait son schéma imposerait de choisir, à la désactivation, entre
 supprimer ses données et refuser de s'éteindre. Ici, désinstaller l'extension

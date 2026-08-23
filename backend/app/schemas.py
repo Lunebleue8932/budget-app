@@ -667,7 +667,7 @@ class PlacementDetailRead(PlacementCompteRead):
 
 # ---------- Placements financiers : cours lus en ligne ----------
 #
-# Servent l'extension « placements-web », et elle seule — le noyau n'émet
+# Servent l'extension « lecture-de-cours », et elle seule — le noyau n'émet
 # aucune requête réseau. Ils vivent ici comme le reste du schéma des
 # placements : une extension ne devrait pas emporter ses données (cf.
 # extensions/README.md), sans quoi la désactiver imposerait de choisir entre
@@ -734,6 +734,70 @@ class RafraichissementRead(BaseModel):
     echecs: int = 0
     resultats: list[ResultatCoursRead] = Field(default_factory=list)
     titres: list[CoursTitreRead] = Field(default_factory=list)
+
+
+# ---------- Monnaies : taux lus en ligne ----------
+#
+# Même extension, même règle : les données restent dans le noyau, l'extension
+# n'apporte que la lecture. Aucun de ces taux n'est utilisé pour convertir quoi
+# que ce soit — cf. models.TauxChange.
+
+
+class TauxChangeCreate(BaseModel):
+    """Un couple à suivre, et la page d'où le lire.
+
+    Les deux monnaies sont désignées par leur id : elles existent déjà dans
+    l'application, on ne les crée pas ici. Leur ordre porte le sens du taux —
+    « 1 source vaut n cible » — et l'inverse est un autre couple, avec sa
+    propre page."""
+
+    monnaie_source_id: int
+    monnaie_cible_id: int
+    url: str = Field(min_length=1)
+
+
+class TauxChangeRead(BaseModel):
+    """Un couple suivi, tel que l'écran l'affiche.
+
+    Les noms et symboles accompagnent les ids pour que le frontend n'ait pas à
+    recroiser la table des monnaies ligne par ligne.
+
+    `maj_le` à None se lit « jamais relu » : le lien est enregistré, aucune
+    lecture n'a encore abouti."""
+
+    id: int
+    monnaie_source_id: int
+    monnaie_source_nom: str
+    monnaie_source_symbole: str
+    monnaie_cible_id: int
+    monnaie_cible_nom: str
+    monnaie_cible_symbole: str
+    url_cours: str
+    taux: Optional[float] = None
+    maj_le: Optional[datetime] = None
+
+
+class ResultatTauxRead(BaseModel):
+    """Ce qu'un couple a donné lors d'un rafraîchissement."""
+
+    taux_id: int
+    libelle: str  # « Euro -> Dollar américain », pour un message lisible
+    ok: bool
+    taux: Optional[float] = None
+    ancien_taux: Optional[float] = None
+    source: Optional[str] = None
+    erreur: Optional[str] = None
+
+
+class RafraichissementTauxRead(BaseModel):
+    """Compte rendu d'un rafraîchissement, et état de TOUS les couples après
+    coup — pour que l'écran se remette à jour sans second appel."""
+
+    horodatage: Optional[datetime] = None
+    reussis: int = 0
+    echecs: int = 0
+    resultats: list[ResultatTauxRead] = Field(default_factory=list)
+    taux: list[TauxChangeRead] = Field(default_factory=list)
 
 
 class ImportLigne(BaseModel):

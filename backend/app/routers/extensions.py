@@ -88,9 +88,26 @@ def set_extension(extension_id: str, payload: ExtensionEtatUpdate):
     parce qu'un testeur doit pouvoir essayer une extension sans risquer son
     portefeuille — et parce qu'une désactivation destructive serait un piège à
     un clic."""
-    _extension_ou_404(extension_id)
+    extension = _extension_ou_404(extension_id)
+    # ALLUMER CE QUI N'A PAS D'HÔTE NE MÈNERAIT NULLE PART. Une extension qui se
+    # greffe sur d'autres écrans (« Lecture de cours ») n'a rien à mettre à jour
+    # tant qu'aucune de celles dont elle dépend ne tourne : la case cochée
+    # donnerait l'illusion d'une fonctionnalité en marche. Le refus DIT ce qui
+    # manque, plutôt que de laisser chercher.
+    if payload.actif and not extensions_noyau.dependances_satisfaites(extension_id):
+        manquantes = ", ".join(f"« {identifiant} »" for identifiant in extension.requiert_une_de)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {extension.nom} » a besoin d'au moins une de ces extensions, "
+                f"installée et activée : {manquantes}."
+            ),
+        )
     extensions_noyau.definir_active(extension_id, payload.actif)
-    return {"id": extension_id, "actif": payload.actif}
+    # `est_active` peut différer de ce qui vient d'être écrit — jamais ici (on
+    # vient de vérifier), mais le jour où une dépendance s'éteindra entre-temps,
+    # mieux vaut que la réponse dise l'état RÉEL que la décision enregistrée.
+    return {"id": extension_id, "actif": extensions_noyau.est_active(extension_id)}
 
 
 @router.get("/{extension_id}/fichiers/{chemin:path}")

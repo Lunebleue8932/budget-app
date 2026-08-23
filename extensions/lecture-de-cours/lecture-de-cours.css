@@ -78,3 +78,59 @@
   font-size: 0.78rem;
   word-break: break-all;
 }
+
+/* ---------- Volet monnaies : le bloc « Taux de change » ----------
+ *
+ * Préfixé `lc-` (et non `pw-` comme le volet titres, hérité du nom précédent
+ * de l'extension) et toujours descendant d'un élément que cette extension a
+ * elle-même posé : la feuille est chargée pour TOUTE l'application, un
+ * sélecteur trop large repeindrait des écrans qui ne la concernent pas.
+ */
+.lc-taux {
+  margin-top: 2rem;
+}
+
+.lc-taux-barre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.9rem;
+}
+
+.lc-taux-barre .hint {
+  margin: 0;
+}
+
+/* La ligne d'ajout : deux menus, une flèche qui dit le SENS du taux, l'URL qui
+   prend la place restante. Le sens n'est pas décoratif — « 1 EUR = 1,08 USD »
+   et l'inverse sont deux couples distincts, avec deux pages distinctes. */
+.lc-taux-ajout {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.lc-taux-ajout input[type="url"] {
+  flex: 1 1 18rem;
+  min-width: 12rem;
+}
+
+.lc-taux-fleche {
+  color: var(--text-muted);
+}
+
+.lc-taux-couple,
+.lc-taux-fraicheur {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Le lien est court et discret : ce qu'on lit sur cette ligne, c'est le taux,
+   pas l'adresse — mais on doit pouvoir vérifier la page d'un clic. */
+.lc-taux-lien {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
