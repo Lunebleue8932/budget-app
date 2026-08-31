@@ -177,7 +177,15 @@ def main() -> int:
 
     import webview
 
-    webview.create_window(TITRE, url, width=1280, height=860, min_size=(900, 600))
+    # `text_select=True` : SANS LUI, RIEN N'EST SÉLECTIONNABLE dans l'application
+    # de bureau. pywebview injecte par défaut `body { user-select: none }` (cf.
+    # webview/js/customize.js), ce qui empêche de copier un montant, un libellé
+    # d'opération ou un nom de titre — alors que la même page, ouverte dans un
+    # navigateur pendant le développement, se sélectionne normalement. C'est la
+    # raison pour laquelle le problème ne se voit QUE dans l'app packagée.
+    webview.create_window(
+        TITRE, url, width=1280, height=860, min_size=(900, 600), text_select=True
+    )
     webview.start()
     return 0
 

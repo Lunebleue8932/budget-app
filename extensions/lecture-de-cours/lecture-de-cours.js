@@ -44,6 +44,17 @@ let dernierResume = null;
 
 const ID_EXTENSION = "lecture-de-cours";
 
+// La flèche du repli. Dessinée ici plutôt que reprise de `basculeDetailHtml`
+// (app.js) : celui-là porte un pictogramme de feuilles, qui annonce « voici une
+// explication ». Ce qui se déplie ici n'est pas un texte mais un réglage, et
+// une flèche vers le bas est le seul dessin qui dise exactement cela.
+const CHEVRON_BAS = `
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+       aria-hidden="true" focusable="false">
+    <path d="m6 9 6 6 6-6" />
+  </svg>`;
+
 function actif() {
   return BudgetApp.extensions.estActive(ID_EXTENSION);
 }
@@ -161,12 +172,23 @@ function majEtatBarre() {
 let sourcesConnues = null;
 
 /**
- * Les sources reconnues, énoncées AU-DESSUS du premier champ à remplir.
+ * Les sources reconnues, REPLIÉES au-dessus du premier champ à remplir.
  *
  * Elles viennent du serveur (`GET /cours/sources`) et non d'un texte recopié
  * ici : la liste affichée est alors, littéralement, celle du code qui lit les
  * pages — elle ne peut pas promettre une source qui n'existe plus, ni oublier
  * celle qu'on vient d'ajouter.
+ *
+ * DÉPLIABLE, ET NON PLUS ÉTALÉE. C'est une aide qu'on lit une fois, en collant
+ * son premier lien, et qui n'a plus rien à dire ensuite : affichée en
+ * permanence, elle occupait trois lignes au-dessus de la liste des titres à
+ * chaque passage. Le pictogramme dépliant du noyau (`basculeDetailHtml`) est
+ * exactement ce que ce cas demande — replié par défaut, un clic l'ouvre.
+ *
+ * UNE SEULE COULEUR. Le texte mêlait trois traitements sur la même ligne : le
+ * nom en clair, l'adresse d'exemple en `<code>` (police et teinte propres),
+ * la couverture en `<em>`. Trois façons d'écrire la même information n'aident
+ * personne à la lire — c'est une liste, elle se lit comme une liste.
  */
 async function poserAideSources() {
   const liste = document.getElementById("placements-actions-liste");
@@ -185,19 +207,147 @@ async function poserAideSources() {
       return; // extension éteinte entre-temps : l'aide n'est pas essentielle
     }
   }
-  const aide = document.createElement("p");
-  aide.id = "pw-sources";
-  aide.className = "hint pw-sources";
-  aide.innerHTML =
-    `<strong>${t("Pages reconnues")}</strong> — ` +
+  // Une ligne par source, dans une liste : le nom, ce qu'elle couvre, puis
+  // l'adresse d'exemple. Aucune mise en forme particulière — le nom en gras
+  // suffit à distinguer les sources les unes des autres.
+  const contenu =
+    `<ul class="pw-sources-liste">` +
     sourcesConnues
       .map(
         (source) =>
-          `${escapeHtml(source.nom)} <code>${escapeHtml(source.exemple)}</code> ` +
-          `<em>(${escapeHtml(source.couvre)})</em>`
+          `<li><strong>${escapeHtml(source.nom)}</strong> — ` +
+          `${escapeHtml(source.couvre)}<br />${escapeHtml(source.exemple)}</li>`
       )
-      .join(" · ");
+      .join("") +
+    `</ul>`;
+
+  const detail = basculeDetailHtml("pw-sources-detail", contenu, {
+    libelle: t("Afficher les pages reconnues"),
+  });
+  const aide = document.createElement("div");
+  aide.id = "pw-sources";
+  aide.className = "pw-sources";
+  aide.innerHTML = `
+    <div class="pw-sources-entete">
+      <span class="hint">${t("Quelles pages puis-je coller ?")}</span>
+      ${detail.bouton}
+    </div>
+    ${detail.panneau}
+  `;
   liste.insertAdjacentElement("beforebegin", aide);
+}
+
+/* ---------- Le formulaire « Suivre un cours en ligne » ---------- */
+
+/**
+ * Un vrai formulaire de l'app, posé sous « Ajouter un titre ».
+ *
+ * POURQUOI EN PLUS DU CHAMP EN LIGNE. Les deux ne servent pas au même geste :
+ * le champ de la rangée CORRIGE le lien d'un titre qu'on est en train de
+ * regarder, le formulaire ATTACHE un lien à un titre qu'on vient de créer. Le
+ * second se faisait jusqu'ici en allant chercher la bonne rangée dans la liste
+ * au-dessus, dans un champ deux fois plus petit que tous les autres champs de
+ * l'écran — c'était la seule saisie de l'application qui ne ressemblait à
+ * aucune autre.
+ *
+ * `<form>` sans une ligne de style à lui : la grille, les étiquettes et les
+ * champs viennent du noyau (cf. frontend/style.css), et c'est exactement ce
+ * qu'on cherchait — il se lit comme « Ajouter un titre », juste au-dessus.
+ *
+ * Idempotente, et RETIRE le bloc quand l'extension vient d'être décochée :
+ * même règle que la barre de mise à jour.
+ */
+function poserFormulaireLien() {
+  const ancre = document.getElementById("form-action");
+  if (!ancre) return; // extension « placements » absente : rien à greffer
+  const existant = document.getElementById("pw-suivre");
+  if (!actif()) {
+    if (existant) existant.remove();
+    return;
+  }
+
+  if (!existant) {
+    const bloc = document.createElement("div");
+    bloc.id = "pw-suivre";
+    bloc.innerHTML = `
+      <h3>${t("Suivre un cours en ligne")}</h3>
+      <form id="pw-form-lien">
+        <label for="pw-form-lien-titre">${t("Titre")}
+          <select id="pw-form-lien-titre" required></select>
+        </label>
+        <label class="full-width" for="pw-form-lien-url">${t(
+          "Lien de la page de cotation"
+        )}
+          <input type="url" id="pw-form-lien-url" required
+                 placeholder="${t(
+                   "Lien de la page de cotation (Google Finance, Yahoo Finance…)"
+                 )}" />
+        </label>
+        <div class="actions full-width">
+          <button type="submit" class="primary">${t("Enregistrer le lien")}</button>
+        </div>
+      </form>
+    `;
+    ancre.insertAdjacentElement("afterend", bloc);
+    document.getElementById("pw-form-lien").addEventListener("submit", (evenement) => {
+      evenement.preventDefault();
+      suivreTitreChoisi();
+    });
+    // Changer de titre montre le lien qu'il a DÉJÀ : le formulaire sert alors
+    // aussi à le corriger, au lieu d'écraser en aveugle ce qu'on ne voyait pas.
+    document
+      .getElementById("pw-form-lien-titre")
+      .addEventListener("change", majUrlDuTitreChoisi);
+  }
+  remplirMenuTitres();
+}
+
+/** Le menu des titres, rempli depuis la table que le serveur vient de rendre. */
+function remplirMenuTitres() {
+  const select = document.getElementById("pw-form-lien-titre");
+  if (!select) return;
+  const titres = [...coursParTitre.values()];
+  const precedent = select.value;
+  select.innerHTML = titres
+    .map(
+      (titre) =>
+        `<option value="${titre.action_id}">${escapeHtml(titre.action_nom)}${
+          // « (suivi) » plutôt qu'une liste séparée : le formulaire attache un
+          // lien ET en corrige un, et cacher les titres déjà suivis interdirait
+          // le second usage.
+          titre.url_cours ? ` — ${escapeHtml(t("déjà suivi"))}` : ""
+        }</option>`
+    )
+    .join("");
+  if (precedent && titres.some((titre) => String(titre.action_id) === precedent)) {
+    select.value = precedent;
+  }
+  majUrlDuTitreChoisi();
+}
+
+/** Recopie dans le champ le lien du titre choisi (vide s'il n'en a pas). */
+function majUrlDuTitreChoisi() {
+  const select = document.getElementById("pw-form-lien-titre");
+  const champ = document.getElementById("pw-form-lien-url");
+  if (!select || !champ) return;
+  const titre = coursParTitre.get(Number(select.value));
+  champ.value = (titre && titre.url_cours) || "";
+}
+
+/**
+ * Enregistre le lien saisi dans le formulaire. Passe par le MÊME chemin que le
+ * champ en ligne (`enregistrerLien`) : un seul endroit décide de ce qui arrive
+ * quand un lien change, et les deux saisies ne peuvent pas diverger.
+ */
+async function suivreTitreChoisi() {
+  const select = document.getElementById("pw-form-lien-titre");
+  const champ = document.getElementById("pw-form-lien-url");
+  if (!select || !champ || !select.value) return;
+  // `enregistrerLien` lit l'identifiant sur le champ lui-même (c'est ce que
+  // fait la rangée) : on le lui pose ici plutôt que de dupliquer sa logique.
+  champ.dataset.id = select.value;
+  await enregistrerLien(champ);
+  remplirMenuTitres();
 }
 
 /* ---------- Le champ « lien » sur chaque titre suivi ---------- */
@@ -215,14 +365,41 @@ function greffeLiens() {
 
   bloc.querySelectorAll(".import-mapping-row").forEach((ligne) => {
     if (ligne.querySelector(".pw-lien")) return; // déjà greffée
+    // Un titre ARCHIVÉ n'est plus relu en ligne (il ne sort même plus de
+    // `/cours/titres`) : lui proposer un champ de lien promettrait une mise à
+    // jour qui n'aura jamais lieu. Sa rangée n'apparaît de toute façon que
+    // quand on coche « Afficher les titres archivés ».
+    if (ligne.classList.contains("titre-archive")) return;
     const champCours = ligne.querySelector("input[data-action='cours']");
     if (!champCours) return;
     const actionId = Number(champCours.dataset.id);
     const titre = coursParTitre.get(actionId) || {};
     const suivi = Boolean(titre.url_cours);
 
+    // LA FLÈCHE, posée juste après le nom du titre : c'est elle qui déplie le
+    // lien. Le lien de cotation est un réglage — on le colle une fois et on n'y
+    // revient plus — alors que le cours et l'archivage se lisent à chaque
+    // passage. Le laisser déplié en permanence donnait à chaque titre une
+    // seconde ligne d'URL, et une liste de quinze titres devenait un mur
+    // d'adresses.
+    const bascule = document.createElement("button");
+    bascule.type = "button";
+    bascule.className = "pw-bascule";
+    bascule.dataset.pwBascule = String(actionId);
+    bascule.setAttribute("aria-expanded", "false");
+    bascule.title = t("Afficher le lien de cotation");
+    bascule.setAttribute("aria-label", bascule.title);
+    bascule.innerHTML = CHEVRON_BAS;
+    // Un titre déjà suivi le montre sans qu'on ait à déplier : la pastille dit
+    // qu'il y a quelque chose derrière la flèche.
+    if (suivi) bascule.classList.add("pw-bascule-suivi");
+    const nom = ligne.querySelector(".import-mapping-nom");
+    if (nom) nom.after(bascule);
+    else ligne.prepend(bascule);
+
     const greffe = document.createElement("div");
     greffe.className = "pw-lien";
+    greffe.hidden = true;
     greffe.innerHTML = `
       <input type="url" class="pw-url" data-pw-url data-id="${actionId}"
              placeholder="${t("Lien de la page de cotation (Google Finance, Yahoo Finance…)")}"
@@ -240,6 +417,14 @@ function greffeLiens() {
       )}</span>
     `;
     ligne.appendChild(greffe);
+
+    bascule.addEventListener("click", () => {
+      const ouvrir = greffe.hidden;
+      greffe.hidden = !ouvrir;
+      bascule.setAttribute("aria-expanded", String(ouvrir));
+      bascule.classList.toggle("ouvert", ouvrir);
+      if (ouvrir) greffe.querySelector(".pw-url").focus();
+    });
   });
 
   // Le lien est enregistré à la VALIDATION du champ (change), comme le cours
@@ -423,6 +608,7 @@ async function chargerPlacementsAvecCours() {
   if (typeof loadPlacements === "function") await loadPlacements();
   poserBarre();
   greffeLiens();
+  poserFormulaireLien();
   ajusterInfoBulle();
   await poserAideSources();
 }
@@ -446,12 +632,11 @@ function ajusterInfoBulle() {
   if (infoBulleOrigine === null) infoBulleOrigine = bulle.dataset.info;
   bulle.dataset.info = actif()
     ? t(
-        "La liste des titres est commune à tous les comptes de placement. Le cours " +
-          "peut être saisi à la main, ou relu automatiquement sur une page publique " +
-          "de cotation dont tu colles le lien ci-dessous — c'est la seule chose que " +
-          "l'application va chercher sur Internet, et seulement pour les titres qui " +
-          "ont un lien. Le cours ne sert qu'à valoriser les portefeuilles : jamais à " +
-          "recalculer un solde, qui ne dépend que des prix réellement payés."
+        "Tes titres, communs à tous tes comptes. Colle le lien d'une page de " +
+          "cotation à côté d'un titre et son cours se relira tout seul : c'est la " +
+          "seule chose que l'app va chercher sur Internet, et seulement pour les " +
+          "titres qui ont un lien. Le cours dit ce que ça vaut aujourd'hui, jamais " +
+          "comment un solde est calculé."
       )
     : infoBulleOrigine;
 }

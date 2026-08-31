@@ -1,0 +1,116 @@
+/* ---------- Extension « Vue d'ensemble des placements » ----------
+ *
+ * Tout est préfixé `io-`, sauf les deux classes du titre de la page hôte
+ * (ci-dessous) et `.histo-bulle`, empruntée telle quelle au noyau — l'infobulle
+ * du camembert est la même que celle de l'histogramme des dépenses, et lui
+ * refaire une feuille de style la ferait diverger au premier ajustement.
+ */
+
+/* Le titre de cet écran et sa sortie sur une seule ligne : le bouton de retour
+   doit être là où le regard arrive en ouvrant la page. */
+.io-titre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.io-titre button {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.io-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Le graphe et sa légende côte à côte tant qu'il y a la place, l'un sous
+   l'autre en dessous : sur un écran étroit, une légende comprimée à côté d'un
+   camembert rétréci rend les deux illisibles.
+
+   `relative` parce que c'est aussi le cadre dans lequel l'infobulle du
+   camembert se positionne et se recadre (cf. ioPlacerInfobulle) : le bloc
+   entier, et non le seul disque — celui-ci ne fait que 240 pixels de large, et
+   une bulle rapportée à lui se poserait toujours sur le graphe qu'elle
+   commente. */
+.io-camembert-bloc {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+#io-camembert {
+  flex: 0 0 auto;
+}
+
+/* Un léger éclaircissement au survol, en plus de l'infobulle : elle dit ce
+   qu'on regarde, celui-ci dit OÙ on regarde — une bulle qui suit le curseur ne
+   désigne pas la part à elle seule. */
+.io-part {
+  cursor: default;
+  transition: opacity 0.12s ease;
+}
+
+.io-part:hover {
+  opacity: 0.82;
+}
+
+.io-legende {
+  flex: 1 1 20rem;
+  min-width: 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* Une grille et non un flex : les montants et les pourcentages se lisent en
+   colonnes, ce qui est tout l'intérêt d'une répartition. */
+.io-legende-ligne {
+  display: grid;
+  grid-template-columns: 0.7rem 1fr auto auto 3.2rem;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.875rem;
+}
+
+.io-pastille {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+}
+
+.io-legende-nom {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.io-legende-nombre {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.io-legende-montant {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.io-legende-part {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* « et N autres » : une ligne de comptage, pas un titre de plus. */
+.io-bulle-reste {
+  color: var(--text-muted);
+  font-style: italic;
+}

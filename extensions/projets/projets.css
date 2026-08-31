@@ -1,0 +1,142 @@
+/* ---------- Extension « Projets » ----------
+ *
+ * Ces règles vivent ici, et non dans frontend/style.css : elles n'ont de sens
+ * que si l'extension est installée. Tout ce qui est partagé avec le reste de
+ * l'application — `.regle-editeur` pour le formulaire, `.actions`,
+ * `.barre-selection`, `.apercu-fichier-defilement` pour le tableau qui
+ * déborde — est réutilisé tel quel : c'est le même geste à apprendre.
+ */
+
+/* La liste de projets, en cartes de largeur égale. Une grille plutôt qu'un
+   tableau : un projet se lit comme une fiche (un nom, une phrase, un total),
+   pas comme une ligne de colonnes. */
+.projets-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.projet-carte {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 0.7rem 0.8rem;
+}
+
+.projet-carte-corps {
+  flex: 1;
+  min-width: 0;
+}
+
+.projet-carte-nom {
+  font-weight: 600;
+  color: var(--text-primary);
+  /* Un nom de projet peut être long : il se replie plutôt que d'élargir la
+     carte et de casser la grille. */
+  overflow-wrap: anywhere;
+}
+
+.projet-carte-description {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.projet-carte-compte {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.projet-carte-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.projet-carte-actions button {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+}
+
+/* Les totaux : une ligne PAR MONNAIE (l'app n'en additionne jamais deux). Les
+   deux montants côte à côte, les entrées en retrait — un projet coûte, le plus
+   souvent, et c'est la dépense qu'on vient lire. */
+.projet-totaux {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.projet-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.projet-total-depenses {
+  color: var(--error-text, #e66767);
+  font-weight: 600;
+}
+
+.projet-total-entrees {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+/* L'en-tête d'un projet ouvert et sa sortie, sur une seule ligne : le retour
+   doit être là où le regard arrive, pas au bas d'un écran qu'il faut d'abord
+   parcourir (même disposition que l'en-tête de l'import de placements). */
+.projet-detail-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.projet-detail-entete h3 {
+  margin-right: auto;
+}
+
+/* Le sélecteur d'opérations : un bloc encadré, distinct de la liste du projet
+   juste en dessous — on y CHOISIT, on n'y lit pas. */
+.projet-selecteur {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.projet-selecteur-filtres {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.projet-selecteur-filtres label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.projet-selecteur-filtres input,
+.projet-selecteur-filtres select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+}

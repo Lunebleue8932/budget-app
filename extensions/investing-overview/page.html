@@ -1,0 +1,35 @@
+<!-- Écran de l'extension « Vue d'ensemble des placements », injecté dans <main>
+     par frontend/extensions.js. C'est un <section> comme ceux du noyau :
+     switchSection le montre et le masque exactement de la même façon.
+
+     PAS D'ONGLET DANS LA BARRE DU HAUT (`bouton: false` dans le manifeste) :
+     cet écran est une façon de REGARDER le portefeuille, pas une destination à
+     côté de lui. On y entre par un bouton posé dans le titre de la page
+     Placements, on en ressort par celui de son propre en-tête — exactement le
+     chemin de l'écran d'import. -->
+    <section id="section-investing-overview">
+      <h2 class="io-titre">
+        Vue d'ensemble des placements
+        <button type="button" id="btn-io-retour">Retour aux placements</button>
+      </h2>
+
+      <p class="hint" id="io-vide" style="display:none">
+        Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page
+        Placements financiers, et la répartition apparaîtra ici.
+      </p>
+
+      <!-- Un onglet par monnaie de cotation, comme le dashboard : rien ne permet
+           d'additionner des euros et des dollars, et un camembert qui les
+           mélangerait donnerait des parts fausses avec l'air d'être juste. -->
+      <div class="sous-onglets" id="io-monnaies"></div>
+
+      <div id="io-contenu" style="display:none">
+        <div class="io-kpis" id="io-kpis"></div>
+
+        <h3>Répartition par type de titre<i class="info-bulle" tabindex="0" data-info="Combien de ton portefeuille est en ETF, en obligations, en actions — à la valeur d'aujourd'hui, tous comptes confondus. Survole une part pour voir les titres qui la composent. Les types se posent sur les titres depuis la page Placements.">i</i></h3>
+        <div class="io-camembert-bloc">
+          <div id="io-camembert"></div>
+          <div id="io-legende" class="io-legende"></div>
+        </div>
+      </div>
+    </section>

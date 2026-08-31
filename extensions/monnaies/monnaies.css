@@ -1,0 +1,29 @@
+/* Extension « Monnaies » — la bascule d'agrégation du dashboard.
+ *
+ * Le reste de l'écran des monnaies n'a aucun style à lui : il réutilise les
+ * classes du noyau (`.import-mappings`, `.import-mapping-row`), comme toutes
+ * les listes de correspondances de l'application.
+ */
+
+/* Posée juste sous la barre d'onglets de monnaie, dont elle prolonge le
+   propos : les onglets choisissent LAQUELLE on regarde, la case dit si les
+   autres y sont ramenées. Discrète — c'est un réglage de lecture, pas un
+   chiffre. */
+.monnaies-agregation {
+  margin: -0.35rem 0 1rem;
+  font-size: 0.85rem;
+}
+
+.monnaies-agregation .import-option-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* L'avertissement des monnaies non converties. En orange et non en rouge : le
+   total affiché n'est pas faux, il est INCOMPLET, et le dire ainsi évite de
+   faire passer une saisie manquante pour une panne. */
+#monnaies-agregation-alerte {
+  margin-top: 0.3rem;
+  color: var(--depense);
+}

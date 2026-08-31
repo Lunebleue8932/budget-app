@@ -197,8 +197,8 @@ jobs:
 
             L'application fonctionne **hors ligne** : aucune donnée ne quitte
             ta machine. Seule exception, à installer soi-même : l'extension
-            « Placements financiers — cours en ligne », qui va lire les cours
-            sur les pages de cotation dont tu colles le lien.
+            « Lecture de cours », qui va lire un cours de bourse ou un taux de
+            change sur la page dont tu colles le lien.
 
             ## Extensions (facultatif)
 

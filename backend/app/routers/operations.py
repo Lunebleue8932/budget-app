@@ -244,6 +244,10 @@ def list_operations(
     statut: Optional[str] = None,
     date_debut: Optional[date_type] = None,
     date_fin: Optional[date_type] = None,
+    # Bornes de MONTANT, chacune facultative : n'en donner qu'une revient à ne
+    # borner que d'un côté (« au moins 500 € », « au plus 20 € »).
+    montant_min: Optional[float] = None,
+    montant_max: Optional[float] = None,
     db: Session = Depends(get_db),
 ):
     # Topping-up paresseux des occurrences récurrentes avant toute lecture
@@ -257,6 +261,8 @@ def list_operations(
         statut=statut,
         date_debut=date_debut,
         date_fin=date_fin,
+        montant_min=montant_min,
+        montant_max=montant_max,
     )
     return [_build_operation_read(db, op) for op in operations]
 

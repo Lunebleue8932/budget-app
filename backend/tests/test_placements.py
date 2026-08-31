@@ -347,3 +347,152 @@ def test_lecture_refusee_sur_un_compte_ordinaire(db_session):
         routeur_placements.read_placement(compte.id, db_session)
 
     assert erreur.value.status_code == 400
+
+
+# ---------- Archiver un titre : rangé, jamais effacé ----------
+#
+# LE CAS QUI L'A RENDU NÉCESSAIRE : un titre entièrement vendu. Il n'a plus rien
+# à faire dans les listes, et il ne peut pas être supprimé — chacun de ses
+# mouvements porte une opération d'espèces réelle, et les effacer réécrirait le
+# solde du compte. Sans archivage, le seul choix était de garder à l'écran un
+# titre qu'on ne détient plus, ou de détruire l'historique de ce qu'on avait
+# réellement acheté et vendu.
+
+routeur_actions = charger_module_extension("placements", "routeur_actions.py")
+
+
+def _vendre_tout(db, compte, action, quantite, prix, jour=2):
+    _mouvement(db, compte, action, SensAction.vente, quantite, prix, jour=jour)
+
+
+def test_un_titre_solde_peut_etre_archive(db_session):
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, action, 10, 30.0)
+
+    lu = routeur_actions.update_action(
+        action.id, schemas.ActionUpdate(archivee=True), db_session
+    )
+
+    assert lu.archivee is True
+
+
+def test_un_titre_archive_quitte_les_listes_sans_perdre_son_histoire(db_session):
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, action, 10, 30.0)
+    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    # Il sort de la liste des titres…
+    assert routeur_actions.list_actions(db=db_session) == []
+    # …mais reste demandable explicitement, sans quoi on ne pourrait plus le
+    # remettre en service.
+    assert [a.nom for a in routeur_actions.list_actions(True, db_session)] == ["Air Liquide"]
+
+    # ET SON HISTOIRE EST INTACTE : c'est toute la différence avec une
+    # suppression. Les mouvements, l'opération d'espèces et le solde du compte
+    # ne bougent pas d'un centime.
+    detail = routeur_placements.read_placement(compte.id, db_session)
+    assert sorted(o.sens.value for o in detail.operations) == ["achat", "vente"]
+    assert detail.par_monnaie[0].solde_espece == 1050.0
+
+
+def test_archiver_un_titre_encore_detenu_refuse(db_session):
+    """Il sortirait des menus tout en continuant de peser dans la valorisation,
+    sans plus aucun moyen de le vendre depuis l'écran."""
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    assert erreur.value.status_code == 409
+    # Le message dit la quantité en jeu, et l'écrit comme on l'écrirait.
+    assert "10 titre(s)" in erreur.value.detail
+
+
+def test_une_position_partiellement_vendue_retient_encore(db_session):
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _mouvement(db_session, compte, action, SensAction.vente, 6, 30.0, jour=2)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    assert "4 titre(s)" in erreur.value.detail
+
+
+def test_un_titre_detenu_sur_un_autre_compte_retient_aussi(db_session):
+    """La quantité se compte TOUS COMPTES CONFONDUS : un même ETF peut être
+    détenu sur deux comptes-titres, et n'en solder qu'un ne le libère pas."""
+    pea = _make_compte(db_session, nom="PEA", solde_initial=1000.0)
+    cto = _make_compte(db_session, nom="CTO", solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, pea, action, SensAction.achat, 10, 25.0)
+    _mouvement(db_session, cto, action, SensAction.achat, 5, 25.0)
+    _mouvement(db_session, pea, action, SensAction.vente, 10, 30.0, jour=2)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    assert "5 titre(s)" in erreur.value.detail
+
+
+def test_remettre_en_service_ne_se_refuse_jamais(db_session):
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, action, 10, 30.0)
+    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    lu = routeur_actions.update_action(
+        action.id, schemas.ActionUpdate(archivee=False), db_session
+    )
+
+    assert lu.archivee is False
+    assert [a.nom for a in routeur_actions.list_actions(db=db_session)] == ["Air Liquide"]
+
+
+def test_corriger_un_cours_ne_desarchive_pas(db_session):
+    """`archivee=None` ne se prononce pas : on doit pouvoir toucher au cours
+    d'un titre rangé sans le faire ressortir des listes."""
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, action, 10, 30.0)
+    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+
+    lu = routeur_actions.update_action(action.id, schemas.ActionUpdate(valeur=42.0), db_session)
+
+    assert lu.valeur == 42.0
+    assert lu.archivee is True
+
+
+def test_le_refus_de_suppression_indique_l_archivage(db_session):
+    """Le message envoyait supprimer les mouvements un à un — c'est-à-dire
+    détruire l'historique pour ne plus voir une ligne. Il doit nommer la sortie
+    qui ne perd rien."""
+    compte = _make_compte(db_session, solde_initial=1000.0)
+    action = _make_action(db_session)
+    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, action, 10, 30.0)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_actions.delete_action(action.id, db_session)
+
+    assert erreur.value.status_code == 409
+    assert "rchive" in erreur.value.detail
+
+
+def test_un_titre_sans_mouvement_se_supprime_toujours(db_session):
+    """L'archivage ne remplace pas la suppression : un titre créé par erreur,
+    qui n'a jamais servi, n'a aucune raison d'encombrer même les archives."""
+    action = _make_action(db_session)
+
+    routeur_actions.delete_action(action.id, db_session)
+
+    assert crud.get_action(db_session, action.id) is None

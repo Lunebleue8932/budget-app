@@ -113,7 +113,6 @@ function renderReglesListe() {
   reglesChargees.forEach((regle, i) => {
     const carte = document.createElement("div");
     carte.className = "regle-carte" + (regle.actif ? "" : " regle-inactive");
-    carte.draggable = true;
     carte.dataset.index = i;
     carte.innerHTML = `
       <div class="regle-carte-ordre" title="Glisse pour changer l'ordre">
@@ -165,6 +164,10 @@ function renderReglesListe() {
 let regleGlisseeIndex = null;
 
 function cablerGlisserDeposerRegle(carte) {
+  // Déplaçable par sa poignée seulement (⠿, à gauche du rang) : sans cela,
+  // le nom de la règle et le résumé de ses conditions ne pouvaient pas être
+  // sélectionnés — la carte entière avalait le glissement de la souris.
+  rendreDeplacableParPoignee(carte, ".regle-carte-ordre");
   carte.addEventListener("dragstart", (e) => {
     regleGlisseeIndex = Number(carte.dataset.index);
     carte.classList.add("regle-carte-glissee");

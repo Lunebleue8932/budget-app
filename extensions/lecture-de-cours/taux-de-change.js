@@ -77,21 +77,35 @@ function poserBlocTaux() {
       <span class="hint" id="lc-taux-etat"></span>
     </div>
     <div id="lc-taux-liste" class="import-mappings"></div>
-    <div class="lc-taux-ajout">
-      <select id="lc-taux-source"></select>
-      <span class="lc-taux-fleche" aria-hidden="true">→</span>
-      <select id="lc-taux-cible"></select>
-      <input type="url" id="lc-taux-url"
-             placeholder="${t("Lien de la page de cotation (Google Finance, Yahoo Finance…)")}" />
-      <button type="button" id="lc-taux-ajouter">${t("Suivre ce couple")}</button>
-    </div>
+    <form id="lc-taux-ajout">
+      <label for="lc-taux-source">${t("Monnaie de départ")}
+        <select id="lc-taux-source"></select>
+      </label>
+      <label for="lc-taux-cible">${t("Monnaie d'arrivée")}
+        <select id="lc-taux-cible"></select>
+      </label>
+      <label class="full-width" for="lc-taux-url">${t("Lien de la page de cotation")}
+        <input type="url" id="lc-taux-url"
+               placeholder="${t("Lien de la page de cotation (Google Finance, Yahoo Finance…)")}" />
+      </label>
+      <div class="actions full-width">
+        <button type="submit" class="primary" id="lc-taux-ajouter">${t(
+          "Suivre ce couple"
+        )}</button>
+      </div>
+    </form>
   `;
   section.appendChild(bloc);
 
   document.getElementById("lc-taux-rafraichir").addEventListener("click", () => {
     rafraichirTaux("/taux-change/rafraichir");
   });
-  document.getElementById("lc-taux-ajouter").addEventListener("click", ajouterCouple);
+  // Un vrai <form>, donc une vraie soumission : Entrée depuis le champ de lien
+  // enregistre le couple, comme dans tous les formulaires de l'app.
+  document.getElementById("lc-taux-ajout").addEventListener("submit", (evenement) => {
+    evenement.preventDefault();
+    ajouterCouple();
+  });
 }
 
 /* ---------- Rendu ---------- */

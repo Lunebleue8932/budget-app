@@ -6,17 +6,21 @@ from ..database import get_db
 
 router = APIRouter(prefix="/types-comptes", tags=["types-comptes"])
 
+# PAS DE CRÉATION. Les trois types livrés (cf. constants.TYPES_COMPTE_INITIAUX)
+# sont les seuls que le reste du code sache traiter : le dashboard et les règles
+# de virement les nomment. Un type inventé n'aurait été qu'une étiquette de plus,
+# sans effet nulle part, et une décision de rangement de plus à prendre à la
+# création de chaque compte.
+#
+# LA SUPPRESSION RESTE, elle, et refuse les types protégés : elle ne peut donc
+# rien atteindre dans une base ordinaire. Elle est gardée pour les bases qui
+# portent encore un type créé du temps où l'écran le permettait — sans elle, il
+# n'y aurait plus aucun moyen de s'en défaire.
+
 
 @router.get("", response_model=list[schemas.TypeCompteRead])
 def list_types_comptes(db: Session = Depends(get_db)):
     return crud.get_types_compte(db)
-
-
-@router.post("", response_model=schemas.TypeCompteRead, status_code=status.HTTP_201_CREATED)
-def create_type_compte(payload: schemas.TypeCompteCreate, db: Session = Depends(get_db)):
-    if crud.get_type_compte_by_nom(db, payload.nom):
-        raise HTTPException(status_code=409, detail="Un type de compte avec ce nom existe déjà")
-    return crud.create_type_compte(db, payload)
 
 
 @router.delete("/{type_compte_id}", status_code=status.HTTP_204_NO_CONTENT)

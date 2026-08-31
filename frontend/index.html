@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=73" />
+  <link rel="stylesheet" href="style.css?v=82" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -135,7 +135,7 @@
         </div>
       </div>
 
-      <h3>Répartition des avoirs<i class="info-bulle" tabindex="0" data-info="La part du total ci-dessus qui se trouve sur chaque type de compte, dans la monnaie de l'onglet actif. Mêmes couleurs que les cartes de la Vue globale des comptes.">i</i></h3>
+      <h3>Répartition des avoirs<i class="info-bulle" tabindex="0" data-info="Où est ton argent : combien dort sur les comptes courants, l'épargne, les placements.">i</i></h3>
       <div id="dashboard-repartition-comptes"></div>
 
       <h3>Dépenses par catégorie — <span id="dashboard-periode-libelle"></span></h3>
@@ -167,7 +167,7 @@
           <div class="flux-valeur negatif" id="kpi-total-sorties">-</div>
         </div>
         <div class="flux-carte">
-          <div class="flux-label">Différence<i class="info-bulle" tabindex="0" data-info="Entrées − sorties sur la période choisie, prévisionnel inclus. Les virements internes n'y entrent pas : déplacer de l'argent entre ses propres comptes ne fait ni entrer ni sortir quoi que ce soit. Les comptes d'épargne et de placements sont exclus pour la même raison.">i</i></div>
+          <div class="flux-label">Différence<i class="info-bulle" tabindex="0" data-info="Ce que la période t'a rapporté ou coûté : entrées moins sorties. Les virements entre tes propres comptes n'y entrent pas — déplacer de l'argent n'est ni le gagner ni le dépenser.">i</i></div>
           <div class="flux-valeur" id="kpi-flux-difference">-</div>
         </div>
       </div>
@@ -179,7 +179,7 @@
            qu'il faut faire défiler pour relire ne sert à rien, et s'enregistre
            tout seul — un bouton « Enregistrer » sur un pense-bête ne fait
            qu'ajouter une occasion de perdre ce qu'on vient d'écrire. -->
-      <h3>Notes<i class="info-bulle" tabindex="0" data-info="Un pense-bête libre, pour ce qu'aucune colonne ne porte. L'app ne le lit jamais et ne s'en sert pour aucun calcul. Enregistré automatiquement, une seconde après la dernière frappe.">i</i></h3>
+      <h3>Notes<i class="info-bulle" tabindex="0" data-info="Un pense-bête, pour ce qui n'a sa place dans aucune case. L'app ne le lit jamais. Ça s'enregistre tout seul.">i</i></h3>
       <div class="note-dashboard">
         <textarea id="dashboard-note" rows="4" placeholder="ex. vérifier que le prélèvement EDF de mars est bien passé
 relancer Marie pour les 40 € du restaurant"></textarea>
@@ -195,19 +195,38 @@ relancer Marie pour les 40 € du restaurant"></textarea>
          ne s'y additionne sans taux de change) ; cette page, elle, ne fait que
          lister — chaque solde reste affiché dans SA propre monnaie, aucun
          total n'est calculé entre elles. -->
-    <section id="section-comptes-globale">
-      <h2>Vue globale des comptes</h2>
-      <h3>Comptes courants</h3>
-      <div class="comptes-grid" id="globale-comptes-courants"></div>
+    <!-- LA PAGE PORTE DES ONGLETS, comme Opérations et Paramètres, alors même
+         qu'elle n'en a qu'un dans l'application nue. Une extension peut en
+         poser un second (navigation `type: "onglet"`, cf. extensions.js) : la
+         barre reste donc masquée tant qu'elle est seule — un onglet unique
+         n'offre aucun choix et ne ferait que répéter le titre — et apparaît
+         dès qu'il y a quelque chose à choisir.
 
-      <div id="globale-bloc-epargne" style="display:none">
-        <h3>Comptes d'épargne</h3>
-        <div class="comptes-grid" id="globale-comptes-epargne"></div>
+         C'est aussi à ce moment-là que la page CHANGE DE NOM : « Vue globale
+         des comptes » descend d'un cran et devient le nom de l'onglet qui
+         l'affiche, l'extension nommant la page qui les contient tous les deux.
+         Éteindre l'extension rend son nom à la page (cf.
+         renommerSectionHote). -->
+    <section id="section-comptes-globale">
+      <h2 id="titre-comptes-globale">Vue globale des comptes</h2>
+
+      <div class="sous-onglets" id="comptes-globale-sous-nav" style="display:none">
+        <button type="button" data-sous-section="comptes-globale-vue" class="active">Vue globale des comptes</button>
       </div>
 
-      <div id="globale-bloc-placements" style="display:none">
-        <h3>Comptes de placements<i class="info-bulle" tabindex="0" data-info="Le solde affiché est celui des espèces disponibles sur le compte ; les titres détenus sont valorisés dans « Total des avoirs » du dashboard et détaillés dans la page Placements financiers.">i</i></h3>
-        <div class="comptes-grid" id="globale-comptes-placements"></div>
+      <div id="sous-section-comptes-globale-vue" class="sous-section active">
+        <h3>Comptes courants</h3>
+        <div class="comptes-grid" id="globale-comptes-courants"></div>
+
+        <div id="globale-bloc-epargne" style="display:none">
+          <h3>Comptes d'épargne</h3>
+          <div class="comptes-grid" id="globale-comptes-epargne"></div>
+        </div>
+
+        <div id="globale-bloc-placements" style="display:none">
+          <h3>Comptes de placements<i class="info-bulle" tabindex="0" data-info="Le solde affiché, ce sont les espèces disponibles. Ce que valent tes titres se lit sur la page Placements financiers.">i</i></h3>
+          <div class="comptes-grid" id="globale-comptes-placements"></div>
+        </div>
       </div>
     </section>
 
@@ -408,8 +427,22 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <label>Au
           <input type="date" id="filtre-date-fin" />
         </label>
-        <button id="btn-filtrer">Filtrer</button>
-        <button id="btn-reset-filtres">Réinitialiser</button>
+        <!-- Le libellé et sa pastille dans un <span> : la boîte du label est en
+             colonne (cf. .filtres label), et sans lui la pastille passerait à la
+             ligne, entre le nom du champ et le champ lui-même. -->
+        <label><span>Montant min<i class="info-bulle" tabindex="0" data-info="Le montant sans son signe : « au moins 50 » attrape aussi bien une dépense de 80 € qu'une entrée de 80 €. Laisse une case vide pour ne pas borner de ce côté.">i</i></span>
+          <input type="number" step="0.01" min="0" id="filtre-montant-min" placeholder="ex. 50" />
+        </label>
+        <label>Montant max
+          <input type="number" step="0.01" min="0" id="filtre-montant-max" placeholder="ex. 500" />
+        </label>
+        <!-- Les deux boutons ensemble : la barre passe à la ligne quand elle
+             déborde, et sans ce groupe « Réinitialiser » se retrouvait seul
+             sur la seconde ligne, détaché du bouton qu'il accompagne. -->
+        <div class="filtres-actions">
+          <button id="btn-filtrer">Filtrer</button>
+          <button id="btn-reset-filtres">Réinitialiser</button>
+        </div>
       </div>
 
       <!-- Le formulaire n'a plus de place fixe en bas de page : il est déplacé
@@ -544,7 +577,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              faudrait y mettre ; une note se prend après coup, quand on revient
              sur une opération pour comprendre ce qu'elle était. -->
         <label id="operation-notes-bloc" class="full-width" style="display:none">
-          Notes<i class="info-bulle" tabindex="0" data-info="Texte libre, pour vous seul : l'app ne le lit jamais, ne le filtre pas et ne l'additionne pas. Sur un virement, la note est portée par ses deux écritures.">i</i>
+          Notes<i class="info-bulle" tabindex="0" data-info="Un commentaire pour toi, que l'app n'utilise nulle part. Sur un virement, la note vaut pour les deux comptes.">i</i>
           <textarea id="operation-notes" rows="3" placeholder="ex. facture partagée avec Léa, à revérifier sur le relevé de mars"></textarea>
         </label>
 
@@ -562,42 +595,35 @@ relancer Marie pour les 40 € du restaurant"></textarea>
     <section id="section-parametres">
       <h2>Paramètres</h2>
 
-      <div class="sous-onglets" id="parametres-sous-nav">
-        <button type="button" data-sous-section="parametres-comptes" class="active">Comptes</button>
-        <button type="button" data-sous-section="parametres-categories">Catégories</button>
-        <button type="button" data-sous-section="parametres-correspondances">Correspondances</button>
-        <button type="button" data-sous-section="parametres-import">Import</button>
-        <button type="button" data-sous-section="parametres-extensions">Extensions</button>
+      <!-- DEUX GROUPES, aux deux bouts de la barre. À gauche ce que
+           l'application MANIPULE — les comptes, les catégories, les monnaies :
+           les objets dont le reste de l'app est fait, et qu'on vient créer ou
+           renommer. À droite ce qui la RÈGLE — l'import, les règles, les
+           extensions, la base : de l'outillage, ouvert plus rarement et pour
+           autre chose. Les deux jeux se mélangeaient dans une file unique où
+           rien ne distinguait « ajouter une catégorie » de « changer de fichier
+           de base de données ».
+
+           Un seul .sous-onglets malgré les deux groupes : c'est lui que le
+           gestionnaire délégué de app.js interroge pour éteindre l'onglet
+           précédent (`btn.closest(".sous-onglets")`), et deux conteneurs
+           laisseraient un onglet actif de chaque côté. -->
+      <div class="sous-onglets sous-onglets-deux-groupes" id="parametres-sous-nav">
+        <div class="sous-onglets-groupe" id="parametres-sous-nav-gauche">
+          <button type="button" data-sous-section="parametres-comptes" class="active">Comptes</button>
+          <button type="button" data-sous-section="parametres-categories">Catégories</button>
+        </div>
+        <div class="sous-onglets-groupe" id="parametres-sous-nav-droite">
+          <button type="button" data-sous-section="parametres-correspondances">Correspondances</button>
+          <button type="button" data-sous-section="parametres-import">Import</button>
+          <button type="button" data-sous-section="parametres-extensions">Extensions</button>
+        </div>
       </div>
 
       <!-- COMPTES -->
       <div id="sous-section-parametres-comptes" class="sous-section active">
-        <h3>Comptes<i class="info-bulle" tabindex="0" data-info="Les comptes sont regroupés par type. Double-clique une ligne pour la modifier, ou fais glisser un compte d'une carte à l'autre pour changer son type.">i</i></h3>
+        <h3>Comptes<i class="info-bulle" tabindex="0" data-info="Double-clique une ligne pour modifier un compte. Fais-le glisser d'une carte à l'autre pour changer son type.">i</i></h3>
         <div id="comptes-liste"></div>
-
-        <!-- Rien n'est enregistré ici : le solde saisi sert le temps d'une
-             réponse et n'est jamais écrit en base (cf. services/ecarts.py). -->
-        <h3>Vérifier un solde<i class="info-bulle" tabindex="0" data-info="Le solde d'un compte dans l'app est une reconstruction : un solde initial, plus toutes les opérations réelles. Quand il diffère du relevé de la banque, saisis ici le solde réel : l'app cherche quelles opérations expliqueraient exactement l'écart — une saisie en double, une dépense entrée à l'envers, une échéance restée prévisionnelle. Rien n'est modifié ni mémorisé : ce sont des pistes à vérifier.">i</i></h3>
-        <div class="verif-solde-panneau">
-          <div class="verif-solde-champs">
-            <label for="verif-solde-compte">Compte
-              <select id="verif-solde-compte"></select>
-            </label>
-            <label for="verif-solde-monnaie">Monnaie
-              <select id="verif-solde-monnaie"></select>
-            </label>
-            <label for="verif-solde-montant">Solde à la banque
-              <input type="number" step="0.01" id="verif-solde-montant" placeholder="ex. 1234,56" />
-            </label>
-            <label for="verif-solde-date">Arrêté au (facultatif)<i class="info-bulle" tabindex="0" data-info="La date à laquelle ton relevé est arrêté. Sans elle, la comparaison porte sur toutes les opérations réelles connues, y compris celles datées dans le futur — ce qui ne correspond à aucun relevé.">i</i>
-              <input type="date" id="verif-solde-date" />
-            </label>
-          </div>
-          <div class="actions">
-            <button type="button" class="primary" id="btn-verif-solde">Analyser l'écart</button>
-          </div>
-          <div id="verif-solde-resultat" style="display:none"></div>
-        </div>
 
         <h3 id="form-compte-titre">Ajouter un compte</h3>
         <form id="form-compte">
@@ -609,7 +635,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <select id="compte-type" required></select>
           </label>
           <div class="full-width">
-            <label for="compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info="Un compte peut porter plusieurs monnaies : son solde, son solde projeté et ses opérations sont alors suivis séparément pour chacune, sans jamais être additionnés (l'app ne connaît aucun taux de change). Le solde initial se saisit donc monnaie par monnaie.">i</i></label>
+            <label for="compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info="Un compte peut porter plusieurs monnaies. Chacune garde son propre solde, jamais mélangé aux autres — d'où un solde initial à saisir par monnaie.">i</i></label>
             <div id="compte-monnaies" class="import-mappings"></div>
           </div>
           <div class="actions">
@@ -618,21 +644,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </form>
 
-        <h3>Types de comptes<i class="info-bulle" tabindex="0" data-info="&quot;Courant&quot; et &quot;Épargne&quot; sont protégés (ils pilotent le dashboard et les règles de virement). Tu peux ajouter d'autres types purement organisationnels.">i</i></h3>
-        <div id="types-comptes-liste" class="import-mappings"></div>
-        <form id="form-type-compte" class="full-width">
-          <label class="full-width">Nouveau type de compte
-            <input type="text" id="type-compte-nom" required />
-          </label>
-          <div class="actions full-width">
-            <button type="submit" class="primary">Ajouter</button>
-          </div>
-        </form>
       </div>
 
       <!-- CATEGORIES -->
       <div id="sous-section-parametres-categories" class="sous-section">
-        <h3>Catégories de dépenses<i class="info-bulle" tabindex="0" data-info="Le budget d'une catégorie est propre à un mois ET à une monnaie : les onglets ci-dessous choisissent l'un et l'autre. Un mois sans valeur propre hérite du dernier mois renseigné. L'œil de la colonne Dashboard décide si la catégorie apparaît dans l'histogramme du dashboard : l'éteindre ne change rien d'autre — les opérations restent classées et le budget reste défini.">i</i></h3>
+        <h3>Catégories de dépenses<i class="info-bulle" tabindex="0" data-info="Un budget vaut pour un mois et une monnaie : les onglets ci-dessous choisissent les deux. Un mois que tu n'as pas rempli reprend le dernier renseigné. L'œil de la colonne Dashboard fait juste apparaître ou disparaître la catégorie de l'histogramme, sans rien changer d'autre.">i</i></h3>
 
         <div class="sous-onglets" id="categories-monnaies"></div>
         <div class="sous-onglets" id="categories-periode-annees"></div>
@@ -669,23 +685,23 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            pas des règles mais ce que l'import a RETENU d'un import précédent,
            preset par preset. Elles servent même sans aucune règle écrite. -->
       <div id="sous-section-parametres-correspondances" class="sous-section">
-        <h3>Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info="Apprises à l'import : une fois confirmée, une catégorie ou un compte du relevé est réutilisé automatiquement les fois suivantes. Tous les presets sont réunis ici. Elles visent un libellé bancaire exact, mais elles ne décident que de la catégorie — le type, lui, vient des règles, évaluées avant.">i</i></h3>
-        <h4>Catégories bancaires<i class="info-bulle" tabindex="0" data-info="Tous les presets réunis : chaque libellé du relevé est rangé dans la catégorie de l'app vers laquelle il renvoie. En italique entre parenthèses, le compte dont le relevé provient — c'est ce qui distingue deux libellés de banques différentes qui portent presque le même nom (rien n'est affiché si le preset n'est lié à aucun compte). Fais glisser un libellé dans une autre colonne pour le reclasser ; il reste dans son preset d'origine. Les types sans catégorie (virement interne, prêt reçu, remboursements) ne figurent pas ici : ils sont détectés par les règles.">i</i></h4>
+        <h3>Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info="Quand tu ranges un libellé de ta banque dans une catégorie pendant un import, l'app s'en souvient et le refait toute seule les fois suivantes. Tout ce qu'elle a retenu est ici.">i</i></h3>
+        <h4>Catégories bancaires<i class="info-bulle" tabindex="0" data-info="Chaque libellé de tes relevés, rangé sous la catégorie où il part. Fais-en glisser un dans une autre colonne pour le reclasser. Entre parenthèses, le compte d'où vient le relevé : pratique quand deux banques écrivent presque la même chose. Tu peux aussi déplacer une colonne entière en attrapant son en-tête, juste pour ton confort de lecture.">i</i></h4>
         <div id="import-mapping-categories-liste" class="import-mappings"></div>
-        <h4>Comptes bancaires<i class="info-bulle" tabindex="0" data-info="Correspondances entre les noms de compte lus dans le relevé et les comptes de l'app, tous presets réunis. Une entrée que plusieurs presets partagent à l'identique n'apparaît qu'une fois : la modifier ou la supprimer les met tous à jour.">i</i></h4>
+        <h4>Comptes bancaires<i class="info-bulle" tabindex="0" data-info="Les noms de compte lus dans tes relevés, et le compte de l'app en face. Une entrée partagée par plusieurs presets n'apparaît qu'une fois : la modifier les met tous à jour.">i</i></h4>
         <div id="import-mapping-comptes-liste" class="import-mappings"></div>
-        <h4>Devises<i class="info-bulle" tabindex="0" data-info="Correspondances entre les libellés de devise du relevé (« EUR ») et les monnaies de l'app, tous presets réunis. Elles n'existent que pour les presets qui lisent une colonne de devise (voir Configuration avancée). Une entrée que plusieurs presets partagent à l'identique n'apparaît qu'une fois : la modifier ou la supprimer les met tous à jour.">i</i></h4>
+        <h4>Devises<i class="info-bulle" tabindex="0" data-info="Les libellés de devise de tes relevés (« EUR »), et la monnaie de l'app en face. N'apparaît que si l'un de tes presets lit une colonne de devise.">i</i></h4>
         <div id="import-mapping-monnaies-liste" class="import-mappings"></div>
       </div>
 
       <div id="sous-section-parametres-import" class="sous-section">
       <p class="hint">
-        Importe le fichier Excel ou CSV de tes opérations bancaires. Les correspondances catégorie/
-        compte doivent être confirmées, et les doublons détectés passés en revue, avant de pouvoir
-        valider l'import.
+        Dépose l'export Excel ou CSV de ta banque. Avant de valider, tu auras deux choses à
+        faire : dire dans quelles catégories ranger les libellés que l'app ne connaît pas encore,
+        et jeter un œil aux doublons qu'elle a repérés.
       </p>
 
-      <h3>Preset<i class="info-bulle" tabindex="0" data-info="Un preset regroupe le format de colonnes, les correspondances catégorie/compte, l'historique et le stock anti-doublons d'une banque : chaque banque ayant son propre format d'export, crée un preset par banque plutôt que de partager une configuration unique.">i</i></h3>
+      <h3>Preset<i class="info-bulle" tabindex="0" data-info="Un preset retient tout ce qui est propre au format d'une banque : quelles colonnes lire, où ranger ses libellés, ce qui a déjà été importé. Chaque banque exporte à sa façon — fais-en un par banque.">i</i></h3>
       <div class="preset-panel">
         <div class="preset-chips sous-onglets" id="import-preset-chips"></div>
         <div class="actions">
@@ -700,7 +716,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              configuration, via le bouton plus bas. -->
         <div class="import-compte-defaut-bloc">
           <label for="import-preset-compte">
-            Compte bancaire de ce preset<i class="info-bulle" tabindex="0" data-info="Toutes les lignes du fichier seront affectées à ce compte, sans rien demander : ni la colonne « Compte bancaire » ni les correspondances mémorisées ne sont alors consultées. Les virements internes restent correctement orientés — ce compte est déduit émetteur ou récepteur selon le signe du montant. Laisse « aucun » si le fichier désigne lui-même le compte de chaque ligne.">i</i>
+            Compte bancaire de ce preset<i class="info-bulle" tabindex="0" data-info="Toutes les lignes du fichier iront sur ce compte, sans rien te demander. Laisse « aucun » si le fichier dit lui-même de quel compte chaque ligne vient.">i</i>
           </label>
           <select id="import-preset-compte">
             <option value="">— aucun : le compte vient du fichier —</option>
@@ -718,14 +734,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            l'essentiel sans avoir à ouvrir. -->
       <details class="config-avancee config-fichier" id="import-config-fichier">
         <summary>
-          Configuration du fichier<i class="info-bulle" tabindex="0" data-info="Indique quelles colonnes lire dans ton fichier (le nombre est libre) et à quelle information de l'app chacune correspond. Date, Nature et Montant sont obligatoires ; Catégorie bancaire est facultative. Tout le reste — compte, sens, devises, montant envoyé, frais, état — se configure dans « Configuration avancée », au même endroit.">i</i>
+          Configuration du fichier<i class="info-bulle" tabindex="0" data-info="Dis quelle colonne de ton fichier porte quelle information. Date, Nature et Montant sont obligatoires. Le reste — compte, sens, devises, frais, état — est dans « Configuration avancée ».">i</i>
           <span class="config-avancee-resume" id="import-config-fichier-resume"></span>
         </summary>
 
         <h4>Colonnes lues</h4>
         <p class="hint">
-          Clique sur l'œil pour lire ou ignorer une propriété. Les propriétés lues apparaissent en
-          premier ; Date, Nature et Montant sont obligatoires et ne s'éteignent pas.
+          Clique sur l'œil pour lire ou ignorer une colonne. Date, Nature et Montant sont
+          obligatoires et ne s'éteignent pas.
         </p>
         <div id="import-config-colonnes"></div>
         <label class="import-option-ligne">
@@ -733,7 +749,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           La première ligne du fichier est un en-tête (à ne pas importer)
         </label>
 
-        <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info="Une ligne importée est comparée aux lignes déjà importées pour détecter les doublons. Deux façons de dire la même chose : pars de toutes les colonnes et retire celles qui bougent d'un export à l'autre (solde courant, référence, date de valeur), ou ne désigne que celles qui identifient une ligne (souvent date + libellé + montant). Attention, en mode « toutes sauf », les colonnes que ton preset ne lit même pas sont comparées elles aussi. La comparaison ignore ce qui ne se voit pas : espaces insécables, accents décomposés, espaces en trop, et un nombre écrit en texte.">i</i></h4>
+        <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info="Comment l'app reconnaît une ligne déjà importée. Deux façons d'y arriver : partir de toutes les colonnes et retirer celles qui bougent d'un export à l'autre (solde courant, référence), ou ne désigner que celles qui identifient une ligne — le plus souvent date + libellé + montant.">i</i></h4>
         <div class="regle-champ-ligne">
           <label for="import-mode-comparaison">Comparer</label>
           <select id="import-mode-comparaison">
@@ -755,54 +771,112 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              (cf. INFOS_PROPRIETES_IMPORT) : il s'y lit au moment où l'on règle
              la propriété, au lieu d'un pavé à retraverser du regard. -->
         <p class="hint">
-          Les mêmes colonnes numérotées qu'au-dessus, pour ce que ton relevé dit en plus du
-          minimum : le compte visé, le sens, et surtout les devises. Laisse vide si ton relevé
-          tient dans une seule colonne de montant, dans une seule monnaie. Le « i » de chaque
-          ligne dit ce qu'elle change.
+          Pour ce que ton relevé dit en plus : le compte, le sens, les devises, les frais.
+          Laisse vide si ton relevé tient dans une seule colonne de montant et une seule monnaie.
+          Le « i » de chaque ligne dit à quoi elle sert.
         </p>
         <div id="import-config-colonnes-avancees"></div>
 
         <!-- N'apparaît que si une colonne « Sens » est configurée : sans elle,
              ces mots-clés ne servent à rien. -->
         <div id="import-sens-libelles-bloc" style="display:none">
-          <h4>Mots-clés de la colonne « Sens »<i class="info-bulle" tabindex="0" data-info="Ce que TON relevé écrit pour dire qu'une ligne est une sortie ou une entrée. Sépare les mots-clés par des virgules. La casse, les accents et les espaces sont ignorés : « Débit », « DEBIT » et « débit » sont le même mot-clé. Enregistrés avec le reste de la configuration : tu ne les ressaisis pas à chaque import.">i</i></h4>
+          <h4>Mots-clés de la colonne « Sens »<i class="info-bulle" tabindex="0" data-info="Les mots que TA banque emploie pour dire qu'une ligne sort ou entre. Ajoute-les un par un avec « + » ou la touche Entrée — pas de séparateur à respecter, un libellé peut donc contenir une virgule. Majuscules et accents sont ignorés. C'est retenu avec le preset.">i</i></h4>
           <p class="hint">
-            Laisse vide pour garder les mots-clés compris par défaut, listés en dessous de chaque
-            champ. Dès que tu en écris un seul, il remplace entièrement la liste par défaut de
-            ce sens-là.
+            Laisse vide pour garder les mots-clés reconnus par défaut, rappelés sous chaque
+            champ. Dès que tu en ajoutes un, il remplace toute la liste par défaut de ce sens-là.
           </p>
-          <div class="sens-libelles-champ">
-            <label for="import-sens-sortie">Sortie (argent qui part)</label>
-            <input type="text" id="import-sens-sortie" placeholder="Débit, D, Retrait, -" spellcheck="false" />
+          <div class="import-vocabulaire-champ" data-vocabulaire="sortie">
+            <div class="import-vocabulaire-entete">
+              <label for="import-sens-sortie">Sortie (argent qui part)</label>
+              <div class="import-vocabulaire-saisie">
+                <input type="text" id="import-sens-sortie" placeholder="Débit" spellcheck="false"
+                       aria-describedby="import-sens-sortie-defaut" />
+                <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                        title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+              </div>
+              <details class="import-vocabulaire-actualisation">
+                <summary>Actualisation</summary>
+                <div class="import-vocabulaire-menu" data-role="menu"></div>
+              </details>
+            </div>
+            <div class="import-vocabulaire-jetons" data-role="jetons"></div>
             <p class="hint">Par défaut : <span id="import-sens-sortie-defaut"></span></p>
           </div>
-          <div class="sens-libelles-champ">
-            <label for="import-sens-entree">Entrée (argent qui rentre)</label>
-            <input type="text" id="import-sens-entree" placeholder="Crédit, C, Versement, +" spellcheck="false" />
+          <div class="import-vocabulaire-champ" data-vocabulaire="entree">
+            <div class="import-vocabulaire-entete">
+              <label for="import-sens-entree">Entrée (argent qui rentre)</label>
+              <div class="import-vocabulaire-saisie">
+                <input type="text" id="import-sens-entree" placeholder="Crédit" spellcheck="false"
+                       aria-describedby="import-sens-entree-defaut" />
+                <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                        title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+              </div>
+              <details class="import-vocabulaire-actualisation">
+                <summary>Actualisation</summary>
+                <div class="import-vocabulaire-menu" data-role="menu"></div>
+              </details>
+            </div>
+            <div class="import-vocabulaire-jetons" data-role="jetons"></div>
             <p class="hint">Par défaut : <span id="import-sens-entree-defaut"></span></p>
           </div>
         </div>
 
         <!-- Même mécanique, pour la colonne « État ». -->
         <div id="import-statut-libelles-bloc" style="display:none">
-          <h4>Mots-clés de la colonne « État »<i class="info-bulle" tabindex="0" data-info="Ce que TON relevé écrit pour dire où en est une opération. Sépare les mots-clés par des virgules. La casse, les accents et les espaces sont ignorés. Un libellé qui ne figure dans aucune des trois listes met la ligne en erreur plutôt que d'être deviné : se tromper importerait une opération refusée, ou daterait comme réelle une autorisation qui peut encore tomber.">i</i></h4>
+          <h4>Mots-clés de la colonne « État »<i class="info-bulle" tabindex="0" data-info="Les mots que TA banque emploie pour dire où en est une opération. Même fonctionnement que juste au-dessus. Un mot inconnu met la ligne en erreur plutôt que d'être deviné : l'app préfère te demander que d'importer un paiement refusé.">i</i></h4>
           <p class="hint">
-            Laisse vide pour garder les mots-clés compris par défaut. Dès que tu en écris un seul,
-            il remplace entièrement la liste par défaut de cet état-là.
+            Laisse vide pour garder les mots-clés reconnus par défaut. Dès que tu en ajoutes
+            un, il remplace toute la liste par défaut de cet état-là.
           </p>
-          <div class="sens-libelles-champ">
-            <label for="import-statut-execute">Exécuté (l'argent a bougé)</label>
-            <input type="text" id="import-statut-execute" placeholder="Exécuté, Comptabilisé, OK" spellcheck="false" />
+          <div class="import-vocabulaire-champ" data-vocabulaire="execute">
+            <div class="import-vocabulaire-entete">
+              <label for="import-statut-execute">Exécuté (l'argent a bougé)</label>
+              <div class="import-vocabulaire-saisie">
+                <input type="text" id="import-statut-execute" placeholder="Exécuté" spellcheck="false"
+                       aria-describedby="import-statut-execute-defaut" />
+                <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                        title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+              </div>
+              <details class="import-vocabulaire-actualisation">
+                <summary>Actualisation</summary>
+                <div class="import-vocabulaire-menu" data-role="menu"></div>
+              </details>
+            </div>
+            <div class="import-vocabulaire-jetons" data-role="jetons"></div>
             <p class="hint">Par défaut : <span id="import-statut-execute-defaut"></span></p>
           </div>
-          <div class="sens-libelles-champ">
-            <label for="import-statut-attente">En attente → opération prévisionnelle</label>
-            <input type="text" id="import-statut-attente" placeholder="En attente, En cours, Pending" spellcheck="false" />
+          <div class="import-vocabulaire-champ" data-vocabulaire="attente">
+            <div class="import-vocabulaire-entete">
+              <label for="import-statut-attente">En attente → opération prévisionnelle</label>
+              <div class="import-vocabulaire-saisie">
+                <input type="text" id="import-statut-attente" placeholder="En attente" spellcheck="false"
+                       aria-describedby="import-statut-attente-defaut" />
+                <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                        title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+              </div>
+              <details class="import-vocabulaire-actualisation">
+                <summary>Actualisation</summary>
+                <div class="import-vocabulaire-menu" data-role="menu"></div>
+              </details>
+            </div>
+            <div class="import-vocabulaire-jetons" data-role="jetons"></div>
             <p class="hint">Par défaut : <span id="import-statut-attente-defaut"></span></p>
           </div>
-          <div class="sens-libelles-champ">
-            <label for="import-statut-refuse">Refusé / annulé → ligne non importée</label>
-            <input type="text" id="import-statut-refuse" placeholder="Refusé, Annulé, Rejeté" spellcheck="false" />
+          <div class="import-vocabulaire-champ" data-vocabulaire="refuse">
+            <div class="import-vocabulaire-entete">
+              <label for="import-statut-refuse">Refusé / annulé → ligne non importée</label>
+              <div class="import-vocabulaire-saisie">
+                <input type="text" id="import-statut-refuse" placeholder="Refusé" spellcheck="false"
+                       aria-describedby="import-statut-refuse-defaut" />
+                <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                        title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+              </div>
+              <details class="import-vocabulaire-actualisation">
+                <summary>Actualisation</summary>
+                <div class="import-vocabulaire-menu" data-role="menu"></div>
+              </details>
+            </div>
+            <div class="import-vocabulaire-jetons" data-role="jetons"></div>
             <p class="hint">Par défaut : <span id="import-statut-refuse-defaut"></span></p>
           </div>
         </div>
@@ -838,9 +912,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </summary>
         <p class="import-avertissement" id="import-reglages-lecture-alerte" style="display:none"></p>
         <p class="hint">
-          À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants
-          illisibles) : la détection automatique du délimiteur et de la virgule décimale
-          française ne convient pas à tous les formats d'export.
+          À régler seulement si le fichier est mal lu : colonnes mélangées, montants
+          illisibles. L'app devine seule dans la plupart des cas.
         </p>
         <div class="import-reglage-champ">
           <label for="import-reglage-delimiteur">Délimiteur de colonnes</label>
@@ -882,9 +955,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <div id="import-apercu-fichier-bloc" style="display:none">
         <h3>Le fichier tel qu'il est</h3>
         <p class="hint">
-          Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les
-          colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données,
-          corrige les numéros de colonne dans "Configuration du fichier" au-dessus.
+          Les colonnes colorées sont celles que l'app va lire, les grises sont ignorées. Si une
+          couleur ne tombe pas en face des bonnes données, corrige les numéros dans
+          « Configuration du fichier » au-dessus.
         </p>
         <div class="apercu-fichier-defilement">
           <table id="import-apercu-fichier-table"></table>
@@ -897,10 +970,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <div id="import-mappings-bloc" style="display:none">
         <h3>Catégories bancaires à confirmer</h3>
         <p class="hint">
-          Une catégorie sans correspondance mémorisée est proposée par défaut dans "Autres" : coche
-          "Confirmer" pour la garder telle quelle, ou change la avant de confirmer l'import. Tant que ce
-          n'est pas fait, tu peux continuer à utiliser l'app normalement (créer des catégories, etc.) —
-          seule la validation de cet import attend.
+          Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche
+          « Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux
+          aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.
         </p>
         <div class="actions">
           <button type="button" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
@@ -909,7 +981,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <h3>Comptes bancaires à faire correspondre</h3>
         <div id="import-mappings-comptes" class="import-mappings"></div>
         <div id="import-mappings-monnaies-bloc" style="display:none">
-          <h3>Devises à faire correspondre<i class="info-bulle" tabindex="0" data-info="Le relevé écrit « EUR », « USD » ; l'app connaît des monnaies nommées. Indique une fois à quelle monnaie renvoie chaque libellé — même quand les deux portent le même nom, rien n'est rattaché tout seul : l'app s'en souvient ensuite pour ce preset.">i</i></h3>
+          <h3>Devises à faire correspondre<i class="info-bulle" tabindex="0" data-info="Ton relevé écrit « EUR », l'app connaît des monnaies que tu as nommées. Dis une fois à quoi chaque libellé correspond, elle s'en souvient pour la suite.">i</i></h3>
           <div id="import-mappings-monnaies" class="import-mappings"></div>
         </div>
       </div>
@@ -918,16 +990,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            ne sont plus demandées, et cette liste est le seul endroit où l'on
            peut relire ce qui va s'appliquer sans ouvrir le preset. -->
       <div id="import-monnaies-resolues-bloc" style="display:none">
-        <h3>Devises déjà rattachées<i class="info-bulle" tabindex="0" data-info="Ces libellés du relevé ont déjà une correspondance mémorisée pour ce preset : c'est pourquoi ils ne sont pas dans la liste au-dessus. Il n'y a rien à faire — cette liste existe pour que tu puisses vérifier le rattachement avant de confirmer.">i</i></h3>
+        <h3>Devises déjà rattachées<i class="info-bulle" tabindex="0" data-info="Ces libellés ont déjà leur correspondance : rien à faire. C'est là pour que tu puisses vérifier avant de confirmer.">i</i></h3>
         <div id="import-monnaies-resolues" class="import-mappings"></div>
       </div>
 
       <div id="import-apercu-bloc" style="display:none">
         <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)</h3>
         <p class="hint">
-          Les doublons détectés sont pré-sélectionnés. Tant qu'il reste des lignes sélectionnées,
-          l'import est bloqué : supprime-les, ou décoche-les pour les importer quand même.
-          Le bouton "Modifier" permet aussi de reclasser une ligne dans une autre catégorie d'opération.
+          Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend :
+          supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à
+          changer le type d'une ligne.
         </p>
         <div class="actions barre-selection">
           <button type="button" id="btn-import-tout-selectionner">Tout sélectionner</button>
@@ -1027,21 +1099,31 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              constat : la ligne est identique à une ligne déjà importée, et le
              geste attendu est de la supprimer. Les mélanger revenait à
              présenter une question et une réponse sous le même titre. -->
+        <!-- CE QUE LA VEILLE A REGARDÉ, dit à voix haute et même quand elle ne
+             trouve rien. Sans cette ligne, une comparaison qui n'a pas eu lieu
+             et une comparaison qui n'a rien trouvé se ressemblent exactement :
+             dans les deux cas l'écran ne dit rien, et il n'y a aucun moyen de
+             savoir laquelle des deux on regarde. -->
+        <p class="hint" id="import-veille-virements-etat" style="display:none"></p>
+
         <div id="import-apercu-section-ressemblances">
           <h4>Ressemblances — <span id="import-apercu-nombre-ressemblances"></span> ligne(s)</h4>
           <p class="hint">
-            <strong>Doublons de virement interne possibles.</strong> Deux relevés de deux banques
-            décrivent le même virement avec des colonnes qui n'ont rien de commun : la détection de
-            doublons ordinaire, qui compare des lignes de fichier, ne peut structurellement pas les
-            voir. Celle-ci compare la <em>transaction</em> — les deux comptes, les devises, un des
-            deux montants, et une date voisine. Rien n'est bloqué ni pré-sélectionné : toi seul sais
-            si tu as vraiment viré deux fois. Chaque ligne est suivie de ce à quoi elle ressemble.
+            <strong>Ce virement est peut-être déjà en base.</strong> Quand tu importes les relevés
+            de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons
+            différentes. L'app compare ici la <em>transaction</em> elle-même — le compte, les devises,
+            le montant, une date proche — et te montre à quoi chaque ligne ressemble.
+            Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.
           </p>
+          <!-- ÉMETTEUR ET RÉCEPTEUR, et non « Catégorie / Compte » comme les
+               autres sections : ici toute ligne est un virement, et comparer un
+               virement à un autre sans voir d'où à où va l'argent ne veut rien
+               dire. -->
           <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
-                <th>Catégorie (banque)</th><th>Compte (banque)</th><th>Catégorie</th><th>Compte</th>
+                <th>Catégorie (banque)</th><th>Compte (banque)</th><th>Émetteur</th><th>Récepteur</th>
                 <th>Statut</th><th>Actions</th><th>Sélection</th>
               </tr>
             </thead>
@@ -1052,11 +1134,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div id="import-apercu-section-doublons">
           <h4>Doublons détectés — <span id="import-apercu-nombre-doublons"></span> ligne(s)</h4>
           <p class="hint">
-            Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à une
-            ligne déjà en base est affichée ici (même format que les autres sections), suivie en lecture
-            seule de la ligne existante suspectée. Elles sont pré-sélectionnées pour être supprimées
-            d'un clic — décoche-en une pour l'importer quand même (deux achats identiques le même jour
-            sont un doublon détecté légitime).
+            Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle
+            qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour
+            l'importer quand même, deux achats identiques le même jour ça arrive.
           </p>
           <table>
             <thead>
@@ -1082,7 +1162,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
 
-      <h3>Historique des importations<i class="info-bulle" tabindex="0" data-info="Annuler un import supprime les opérations qu'il a créées et le retire du stock anti-doublons : le fichier redevient donc importable comme s'il n'était jamais passé. Les opérations que tu as supprimées à la main depuis ne sont plus comptées ; celles que tu as modifiées partent quand même, elles viennent bien de ce fichier.">i</i></h3>
+      <h3>Historique des importations<i class="info-bulle" tabindex="0" data-info="Annuler un import retire les opérations qu'il avait créées, et le fichier redevient importable comme si de rien n'était. Celles que tu as modifiées depuis partent aussi.">i</i></h3>
       <table>
         <thead>
           <tr><th>Date</th><th>Fichier</th><th>Opérations créées</th><th>Lignes ignorées</th><th>Doublons détectés</th><th></th></tr>
@@ -1095,11 +1175,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <!-- Les sous-pages apportées PAR une extension sont injectées après
            celle-ci par frontend/extensions.js, à la fin de cette section. -->
       <div id="sous-section-parametres-extensions" class="sous-section">
-        <p class="hint">
-          Une extension ajoute une fonctionnalité à l'application. La désactiver masque son écran
-          et ferme ses routes, mais ne supprime aucune donnée : tout réapparaît intact à la
-          réactivation.
-        </p>
+        <!-- LA PASTILLE « i » DU NOYAU, comme à côté de tous les autres titres
+             de l'application : ce texte explique l'écran, pas une extension en
+             particulier. Le pictogramme dépliant, lui, est réservé à ce qui est
+             PROPRE à une extension — ce qu'elle fait, et ce qui l'empêche de
+             changer d'état (cf. renderExtensions). -->
+        <h3>Extensions<i class="info-bulle" tabindex="0" data-info="Une extension ajoute une fonctionnalité. La désactiver fait disparaître son écran sans rien effacer : tout revient si tu la rallumes.">i</i></h3>
         <div id="extensions-erreurs" class="import-avertissements" style="display:none"></div>
         <div id="extensions-liste"></div>
       </div>
@@ -1112,8 +1193,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        dans switchSection, et l'appelle au démarrage. Il ne fait que DÉFINIR le
        mécanisme — le chargement effectif part de app.js, une fois `apiFetch`
        et `t()` disponibles. -->
-  <script src="i18n.js?v=23"></script>
-  <script src="extensions.js?v=7"></script>
-  <script src="app.js?v=89"></script>
+  <script src="i18n.js?v=31"></script>
+  <script src="extensions.js?v=9"></script>
+  <script src="app.js?v=100"></script>
 </body>
 </html>

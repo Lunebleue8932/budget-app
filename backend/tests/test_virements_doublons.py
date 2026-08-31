@@ -277,3 +277,486 @@ def test_rien_nest_bloque_ni_ecarte(db_session):
     )
 
     assert db_session.query(models.Operation).count() == avant
+
+
+# ---------- Un seul compte connu : le cas ordinaire d'un relevé ----------
+#
+# Un relevé ne nomme QUE son propre compte. Exiger les deux revenait à demander
+# à l'utilisateur de retrouver le compte d'en face ligne par ligne et à chaque
+# import — pour s'entendre dire ensuite que la ligne était un doublon et qu'il
+# n'avait qu'à la supprimer. Le travail était réclamé exactement dans le cas où
+# il ne servait à rien.
+
+
+def _candidat_partiel(ligne, montant, jour, *, source=None, destination=None, monnaie_id=None):
+    """Un candidat dont un seul des deux comptes est connu."""
+    return schemas.VirementCandidatDoublon(
+        ligne=ligne,
+        date=jour,
+        montant=montant,
+        monnaie_id=monnaie_id,
+        compte_source_id=source.id if source else None,
+        compte_destination_id=destination.id if destination else None,
+    )
+
+
+def test_le_compte_emetteur_seul_suffit_a_signaler(db_session):
+    """Le relevé de A décrit un débit : on connaît A, pas B."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2), nature="Vers B")
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 3, 5), source=a)]
+    )
+
+    assert len(resultats) == 1
+    suspect = resultats[0].suspects[0]
+    assert suspect.compte_source == "Compte A"
+    assert suspect.compte_destination == "Compte B"
+    # LA MOITIÉ UTILE : le compte que la ligne ne nommait pas est rendu, nommé
+    # comme tel. C'est précisément ce qu'on évitait de faire retrouver à la main.
+    assert suspect.compte_en_face == "Compte B"
+
+
+def test_le_compte_recepteur_seul_suffit_a_signaler(db_session):
+    """L'autre moitié : le relevé de B décrit un crédit, on ne connaît que B."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 3, 4), destination=b)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte A"
+
+
+def test_avec_un_seul_compte_le_sens_ne_departage_plus(db_session):
+    """LE RÔLE DU COMPTE CONNU EST UNE DÉDUCTION, PAS UN FAIT.
+
+    Il vient du signe du montant, et ce signe manque plus souvent qu'on ne
+    croit : montant corrigé à la main, colonnes débit/crédit vides ou toutes
+    deux remplies, relevé sans colonne de sens. La ligne est alors rangée d'un
+    côté par défaut — au hasard une fois sur deux. Écarter un rapprochement sur
+    cette base revenait à rater précisément les lignes que la veille existe pour
+    attraper.
+
+    Le sens continue de départager quand la ligne nomme SES DEUX comptes : là,
+    il n'est plus déduit (cf. test_le_sens_compte)."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=1000.0)
+    _virement(db_session, b, a, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 3, 3), source=a)]
+    )
+
+    assert len(resultats) == 1
+    # Le compte rendu reste juste : c'est B qu'on apprend, pas A qu'on savait.
+    assert resultats[0].suspects[0].compte_en_face == "Compte B"
+
+
+def test_un_compte_qui_ne_correspond_pas_ecarte_le_rapprochement(db_session):
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    c = creer_compte(db_session, "Compte C", solde_initial=1000.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 3, 3), source=c)]
+    )
+
+    assert resultats == []
+
+
+def test_les_deux_comptes_connus_gardent_le_comportement_d_avant(db_session):
+    """Quand une règle a déduit le second compte, rien ne change : les deux sont
+    comparés, et il n'y a plus rien à apprendre du suspect."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat(4, a, b, 250.0, date(2026, 3, 3))]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face is None
+
+
+def test_deux_lignes_qui_n_ont_aucun_compte_comparable_ne_se_rapprochent_pas(db_session):
+    """LA BORNE. Deux lignes d'un même fichier connaissant chacune un compte,
+    mais dans deux rôles différents, ne partagent plus qu'un montant et une
+    date : sans cette garde, n'importe quels deux virements de même montant dans
+    la semaine se signaleraient l'un l'autre."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=1000.0)
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session,
+        [
+            _candidat_partiel(1, 250.0, date(2026, 3, 2), source=a),
+            _candidat_partiel(2, 250.0, date(2026, 3, 3), destination=b),
+        ],
+    )
+
+    assert resultats == []
+
+
+def test_deux_lignes_du_meme_fichier_sur_le_meme_compte_se_rapprochent(db_session):
+    """Le même relevé qui décrit deux fois le même départ : là, un compte EST
+    comparé, et le rapprochement tient."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session,
+        [
+            _candidat_partiel(1, 250.0, date(2026, 3, 2), source=a),
+            _candidat_partiel(2, 250.0, date(2026, 3, 3), source=a),
+        ],
+    )
+
+    assert [r.ligne for r in resultats] == [2]
+    assert resultats[0].suspects[0].source == "fichier"
+
+
+def test_la_fenetre_de_sept_jours_tient_aussi_avec_un_seul_compte(db_session):
+    """Le relâchement porte sur les comptes, pas sur la date : un virement
+    récurrent du même montant ne doit pas se signaler tous les mois."""
+    a = creer_compte(db_session, "Compte A", solde_initial=5000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 4, 2), source=a)]
+    )
+
+    assert resultats == []
+
+
+def test_les_devises_tiennent_aussi_avec_un_seul_compte(db_session):
+    """Deux montants égaux dans deux monnaies différentes ne sont pas le même
+    virement, que l'on connaisse un compte ou les deux."""
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session,
+        [_candidat_partiel(4, 250.0, date(2026, 3, 3), source=a, monnaie_id=dollar.id)],
+    )
+
+    assert resultats == []
+
+
+# ---------- Ce que le rapprochement partiel ne doit PLUS exiger ----------
+#
+# Chacun de ces tests correspond à une condition qui a été essayée, qui
+# paraissait raisonnable, et qui écartait en pratique les lignes mêmes que la
+# veille existe pour attraper.
+
+
+def test_un_relevé_sans_sens_est_quand_meme_rapproche(db_session):
+    """LE CAS QUI A FAIT ÉCHOUER DEUX CORRECTIFS.
+
+    Une ligne dont le fichier ne tranche pas le sens n'a pas de rôle fiable pour
+    son compte connu : le frontend la range côté récepteur par défaut (cf.
+    candidatsDoublonsVirements, `montant_signe || 0`). Si ce défaut tombe à
+    l'envers du virement en base, un rapprochement aligné sur les rôles ne
+    trouve rien — alors que tout le reste concorde.
+    """
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2), nature="Vers B")
+
+    # A est l'ÉMETTEUR en base ; faute de signe, la ligne le présente en
+    # récepteur. Le rapprochement doit tenir quand même.
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 250.0, date(2026, 3, 2), destination=a)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte B"
+
+
+def test_le_compte_en_face_n_est_jamais_celui_qu_on_connait_deja(db_session):
+    """Désigné par ÉLIMINATION : quel que soit le rôle sous lequel la ligne
+    range son compte, on lui rend l'AUTRE — jamais celui qu'elle nomme déjà."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 2))
+
+    par_role = {
+        "connu comme émetteur": _candidat_partiel(1, 250.0, date(2026, 3, 2), source=a),
+        "connu comme récepteur": _candidat_partiel(2, 250.0, date(2026, 3, 2), destination=a),
+    }
+    for cas, candidat in par_role.items():
+        resultats = import_bancaire.detecter_doublons_virements(db_session, [candidat])
+        assert len(resultats) == 1, cas
+        assert resultats[0].suspects[0].compte_en_face == "Compte B", cas
+
+
+def test_deux_lignes_du_fichier_partageant_un_compte_se_rapprochent(db_session):
+    """Le partage d'un compte suffit aussi entre deux lignes du même fichier,
+    quel que soit le rôle de chaque côté."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session,
+        [
+            _candidat_partiel(1, 250.0, date(2026, 3, 2), source=a),
+            _candidat_partiel(2, 250.0, date(2026, 3, 3), destination=a),
+        ],
+    )
+
+    assert [r.ligne for r in resultats] == [2]
+
+
+def test_les_deux_comptes_connus_departagent_toujours_le_sens(db_session):
+    """La contrepartie : dès que la ligne nomme ses deux comptes, le sens n'est
+    plus une déduction et A→B cesse de ressembler à B→A. C'est le régime
+    inchangé, celui d'une ligne complétée par une règle."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=1000.0)
+    _virement(db_session, b, a, 250.0, date(2026, 3, 2))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat(4, a, b, 250.0, date(2026, 3, 3))]
+    )
+
+    assert resultats == []
+
+
+# ---------- De bout en bout : le relevé de l'autre banque ----------
+#
+# POURQUOI CES TESTS EXISTENT. Ceux d'au-dessus fabriquent leurs candidats à la
+# main, et passaient tous pendant que le scénario réel — importer le relevé du
+# compte B après avoir importé celui du compte A — n'était toujours pas
+# détecté. Ce qui manquait n'était pas la règle de rapprochement mais ce qui
+# arrive JUSQU'À elle : une ligne résolue par le vrai lecteur de fichier, puis
+# le profil que le frontend en tire.
+#
+# `_profil_frontend` recopie donc `candidatsDoublonsVirements` (frontend/app.js)
+# à l'identique. C'est une duplication assumée : le dépôt n'a pas de harnais de
+# test JavaScript, et sans elle rien ne relie le lecteur de fichier à la veille.
+# Les deux doivent dire la même chose ; si l'un change, l'autre doit suivre.
+
+
+def _profil_frontend(ligne):
+    """Le candidat tel que l'aperçu l'envoie, à partir d'une ligne résolue.
+
+    Miroir de candidatsDoublonsVirements. Deux détails y sont essentiels, et
+    chacun a fait échouer un correctif :
+
+    - un signe ABSENT ne disqualifie pas la ligne, il la range côté récepteur
+      par défaut (`montant_signe or 0`) ;
+    - une ligne EN ERREUR n'est pas écartée : un virement sans compte en face
+      en porte une par construction, et c'est justement le cas visé.
+    """
+    if ligne.date is None or ligne.compte_id is None:
+        return None
+    emetteur = (ligne.montant_signe or 0) < 0
+    deux_jambes = ligne.montant_envoye is not None and ligne.montant is not None
+    # Le montant ET sa devise viennent de la MÊME jambe (cf. _jambes).
+    decrit_l_envoi = ligne.montant_envoye is not None
+    montant = abs(ligne.montant_envoye if decrit_l_envoi else (ligne.montant or 0))
+    if montant <= 0:
+        return None
+    return schemas.VirementCandidatDoublon(
+        ligne=ligne.ligne,
+        date=ligne.date,
+        montant=montant,
+        monnaie_id=ligne.monnaie_envoyee_id if decrit_l_envoi else ligne.monnaie_id,
+        montant_recu=abs(ligne.montant) if deux_jambes else None,
+        monnaie_recue_id=ligne.monnaie_id if deux_jambes else None,
+        compte_source_id=ligne.compte_id if emetteur else ligne.compte_id_autre,
+        compte_destination_id=ligne.compte_id_autre if emetteur else ligne.compte_id,
+    )
+
+
+def _releve(db, compte, montant, jour, nature="VIR SEPA"):
+    """Le relevé d'UN compte : une ligne, un montant signé, et rien d'autre —
+    c'est tout ce qu'une banque écrit. Le compte d'en face n'y figure pas."""
+    from .test_import_bancaire import _construire_fichier, _make_preset
+
+    preset = _make_preset(db, nom=f"Banque {compte.nom}")
+    contenu = _construire_fichier(
+        [{"date": jour, "nature": nature, "montant": montant, "compte": compte.nom}]
+    )
+    crud.set_mapping_compte(db, preset.id, compte.nom, compte.id)
+    apercu = import_bancaire.previsualiser(db, preset.id, contenu)
+    return apercu.lignes[0]
+
+
+def _en_virement(db, ligne):
+    """Reclasse la ligne en virement interne, comme le fait une règle ou un clic
+    dans l'aperçu. Le compte d'en face reste inconnu : c'est le cas testé.
+
+    `erreur` est RECALCULÉE : `model_copy` ne repasse pas par la validation, et
+    laisser l'ancienne valeur ferait mentir la ligne sur son propre état — or
+    c'est précisément cette erreur qui écartait la ligne de la veille."""
+    reclassee = ligne.model_copy(
+        update={"type_code": "virement", "categorie_id": None, "compte_id_autre": None}
+    )
+    return reclassee.model_copy(
+        update={"erreur": import_bancaire._erreur_ligne(reclassee)}
+    )
+
+
+def test_le_releve_du_compte_recepteur_retrouve_le_virement_deja_importe(db_session):
+    """LE SCÉNARIO RAPPORTÉ. Le virement A→B est déjà en base (importé depuis le
+    relevé de A). On importe maintenant le relevé de B, qui décrit la même
+    transaction en crédit et ne nomme que B."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 5), nature="Vers B")
+
+    ligne = _en_virement(db_session, _releve(db_session, b, 250.0, date(2026, 3, 5)))
+    # La ligne est bien EN ERREUR (compte en face manquant) : c'est ce qui la
+    # faisait écarter avant, et elle doit être rapprochée quand même.
+    assert ligne.erreur is not None
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_profil_frontend(ligne)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte A"
+
+
+def test_le_releve_du_compte_emetteur_retrouve_le_virement_deja_importe(db_session):
+    """L'autre sens : le relevé de A, en débit, contre le même virement."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 5))
+
+    ligne = _en_virement(db_session, _releve(db_session, a, -250.0, date(2026, 3, 5)))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_profil_frontend(ligne)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte B"
+
+
+def test_une_ligne_sans_signe_est_rapprochee_elle_aussi(db_session):
+    """Le montant a été corrigé à la main dans l'aperçu : la ligne porte un
+    montant mais plus de signe (cf. _erreur_ligne, « le sens est indéterminé »).
+    Elle reste rapprochable — c'est le rôle du compte qui devient incertain, pas
+    le fait qu'il soit en jeu."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 5))
+
+    ligne = _en_virement(db_session, _releve(db_session, a, -250.0, date(2026, 3, 5)))
+    sans_signe = ligne.model_copy(update={"montant_signe": None, "montant": 250.0})
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_profil_frontend(sans_signe)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte B"
+
+
+def test_un_virement_vers_un_tiers_ne_se_rapproche_de_rien(db_session):
+    """Le garde-fou : un relevé qui décrit un virement d'un montant différent, ou
+    vers des comptes sans rapport, ne doit rien déclencher."""
+    a = creer_compte(db_session, "Compte A", solde_initial=1000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    c = creer_compte(db_session, "Compte C", solde_initial=1000.0)
+    _virement(db_session, a, b, 250.0, date(2026, 3, 5))
+
+    ligne = _en_virement(db_session, _releve(db_session, c, -250.0, date(2026, 3, 5)))
+
+    assert import_bancaire.detecter_doublons_virements(
+        db_session, [_profil_frontend(ligne)]
+    ) == []
+
+
+# ---------- Quand les deux jambes n'ont pas le même montant ----------
+#
+# LE DERNIER ANGLE MORT accroché aux rôles, et le plus silencieux : tant qu'un
+# virement part et arrive du même montant, personne ne voit que l'aperçu range
+# le montant d'une ligne RÉCEPTRICE dans le champ de ce qui PART. Des frais ou
+# un change suffisent à le révéler — et à faire disparaître le rapprochement.
+
+
+def _virement_avec_frais(db, source, destination, montant_envoye, montant_recu, jour):
+    """Un virement dont les deux jambes diffèrent : 1 000 partent, 998,50
+    arrivent. C'est ce qu'écrivent deux relevés de deux banques."""
+    # `create_virement` rend le couple (sortante, entrante) : c'est la seconde
+    # qu'on ampute des frais, comme le ferait la banque du destinataire.
+    sortante, entrante = _virement(db, source, destination, montant_envoye, jour, nature="Vers B")
+    entrante.montant = montant_recu
+    db.commit()
+    return sortante, entrante
+
+
+def test_le_releve_du_recepteur_se_rapproche_malgre_les_frais(db_session):
+    """LE CAS SILENCIEUX. Le relevé de B ne connaît que ce qui est ARRIVÉ
+    (998,50). Le virement en base porte 1 000 au départ. Comparer le montant de
+    la ligne au seul montant de départ ne trouvait rien."""
+    a = creer_compte(db_session, "Compte A", solde_initial=5000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement_avec_frais(db_session, a, b, 1000.0, 998.50, date(2026, 3, 5))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 998.50, date(2026, 3, 5), destination=b)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte A"
+
+
+def test_le_releve_de_l_emetteur_se_rapproche_malgre_les_frais(db_session):
+    """L'autre bord : A ne connaît que ce qui est PARTI (1 000)."""
+    a = creer_compte(db_session, "Compte A", solde_initial=5000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement_avec_frais(db_session, a, b, 1000.0, 998.50, date(2026, 3, 5))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 1000.0, date(2026, 3, 5), source=a)]
+    )
+
+    assert len(resultats) == 1
+    assert resultats[0].suspects[0].compte_en_face == "Compte B"
+
+
+def test_un_montant_qui_ne_correspond_a_aucune_jambe_n_est_pas_rapproche(db_session):
+    """Le garde-fou : « une jambe ou l'autre » n'est pas « n'importe quel
+    montant »."""
+    a = creer_compte(db_session, "Compte A", solde_initial=5000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement_avec_frais(db_session, a, b, 1000.0, 998.50, date(2026, 3, 5))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session, [_candidat_partiel(4, 750.0, date(2026, 3, 5), destination=b)]
+    )
+
+    assert resultats == []
+
+
+def test_la_devise_reste_attachee_a_sa_jambe(db_session):
+    """Montant et devise voyagent ensemble : un montant qui concorde avec une
+    jambe mais dans une AUTRE monnaie ne rapproche rien. C'était le risque de
+    comparer les deux séparément."""
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    a = creer_compte(db_session, "Compte A", solde_initial=5000.0)
+    b = creer_compte(db_session, "Compte B", solde_initial=0.0)
+    _virement_avec_frais(db_session, a, b, 1000.0, 998.50, date(2026, 3, 5))
+
+    resultats = import_bancaire.detecter_doublons_virements(
+        db_session,
+        [
+            _candidat_partiel(
+                4, 998.50, date(2026, 3, 5), destination=b, monnaie_id=dollar.id
+            )
+        ],
+    )
+
+    assert resultats == []

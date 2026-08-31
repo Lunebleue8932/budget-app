@@ -27,7 +27,7 @@ router = APIRouter(prefix="/cours", tags=["placements"])
 def _titre_read(action: models.Action) -> schemas.CoursTitreRead:
     return schemas.CoursTitreRead(
         action_id=action.id,
-        action_nom=action.nom,
+        action_nom=action.nom_affiche,
         url_cours=action.url_cours,
         cours=action.valeur,
         monnaie_symbole=action.monnaie.symbole,

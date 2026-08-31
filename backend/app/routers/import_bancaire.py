@@ -8,6 +8,7 @@ from ..constants import (
     PROPRIETES_IMPORT_OBLIGATOIRES,
     PROPRIETES_IMPORT_VALIDES,
     PROPRIETES_MONTANT_SCINDE,
+    DomaineImport,
     ModeComparaison,
 )
 from ..database import get_db
@@ -17,8 +18,16 @@ router = APIRouter(prefix="/import", tags=["import"])
 
 
 def _get_preset_ou_404(db: Session, preset_id: int) -> schemas.ImportPresetRead:
+    """Le preset, à condition qu'il soit BANCAIRE.
+
+    Un preset d'un autre domaine (« placement », cf. constants.DomaineImport)
+    est traité comme inexistant, et pas seulement par principe : ses colonnes
+    désignent des propriétés que ce routeur ne sait pas lire (`nom_valeur`,
+    `quantite`…). Le service ne planterait pas pour autant — il ne trouverait
+    simplement aucune des siennes et importerait des lignes vides. Un résultat
+    faux en silence est bien pire qu'un 404."""
     preset = crud.get_import_preset(db, preset_id)
-    if preset is None:
+    if preset is None or preset.domaine != DomaineImport.bancaire.value:
         raise HTTPException(status_code=404, detail="Preset d'import introuvable")
     return preset
 
@@ -56,7 +65,7 @@ def _valider_compte_lie(db: Session, compte_id: Optional[int]) -> None:
         raise HTTPException(status_code=404, detail="Compte introuvable")
 
 
-def _nettoyer_vocabulaire(
+def nettoyer_vocabulaire(
     listes: dict[str, list[str]], sujet: str
 ) -> dict[str, list[str]]:
     """Des listes de mots-clés débarrassées de leurs entrées vides et de leurs
@@ -106,14 +115,14 @@ def _vocabulaires_nettoyes(payload) -> dict[str, list[str]]:
 
     Les deux groupes sont vérifiés SÉPARÉMENT : rien n'interdit qu'un même mot
     désigne une sortie et un état exécuté, ce sont deux colonnes différentes."""
-    sens = _nettoyer_vocabulaire(
+    sens = nettoyer_vocabulaire(
         {
             "libelles_sens_sortie": payload.libelles_sens_sortie,
             "libelles_sens_entree": payload.libelles_sens_entree,
         },
         "sens",
     )
-    statut = _nettoyer_vocabulaire(
+    statut = nettoyer_vocabulaire(
         {
             "libelles_statut_execute": payload.libelles_statut_execute,
             "libelles_statut_attente": payload.libelles_statut_attente,
@@ -180,11 +189,20 @@ def _valider_lecture_du_montant(proprietes: set[str]) -> None:
         )
 
 
-def _valider_configuration(
+def valider_colonnes(
     colonnes: list[schemas.ColonneImportConfig],
-    colonnes_comparaison: list[int],
-    mode_comparaison: ModeComparaison,
-) -> None:
+    proprietes_valides: set[str],
+    proprietes_obligatoires: set[str],
+) -> set[str]:
+    """Ce qu'une liste de colonnes doit respecter QUEL QUE SOIT le domaine :
+    au moins une colonne, une propriété par colonne, une colonne par propriété,
+    et des propriétés qui existent. Rend l'ensemble des propriétés lues, dont
+    l'appelant tire ensuite ses propres vérifications.
+
+    Les deux ensembles sont des paramètres et non des constantes du module :
+    c'est tout ce qui distingue un preset bancaire d'un preset de placements de
+    ce point de vue, et c'est ce qui permet à l'extension de réutiliser ces
+    quatre contrôles au lieu de les récrire."""
     if not colonnes:
         raise HTTPException(status_code=400, detail="Au moins une colonne est requise")
 
@@ -198,19 +216,25 @@ def _valider_configuration(
     if len(indices) != len(set(indices)):
         raise HTTPException(status_code=400, detail="Chaque colonne ne peut être utilisée qu'une fois")
 
-    invalides = set(proprietes) - PROPRIETES_IMPORT_VALIDES
+    invalides = set(proprietes) - proprietes_valides
     if invalides:
         raise HTTPException(status_code=400, detail=f"Propriétés invalides : {sorted(invalides)}")
 
-    manquantes = PROPRIETES_IMPORT_OBLIGATOIRES - set(proprietes)
+    manquantes = proprietes_obligatoires - set(proprietes)
     if manquantes:
         raise HTTPException(
             status_code=400,
             detail=f"Propriétés obligatoires manquantes : {sorted(manquantes)}",
         )
+    return set(proprietes)
 
-    _valider_lecture_du_montant(set(proprietes))
 
+def valider_comparaison(
+    colonnes_comparaison: list[int], mode_comparaison: ModeComparaison
+) -> None:
+    """La comparaison de doublons se configure de la même façon dans les deux
+    domaines : le détecteur qu'elle pilote est le même code (cf.
+    services/import_bancaire.detecter_doublon)."""
     if any(idx < 1 for idx in colonnes_comparaison):
         raise HTTPException(
             status_code=400,
@@ -231,6 +255,20 @@ def _valider_configuration(
         )
 
 
+def _valider_configuration(
+    colonnes: list[schemas.ColonneImportConfig],
+    colonnes_comparaison: list[int],
+    mode_comparaison: ModeComparaison,
+) -> None:
+    """La configuration d'un preset BANCAIRE : les contrôles communs, plus ce
+    qui n'a de sens que pour un relevé bancaire (d'où vient le montant)."""
+    proprietes = valider_colonnes(
+        colonnes, PROPRIETES_IMPORT_VALIDES, PROPRIETES_IMPORT_OBLIGATOIRES
+    )
+    _valider_lecture_du_montant(proprietes)
+    valider_comparaison(colonnes_comparaison, mode_comparaison)
+
+
 # ---------- Presets ----------
 
 
@@ -238,7 +276,7 @@ def _valider_configuration(
 def list_presets(db: Session = Depends(get_db)):
     # `dernier_import` n'est pas une colonne : il se lit dans l'historique et
     # sert au frontend à présélectionner le preset réellement utilisé.
-    presets = crud.list_import_presets(db)
+    presets = crud.list_import_presets(db, DomaineImport.bancaire.value)
     for preset in presets:
         preset.dernier_import = crud.get_date_dernier_import(db, preset.id)
     return presets
@@ -290,7 +328,7 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
 @router.delete("/presets/{preset_id}")
 def delete_preset(preset_id: int, db: Session = Depends(get_db)):
     preset = _get_preset_ou_404(db, preset_id)
-    if len(crud.list_import_presets(db)) <= 1:
+    if len(crud.list_import_presets(db, DomaineImport.bancaire.value)) <= 1:
         raise HTTPException(
             status_code=400, detail="Impossible de supprimer le dernier preset restant"
         )

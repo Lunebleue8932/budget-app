@@ -11,6 +11,8 @@ from .constants import (
     CATEGORIES_SENS_ENTREE,
     CATEGORIE_AUTRES,
     COLONNES_IMPORT_PAR_DEFAUT,
+    COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
+    COLONNES_IMPORT_POSITION_PAR_DEFAUT,
     MONNAIE_INITIALE_NOM,
     MONNAIE_INITIALE_SYMBOLE,
     NOMS_TYPES_INITIAUX,
@@ -19,8 +21,10 @@ from .constants import (
     TYPES_REGLEMENT,
     TYPES_REMBOURSABLES,
     TYPES_SENS_ENTREE,
+    DomaineImport,
     Frequence,
     ModeComparaison,
+    ModeLecturePlacement,
     Sens,
     SensAction,
     Statut,
@@ -73,19 +77,45 @@ def update_monnaie(
     return monnaie
 
 
+# Les quatre tables qui PORTENT une monnaie. Une monnaie qui n'apparaît dans
+# aucune d'elles n'existe que comme entrée de la table `monnaie` : personne ne
+# s'en sert, et rien ne dépend d'elle.
+_MODELES_PORTANT_UNE_MONNAIE = (
+    models.CompteMonnaie,
+    models.Operation,
+    models.CategorieBudgetMensuel,
+    models.Action,
+)
+
+
 def monnaie_est_utilisee(db: Session, monnaie_id: int) -> bool:
     """Une monnaie encore portée par un compte, une opération, un budget ou un
     titre ne peut pas être supprimée : les montants concernés deviendraient
     illisibles."""
-    for modele in (
-        models.CompteMonnaie,
-        models.Operation,
-        models.CategorieBudgetMensuel,
-        models.Action,
-    ):
+    for modele in _MODELES_PORTANT_UNE_MONNAIE:
         if db.query(modele).filter(modele.monnaie_id == monnaie_id).first() is not None:
             return True
     return False
+
+
+def monnaies_utilisees(db: Session) -> set[int]:
+    """Les monnaies RÉELLEMENT en service, par opposition à celles qui n'ont
+    été que créées.
+
+    La distinction est ce qui permet à l'extension « Monnaies » de dire si on
+    peut l'éteindre sans rien rendre illisible (cf. son backend.py) : avoir
+    ajouté le dollar sans jamais s'en servir laisse l'application mono-devise,
+    et il n'y a alors aucune raison de retenir l'utilisateur.
+
+    Un `None` ne compte pas : une ligne sans monnaie n'en désigne aucune."""
+    utilisees: set[int] = set()
+    for modele in _MODELES_PORTANT_UNE_MONNAIE:
+        utilisees.update(
+            identifiant
+            for (identifiant,) in db.query(modele.monnaie_id).distinct().all()
+            if identifiant is not None
+        )
+    return utilisees
 
 
 def delete_monnaie(db: Session, monnaie: models.Monnaie) -> None:
@@ -345,14 +375,6 @@ def get_type_compte_by_nom(db: Session, nom: str):
     return db.query(models.TypeCompte).filter(models.TypeCompte.nom == nom).first()
 
 
-def create_type_compte(db: Session, type_compte: schemas.TypeCompteCreate) -> models.TypeCompte:
-    db_type_compte = models.TypeCompte(nom=type_compte.nom, systeme=False)
-    db.add(db_type_compte)
-    db.commit()
-    db.refresh(db_type_compte)
-    return db_type_compte
-
-
 def type_compte_est_utilise(db: Session, type_compte_id: int) -> bool:
     return (
         db.query(models.Compte).filter(models.Compte.type_id == type_compte_id).first()
@@ -485,7 +507,17 @@ def get_operations(
     statut: Optional[str] = None,
     date_debut: Optional[date_type] = None,
     date_fin: Optional[date_type] = None,
+    montant_min: Optional[float] = None,
+    montant_max: Optional[float] = None,
 ):
+    """Chaque filtre est facultatif ; ceux qui valent None ne bornent rien.
+
+    Les deux bornes de montant portent sur `montant`, qui est TOUJOURS positif :
+    c'est le sens qui dit d'où va l'argent (cf. models.Operation). « Entre 50 et
+    100 » attrape donc aussi bien une dépense de 80 € qu'une entrée de 80 €, ce
+    qui est ce qu'on cherche en filtrant sur un ordre de grandeur — le signe se
+    choisit déjà par l'onglet.
+    """
     query = db.query(models.Operation)
     if compte_id is not None:
         query = query.filter(models.Operation.compte_id == compte_id)
@@ -497,6 +529,10 @@ def get_operations(
         query = query.filter(models.Operation.date >= date_debut)
     if date_fin is not None:
         query = query.filter(models.Operation.date <= date_fin)
+    if montant_min is not None:
+        query = query.filter(models.Operation.montant >= montant_min)
+    if montant_max is not None:
+        query = query.filter(models.Operation.montant <= montant_max)
     return query.order_by(models.Operation.date.desc(), models.Operation.id.desc()).all()
 
 
@@ -1110,8 +1146,109 @@ def delete_virement(db: Session, operations: list[models.Operation]) -> None:
 # (compte, titre) en sommant les mouvements — voir services/placements.py.
 
 
-def get_actions(db: Session) -> list[models.Action]:
-    return db.query(models.Action).order_by(models.Action.nom).all()
+# ---------- Types de titre ----------
+#
+# Des étiquettes, et rien de plus (cf. models.TypeTitre) : aucun calcul ne les
+# lit, aucune n'est protégée, et les supprimer ne fait que détyper les titres qui
+# les portaient.
+
+
+def get_types_titre(db: Session) -> list[models.TypeTitre]:
+    return (
+        db.query(models.TypeTitre)
+        .order_by(models.TypeTitre.ordre, models.TypeTitre.nom)
+        .all()
+    )
+
+
+def get_type_titre(db: Session, type_titre_id: int) -> Optional[models.TypeTitre]:
+    return db.query(models.TypeTitre).filter(models.TypeTitre.id == type_titre_id).first()
+
+
+def get_type_titre_by_nom(db: Session, nom: str) -> Optional[models.TypeTitre]:
+    """Le type portant EXACTEMENT ce libellé.
+
+    Sert au routeur pour refuser un doublon, et à l'import pour retrouver un type
+    nommé dans un fichier plutôt que d'en créer un second à la casse près."""
+    return db.query(models.TypeTitre).filter(models.TypeTitre.nom == nom).first()
+
+
+def compter_titres_par_type(db: Session) -> dict[int, int]:
+    """Combien de titres portent chaque type, ARCHIVÉS COMPRIS.
+
+    Une seule requête groupée plutôt qu'un compte par ligne : l'écran de gestion
+    en affiche autant qu'il y a de types, et un archivé pèse dans la décision de
+    supprimer un type autant qu'un titre en service."""
+    lignes = (
+        db.query(models.Action.type_titre_id, func.count(models.Action.id))
+        .filter(models.Action.type_titre_id.isnot(None))
+        .group_by(models.Action.type_titre_id)
+        .all()
+    )
+    return {type_id: nombre for type_id, nombre in lignes}
+
+
+def create_type_titre(db: Session, nom: str) -> models.TypeTitre:
+    # En fin de liste : un type qu'on vient de créer ne doit pas s'insérer au
+    # milieu de l'ordre que l'utilisateur a posé.
+    dernier = db.query(func.max(models.TypeTitre.ordre)).scalar()
+    type_titre = models.TypeTitre(nom=nom, ordre=(dernier or 0) + 1)
+    db.add(type_titre)
+    db.commit()
+    db.refresh(type_titre)
+    return type_titre
+
+
+def update_type_titre(
+    db: Session,
+    type_titre: models.TypeTitre,
+    *,
+    nom: Optional[str] = None,
+    ordre: Optional[int] = None,
+) -> models.TypeTitre:
+    if nom is not None:
+        type_titre.nom = nom
+    if ordre is not None:
+        type_titre.ordre = ordre
+    db.commit()
+    db.refresh(type_titre)
+    return type_titre
+
+
+def delete_type_titre(db: Session, type_titre: models.TypeTitre) -> None:
+    """Supprime le type ; les titres qui le portaient redeviennent non typés.
+
+    LE DÉTYPAGE EST FAIT ICI, à la main, et non laissé au `ON DELETE SET NULL`
+    déclaré sur la colonne : SQLite n'applique ses clés étrangères que si
+    `PRAGMA foreign_keys` est allumé, et une session qui aurait déjà chargé ces
+    titres garderait de toute façon l'ancien identifiant en mémoire."""
+    db.query(models.Action).filter(models.Action.type_titre_id == type_titre.id).update(
+        {models.Action.type_titre_id: None}, synchronize_session=False
+    )
+    db.query(models.RegleImportPlacement).filter(
+        models.RegleImportPlacement.type_titre_id == type_titre.id
+    ).update({models.RegleImportPlacement.type_titre_id: None}, synchronize_session=False)
+    db.delete(type_titre)
+    db.commit()
+
+
+def get_actions(db: Session, *, inclure_archivees: bool = False) -> list[models.Action]:
+    """Les titres en service. Les ARCHIVÉS sont exclus par défaut.
+
+    Un titre archivé n'a plus à figurer là où l'on CHOISIT un titre — le menu
+    d'achat, la liste des titres suivis, la relecture des cours en ligne. Il
+    reste en base, avec tous ses mouvements : c'est ce qui distingue l'archivage
+    d'une suppression, que ses opérations d'espèces interdisent de toute façon
+    (cf. models.Action.archivee).
+
+    Ce qui se lit depuis les MOUVEMENTS n'est pas concerné et ne doit pas
+    l'être : l'historique et les plus-values passées d'un titre archivé restent
+    affichés, sans quoi archiver reviendrait à effacer (cf.
+    services/placements, qui part de `operation_action` et jamais d'ici)."""
+    query = db.query(models.Action)
+    if not inclure_archivees:
+        query = query.filter(models.Action.archivee.is_(False))
+    return query.order_by(models.Action.nom).all()
 
 
 def get_action(db: Session, action_id: int) -> Optional[models.Action]:
@@ -1122,10 +1259,35 @@ def get_action_by_nom(db: Session, nom: str) -> Optional[models.Action]:
     return db.query(models.Action).filter(models.Action.nom == nom).first()
 
 
+def get_action_by_isin(db: Session, code_isin: str) -> Optional[models.Action]:
+    """Le titre portant ce code ISIN, ou None.
+
+    Les titres ARCHIVÉS sont inclus, à dessein : un relevé qui rouvre une
+    position sur un titre rangé doit retomber sur celui-là, pas en créer un
+    second qui partagerait son ISIN (la contrainte d'unicité le refuserait de
+    toute façon, mais bien plus tard et bien moins clairement)."""
+    if not code_isin:
+        return None
+    return db.query(models.Action).filter(models.Action.code_isin == code_isin).first()
+
+
 def create_action(
-    db: Session, nom: str, monnaie_id: int, valeur: float = 0.0
+    db: Session,
+    nom: str,
+    monnaie_id: int,
+    valeur: float = 0.0,
+    code_isin: Optional[str] = None,
+    type_titre_id: Optional[int] = None,
 ) -> models.Action:
-    action = models.Action(nom=nom, valeur=valeur, monnaie_id=monnaie_id)
+    action = models.Action(
+        nom=nom,
+        valeur=valeur,
+        monnaie_id=monnaie_id,
+        code_isin=code_isin or None,
+        # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
+        # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
+        type_titre_id=type_titre_id or None,
+    )
     db.add(action)
     db.commit()
     db.refresh(action)
@@ -1137,15 +1299,36 @@ def update_action(
     action: models.Action,
     *,
     nom: Optional[str] = None,
+    nom_affichage: Optional[str] = None,
     valeur: Optional[float] = None,
     monnaie_id: Optional[int] = None,
+    archivee: Optional[bool] = None,
+    code_isin: Optional[str] = None,
+    type_titre_id: Optional[int] = None,
 ) -> models.Action:
     if nom is not None:
         action.nom = nom
+    # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de
+    # défaire un renommage, `None` voulant dire « ne change pas ».
+    if nom_affichage is not None:
+        action.nom_affichage = nom_affichage.strip() or None
     if valeur is not None:
         action.valeur = valeur
     if monnaie_id is not None:
         action.monnaie_id = monnaie_id
+    if archivee is not None:
+        action.archivee = archivee
+    # Comme partout ici, None veut dire « ne change pas » : l'import de
+    # placements COMPLÈTE un titre dont l'ISIN manquait, il n'a jamais à
+    # l'effacer.
+    if code_isin is not None:
+        action.code_isin = code_isin
+    # LE ZÉRO DÉTYPE. `None` veut dire « ne change pas » comme partout ici, il ne
+    # peut donc pas vouloir dire aussi « retire le type » — et il faut bien un
+    # geste pour défaire un choix qu'on regrette. Le menu envoie 0 quand on
+    # sélectionne « aucun ».
+    if type_titre_id is not None:
+        action.type_titre_id = type_titre_id or None
     db.commit()
     db.refresh(action)
     return action
@@ -1244,7 +1427,10 @@ def create_operation_action(
         compte_id=compte_id,
         type_id=type_action.id,
         categorie_id=None,
-        nature=nature or f"{prefixe} {action.nom}",
+        # Le nom AFFICHÉ : ce libellé se relit dans la liste des opérations,
+        # et c'est justement pour ne plus lire « AMUNDI IDX SOL MSC WLD-IE-C »
+        # qu'on renomme un titre.
+        nature=nature or f"{prefixe} {action.nom_affiche}",
         montant=montant,
         monnaie_id=action.monnaie_id,
         sens=Sens.transfert_sortant if sens == SensAction.achat else Sens.transfert_entrant,
@@ -1284,8 +1470,21 @@ def delete_operation_action(db: Session, operation_action: models.OperationActio
 # deux presets différents sans jamais se comparer ou s'écraser entre eux.
 
 
-def list_import_presets(db: Session) -> list[models.ImportPreset]:
-    return db.query(models.ImportPreset).order_by(models.ImportPreset.nom).all()
+def list_import_presets(db: Session, domaine: str) -> list[models.ImportPreset]:
+    """Les presets d'UN domaine (cf. constants.DomaineImport).
+
+    `domaine` est obligatoire, sans valeur par défaut, et c'est délibéré : un
+    appel qui l'oublierait mélangerait les presets bancaires et ceux de
+    placements dans un sélecteur, ou — bien pire — laisserait supprimer le
+    dernier preset bancaire au prétexte qu'un preset de placements existe (cf.
+    routers/import_bancaire.delete_preset). Une signature qui ne pardonne pas
+    l'oubli vaut mieux qu'un défaut qui a l'air raisonnable."""
+    return (
+        db.query(models.ImportPreset)
+        .filter(models.ImportPreset.domaine == domaine)
+        .order_by(models.ImportPreset.nom)
+        .all()
+    )
 
 
 def get_import_preset(db: Session, preset_id: int) -> Optional[models.ImportPreset]:
@@ -1305,11 +1504,30 @@ def create_import_preset(
     libelles_statut_execute: Optional[list[str]] = None,
     libelles_statut_attente: Optional[list[str]] = None,
     libelles_statut_refuse: Optional[list[str]] = None,
+    domaine: str = DomaineImport.bancaire.value,
+    libelles_type_achat: Optional[list[str]] = None,
+    libelles_type_vente: Optional[list[str]] = None,
+    libelles_type_transfert: Optional[list[str]] = None,
+    mode_lecture: Optional[str] = None,
 ) -> models.ImportPreset:
+    # Les colonnes par défaut dépendent du domaine ET, pour les placements, du
+    # mode de lecture : le format bancaire historique à 12 colonnes n'a rien à
+    # faire dans un preset de placements, et une PHOTOGRAPHIE de compte ne lit
+    # ni date ni type d'opération là où une liste de mouvements le fait.
+    if colonnes is None:
+        if domaine == DomaineImport.placement.value:
+            colonnes = (
+                COLONNES_IMPORT_POSITION_PAR_DEFAUT
+                if mode_lecture == ModeLecturePlacement.position.value
+                else COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT
+            )
+        else:
+            colonnes = COLONNES_IMPORT_PAR_DEFAUT
     preset = models.ImportPreset(
         nom=nom,
+        domaine=domaine,
         compte_id=compte_id,
-        colonnes=colonnes if colonnes is not None else COLONNES_IMPORT_PAR_DEFAUT,
+        colonnes=colonnes,
         colonnes_comparaison=colonnes_comparaison or [],
         mode_comparaison=mode_comparaison or ModeComparaison.exclusion.value,
         ignorer_premiere_ligne=ignorer_premiere_ligne,
@@ -1318,6 +1536,10 @@ def create_import_preset(
         libelles_statut_execute=libelles_statut_execute or [],
         libelles_statut_attente=libelles_statut_attente or [],
         libelles_statut_refuse=libelles_statut_refuse or [],
+        libelles_type_achat=libelles_type_achat or [],
+        libelles_type_vente=libelles_type_vente or [],
+        libelles_type_transfert=libelles_type_transfert or [],
+        mode_lecture=mode_lecture,
     )
     db.add(preset)
     db.commit()
@@ -1346,7 +1568,14 @@ def update_import_preset(
     libelles_statut_execute: Optional[list[str]] = None,
     libelles_statut_attente: Optional[list[str]] = None,
     libelles_statut_refuse: Optional[list[str]] = None,
+    libelles_type_achat: Optional[list[str]] = None,
+    libelles_type_vente: Optional[list[str]] = None,
+    libelles_type_transfert: Optional[list[str]] = None,
+    mode_lecture: Optional[str] = None,
 ) -> models.ImportPreset:
+    # `domaine` n'est PAS modifiable : les colonnes, les correspondances et le
+    # stock de lignes brutes d'un preset n'auraient aucun sens de l'autre côté.
+    # Changer de domaine, c'est créer un autre preset.
     if nom is not None:
         preset.nom = nom
     if compte_id is not _INCHANGE:
@@ -1369,6 +1598,18 @@ def update_import_preset(
         preset.libelles_statut_attente = libelles_statut_attente
     if libelles_statut_refuse is not None:
         preset.libelles_statut_refuse = libelles_statut_refuse
+    if libelles_type_achat is not None:
+        preset.libelles_type_achat = libelles_type_achat
+    if libelles_type_vente is not None:
+        preset.libelles_type_vente = libelles_type_vente
+    if libelles_type_transfert is not None:
+        preset.libelles_type_transfert = libelles_type_transfert
+    # Le mode de lecture, LUI, est modifiable : c'est un réglage de colonnes, au
+    # même titre que les numéros à côté desquels il se choisit. Changer de mode
+    # laisse en revanche des colonnes qui ne veulent plus rien dire — le routeur
+    # revalide toute la configuration à chaque écriture.
+    if mode_lecture is not None:
+        preset.mode_lecture = mode_lecture
     db.commit()
     db.refresh(preset)
     return preset
@@ -1502,7 +1743,14 @@ def list_mappings_categorie_tous_presets(db: Session) -> list[tuple]:
 
     Compte NULL pour un preset qui résout le compte depuis le fichier ; d'où le
     outerjoin, sans quoi ces correspondances disparaîtraient purement et
-    simplement."""
+    simplement.
+
+    BANCAIRE SEULEMENT, comme les deux fonctions suivantes. La galerie est un
+    écran d'import bancaire : elle en porte le vocabulaire, et son bouton de
+    suppression réécrit en masse sur /import/presets/{id}/mappings/…, chemin
+    que le routeur du noyau refuse pour un preset d'un autre domaine. Les
+    correspondances d'un preset de placements se relisent sur l'écran de son
+    extension, sous le preset qui les a apprises."""
     return (
         db.query(models.ImportCategorieMapping, models.Compte.nom)
         .join(
@@ -1510,6 +1758,7 @@ def list_mappings_categorie_tous_presets(db: Session) -> list[tuple]:
             models.ImportPreset.id == models.ImportCategorieMapping.preset_id,
         )
         .outerjoin(models.Compte, models.Compte.id == models.ImportPreset.compte_id)
+        .filter(models.ImportPreset.domaine == DomaineImport.bancaire.value)
         .order_by(models.ImportCategorieMapping.nom_banque, models.ImportPreset.nom)
         .all()
     )
@@ -1534,6 +1783,11 @@ def list_mappings_compte_tous_presets(db: Session) -> list[models.ImportCompteMa
     return (
         db.query(models.ImportCompteMapping)
         .join(models.Compte)
+        .join(
+            models.ImportPreset,
+            models.ImportPreset.id == models.ImportCompteMapping.preset_id,
+        )
+        .filter(models.ImportPreset.domaine == DomaineImport.bancaire.value)
         .order_by(models.ImportCompteMapping.nom_banque)
         .all()
     )
@@ -1555,6 +1809,11 @@ def list_mappings_monnaie_tous_presets(db: Session) -> list[models.ImportMonnaie
     return (
         db.query(models.ImportMonnaieMapping)
         .join(models.Monnaie)
+        .join(
+            models.ImportPreset,
+            models.ImportPreset.id == models.ImportMonnaieMapping.preset_id,
+        )
+        .filter(models.ImportPreset.domaine == DomaineImport.bancaire.value)
         .order_by(models.ImportMonnaieMapping.nom_banque)
         .all()
     )
@@ -1843,6 +2102,241 @@ def reordonner_regles_categorisation(db: Session, ids_ordonnes: list[int]) -> No
         if regle is not None:
             regle.ordre = position
     db.commit()
+
+
+# ---------- Règles d'import de placements ----------
+#
+# Le même jeu de fonctions que ci-dessus, pour l'autre domaine d'import. Elles
+# vivent dans le noyau alors que l'écran qui les écrit appartient à l'extension
+# « import-placements » : une extension n'emporte jamais son schéma, ni les
+# accès à sa table (cf. extensions/README.md). Éteindre l'extension arrête donc
+# de consulter ces règles, sans en perdre une seule.
+
+
+def list_regles_import_placement(db: Session) -> list[models.RegleImportPlacement]:
+    """Triées comme elles sont évaluées : par ordre croissant, l'id départageant
+    deux règles de même ordre."""
+    return (
+        db.query(models.RegleImportPlacement)
+        .order_by(models.RegleImportPlacement.ordre, models.RegleImportPlacement.id)
+        .all()
+    )
+
+
+def get_regle_import_placement(
+    db: Session, regle_id: int
+) -> Optional[models.RegleImportPlacement]:
+    return (
+        db.query(models.RegleImportPlacement)
+        .filter(models.RegleImportPlacement.id == regle_id)
+        .first()
+    )
+
+
+def create_regle_import_placement(
+    db: Session,
+    *,
+    nom: str,
+    conditions: dict,
+    type_placement: str,
+    compte_autre_id: Optional[int] = None,
+    type_titre_id: Optional[int] = None,
+    actif: bool = True,
+    ordre: Optional[int] = None,
+) -> models.RegleImportPlacement:
+    if ordre is None:
+        # En bout de liste, comme les règles bancaires : une règle nouvelle ne
+        # court-circuite jamais silencieusement celles déjà écrites.
+        ordre_max = db.query(func.max(models.RegleImportPlacement.ordre)).scalar()
+        ordre = (ordre_max + 1) if ordre_max is not None else 0
+    regle = models.RegleImportPlacement(
+        nom=nom,
+        conditions=conditions,
+        type_placement=type_placement,
+        compte_autre_id=compte_autre_id,
+        type_titre_id=type_titre_id,
+        actif=actif,
+        ordre=ordre,
+    )
+    db.add(regle)
+    db.commit()
+    db.refresh(regle)
+    return regle
+
+
+def update_regle_import_placement(
+    db: Session, regle: models.RegleImportPlacement, **champs
+) -> models.RegleImportPlacement:
+    for nom_champ in (
+        "nom",
+        "conditions",
+        "type_placement",
+        "compte_autre_id",
+        "type_titre_id",
+        "actif",
+        "ordre",
+    ):
+        if nom_champ in champs:
+            setattr(regle, nom_champ, champs[nom_champ])
+    db.commit()
+    db.refresh(regle)
+    return regle
+
+
+def delete_regle_import_placement(db: Session, regle: models.RegleImportPlacement) -> None:
+    db.delete(regle)
+    db.commit()
+
+
+def reordonner_regles_import_placement(db: Session, ids_ordonnes: list[int]) -> None:
+    """Réécrit `ordre` d'après la position dans la liste fournie."""
+    for position, regle_id in enumerate(ids_ordonnes):
+        regle = get_regle_import_placement(db, regle_id)
+        if regle is not None:
+            regle.ordre = position
+    db.commit()
+
+
+def set_remuneration_compte(
+    db: Session,
+    compte: models.Compte,
+    *,
+    taux: Optional[float],
+    frequence: Optional[str],
+    debut=None,
+) -> models.Compte:
+    """Pose (ou retire) le taux de rémunération d'un compte.
+
+    LES TROIS VONT ENSEMBLE : un taux sans fréquence ne décrit rien de
+    calculable, et une fréquence sans taux non plus. Le routeur de l'extension
+    « Taux d'épargne » impose donc les deux, ou aucun — et « aucun » remet les
+    trois colonnes à NULL, ce qui est bien ce que veut dire « ce compte n'est
+    pas rémunéré ».
+
+    Dans le noyau alors que l'écran est dans l'extension : une extension
+    n'emporte jamais son schéma, ni les accès à sa table."""
+    compte.taux_remuneration = taux
+    compte.frequence_remuneration = frequence
+    compte.remuneration_debut = debut
+    db.commit()
+    db.refresh(compte)
+    return compte
+
+
+# ---------- Sous-filtres / projets ----------
+#
+# Dans le noyau alors que l'écran appartient à l'extension « Projets » : une
+# extension n'emporte jamais son schéma, ni les accès à sa table (cf.
+# extensions/README.md). L'éteindre masque l'écran sans perdre un regroupement.
+
+
+def list_sous_filtres(db: Session) -> list[models.SousFiltre]:
+    """Dans l'ordre choisi par l'utilisateur, l'id départageant deux projets de
+    même rang (cas d'une base antérieure au premier classement)."""
+    return (
+        db.query(models.SousFiltre)
+        .order_by(models.SousFiltre.ordre, models.SousFiltre.id)
+        .all()
+    )
+
+
+def get_sous_filtre(db: Session, sous_filtre_id: int) -> Optional[models.SousFiltre]:
+    return (
+        db.query(models.SousFiltre)
+        .filter(models.SousFiltre.id == sous_filtre_id)
+        .first()
+    )
+
+
+def get_sous_filtre_par_nom(db: Session, nom: str) -> Optional[models.SousFiltre]:
+    return db.query(models.SousFiltre).filter(models.SousFiltre.nom == nom).first()
+
+
+def create_sous_filtre(
+    db: Session, *, nom: str, description: str = "", ordre: Optional[int] = None
+) -> models.SousFiltre:
+    if ordre is None:
+        ordre_max = db.query(func.max(models.SousFiltre.ordre)).scalar()
+        ordre = (ordre_max + 1) if ordre_max is not None else 0
+    sous_filtre = models.SousFiltre(nom=nom, description=description, ordre=ordre)
+    db.add(sous_filtre)
+    db.commit()
+    db.refresh(sous_filtre)
+    return sous_filtre
+
+
+def update_sous_filtre(
+    db: Session, sous_filtre: models.SousFiltre, **champs
+) -> models.SousFiltre:
+    for nom_champ in ("nom", "description", "ordre"):
+        if nom_champ in champs:
+            setattr(sous_filtre, nom_champ, champs[nom_champ])
+    db.commit()
+    db.refresh(sous_filtre)
+    return sous_filtre
+
+
+def delete_sous_filtre(db: Session, sous_filtre: models.SousFiltre) -> None:
+    """Supprime le projet, et LUI SEUL.
+
+    Les opérations qu'il regroupait ne bougent pas : un projet est une vue sur
+    des opérations qui existent sans lui. Seuls les liens partent, par la
+    cascade de la table d'association."""
+    db.delete(sous_filtre)
+    db.commit()
+
+
+def reordonner_sous_filtres(db: Session, ids_ordonnes: list[int]) -> None:
+    """Réécrit `ordre` d'après la position dans la liste fournie."""
+    for position, sous_filtre_id in enumerate(ids_ordonnes):
+        sous_filtre = get_sous_filtre(db, sous_filtre_id)
+        if sous_filtre is not None:
+            sous_filtre.ordre = position
+    db.commit()
+
+
+def ajouter_operations_au_sous_filtre(
+    db: Session, sous_filtre: models.SousFiltre, operation_ids: list[int]
+) -> int:
+    """Verse ces opérations dans le projet, et rend le nombre RÉELLEMENT ajouté.
+
+    Une opération déjà présente est ignorée sans un mot : la clé primaire
+    composite l'interdit de toute façon, et « ajouter ce qui y est déjà » est
+    une intention parfaitement claire — l'utilisateur coche des lignes, il ne
+    tient pas le compte de celles qu'il avait cochées la semaine dernière.
+
+    Une opération inconnue est ignorée de même : le lot est traité pour ce qu'il
+    a de valide plutôt que rejeté en bloc.
+    """
+    presentes = {operation.id for operation in sous_filtre.operations}
+    ajoutees = 0
+    for operation_id in operation_ids:
+        if operation_id in presentes:
+            continue
+        operation = get_operation(db, operation_id)
+        if operation is None:
+            continue
+        sous_filtre.operations.append(operation)
+        presentes.add(operation_id)
+        ajoutees += 1
+    db.commit()
+    return ajoutees
+
+
+def retirer_operations_du_sous_filtre(
+    db: Session, sous_filtre: models.SousFiltre, operation_ids: list[int]
+) -> int:
+    """Retire ces opérations du projet, et rend le nombre réellement retiré.
+
+    RIEN N'EST SUPPRIMÉ : l'opération quitte le regroupement et reste en base,
+    avec son compte, sa catégorie et son montant. C'est toute la différence entre
+    ce bouton et celui de la page Opérations."""
+    a_retirer = set(operation_ids)
+    retirees = [op for op in sous_filtre.operations if op.id in a_retirer]
+    for operation in retirees:
+        sous_filtre.operations.remove(operation)
+    db.commit()
+    return len(retirees)
 
 
 def get_date_dernier_import(db: Session, preset_id: int) -> Optional[datetime]:

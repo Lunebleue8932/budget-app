@@ -1,0 +1,18 @@
+{
+  "nom": "Projets",
+  "description": "Regroupe des opérations déjà saisies en projets — un voyage, un déménagement, un événement — pour lire d'un coup ce qu'ils ont coûté. Ce n'est pas une catégorie de plus : une catégorie classe une dépense par nature et porte un budget mensuel, un projet regroupe par événement à travers les catégories et les comptes, et une même opération peut appartenir à plusieurs projets. Rien n'est recalculé ailleurs : le total d'un projet est une somme affichée, jamais une donnée qui influe sur le dashboard ou les soldes. L'écran s'ajoute en onglet de la page des comptes.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": ["projets.css"],
+    "js": ["projets.js"]
+  },
+  "navigation": {
+    "type": "onglet",
+    "hote_section": "comptes-globale",
+    "sous_section": "projets",
+    "libelle": "Projets",
+    "section_libelle": "Comptes"
+  }
+}

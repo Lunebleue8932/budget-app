@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     JSON,
+    Table,
     Text,
     CheckConstraint,
     Index,
@@ -20,7 +21,9 @@ from .database import Base
 from .constants import (
     TYPES_REMBOURSABLES,
     TYPE_COMPTE_PLACEMENT,
+    DomaineImport,
     Frequence,
+    FrequenceRemuneration,
     ModeComparaison,
     Sens,
     SensAction,
@@ -127,10 +130,12 @@ class TauxChange(Base):
     même, comme le reste du schéma, pour que retirer l'extension ne fasse
     perdre ni les liens ni les derniers taux connus (cf. extensions/README.md).
 
-    RIEN NE CONVERTIT AVEC. Aucun solde, aucun KPI, aucun budget ne consulte
-    cette table : les montants restent suivis monnaie par monnaie, et un taux
-    n'est qu'une information affichée là où l'utilisateur la demande. Lui faire
-    additionner deux devises reviendrait à défaire le choix central de l'app.
+RIEN NE CONVERTIT AVEC, SAUF SUR DEMANDE. Aucun solde, aucun budget, aucune
+    opération ne consulte cette table : les montants restent suivis monnaie par
+    monnaie. La seule exception est la BASCULE d'agrégation du dashboard,
+    apportée par l'extension « Monnaies » (migration 0048) — un geste explicite,
+    qui ne réécrit rien et ne survit pas à la fermeture de l'écran. Convertir en
+    silence reviendrait à défaire le choix central de l'app.
 
     UN COUPLE, PAS UNE MONNAIE DE RÉFÉRENCE : l'application n'en a aucune. Le
     sens compte — EUR -> USD et USD -> EUR sont deux lignes, avec deux pages
@@ -138,6 +143,11 @@ class TauxChange(Base):
 
     `taux` et `maj_le` sont NULL tant qu'aucune lecture n'a abouti : « jamais
     relu », là où un 1.0 par défaut aurait menti.
+
+    `url_cours` À NULL veut dire « saisi à la main » (migration 0048) : personne
+    n'ira le relire, et « Lecture de cours » l'ignore. C'est le pendant exact de
+    `Action.cours_maj_le` à NULL, qui distingue déjà un cours frais d'un cours
+    tapé au clavier.
     """
 
     __tablename__ = "taux_change"
@@ -149,7 +159,7 @@ class TauxChange(Base):
     monnaie_cible_id = Column(
         Integer, ForeignKey("monnaie.id", ondelete="CASCADE"), nullable=False
     )
-    url_cours = Column(String, nullable=False)
+    url_cours = Column(String, nullable=True)
     taux = Column(Float, nullable=True)
     maj_le = Column(DateTime, nullable=True)
 
@@ -261,6 +271,32 @@ class Compte(Base):
     # le plus.
     ordre = Column(Integer, nullable=False, default=0)
 
+    # ---------- Rémunération (extension « Taux d'épargne ») ----------
+    #
+    # Trois colonnes qui ne décrivent QU'UN CALCUL D'AFFICHAGE : aucun solde,
+    # aucun KPI, aucune projection du noyau ne les lit. Les intérêts ne sont
+    # jamais écrits en opérations — une opération est un mouvement constaté, et
+    # ce qui est calculé ici est une prévision qui change à chaque nouveau
+    # virement sur le compte.
+    #
+    # Dans le noyau bien que l'écran soit dans l'extension : une extension
+    # n'emporte jamais son schéma. L'éteindre masque l'écran, garde les taux.
+    #
+    # Le taux est ANNUEL, toujours, quelle que soit la fréquence : c'est ainsi
+    # qu'une banque l'annonce, et la seule façon de comparer deux comptes.
+    # NULL = compte non rémunéré, qui est le cas de tous les comptes existants.
+    taux_remuneration = Column(Float, nullable=True)
+    frequence_remuneration = Column(
+        Enum(FrequenceRemuneration, native_enum=False, values_callable=_enum_values),
+        nullable=True,
+    )
+    # À partir de quand le compte rapporte, et sur quel calendrier tombent les
+    # versements. Sans elle, le calcul part de la première opération du compte :
+    # c'est le repère le plus proche de la vérité dont l'app dispose, mais un
+    # compte ouvert bien avant sa première ligne importée le fausse — d'où cette
+    # date, qu'on renseigne quand on la connaît.
+    remuneration_debut = Column(Date, nullable=True)
+
     operations = relationship("Operation", back_populates="compte")
     type_compte = relationship("TypeCompte")
     # Au moins une ligne, toujours (garanti par les routeurs) : un compte sans
@@ -286,6 +322,12 @@ class Compte(Base):
         saisie et retenue pour une ligne importée (un relevé bancaire ne dit
         pas dans quelle monnaie il est libellé)."""
         return self.monnaies[0].monnaie_id if self.monnaies else None
+
+    @property
+    def est_remunere(self) -> bool:
+        """Un taux posé ET une fréquence : l'un sans l'autre ne décrit rien de
+        calculable, et vaut donc « pas de rémunération »."""
+        return self.taux_remuneration is not None and self.frequence_remuneration is not None
 
     @property
     def est_placement(self) -> bool:
@@ -370,6 +412,13 @@ class Operation(Base):
     categorie = relationship("Categorie")
     type_operation = relationship("TypeOperationDB")
     monnaie = relationship("Monnaie")
+    # Les projets qui la comptent (extension « Projets »). PLUSIEURS, à la
+    # différence de la catégorie : un projet regroupe par événement, pas par
+    # nature (cf. SousFiltre). La table de liaison est dans le noyau, comme tout
+    # schéma — éteindre l'extension masque l'écran sans perdre un lien.
+    sous_filtres = relationship(
+        "SousFiltre", secondary="operation_sous_filtre", back_populates="operations"
+    )
 
     @property
     def type_code(self) -> str:
@@ -438,6 +487,31 @@ class Operation(Base):
     )
 
 
+class TypeTitre(Base):
+    """Une étiquette posée sur un titre : « ETF », « Action en direct »,
+    « Obligation », « SCPI »… Créée par l'utilisateur, et rien d'autre qu'un
+    libellé.
+
+    AUCUN CALCUL NE LA LIT. Ni un solde, ni une valorisation, ni une plus-value :
+    le type sert à REGROUPER pour regarder (cf. l'extension « Vue d'ensemble des
+    placements »), jamais à décider. C'est ce qui permet de la laisser
+    entièrement libre — rien dans le code ne dépend d'un libellé en particulier,
+    il n'y a donc rien à protéger, et pas de `systeme` comme sur `TypeCompte`.
+
+    Une table plutôt qu'une colonne texte sur le titre : un libellé libre saisi
+    ligne par ligne donnerait « ETF », « etf » et « E.T.F. » dans le même
+    portefeuille, et un camembert en ferait trois parts.
+    """
+
+    __tablename__ = "type_titre"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nom = Column(String, nullable=False, unique=True)
+    # Ordre d'affichage dans les menus et les légendes : l'ordre de création par
+    # défaut, réordonnable ensuite comme les comptes et les catégories.
+    ordre = Column(Integer, nullable=False, default=0)
+
+
 class Action(Base):
     """Un titre détenu ou négociable (action, ETF, obligation…).
 
@@ -459,7 +533,18 @@ class Action(Base):
     __tablename__ = "action"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    # LE NOM DU COURTIER, jamais modifié. C'est par lui, à défaut d'ISIN, que
+    # l'import RECONNAÎT un titre d'un fichier à l'autre : le renommer ferait
+    # que l'import suivant ne le retrouverait plus et scinderait la position en
+    # deux titres. Il se lit comme l'ISIN — une donnée du relevé, pas un
+    # libellé.
     nom = Column(String, nullable=False, unique=True)
+    # CE QU'ON LIT À L'ÉCRAN (migration 0045), quand le nom du courtier est
+    # illisible (« AMUNDI IDX SOL MSC WLD-IE-C », tronqué par un export). NULL
+    # = pas renommé, et c'est alors `nom` qui s'affiche. Sans unicité : deux
+    # parts d'un même fonds peuvent légitimement porter le même libellé, c'est
+    # `nom` qui identifie.
+    nom_affichage = Column(String, nullable=True)
     valeur = Column(Float, nullable=False, default=0.0)
     monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
     # Page publique d'où relire le cours, et date de la dernière lecture RÉUSSIE
@@ -473,10 +558,48 @@ class Action(Base):
     # distinguer un cours frais d'un cours oublié.
     url_cours = Column(String, nullable=True)
     cours_maj_le = Column(DateTime, nullable=True)
+    # LE TYPE DU TITRE (migration 0047) : une étiquette, facultative, que
+    # l'utilisateur crée lui-même. NULL = non typé, ce qui est le cas de tous
+    # les titres existants et de tout titre créé sans qu'on choisisse. La rendre
+    # obligatoire ferait payer à l'import et à la saisie rapide une information
+    # dont on n'a pas toujours l'usage.
+    type_titre_id = Column(
+        Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
+    )
+    # RANGÉ, PAS EFFACÉ (migration 0040). Un titre entièrement vendu ne se
+    # supprime pas — ses mouvements portent des opérations d'espèces réelles, et
+    # les effacer réécrirait le solde du compte. L'archiver le retire des listes
+    # où l'on choisit un titre, et de la relecture des cours en ligne ; rien
+    # d'autre ne change, l'historique reste entier.
+    archivee = Column(Boolean, nullable=False, default=False)
+
+    @property
+    def nom_affiche(self) -> str:
+        """Ce que l'utilisateur lit : son renommage s'il en a fait un, le nom du
+        courtier sinon. UN SEUL ENDROIT décide, pour que les écrans ne divergent
+        pas — et `nom` reste disponible partout où c'est l'identification qui
+        compte (rapprochement à l'import)."""
+        return self.nom_affichage or self.nom
+    # Code ISIN du titre (migration 0041), la seule dénomination qui ne change
+    # jamais : un émetteur renomme son ETF, une fusion rebaptise une action, et
+    # deux courtiers écrivent rarement le même nom pour la même ligne. C'est
+    # donc lui qui rapproche un titre d'un relevé importé de celui déjà en
+    # base, quand le fichier le porte (cf. l'extension « import-placements »).
+    #
+    # Facultatif : un titre saisi à la main n'en a aucun, et rien dans l'app ne
+    # l'exige. Unique quand il est renseigné — un ISIN désigne une valeur et une
+    # seule, deux titres qui le partageraient seraient le même. SQLite tolère
+    # autant de NULL qu'on veut dans un index unique, les titres sans ISIN ne se
+    # gênent donc pas entre eux.
+    code_isin = Column(String, nullable=True)
 
     monnaie = relationship("Monnaie")
+    type_titre = relationship("TypeTitre")
 
-    __table_args__ = (CheckConstraint("valeur >= 0", name="ck_action_valeur_positive"),)
+    __table_args__ = (
+        CheckConstraint("valeur >= 0", name="ck_action_valeur_positive"),
+        Index("ix_action_code_isin", "code_isin", unique=True),
+    )
 
 
 class OperationAction(Base):
@@ -539,7 +662,14 @@ class ImportPreset(Base):
     __tablename__ = "import_preset"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nom = Column(String, nullable=False, unique=True)
+    nom = Column(String, nullable=False)
+    # Ce que ce preset sait lire : un relevé bancaire, ou un relevé de compte de
+    # placements (migration 0041, cf. constants.DomaineImport). Les deux jeux de
+    # propriétés n'ont rien en commun ; le domaine dit lequel des deux les
+    # colonnes ci-dessous parlent, et cloisonne les presets de part et d'autre.
+    domaine = Column(
+        String, nullable=False, default=DomaineImport.bancaire.value
+    )
     # Compte de l'app auquel ce format de relevé appartient (typiquement : le
     # relevé d'un compte précis, qui ne nomme donc nulle part le compte
     # concerné). Renseigné, il s'impose à TOUTES les lignes du fichier — ni la
@@ -589,6 +719,28 @@ class ImportPreset(Base):
     libelles_statut_attente = Column(JSON, nullable=False, default=list)
     libelles_statut_refuse = Column(JSON, nullable=False, default=list)
 
+    # Même mécanique encore, pour la colonne « Type d'opération » d'un relevé de
+    # placements : ce que CE courtier écrit pour dire achat, vente, ou mouvement
+    # d'espèces. Listes vides (défaut) = constants.LIBELLES_TYPE_PLACEMENT_DEFAUT.
+    # Vides aussi, et pour toujours, sur un preset bancaire : il ne lit pas cette
+    # colonne. Les trois vocabulaires vivent ici plutôt que dans une table à part
+    # pour la même raison que les deux précédents — c'est un trait du FORMAT.
+    # CE QUE LE FICHIER RACONTE, pour un preset de placements : une liste
+    # d'opérations, ou une PHOTOGRAPHIE du compte à un instant donné
+    # (constants.ModeLecturePlacement, migration 0046). NULL vaut `operations` —
+    # ce que sont tous les presets antérieurs, et le seul mode qui existait.
+    #
+    # Sur `import_preset` et non sur une table à part : les deux modes partagent
+    # tout le reste (correspondances, historique, annulation, stock
+    # anti-doublons), et ne diffèrent que par les colonnes lues et le sens d'une
+    # ligne. Sans objet pour un preset bancaire, comme les trois vocabulaires
+    # ci-dessous.
+    mode_lecture = Column(String, nullable=True)
+
+    libelles_type_achat = Column(JSON, nullable=False, default=list)
+    libelles_type_vente = Column(JSON, nullable=False, default=list)
+    libelles_type_transfert = Column(JSON, nullable=False, default=list)
+
     # La « configuration avancée » ne se stocke nulle part à part : ses
     # propriétés (compte bancaire, sens, monnaie, montant/monnaie reçus, frais
     # et leur monnaie — cf. constants.PROPRIETES_IMPORT_AVANCEES) sont des
@@ -600,6 +752,14 @@ class ImportPreset(Base):
     # migration 0026 : ces deux montants ont désormais leur propre propriété.
 
     compte = relationship("Compte")
+
+    # L'unicité du nom porte sur le COUPLE (domaine, nom) et non sur le nom seul
+    # (migration 0041) : « Boursorama » désigne légitimement un relevé bancaire
+    # ET un relevé de compte-titres, ce sont deux formats sans rapport. Les
+    # cloisonner jusque dans les noms aurait obligé à inventer des suffixes.
+    __table_args__ = (
+        UniqueConstraint("domaine", "nom", name="uq_import_preset_domaine_nom"),
+    )
 
 
 class ImportCategorieMapping(Base):
@@ -822,6 +982,85 @@ class RemboursementLien(Base):
     )
 
 
+class RegleImportPlacement(Base):
+    """Ce qu'une ligne de relevé de compte-titres décrit : un achat, une vente,
+    ou un transfert d'espèces — déduit de ses libellés.
+
+    LE PENDANT DE `RegleCategorisation`, POUR L'AUTRE DOMAINE D'IMPORT, et la
+    même mécanique de conditions (même JSON, même évaluateur — cf.
+    services/regles_categorisation.evaluer_regle). Ce qui change est l'ACTION :
+    une règle bancaire pose un type d'opération et éventuellement une catégorie,
+    une règle de placement ne pose qu'une chose, le type de placement, parce
+    qu'une ligne de compte-titres n'a rien d'autre à décider.
+
+    POURQUOI ELLE EXISTE À CÔTÉ DU VOCABULAIRE DU PRESET. Les trois listes de
+    mots-clés (`ImportPreset.libelles_type_*`) reconnaissent un libellé ENTIER :
+    « Achat » est un achat, et rien d'autre ne l'est. Un courtier qui écrit
+    « ACHAT COMPTANT ETF MSCI WORLD » sur chaque ligne, avec le nom du titre
+    dedans, ne peut être lu par aucune liste fermée — il faut pouvoir dire
+    « contient ACHAT ». C'est ce que ces règles ajoutent, et elles sont
+    consultées AVANT le vocabulaire : ce qu'on a écrit explicitement passe avant
+    ce qui est reconnu par correspondance exacte.
+
+    GLOBALES, sans preset_id, comme les règles bancaires : une règle est une
+    phrase sur des libellés, et rien n'oblige deux courtiers à en avoir de
+    différentes. Le vocabulaire, lui, reste attaché au preset — c'est là qu'est
+    la différence de vocabulaire d'un courtier à l'autre.
+
+    Pas de `arreter_apres` ici, contrairement aux règles bancaires : celles-là
+    peuvent se compléter (l'une pose le type, l'autre la catégorie), alors
+    qu'une règle de placement ne décide QUE du type. Rien à compléter, donc
+    rien à continuer : la première qui correspond a tout dit.
+    """
+
+    __tablename__ = "regle_import_placement"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nom = Column(String, nullable=False)
+    ordre = Column(Integer, nullable=False, default=0)
+    actif = Column(Boolean, nullable=False, default=True)
+
+    # "achat" | "vente" | "transfert" (constants.TypeOperationPlacement). Une
+    # chaîne et non une FK : ces trois valeurs sont câblées dans le code de
+    # l'import (elles décident de créer un couple titre/espèces ou un virement),
+    # une table ne les rendrait pas plus extensibles pour autant.
+    type_placement = Column(String, nullable=False)
+
+    # LE TYPE DE TITRE que cette règle pose (migration 0047), quand elle
+    # reconnaît un achat ou une vente. NULL = la règle ne dit rien du type, ce
+    # qui reste le cas de toutes les règles existantes.
+    #
+    # POSÉ SUR LE TITRE, PAS SUR LA LIGNE : un type appartient à la valeur
+    # (« MSCI World » EST un ETF), pas au mouvement qui la touche. La règle ne
+    # l'écrit donc qu'au moment où l'import CRÉE le titre, et ne réécrit jamais
+    # celui d'un titre déjà connu — sans quoi un import mal réglé retyperait
+    # silencieusement tout un portefeuille.
+    type_titre_id = Column(
+        Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Le compte EN FACE, uniquement pour le type « transfert » (migration
+    # 0045) : un relevé de compte-titres ne décrit qu'un côté du mouvement, et
+    # sans ce second compte la ligne arrive incomplète dans l'aperçu et doit
+    # être reprise à la main avant de pouvoir être importée. Exactement le rôle
+    # que `RegleCategorisation.compte_autre_id` joue côté bancaire.
+    #
+    # UN SEUL COMPTE, et le SENS n'est pas demandé : il se déduit du signe du
+    # montant, comme partout ailleurs dans cet import. NULL pour un achat ou une
+    # vente, qui ne touchent qu'un compte.
+    compte_autre_id = Column(
+        Integer, ForeignKey("compte.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Même forme que RegleCategorisation.conditions, aux champs près : ici
+    # `type_brut`, `nom_valeur_brut` et `code_isin_brut` — les trois colonnes
+    # TEXTE que le fichier porte (cf. constants.CHAMPS_REGLE_PLACEMENT_VALIDES).
+    conditions = Column(JSON, nullable=False, default=dict)
+
+    compte_autre = relationship("Compte")
+    type_titre = relationship("TypeTitre")
+
+
 class NoteDashboard(Base):
     """Bloc-notes libre du dashboard : une seule ligne pour toute la base.
 
@@ -839,3 +1078,85 @@ class NoteDashboard(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     contenu = Column(Text, nullable=False, default="")
     modifie_le = Column(DateTime, nullable=True)
+
+
+# ---------- Sous-filtres (extension « Projets ») ----------
+
+
+# UNE TABLE D'ASSOCIATION NUE, sans classe : le lien ne porte AUCUNE donnée
+# propre — ni date, ni part, ni commentaire. Lui donner une classe aurait ajouté
+# un objet à charger, à valider et à faire vivre pour n'exprimer qu'un couple
+# d'identifiants.
+#
+# CASCADE des deux côtés : supprimer une opération ou un projet retire les liens
+# qui le nommaient. C'est la seule chose qu'une suppression doit emporter — les
+# opérations d'un projet supprimé, elles, restent intactes, un projet n'étant
+# qu'une VUE sur des opérations qui existent sans lui.
+operation_sous_filtre = Table(
+    "operation_sous_filtre",
+    Base.metadata,
+    Column(
+        "operation_id",
+        Integer,
+        ForeignKey("operation.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "sous_filtre_id",
+        Integer,
+        ForeignKey("sous_filtre.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    # L'écran part TOUJOURS du projet vers ses opérations : c'est ce parcours-là
+    # qu'il faut indexer. Le sens inverse est déjà servi par la clé primaire,
+    # dont `operation_id` est la première colonne.
+    Index("ix_operation_sous_filtre_sous_filtre", "sous_filtre_id"),
+)
+
+
+class SousFiltre(Base):
+    """Un regroupement d'opérations choisies à la main : un voyage, un
+    déménagement, un projet.
+
+    CE N'EST PAS UNE CATÉGORIE, et c'est toute la différence. Une catégorie
+    classe une dépense par NATURE, une et une seule, et porte un budget mensuel :
+    « Alimentaire », « Transports ». Un projet regroupe par ÉVÉNEMENT, à travers
+    les catégories et les comptes — le billet de train, l'hôtel et les courses
+    d'un même voyage restent chacun dans leur catégorie, et se retrouvent
+    ensemble ici.
+
+    D'où la relation MULTIPLE : une opération appartient à autant de projets
+    qu'on veut (les courses du 12 août sont à la fois « Vacances Italie » et
+    « Anniversaire de Marie »), là où sa catégorie est unique par construction.
+
+    RIEN NE SE CALCULE À PARTIR D'UN PROJET. Ni solde, ni budget, ni KPI du
+    dashboard : le total d'un projet est une somme affichée, jamais une donnée
+    qui influe sur le reste. C'est ce qui permet à une opération d'être dans
+    trois projets sans que rien ne soit compté trois fois nulle part.
+
+    LA PROPRIÉTÉ NE SE SAISIT PAS DEPUIS L'OPÉRATION : on constitue un projet
+    depuis son écran, en y versant des opérations. Une case de plus dans le
+    formulaire d'opération aurait fait payer un choix à chaque saisie, alors
+    qu'un projet se remplit par lots, après coup, quand on sait qu'il existe.
+    """
+
+    __tablename__ = "sous_filtre"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nom = Column(String, nullable=False, unique=True)
+    # Ce que le projet recouvre, en une phrase : « du 3 au 17 août, Rome et
+    # Naples ». Sans sémantique — jamais lue, ni filtrée, ni sommée.
+    description = Column(Text, nullable=False, default="")
+    # L'ordre d'affichage, choisi par l'utilisateur. Un projet en cours se met
+    # en tête, un projet clos descend : c'est un classement de lecture, comme
+    # celui des comptes et des catégories.
+    ordre = Column(Integer, nullable=False, default=0)
+
+    operations = relationship(
+        "Operation",
+        secondary=operation_sous_filtre,
+        back_populates="sous_filtres",
+        # Trié comme la liste des opérations de l'app : les plus récentes
+        # d'abord, l'id départageant deux opérations du même jour.
+        order_by="desc(Operation.date), desc(Operation.id)",
+    )

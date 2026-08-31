@@ -88,7 +88,15 @@ window.BudgetApp.extensions = {
    */
   async ouvrirSousPage(sousSection) {
     return appelerChargeur(
-      (nav) => nav.type === "parametres" && `parametres-${nav.sous_section}` === sousSection
+      (nav) =>
+        (nav.type === "parametres" && `parametres-${nav.sous_section}` === sousSection) ||
+        // Un ONGLET posé dans un écran du noyau autre que Paramètres (la page
+        // des comptes) : même mécanique, l'écran hôte le nomme.
+        (nav.type === "onglet" &&
+          `${nav.hote_section}-${nav.sous_section}` === sousSection) ||
+        // Une GREFFE n'a pas de sous-page à elle : elle complète celle du
+        // noyau qu'elle nomme, et se recharge donc quand celle-là s'ouvre.
+        (nav.type === "greffe" && nav.hote === sousSection)
     );
   },
 };
@@ -145,17 +153,41 @@ async function injecterHtml(id, fichier, navigation) {
   const reponse = await fetch(urlFichier(id, fichier));
   if (!reponse.ok) throw new Error(`fragment introuvable : ${fichier}`);
   const html = await reponse.text();
-  // Un écran principal est une <section> de plus dans <main> ; une sous-page
-  // de réglages est une .sous-section de plus dans la section Paramètres. Les
-  // deux se comportent ensuite exactement comme leurs homologues du noyau.
-  const hote =
-    navigation && navigation.type === "parametres"
+  // Trois hôtes possibles, selon ce que l'extension déclare (cf.
+  // extensions/README.md) : un écran principal est une <section> de plus dans
+  // <main> ; une sous-page de réglages, une .sous-section de plus dans la
+  // section Paramètres ; une GREFFE, un bloc posé DANS une sous-page du noyau.
+  const greffe = navigation && navigation.type === "greffe";
+  const hote = greffe
+    ? document.getElementById(`sous-section-${navigation.hote}`)
+    : navigation && navigation.type === "parametres"
       ? document.getElementById("section-parametres")
-      : document.querySelector("main");
+      : navigation && navigation.type === "onglet"
+        ? document.getElementById(`section-${navigation.hote_section}`)
+        : document.querySelector("main");
+  // En pratique seule une greffe peut manquer d'hôte (`<main>` et la section
+  // Paramètres sont toujours là) : c'est le cas d'une greffe qui nomme une
+  // sous-page inexistante, et le dire vaut mieux que de poser son bloc nulle
+  // part.
+  if (!hote) throw new Error(`hôte introuvable : ${greffe ? navigation.hote : "?"}`);
+  // EN TÊTE pour une greffe : elle complète une page existante, dont le
+  // contenu du noyau doit rester en dessous. C'est la disposition que l'écran
+  // avait avant que les règles ne deviennent une extension — les règles
+  // s'écrivent, les correspondances se constatent.
+  const position = greffe ? "afterbegin" : "beforeend";
   // insertAdjacentHTML plutôt que innerHTML += : réécrire tout le contenu de
   // l'hôte détruirait et recréerait les écrans du noyau, et avec eux tous les
   // écouteurs que app.js y a déjà posés.
-  hote.insertAdjacentHTML("beforeend", html);
+  hote.insertAdjacentHTML(position, html);
+  const pose = greffe ? hote.firstElementChild : hote.lastElementChild;
+  // Une greffe se montre et se cache avec sa case, contrairement aux deux
+  // autres formes dont c'est le bouton de navigation qui disparaît : elle n'en
+  // a pas, elle vit dans la page d'un autre.
+  if (greffe) pose.dataset.extensionGreffe = id;
+  // Un ONGLET a bien un bouton, mais son volet vit dans la <section> du noyau :
+  // masquer le bouton laisserait le volet affiché si c'est lui qui était ouvert
+  // au moment où l'extension s'éteint.
+  if (navigation && navigation.type === "onglet") pose.dataset.extensionOnglet = id;
 
   // TRADUIRE LE FRAGMENT QU'ON VIENT DE POSER. app.js traduit `document.body`
   // au tout début, bien avant que les extensions ne soient lues : sans ce
@@ -163,7 +195,7 @@ async function injecterHtml(id, fichier, navigation) {
   // passée à l'anglais. La condition de sûreté de traduireDomStatique tient
   // toujours — le fragment sort d'un fichier de l'extension, aucune donnée de
   // l'utilisateur n'y a encore été rendue.
-  traduireDomStatique(hote.lastElementChild);
+  traduireDomStatique(pose);
 }
 
 /**
@@ -177,18 +209,60 @@ function ajouterNavigation(manifeste) {
   const navigation = manifeste.navigation;
   if (!navigation) return;
 
+  // Une greffe n'ajoute AUCUN bouton : son contenu vit dans la page d'un autre,
+  // et un onglet de plus qui mènerait au même endroit tromperait sur ce qu'il
+  // ouvre. Elle en RENOMME un, en revanche — une page qui porte désormais deux
+  // choses ne peut plus s'appeler par une seule d'entre elles.
+  if (navigation.type === "greffe") {
+    renommerOngletHote(navigation, manifeste.actif);
+    return;
+  }
+
+  // `bouton: false` : un écran qui n'a PAS sa place dans la barre du haut.
+  // C'est le cas de « Import de placements », qui est une action de la page
+  // Placements et s'ouvre depuis elle — un onglet principal de plus, à côté de
+  // celui qu'il complète, laisserait croire à deux fonctionnalités séparées.
+  // L'extension reste de type `page` : elle a bien un écran à elle, et c'est
+  // par ce type que `BudgetApp.extensions.ouvrir` sait le lui rendre.
+  if (navigation.bouton === false) return;
+
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.dataset.extension = manifeste.id;
   bouton.textContent = t(navigation.libelle);
   bouton.style.display = manifeste.actif ? "" : "none";
 
+  // Un ONGLET DANS UN ÉCRAN DU NOYAU (autre que Paramètres). Le clic est pris
+  // en charge par les gestionnaires délégués de app.js, exactement comme un
+  // onglet de réglages — c'est le même `data-sous-section`, préfixé par l'écran
+  // hôte au lieu de « parametres ».
+  if (navigation.type === "onglet") {
+    bouton.dataset.sousSection = `${navigation.hote_section}-${navigation.sous_section}`;
+    const barre = document.getElementById(`${navigation.hote_section}-sous-nav`);
+    if (!barre) throw new Error(`écran hôte introuvable : ${navigation.hote_section}`);
+    barre.appendChild(bouton);
+    renommerSectionHote(navigation, manifeste.actif);
+    majBarreOnglets(navigation.hote_section);
+    return;
+  }
+
   if (navigation.type === "parametres") {
     // Onglet de réglages : le clic est pris en charge par les gestionnaires
     // délégués de app.js (affichage ET chargement), exactement comme pour un
     // onglet du noyau — rien à câbler ici.
     bouton.dataset.sousSection = `parametres-${navigation.sous_section}`;
-    document.getElementById("parametres-sous-nav").appendChild(bouton);
+    // La barre de Paramètres a deux groupes (cf. index.html) : à gauche ce que
+    // l'app manipule, à droite ce qui la règle. Une extension dit de quel côté
+    // elle tombe par `navigation.groupe` ; sans rien dire, elle va à DROITE —
+    // une extension est de l'outillage jusqu'à preuve du contraire, et
+    // « Monnaies », qui décrit bien un objet du modèle, se déclare.
+    const groupe =
+      document.getElementById(
+        navigation.groupe === "gauche"
+          ? "parametres-sous-nav-gauche"
+          : "parametres-sous-nav-droite"
+      ) || document.getElementById("parametres-sous-nav");
+    groupe.appendChild(bouton);
     return;
   }
 
@@ -206,17 +280,117 @@ function ajouterNavigation(manifeste) {
   barre.insertBefore(bouton, suivant || null);
 }
 
+/**
+ * Donne à l'onglet du noyau le nom que la greffe lui impose, ou le lui rend.
+ *
+ * Le libellé d'origine est gardé au premier passage : éteindre l'extension
+ * doit rendre la page telle qu'elle serait sans elle, nom de l'onglet compris.
+ */
+function renommerOngletHote(navigation, actif) {
+  const bouton = document.querySelector(
+    `#parametres-sous-nav button[data-sous-section="${navigation.hote}"]`
+  );
+  if (!bouton || !navigation.libelle) return;
+  if (bouton.dataset.libelleNoyau === undefined) {
+    bouton.dataset.libelleNoyau = bouton.textContent;
+  }
+  bouton.textContent = actif ? t(navigation.libelle) : bouton.dataset.libelleNoyau;
+}
+
+/**
+ * Donne à l'écran du noyau le nom que l'onglet d'une extension lui impose, ou
+ * le lui rend.
+ *
+ * MÊME PRINCIPE QUE `renommerOngletHote` pour les greffes, un cran plus haut :
+ * une page qui porte désormais deux onglets ne peut plus s'appeler par l'un
+ * d'eux. « Vue globale des comptes » descend donc d'un cran — il reste le nom
+ * de l'onglet qui l'affiche, écrit une fois pour toutes dans index.html — et la
+ * page prend le nom que l'extension lui donne.
+ *
+ * Le libellé d'origine est gardé au premier passage : éteindre l'extension doit
+ * rendre la page telle qu'elle serait sans elle, nom compris.
+ */
+function renommerSectionHote(navigation, actif) {
+  if (!navigation.section_libelle) return;
+  const cibles = [
+    document.querySelector(`header nav button[data-section="${navigation.hote_section}"]`),
+    document.querySelector(`#section-${navigation.hote_section} > h2`),
+  ];
+  cibles.forEach((element) => {
+    if (!element) return;
+    if (element.dataset.libelleNoyau === undefined) {
+      element.dataset.libelleNoyau = element.textContent;
+    }
+    element.textContent = actif ? t(navigation.section_libelle) : element.dataset.libelleNoyau;
+  });
+}
+
+/**
+ * Montre la barre d'onglets d'un écran du noyau dès qu'elle offre un choix.
+ *
+ * Un onglet seul ne choisit rien : il répéterait le titre de la page, une ligne
+ * plus bas. La barre reste donc masquée dans l'application nue et n'apparaît
+ * qu'à partir de deux onglets VISIBLES — une extension éteinte ne compte pas,
+ * son bouton étant masqué.
+ */
+function majBarreOnglets(hoteSection) {
+  const barre = document.getElementById(`${hoteSection}-sous-nav`);
+  if (!barre) return;
+  const visibles = [...barre.querySelectorAll("button[data-sous-section]")].filter(
+    (b) => b.style.display !== "none"
+  );
+  barre.style.display = visibles.length > 1 ? "" : "none";
+}
+
+/**
+ * Ramène l'écran hôte sur son premier onglet.
+ *
+ * Appelé quand l'extension qui apportait l'onglet OUVERT s'éteint : son volet
+ * vient d'être masqué, et laisser la page sur un onglet qui n'affiche plus rien
+ * donnerait un écran vide sans dire pourquoi.
+ */
+function reprendreLePremierOnglet(hoteSection) {
+  const barre = document.getElementById(`${hoteSection}-sous-nav`);
+  const premier = barre && barre.querySelector("button[data-sous-section]");
+  if (!premier) return;
+  const section = document.getElementById(`section-${hoteSection}`);
+  barre
+    .querySelectorAll("button[data-sous-section]")
+    .forEach((b) => b.classList.toggle("active", b === premier));
+  section
+    .querySelectorAll(":scope > .sous-section")
+    .forEach((volet) =>
+      volet.classList.toggle("active", volet.id === `sous-section-${premier.dataset.sousSection}`)
+    );
+}
+
 function majVisibiliteNavigation(id, actif) {
   document
-    .querySelectorAll(`button[data-extension="${id}"]`)
-    .forEach((bouton) => (bouton.style.display = actif ? "" : "none"));
+    .querySelectorAll(
+      `button[data-extension="${id}"], [data-extension-greffe="${id}"], ` +
+        `[data-extension-onglet="${id}"]`
+    )
+    .forEach((element) => (element.style.display = actif ? "" : "none"));
+  // Une greffe éteinte doit aussi rendre son nom à l'onglet qu'elle avait
+  // rebaptisé, sans quoi « Règles » resterait affiché sur une page qui n'en
+  // porte plus.
+  const entree = extensionsChargees.get(id);
+  const navigation = entree && entree.manifeste.navigation;
+  if (navigation && navigation.type === "greffe") renommerOngletHote(navigation, actif);
+  if (navigation && navigation.type === "onglet") {
+    renommerSectionHote(navigation, actif);
+    majBarreOnglets(navigation.hote_section);
+    // Éteinte alors que SON onglet était ouvert : le volet vient d'être masqué,
+    // la page doit revenir sur celui du noyau plutôt que de rester vide.
+    if (!actif) reprendreLePremierOnglet(navigation.hote_section);
+  }
 }
 
 /**
  * Charge les fichiers d'une extension : CSS, puis écran, puis script.
  *
  * Appelée au démarrage pour les extensions déjà allumées, et à la volée quand
- * l'utilisateur en coche une (fenêtre de lancement ou Paramètres). Le même
+ * l'utilisateur en active une (fenêtre de lancement ou Paramètres). Le même
  * chemin dans les deux cas : allumer une extension doit produire exactement ce
  * qu'aurait produit un redémarrage, sans le redémarrage.
  */
@@ -290,10 +464,10 @@ let extensionsAnnoncees = [];
  *
  * CE N'EST PAS UNE CONFIRMATION, C'EST UNE DEMANDE. Une extension trouvée est
  * INACTIVE (cf. app/extensions.py::est_active) : cette fenêtre est l'endroit
- * où on l'allume, en cochant sa case. La fermer — bouton, Échap, clic à côté —
- * n'allume rien, par construction : le seul écouteur qui active est celui de
- * la case. Ce qui reste vrai même si la fenêtre est fermée par accident, et
- * c'est bien le but.
+ * où on l'allume, en passant son menu sur « Activée ». La fermer — bouton,
+ * Échap, clic à côté — n'allume rien, par construction : le seul écouteur qui
+ * active est celui du menu. Ce qui reste vrai même si la fenêtre est fermée
+ * par accident, et c'est bien le but.
  *
  * SEULEMENT CELLES JAMAIS ANNONCÉES (`nouvelle`, cf. app/extensions.py). Une
  * fois l'installation confirmée, redire la même chose à chaque démarrage n'
@@ -312,42 +486,58 @@ function afficherModaleExtensions(extensions) {
     nouvelles.length === 1
       ? t(
           "Une extension a été trouvée dans le dossier « extensions ». Elle ne " +
-            "fonctionnera qu'une fois cochée ci-dessous — fermer cette fenêtre " +
+            "fonctionnera qu'une fois activée ci-dessous — fermer cette fenêtre " +
             "ne l'active pas."
         )
       : t(
           "{n} extensions ont été trouvées dans le dossier « extensions ». Elles " +
-            "ne fonctionneront qu'une fois cochées ci-dessous — fermer cette " +
+            "ne fonctionneront qu'une fois activées ci-dessous — fermer cette " +
             "fenêtre n'en active aucune.",
           { n: nouvelles.length }
         );
 
   document.getElementById("modale-extensions-liste").innerHTML = nouvelles
-    .map(
-      (e) => `<li>
-        <label class="modale-extension-bascule">
-          <input type="checkbox" data-activer-extension="${escapeHtml(e.id)}"
-                 ${e.actif ? "checked" : ""} ${e.dependances_ok ? "" : "disabled"} />
+    .map((e) => {
+      // Repliés derrière leur pictogramme, comme sur l'écran Paramètres : la
+      // fenêtre pose une question — allumer ou non — et cette question doit
+      // rester lisible d'un coup d'œil même quand trois extensions arrivent
+      // ensemble. Le détail est à un clic, pas plus loin.
+      const explication = basculeDetailHtml(
+        `modale-explication-${e.id}`,
+        e.description
+          ? `<p class="modale-extension-description">${escapeHtml(e.description)}</p>`
+          : "",
+        { libelle: t("Afficher ce que fait cette extension") }
+      );
+      // Une extension qu'on ne peut pas encore allumer est quand même annoncée
+      // — elle est bien là, on vient de l'installer — mais son menu est grisé
+      // et le bouton d'à côté dit ce qui lui manque.
+      const alerte = basculeDetailHtml(
+        `modale-avertissement-${e.id}`,
+        e.dependances_ok
+          ? ""
+          : `<p class="modale-extension-description">${t(
+              "Nécessite au moins une de ces extensions, installée et activée :"
+            )} ${(e.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`).join(` ${t("ou")} `)}</p>`,
+        { libelle: t("Afficher l'avertissement"), classe: "detail-bascule-alerte" }
+      );
+      return `<li>
+        <div class="modale-extension-bascule">
           <span class="modale-extension-nom">${escapeHtml(e.nom)}</span>
           ${e.version ? `<span class="modale-extension-version">v${escapeHtml(e.version)}</span>` : ""}
-        </label>
-        ${
-          e.description
-            ? `<p class="modale-extension-description">${escapeHtml(e.description)}</p>`
-            : ""
-        }
-        ${
-          // Une extension qu'on ne peut pas encore allumer est quand même
-          // annoncée — elle est bien là, on vient de l'installer — mais sa case
-          // est grisée et dit ce qui lui manque.
-          e.dependances_ok
-            ? ""
-            : `<p class="modale-extension-description">${t(
-                "Nécessite au moins une de ces extensions, installée et activée :"
-              )} ${(e.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`).join(` ${t("ou")} `)}</p>`
-        }
-      </li>`
-    )
+          ${explication.bouton}
+          ${alerte.bouton}
+          <select class="extension-etat" data-activer-extension="${escapeHtml(e.id)}"
+                  aria-label="${t("État de l'extension")} — ${escapeHtml(e.nom)}"
+                  ${e.dependances_ok ? "" : "disabled"}>
+            <option value="actif" ${e.actif ? "selected" : ""}>${t("Activée")}</option>
+            <option value="inactif" ${e.actif ? "" : "selected"}>${t("Désactivée")}</option>
+          </select>
+        </div>
+        ${explication.panneau}
+        ${alerte.panneau}
+      </li>`;
+    })
     .join("");
 
   fond.style.display = "";
@@ -355,31 +545,35 @@ function afficherModaleExtensions(extensions) {
   // fait sinon glisser le contenu grisé, ce qui donne l'impression que le clic
   // est passé au travers.
   document.body.classList.add("modale-ouverte");
-  // LE FOCUS VA SUR LA PREMIÈRE CASE, pas sur un bouton : la décision à
+  // LE FOCUS VA SUR LE PREMIER MENU, pas sur un bouton : la décision à
   // prendre est là, et une fenêtre qui met le focus sur sa sortie invite à
   // sortir. Tab circule ensuite dans la fenêtre plutôt que dans la page grisée
   // derrière.
-  // `:not(:disabled)` : une case grisée ne peut pas recevoir le focus, et le
+  // `:not(:disabled)` : un menu grisé ne peut pas recevoir le focus, et le
   // lui donner le renverrait au corps de la page — donc hors de la fenêtre.
-  const premiere = fond.querySelector("input[data-activer-extension]:not(:disabled)");
+  const premiere = fond.querySelector("select[data-activer-extension]:not(:disabled)");
   (premiere || document.getElementById("btn-modale-extensions-aller")).focus();
 }
 
 /**
- * Cocher une case ALLUME l'extension, sur-le-champ.
+ * Choisir « Activée » dans le menu ALLUME l'extension, sur-le-champ.
  *
  * C'est le seul geste qui l'allume : ni l'ouverture de cette fenêtre, ni sa
- * fermeture (bouton, Échap, clic à côté) ne touchent à l'activation. La case
+ * fermeture (bouton, Échap, clic à côté) ne touchent à l'activation. Le menu
  * revient à sa position si le serveur refuse — l'écran doit dire l'état réel,
  * pas l'intention.
+ *
+ * UN MENU ET NON UNE CASE, ici comme dans Paramètres → Extensions, et pour la
+ * même raison : allumer une extension est un geste qui doit être VOULU, pas un
+ * clic qui part en fermant la fenêtre. Il faut ouvrir la liste, puis choisir.
  */
 document
   .getElementById("modale-extensions-liste")
   .addEventListener("change", async (evenement) => {
-    const case_ = evenement.target.closest("input[data-activer-extension]");
+    const case_ = evenement.target.closest("select[data-activer-extension]");
     if (!case_) return;
     const id = case_.dataset.activerExtension;
-    const actif = case_.checked;
+    const actif = case_.value === "actif";
     case_.disabled = true;
     try {
       await apiFetch(`/extensions/${encodeURIComponent(id)}`, {
@@ -397,7 +591,7 @@ document
         "success"
       );
     } catch (err) {
-      case_.checked = !actif;
+      case_.value = actif ? "inactif" : "actif";
       showMessage(err.message, "error");
     } finally {
       case_.disabled = false;

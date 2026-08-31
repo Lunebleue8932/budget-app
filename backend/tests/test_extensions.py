@@ -515,7 +515,7 @@ def test_le_routeur_refuse_d_allumer_une_extension_sans_hote(faux_projet):
     extensions.decouvrir()
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=True))
+        routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=True), db=None)
     assert erreur.value.status_code == 409
     assert "hote" in erreur.value.detail
     # Rien n'a été enregistré : on ne garde pas une décision qu'on a refusée.
@@ -529,7 +529,9 @@ def test_eteindre_une_extension_sans_hote_reste_possible(faux_projet):
         faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
     )
     extensions.decouvrir()
-    reponse = routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=False))
+    reponse = routeur_extensions.set_extension(
+        "greffe", ExtensionEtatUpdate(actif=False), db=None
+    )
     assert reponse["actif"] is False
 
 
@@ -541,7 +543,7 @@ def test_la_liste_dit_ce_qui_manque(faux_projet):
         faux_projet, "extensions", "greffe", manifeste={"requiert_une_de": ["hote"]}
     )
 
-    par_id = {e["id"]: e for e in routeur_extensions.list_extensions()}
+    par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
     assert par_id["greffe"]["requiert_une_de"] == ["hote"]
     assert par_id["greffe"]["dependances_ok"] is False
     assert par_id["hote"]["requiert_une_de"] == []
@@ -557,3 +559,130 @@ def test_un_manifeste_mal_forme_ne_declare_aucune_dependance(faux_projet):
     trouvees = extensions.decouvrir()
     assert trouvees["bancale"].requiert_une_de == []
     assert extensions.dependances_satisfaites("bancale") is True
+
+
+# ---------- Refus d'ÉTEINDRE, dit par l'extension elle-même ----------
+#
+# Le pendant du refus d'allumer : là où celui-ci vient du noyau (une dépendance
+# manquante, qu'il sait vérifier seul), celui-là ne peut venir que de
+# l'extension — elle seule sait ce que son extinction rendrait faux. Le noyau
+# ne fait que lui poser la question.
+
+# Le squelette d'un module backend : le `router` que le noyau exige, plus ce
+# que le test veut y ajouter.
+BACKEND_MINIMAL = """from fastapi import APIRouter
+router = APIRouter()
+"""
+
+
+def _extension_avec_garde(faux_projet, identifiant, corps=""):
+    """Une extension dont le module backend expose (ou non) une garde
+    d'extinction, chargée comme au démarrage de l'application."""
+    _creer_extension(
+        faux_projet,
+        "extensions",
+        identifiant,
+        manifeste={"backend": "backend.py"},
+        backend__py=BACKEND_MINIMAL + corps,
+    )
+    extension = extensions.decouvrir()[identifiant]
+    _, erreur = extensions.charger_routeur(extension)
+    assert erreur is None, erreur
+    return extension
+
+
+def test_sans_garde_declaree_rien_n_empeche_d_eteindre(faux_projet):
+    """LE CAS ORDINAIRE : désactiver ne supprime rien et ne se discute pas.
+    Une extension qui ne déclare pas de garde s'éteint sans question."""
+    _extension_avec_garde(faux_projet, "ordinaire")
+    assert extensions.obstacle_a_la_desactivation("ordinaire", None) is None
+
+
+def test_une_extension_peut_refuser_son_extinction(faux_projet):
+    _extension_avec_garde(
+        faux_projet,
+        "verrouillee",
+        """
+def obstacle_a_la_desactivation(db):
+    return "des données en dépendent"
+""",
+    )
+    extensions.definir_active("verrouillee", True)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_extensions.set_extension(
+            "verrouillee", ExtensionEtatUpdate(actif=False), db=None
+        )
+    assert erreur.value.status_code == 409
+    assert "des données en dépendent" in erreur.value.detail
+    # Le refus n'a rien changé : l'extension tourne toujours.
+    assert extensions.est_active("verrouillee") is True
+
+
+def test_la_garde_ne_gene_pas_l_allumage(faux_projet):
+    """Elle ne porte que sur l'extinction : rallumer une extension éteinte n'a
+    pas à être arbitré par ce que son extinction casserait."""
+    _extension_avec_garde(
+        faux_projet,
+        "verrouillee",
+        """
+def obstacle_a_la_desactivation(db):
+    return "toujours non"
+""",
+    )
+    reponse = routeur_extensions.set_extension(
+        "verrouillee", ExtensionEtatUpdate(actif=True), db=None
+    )
+    assert reponse["actif"] is True
+
+
+def test_une_garde_qui_casse_laisse_eteindre(faux_projet):
+    """Le panneau des Paramètres est justement l'endroit d'où l'on éteint ce qui
+    ne va pas : une garde qui lève ne doit pas transformer un bug en impasse."""
+    _extension_avec_garde(
+        faux_projet,
+        "bancale",
+        """
+def obstacle_a_la_desactivation(db):
+    raise RuntimeError("boum")
+""",
+    )
+    extensions.definir_active("bancale", True)
+
+    assert extensions.obstacle_a_la_desactivation("bancale", None) is None
+    reponse = routeur_extensions.set_extension(
+        "bancale", ExtensionEtatUpdate(actif=False), db=None
+    )
+    assert reponse["actif"] is False
+
+
+def test_la_liste_dit_ce_qui_empeche_d_eteindre(faux_projet):
+    """Comme pour une dépendance manquante : la case est grisée ET dit pourquoi,
+    plutôt que de refuser au moment du clic."""
+    _extension_avec_garde(
+        faux_projet,
+        "verrouillee",
+        """
+def obstacle_a_la_desactivation(db):
+    return "deux monnaies en service"
+""",
+    )
+    extensions.definir_active("verrouillee", True)
+
+    par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
+    assert par_id["verrouillee"]["obstacle_desactivation"] == "deux monnaies en service"
+
+
+def test_une_extension_eteinte_n_est_pas_interrogee(faux_projet):
+    """Demander à une extension éteinte ce qui empêche de l'éteindre n'a pas de
+    sens, et sa garde irait interroger la base pour rien."""
+    _extension_avec_garde(
+        faux_projet,
+        "verrouillee",
+        """
+def obstacle_a_la_desactivation(db):
+    raise AssertionError("ne devrait pas être appelée")
+""",
+    )
+    par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
+    assert par_id["verrouillee"]["obstacle_desactivation"] is None

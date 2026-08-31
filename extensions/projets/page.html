@@ -1,0 +1,112 @@
+<!-- Écran de l'extension « Projets ».
+
+     UN ONGLET, pas une page (cf. le manifeste : navigation.type = "onglet",
+     hote_section = "comptes-globale"). Le noyau pose ce volet dans la <section>
+     de la page des comptes, à côté de la vue globale, et rebaptise la page
+     « Comptes » tant que l'extension tourne — « Vue globale des comptes »
+     descend alors d'un cran et devient le nom de l'onglet qui l'affiche.
+
+     C'est donc bien une `.sous-section` : c'est le gestionnaire délégué de
+     app.js qui la montre et la cache, exactement comme un onglet du noyau. -->
+<div id="sous-section-comptes-globale-projets" class="sous-section">
+  <h3>Projets<i class="info-bulle" tabindex="0" data-info="Combien t'a coûté ce voyage, ce déménagement, cette fête ? Rassemble ici des opérations déjà saisies, quelles que soient leur catégorie et leur compte, et lis le total. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte.">i</i></h3>
+  <p class="hint">
+    Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les
+    opérations concernées. C'est un <strong>regroupement de lecture</strong> — retirer une
+    opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.
+  </p>
+
+  <div class="actions">
+    <button type="button" class="primary" id="btn-projet-nouveau">+ Nouveau projet</button>
+  </div>
+
+  <!-- Le formulaire de création/renommage. Replié tant qu'on ne l'ouvre pas :
+       la liste est ce qu'on vient lire. -->
+  <div id="projet-editeur" class="regle-editeur" style="display:none">
+    <h4 id="projet-editeur-titre">Nouveau projet</h4>
+    <input type="hidden" id="projet-id" />
+    <div class="regle-champ-ligne">
+      <label for="projet-nom">Nom</label>
+      <input type="text" id="projet-nom" placeholder="ex. Vacances Italie" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="projet-description">Description</label>
+      <input type="text" id="projet-description" placeholder="ex. du 3 au 17 août, Rome et Naples" />
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="btn-projet-enregistrer">Enregistrer</button>
+      <button type="button" id="btn-projet-annuler">Annuler</button>
+    </div>
+  </div>
+
+  <div id="projets-liste" class="projets-liste"></div>
+
+  <!-- ----- Le projet ouvert ----- -->
+  <div id="projet-detail" style="display:none">
+    <div class="projet-detail-entete">
+      <h3 id="projet-detail-nom"></h3>
+      <button type="button" id="btn-projet-fermer">&larr; Retour aux projets</button>
+    </div>
+    <p class="hint" id="projet-detail-description"></p>
+
+    <div class="projet-totaux" id="projet-detail-totaux"></div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-projet-ajouter-operations">
+        + Ajouter des opérations
+      </button>
+    </div>
+
+    <!-- ----- Le sélecteur d'opérations ----- -->
+    <div id="projet-selecteur" class="projet-selecteur" style="display:none">
+      <h4>Ajouter des opérations<i class="info-bulle" tabindex="0" data-info="Ajouter une opération ici ne la retire d'aucun autre projet, et ne change ni sa catégorie ni son compte.">i</i></h4>
+      <div class="projet-selecteur-filtres">
+        <label for="projet-filtre-debut">Du
+          <input type="date" id="projet-filtre-debut" />
+        </label>
+        <label for="projet-filtre-fin">Au
+          <input type="date" id="projet-filtre-fin" />
+        </label>
+        <label for="projet-filtre-compte">Compte
+          <select id="projet-filtre-compte"><option value="">— tous —</option></select>
+        </label>
+        <label for="projet-filtre-texte">Nature contient
+          <input type="text" id="projet-filtre-texte" placeholder="ex. hôtel" spellcheck="false" />
+        </label>
+        <button type="button" class="primary" id="btn-projet-filtrer">Chercher</button>
+      </div>
+
+      <div class="actions barre-selection">
+        <button type="button" id="btn-projet-tout-selectionner">Tout sélectionner</button>
+        <button type="button" class="primary" id="btn-projet-verser" disabled>
+          Ajouter au projet (<span id="projet-selection-nombre">0</span>)
+        </button>
+        <button type="button" id="btn-projet-selecteur-fermer">Fermer</button>
+      </div>
+
+      <div class="apercu-fichier-defilement">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th>
+              <th>Montant</th><th>Sélection</th>
+            </tr>
+          </thead>
+          <tbody id="projet-candidats-liste"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="projet-candidats-info"></p>
+    </div>
+
+    <h4>Opérations du projet — <span id="projet-detail-nombre"></span></h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th>
+          <th>Montant</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="projet-operations-liste"></tbody>
+    </table>
+  </div>
+</div>

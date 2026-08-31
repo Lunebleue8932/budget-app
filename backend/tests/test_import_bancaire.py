@@ -6,7 +6,13 @@ import openpyxl
 import pytest
 
 from app import crud, models, schemas
-from app.constants import COLONNES_IMPORT_PAR_DEFAUT, ModeComparaison, Sens, Statut
+from app.constants import (
+    COLONNES_IMPORT_PAR_DEFAUT,
+    DomaineImport,
+    ModeComparaison,
+    Sens,
+    Statut,
+)
 from app.services import import_bancaire
 
 from .conftest import creer_compte, get_categorie_id, get_monnaie_id, get_type_id
@@ -117,7 +123,7 @@ def test_lire_lignes_brutes_capture_toutes_les_colonnes(db_session):
 
     donnees = lignes[0]["donnees_completes"]
     # openpyxl relit toute cellule de date comme un datetime (Excel ne
-    # distingue pas date/datetime en interne) -- cf. _parser_date.
+    # distingue pas date/datetime en interne) -- cf. parser_date.
     assert donnees["1"] == datetime(2026, 7, 1).isoformat()
     assert donnees["4"] == "Courses Monoprix"
     assert donnees["6"] == "Alimentation"
@@ -144,7 +150,7 @@ def test_une_date_horodatee_est_lue_sans_son_heure(valeur):
     """Les néobanques datent à la minute ; une opération, elle, est du jour.
     L'heure est retirée dès la lecture — l'app ne stocke qu'une date, et tout
     ce qui s'affiche est donc au même format partout."""
-    assert import_bancaire._parser_date(valeur) == date(2026, 7, 14)
+    assert import_bancaire.parser_date(valeur) == date(2026, 7, 14)
 
 
 def test_lapercu_du_fichier_affiche_les_dates_sans_leur_heure(db_session):
@@ -215,8 +221,8 @@ def test_lire_lignes_brutes_lit_un_csv_avec_point_virgule(db_session):
     assert lignes[0]["categorie_banque"] == "Alimentation"
     assert lignes[0]["montant_brut"] == "-45,2"
     assert lignes[0]["compte_banque"] == "CC Perso"
-    # _parser_montant tolère la virgule décimale française une fois résolu.
-    assert import_bancaire._parser_montant(lignes[0]["montant_brut"]) == -45.2
+    # parser_montant tolère la virgule décimale française une fois résolu.
+    assert import_bancaire.parser_montant(lignes[0]["montant_brut"]) == -45.2
 
 
 def test_lire_lignes_brutes_decode_un_csv_cp1252_avec_accents(db_session):
@@ -1820,7 +1826,7 @@ def test_import_preset_creation_et_modification(db_session):
     assert preset.colonnes == COLONNES_IMPORT_PAR_DEFAUT
     assert preset.colonnes_comparaison == []
     assert preset.mode_comparaison == ModeComparaison.exclusion.value
-    assert crud.list_import_presets(db_session) == [preset]
+    assert crud.list_import_presets(db_session, DomaineImport.bancaire.value) == [preset]
 
     nouvelles_colonnes = [
         {"index": 2, "propriete": "date"},
@@ -1920,7 +1926,7 @@ def test_lire_lignes_brutes_csv_francais_sans_entete(db_session):
     lignes = import_bancaire.lire_lignes_brutes(contenu, COLONNES_IMPORT_PAR_DEFAUT)
 
     assert [l["nature"] for l in lignes] == ["Courses Monoprix", "Essence Total"]
-    assert import_bancaire._parser_montant(lignes[0]["montant_brut"]) == -45.2
+    assert import_bancaire.parser_montant(lignes[0]["montant_brut"]) == -45.2
     assert [l["compte_banque"] for l in lignes] == ["CC Perso", "CC Perso"]
 
 
@@ -2255,30 +2261,30 @@ def test_delier_un_preset_le_remet_dans_l_etat_d_avant(db_session):
 
 # ---------- Réglages de lecture en dernier recours (délimiteur, séparateur
 # décimal), proposés par le frontend quand l'aperçu ne comprend plus le
-# fichier (cf. previsualiser/confirmer et le module _parser_montant).
+# fichier (cf. previsualiser/confirmer et le module parser_montant).
 
 
 def test_parser_montant_par_defaut_reste_permissif():
     """Comportement historique inchangé quand separateur_decimal n'est pas
     précisé : virgule française lue en décimale, un point déjà présent laissé
     tel quel."""
-    assert import_bancaire._parser_montant("-45,2") == -45.2
-    assert import_bancaire._parser_montant("45.2") == 45.2
+    assert import_bancaire.parser_montant("-45,2") == -45.2
+    assert import_bancaire.parser_montant("45.2") == 45.2
 
 
 def test_parser_montant_avec_separateur_decimal_point_lit_les_milliers_en_virgule():
     """Format anglo-saxon : la virgule sépare les milliers, le point est la
     décimale. Le mode permissif par défaut s'y tromperait (il convertirait la
     virgule en point)."""
-    assert import_bancaire._parser_montant("1,234.56", separateur_decimal=".") == 1234.56
-    assert import_bancaire._parser_montant("1,234", separateur_decimal=".") == 1234.0
+    assert import_bancaire.parser_montant("1,234.56", separateur_decimal=".") == 1234.56
+    assert import_bancaire.parser_montant("1,234", separateur_decimal=".") == 1234.0
 
 
 def test_parser_montant_avec_separateur_decimal_virgule_lit_les_milliers_en_point():
     """Format européen non français : le point sépare les milliers, la
     virgule est la décimale. Le mode permissif par défaut s'y tromperait (le
     point resterait, cassant le nombre)."""
-    assert import_bancaire._parser_montant("1.234,56", separateur_decimal=",") == 1234.56
+    assert import_bancaire.parser_montant("1.234,56", separateur_decimal=",") == 1234.56
 
 
 def test_lire_lignes_brutes_avec_un_delimiteur_impose(db_session):

@@ -17,7 +17,7 @@ Rien ne les distingue techniquement : même format, même chargement. Seul leur
 emplacement change, et avec lui leur présence ou non dans le dépôt.
 
 ACTIVÉE / PRÉSENTE : DEUX ÉTATS DIFFÉRENTS. Une extension présente est
-INACTIVE tant que l'utilisateur ne l'a pas cochée (cf. `est_active`) ; ses
+INACTIVE tant que l'utilisateur ne l'a pas activée (cf. `est_active`) ; ses
 routes répondent 404 et son interface n'existe pas. Une extension ABSENTE, elle,
 n'a jamais existé pour l'application. La distinction compte pour les données :
 désactiver ne supprime RIEN (cf. `_charger_etat`), les tables et leurs lignes
@@ -166,7 +166,9 @@ class Extension:
             return None
         return cible if cible.is_file() else None
 
-    def en_dict(self, actif: bool, annoncee: bool = True) -> dict:
+    def en_dict(
+        self, actif: bool, annoncee: bool = True, obstacle_desactivation: Optional[str] = None
+    ) -> dict:
         return {
             "id": self.id,
             "nom": self.nom,
@@ -186,6 +188,11 @@ class Extension:
             # interrupteur qui ne ferait rien.
             "requiert_une_de": self.requiert_une_de,
             "dependances_ok": dependances_satisfaites(self.id),
+            # Ce qui empêche de l'ÉTEINDRE, quand elle le dit (cf.
+            # `obstacle_a_la_desactivation`). Même intention que le champ
+            # précédent, dans l'autre sens : la case est grisée et DIT
+            # pourquoi, plutôt que de refuser au moment du clic.
+            "obstacle_desactivation": obstacle_desactivation,
         }
 
 
@@ -318,7 +325,50 @@ def charger_routeur(extension: Extension):
     routeur = getattr(module, "router", None)
     if routeur is None:
         return None, "le module backend n'expose aucun `router`"
+    # RETENU pour pouvoir lui reposer une question plus tard (cf.
+    # `obstacle_a_la_desactivation`). Le module est de toute façon vivant dans
+    # `sys.modules` ; cette table dit seulement lequel appartient à quelle
+    # extension, ce que le préfixe `budget_ext_` ne suffirait pas à garantir.
+    MODULES_CHARGES[extension.id] = module
     return routeur, None
+
+
+# Le module backend de chaque extension chargée avec succès, par identifiant.
+# Rempli par `charger_routeur`, au démarrage. Une extension purement frontend,
+# ou dont le module a cassé, n'y figure pas.
+MODULES_CHARGES: dict[str, object] = {}
+
+
+def obstacle_a_la_desactivation(extension_id: str, db) -> Optional[str]:
+    """Ce qui empêche d'éteindre cette extension, DIT PAR ELLE-MÊME, ou None.
+
+    LE NOYAU NE CONNAÎT AUCUNE EXTENSION EN PARTICULIER, ici comme ailleurs :
+    il se contente d'appeler `obstacle_a_la_desactivation(db)` sur le module
+    backend de l'extension, si celui-ci en expose une. Une extension qui n'en
+    déclare pas s'éteint sans question — c'est le cas de presque toutes, et
+    c'est le bon défaut : désactiver ne supprime jamais rien.
+
+    À QUOI ÇA SERT. Éteindre une extension doit être sans conséquence, et ça
+    l'est tant qu'elle n'a fait qu'ajouter un écran. « Monnaies » est le cas
+    limite : elle donne le droit d'avoir PLUSIEURS monnaies, et l'éteindre sur
+    une base qui en porte déjà deux replierait l'interface sur un cas
+    mono-devise qui ne décrit plus les données (cf. extensions/monnaies/
+    backend.py). L'extension est la seule à pouvoir le dire, d'où la question
+    qu'on lui pose plutôt qu'une règle écrite ici.
+
+    UNE EXTENSION QUI CASSE NE VERROUILLE PAS SA PROPRE CASE. Si sa garde lève,
+    on laisse passer : le panneau des Paramètres est justement l'endroit d'où
+    l'on éteint ce qui ne va pas, et une exception qui interdirait ce geste
+    transformerait un bug en impasse.
+    """
+    module = MODULES_CHARGES.get(extension_id)
+    garde = getattr(module, "obstacle_a_la_desactivation", None) if module else None
+    if garde is None:
+        return None
+    try:
+        return garde(db)
+    except Exception:  # noqa: BLE001 — on laisse éteindre, cf. docstring
+        return None
 
 
 # ---------- État : activation, et annonce déjà faite ----------
@@ -414,7 +464,7 @@ def est_active(extension_id: str) -> bool:
     archive au mauvais endroit ne doit pas suffire à faire sortir une requête
     de la machine.
 
-    Le consentement est donc UN GESTE, et un seul compte : cocher la case, dans
+    Le consentement est donc UN GESTE, et un seul compte : choisir « Activée », dans
     la fenêtre du lancement ou dans Paramètres → Extensions. Fermer la fenêtre
     d'annonce — bouton, Échap, clic à côté — ne l'est pas : on n'active pas
     quelque chose en s'en débarrassant.
@@ -427,7 +477,7 @@ def est_active(extension_id: str) -> bool:
     # Une extension dont la dépendance vient d'être éteinte s'éteint AVEC ELLE,
     # sans qu'on ait à toucher sa case : sa greffe n'a plus d'hôte, et laisser
     # ses routes répondre donnerait une fonctionnalité à moitié là. Sa case
-    # reste cochée pour autant — rallumer l'hôte la fait revenir telle quelle.
+    # reste active pour autant — rallumer l'hôte la fait revenir telle quelle.
     return dependances_satisfaites(extension_id)
 
 
@@ -440,7 +490,7 @@ def rattraper_etat_avant_opt_in() -> None:
 
     Le repère est `annoncees` : une extension déjà annoncée à l'utilisateur
     tournait forcément — sous l'ancienne règle, être présent suffisait. La
-    basculer à l'arrêt sous prétexte que personne n'a jamais coché sa case
+    basculer à l'arrêt sous prétexte que personne ne l'a jamais activée
     ferait disparaître un écran dont on se sert quotidiennement, sans un mot
     d'explication, à la faveur d'une mise à jour.
 

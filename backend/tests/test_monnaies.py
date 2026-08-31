@@ -643,3 +643,73 @@ def test_monnaie_principale_est_la_premiere_de_la_liste(db_session):
     assert compte.monnaie_principale_id == dollar
     assert compte.monnaie_ids == {euro, dollar}
     assert isinstance(compte.monnaies[0], models.CompteMonnaie)
+
+
+# ---------- Éteindre « Monnaies » : ce que l'extension refuse ----------
+#
+# Sans elle, l'application est mono-devise : rien ne permet plus de créer, de
+# renommer ni de supprimer une monnaie, et l'interface se replie sur la seule
+# monnaie posée à l'installation. C'est sans conséquence sur une base qui n'en
+# tient qu'une, et faux sur une base qui en tient deux — d'où la garde.
+
+backend_monnaies = charger_module_extension("monnaies", "backend.py")
+
+
+def test_mono_devise_l_extension_s_eteint_sans_question(db_session):
+    """Le cas de loin le plus courant : une seule monnaie en service, et
+    éteindre l'extension ne rend rien illisible."""
+    creer_compte(db_session, "Courant", solde_initial=100)
+
+    assert backend_monnaies.obstacle_a_la_desactivation(db_session) is None
+
+
+def test_une_monnaie_creee_mais_inutilisee_ne_retient_pas(db_session):
+    """« Créée » n'est pas « utilisée ». Avoir ajouté le dollar au cas où sans
+    jamais s'en servir laisse l'application strictement mono-devise : retenir
+    l'utilisateur pour une ligne de table dont rien ne dépend serait un verrou
+    sans objet."""
+    creer_monnaie(db_session, "Dollar américain", "$")
+    creer_compte(db_session, "Courant", solde_initial=100)
+
+    assert backend_monnaies.obstacle_a_la_desactivation(db_session) is None
+
+
+def test_deux_comptes_dans_deux_monnaies_empechent_l_extinction(db_session):
+    dollar = creer_monnaie(db_session, "Dollar américain", "$")
+    creer_compte(db_session, "Courant", solde_initial=100)
+    creer_compte(
+        db_session, "Compte US", monnaies=[(dollar.id, 500.0)]
+    )
+
+    obstacle = backend_monnaies.obstacle_a_la_desactivation(db_session)
+    assert obstacle is not None
+    # Le message NOMME les monnaies en cause : « ramène tout à une seule
+    # monnaie » ne dit pas lesquelles sont en jeu ni où chercher.
+    assert "Euro" in obstacle and "Dollar américain" in obstacle
+
+
+def test_une_operation_dans_une_seconde_monnaie_empeche_l_extinction(db_session):
+    """Un compte multi-devises suffit déjà, mais l'opération compte pour
+    elle-même : c'est elle qui porte le montant qu'on rendrait illisible."""
+    euro_id, dollar_id = _euro_et_dollar(db_session)
+    compte = creer_compte(
+        db_session, "Courant", monnaies=[(euro_id, 100.0), (dollar_id, 0.0)]
+    )
+    _operation(db_session, compte, dollar_id, 20.0)
+
+    assert backend_monnaies.obstacle_a_la_desactivation(db_session) is not None
+
+
+def test_supprimer_la_monnaie_de_trop_rouvre_la_porte(db_session):
+    """La sortie que le message indique : une monnaie qui ne sert plus se
+    supprime, et l'extension redevient extinguible."""
+    dollar = creer_monnaie(db_session, "Dollar américain", "$")
+    compte = creer_compte(
+        db_session, "Courant", monnaies=[(get_monnaie_id(db_session), 100.0), (dollar.id, 0.0)]
+    )
+    assert backend_monnaies.obstacle_a_la_desactivation(db_session) is not None
+
+    compte.monnaies = [lien for lien in compte.monnaies if lien.monnaie_id != dollar.id]
+    db_session.commit()
+
+    assert backend_monnaies.obstacle_a_la_desactivation(db_session) is None

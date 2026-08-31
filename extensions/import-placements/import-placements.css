@@ -1,0 +1,160 @@
+/* Extension « Import de placements ».
+ *
+ * VOLONTAIREMENT MINCE. L'écran réutilise les classes de la feuille du noyau
+ * (import-dropzone, import-mapping-row, config-avancee, apercu-fichier-*,
+ * badge-*, hint…) : il ressemble à la page Import parce que c'est LE MÊME
+ * habillage, pas une imitation. Ne vivent ici que les deux choses que le noyau
+ * ne connaît pas — les couleurs des colonnes propres à un relevé de
+ * compte-titres, et le formulaire d'édition d'une ligne.
+ */
+
+/* ----- « Le fichier tel qu'il est » : une couleur par propriété -----
+ *
+ * Repérer d'un coup d'œil qu'une colonne est décalée est tout l'intérêt de
+ * cette vue. `date` et `montant` sont déjà colorés par la feuille du noyau
+ * (mêmes noms de propriété, mêmes teintes) : seules les cinq propriétés
+ * propres aux placements sont définies ici.
+ *
+ * Posées en `background-image` et non en `background`, comme celles du noyau :
+ * la teinte est translucide, et l'en-tête étant collant, il lui faut une
+ * `background-color` opaque en dessous — que le raccourci `background`
+ * écraserait.
+ */
+
+/* Le type d'opération, dans la famille du sens bancaire dont il joue le rôle :
+   c'est lui qui dit ce que la ligne fait. */
+.apercu-fichier-defilement th.col-type_placement,
+.apercu-fichier-defilement td.col-type_placement {
+  background-image: linear-gradient(rgba(248, 113, 113, 0.1), rgba(248, 113, 113, 0.1));
+  color: var(--text-secondary);
+}
+
+/* Les deux dénominations du titre partagent la même famille : ce sont deux
+   façons de nommer la même chose. Le nom est le plus appuyé, l'ISIN plus
+   discret — c'est le nom qu'on lit, l'ISIN qu'on vérifie. */
+.apercu-fichier-defilement th.col-nom_valeur,
+.apercu-fichier-defilement td.col-nom_valeur {
+  background-image: linear-gradient(rgba(124, 58, 237, 0.14), rgba(124, 58, 237, 0.14));
+  color: #a78bfa;
+}
+
+.apercu-fichier-defilement th.col-code_isin,
+.apercu-fichier-defilement td.col-code_isin {
+  background-image: linear-gradient(rgba(124, 58, 237, 0.07), rgba(124, 58, 237, 0.07));
+  color: #a78bfa;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La quantité et le cours encadrent le montant sans être des montants : même
+   teinte que lui, en beaucoup plus discret — ce sont ses deux facteurs. */
+.apercu-fichier-defilement th.col-quantite,
+.apercu-fichier-defilement td.col-quantite {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.07), rgba(251, 146, 60, 0.07));
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-fichier-defilement th.col-cours,
+.apercu-fichier-defilement td.col-cours {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.05), rgba(251, 146, 60, 0.05));
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Les deux colonnes propres à la photographie du compte : mêmes teintes que
+   leurs équivalents de la liste d'opérations, puisqu'elles y jouent le même
+   rôle (prix_revient est un cours unitaire, valeur_totale est un montant). */
+.apercu-fichier-defilement th.col-prix_revient,
+.apercu-fichier-defilement td.col-prix_revient {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.05), rgba(251, 146, 60, 0.05));
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.apercu-fichier-defilement th.col-valeur_totale,
+.apercu-fichier-defilement td.col-valeur_totale {
+  background-image: linear-gradient(rgba(251, 146, 60, 0.12), rgba(251, 146, 60, 0.12));
+  color: var(--depense);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- L'aperçu ----- */
+
+/* Une ligne en erreur ne sera pas importée : elle doit se distinguer sans
+   crier, la section qui la contient le dit déjà en titre. */
+.impl-ligne-erreur td {
+  background: rgba(248, 113, 113, 0.06);
+}
+
+.impl-erreur-cellule {
+  color: var(--negatif, #f87171);
+  font-size: 0.85rem;
+}
+
+.impl-actions-cellule {
+  white-space: nowrap;
+}
+
+.impl-actions-cellule button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+/* ----- Édition d'une ligne -----
+ *
+ * Une ligne dépliée plutôt qu'une modale : la correction se fait en regard des
+ * autres lignes, dont on a souvent besoin pour savoir ce qu'on corrige (le
+ * compte en face d'un transfert se devine de la ligne d'à côté).
+ *
+ * Grille auto-ajustée : les six champs se rangent d'eux-mêmes sur une, deux ou
+ * trois rangées selon la largeur, sans point de rupture à maintenir.
+ */
+/* L'ÉDITION D'UNE LIGNE N'A PLUS DE STYLE À ELLE : elle porte les classes du
+   noyau (`ligne-apercu-edition`, `ligne-edition-form`, cf. frontend/style.css),
+   celles de l'aperçu d'un relevé bancaire. Ne reste que la place des boutons,
+   qui doivent occuper leur propre rangée : « Appliquer » ne doit jamais se
+   retrouver coincé entre deux champs quand la ligne se resserre. */
+.ligne-edition-form .actions {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* ----- Transferts déjà connus ----- */
+
+/* La rangée « Ressemble à … » posée sous la ligne qu'elle explique. Tout son
+   habillage vient du noyau (`.import-doublon-existante`, style.css) : c'est la
+   même chose que dans l'aperçu d'un relevé bancaire. Ne reste ici que la mise
+   en avant des deux comptes, sur lesquels porte le rapprochement. */
+.impl-doublon-virement strong {
+  color: var(--text-primary);
+}
+
+.impl-doublon-transfert ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.impl-doublon-transfert li {
+  margin-bottom: 0.2rem;
+}
+
+/* ---------- La porte d'entrée depuis la page Placements ----------
+ *
+ * L'import n'a plus d'onglet dans la barre du haut (cf. import-placements.js) :
+ * on y entre par un bouton posé au bord droit du titre « Placements
+ * financiers », et on en ressort par celui de l'en-tête ci-dessous. Les deux
+ * règles vivent ici plutôt que dans style.css : elles n'ont de sens que si
+ * cette extension est installée.
+ */
+/* Le titre de l'écran d'import et sa sortie, sur une seule ligne : le bouton
+   de retour doit être là où le regard arrive en ouvrant la page, pas au bas
+   d'un écran qu'il faut d'abord parcourir. */
+.impl-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.impl-entete h2 {
+  margin-right: auto;
+}

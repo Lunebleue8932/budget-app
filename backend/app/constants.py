@@ -149,6 +149,39 @@ TYPES_COMPTE_SYSTEME = {TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PL
 TYPES_COMPTE_HORS_COURANT = {TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT}
 
 
+class FrequenceRemuneration(str, enum.Enum):
+    """À quel rythme un compte d'épargne verse ses intérêts (extension
+    « Taux d'épargne »).
+
+    LE TAUX RESTE ANNUEL, TOUJOURS : c'est ainsi qu'une banque l'annonce, et
+    c'est la seule façon de comparer deux comptes. La fréquence ne change pas le
+    taux, elle dit à quelles DATES il est appliqué — et donc sur quel solde,
+    puisque le solde bouge entre deux versements. Un taux de 2 % versé chaque
+    jour et le même versé une fois l'an ne donnent pas la même chose dès qu'un
+    virement tombe au milieu de l'année.
+    """
+
+    annuelle = "annuelle"
+    mensuelle = "mensuelle"
+    hebdomadaire = "hebdomadaire"
+    journaliere = "journalière"
+
+
+# Combien de versements une année compte, par fréquence. Sert d'EXPOSANT au
+# coefficient de chaque période : un versement vaut (1 + taux/100) ^ (1/N).
+#
+# 365 et 52, sans correction bissextile ni décalage : le calcul affiché est une
+# projection, pas un relevé de banque. Prétendre au jour près sur une convention
+# que chaque banque définit à sa façon (Exact/365, 30/360…) donnerait une fausse
+# précision, pas une meilleure réponse.
+VERSEMENTS_PAR_AN = {
+    FrequenceRemuneration.annuelle: 1,
+    FrequenceRemuneration.mensuelle: 12,
+    FrequenceRemuneration.hebdomadaire: 52,
+    FrequenceRemuneration.journaliere: 365,
+}
+
+
 class SensAction(str, enum.Enum):
     """Direction d'une opération sur titres. Source de vérité du couple
     (OperationAction, Operation) : le sens de l'écriture d'espèces en découle
@@ -415,3 +448,230 @@ class ConnecteurRegle(str, enum.Enum):
 # disponibles sont tous textuels ; comparer un montant demanderait des
 # opérateurs numériques (<, >) qui n'existent pas ici.
 CHAMPS_REGLE_VALIDES = {"nature", "categorie_banque", "compte_banque"}
+
+# Pendant du précédent pour les relevés de compte-titres (modèle
+# RegleImportPlacement) : les clés du dict de ligne brute que
+# services/import_bancaire.lire_lignes_brutes produit dans ce domaine, réduites
+# aux trois qui portent du TEXTE. Ni la date ni les trois nombres (montant,
+# quantité, cours) n'y figurent : les opérateurs disponibles sont textuels, et
+# « le montant contient 12 » ne veut rien dire.
+CHAMPS_REGLE_PLACEMENT_VALIDES = {"type_brut", "nom_valeur_brut", "code_isin_brut"}
+
+
+# ---------- Import de placements (extension « import-placements ») ----------
+# Un relevé de compte-titres ne décrit pas les mêmes choses qu'un relevé
+# bancaire : pas de catégorie ni de sens, mais une valeur, une quantité et un
+# cours. Il lui faut donc son propre jeu de propriétés — d'où le DOMAINE, qui
+# dit lequel des deux jeux un preset parle.
+#
+# POURQUOI UN DOMAINE PLUTÔT QU'UNE SECONDE TABLE. Tout ce qui entoure les
+# colonnes est rigoureusement identique d'un domaine à l'autre : les
+# correspondances mémorisées, l'historique, l'annulation, et surtout le stock
+# anti-doublons (models.LigneImportBrute), tous scopés par preset_id. Les
+# dédoubler aurait dupliqué quatre tables et toute leur mécanique pour la seule
+# raison que les colonnes lues diffèrent.
+
+
+class DomaineImport(str, enum.Enum):
+    """Ce qu'un preset d'import sait lire.
+
+    `bancaire` est le seul domaine qui existait jusqu'à la migration 0041 :
+    c'est donc la valeur de tous les presets déjà en base, et le défaut partout
+    où le domaine n'est pas dit.
+
+    Le domaine cloisonne : le routeur du noyau ne voit que les presets
+    bancaires, celui de l'extension que les presets de placements (cf.
+    routers/import_bancaire._get_preset_ou_404). Un preset ne change jamais de
+    domaine — ses colonnes, ses correspondances et son stock de lignes brutes
+    n'auraient aucun sens de l'autre côté.
+    """
+
+    bancaire = "bancaire"
+    placement = "placement"
+
+
+class TypeOperationPlacement(str, enum.Enum):
+    """Ce qu'une ligne d'un relevé de compte-titres peut décrire.
+
+    Trois cas, et trois traitements entièrement différents :
+
+     - `achat` / `vente` : un mouvement de titres, qui crée le couple
+       (OperationAction, Operation) habituel — cf.
+       crud.create_operation_action ;
+     - `transfert` : un mouvement d'ESPÈCES entre ce compte et un autre
+       (l'alimentation d'un PEA, un retrait vers le compte courant). Aucun
+       titre n'y bouge : c'est un virement interne ordinaire, et il se compare
+       donc aux virements déjà en base d'où qu'ils viennent (cf.
+       services/import_bancaire.detecter_doublons_virements).
+    """
+
+    achat = "achat"
+    vente = "vente"
+    transfert = "transfert"
+
+
+# Propriétés qu'une colonne d'un fichier de placements peut représenter.
+#
+#  - `date` : la date de l'opération ;
+#  - `type_placement` : achat, vente ou transfert interne (cf. ci-dessus) ;
+#  - `nom_valeur` / `code_isin` : de quel titre il s'agit. Les deux sont
+#    facultatifs SÉPARÉMENT mais pas ensemble — sans l'un des deux, aucune
+#    ligne d'achat ou de vente ne pourrait désigner quoi que ce soit (cf.
+#    PROPRIETES_IMPORT_PLACEMENT_IDENTITE) ;
+#  - `montant` : ce que l'opération a coûté ou rapporté en espèces. C'est LUI
+#    qui fait foi : le solde du compte doit coller au relevé ;
+#  - `quantite` : le nombre de titres achetés ou vendus ;
+#  - `cours` : le prix unitaire annoncé par le relevé. Facultative sans
+#    condition : le prix réellement payé se déduit de montant / quantité, et le
+#    cours lu ne sert qu'à signaler un écart (frais de courtage, arrondi) ;
+#  - `type_titre` : l'étiquette du titre (« ETF », « Obligation »), quand le
+#    fichier la porte. Facultative elle aussi, et sans le moindre effet sur un
+#    montant : elle ne fait que typer le titre que la ligne désigne (cf.
+#    models.TypeTitre).
+PROPRIETES_IMPORT_PLACEMENT = {
+    "date",
+    "type_placement",
+    "nom_valeur",
+    "code_isin",
+    "montant",
+    "quantite",
+    "cours",
+    "type_titre",
+}
+
+# Le titre se désigne par son nom, par son code ISIN, ou par les deux — mais
+# jamais par aucun des deux. Le routeur refuse d'enregistrer une configuration
+# qui les éteindrait tous les deux, et le frontend empêche le geste en amont.
+PROPRIETES_IMPORT_PLACEMENT_IDENTITE = ("nom_valeur", "code_isin")
+
+# `cours` n'y figure pas (facultatif), ni les deux propriétés d'identité
+# ci-dessus (dont une seule suffit). `quantite` si : un fichier qui ne la porte
+# pas ne pourrait décrire aucun achat ni aucune vente, seulement des transferts.
+PROPRIETES_IMPORT_PLACEMENT_OBLIGATOIRES = {
+    "date",
+    "type_placement",
+    "montant",
+    "quantite",
+}
+
+class ModeLecturePlacement(str, enum.Enum):
+    """Ce qu'un fichier de placements RACONTE.
+
+    `operations` : une liste de mouvements — achats, ventes, transferts
+    d'espèces, chacun daté. C'est le seul mode qui existait, et celui de tous
+    les presets déjà en base.
+
+    `position` : une PHOTOGRAPHIE du compte à un instant donné — une ligne par
+    titre détenu, avec sa quantité et son prix de revient. Aucune date dans le
+    fichier : la photo est datée du jour qu'on choisit à l'import.
+
+    POURQUOI LES DEUX COHABITENT DANS LE MÊME ÉCRAN. C'est le même compte, le
+    même courtier, le même geste : on dépose un fichier et on relit un aperçu
+    avant de valider. Ce qui change tient aux colonnes lues et à ce qu'une ligne
+    veut dire ; tout le reste — presets, historique, annulation, stock
+    anti-doublons — est rigoureusement identique et déjà en place.
+
+    ET POURQUOI PAS UN TROISIÈME DOMAINE (cf. DomaineImport) : le domaine
+    cloisonne des ÉCRANS (le routeur bancaire ne voit pas les presets de
+    placements). Ici les deux modes vivent dans le même écran et se choisissent
+    dans la configuration du fichier, comme un numéro de colonne.
+    """
+
+    operations = "operations"
+    position = "position"
+
+
+# Propriétés qu'une colonne d'une PHOTOGRAPHIE de compte peut représenter.
+#
+#  - `nom_valeur` / `code_isin` : de quel titre il s'agit. Comme pour une liste
+#    d'opérations, les deux sont facultatifs SÉPARÉMENT mais pas ensemble ;
+#  - `quantite` : le nombre de titres DÉTENUS à l'instant de la photo ;
+#  - `prix_revient` : le prix de revient UNITAIRE (PRU), c'est-à-dire ce qu'un
+#    titre a coûté en moyenne. C'est lui qui part en base
+#    (OperationAction.prix_unitaire) et dont découlent les plus-values ;
+#  - `valeur_totale` : la valorisation actuelle de la ligne, facultative. Elle
+#    ne décide d'aucune détention : elle sert à en déduire le COURS du titre
+#    (valeur totale ÷ quantité), qui n'a pas de colonne à lui dans ce genre
+#    d'export. Facultative parce qu'un courtier peut ne pas l'exporter, et parce
+#    qu'un cours se saisit très bien à la main ensuite.
+#  - `type_titre` : l'étiquette du titre, quand le fichier la porte. C'est
+#    surtout ici qu'elle a des chances d'exister : un relevé de position range
+#    volontiers ses lignes par catégorie de support.
+PROPRIETES_IMPORT_POSITION = {
+    "nom_valeur",
+    "code_isin",
+    "quantite",
+    "prix_revient",
+    "valeur_totale",
+    "type_titre",
+}
+
+# `valeur_totale` n'y figure pas (facultative), ni les deux propriétés
+# d'identité (dont une seule suffit, cf. PROPRIETES_IMPORT_PLACEMENT_IDENTITE).
+PROPRIETES_IMPORT_POSITION_OBLIGATOIRES = {"quantite", "prix_revient"}
+
+COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
+    {"index": 1, "propriete": "nom_valeur"},
+    {"index": 2, "propriete": "code_isin"},
+    {"index": 3, "propriete": "quantite"},
+    {"index": 4, "propriete": "prix_revient"},
+    {"index": 5, "propriete": "valeur_totale"},
+]
+
+COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT = [
+    {"index": 1, "propriete": "date"},
+    {"index": 2, "propriete": "type_placement"},
+    {"index": 3, "propriete": "nom_valeur"},
+    {"index": 4, "propriete": "code_isin"},
+    {"index": 5, "propriete": "montant"},
+    {"index": 6, "propriete": "quantite"},
+    {"index": 7, "propriete": "cours"},
+]
+
+# Vocabulaire par défaut de la colonne « Type d'opération », même mécanique que
+# pour le sens et l'état d'un relevé bancaire : comparaison normalisée
+# (minuscules, sans accents ni espaces — « Transfert interne » s'écrit donc
+# « transfertinterne » ici), et chaque preset peut déclarer le sien via
+# ImportPreset.libelles_type_*.
+#
+# Liste fermée : un libellé inconnu met la ligne en erreur plutôt que d'être
+# deviné. Confondre un achat et une vente inverserait une position entière.
+LIBELLES_TYPE_PLACEMENT_DEFAUT = {
+    TypeOperationPlacement.achat: {
+        "achat",
+        "achats",
+        "acquisition",
+        "souscription",
+        "buy",
+        "compra",
+    },
+    TypeOperationPlacement.vente: {
+        "vente",
+        "ventes",
+        "cession",
+        "rachat",
+        "remboursement",
+        "sell",
+        "venda",
+    },
+    TypeOperationPlacement.transfert: {
+        "transfert",
+        "transfertinterne",
+        "virement",
+        "virementinterne",
+        "versement",
+        "retrait",
+        "alimentation",
+        "apport",
+    },
+}
+
+# Au-delà de cet écart RELATIF entre le cours lu dans le fichier et le prix
+# unitaire réellement payé (montant / quantité), la ligne porte un
+# avertissement. 1 % : les frais de courtage d'un ordre ordinaire pèsent
+# quelques dixièmes de pourcent, un arrondi bien moins — au-delà, c'est
+# probablement une colonne mal configurée, ce qu'il vaut mieux voir.
+#
+# Jamais bloquant : c'est le montant qui fait l'écriture, et le relevé a
+# toujours raison sur ce qui a réellement quitté le compte.
+ECART_COURS_TOLERE = 0.01

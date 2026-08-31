@@ -28,7 +28,7 @@ naturellement doit malgré tout correspondre.
 """
 import unicodedata
 from dataclasses import dataclass
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from ..constants import TYPES_AVEC_CATEGORIE_LIBRE, ConnecteurRegle, OperateurRegle, TypeOperation
 
@@ -201,3 +201,70 @@ def _completer(resultat: ResultatRegle, regle, type_operation: TypeOperation) ->
         resultat.compte_autre_id = regle.compte_autre_id
         pose = True
     return pose
+
+
+# ---------- Règles d'import de placements ----------
+#
+# LE MÊME MOTEUR, POUR L'AUTRE DOMAINE. Tout ce qui précède — la normalisation,
+# les quatre opérateurs, les deux niveaux de groupes — ne parle que de texte et
+# ne sait rien des types d'opération : `evaluer_regle` prend un JSON de
+# conditions et un dict de valeurs brutes, et c'est tout. Il se réemploie donc
+# tel quel sur un relevé de compte-titres, dont les lignes brutes portent
+# simplement d'autres clés (`type_brut`, `nom_valeur_brut`, `code_isin_brut`).
+#
+# Seule l'ACTION diffère, et elle tient en une valeur : ce que la ligne décrit.
+# D'où une fonction de dix lignes ici plutôt qu'un second module.
+
+
+class DecisionPlacement(NamedTuple):
+    """Ce qu'une règle de placement impose à une ligne.
+
+    UN TUPLE NOMMÉ plutôt qu'un tuple nu qui s'allonge : il en portait deux
+    valeurs, il en porte trois, et rien ne dit qu'il n'en portera pas une
+    quatrième. Les appelants lisent des noms, et ajouter un champ ne décale plus
+    aucun indice.
+    """
+
+    #: "achat" | "vente" | "transfert" (constants.TypeOperationPlacement).
+    type_placement: str
+    #: Le compte EN FACE, pour un transfert seulement. None ailleurs.
+    compte_autre_id: Optional[int]
+    #: Le type à poser sur le TITRE que la ligne désigne, quand l'import le crée.
+    #: None = la règle ne dit rien du type.
+    type_titre_id: Optional[int]
+
+
+def appliquer_regles_placement(regles, brute: dict) -> Optional[DecisionPlacement]:
+    """Ce que la première règle correspondante impose, ou None si aucune ne
+    correspond.
+
+    LE COMPTE EN FACE n'accompagne qu'un transfert, et vaut None partout
+    ailleurs — le routeur le neutralise déjà à l'écriture, on n'a pas à le
+    refaire ici. Il évite à chaque transfert reconnu par la règle d'arriver
+    incomplet dans l'aperçu : un relevé de compte-titres ne nomme jamais que son
+    propre compte.
+
+    LE TYPE DE TITRE est le troisième champ. Il ne décrit pas la ligne mais la
+    VALEUR qu'elle touche (« MSCI World » EST un ETF), et l'import ne le pose
+    donc qu'au moment où il crée le titre — jamais sur un titre déjà connu, sans
+    quoi un import mal réglé retyperait tout un portefeuille sans le dire.
+
+    PAS DE COMPLÉMENT ni de poursuite après la première correspondance,
+    contrairement aux règles bancaires : celles-là décident de plusieurs choses
+    et peuvent donc se partager le travail entre plusieurs règles. Ici la règle
+    qui décide du type décide aussi du compte — deux règles ne peuvent que se
+    contredire, et c'est la plus haute qui a raison.
+
+    `brute` est le dict produit par import_bancaire.lire_lignes_brutes sur un
+    preset de domaine « placement ».
+    """
+    for regle in sorted(regles, key=lambda r: (r.ordre, r.id)):
+        if not regle.actif:
+            continue
+        if evaluer_regle(regle.conditions, brute):
+            return DecisionPlacement(
+                regle.type_placement,
+                regle.compte_autre_id,
+                regle.type_titre_id,
+            )
+    return None

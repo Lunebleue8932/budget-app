@@ -5,6 +5,7 @@
   "backend": "backend.py",
   "frontend": {
     "html": "page.html",
+    "css": ["placements.css"],
     "js": ["placements.js"]
   },
   "navigation": {

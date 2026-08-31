@@ -1,0 +1,24 @@
+{
+  "nom": "Import de placements",
+  "description": "Lit une liste d'opérations exportée depuis un compte de placements (achats, ventes, transferts d'espèces) et l'importe en une fois, sur le modèle de l'import de relevé bancaire : un preset par courtier, un aperçu ligne par ligne avant validation, et la même détection de doublons. Les titres inconnus sont créés à l'import, avec leur code ISIN. Nécessite « Placements financiers » : sans elle, il n'y a aucun compte-titres où importer.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "requiert_une_de": [
+    "placements"
+  ],
+  "frontend": {
+    "html": "page.html",
+    "css": [
+      "import-placements.css"
+    ],
+    "js": [
+      "import-placements.js"
+    ]
+  },
+  "navigation": {
+    "type": "page",
+    "section": "import-placements",
+    "libelle": "Import de placements",
+    "bouton": false
+  }
+}

@@ -45,6 +45,38 @@
   box-sizing: border-box;
 }
 
+/* Les contrôles NATIFS suivent le thème sombre : sans cette ligne, le sélecteur
+   de date s'ouvre en blanc sur blanc et son pictogramme de calendrier reste
+   presque noir sur nos fonds. */
+:root {
+  color-scheme: dark;
+}
+
+/* Et le pictogramme lui-même en BLANC FRANC. Le dessin est fourni par le
+   navigateur, on ne peut donc que le filtrer — et `brightness(0) invert(1)` est
+   le seul enchaînement qui donne du blanc À COUP SÛR : le premier écrase le
+   glyphe en noir pur quelle que soit sa couleur d'origine, le second le retourne
+   en blanc pur. Un simple `invert(1)` dépendrait de la teinte de départ, que
+   `color-scheme` vient justement de changer — il aurait rendu noir un
+   pictogramme déjà éclairci.
+
+   Posé une fois pour TOUS les champs de date de l'application, extensions
+   comprises. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 body {
   font-family: system-ui, sans-serif;
   margin: 0;
@@ -419,6 +451,17 @@ h4 {
   font-variant-numeric: tabular-nums;
 }
 
+/* Le total d'un compte de placements (espèces + valorisation des titres),
+   posé par l'extension `placements` sous le solde qu'il complète. Même
+   gabarit que .compte-projete, mais dans la teinte des placements : ce n'est
+   pas une projection, c'est ce que le compte vaut réellement aujourd'hui. */
+.compte-card .compte-total-placement {
+  font-size: 0.78rem;
+  color: var(--compte-placements);
+  margin-top: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Tableaux ---------- */
 
 table {
@@ -551,6 +594,16 @@ form textarea {
   resize: vertical;
 }
 
+/* UN CHAMP D'URL S'ÉCRIT EN ITALIQUE, partout où il y en a un — dans un
+   formulaire comme dans une ligne de liste. C'est la seule chose qui le
+   distingue d'un champ de texte ordinaire, et c'est suffisant : on reconnaît
+   au premier coup d'œil qu'on regarde une adresse et non un libellé.
+   L'italique porte aussi le texte indicatif, ce qui est cohérent — il montre
+   une adresse d'exemple. */
+input[type="url"] {
+  font-style: italic;
+}
+
 form input:focus,
 form select:focus,
 form textarea:focus {
@@ -666,6 +719,28 @@ form .full-width {
   color: var(--accent-light);
   font-weight: bold;
   border-bottom-color: var(--accent-light);
+}
+
+/* Barre d'onglets en DEUX GROUPES, aux deux bouts (Paramètres) : ce que l'app
+   manipule à gauche, ce qui la règle à droite. Un seul .sous-onglets porte les
+   deux — la bordure basse doit rester une ligne continue d'un bord à l'autre,
+   et app.js éteint l'onglet précédent en cherchant dans ce conteneur-là. */
+.sous-onglets-deux-groupes {
+  justify-content: space-between;
+}
+
+.sous-onglets-groupe {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+}
+
+/* Écran étroit : les deux groupes se retrouvent l'un sous l'autre, et coller le
+   second à droite le détacherait du premier sans rien signifier. */
+@media (max-width: 700px) {
+  .sous-onglets-deux-groupes {
+    justify-content: flex-start;
+  }
 }
 
 .sous-section {
@@ -1084,6 +1159,17 @@ button.danger:hover {
   transition: border-color 0.15s;
 }
 
+.filtres-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* Les deux bornes de montant : un nombre court, qui n'a pas à occuper la même
+   largeur qu'une date ou qu'un nom de compte. */
+.filtres input[type="number"] {
+  width: 7rem;
+}
+
 .filtres select:focus,
 .filtres input:focus {
   outline: none;
@@ -1470,6 +1556,25 @@ button.danger:hover {
   border-bottom: 1px solid var(--border);
 }
 
+/* L'en-tête est la POIGNÉE de la colonne : c'est par lui, et par lui seul,
+   qu'on la déplace dans la galerie. Son corps reste la zone de dépôt des
+   cartes — le même geste au même endroit ne peut pas vouloir dire deux
+   choses. */
+.galerie-colonne-poignee {
+  cursor: grab;
+  user-select: none;
+}
+
+.galerie-colonne-poignee:active {
+  cursor: grabbing;
+}
+
+/* La colonne en cours de déplacement s'efface, comme une carte qu'on glisse :
+   ce qu'on suit du regard, c'est la place qu'elle va prendre. */
+.galerie-colonne.colonne-dragging {
+  opacity: 0.4;
+}
+
 .galerie-compteur {
   color: var(--text-muted);
   font-weight: 400;
@@ -1484,6 +1589,11 @@ button.danger:hover {
   min-height: 3rem;
 }
 
+/* PAS DE `cursor: grab` SUR LA CARTE : c'est sa poignée qui se saisit, et son
+   libellé qui se lit et se copie (le curseur doit donc y être celui du texte).
+   La carte entière était déplaçable, ce qui rendait son libellé
+   insélectionnable — or c'est justement ce qu'on veut copier d'ici, pour le
+   coller dans une règle. */
 .galerie-carte {
   display: flex;
   align-items: center;
@@ -1494,12 +1604,16 @@ button.danger:hover {
   padding: 0.35rem 0.5rem;
   font-size: 0.82rem;
   color: var(--text-primary);
-  cursor: grab;
 }
 
-.galerie-carte:active {
-  cursor: grabbing;
+/* La poignée d'une carte de galerie : plus discrète que celle d'une liste, la
+   carte étant elle-même petite. */
+.galerie-carte .drag-handle {
+  width: auto;
+  font-size: 0.95rem;
+  flex: none;
 }
+
 
 .galerie-carte.dragging {
   opacity: 0.4;
@@ -1750,124 +1864,6 @@ button.danger:hover {
   margin-top: 1.2rem;
 }
 
-/* ---------- Vérification d'un solde (diagnostic d'écart) ---------- */
-
-.verif-solde-panneau {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  padding: 1rem 1.2rem;
-  margin-bottom: 1.5rem;
-}
-
-.verif-solde-champs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-end;
-}
-
-.verif-solde-champs label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.verif-solde-champs select,
-.verif-solde-champs input {
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.6rem;
-  font-size: 0.9rem;
-  min-width: 11rem;
-}
-
-/* Les trois soldes en regard : c'est la lecture qui décide de tout le reste,
-   elle passe donc avant la liste des pistes. */
-.verif-solde-bilan {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2rem;
-  padding: 1rem 0;
-  margin-top: 0.8rem;
-  border-top: 1px solid var(--border-soft);
-}
-
-.verif-solde-ok {
-  border-left-color: var(--positif);
-  background: rgba(34, 197, 94, 0.08);
-  color: var(--positif);
-}
-
-.verif-solde-pistes {
-  list-style: none;
-  padding: 0;
-  margin: 0.6rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.verif-solde-piste {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  padding: 0.7rem 0.9rem;
-  background: var(--bg-surface-alt);
-}
-
-.verif-solde-explication {
-  display: block;
-  margin-top: 0.4rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.verif-solde-operations {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0 0;
-}
-
-/* Une opération par ligne, colonnes alignées d'une piste à l'autre : c'est ce
-   qui permet de balayer la liste sans relire chaque champ. */
-.verif-solde-operation {
-  display: grid;
-  grid-template-columns: 8.5rem 1fr auto 7rem;
-  gap: 0.6rem;
-  align-items: baseline;
-  padding: 0.25rem 0;
-  font-size: 0.86rem;
-}
-
-.verif-solde-op-date {
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.verif-solde-op-montant {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.verif-solde-op-sens {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-@media (max-width: 700px) {
-  .verif-solde-operation {
-    grid-template-columns: 1fr auto;
-  }
-  .verif-solde-op-sens {
-    grid-column: 1 / -1;
-  }
-}
-
 /* Colonne d'action de l'historique d'imports : l'annulation est destructrice,
    elle se range donc au bord opposé des chiffres qu'on vient lire, hors du
    chemin du regard. */
@@ -1913,7 +1909,11 @@ button.danger:hover {
   text-align: center;
 }
 
-.import-mapping-row input[type="text"] {
+/* `url` avec `text` : un champ d'URL est un champ de texte comme un autre, et
+   rien ne justifie qu'il ait sa propre taille ni sa propre chasse au milieu
+   d'une ligne. Ce qui le distingue est l'italique, posé plus bas. */
+.import-mapping-row input[type="text"],
+.import-mapping-row input[type="url"] {
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -1922,22 +1922,48 @@ button.danger:hover {
   min-width: 12rem;
 }
 
-/* Mots-clés de la colonne « Sens », saisis en une ligne séparée par des
-   virgules : quelques mots courts, pas de quoi justifier une liste à puces. */
-.sens-libelles-champ {
-  margin-bottom: 0.9rem;
+/* ---------- Éditeur de mots-clés (vocabulaires d'import) ----------
+ *
+ * Le vêtement du widget décrit dans app.js : un champ, son « + », les jetons
+ * qui montrent la liste, et le menu « Actualisation » qui en retire.
+ *
+ * Habille les deux imports — la colonne « Sens » et la colonne « État » d'un
+ * relevé bancaire, la colonne « Type d'opération » d'un relevé de courtier —
+ * d'où sa place ici plutôt que dans la feuille d'une extension.
+ */
+.import-vocabulaire-champ {
+  margin: 0.8rem 0;
+  padding: 0.6rem 0.7rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
 }
 
-.sens-libelles-champ > label {
-  display: block;
+/* Le libellé, la saisie et le menu sur UNE ligne, le menu poussé au bord
+   droit : ajouter est au centre du geste, retirer est une correction. */
+.import-vocabulaire-entete {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.import-vocabulaire-champ > .import-vocabulaire-entete > label {
   font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 0.3rem;
+  min-width: 11rem;
 }
 
-.sens-libelles-champ input[type="text"] {
+.import-vocabulaire-saisie {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.import-vocabulaire-saisie input[type="text"] {
   width: 100%;
-  max-width: 26rem;
+  max-width: 16rem;
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -1946,8 +1972,134 @@ button.danger:hover {
   font-size: 0.85rem;
 }
 
-.sens-libelles-champ .hint {
-  margin: 0.25rem 0 0;
+/* Carré, à la hauteur du champ qu'il prolonge : un « + » qui ressemblerait à un
+   bouton de formulaire ferait croire qu'il enregistre. Il n'enregistre rien —
+   c'est « Enregistrer la configuration », plus bas, qui écrit. */
+.import-vocabulaire-ajouter {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  line-height: 1;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.import-vocabulaire-ajouter:hover {
+  border-color: var(--accent-light);
+  color: var(--accent-light);
+}
+
+/* Le menu de suppression, au bord droit. Un <details> plutôt qu'un <select> :
+   un menu déroulant natif choisit une valeur, il ne déclenche pas une action —
+   et chaque ligne d'ici en est une. */
+.import-vocabulaire-actualisation {
+  margin-left: auto;
+  position: relative;
+}
+
+.import-vocabulaire-actualisation > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  user-select: none;
+}
+
+.import-vocabulaire-actualisation > summary::-webkit-details-marker {
+  display: none;
+}
+
+.import-vocabulaire-actualisation > summary::after {
+  content: " ▾";
+  color: var(--text-muted);
+}
+
+.import-vocabulaire-actualisation[open] > summary {
+  color: var(--text-primary);
+  border-color: var(--accent-light);
+}
+
+/* Posé PAR-DESSUS le reste (position absolue) : déplié dans le flux, il
+   repousserait les deux champs du dessous à chaque ouverture. */
+.import-vocabulaire-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 5;
+  min-width: 12rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: 0.3rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.import-vocabulaire-menu .hint {
+  margin: 0.2rem 0.35rem;
+}
+
+.import-vocabulaire-menu-ligne {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.import-vocabulaire-menu-ligne:hover {
+  background: var(--bg-surface-alt);
+  color: var(--danger, #e66767);
+}
+
+/* Les jetons ne sont QUE de la lecture : aucune croix, aucun curseur de main.
+   Ce qu'on lit là, c'est la liste que le serveur recevra. */
+.import-vocabulaire-jetons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.import-vocabulaire-jeton {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.import-vocabulaire-champ > .hint {
+  margin: 0.4rem 0 0;
+}
+
+@media (max-width: 700px) {
+  .import-vocabulaire-actualisation {
+    margin-left: 0;
+  }
 }
 
 /* Un rattachement que l'app a fait seule : rien à décider, donc ni menu ni
@@ -2008,6 +2160,18 @@ button.danger:hover {
   border-left: 3px solid var(--badge-remboursable-text);
   font-size: 0.82rem;
   padding: 0.4rem 0.7rem;
+}
+
+/* Le compte d'en face SUGGÉRÉ, dans les colonnes Émetteur/Récepteur de la
+   section « Ressemblances » : lu sur l'opération à laquelle la ligne ressemble,
+   et pas enregistré sur la ligne. Il doit donc se distinguer au premier coup
+   d'œil d'un compte réellement résolu — italique, éteint, suivi d'un « ? » (cf.
+   compteDeduitHtml). Le confondre avec un compte posé ferait croire la ligne
+   prête à l'import, alors qu'elle sera refusée telle quelle. */
+.compte-deduit {
+  color: var(--text-muted);
+  font-style: italic;
+  cursor: help;
 }
 
 button:disabled {
@@ -2192,8 +2356,15 @@ tr.ligne-apercu-edition td:has(> button) {
   cursor: grab;
 }
 
-.regle-carte[draggable="true"] {
+/* Le curseur de saisie est sur la POIGNÉE, pas sur la carte : le nom de la
+   règle et le résumé de ses conditions se sélectionnent comme du texte. */
+.regle-carte-ordre {
   cursor: grab;
+  user-select: none;
+}
+
+.regle-carte-ordre:active {
+  cursor: grabbing;
 }
 
 .regle-carte-glissee {
@@ -2380,16 +2551,22 @@ tr.ligne-apercu-edition td:has(> button) {
    défile dans son propre conteneur, dans les deux sens, plutôt que d'élargir
    toute la page ou de la faire dérouler sur des milliers de pixels.
 
-   La hauteur est bornée à 30 lignes (plus l'en-tête) : exactement ce que le
-   serveur renvoyait quand il tronquait à 30, pour que la vue garde la taille
-   qu'elle avait toujours eue. Le fichier entier est désormais là, accessible
-   en défilant (cf. services/import_bancaire.construire_apercu_fichier).
+   Le fichier entier est là, accessible en défilant (cf.
+   services/import_bancaire.construire_apercu_fichier) ; seule la HAUTEUR de la
+   fenêtre est bornée.
+
+   SEPT, et non cinq. Le compte affiché n'est pas le compte utile : la rangée
+   des propriétés est déjà retirée par le `+ 1` ci-dessous, mais deux autres
+   rangées ne montrent aucune opération — la ligne de titres du fichier, et la
+   première ligne quand la configuration l'ignore (affichée barrée, cf.
+   renderApercuFichier). À cinq, il restait trois vraies lignes à comparer, ce
+   qui ne suffit pas pour juger qu'une colonne tombe en face de la bonne donnée.
 
    2.25rem est la hauteur d'une ligne à ce corps de texte (0.8rem + les
    paddings de `th, td`) : la borne suit donc le nombre de lignes voulu, pas un
    nombre de pixels choisi au hasard. */
 .apercu-fichier-defilement {
-  --apercu-lignes-visibles: 5;
+  --apercu-lignes-visibles: 7;
   overflow: auto;
   max-height: calc((var(--apercu-lignes-visibles) + 1) * 2.25rem);
   margin-bottom: 0.5rem;
@@ -2625,10 +2802,9 @@ tr.ligne-apercu-edition td:has(> button) {
 /* ---------- Infobulles ---------- */
 
 /* Pastille d'information à côté d'un titre : déplace les explications longues
-   hors du flux, sans les perdre. CSS pur (pas de JS, pas de dépendance) --
-   il n'existait aucun système d'infobulle dans l'app. */
+   hors du flux, sans les perdre. Le style est ici, le PLACEMENT de la bulle
+   est en JavaScript (cf. plus bas, et app.js § « Infobulles »). */
 .info-bulle {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2646,8 +2822,6 @@ tr.ligne-apercu-edition td:has(> button) {
   vertical-align: middle;
   text-transform: none;
   letter-spacing: 0;
-  /* Ancre du positionnement de la bulle, qui déborde largement. */
-  z-index: 1;
 }
 
 .info-bulle:hover,
@@ -2655,15 +2829,23 @@ tr.ligne-apercu-edition td:has(> button) {
   border-color: var(--accent);
   color: var(--accent-light);
   outline: none;
-  z-index: 40;
 }
 
-.info-bulle::after {
-  content: attr(data-info);
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
-  left: 50%;
-  transform: translateX(-50%);
+/* LA BULLE ELLE-MÊME EST PLACÉE PAR JAVASCRIPT (cf. app.js, « Infobulles ») :
+   un seul nœud, enfant de <body>, en `position: fixed`, dont les coordonnées
+   sont recalculées à chaque ouverture d'après la place réellement disponible.
+
+   Elle était un `::after` de la pastille, toujours au-dessus et centré : une
+   pastille en haut de page voyait donc sa bulle sortir par le haut, et un
+   tableau à défilement la rognait bien avant le bord de l'écran. Aucune règle
+   de style ne pouvait régler ça — la place disponible ne se connaît qu'à
+   l'exécution. Ne restent ici que l'APPARENCE et la profondeur ; le placement
+   n'est plus une affaire de CSS. */
+.info-bulle-flottante {
+  position: fixed;
+  /* Au-dessus de tout, modales comprises : une bulle cachée derrière ce
+     qu'elle explique n'explique rien. */
+  z-index: 200;
   width: max-content;
   max-width: 22rem;
   background: var(--bg-surface);
@@ -2674,27 +2856,13 @@ tr.ligne-apercu-edition td:has(> button) {
   padding: 0.55rem 0.7rem;
   font-size: 0.8rem;
   font-weight: 400;
+  font-style: normal;
   line-height: 1.45;
   text-align: left;
   white-space: normal;
-  /* Masquée sans display:none, pour garder une transition possible et
-     rester lisible par les lecteurs d'écran. */
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s ease-out, visibility 0.12s;
+  /* Rien ne doit pouvoir être survolé ni cliqué à travers elle : elle n'est là
+     que le temps où le pointeur reste sur la pastille. */
   pointer-events: none;
-}
-
-.info-bulle:hover::after,
-.info-bulle:focus-visible::after {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* Près du bord gauche, la bulle centrée sortirait de l'écran. */
-.info-bulle.info-bulle-gauche::after {
-  left: 0;
-  transform: none;
 }
 
 /* Bulle à PLUSIEURS PARAGRAPHES (les propriétés de la configuration avancée,
@@ -2703,7 +2871,7 @@ tr.ligne-apercu-edition td:has(> button) {
    propriété EST de ce qu'elle change, et c'est ce qui rend ces textes longs
    lisibles d'un coup d'œil au lieu d'un pavé. Un peu plus large et un peu plus
    aéré, pour la même raison. */
-.info-bulle.info-bulle-texte::after {
+.info-bulle-flottante.info-bulle-texte {
   white-space: pre-line;
   max-width: 26rem;
   padding: 0.7rem 0.85rem;
@@ -2868,45 +3036,13 @@ mark.recherche-marque-courante {
 /* Un bouton `disabled` ne reçoit aucun événement souris : ni :hover, ni tooltip
    natif. La raison du blocage est donc portée par ce conteneur, qui l'entoure et
    reste, lui, survolable. Sans data-info (rien ne bloque), il ne fait rien : pas
-   de bulle vide au survol d'un bouton actif. */
+   de bulle vide au survol d'un bouton actif.
+
+   Sa bulle est celle de tout le monde (cf. « Infobulles » plus haut, et app.js) :
+   même nœud flottant, même recadrage dans la fenêtre. Il ne reste ici que la
+   boîte survolable. */
 .bulle-blocage {
-  position: relative;
   display: inline-flex;
-  z-index: 1;
-}
-
-.bulle-blocage:hover {
-  z-index: 40;
-}
-
-.bulle-blocage[data-info]::after {
-  content: attr(data-info);
-  position: absolute;
-  bottom: calc(100% + 0.5rem);
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 26rem;
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-card);
-  padding: 0.55rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 400;
-  line-height: 1.45;
-  text-align: left;
-  white-space: pre-line;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s ease-out, visibility 0.12s;
-  pointer-events: none;
-}
-
-.bulle-blocage[data-info]:hover::after {
-  opacity: 1;
-  visibility: visible;
 }
 
 /* ---------- Regroupement par jour (page Opérations) ---------- */
@@ -3073,6 +3209,105 @@ mark.recherche-marque-courante {
   margin-top: 0;
 }
 
+/* ---------- Édition en ligne, forme générale ----------
+ *
+ * Le pendant des .operation-edition-* pour les autres listes (comptes,
+ * catégories, monnaies) : le formulaire vient se poser sous la ligne éditée.
+ * Deux habillages parce qu'il y a deux hôtes possibles — une cellule qui
+ * traverse un tableau, ou un bloc dans une liste de divs — mais un seul aspect,
+ * celui déjà porté par la page Opérations : fond en retrait et liseré d'accent
+ * du côté où l'œil arrive.
+ */
+.edition-en-ligne-row > td {
+  background: var(--bg-surface-alt);
+  box-shadow: inset 4px 0 0 var(--accent);
+  padding: 1rem 1.15rem;
+}
+
+.edition-en-ligne-row:hover > td {
+  background: var(--bg-surface-alt);
+}
+
+.edition-en-ligne-bloc {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.edition-en-ligne-row h3,
+.edition-en-ligne-bloc h3 {
+  margin-top: 0;
+}
+
+/* ---------- Bascule dépliante (pictogramme) ----------
+ *
+ * Un bouton, pas une pastille d'infobulle : le texte qu'il découvre reste à
+ * l'écran tant qu'on ne le replie pas, là où une bulle s'efface au moindre
+ * mouvement de souris. C'est ce qu'il faut pour des explications qu'on lit en
+ * entier, et pour des avertissements qu'on relit en agissant.
+ */
+.detail-bascule {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.2rem;
+  line-height: 0;
+  cursor: pointer;
+  /* La grille des boutons du thème donne une largeur minimale : ici le bouton
+     ne porte qu'un pictogramme, il ne doit pas s'étirer. */
+  min-width: 0;
+  flex: 0 0 auto;
+  /* Le tracé du SVG hérite de cette couleur (cf. ICONE_BASCULE_DETAIL) : c'est
+     elle, et non un filtre, qui met le bouton en retrait ou en avant. */
+  color: var(--text-muted);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.detail-bascule svg {
+  display: block;
+}
+
+.detail-bascule:hover,
+.detail-bascule:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+/* Déplié : le pictogramme cesse d'être en retrait, pour qu'on retrouve d'un
+   coup d'œil lequel des boutons a ouvert le texte qu'on est en train de lire. */
+.detail-bascule.ouvert {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* MÊME PICTOGRAMME, DEUX RÔLES. Explication et avertissement se déplient de la
+   même façon et portent la même image (c'est le geste qu'on apprend une fois) ;
+   seule la couleur les distingue, sans quoi deux boutons identiques côte à côte
+   ne diraient pas lequel ouvre quoi. */
+.detail-bascule-alerte,
+.detail-bascule-alerte:hover,
+.detail-bascule-alerte.ouvert {
+  color: var(--badge-pret-text);
+  border-color: var(--badge-pret-text);
+}
+
+.detail-contenu {
+  margin-top: 0.5rem;
+}
+
+/* Le dernier paragraphe d'un panneau ne pousse rien : c'est le panneau qui
+   porte l'espacement, pas son contenu. */
+.detail-contenu > :last-child {
+  margin-bottom: 0;
+}
+
+.detail-contenu[hidden] {
+  display: none;
+}
+
 /* ---------- Panneau des extensions (Paramètres) ---------- */
 
 .extension-carte {
@@ -3131,8 +3366,32 @@ mark.recherche-marque-courante {
   white-space: nowrap;
 }
 
+/* Le menu d'état. Les styles de champ du thème ne visent que l'intérieur d'un
+   <form> ; cette carte n'en est pas un, d'où la reprise ici. */
+.extension-etat {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.extension-etat:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* Grisé et NON cliquable : ce qui l'empêche de changer se lit sur le bouton
+   d'avertissement, juste à côté. */
+.extension-etat:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .extension-description {
-  margin: 0.5rem 0 0;
+  margin: 0;
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.5;
@@ -3141,7 +3400,7 @@ mark.recherche-marque-courante {
 /* Ce qui manque à une extension pour pouvoir être allumée. En avertissement et
    non en erreur : rien n'est cassé, il manque seulement une autre extension. */
 .extension-manque {
-  margin: 0.4rem 0 0;
+  margin: 0 0 0.4rem;
   font-size: 0.85rem;
   line-height: 1.5;
   color: var(--badge-pret-text);
@@ -3228,29 +3487,22 @@ body.modale-ouverte {
   margin-left: 0.4rem;
 }
 
-/* La case qui ALLUME l'extension : c'est la décision de la fenêtre, elle est
-   donc sur la même ligne que le nom, et toute la ligne est cliquable. */
+/* Le menu qui ALLUME l'extension : c'est la décision de la fenêtre, il est
+   donc sur la même ligne que le nom, poussé au bord opposé. */
 .modale-liste .modale-extension-bascule {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  cursor: pointer;
 }
 
-.modale-liste .modale-extension-bascule input {
-  /* Une case de la taille du texte se rate ; celle-ci se vise sans effort. */
-  width: 1.05rem;
-  height: 1.05rem;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex: 0 0 auto;
+.modale-liste .modale-extension-bascule .extension-etat {
+  margin-left: auto;
 }
 
-/* Décrite sous son nom : cocher une case revient à autoriser quelque chose,
-   et on n'autorise pas ce qu'on ne peut pas lire. Alignée sur le texte, pas
-   sur la case. */
+/* Décrite sous son nom, une fois dépliée : allumer une extension revient à
+   autoriser quelque chose, et on n'autorise pas ce qu'on ne peut pas lire. */
 .modale-liste .modale-extension-description {
-  margin: 0.35rem 0 0 1.55rem;
+  margin: 0;
   color: var(--text-secondary);
   font-size: 0.8rem;
   line-height: 1.45;
@@ -3263,4 +3515,30 @@ body.modale-ouverte {
   justify-content: flex-end;
   gap: 0.6rem;
   flex-wrap: wrap;
+}
+
+/* ---------- Un montant nul n'a pas de couleur ----------
+ *
+ * La couleur d'un montant dit une DIRECTION : vert l'argent entre, orange il
+ * sort, rouge le solde est dans le rouge. Zéro ne va nulle part — le peindre en
+ * vert parce qu'il n'est « pas négatif » fait lire une bonne nouvelle dans une
+ * ligne qui n'en porte aucune, et un solde à 0 € n'est pas un compte qui se
+ * porte bien.
+ *
+ * EN FIN DE FEUILLE, et c'est le point : ces sélecteurs doivent l'emporter sur
+ * ceux du signe (`.montant.entree`, `.kpi-valeur.negatif`, `.compte-solde
+ * .negatif`…). À spécificité égale, c'est le dernier écrit qui gagne — d'où
+ * cette place plutôt qu'un `!important`, qui aurait aussi écrasé ce que
+ * personne n'a demandé d'écraser.
+ *
+ * La classe est posée par `classeMontant()` (frontend/app.js), qui décide une
+ * fois pour toutes de ce qu'« être nul » veut dire : moins d'un demi-centime,
+ * c'est-à-dire ce que l'affichage arrondit à « 0,00 ».
+ */
+.montant.montant-nul,
+.kpi-valeur.montant-nul,
+.compte-card .compte-solde.montant-nul,
+.repartition-montant.montant-nul,
+.montant-nul {
+  color: var(--text-primary);
 }

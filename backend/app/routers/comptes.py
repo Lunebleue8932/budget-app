@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
-from ..services import ecarts
 
 router = APIRouter(prefix="/comptes", tags=["comptes"])
 
@@ -124,35 +123,3 @@ def delete_compte(compte_id: int, db: Session = Depends(get_db)):
             detail="Impossible de supprimer un compte qui a des opérations liées",
         )
     crud.delete_compte(db, db_compte)
-
-
-@router.post("/{compte_id}/diagnostic-ecart", response_model=schemas.DiagnosticEcartRead)
-def diagnostic_ecart(
-    compte_id: int,
-    payload: schemas.DiagnosticEcartInput,
-    db: Session = Depends(get_db),
-):
-    """Compare le solde de l'app à celui du relevé, et propose des pistes.
-
-    POST et non GET, bien que rien ne soit écrit : le solde saisi n'a rien à
-    faire dans une URL, où il finirait dans les journaux et l'historique du
-    navigateur. C'est une lecture, rejouable autant de fois que voulu (cf.
-    services/ecarts).
-
-    La monnaie doit être l'une de celles du compte : un compte a un solde PAR
-    monnaie, et diagnostiquer un écart en dollars sur un compte qui n'en porte
-    pas comparerait un relevé à un solde qui n'existe pas."""
-    db_compte = crud.get_compte(db, compte_id)
-    if db_compte is None:
-        raise HTTPException(status_code=404, detail="Compte introuvable")
-    if payload.monnaie_id not in {lien.monnaie_id for lien in db_compte.monnaies}:
-        raise HTTPException(
-            status_code=400, detail="Ce compte ne porte pas cette monnaie"
-        )
-    return ecarts.diagnostiquer(
-        db,
-        db_compte,
-        payload.monnaie_id,
-        payload.solde_banque,
-        date_fin=payload.date_fin,
-    )

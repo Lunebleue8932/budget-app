@@ -89,7 +89,9 @@ def detentions(db: Session, compte_id: int) -> list[dict]:
         resultat.append(
             {
                 "action_id": action_id,
-                "action_nom": action.nom,
+                # Ce qu'on LIT : le renommage s'il existe, le nom du courtier
+                # sinon (cf. models.Action.nom_affiche).
+                "action_nom": action.nom_affiche,
                 # Monnaie de cotation du titre : cours, prix de revient et
                 # valorisation en sont tous libellés.
                 "monnaie_id": action.monnaie_id,
@@ -111,6 +113,23 @@ def quantite_detenue(db: Session, compte_id: int, action_id: int) -> float:
     etat = _replier_mouvements(get_mouvements(db, compte_id))
     ligne = etat.get(action_id)
     return ligne["quantite"] if ligne else 0.0
+
+
+def quantite_detenue_totale(db: Session, action_id: int) -> float:
+    """Ce qu'il reste de ce titre, TOUS COMPTES CONFONDUS.
+
+    Compté compte par compte plutôt qu'en sommant les mouvements d'un bloc : le
+    prix de revient se déroule par portefeuille (cf. _replier_mouvements), et
+    mélanger deux comptes dans le même repli donnerait une quantité juste par
+    accident et un coût faux. La quantité, elle, se totalise ensuite sans
+    difficulté.
+
+    Sert à savoir si un titre peut être ARCHIVÉ : ranger un titre qu'on détient
+    encore le ferait disparaître des menus tout en le laissant peser dans la
+    valorisation, ce qui n'a aucun sens."""
+    return sum(
+        quantite_detenue(db, compte.id, action_id) for compte in get_comptes_placement(db)
+    )
 
 
 def valorisation_compte(db: Session, compte_id: int) -> dict:

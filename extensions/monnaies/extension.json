@@ -1,15 +1,17 @@
 {
   "nom": "Monnaies",
-  "description": "Ajoute, renomme et supprime des monnaies, pour suivre des comptes et des budgets dans plusieurs devises. L'application ne connaît aucun taux de change et n'additionne jamais deux monnaies : chaque solde reste suivi séparément. Sans cette extension, l'application est mono-devise.",
+  "description": "Ajoute, renomme et supprime des monnaies, pour suivre des comptes et des budgets dans plusieurs devises. Chaque solde reste suivi séparément ; une case du dashboard permet, si tu as saisi un taux, de tout ramener à une seule monnaie le temps d'un coup d'œil. Sans cette extension, l'application est mono-devise.",
   "version": "1.0.0",
   "backend": "backend.py",
   "frontend": {
     "html": "page.html",
+    "css": ["monnaies.css"],
     "js": ["monnaies.js"]
   },
   "navigation": {
     "type": "parametres",
     "sous_section": "monnaies",
-    "libelle": "Monnaies"
+    "libelle": "Monnaies",
+    "groupe": "gauche"
   }
 }

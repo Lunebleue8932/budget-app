@@ -4,8 +4,13 @@
      = "monnaies") : le noyau cherche exactement
      `sous-section-parametres-monnaies` pour y brancher le bouton d'onglet. -->
 <div id="sous-section-parametres-monnaies" class="sous-section">
-        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info="L'app ne connaît aucun taux de change et n'additionne jamais deux monnaies : chaque solde, chaque KPI et chaque budget est suivi séparément par monnaie. Le symbole est ce qui s'affiche à côté des montants.">i</i></h3>
+        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info="Chaque monnaie garde ses propres soldes et budgets, jamais mélangés aux autres. Le symbole est ce qui s'affiche à côté des montants.">i</i></h3>
         <div id="monnaies-liste" class="import-mappings"></div>
+
+        <!-- Le titre et le formulaire sont DÉPLACÉS sous la ligne éditée au
+             double-clic (cf. ouvrirFormulaireEnLigne, dans le noyau) ; ils
+             reviennent ici, en bloc de création, dès l'édition terminée. -->
+        <h3 id="form-monnaie-titre">Ajouter une monnaie</h3>
         <form id="form-monnaie">
           <input type="hidden" id="monnaie-id" />
           <label>Nom
@@ -17,6 +22,29 @@
           <div class="actions">
             <button type="submit" class="primary">Enregistrer</button>
             <button type="button" id="monnaie-annuler" style="display:none">Annuler</button>
+          </div>
+        </form>
+
+        <!-- LES TAUX, ET CE QU'ILS PERMETTENT. Ce bloc est le seul endroit de
+             l'application d'où une conversion peut naître : partout ailleurs,
+             les montants restent suivis monnaie par monnaie. L'extension
+             « Lecture de cours », quand elle tourne, vient greffer ici de quoi
+             relire un taux en ligne — les taux qu'elle rapporte sont les mêmes
+             et servent à la même chose. -->
+        <h3 id="monnaies-taux-titre">Taux de change<i class="info-bulle" tabindex="0" data-info="Ce que vaut une monnaie dans une autre. Sert uniquement à la case « tout convertir » du dashboard : rien n'est converti sans ce geste, et aucun montant enregistré n'est modifié. Tu n'as besoin que d'un sens par couple, l'inverse se calcule.">i</i></h3>
+        <div id="monnaies-taux-liste" class="import-mappings"></div>
+        <form id="form-monnaie-taux">
+          <label for="monnaie-taux-source">1 unité de
+            <select id="monnaie-taux-source"></select>
+          </label>
+          <label for="monnaie-taux-cible">vaut, en
+            <select id="monnaie-taux-cible"></select>
+          </label>
+          <label for="monnaie-taux-valeur">ce nombre d'unités
+            <input type="number" step="any" min="0" id="monnaie-taux-valeur" placeholder="ex. 1,08" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Enregistrer le taux</button>
           </div>
         </form>
 </div>

@@ -1,187 +1,86 @@
 # Budget App
 
-Gestionnaire de budget personnel, **entièrement hors ligne**. Suivi des comptes
-et des opérations, import de relevés bancaires (Excel/CSV), budgets par
-catégorie, virements internes, prêts et remboursements, amortissement des
-grosses dépenses. Le multi-devises s'ajoute par une extension, et ne mélange
-jamais deux monnaies.
+Salut salut, si tu lis ceci c'est sûrement que je t'ai eu avec une accroche digne des plus grands politiciens. 
 
-## Tes données ne quittent jamais ta machine
+Petit disclaimer avant de rentrer dans le vif du sujet : cette app a été entièrement conçue à l'aide de Claude Code. Si c'est quelque chose qui te dérange ou à laquelle tu t'opposes, je préfère que tu le saches.
 
-L'application n'émet **aucune requête vers Internet**. Ce n'est pas une
-promesse mais une propriété du code, vérifiable :
+Cette app est née suite au besoin que j'avais de suivre mes dépenses. Pendant à peu près un an, Excel s'est avéré suffisant. Mais force est de constater qu'avec plusieurs comptes, devises et d'autres raisons, l'outil n'est pas le plus pratique. 
+De là, j'ai re-employé ce que j'avais appris, ce qu'il me manquait et ce que je voulais pouvoir faire en gérant mes dépenses dans un but : avoir une app qui regroupe tout.
 
-- aucune bibliothèque HTTP cliente n'est utilisée ;
-- le serveur local écoute sur `127.0.0.1` (boucle locale), sur un port choisi
-  par le système — il est inaccessible depuis le réseau, même local ;
-- l'interface ne charge **aucune ressource externe** : ni police, ni script,
-  ni image distante. Tout est servi depuis le dossier de l'application ;
-- les cours de bourse (extension Placements) sont **saisis à la main** :
-  aucune API financière n'est consultée ;
-- aucune télémétrie, aucune statistique d'usage, aucune mise à jour automatique.
+Je vais être concis pour que t'en profites pour voir par toi-même plutôt qu'imaginer en lisant. 
 
-Ta base de données est un simple fichier `.db` que tu peux copier, sauvegarder
-ou supprimer toi-même.
+L'app vient en deux morceaux : 
+- L'app principale, qui inclut les fonctionnalités de bases 
+- Des extensions, téléchargeables depuis le Git et activables / désactivables à volonté 
 
-### Une seule extension communique avec le web, et c'est toi qui l'allumes
+Pourquoi des extensions si elles sont gratuites ? Deux raisons à ça : 
 
-Tout ce qui précède décrit l'application et les extensions livrées avec elle.
-**Une** extension fait exception, et elle seule : **Lecture de cours**, qui va
-lire un cours sur la page de cotation dont **tu** as collé le lien — le cours
-d'un titre, ou le taux d'un couple de monnaies.
+1 - Rendre l'app personnalisable, minimaliste et pratique à utiliser. Tu peux te servir dans les extensions, les tester, les désactiver / désinstaller et ne garder que celles qui te servent pour une app plus épurée.
+2 - L'une des extensions inclut une connexion à l'internet (lecture de cours, plus de détails plus dans le ReadMe des extensions)
 
-Une seule, et c'est délibéré : lire un cours de bourse et lire un taux de change
-sont le même geste, et les séparer en deux extensions aurait doublé la surface à
-auditer pour la même fonction. **Un seul dossier à retirer, et plus une ligne de
-code capable d'ouvrir une connexion sortante n'existe sur ta machine.**
+Et ça nous amène à l'un des points les plus importants : l'app tourne 100% hors-ligne et ne communique jamais avec internet. C'est une mesure à la fois de facilité (plus simple que de créer un agrégateur de comptes) et de sûreté : tes informations bancaires sont dans une base de données sur ta machine, et elles y restent.
 
-Deux gestes explicites sont nécessaires pour qu'elle communique, et l'un ne
-suffit pas sans l'autre :
+Pour l'instant, je t'invite à commencer sans activer d'extensions pour pas ajouter trop de complexité : une fois installée, crée un ou des comptes, une propriété de l'app et nullement un compte nécessitant une identification (répliquant ton/tes comptes en banque) et des catégories d'opérations.
 
-1. **la déposer** dans `extensions/` — tant qu'elle n'y est pas, le code
-   capable d'ouvrir une connexion sortante n'existe pas sur ta machine ;
-2. **cocher sa case**, au lancement ou dans Paramètres → Extensions. Une
-   extension trouvée arrive **éteinte** : ni son écran ni son code ne sont
-   chargés, et fermer la fenêtre qui l'annonce ne l'allume pas.
+Ensuite, jette un oeil aux différents types d'opérations : 
+- Opération classique, ras
+- Dépense remboursable : comme précédemment, mais tu peux indiquer un montant à rembourser. Ca va affecter ton montant prévisionnel et ça s'affichera comme en attente de remboursement.
+- Remboursements : pour les remboursements que tu recevras. Tu peux lier une opération de ce type à une ou plusiers opérations remboursables, en spécifiant les montants affectés à chaque dépense remboursable. Deux choses à avoir en tête : 
+	- Le montant remboursé ne peut pas dépasser le montant à rembourser (encore moins le montant total de l'opération remboursable)
+	- La somme des montants affectés à différentes opérations remboursable ne dépasse pas le montant du remboursement
+Rien de nouveau sous le soleil, juste des précautions logiques/
 
-Ce qu'elle fait, une fois allumée :
+Te voilà prêt. Maintenant, tu peux créer tes premières opérations ou les importer via le menu d'import. 
 
-- elle ne va que sur les pages que tu as désignées, une par une ;
-- elle envoie une requête `GET` et rien d'autre : **aucune donnée de ton budget**
-  ne quitte la machine — ni tes comptes, ni tes montants, ni le nombre de titres
-  que tu détiens. Le site visité apprend qu'une adresse IP a demandé une page
-  publique, ce qu'il apprend de n'importe quel visiteur ;
-- tout son code réseau tient dans un seul fichier lisible d'un trait,
-  [`extensions/lecture-de-cours/source_cours.py`](extensions/lecture-de-cours/source_cours.py) ;
-- la décocher arrête tout ; supprimer son dossier remet l'application dans
-  l'état décrit plus haut, sans exception ;
-- **elle ne convertit rien.** Un taux de change lu ici s'affiche sur l'écran des
-  monnaies et n'entre dans aucun calcul : les soldes, les budgets et les KPI
-  restent suivis monnaie par monnaie, comme ils l'ont toujours été.
+La première importation est toujours plus longue car il faut régler les différents paramètres de ton preset d'importation. Note que l'app ne permet que l'importation au format excel ou csv :)
 
-## Installation
+Au début l'app peut paraître longue à prendre en main. 
+Mais quand quelques paramètres sont configurés, tu peux suivre l'évolution de tes comptes de manière flexible - en arrangeant tes dépenses comme tu le souhaites - en quelques clics.
 
-Télécharge l'archive de ton système depuis la page
-[Releases](../../releases), décompresse-la **dans un dossier où tu peux
-écrire** (pas `Program Files` : la base est créée à côté de l'exécutable), puis
-lance `Budget App`.
+Des tooltips sont disséminés un peu partout pour quelques explications plus approfondies "i". Enfin, si vous avez des questions ou des propositions, n'hésitez pas à m'en faire part :)
 
-| Système | À savoir |
+Merci d'avoir lu jusque ici ! 
+
+PS : si vous avez des suggestions pour le nom, je suis preneur.
+
+
+## Installer l'application
+
+Va chercher l'archive correspondant à ton système sur la page
+[Releases](../../releases), décompresse-la quelque part où tu as le droit
+d'écrire (évite `Program Files` : l'application y crée sa base de données à
+côté d'elle-même), et lance `Budget App`.
+
+Comme elle n'est pas signée numériquement — cette signature coûte de l'argent
+chez Microsoft comme chez Apple — ton système va probablement s'inquiéter au
+premier lancement. Rien d'anormal :
+
+| Système | Ce qu'il faut faire |
 |---|---|
-| **Windows** | Rien à installer. Windows peut afficher un avertissement SmartScreen à la première ouverture (application non signée) : *Informations complémentaires* → *Exécuter quand même*. |
-| **macOS** | Application non signée : au premier lancement, **clic droit sur l'app → Ouvrir**, puis confirme. Un double-clic simple serait refusé par Gatekeeper. |
-| **Linux** | Nécessite WebKit2GTK — voir [desktop/platforms/linux/README.md](desktop/platforms/linux/README.md). |
+| **Windows** | SmartScreen affiche un écran bleu : clique *Informations complémentaires*, puis *Exécuter quand même*. |
+| **macOS** | Clic droit sur l'app → *Ouvrir*, et confirme. Un double-clic classique sera refusé la première fois. Détails : [macOS](desktop/platforms/macos/README.md). |
+| **Linux** | Un paquet à installer avant de lancer l'app (le moteur d'affichage) : [Linux](desktop/platforms/linux/README.md). |
 
-## Construire depuis les sources
 
-Prérequis : Python 3.14.
+L'application arrive sans aucune extension activée — le dossier `extensions/`
+est vide au départ, et c'est volontaire.
 
-```bash
-python -m venv backend/.venv
-backend/.venv/bin/pip install -r backend/requirements.txt pyinstaller pywebview
-python desktop/generer_icone.py
-```
-
-Puis, selon le système :
-
-```bash
-sh desktop/construire.sh
-```
-
-```powershell
-powershell -ExecutionPolicy Bypass -File desktop\platforms\windows\construire.ps1
-```
-
-Le résultat est dans `desktop/dist/`.
-
-## Organisation du dépôt
-
-```
-backend/     API FastAPI, modèles, migrations Alembic — générique
-frontend/    interface (HTML/CSS/JS sans dépendance) — générique
-desktop/     lanceur et empaquetage
-  platforms/   ce qui diffère par système (windows/, linux/, macos/)
-extensions/  fonctionnalités optionnelles livrées avec l'application
-```
-
-**Le code est générique par défaut.** Seuls trois comportements diffèrent d'un
-système à l'autre (identité de la fenêtre, boîte d'erreur native, format
-d'icône et empaquetage) : ils vivent dans `desktop/platforms/<système>/`, et
-partout ailleurs le même code tourne sur les trois. Voir
-[desktop/platforms/](desktop/platforms/) pour le détail.
-
-## Extensions
-
-Une extension est un dossier autonome qui ajoute une fonctionnalité.
-
-**L'application est livrée sans aucune extension.** Le dossier `extensions/`
-arrive vide, à côté de l'exécutable : c'est à toi d'y déposer celles que tu
-veux. Rien n'est installé dans ton dos, et une extension que tu n'as pas
-téléchargée n'existe pas — ni son écran, ni ses routes.
-
-### Installer une extension
-
-1. télécharge son archive `extension-*.zip` depuis les
-   [Releases](../../releases) ;
-2. décompresse-la dans le dossier `extensions/`, à côté de l'exécutable ;
-3. relance l'application : elle te dit l'avoir trouvée, et te propose de
-   l'allumer.
+Pour en ajouter une : télécharge son archive sur la page
+[Releases](../../releases), décompresse-la dans `extensions/`, puis relance
+l'application. Elle la détecte toute seule et te propose de l'activer.
 
 ```
 Budget App/
-  Budget App.exe        (ou « Budget App » sous Linux, « Budget App.app » sous macOS)
+  Budget App.exe
   data/                 ta base de données
   extensions/
     placements/         <- le dossier décompressé
 ```
 
-**Une extension trouvée arrive éteinte.** Rien d'elle n'est chargé — ni son
-écran, ni son code — tant que tu n'as pas coché sa case : dans la fenêtre du
-lancement, ou dans **Paramètres → Extensions**. Fermer cette fenêtre, d'un
-bouton, d'un Échap ou d'un clic à côté, ne l'allume pas.
 
-Cocher et décocher se fait ensuite à tout moment, sans redémarrer.
-**Désactiver ne supprime jamais de données** : l'écran disparaît, les routes se
-ferment, et tout réapparaît intact à la réactivation.
+Toute erreur au démarrage est écrite en détail dans `erreur.log`, à côté de la
+base de données. Regarde d'abord là, et joins ce fichier si tu me signales le
+problème.
 
-### Disponibles
-
-- **Monnaies** — ajoute, renomme et supprime des monnaies, pour suivre des
-  comptes et des budgets dans plusieurs devises. Sans elle, l'application est
-  mono-devise : l'interface se replie d'elle-même sur la monnaie posée à
-  l'installation. L'éteindre ne replie rien de force — une base qui porte déjà
-  plusieurs monnaies continue de les afficher toutes.
-- **Règles de catégorisation** — classe automatiquement les lignes d'un relevé
-  d'après leurs libellés (type d'opération, catégorie, compte en face d'un
-  virement), en vue liste ordonnée ou en vue galerie par dossiers. Sans elle,
-  les lignes importées arrivent à classer à la main ; les règles déjà écrites
-  restent en base et reprennent leur travail dès qu'on la rallume.
-- **Placements financiers** — portefeuille de titres, achats/ventes,
-  valorisation au dernier cours saisi. Entièrement hors ligne.
-- **Lecture de cours** — se greffe sur les deux précédentes, et exige au moins
-  l'une d'elles : un lien de page de cotation par titre suivi (écran Placements)
-  et par couple de monnaies (écran Monnaies), un bouton de mise à jour sur
-  chacun des deux écrans, et une relecture au lancement de l'application.
-  **Seule extension qui accède à Internet**, voir plus haut. Elle s'éteint
-  d'elle-même si on décoche les deux extensions dont elle dépend, et revient
-  intacte dès qu'on en rallume une.
-
-Pour en écrire une, voir [extensions/README.md](extensions/README.md).
-
-## Développement
-
-```bash
-backend/.venv/bin/python -m uvicorn app.main:app --reload --app-dir backend
-```
-
-Puis <http://127.0.0.1:8000>.
-
-Tests :
-
-```bash
-cd backend && .venv/bin/python -m pytest
-```
-
-## Licence
-
-Usage personnel. Pas de licence d'exploitation accordée.
+Point légal, par mesure de sécurité. L'app est sous license pour un usage personnel. Aucune licence d'exploitation n'est accordée. 
+Tu peux jeter un oeil au fichier license pour des clarifications.

@@ -1,81 +1,61 @@
-# Budget App — application de bureau
+# L'application de bureau
 
-Budget App en application de bureau, sur les **trois systèmes** : une icône à
-double-cliquer, une fenêtre native. Ni terminal, ni navigateur.
+Une icône à double-cliquer et une fenêtre native, sur les trois systèmes. Ni
+terminal, ni navigateur à ouvrir.
 
-C'est exactement la même application qu'en développement : le serveur FastAPI
-tourne simplement à l'intérieur du processus, sur un port local attribué par
-le système, et s'affiche dans une fenêtre native (WebView2 sous Windows,
-WebKit sous macOS, WebKit2GTK sous Linux).
+C'est la même application qu'en développement : le serveur tourne à l'intérieur
+du processus, sur un port local attribué par le système, et s'affiche dans une
+fenêtre native — WebView2 sous Windows, WebKit sous macOS, WebKit2GTK sous Linux.
 
-Ce fichier décrit le lanceur **générique**. Ce qui diffère d'un système à
-l'autre est isolé dans [platforms/](platforms/README.md), qui documente aussi
-comment construire pour chacun.
+Ce qui diffère d'un système à l'autre est isolé dans
+[platforms/](platforms/README.md).
 
 ## Construire
 
 Depuis le dossier `budget-app` :
 
 ```powershell
-backend\.venv\Scripts\python.exe -m pip install -r backend\requirements-desktop.txt
-backend\.venv\Scripts\python.exe -m PyInstaller desktop\budget_app.spec --noconfirm --distpath desktop\dist --workpath desktop\build
+backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt -r backend\requirements-desktop.txt
+powershell -ExecutionPolicy Bypass -File desktop\platforms\windows\construire.ps1
 ```
 
-Résultat : `desktop\dist\Budget App\`, dossier autonome contenant
-`Budget App.exe`.
-
-## Installer les raccourcis
-
-```powershell
-powershell -ExecutionPolicy Bypass -File desktop\installer_raccourci.ps1
+```bash
+backend/.venv/bin/pip install -r backend/requirements.txt -r backend/requirements-desktop.txt
+sh desktop/construire.sh
 ```
 
-Crée les raccourcis sur le Bureau et dans le menu Démarrer. À relancer si le
-dossier de l'application est déplacé.
+Le résultat est un dossier autonome dans `desktop/dist/Budget App/`.
+
+Sous Windows, `desktop\platforms\windows\installer_raccourci.ps1` pose les
+raccourcis sur le Bureau et dans le menu Démarrer. À relancer si le dossier de
+l'application est déplacé. L'équivalent Linux est
+`desktop/platforms/linux/installer.sh`.
 
 ## Où vivent les données
 
-La base de **test** est créée automatiquement à côté de l'exécutable, dans
-`desktop\dist\Budget App\data\budget_dev.db`. Elle survit aux
-reconstructions de l'application (elle est en dehors du bundle).
+La base est créée au premier lancement dans `Budget App/data/`, **à côté** de
+l'exécutable et non dedans : elle survit ainsi aux reconstructions. Le dossier de
+l'application doit donc être accessible en écriture — évite `C:\Program Files`.
 
-> Le dossier de l'application doit donc rester à un emplacement accessible en
-> écriture — évite `C:\Program Files`.
+Les migrations de schéma sont appliquées automatiquement au lancement, sur cette
+base-là.
 
-La base **personnelle** n'est jamais créée, copiée ni recherchée
-automatiquement : elle se rejoint uniquement en saisissant son chemin dans le
-panneau « Base de données » du Dashboard, et ce chemin n'est pas mémorisé
-d'une session à l'autre (retour à la base de test au redémarrage).
-
-Les migrations sont appliquées au lancement sur la base de test uniquement.
-Une base personnelle créée avec une version antérieure doit être migrée à part :
-
-```powershell
-cd backend
-$env:BUDGET_DB_PATH = "C:\chemin\vers\ma_base.db"
-.\.venv\Scripts\python.exe -m alembic upgrade head
-```
-
-## Lancer sans construire (développement)
+## Lancer sans construire
 
 ```powershell
 backend\.venv\Scripts\python.exe desktop\app_desktop.py
 ```
 
-Même fenêtre, mais sur la base de dev habituelle
-(`backend\data\dev\budget_dev.db`).
+Même fenêtre, mais sur la base de développement (`backend/data/dev/`).
 
 ## Changer l'icône
 
-Remplace le fichier de la plateforme visée — `platforms/windows/icone.ico`,
-`platforms/linux/icone.png` ou `platforms/macos/icone.icns` — puis reconstruis.
+Remplace le fichier de la plateforme visée (`platforms/windows/icone.ico`,
+`platforms/linux/icone.png`, `platforms/macos/icone.icns`) puis reconstruis.
+`generer_icone.py` écrit les trois formats d'un même dessin — le relancer les
+écrase tous les trois.
 
-L'icône fournie est produite par `generer_icone.py`, qui écrit **les trois
-formats d'un seul dessin** (bibliothèque standard uniquement, aucune
-dépendance) : relancer ce script écrase les trois.
+## Une erreur au démarrage
 
-## En cas de problème au démarrage
-
-Comme l'application n'a pas de console, une erreur au démarrage s'affiche dans
-une boîte de dialogue et le détail complet est écrit dans `erreur.log`, à côté
-de la base de données.
+L'application n'a pas de console : une erreur au démarrage ouvre une boîte de
+dialogue, et le détail complet part dans `erreur.log`, à côté de la base.

@@ -1,0 +1,547 @@
+<!-- Écran de l'extension « Import de placements », injecté dans <main> par
+     frontend/extensions.js. C'est un <section> comme ceux du noyau :
+     switchSection le montre et le masque exactement de la même façon.
+
+     CALQUÉ SUR L'ÉCRAN D'IMPORT DU NOYAU, dans le même ordre et avec les mêmes
+     classes (import-dropzone, config-avancee, import-mapping-row,
+     apercu-fichier-defilement…) : c'est la même feuille de style qui les
+     habille, et surtout le même geste à apprendre. Un utilisateur qui sait
+     importer un relevé bancaire sait importer un relevé de courtier.
+
+     Les identifiants sont préfixés `impl-` pour ne jamais entrer en collision
+     avec ceux de la page Import du noyau, qui vivent dans le MÊME document. -->
+    <section id="section-import-placements">
+      <!-- PAS D'ONGLET DANS LA BARRE DU HAUT (cf. `bouton: false` dans le
+           manifeste) : cet écran est une ACTION de la page Placements, pas une
+           destination à côté d'elle. On y entre par le bouton posé en haut à
+           droite de cette page-là, et on en ressort par celui-ci. -->
+      <div class="impl-entete">
+        <h2>Import de placements</h2>
+        <button type="button" id="btn-impl-retour">&larr; Retour aux placements</button>
+      </div>
+      <p class="hint">
+        Lit une liste d'opérations exportée depuis un compte de placements : achats, ventes et
+        transferts d'espèces. Rien n'entre en base avant que tu ne valides l'aperçu.
+      </p>
+
+      <p class="hint" id="impl-aucun-compte" style="display:none">
+        Aucun compte de placements financiers. Crée-en un depuis la page Comptes en choisissant
+        le type "Placements financiers", puis reviens ici.
+      </p>
+
+      <div id="impl-contenu" style="display:none">
+        <!-- DEUX VOLETS, ET LE SECOND N'EXISTE QUE D'ICI.
+
+             L'écran d'import de placements n'a pas d'onglet dans la barre du
+             haut (cf. `bouton: false` dans le manifeste) : on y entre par le
+             bouton posé sur la page Placements. Les règles qui disent ce qu'une
+             ligne décrit s'écrivent donc ici, derrière ce même bouton — elles ne
+             servent qu'à cet import, et un onglet de plus dans les réglages
+             généraux les aurait éloignées de la seule chose qu'elles règlent.
+
+             CES ONGLETS-LÀ SONT LOCAUX : ni `data-sous-section` ni
+             `.sous-section`, qui appartiennent au gestionnaire délégué de
+             app.js et supposent des volets enfants directs d'une <section>.
+             C'est import-placements.js qui les bascule, comme regles.js le fait
+             pour ses deux vues. -->
+        <div class="sous-onglets" id="impl-onglets">
+          <button type="button" class="active" data-onglet-impl="import">Import</button>
+          <button type="button" data-onglet-impl="regles">Règles</button>
+        </div>
+
+        <div id="impl-volet-import">
+          <!-- ----- Presets ----- -->
+          <h3>Format du fichier<i class="info-bulle" tabindex="0" data-info="Un preset par courtier : il retient quelles colonnes lire et le vocabulaire de ses relevés. Ceux des relevés bancaires sont ailleurs, sur la page Import, et ne se mélangent pas à ceux-ci.">i</i></h3>
+          <div class="preset-chips sous-onglets" id="impl-preset-chips"></div>
+          <div class="actions">
+            <button type="button" class="primary" id="btn-impl-preset-creer">+ Nouveau preset</button>
+            <button type="button" id="btn-impl-preset-renommer">Renommer</button>
+            <button type="button" class="danger" id="btn-impl-preset-supprimer">Supprimer ce preset</button>
+          </div>
+
+          <!-- Le compte du preset s'impose à TOUTES les lignes du fichier : un
+               relevé de compte-titres ne nomme jamais le compte qu'il décrit. -->
+          <div class="import-compte-defaut-bloc">
+            <label for="impl-preset-compte">
+              Compte de placements de ce preset<i class="info-bulle" tabindex="0" data-info="Un relevé de courtier ne dit nulle part quel compte il décrit. Le lier une fois ici évite de le choisir à chaque import. Laisse vide si plusieurs de tes comptes ont le même format.">i</i>
+            </label>
+            <select id="impl-preset-compte">
+              <option value="">— aucun (choisir à chaque fichier) —</option>
+            </select>
+          </div>
+
+          <!-- ----- Configuration du fichier ----- -->
+          <details class="config-avancee config-fichier" id="impl-config-fichier">
+            <summary>
+              Configuration du fichier
+              <span class="config-avancee-resume" id="impl-config-fichier-resume"></span>
+            </summary>
+            <!-- CE QUE LE FICHIER RACONTE, avant même quelle colonne porte
+                 quoi : les colonnes proposées en dépendent entièrement. Une
+                 liste de mouvements lit une date et un type d'opération ; une
+                 photographie lit une quantité détenue et un prix de revient, et
+                 n'a ni l'une ni l'autre. -->
+            <div class="import-reglage-champ">
+              <label for="impl-mode-lecture">Le fichier contient<i class="info-bulle" tabindex="0" data-info="Une LISTE D'OPÉRATIONS rejoue l'histoire du compte : une ligne par achat, vente ou transfert, chacune datée. Une PHOTOGRAPHIE dit juste ce que tu détiens aujourd'hui : une ligne par titre, sa quantité, son prix de revient. Prends la photographie si tu arrives avec un portefeuille déjà constitué et que tu n'as pas envie de réimporter dix ans de mouvements.">i</i></label>
+              <select id="impl-mode-lecture">
+                <option value="operations">Une liste d'opérations (achats, ventes, transferts)</option>
+                <option value="position">Une photographie du compte (titres détenus)</option>
+              </select>
+            </div>
+
+            <p class="hint">
+              Quelle colonne du fichier porte quoi. Les numéros sont ceux d'Excel : la première
+              colonne est la n°1. L'œil barré ne lit pas la colonne.
+            </p>
+            <div id="impl-config-colonnes"></div>
+            <label class="import-option-ligne">
+              <input type="checkbox" id="impl-ignorer-premiere-ligne" />
+              La première ligne du fichier est un en-tête (à ne pas importer)
+            </label>
+
+            <div id="impl-vocabulaire-section">
+            <h4>Mots-clés de la colonne « Type d'opération »<i class="info-bulle" tabindex="0" data-info="Les mots que TON courtier emploie pour dire achat, vente ou mouvement d'espèces. Ajoute-les un par un avec « + » ou la touche Entrée. Majuscules, accents et espaces sont ignorés. Une liste vide retombe sur les mots par défaut. Un libellé qu'aucune des trois listes ne reconnaît met la ligne en erreur plutôt que d'être deviné : confondre un achat et une vente retournerait une position entière.">i</i></h4>
+
+            <!-- UN SEUL CONTENEUR pour les trois listes : c'est lui que l'éditeur
+               de mots-clés du noyau prend comme GROUPE (cf. app.js), et le
+               groupe est l'unité d'unicité — un même mot-clé ne peut pas
+               désigner à la fois un achat et une vente.
+
+               UN MOT-CLÉ À LA FOIS, jamais une liste séparée par des virgules.
+                 Le séparateur imposait au libellé du courtier de n'en contenir
+                 aucun — or « ACHAT, COMPTANT » est un libellé parfaitement
+                 ordinaire, qui se coupait silencieusement en deux mots-clés dont
+                 ni l'un ni l'autre ne correspondait plus à rien.
+
+                 La saisie et la suppression sont séparées à dessein : le champ et
+                 son « + » AJOUTENT, le menu « Actualisation » à droite RETIRE.
+                 Les jetons entre les deux ne sont là que pour être lus. -->
+            <div id="impl-vocabulaire-bloc">
+              <div class="import-vocabulaire-champ" data-vocabulaire="achat">
+                <div class="import-vocabulaire-entete">
+                  <label for="impl-type-achat">Achat</label>
+                  <div class="import-vocabulaire-saisie">
+                    <input type="text" id="impl-type-achat" placeholder="Achat" spellcheck="false"
+                           aria-describedby="impl-type-achat-defaut" />
+                    <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                            title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+                  </div>
+                  <details class="import-vocabulaire-actualisation">
+                    <summary>Actualisation</summary>
+                    <div class="import-vocabulaire-menu" data-role="menu"></div>
+                  </details>
+                </div>
+                <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+                <p class="hint">Par défaut : <span id="impl-type-achat-defaut"></span></p>
+              </div>
+              <div class="import-vocabulaire-champ" data-vocabulaire="vente">
+                <div class="import-vocabulaire-entete">
+                  <label for="impl-type-vente">Vente</label>
+                  <div class="import-vocabulaire-saisie">
+                    <input type="text" id="impl-type-vente" placeholder="Vente" spellcheck="false"
+                           aria-describedby="impl-type-vente-defaut" />
+                    <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                            title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+                  </div>
+                  <details class="import-vocabulaire-actualisation">
+                    <summary>Actualisation</summary>
+                    <div class="import-vocabulaire-menu" data-role="menu"></div>
+                  </details>
+                </div>
+                <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+                <p class="hint">Par défaut : <span id="impl-type-vente-defaut"></span></p>
+              </div>
+              <div class="import-vocabulaire-champ" data-vocabulaire="transfert">
+                <div class="import-vocabulaire-entete">
+                  <label for="impl-type-transfert">Transfert interne (espèces)</label>
+                  <div class="import-vocabulaire-saisie">
+                    <input type="text" id="impl-type-transfert" placeholder="Versement" spellcheck="false"
+                           aria-describedby="impl-type-transfert-defaut" />
+                    <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                            title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+                  </div>
+                  <details class="import-vocabulaire-actualisation">
+                    <summary>Actualisation</summary>
+                    <div class="import-vocabulaire-menu" data-role="menu"></div>
+                  </details>
+                </div>
+                <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+                <p class="hint">Par défaut : <span id="impl-type-transfert-defaut"></span></p>
+              </div>
+            </div>
+
+            </div>
+
+            <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info="Comment l'app reconnaît une ligne déjà importée sous ce preset. Deux façons d'y arriver : partir de toutes les colonnes et retirer celles qui bougent d'un export à l'autre (numéro d'ordre, solde courant), ou ne désigner que celles qui identifient une ligne — souvent date + valeur + montant + quantité.">i</i></h4>
+            <div class="import-reglage-champ">
+              <label for="impl-mode-comparaison">Comparer</label>
+              <select id="impl-mode-comparaison">
+                <option value="exclusion">toutes les colonnes, sauf celles-ci</option>
+                <option value="selection">uniquement ces colonnes</option>
+              </select>
+            </div>
+            <div id="impl-config-colonnes-comparaison"></div>
+            <div class="actions">
+              <button type="button" id="btn-impl-comparaison-ajouter">+ Ajouter une colonne</button>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="primary" id="btn-impl-config-enregistrer">Enregistrer la configuration</button>
+            </div>
+          </details>
+
+          <!-- ----- Compte pour ce fichier (preset non lié) ----- -->
+          <div id="impl-compte-defaut-bloc" class="import-compte-defaut-bloc" style="display:none">
+            <label for="impl-compte-defaut">Compte de placements pour ce fichier</label>
+            <select id="impl-compte-defaut"><option value="">— choisir —</option></select>
+          </div>
+
+          <!-- ----- La date de la photographie ----- -->
+          <!-- Un relevé de position ne dit pas QUAND il a été pris : cette date
+               est la seule chose que le fichier ne peut pas donner, et elle
+               datera toutes les lignes créées. Aujourd'hui par défaut. -->
+          <div id="impl-date-position-bloc" class="import-compte-defaut-bloc" style="display:none">
+            <label for="impl-date-position">
+              Date de la photographie<i class="info-bulle" tabindex="0" data-info="Le jour où ta photographie a été prise. C'est à partir de cette date que l'app considère que tu détiens ces titres. Aujourd'hui par défaut.">i</i>
+            </label>
+            <input type="date" id="impl-date-position" />
+          </div>
+
+          <!-- ----- Le fichier ----- -->
+          <div id="impl-dropzone" class="import-dropzone full-width">
+            <input type="file" id="impl-fichier" accept=".xlsx,.csv" hidden />
+            <button type="button" class="primary import-dropzone-bouton" id="btn-impl-choisir-fichier">
+              Sélectionner un fichier Excel ou CSV
+            </button>
+            <p class="hint">ou glisse-dépose ton fichier ici — l'analyse démarre automatiquement</p>
+            <p class="import-dropzone-nom" id="impl-fichier-nom"></p>
+          </div>
+
+          <details class="config-avancee" id="impl-reglages-lecture">
+            <summary>
+              Réglages de lecture (délimiteur, séparateur décimal)
+              <span class="config-avancee-resume" id="impl-reglages-lecture-resume"></span>
+            </summary>
+            <p class="import-avertissement" id="impl-reglages-lecture-alerte" style="display:none"></p>
+            <p class="hint">
+              À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants
+              illisibles) : la détection automatique du délimiteur et de la virgule décimale
+              française ne convient pas à tous les formats d'export.
+            </p>
+            <div class="import-reglage-champ">
+              <label for="impl-reglage-delimiteur">Délimiteur de colonnes</label>
+              <select id="impl-reglage-delimiteur">
+                <option value="">Détecter automatiquement</option>
+                <option value="PV">Point-virgule ( ; )</option>
+                <option value="VIRGULE">Virgule ( , )</option>
+                <option value="TAB">Tabulation</option>
+              </select>
+            </div>
+            <div class="import-reglage-champ">
+              <label for="impl-reglage-separateur-decimal">Séparateur décimal</label>
+              <select id="impl-reglage-separateur-decimal">
+                <option value="">Détecter automatiquement (virgule française)</option>
+                <option value=",">Virgule — 1234,56</option>
+                <option value=".">Point — 1234.56</option>
+              </select>
+            </div>
+            <div class="actions">
+              <button type="button" class="primary" id="btn-impl-relire">
+                Relire le fichier avec ces réglages
+              </button>
+            </div>
+          </details>
+
+          <div id="impl-avertissements" class="import-avertissements" style="display:none"></div>
+
+          <div id="impl-apercu-fichier-bloc" style="display:none">
+            <h3>Le fichier tel qu'il est</h3>
+            <p class="hint">
+              Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les
+              colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données,
+              corrige les numéros de colonne dans "Configuration du fichier" au-dessus.
+            </p>
+            <div class="apercu-fichier-defilement">
+              <table id="impl-apercu-fichier-table"></table>
+            </div>
+            <p class="hint" id="impl-apercu-fichier-info"></p>
+          </div>
+
+          <div id="impl-resultat" style="display:none"></div>
+
+          <!-- Les titres que la confirmation créera : relus d'un coup d'œil
+               avant de valider, plutôt que découverts après coup. -->
+          <div id="impl-titres-a-creer-bloc" style="display:none">
+            <h3>Titres qui seront créés<i class="info-bulle" tabindex="0" data-info="L'app ne connaît pas encore ces valeurs : elle les créera à l'import. Si l'une d'elles existe déjà chez toi sous un autre nom, choisis-la à la main sur sa ligne plutôt que de laisser créer un doublon.">i</i></h3>
+            <div id="impl-titres-a-creer" class="import-mappings"></div>
+          </div>
+
+          <!-- ----- L'aperçu ----- -->
+          <div id="impl-apercu-bloc" style="display:none">
+            <h3>Aperçu — <span id="impl-apercu-nombre"></span> ligne(s)</h3>
+            <p class="hint">
+              Les doublons détectés sont pré-sélectionnés. Tant qu'il reste des lignes sélectionnées,
+              l'import est bloqué : supprime-les, ou décoche-les pour les importer quand même.
+            </p>
+            <div class="actions barre-selection">
+              <button type="button" id="btn-impl-tout-selectionner">Tout sélectionner</button>
+              <button type="button" class="danger" id="btn-impl-supprimer-selection" disabled>
+                Supprimer la sélection (<span id="impl-selection-nombre">0</span>)
+              </button>
+            </div>
+
+            <!-- UNE PHOTOGRAPHIE N'A QU'UNE SECTION : toutes ses lignes
+                 décrivent la même chose, un titre détenu. Les colonnes ne sont
+                 pas celles d'un achat — on y lit ce que le relevé dit (quantité,
+                 prix de revient, valorisation) et ce que l'app en déduit (le
+                 cours), pas un montant et une date qui n'y figurent pas. -->
+            <div id="impl-apercu-section-position" style="display:none">
+              <h4>Titres détenus — <span id="impl-apercu-nombre-position"></span> ligne(s)</h4>
+              <p class="hint">
+                Chaque ligne devient un <strong>achat</strong> daté du jour de la photographie :
+                c'est ainsi qu'une détention existe dans l'application, et c'est ce qui rend justes
+                d'un coup la valorisation et les plus-values. Les espèces du compte baissent donc du
+                total investi — pense à poser son solde initial en conséquence.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Valeur</th><th>ISIN</th>
+                    <th>Quantité</th><th>Prix de revient</th><th>Montant investi</th>
+                    <th>Cours déduit</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-position"></tbody>
+              </table>
+            </div>
+
+            <div id="impl-apercu-section-achat">
+              <h4>Achats — <span id="impl-apercu-nombre-achat"></span> ligne(s)</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Valeur</th><th>ISIN</th>
+                    <th>Quantité</th><th>Montant</th><th>Prix unitaire</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-achat"></tbody>
+              </table>
+            </div>
+
+            <div id="impl-apercu-section-vente">
+              <h4>Ventes — <span id="impl-apercu-nombre-vente"></span> ligne(s)</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Valeur</th><th>ISIN</th>
+                    <th>Quantité</th><th>Montant</th><th>Prix unitaire</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-vente"></tbody>
+              </table>
+            </div>
+
+            <div id="impl-apercu-section-transfert">
+              <h4>Transferts internes — <span id="impl-apercu-nombre-transfert"></span> ligne(s)</h4>
+              <p class="hint">
+                Le relevé ne décrit qu'un côté du mouvement : indique le compte en face. Le sens
+                (émetteur ou récepteur) est déduit du signe du montant.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Montant</th>
+                    <th>Compte émetteur</th><th>Compte récepteur</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-transfert"></tbody>
+              </table>
+            </div>
+
+              <!-- LES DOUBLONS ONT LEUR PROPRE SECTION, comme dans l'aperçu d'un
+                 relevé bancaire : une ligne déjà importée n'est pas une ligne de
+                 plus à relire dans sa section de type, c'est une décision à
+                 prendre. Elle est suivie, juste en dessous et en lecture seule,
+                 de la ligne déjà en base qu'elle double — la comparaison se fait
+                 alors d'un regard, sans avoir à retenir des chiffres.
+
+                 COLONNES GÉNÉRIQUES (type, valeur, montant) et non celles d'un
+                 achat ou d'un transfert : la section les mélange, et une mise en
+                 page par ligne les rendrait illisibles côte à côte. -->
+            <div id="impl-apercu-section-doublon">
+              <h4>Doublons détectés — <span id="impl-apercu-nombre-doublon"></span> ligne(s)</h4>
+              <p class="hint">
+                Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à
+                une ligne déjà importée sous ce preset est affichée ici, suivie en lecture seule de
+                celle qu'elle double. Elles sont pré-sélectionnées pour être supprimées d'un clic —
+                décoche-en une pour l'importer quand même (deux achats identiques le même jour sont
+                un doublon détecté légitime).
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Type</th><th>Valeur</th>
+                    <th>Quantité</th><th>Montant</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-doublon"></tbody>
+              </table>
+            </div>
+
+            <!-- Le rapprochement des transferts avec les virements DÉJÀ en base :
+                 le même mouvement figure sur le relevé du courtier et sur celui du
+                 compte courant. Même forme que « Ressemblances » côté bancaire —
+                 la ligne, puis ce à quoi elle ressemble juste en dessous. -->
+            <div id="impl-apercu-section-ressemblance" style="display:none">
+              <h4>Transferts déjà connus — <span id="impl-apercu-nombre-ressemblance"></span> ligne(s)</h4>
+              <p class="hint">
+                Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes
+                comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé
+                du courtier <strong>et</strong> sur celui du compte courant. Seuls les virements qui
+                touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné :
+                toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie
+                de ce à quoi elle ressemble.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Montant</th>
+                    <th>Compte émetteur</th><th>Compte récepteur</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-ressemblance"></tbody>
+              </table>
+            </div>
+
+          <div id="impl-apercu-section-erreur">
+              <h4>Lignes en erreur — <span id="impl-apercu-nombre-erreur"></span> ligne(s)</h4>
+              <p class="hint">
+                Ces lignes ne seront pas importées telles quelles. Corrige-les avec "Modifier", ou
+                supprime-les de l'aperçu — le reste du fichier s'importe normalement.
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ligne</th><th>Date</th><th>Type</th><th>Valeur</th>
+                    <th>Montant</th><th>Problème</th><th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-erreur"></tbody>
+              </table>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="primary" id="btn-impl-confirmer">
+                Confirmer l'import
+              </button>
+              <span class="hint" id="impl-blocage"></span>
+            </div>
+          </div>
+
+          <!-- ----- Historique ----- -->
+          <h3>Imports précédents</h3>
+          <div id="impl-historique" class="import-mappings"></div>
+        </div>
+
+        <!-- ----- Règles ----- -->
+        <div id="impl-volet-regles" style="display:none">
+          <h3>Règles de type d'opération<i class="info-bulle" tabindex="0" data-info="Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : un achat, une vente, un transfert d'espèces. Elles valent pour tous tes courtiers, et ce que tu écris ici passe avant les mots-clés du preset.">i</i></h3>
+          <p class="hint">
+            Les mots-clés de la « Configuration du fichier » comparent un libellé <strong>entier</strong> :
+            « Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase —
+            « ACHAT COMPTANT ETF MSCI WORLD », avec le nom du titre dedans — aucune liste de mots-clés
+            ne peut la reconnaître, parce qu'il n'y a pas deux fois le même libellé dans le fichier.
+            Une règle, elle, sait dire « <em>contient</em> ACHAT ».
+          </p>
+          <p class="hint">
+            Elles sont évaluées <strong>de haut en bas</strong> et s'arrêtent à la première qui
+            correspond : contrairement aux règles bancaires, une règle de placement ne décide que
+            d'une chose, il n'y a donc rien à compléter en dessous. Place les cas particuliers
+            au-dessus des cas généraux.
+          </p>
+          <p class="hint">
+            Une ligne qu'aucune règle ne reconnaît retombe sur les <strong>mots-clés du preset</strong>.
+            Sans aucune règle, l'import se comporte donc exactement comme avant.
+          </p>
+
+          <div class="actions">
+            <button type="button" class="primary" id="btn-impl-regle-nouvelle">+ Nouvelle règle</button>
+          </div>
+
+          <div id="impl-regles-liste"></div>
+
+          <div id="impl-regle-editeur" class="regle-editeur" style="display:none">
+            <h3 id="impl-regle-editeur-titre">Nouvelle règle</h3>
+            <input type="hidden" id="impl-regle-id" />
+
+            <div class="regle-champ-ligne">
+              <label for="impl-regle-nom">Nom de la règle</label>
+              <input type="text" id="impl-regle-nom" placeholder="ex. Achats au comptant" />
+            </div>
+
+            <h4>Conditions</h4>
+            <p class="hint">
+              Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se
+              combinent selon leur propre connecteur. Deux niveaux suffisent à écrire
+              « (A ou B) et C ».
+            </p>
+            <div class="regle-champ-ligne">
+              <label for="impl-regle-connecteur">Combiner les groupes avec</label>
+              <select id="impl-regle-connecteur">
+                <option value="ET">ET (tous les groupes)</option>
+                <option value="OU">OU (au moins un groupe)</option>
+              </select>
+            </div>
+            <div id="impl-regle-groupes"></div>
+            <div class="actions">
+              <button type="button" id="btn-impl-regle-ajouter-groupe">+ Ajouter un groupe</button>
+            </div>
+
+            <h4>Action</h4>
+            <p class="hint">
+              Une ligne de compte-titres n'a pas de catégorie : un mouvement de titres n'en porte
+              pas. Un transfert, lui, touche deux comptes et le relevé n'en nomme qu'un — la règle
+              peut donc désigner le second.
+            </p>
+            <div class="regle-champ-ligne">
+              <label for="impl-regle-type">La ligne décrit</label>
+              <select id="impl-regle-type">
+                <option value="achat">Un achat de titres</option>
+                <option value="vente">Une vente de titres</option>
+                <option value="transfert">Un transfert interne (espèces)</option>
+              </select>
+            </div>
+            <!-- Un transfert décrit DEUX comptes, et le relevé du courtier n'en
+                 nomme qu'un. Sans ce second compte, chaque ligne reconnue par la
+                 règle doit être reprise à la main dans l'aperçu avant de pouvoir
+                 être importée. -->
+            <div class="regle-champ-ligne" id="impl-regle-compte-bloc" style="display:none">
+              <label for="impl-regle-compte">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="L'autre compte : celui d'où vient l'argent versé, ou celui où va l'argent retiré. Pas besoin de préciser le sens, il se déduit du signe du montant. Sans lui, tu devras compléter la ligne à la main dans l'aperçu.">i</i></label>
+              <select id="impl-regle-compte"><option value="">— à renseigner à l'import —</option></select>
+            </div>
+            <!-- L'étiquette du titre. Symétrique du compte en face : celui-ci
+                 n'a de sens que sur un transfert, celle-là partout sauf sur un
+                 transfert — un mouvement d'espèces ne désigne aucun titre. -->
+            <div class="regle-champ-ligne" id="impl-regle-type-titre-bloc">
+              <label for="impl-regle-type-titre">Et type le titre en<i class="info-bulle" tabindex="0" data-info="Pose une étiquette sur le titre que la ligne désigne — ETF, obligation, action. Uniquement sur les titres que l'import crée : un titre que tu as déjà typé garde le tien. Purement descriptif, ça ne change aucun montant.">i</i></label>
+              <select id="impl-regle-type-titre"><option value="">— aucun —</option></select>
+            </div>
+            <label class="import-option-ligne">
+              <input type="checkbox" id="impl-regle-actif" checked />
+              Règle active
+            </label>
+
+            <div class="actions">
+              <button type="button" class="primary" id="btn-impl-regle-enregistrer">Enregistrer</button>
+              <button type="button" id="btn-impl-regle-annuler">Annuler</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>

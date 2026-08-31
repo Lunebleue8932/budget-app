@@ -83,7 +83,7 @@ illisible » ou « montant illisible ». C'est le signal que le frontend guette
 pour proposer ces deux réglages à la main, comme le ferait l'import CSV
 d'Excel. Ni l'un ni l'autre n'est mémorisé sur le preset : ce sont des
 réglages DE CET ESSAI, pas du format de la banque (cf. _lire_lignes_csv,
-_parser_montant).
+parser_montant).
 
 COLONNE « SENS » (facultative). Tout ce qui précède suppose un relevé qui
 SIGNE ses montants : négatif = sortie, positif = entrée. Beaucoup n'en font
@@ -234,7 +234,7 @@ _CHAMP_LIBELLES_STATUT = {
 _FORMATS_DATE = ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d.%m.%Y")
 
 
-def _parser_date(valeur) -> Optional[date_type]:
+def parser_date(valeur) -> Optional[date_type]:
     """La date d'une ligne, HEURE RETIRÉE.
 
     Une opération bancaire est datée du jour, jamais de la minute : l'app ne
@@ -269,7 +269,7 @@ def _parser_date(valeur) -> Optional[date_type]:
         return None
 
 
-def _parser_montant(valeur, separateur_decimal: Optional[str] = None) -> Optional[float]:
+def parser_montant(valeur, separateur_decimal: Optional[str] = None) -> Optional[float]:
     """Lecture tolérante d'une cellule en nombre, ou None si ce n'en est pas un.
 
     Un CSV français écrit « 1 234,50 » (avec un espace insécable une fois sur
@@ -445,10 +445,10 @@ def _montant_scinde(
     donc sans montant et le dit — elle reste corrigeable à la main dans
     l'aperçu, comme une date illisible.
 
-    `separateur_decimal` : cf. _parser_montant, à qui c'est simplement
+    `separateur_decimal` : cf. parser_montant, à qui c'est simplement
     transmis."""
-    debit = _parser_montant(debit_brut, separateur_decimal) or None
-    credit = _parser_montant(credit_brut, separateur_decimal) or None
+    debit = parser_montant(debit_brut, separateur_decimal) or None
+    credit = parser_montant(credit_brut, separateur_decimal) or None
     if debit is not None and credit is not None:
         return MontantScinde(None, None, ERREUR_MONTANT_AMBIGU)
     if debit is not None:
@@ -553,11 +553,11 @@ def _lire_toutes_les_lignes(contenu: bytes, delimiteur: Optional[str] = None) ->
     )
 
 
-def _brute_vide(ligne_num: int) -> dict:
+def _brute_vide(ligne_num: int, propriete_vers_cle: dict) -> dict:
     """Le squelette d'une ligne brute : toutes les propriétés lisibles à None.
-    Construit depuis _PROPRIETE_VERS_CLE pour qu'ajouter une propriété à
+    Construit depuis la table de correspondance pour qu'ajouter une propriété à
     l'import n'oblige jamais à penser à l'ajouter ici aussi."""
-    brute = {cle: None for cle in _PROPRIETE_VERS_CLE.values()}
+    brute = {cle: None for cle in propriete_vers_cle.values()}
     brute["ligne"] = ligne_num
     return brute
 
@@ -567,6 +567,7 @@ def lire_lignes_brutes(
     colonnes_config: list[dict],
     ignorer_premiere_ligne: bool = False,
     delimiteur: Optional[str] = None,
+    propriete_vers_cle: Optional[dict] = None,
 ) -> list[dict]:
     """`ignorer_premiere_ligne` (ImportPreset) : tous les formats de relevé ne
     commencent pas par un en-tête. Le supposer systématiquement faisait perdre
@@ -574,7 +575,18 @@ def lire_lignes_brutes(
     dans tous les cas le numéro de ligne physique dans le fichier (1-based),
     donc directement comparable à ce que l'utilisateur voit dans Excel.
 
-    `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis."""
+    `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis.
+
+    `propriete_vers_cle` : quelles propriétés lire, et sous quel nom les ranger.
+    None = celles d'un relevé bancaire (_PROPRIETE_VERS_CLE). L'extension
+    « import-placements » passe la sienne — un relevé de compte-titres n'a
+    aucune propriété en commun avec un relevé bancaire hormis la date et le
+    montant. TOUT LE RESTE DE CETTE FONCTION LUI EST COMMUN, y compris
+    `donnees_completes`, qui ne dépend d'aucune configuration : c'est ce qui
+    permet aux deux domaines de partager le même détecteur de doublons."""
+    propriete_vers_cle = (
+        _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
+    )
     toutes = _lire_toutes_les_lignes(contenu, delimiteur)
     depart = 2 if ignorer_premiere_ligne else 1
     lignes = []
@@ -585,9 +597,9 @@ def lire_lignes_brutes(
         def col(index):
             return row[index - 1] if len(row) >= index else None
 
-        brute = _brute_vide(i)
+        brute = _brute_vide(i, propriete_vers_cle)
         for c in colonnes_config:
-            cle = _PROPRIETE_VERS_CLE.get(c["propriete"])
+            cle = propriete_vers_cle.get(c["propriete"])
             if cle is not None:
                 brute[cle] = col(c["index"])
 
@@ -660,7 +672,7 @@ def _normaliser_valeur(valeur):
     if nombre is not None:
         return nombre
 
-    jour = _parser_date(valeur)
+    jour = parser_date(valeur)
     if jour is not None:
         return jour
     return valeur
@@ -694,7 +706,7 @@ def normaliser_pour_comparaison(valeur):
       fichier entier qui cesse d'être reconnu, pas une ligne isolée.
 
       D'où la comparaison AU JOUR : une opération bancaire n'est datée que du
-      jour dans toute l'app (models.Operation.date, _parser_date, l'aperçu),
+      jour dans toute l'app (models.Operation.date, parser_date, l'aperçu),
       comparer plus finement que ce qu'on garde rejetterait des lignes que
       l'import traiterait de toute façon comme identiques. Un relevé horodaté
       voit donc son heure ignorée ici, comme partout ailleurs.
@@ -786,25 +798,52 @@ def detecter_doublon(
 FENETRE_DOUBLON_VIREMENT_JOURS = 7
 
 
-def _virements_en_base(db, debut: date_type, fin: date_type) -> list[dict]:
-    """Les virements internes DÉJÀ importés dans la fenêtre demandée, réduits à
-    ce qui identifie une transaction : deux comptes, un montant, une monnaie.
+def _virements_en_base(
+    db, debut: date_type, fin: date_type, comptes: Optional[set[int]] = None
+) -> list[dict]:
+    """Les virements internes DÉJÀ enregistrés dans la fenêtre demandée, réduits
+    à ce qui identifie une transaction : deux comptes, un montant, une monnaie.
+
+    D'OÙ QU'ILS VIENNENT : importés d'un relevé bancaire, importés d'un relevé de
+    courtier, ou saisis à la main. Ce sont tous les mêmes `Operation` liées par
+    `virement_id`, et c'est bien le but — le même mouvement figure sur le relevé
+    du courtier ET sur celui du compte courant.
 
     Seuls les virements à double écriture sont retenus (deux jambes partageant
     un `virement_id`). Un virement importé sans son second compte n'en a qu'une :
     on ignore de quel compte l'argent vient ou va, et le rapprocher sur le seul
     compte connu signalerait comme doublon tout virement de même montant partant
-    du même compte vers n'importe où."""
-    lignes = (
-        db.query(models.Operation)
-        .filter(
-            models.Operation.virement_id.isnot(None),
-            models.Operation.sens.in_([Sens.transfert_sortant, Sens.transfert_entrant]),
-            models.Operation.date >= debut,
-            models.Operation.date <= fin,
-        )
-        .all()
+    du même compte vers n'importe où.
+
+    `comptes` RESTREINT LA RECHERCHE aux virements qui touchent l'un d'eux. Sans
+    lui, un relevé de courtier se compare à tous les virements de la base, et
+    deux mouvements de même montant faits la même semaine entre deux comptes
+    sans rapport se signalent l'un l'autre. Avec le compte du preset, on ne
+    regarde que ce qui a pu passer par le compte que le relevé décrit — ce qui
+    est la seule chose qu'il puisse décrire. Un preset sans compte lié n'a rien
+    à restreindre : on regarde alors tout, comme avant.
+    """
+    query = db.query(models.Operation).filter(
+        models.Operation.virement_id.isnot(None),
+        models.Operation.sens.in_([Sens.transfert_sortant, Sens.transfert_entrant]),
+        models.Operation.date >= debut,
+        models.Operation.date <= fin,
     )
+    if comptes:
+        # Le filtre porte sur le VIREMENT, pas sur la jambe : on garde les deux
+        # écritures de tout virement dont au moins une touche un compte visé,
+        # sans quoi la paire serait cassée et le virement écarté plus bas.
+        vises = {
+            identifiant
+            for (identifiant,) in query.with_entities(models.Operation.virement_id)
+            .filter(models.Operation.compte_id.in_(comptes))
+            .distinct()
+            .all()
+        }
+        if not vises:
+            return []
+        query = query.filter(models.Operation.virement_id.in_(vises))
+    lignes = query.all()
     par_virement: dict[str, dict] = {}
     for operation in lignes:
         paire = par_virement.setdefault(operation.virement_id, {})
@@ -845,6 +884,101 @@ def _montants_concordent(a: Optional[float], b: Optional[float]) -> bool:
     return abs(a - b) <= 0.005
 
 
+def _jambes(profil: dict) -> list[tuple[float, Optional[int]]]:
+    """Ce qu'une description de virement dit de ses jambes : (montant, monnaie),
+    pour celles qu'elle connaît — une seule le plus souvent.
+
+    Le montant et sa devise voyagent ENSEMBLE, et c'est le point : les comparer
+    séparément laissait rapprocher un montant lu sur une jambe avec une devise
+    lue sur l'autre."""
+    jambes = []
+    if profil.get("montant") is not None:
+        jambes.append((profil["montant"], profil.get("monnaie_id")))
+    if profil.get("montant_recu") is not None:
+        jambes.append((profil["montant_recu"], profil.get("monnaie_recue_id")))
+    return jambes
+
+
+def _jambes_compatibles(candidat: dict, autre: dict) -> bool:
+    """Les deux transactions portent-elles le même montant quelque part ?
+
+    MÊME RAISONNEMENT QUE POUR LES COMPTES, et le même angle mort réparé. Un
+    relevé ne décrit QU'UNE jambe : celui de l'émetteur ce qui part, celui du
+    récepteur ce qui arrive. L'aperçu range pourtant ce montant unique dans
+    `montant` — le champ de ce qui PART — quel que soit le bord d'où il vient
+    (cf. candidatsDoublonsVirements). Le comparer au seul `montant` du virement
+    en base revenait donc à confronter « ce qui est arrivé sur B » à « ce qui
+    est parti de A ».
+
+    Tant que les deux jambes sont égales, personne ne le voit. Elles cessent de
+    l'être dès qu'il y a des FRAIS ou un CHANGE : 1 000 € partent, 998,50 €
+    arrivent, et le relevé du récepteur ne se rapproche plus de rien. C'est la
+    dernière chose qui restait accrochée aux rôles.
+
+    LA RÈGLE : il suffit qu'UNE jambe de l'un concorde avec UNE jambe de
+    l'autre — même montant au centime près, et devises non contradictoires. Les
+    rôles ne sont réappariés que lorsque les deux descriptions connaissent leurs
+    DEUX jambes, seul cas où « ce qui part » et « ce qui arrive » sont sûrs des
+    deux côtés.
+    """
+    mes_jambes, ses_jambes = _jambes(candidat), _jambes(autre)
+    if not mes_jambes or not ses_jambes:
+        return False
+    if len(mes_jambes) == 2 and len(ses_jambes) == 2:
+        paires = zip(mes_jambes, ses_jambes)
+    else:
+        paires = ((mienne, sienne) for mienne in mes_jambes for sienne in ses_jambes)
+    return any(
+        _montants_concordent(mon_montant, son_montant)
+        # Une devise inconnue d'un côté ne contredit pas : elle ne départage
+        # rien. Deux devises connues et différentes, si.
+        and (ma_monnaie is None or sa_monnaie is None or ma_monnaie == sa_monnaie)
+        for (mon_montant, ma_monnaie), (son_montant, sa_monnaie) in paires
+    )
+
+
+def _comptes_compatibles(candidat: dict, autre: dict) -> bool:
+    """Les deux transactions peuvent-elles concerner les mêmes comptes ?
+
+    DEUX RÉGIMES, selon ce que l'on sait réellement.
+
+    1. LES DEUX COMPTES DU CANDIDAT SONT CONNUS (une règle a déduit celui d'en
+       face, ou l'utilisateur l'a saisi). On compare alors les PAIRES ORIENTÉES :
+       émetteur avec émetteur, récepteur avec récepteur. A→B et B→A restent deux
+       virements distincts — un aller et son retour ne sont pas un doublon, et
+       ici on a de quoi le dire.
+
+    2. UN DES DEUX MANQUE — le cas ordinaire, puisqu'un relevé ne nomme jamais
+       que son propre compte. Il suffit alors qu'un compte soit COMMUN aux deux
+       transactions, quel que soit son rôle de chaque côté.
+
+       POURQUOI LE RÔLE EST ABANDONNÉ LÀ, et pas seulement le second compte : le
+       rôle du compte connu se déduit du SIGNE du montant (cf.
+       candidatsDoublonsVirements), et ce signe est parfois absent — montant
+       corrigé à la main, colonnes débit/crédit vides ou toutes deux remplies,
+       relevé sans colonne de sens. La ligne est alors rangée d'un côté par
+       défaut, c'est-à-dire au hasard une fois sur deux, et un rapprochement
+       aligné sur les rôles ratait précisément les lignes qu'on cherche. Une
+       déduction incertaine ne doit pas servir à ÉCARTER : elle peut proposer,
+       elle ne peut pas trancher.
+
+    LA BORNE, dans les deux régimes : il faut au moins un compte en commun.
+    Sans elle, deux lignes ne connaissant chacune qu'un compte, et pas le même,
+    ne partageraient plus qu'un montant et une date — n'importe quels deux
+    virements de même montant dans la semaine se signaleraient l'un l'autre. Le
+    cas ne se pose pas face à un virement DÉJÀ EN BASE (il a forcément ses deux
+    comptes, cf. `_virements_en_base`) mais bien entre deux lignes d'un même
+    fichier.
+    """
+    mes_comptes = (candidat.get("compte_source_id"), candidat.get("compte_destination_id"))
+    ses_comptes = (autre.get("compte_source_id"), autre.get("compte_destination_id"))
+    if None not in mes_comptes and None not in ses_comptes:
+        return mes_comptes == ses_comptes
+    connus_miens = {compte for compte in mes_comptes if compte is not None}
+    connus_siens = {compte for compte in ses_comptes if compte is not None}
+    return bool(connus_miens & connus_siens)
+
+
 def _memes_virements(candidat: dict, autre: dict) -> Optional[int]:
     """L'écart en jours si les deux décrivent probablement la même transaction,
     None sinon.
@@ -857,45 +991,60 @@ def _memes_virements(candidat: dict, autre: dict) -> Optional[int]:
     « Virement reçu » de l'autre), et les comparer ne ferait que rater le
     doublon qu'on cherche.
 
-    POURQUOI UN SEUL MONTANT SUFFIT. La règle précédente exigeait que les deux
-    jambes concordent, en traitant un montant inconnu comme « ne contredit
-    pas ». Deux relevés d'un virement avec change ne décrivent presque jamais
-    les deux jambes de la même façon : celui de l'émetteur donne ce qui part,
-    celui du récepteur ce qui arrive, et un écart de commission d'un centime sur
-    la seconde suffisait à faire échouer le rapprochement. Or deux comptes
-    identiques, dans les mêmes devises, avec le même montant d'un côté et à
-    quelques jours d'écart, décrivent déjà presque sûrement la même opération.
-    La veille étant purement consultative — elle signale, elle ne bloque ni
-    n'écarte rien — le bon réglage penche du côté qui montre.
+    UN SEUL COMPTE CONNU SUFFIT, et son RÔLE ne compte pas — cf.
+    `_comptes_compatibles`, qui porte le détail.
 
-    Le sens compte : A→B et B→A sont deux virements distincts.
+    UNE JAMBE QUI CONCORDE SUFFIT, et son RÔLE ne compte pas non plus — cf.
+    `_jambes_compatibles`, qui porte le détail. Une devise inconnue ne contredit
+    rien : elle ne départage pas.
 
-    Les devises, elles, ne sont pas assouplies : deux montants égaux dans deux
-    monnaies différentes ne sont pas le même virement. Comme avant, une devise
-    inconnue d'un côté ne contredit pas — elle ne peut rien départager.
+    Le sens compte quand on le connaît des deux côtés : A→B et B→A sont deux
+    virements distincts. Il cesse de compter dès qu'une moitié manque, où il
+    n'est plus qu'une déduction (cf. `_comptes_compatibles`).
     """
-    if (
-        candidat["compte_source_id"] != autre["compte_source_id"]
-        or candidat["compte_destination_id"] != autre["compte_destination_id"]
-    ):
+    if not _comptes_compatibles(candidat, autre):
         return None
-    # UN montant qui correspond, pas les deux.
-    if not (
-        _montants_concordent(candidat.get("montant"), autre.get("montant"))
-        or _montants_concordent(candidat.get("montant_recu"), autre.get("montant_recu"))
-    ):
+    if not _jambes_compatibles(candidat, autre):
         return None
-    for cle_a, cle_b in (("monnaie_id", "monnaie_id"), ("monnaie_recue_id", "monnaie_recue_id")):
-        mon_a, mon_b = candidat.get(cle_a), autre.get(cle_b)
-        if mon_a is not None and mon_b is not None and mon_a != mon_b:
-            return None
     ecart = abs((candidat["date"] - autre["date"]).days)
     # « Espacées d'au plus 7 jours » : la borne est incluse.
     return ecart if ecart <= FENETRE_DOUBLON_VIREMENT_JOURS else None
 
 
+def _compte_en_face(candidat: dict, suspect: dict) -> Optional[str]:
+    """Le compte que la ligne importée ne nommait PAS, tel que le virement
+    auquel elle ressemble le donne. None quand elle nommait déjà les deux.
+
+    C'est la moitié utile du rapprochement partiel : dire « tu as peut-être
+    déjà cette ligne » sans dire d'où à où allait l'argent laisserait à vérifier
+    à la main ce que la comparaison vient précisément d'établir.
+
+    DÉSIGNÉ PAR ÉLIMINATION, et non par son rôle : c'est celui des deux comptes
+    du suspect que la ligne ne connaît pas encore. Le rôle ne peut pas servir de
+    repère — le rapprochement partiel ne s'en sert plus (cf.
+    `_comptes_compatibles`), et prendre « l'émetteur du suspect parce que la
+    ligne n'a pas d'émetteur » rendrait le compte que la ligne nomme déjà dès
+    que le sens a été déduit à l'envers."""
+    connus = {
+        compte
+        for compte in (candidat.get("compte_source_id"), candidat.get("compte_destination_id"))
+        if compte is not None
+    }
+    if len(connus) >= 2:
+        return None
+    for identifiant, nom in (
+        (suspect.get("compte_source_id"), suspect.get("compte_source")),
+        (suspect.get("compte_destination_id"), suspect.get("compte_destination")),
+    ):
+        if identifiant is not None and identifiant not in connus:
+            return nom
+    return None
+
+
 def detecter_doublons_virements(
-    db, candidats: list[schemas.VirementCandidatDoublon]
+    db,
+    candidats: list[schemas.VirementCandidatDoublon],
+    comptes: Optional[set[int]] = None,
 ) -> list[schemas.VirementDoublonRead]:
     """Pour chaque virement interne de l'aperçu, ceux qui lui ressemblent assez
     pour être la même transaction : déjà en base, ou plus haut dans le même
@@ -908,13 +1057,18 @@ def detecter_doublons_virements(
     Appelé à chaque changement de l'aperçu (chargement du fichier, reclassement
     d'une ligne en virement, saisie du compte en face) et non au moment de
     confirmer : la question se pose pendant qu'on compose l'import, pas une fois
-    qu'il est parti."""
+    qu'il est parti.
+
+    `comptes` restreint les virements DÉJÀ EN BASE auxquels on se compare (cf.
+    `_virements_en_base`). L'import bancaire ne s'en sert pas — un relevé peut y
+    nommer plusieurs comptes ; l'import de placements lui passe le compte de son
+    preset, qui est le seul que son relevé décrive."""
     if not candidats:
         return []
 
     marge = timedelta(days=FENETRE_DOUBLON_VIREMENT_JOURS)
     dates = [c.date for c in candidats]
-    existants = _virements_en_base(db, min(dates) - marge, max(dates) + marge)
+    existants = _virements_en_base(db, min(dates) - marge, max(dates) + marge, comptes)
 
     def profil(c) -> dict:
         return {
@@ -944,6 +1098,7 @@ def detecter_doublons_virements(
                     monnaie_symbole=existant["monnaie_symbole"],
                     compte_source=existant["compte_source"],
                     compte_destination=existant["compte_destination"],
+                    compte_en_face=_compte_en_face(profil(candidat), existant),
                     ecart_jours=ecart,
                 )
             )
@@ -966,6 +1121,22 @@ def detecter_doublons_virements(
                     compte_source=_nom_compte(db, precedent.compte_source_id),
                     compte_destination=_nom_compte(db, precedent.compte_destination_id),
                     ecart_jours=ecart,
+                    # Rien à déduire ici en général : deux lignes d'un même
+                    # fichier ignorent souvent le même compte d'en face.
+                    # Même forme que pour un virement en base (identifiants ET
+                    # noms) : `_compte_en_face` désigne par élimination, il lui
+                    # faut de quoi reconnaître ce que la ligne connaît déjà.
+                    compte_en_face=_compte_en_face(
+                        profil(candidat),
+                        {
+                            "compte_source_id": precedent.compte_source_id,
+                            "compte_source": _nom_compte(db, precedent.compte_source_id),
+                            "compte_destination_id": precedent.compte_destination_id,
+                            "compte_destination": _nom_compte(
+                                db, precedent.compte_destination_id
+                            ),
+                        },
+                    ),
                 )
             )
         if suspects:
@@ -975,7 +1146,12 @@ def detecter_doublons_virements(
     return resultats
 
 
-def _nom_compte(db, compte_id: int) -> str:
+def _nom_compte(db, compte_id: Optional[int]) -> str:
+    """Le nom d'un compte, ou « ? » — y compris quand la ligne ne le nomme pas
+    encore : depuis qu'un seul compte suffit à rapprocher, le second côté d'un
+    candidat est régulièrement inconnu."""
+    if compte_id is None:
+        return "?"
     compte = crud.get_compte(db, compte_id)
     return compte.nom if compte else "?"
 
@@ -1016,7 +1192,7 @@ class ContextePreset:
         self.preset = preset
         self.preset_id = preset.id
         # Réglage de LA REQUÊTE (pas du preset, jamais mémorisé) : cf.
-        # _parser_montant, dont c'est le seul consommateur via _resoudre_ligne.
+        # parser_montant, dont c'est le seul consommateur via _resoudre_ligne.
         self.separateur_decimal = separateur_decimal
         # Compte auquel le preset est lié, s'il l'est (cf. models.ImportPreset.
         # compte_id) : il court-circuite alors toute la résolution du compte.
@@ -1303,7 +1479,7 @@ def _resoudre_ligne(
 ) -> schemas.ImportLigne:
     preset_id = contexte.preset_id
 
-    date_op = _parser_date(brute["date_brute"])
+    date_op = parser_date(brute["date_brute"])
     nature = _texte(brute["nature"])
     nom_categorie_banque = _texte(brute["categorie_banque"])
     nom_compte_banque = _texte(brute["compte_banque"])
@@ -1318,7 +1494,7 @@ def _resoudre_ligne(
         )
     else:
         scinde = MontantScinde(
-            _parser_montant(brute["montant_brut"], contexte.separateur_decimal), None
+            parser_montant(brute["montant_brut"], contexte.separateur_decimal), None
         )
     montant_op = scinde.montant
     # Montant envoyé et frais (configuration avancée) : None pour tout preset
@@ -1328,9 +1504,9 @@ def _resoudre_ligne(
     # une colonne de frais vide vaut 0 sur bien des relevés. Sans cela, l'erreur
     # affichée parlerait de comptes identiques au lieu du montant envoyé manquant.
     montant_envoye = (
-        _parser_montant(brute["montant_envoye_brut"], contexte.separateur_decimal) or None
+        parser_montant(brute["montant_envoye_brut"], contexte.separateur_decimal) or None
     )
-    frais = _parser_montant(brute["frais_brut"], contexte.separateur_decimal) or None
+    frais = parser_montant(brute["frais_brut"], contexte.separateur_decimal) or None
 
     # Devises du relevé (configuration avancée) : None pour un preset qui ne les
     # lit pas, la ligne retombant alors sur la monnaie principale de son compte.
@@ -1577,7 +1753,7 @@ def _brute_depuis_donnees(donnees: dict[str, Any], preset, ligne_num: int) -> di
     LigneImportBrute.donnees déjà stockée (clé = index de colonne en string),
     en la faisant repasser par la configuration de colonnes ACTUELLE — comme
     pour une ligne fraîchement lue du fichier (cf. lire_lignes_brutes)."""
-    brute = _brute_vide(ligne_num)
+    brute = _brute_vide(ligne_num, _PROPRIETE_VERS_CLE)
     for c in preset.colonnes:
         cle = _PROPRIETE_VERS_CLE.get(c["propriete"])
         if cle is not None:
@@ -1601,7 +1777,7 @@ def _texte_cellule_apercu(valeur) -> str:
 
     Les dates y sont écrites JJ/MM/AAAA, heure retirée : c'est le format de
     l'app, et une opération n'est de toute façon datée que du jour (cf.
-    _parser_date). Sans cela, un xlsx horodaté affichait
+    parser_date). Sans cela, un xlsx horodaté affichait
     « 2026-07-14T09:32:00 » ici et « 14/07/2026 » deux blocs plus bas, pour la
     même ligne."""
     if isinstance(valeur, (datetime, date_type)):
@@ -1609,10 +1785,10 @@ def _texte_cellule_apercu(valeur) -> str:
     texte = _texte(valeur)
     # Un CSV donne du texte : la date y est déjà écrite JJ/MM/AAAA, il ne reste
     # qu'une heure éventuelle à retirer. Volontairement limité à ce cas — passer
-    # TOUTE cellule par _parser_date reformaterait au passage des références
+    # TOUTE cellule par parser_date reformaterait au passage des références
     # bancaires qui ressemblent à une date sans en être une (« 20260714… »).
     if " " in texte or "T" in texte:
-        date_lue = _parser_date(texte)
+        date_lue = parser_date(texte)
         if date_lue is not None:
             return date_lue.strftime("%d/%m/%Y")
     return texte
@@ -1623,6 +1799,7 @@ def construire_apercu_fichier(
     colonnes_config: list[dict],
     ignorer_premiere_ligne: bool,
     delimiteur: Optional[str] = None,
+    propriete_vers_cle: Optional[dict] = None,
 ) -> schemas.ApercuFichier:
     """Le fichier tel quel (lignes non vides), INTÉGRAL, avec la propriété
     affectée à chaque colonne — de quoi vérifier visuellement que la
@@ -1636,7 +1813,13 @@ def construire_apercu_fichier(
 
     `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis —
     l'aperçu du fichier brut doit refléter la même lecture que les lignes
-    résolues, sans quoi les deux se contrediraient à l'écran."""
+    résolues, sans quoi les deux se contrediraient à l'écran.
+
+    `propriete_vers_cle` : cf. lire_lignes_brutes. Même table des deux côtés,
+    sans quoi l'aperçu colorerait des colonnes que la lecture n'a pas lues."""
+    propriete_vers_cle = (
+        _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
+    )
     toutes = [
         ligne
         for ligne in _lire_toutes_les_lignes(contenu, delimiteur)
@@ -1650,7 +1833,7 @@ def construire_apercu_fichier(
     proprietes = {
         str(c["index"]): c["propriete"]
         for c in colonnes_config
-        if c.get("propriete") in _PROPRIETE_VERS_CLE
+        if c.get("propriete") in propriete_vers_cle
     }
     return schemas.ApercuFichier(
         lignes=lignes,
@@ -1756,7 +1939,7 @@ def previsualiser(
     n'arrive pas à lire le fichier (beaucoup de lignes en « date illisible »
     ou « montant illisible » dans l'aperçu qui en résulte) — jamais mémorisés
     sur le preset, ils ne valent que pour cet essai. Cf. _lire_lignes_csv et
-    _parser_montant, à qui ils sont simplement transmis."""
+    parser_montant, à qui ils sont simplement transmis."""
     preset = crud.get_import_preset(db, preset_id)
     lignes_existantes_brutes = crud.list_lignes_import_brutes(db, preset_id)
     colonnes_comparaison = preset.colonnes_comparaison

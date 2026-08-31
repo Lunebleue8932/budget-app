@@ -30,6 +30,15 @@
   flex-wrap: wrap;
 }
 
+/* REPLIÉ PAR DÉFAUT, et cette règle-ci n'est pas décorative : `display: flex`
+   ci-dessous écrase la règle `[hidden] { display: none }` du navigateur, qui
+   vient de sa feuille par défaut et perd donc contre n'importe quelle règle
+   d'auteur. Sans cette ligne, la flèche basculait bien l'attribut `hidden` — et
+   rien ne bougeait à l'écran. */
+.pw-lien[hidden] {
+  display: none;
+}
+
 .pw-lien {
   display: flex;
   align-items: center;
@@ -41,14 +50,16 @@
 }
 
 /* Le champ prend la place restante : une URL de cotation est longue, et un
-   lien tronqué ne se relit pas. */
+   lien tronqué ne se relit pas. TOUT LE RESTE VIENT DU NOYAU — fond, bordure,
+   corps de texte et italique sont ceux de n'importe quel champ d'URL de l'app
+   (cf. frontend/style.css). Ce champ portait une chasse fixe et un corps plus
+   petit, au motif qu'une URL se relit caractère par caractère ; il était du
+   coup le seul de son écran à ne ressembler à rien d'autre, pour un gain de
+   lisibilité que l'italique rend de toute façon inutile — c'est lui, désormais,
+   qui dit qu'on regarde une adresse. */
 .pw-lien .pw-url {
   flex: 1 1 auto;
   min-width: 12rem;
-  font-size: 0.82rem;
-  /* Une URL se relit caractère par caractère (un « l » n'est pas un « 1 ») :
-     la chasse fixe est ici une aide à la vérification, pas un style. */
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 
 /* Un bouton désactivé (titre sans lien) reste visible mais éteint : il montre
@@ -69,9 +80,32 @@
   white-space: nowrap;
 }
 
-/* L'aide « pages reconnues », au-dessus de la liste des titres suivis. */
+/* L'aide « pages reconnues », au-dessus de la liste des titres suivis. Repliée
+   derrière le pictogramme du noyau : c'est un texte qu'on lit une fois, en
+   collant son premier lien. */
 .pw-sources {
+  margin: 0.4rem 0 0.6rem;
+}
+
+.pw-sources-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* UNE SEULE COULEUR pour toute la liste, adresses comprises : le texte mêlait
+   auparavant du `<code>` et de l'`<em>` sur la même ligne, soit trois
+   traitements pour une seule information. */
+.pw-sources-liste {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
   line-height: 1.6;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.pw-sources-liste li + li {
+  margin-top: 0.35rem;
 }
 
 .pw-sources code {
@@ -102,24 +136,18 @@
   margin: 0;
 }
 
-/* La ligne d'ajout : deux menus, une flèche qui dit le SENS du taux, l'URL qui
-   prend la place restante. Le sens n'est pas décoratif — « 1 EUR = 1,08 USD »
-   et l'inverse sont deux couples distincts, avec deux pages distinctes. */
-.lc-taux-ajout {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+/* Le formulaire d'ajout est un <form> ORDINAIRE : il hérite en entier de la
+   grille, des étiquettes et des champs du noyau (cf. frontend/style.css), et
+   se lit donc exactement comme « Ajouter un titre » ou « Nouveau compte ».
+   Rien à styler ici — c'était tout l'objet du changement, la barre de champs
+   nus qu'il remplace ne ressemblait à aucun autre écran de l'app.
+
+   Le SENS du taux est porté par les deux étiquettes (« Monnaie de départ » /
+   « Monnaie d'arrivée ») là où une flèche le suggérait : il n'est pas
+   décoratif — « 1 EUR = 1,08 USD » et l'inverse sont deux couples distincts,
+   avec deux pages de cotation distinctes. */
+#lc-taux-ajout {
   margin-top: 0.9rem;
-}
-
-.lc-taux-ajout input[type="url"] {
-  flex: 1 1 18rem;
-  min-width: 12rem;
-}
-
-.lc-taux-fleche {
-  color: var(--text-muted);
 }
 
 .lc-taux-couple,
@@ -133,4 +161,40 @@
 .lc-taux-lien {
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+/* ---------- Le repli du lien de cotation ----------
+ *
+ * Le lien est un RÉGLAGE : on le colle une fois, on n'y revient plus. Le cours
+ * et l'archivage, eux, se lisent à chaque passage. Laisser l'URL dépliée en
+ * permanence donnait à chaque titre une seconde ligne, et quinze titres
+ * faisaient un mur d'adresses — d'où cette flèche, posée juste après le nom.
+ */
+.pw-bascule {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.15rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s, transform 0.15s;
+}
+
+.pw-bascule:hover {
+  color: var(--text-primary);
+}
+
+/* Dépliée, la flèche pointe vers le haut : elle referme ce qu'elle a ouvert. */
+.pw-bascule.ouvert {
+  transform: rotate(180deg);
+  color: var(--accent-light);
+}
+
+/* Un titre DÉJÀ SUIVI le dit sans qu'on ait à déplier : sinon rien à l'écran ne
+   distingue un cours relu ce matin en ligne d'un cours tapé il y a six mois. */
+.pw-bascule-suivi {
+  color: var(--accent-light);
 }

@@ -73,14 +73,17 @@ def libelle_couple(taux: models.TauxChange) -> str:
 
 
 def couples_suivis(db: Session) -> list[models.TauxChange]:
-    """Tous les couples enregistrés.
+    """Les couples que CETTE extension peut relire : ceux qui portent un lien.
 
-    Il n'y a pas de couple « non suivi » : une ligne n'existe que parce qu'on a
-    désigné une page d'où la lire (url_cours est NOT NULL). C'est la différence
-    avec les titres, dont le cours peut légitimement être saisi à la main.
+    Depuis la migration 0048, un couple peut exister sans page de cotation —
+    c'est un taux SAISI À LA MAIN, enregistré depuis l'écran des monnaies. Il
+    n'appartient pas à cette extension : le rafraîchir n'aurait aucun sens, et
+    le lister ici le ferait apparaître dans un tableau dont chaque bouton
+    échouerait sur lui.
     """
     return (
         db.query(models.TauxChange)
+        .filter(models.TauxChange.url_cours.isnot(None))
         .order_by(models.TauxChange.monnaie_source_id, models.TauxChange.monnaie_cible_id)
         .all()
     )

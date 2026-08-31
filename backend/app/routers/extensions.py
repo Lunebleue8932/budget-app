@@ -7,10 +7,12 @@ d'extension le sert quand même, en rendant une liste vide.
 """
 import mimetypes
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
 
 from .. import extensions as extensions_noyau
+from ..database import get_db
 from ..schemas import ExtensionEtatUpdate, ExtensionsAnnonceesUpdate
 
 router = APIRouter(prefix="/extensions", tags=["extensions"])
@@ -25,7 +27,7 @@ def _extension_ou_404(extension_id: str):
 
 
 @router.get("")
-def list_extensions():
+def list_extensions(db: Session = Depends(get_db)):
     """Les extensions présentes, avec leur état.
 
     REDÉCOUVERTES À CHAQUE APPEL plutôt que mises en cache au démarrage :
@@ -41,6 +43,14 @@ def list_extensions():
         extension.en_dict(
             extensions_noyau.est_active(extension_id),
             extensions_noyau.est_annoncee(extension_id),
+            # Question posée SEULEMENT pour ce qui tourne : demander à une
+            # extension éteinte ce qui empêche de l'éteindre n'a pas de sens,
+            # et sa garde interrogerait la base pour rien.
+            obstacle_desactivation=(
+                extensions_noyau.obstacle_a_la_desactivation(extension_id, db)
+                if extensions_noyau.est_active(extension_id)
+                else None
+            ),
         )
         for extension_id, extension in trouvees.items()
     ]
@@ -79,7 +89,9 @@ def get_erreurs():
 
 
 @router.put("/{extension_id}")
-def set_extension(extension_id: str, payload: ExtensionEtatUpdate):
+def set_extension(
+    extension_id: str, payload: ExtensionEtatUpdate, db: Session = Depends(get_db)
+):
     """Active ou désactive une extension.
 
     AUCUNE DONNÉE N'EST TOUCHÉE. Désactiver « Placements financiers » masque
@@ -103,6 +115,14 @@ def set_extension(extension_id: str, payload: ExtensionEtatUpdate):
                 f"installée et activée : {manquantes}."
             ),
         )
+    # ÉTEINDRE PEUT AUSSI SE REFUSER, et pour la même raison qu'allumer :
+    # la case donnerait l'illusion d'un geste sans conséquence là où il en a
+    # une. C'est l'EXTENSION qui répond — le noyau ne connaît toujours aucune
+    # d'elles en particulier (cf. extensions.obstacle_a_la_desactivation).
+    if not payload.actif:
+        obstacle = extensions_noyau.obstacle_a_la_desactivation(extension_id, db)
+        if obstacle:
+            raise HTTPException(status_code=409, detail=obstacle)
     extensions_noyau.definir_active(extension_id, payload.actif)
     # `est_active` peut différer de ce qui vient d'être écrit — jamais ici (on
     # vient de vérifier), mais le jour où une dépendance s'éteindra entre-temps,

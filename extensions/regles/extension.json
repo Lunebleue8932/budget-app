@@ -9,8 +9,8 @@
     "js": ["regles.js"]
   },
   "navigation": {
-    "type": "parametres",
-    "sous_section": "regles",
+    "type": "greffe",
+    "hote": "parametres-correspondances",
     "libelle": "Règles"
   }
 }

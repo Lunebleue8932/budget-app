@@ -27,6 +27,26 @@ extensions.json
 erreur.log
 backend/*.log
 
+# ---------- NOTES DE TRAVAIL ----------
+#
+# Deux documents écrits pour moi, pas pour les testeurs : la carte du dépôt que
+# je colle en début de conversation, et le mode d'emploi pour écrire une
+# extension. Ni l'un ni l'autre n'aide à ESSAYER l'application, et les publier
+# reviendrait à demander à un testeur de faire le tri.
+CONTEXTE_PROJET.md
+extensions/README.md
+
+# Copie du README avec les sections développeur (construction depuis les
+# sources, organisation du dépôt) : utile pour moi, pas pour un testeur qui
+# télécharge une release. Le README publié reste volontairement plus court.
+README-dev.md
+
+# Le calcul des intérêts ne colle pas encore aux relevés réels (conventions de
+# taux propres à chaque banque) : l'extension reste en local le temps d'une
+# implémentation plus complète. Les colonnes qu'elle lit, elles, sont dans le
+# noyau (migration 0044) et ne gênent personne — elles restent vides.
+extensions/taux-epargne/
+
 # ---------- VERSION DÉVELOPPEUR ----------
 #
 # Extensions réservées au développement : présentes sur cette machine, jamais

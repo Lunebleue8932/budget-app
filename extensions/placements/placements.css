@@ -1,0 +1,66 @@
+/* ---------- Extension « Placements financiers » ----------
+ *
+ * Tout est préfixé et tout descend d'un élément que cette extension a
+ * elle-même posé : une feuille d'extension est chargée pour TOUTE
+ * l'application, pas seulement pour son écran (cf. frontend/extensions.js), et
+ * un sélecteur trop large repeindrait des pages qui ne la concernent pas.
+ *
+ * Aucune couleur en dur : les variables du noyau portent déjà le thème, et une
+ * valeur recopiée ici cesserait de le suivre au premier ajustement.
+ */
+
+/* Un titre ARCHIVÉ, montré seulement quand on coche la case : rangé, pas
+   effacé. Il doit se distinguer d'un titre en service au premier coup d'œil —
+   les deux se côtoient dans la même liste, et son cours n'est plus relu. Éteint
+   plutôt que barré : un titre archivé n'est pas une erreur, et son historique
+   reste parfaitement valide. */
+#placements-actions-liste .titre-archive {
+  opacity: 0.6;
+}
+
+/* L'étiquette « archivé » elle-même est écrite par placements.js, pas par un
+   `content:` : elle doit passer par `t()` comme le reste de l'interface, et le
+   CSS est le seul endroit de l'app que la traduction ne traverse pas. */
+.titre-archive-etiquette {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+/* Un titre RENOMMÉ le dit : sans cela, rien ne distingue à l'écran un libellé
+   de courtier d'un nom qu'on a réécrit — et c'est le premier qu'il faut
+   retrouver quand un import ne rapproche pas ce qu'on attendait (il reste en
+   infobulle sur le nom). */
+.titre-renomme-etiquette {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+/* ---------- La ligne de titre, et les boutons que les extensions y posent ----
+ *
+ * CES RÈGLES SONT CHEZ L'HÔTE, et non recopiées chez chaque extension qui pose
+ * un bouton. Elles décrivent la mise en page de CETTE ligne, qui doit rester
+ * la même quel que soit le nombre de boutons — ce qu'aucune extension ne peut
+ * garantir seule, puisqu'elle ignore ce que les autres posent.
+ */
+.placements-titre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Une seule marge automatique, portée par le conteneur : elle pousse le groupe
+   entier au bord droit, et les boutons restent côte à côte quel que soit leur
+   nombre — y compris zéro, où ce span ne dessine rien. */
+.placements-titre-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.placements-titre-action {
+  font-size: 0.85rem;
+  font-weight: 500;
+}

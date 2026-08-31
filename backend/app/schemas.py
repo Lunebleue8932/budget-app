@@ -4,15 +4,19 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .constants import (
+    CHAMPS_REGLE_PLACEMENT_VALIDES,
     CHAMPS_REGLE_VALIDES,
     TypeOperation,
     ConnecteurRegle,
+    DomaineImport,
     Frequence,
     ModeComparaison,
+    ModeLecturePlacement,
     OperateurRegle,
     Sens,
     SensAction,
     Statut,
+    TypeOperationPlacement,
 )
 
 
@@ -35,10 +39,6 @@ class MonnaieRead(BaseModel):
     nom: str
     symbole: str
     ordre: int
-
-
-class TypeCompteCreate(BaseModel):
-    nom: str = Field(min_length=1)
 
 
 class TypeCompteRead(BaseModel):
@@ -89,66 +89,6 @@ class CompteRead(CompteBase):
     id: int
     type_nom: str
     monnaies: list[CompteMonnaieRead]
-
-
-# ---------- Diagnostic d'écart de solde (cf. services/ecarts.py) ----------
-
-
-class DiagnosticEcartInput(BaseModel):
-    """Ce que l'utilisateur fournit : le solde lu sur son relevé.
-
-    Rien n'est mémorisé (cf. services/ecarts, en-tête) : ce montant sert le
-    temps d'une réponse et n'est jamais écrit en base."""
-
-    monnaie_id: int
-    solde_banque: float
-    # Date d'arrêté du relevé. Sans elle, la comparaison porte sur toutes les
-    # opérations réelles connues — ce qui ne correspond à aucun relevé dès que
-    # des opérations réelles sont datées dans le futur.
-    date_fin: Optional[date_type] = None
-
-
-class OperationPisteRead(BaseModel):
-    """Une opération citée par une piste, réduite à de quoi la reconnaître dans
-    la page Opérations."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    date: date_type
-    nature: str
-    montant: float
-    sens: Sens
-    statut: Statut
-
-
-class PisteEcartRead(BaseModel):
-    # "operation_en_trop" | "signe_inverse" | "previsionnelle_a_pointer" |
-    # "combinaison" — le frontend s'en sert pour le libellé de la puce, jamais
-    # pour recalculer quoi que ce soit.
-    type: str
-    explication: str
-    operations: list[OperationPisteRead]
-
-
-class DiagnosticEcartRead(BaseModel):
-    compte_id: int
-    compte_nom: str
-    monnaie_id: int
-    monnaie_nom: str
-    monnaie_symbole: str
-    date_fin: Optional[date_type] = None
-    solde_app: float
-    solde_banque: float
-    # solde_banque − solde_app. Positif : la banque a plus que l'app.
-    ecart: float
-    nb_operations_analysees: int
-    pistes: list[PisteEcartRead]
-    # Trop de pistes d'une même famille pour toutes les rendre : la liste est
-    # coupée, et le dire évite qu'une liste courte passe pour exhaustive.
-    tronque: bool = False
-    # Recherche à trois opérations abandonnée (trop d'opérations sur ce compte).
-    triplets_abandonnes: bool = False
 
 
 class CategorieCreate(BaseModel):
@@ -564,6 +504,30 @@ class DashboardRead(BaseModel):
 # ---------- Placements financiers ----------
 
 
+class TypeTitreCreate(BaseModel):
+    """Un libellé, et c'est tout : « ETF », « Obligation », « SCPI ». Aucun
+    calcul de l'application ne le lit, il ne sert qu'à regrouper des titres pour
+    les regarder."""
+
+    nom: str = Field(min_length=1)
+
+
+class TypeTitreUpdate(BaseModel):
+    nom: Optional[str] = Field(default=None, min_length=1)
+    ordre: Optional[int] = None
+
+
+class TypeTitreRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nom: str
+    ordre: int = 0
+    # Combien de titres le portent, archivés compris. Sert à l'écran de gestion :
+    # supprimer un type qui typait douze titres ne se fait pas à l'aveugle.
+    nb_titres: int = 0
+
+
 class ActionCreate(BaseModel):
     nom: str = Field(min_length=1)
     # Dernier cours unitaire connu, saisi à la main : sert à valoriser le
@@ -572,22 +536,56 @@ class ActionCreate(BaseModel):
     # Monnaie de cotation : cours, prix payés et valorisation en découlent, et
     # le titre ne peut s'acheter que depuis un compte qui la porte.
     monnaie_id: int
+    # Code ISIN, facultatif : la seule dénomination stable d'un titre, et donc
+    # celle par laquelle l'import de placements le reconnaît d'un relevé à
+    # l'autre. Une chaîne vide vaut « aucun » (cf. models.Action.code_isin).
+    code_isin: Optional[str] = None
+    # Le type du titre (« ETF », « Obligation »…), facultatif : une étiquette
+    # pour regrouper, jamais une donnée de calcul (cf. models.TypeTitre).
+    type_titre_id: Optional[int] = None
 
 
 class ActionUpdate(BaseModel):
     nom: Optional[str] = Field(default=None, min_length=1)
+    # Ce qu'on lit à l'écran, quand le nom du courtier est illisible. Une chaîne
+    # VIDE rend son nom d'origine au titre — c'est le seul moyen de défaire un
+    # renommage, `None` voulant dire « ne change pas » comme partout ici.
+    nom_affichage: Optional[str] = None
     valeur: Optional[float] = Field(default=None, ge=0)
     monnaie_id: Optional[int] = None
+    # Comme les autres champs ici, None = « ne change pas ».
+    code_isin: Optional[str] = None
+    # Ranger le titre, ou le remettre en service. `None` ne touche à rien : on
+    # doit pouvoir corriger un cours sans se prononcer sur l'archivage.
+    archivee: Optional[bool] = None
+    # Le type du titre. `None` = « ne change pas », comme les autres champs ;
+    # c'est **0** qui DÉTYPE le titre — il faut bien un moyen de défaire un choix,
+    # et `None` est déjà pris.
+    type_titre_id: Optional[int] = None
 
 
 class ActionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    # Le nom du COURTIER, non modifiable : c'est lui qui identifie le titre d'un
+    # import à l'autre. L'écran affiche `nom_affiche`.
     nom: str
+    nom_affichage: Optional[str] = None
+    # Le renommage s'il existe, le nom du courtier sinon : les écrans lisent
+    # celui-ci et n'ont pas à refaire le choix chacun de leur côté.
+    nom_affiche: str
     valeur: float
     monnaie_id: int
     monnaie_symbole: str
+    # Un titre archivé n'est rendu que sur demande explicite (cf. list_actions) :
+    # le drapeau voyage quand même, pour que l'écran sache dire lequel il montre.
+    archivee: bool = False
+    code_isin: Optional[str] = None
+    # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
+    # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs.
+    type_titre_id: Optional[int] = None
+    type_titre_nom: Optional[str] = None
 
 
 class OperationActionCreate(BaseModel):
@@ -763,7 +761,10 @@ class TauxChangeRead(BaseModel):
     recroiser la table des monnaies ligne par ligne.
 
     `maj_le` à None se lit « jamais relu » : le lien est enregistré, aucune
-    lecture n'a encore abouti."""
+    lecture n'a encore abouti.
+
+    `url_cours` à None se lit « saisi à la main » : ce taux n'a pas de page d'où
+    le relire, et l'extension « Lecture de cours » l'ignore."""
 
     id: int
     monnaie_source_id: int
@@ -772,7 +773,7 @@ class TauxChangeRead(BaseModel):
     monnaie_cible_id: int
     monnaie_cible_nom: str
     monnaie_cible_symbole: str
-    url_cours: str
+    url_cours: Optional[str] = None
     taux: Optional[float] = None
     maj_le: Optional[datetime] = None
 
@@ -1047,15 +1048,20 @@ class ImportMappingOverrides(BaseModel):
 
 
 class VirementCandidatDoublon(BaseModel):
-    """Un virement interne tel que l'aperçu d'import le connaît À CET INSTANT :
-    ses deux comptes sont connus (celui du fichier et celui complété à la main),
-    sinon il n'y aurait rien à comparer.
+    """Un virement interne tel que l'aperçu d'import le connaît À CET INSTANT.
+
+    UN SEUL DES DEUX COMPTES SUFFIT, et c'est le cas ordinaire : un relevé ne
+    nomme que le sien. Le compte d'en face n'est renseigné que quand une règle
+    l'a déduit ou que l'utilisateur l'a saisi ; d'ici là il vaut None, et la
+    comparaison se fait sur le compte connu (cf. _memes_virements). Exiger les
+    deux revenait à réclamer ce travail de mémoire précisément dans le cas où
+    il ne sert à rien — celui d'une ligne qu'on va supprimer.
 
     Distinct de la détection de doublons ordinaire (cf. detecter_doublon), qui
     compare des LIGNES DE FICHIER à l'intérieur d'un même preset : deux relevés
     de deux banques décrivent le même virement avec des colonnes qui n'ont rien
-    de commun, et seule la transaction elle-même — deux comptes, un montant, une
-    date voisine — les rapproche."""
+    de commun, et seule la transaction elle-même — un compte au moins, un
+    montant, une date voisine — les rapproche."""
 
     ligne: int
     date: date_type
@@ -1067,8 +1073,9 @@ class VirementCandidatDoublon(BaseModel):
     # alors correspondre pour conclure au doublon.
     montant_recu: Optional[float] = None
     monnaie_recue_id: Optional[int] = None
-    compte_source_id: int
-    compte_destination_id: int
+    # Celui que le relevé nomme est connu ; l'autre attend souvent encore.
+    compte_source_id: Optional[int] = None
+    compte_destination_id: Optional[int] = None
 
 
 class VirementDoublonSuspect(BaseModel):
@@ -1084,6 +1091,9 @@ class VirementDoublonSuspect(BaseModel):
     monnaie_symbole: str = ""
     compte_source: str
     compte_destination: str
+    # Le compte que la ligne importée ne nommait PAS, lu sur ce suspect. None
+    # quand elle nommait déjà les deux — il n'y a alors rien à apprendre.
+    compte_en_face: Optional[str] = None
     ecart_jours: int
 
 
@@ -1216,6 +1226,9 @@ class ImportPresetRead(BaseModel):
 
     id: int
     nom: str
+    # Ce que ce preset sait lire (cf. constants.DomaineImport). Jamais modifié
+    # après création : c'est lui qui dit quelles propriétés `colonnes` désigne.
+    domaine: DomaineImport = DomaineImport.bancaire
     # Compte auquel ce format de relevé appartient. Renseigné, toutes les lignes
     # du fichier lui sont affectées, sans consulter ni la colonne « compte
     # bancaire » ni les correspondances mémorisées.
@@ -1238,6 +1251,17 @@ class ImportPresetRead(BaseModel):
     libelles_statut_execute: list[str] = Field(default_factory=list)
     libelles_statut_attente: list[str] = Field(default_factory=list)
     libelles_statut_refuse: list[str] = Field(default_factory=list)
+    # Vocabulaire de la colonne « Type d'opération » d'un relevé de placements
+    # (domaine `placement` seulement). Listes vides = celui du code
+    # (constants.LIBELLES_TYPE_PLACEMENT_DEFAUT).
+    libelles_type_achat: list[str] = Field(default_factory=list)
+    libelles_type_vente: list[str] = Field(default_factory=list)
+    libelles_type_transfert: list[str] = Field(default_factory=list)
+    # CE QUE LE FICHIER RACONTE, pour un preset de placements : une liste
+    # d'opérations, ou une PHOTOGRAPHIE du compte à un instant donné. None vaut
+    # « operations » — ce que sont tous les presets antérieurs. Sans objet pour
+    # un preset bancaire, comme les trois vocabulaires ci-dessus.
+    mode_lecture: Optional[ModeLecturePlacement] = None
     # Date du dernier import confirmé sous ce preset (None si jamais utilisé) :
     # permet au frontend de présélectionner le preset réellement utilisé plutôt
     # que le premier par ordre alphabétique, qui peut être vide.
@@ -1258,6 +1282,17 @@ class ImportPresetCreate(BaseModel):
     libelles_statut_execute: list[str] = Field(default_factory=list)
     libelles_statut_attente: list[str] = Field(default_factory=list)
     libelles_statut_refuse: list[str] = Field(default_factory=list)
+    # Vocabulaire de la colonne « Type d'opération » d'un relevé de placements
+    # (domaine `placement` seulement). Listes vides = celui du code
+    # (constants.LIBELLES_TYPE_PLACEMENT_DEFAUT).
+    libelles_type_achat: list[str] = Field(default_factory=list)
+    libelles_type_vente: list[str] = Field(default_factory=list)
+    libelles_type_transfert: list[str] = Field(default_factory=list)
+    # CE QUE LE FICHIER RACONTE, pour un preset de placements : une liste
+    # d'opérations, ou une PHOTOGRAPHIE du compte à un instant donné. None vaut
+    # « operations » — ce que sont tous les presets antérieurs. Sans objet pour
+    # un preset bancaire, comme les trois vocabulaires ci-dessus.
+    mode_lecture: Optional[ModeLecturePlacement] = None
 
 
 class ImportPresetUpdate(BaseModel):
@@ -1275,6 +1310,17 @@ class ImportPresetUpdate(BaseModel):
     libelles_statut_execute: list[str] = Field(default_factory=list)
     libelles_statut_attente: list[str] = Field(default_factory=list)
     libelles_statut_refuse: list[str] = Field(default_factory=list)
+    # Vocabulaire de la colonne « Type d'opération » d'un relevé de placements
+    # (domaine `placement` seulement). Listes vides = celui du code
+    # (constants.LIBELLES_TYPE_PLACEMENT_DEFAUT).
+    libelles_type_achat: list[str] = Field(default_factory=list)
+    libelles_type_vente: list[str] = Field(default_factory=list)
+    libelles_type_transfert: list[str] = Field(default_factory=list)
+    # CE QUE LE FICHIER RACONTE, pour un preset de placements : une liste
+    # d'opérations, ou une PHOTOGRAPHIE du compte à un instant donné. None vaut
+    # « operations » — ce que sont tous les presets antérieurs. Sans objet pour
+    # un preset bancaire, comme les trois vocabulaires ci-dessus.
+    mode_lecture: Optional[ModeLecturePlacement] = None
 
 
 class ImportHistoriqueRead(BaseModel):
@@ -1341,6 +1387,21 @@ class BaseDonneesUpdate(BaseModel):
 # ---------- Règles de catégorisation ----------
 
 
+def _valider_condition(condition, champs_valides: set[str]):
+    """Le contrôle commun aux deux domaines de règles : un champ connu, une
+    valeur non vide. Seule la liste des champs change de l'un à l'autre."""
+    if condition.champ not in champs_valides:
+        raise ValueError(
+            f"champ inconnu : {condition.champ} "
+            f"(attendus : {', '.join(sorted(champs_valides))})"
+        )
+    # Une valeur vide rendrait "contient" toujours vrai et "est" quasi
+    # toujours faux : dans les deux cas la règle ne veut rien dire.
+    if not condition.valeur.strip():
+        raise ValueError("la valeur à comparer ne peut pas être vide")
+    return condition
+
+
 class ConditionRegle(BaseModel):
     """Un test sur un champ du relevé.
 
@@ -1355,16 +1416,7 @@ class ConditionRegle(BaseModel):
 
     @model_validator(mode="after")
     def _check_champ(self):
-        if self.champ not in CHAMPS_REGLE_VALIDES:
-            raise ValueError(
-                f"champ inconnu : {self.champ} "
-                f"(attendus : {', '.join(sorted(CHAMPS_REGLE_VALIDES))})"
-            )
-        # Une valeur vide rendrait "contient" toujours vrai et "est" quasi
-        # toujours faux : dans les deux cas la règle ne veut rien dire.
-        if not self.valeur.strip():
-            raise ValueError("la valeur à comparer ne peut pas être vide")
-        return self
+        return _valider_condition(self, CHAMPS_REGLE_VALIDES)
 
 
 class GroupeRegle(BaseModel):
@@ -1427,6 +1479,138 @@ class RegleCategorisationRead(BaseModel):
 
 
 class ReordonnerRegles(BaseModel):
+    ids: list[int]
+
+
+# ---------- Règles d'import de placements (extension « import-placements ») ----------
+#
+# Mêmes conditions, à trois champs près (ceux d'un relevé de compte-titres), et
+# une action réduite à une seule décision : ce que la ligne décrit. Cf.
+# models.RegleImportPlacement pour la raison d'être de ces règles à côté du
+# vocabulaire du preset.
+
+
+class ConditionReglePlacement(BaseModel):
+    champ: str
+    operateur: OperateurRegle
+    valeur: str
+
+    @model_validator(mode="after")
+    def _check_champ(self):
+        return _valider_condition(self, CHAMPS_REGLE_PLACEMENT_VALIDES)
+
+
+class GroupeReglePlacement(BaseModel):
+    operateur: ConnecteurRegle = ConnecteurRegle.et
+    conditions: list[ConditionReglePlacement] = Field(min_length=1)
+
+
+class ConditionsReglePlacement(BaseModel):
+    operateur: ConnecteurRegle = ConnecteurRegle.et
+    groupes: list[GroupeReglePlacement] = Field(min_length=1)
+
+
+class RegleImportPlacementBase(BaseModel):
+    nom: str = Field(min_length=1)
+    conditions: ConditionsReglePlacement
+    # Ce que la ligne décrit. Pas de catégorie : un mouvement de titres n'en
+    # porte pas.
+    type_placement: TypeOperationPlacement
+    # Le compte EN FACE, pour le seul type « transfert » : un relevé de
+    # compte-titres ne nomme qu'un côté du mouvement, et sans le second la ligne
+    # arrive incomplète dans l'aperçu. Le SENS n'est pas demandé — il se déduit
+    # du signe du montant. Neutralisé côté routeur pour les deux autres types.
+    compte_autre_id: Optional[int] = None
+    # L'ÉTIQUETTE À POSER SUR LE TITRE reconnu (« ETF », « Obligation »).
+    # Facultative, et sans effet sur un transfert d'espèces, qui ne désigne aucun
+    # titre — le routeur la neutralise alors, comme il neutralise le compte en
+    # face hors transfert.
+    type_titre_id: Optional[int] = None
+    actif: bool = True
+
+
+class RegleImportPlacementCreate(RegleImportPlacementBase):
+    pass
+
+
+class RegleImportPlacementUpdate(RegleImportPlacementBase):
+    pass
+
+
+class RegleImportPlacementRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nom: str
+    ordre: int
+    actif: bool
+    type_placement: TypeOperationPlacement
+    compte_autre_id: Optional[int] = None
+    type_titre_id: Optional[int] = None
+    conditions: ConditionsReglePlacement
+
+
+# ---------- Sous-filtres / projets (extension « Projets ») ----------
+
+
+class SousFiltreBase(BaseModel):
+    nom: str = Field(min_length=1)
+    # Ce que le projet recouvre, en une phrase. Sans sémantique : jamais lue,
+    # ni filtrée, ni sommée par l'application.
+    description: str = ""
+
+
+class SousFiltreCreate(SousFiltreBase):
+    pass
+
+
+class SousFiltreUpdate(SousFiltreBase):
+    pass
+
+
+class SousFiltreTotal(BaseModel):
+    """Ce qu'un projet a coûté, POUR UNE MONNAIE.
+
+    Par monnaie et jamais autrement, comme partout ailleurs dans l'app : rien ne
+    permet d'additionner des euros et des dollars, et un projet à cheval sur
+    deux devises a donc deux lignes de totaux plutôt qu'un total faux.
+
+    `depenses` et `entrees` sont des valeurs ABSOLUES ; `solde` est leur
+    différence (entrées − dépenses), donc négatif pour un projet qui n'a fait
+    que coûter — ce qui est le cas ordinaire d'un voyage."""
+
+    monnaie_id: int
+    monnaie_nom: str
+    monnaie_symbole: str
+    depenses: float
+    entrees: float
+    solde: float
+
+
+class SousFiltreRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nom: str
+    description: str
+    ordre: int
+    # Combien d'opérations le projet regroupe, et ce qu'elles pèsent : les deux
+    # seules choses qu'on veut lire sur une carte de projet sans l'ouvrir.
+    nombre_operations: int = 0
+    totaux: list[SousFiltreTotal] = []
+
+
+class SousFiltreOperations(BaseModel):
+    """Les opérations qu'on verse dans un projet, ou qu'on en retire.
+
+    Une liste et non un identifiant seul : on remplit un projet PAR LOTS, en
+    cochant plusieurs lignes d'un même séjour — une requête par opération aurait
+    fait autant d'allers-retours que de cases cochées."""
+
+    operation_ids: list[int]
+
+
+class ReordonnerSousFiltres(BaseModel):
     ids: list[int]
 
 

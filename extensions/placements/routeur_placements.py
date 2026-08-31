@@ -72,7 +72,7 @@ def _lire_mouvement(mouvement: models.OperationAction) -> schemas.OperationActio
         id=mouvement.id,
         operation_id=mouvement.operation_id,
         action_id=mouvement.action_id,
-        action_nom=mouvement.action.nom,
+        action_nom=mouvement.action.nom_affiche,
         sens=mouvement.sens,
         quantite=mouvement.quantite,
         prix_unitaire=mouvement.prix_unitaire,
