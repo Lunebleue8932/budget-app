@@ -277,6 +277,20 @@ def reordonner_categories(db: Session, ids_ordonnes: list[int]) -> None:
     db.commit()
 
 
+def rename_categorie(db: Session, db_categorie: models.Categorie, nom: str) -> models.Categorie:
+    """Renomme une catégorie. RIEN D'AUTRE NE BOUGE.
+
+    Les opérations pointent sur la LIGNE, pas sur son libellé : les
+    réétiqueter n'a donc aucun coût, et leur classement, leurs budgets et leur
+    historique suivent le nouveau nom sans qu'on y touche. C'est précisément ce
+    qu'une colonne texte sur chaque opération n'aurait pas permis.
+    """
+    db_categorie.nom = nom
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
 def migrer_operations_vers_autres(db: Session, categorie_a_supprimer: models.Categorie) -> None:
     categorie_autres = get_categorie_by_nom(db, CATEGORIE_AUTRES)
     db.query(models.Operation).filter(
@@ -540,19 +554,81 @@ def get_operation(db: Session, operation_id: int):
     return db.query(models.Operation).filter(models.Operation.id == operation_id).first()
 
 
+# LE MONTANT DÛ N'A PAS LA MÊME BORNE DES DEUX CÔTÉS.
+#
+# `montant_du` porte le même nom pour les deux types remboursables, mais il n'y
+# décrit pas la même chose, et sa borne y est exactement inverse :
+#
+#   - DÉPENSE REMBOURSABLE : j'ai avancé `montant`, on m'en rendra `montant_du`.
+#     On ne peut pas me rendre plus que je n'ai avancé, donc
+#     `montant_du <= montant`.
+#   - PRÊT REÇU : on m'a remis `montant`, je rendrai `montant_du`. On ne rend
+#     jamais moins qu'on n'a reçu, donc `montant_du >= montant` — et l'écart
+#     entre les deux est l'INTÉRÊT du prêt (cf. services/soldes._INTERETS_PRET).
+#
+# Cette règle vivait dans schemas.OperationBase, qui ne connaît que `type_id` et
+# ne peut donc pas savoir de quel type il s'agit : elle n'y tenait qu'une des
+# deux moitiés — celle de la dépense remboursable, appliquée AUSSI aux prêts,
+# qui ne pouvaient par conséquent porter aucun intérêt. Elle vit ici, où le
+# `code` du type est connu.
+#
+# Écart en deçà duquel deux montants sont le même : une saisie au centime passe
+# par des flottants, où 100.0 peut arriver en 99.99999999999999.
+TOLERANCE_MONTANT = 1e-9
+
+
+def erreur_montant_du(
+    code: str, montant: float, montant_du: Optional[float]
+) -> Optional[str]:
+    """La phrase à rendre à l'utilisateur si `montant_du` sort de la borne de ce
+    type d'opération, ou None si tout va bien.
+
+    Rendue en 400 par les routes (cf. routers/operations.py). Les appels
+    internes, eux, passent par `_borner_montant_du`, qui ramène la valeur dans
+    ses bornes plutôt que de refuser."""
+    if montant_du is None:
+        return None
+    type_operation = TypeOperation(code)
+    if type_operation == TypeOperation.pret:
+        if montant_du < montant - TOLERANCE_MONTANT:
+            return (
+                "Le montant à rembourser d'un prêt ne peut pas être inférieur au "
+                "montant prêté : on rend au moins ce qu'on a reçu."
+            )
+        return None
+    if montant_du > montant + TOLERANCE_MONTANT:
+        return "montant_du ne peut pas dépasser montant"
+    return None
+
+
+def _borner_montant_du(code: str, montant: float, montant_du: float) -> float:
+    """Ramène `montant_du` dans la borne de son type (cf. le commentaire
+    ci-dessus). Le dernier filet des appels internes — import bancaire, écriture
+    directe par `crud` — que ne traverse aucune validation de route."""
+    if TypeOperation(code) == TypeOperation.pret:
+        return max(montant, montant_du)
+    return max(0.0, min(montant_du, montant))
+
+
 def _resoudre_montants_remboursement(
-    remboursable: bool,
+    code: str,
     montant: float,
     montant_du: Optional[float],
     montant_a_rembourser: Optional[float],
 ) -> tuple[float, float]:
-    if not remboursable:
+    """Les deux montants de dette d'une opération, dans leur forme finale.
+
+    Non renseignés, ils se déduisent : ce qui est dû vaut le montant entier (une
+    dépense qu'on se fera intégralement rendre, un prêt sans intérêts), et le
+    reste à rembourser part de ce qui est dû."""
+    if TypeOperation(code) not in TYPES_REMBOURSABLES:
         return 0.0, 0.0
     montant_du_resolu = montant if montant_du is None else montant_du
+    montant_du_resolu = _borner_montant_du(code, montant, montant_du_resolu)
     montant_a_rembourser_resolu = (
         montant_du_resolu if montant_a_rembourser is None else montant_a_rembourser
     )
-    return montant_du_resolu, montant_a_rembourser_resolu
+    return montant_du_resolu, min(montant_a_rembourser_resolu, montant_du_resolu)
 
 
 def _normaliser_amortissement(db_operation: models.Operation) -> None:
@@ -596,17 +672,12 @@ def create_operation(db: Session, operation: schemas.OperationCreate) -> models.
     data["sens"] = _sens_pour_type(code, nom_categorie)
 
     # `remboursable` n'est plus une colonne : il découle du type (dépense
-    # remboursable et prêt reçu, exactement les deux cas historiques).
-    remboursable = TypeOperation(code) in TYPES_REMBOURSABLES
+    # remboursable et prêt reçu, exactement les deux cas historiques). Le `code`
+    # est passé tel quel plutôt qu'un booléen : les deux types remboursables ne
+    # bornent pas `montant_du` du même côté (cf. _resoudre_montants_remboursement).
     data["montant_du"], data["montant_a_rembourser"] = _resoudre_montants_remboursement(
-        remboursable, data["montant"], data["montant_du"], data["montant_a_rembourser"]
+        code, data["montant"], data["montant_du"], data["montant_a_rembourser"]
     )
-    if TypeOperation(code) == TypeOperation.pret:
-        # Le montant à rembourser d'un prêt est toujours égal au montant prêté,
-        # jamais un montant partiel choisi manuellement (contrairement aux
-        # dépenses remboursables, qui peuvent couvrir une facture partagée).
-        data["montant_du"] = data["montant"]
-        data["montant_a_rembourser"] = data["montant"]
 
     db_operation = models.Operation(**data)
     db.add(db_operation)
@@ -658,16 +729,30 @@ def update_operation(
     if not est_remboursable:
         db_operation.montant_du = 0.0
         db_operation.montant_a_rembourser = 0.0
-    elif not etait_remboursable:
-        # Vient de devenir remboursable : montants par défaut si non précisés.
-        if not montant_du_fourni:
-            db_operation.montant_du = db_operation.montant
-        if not montant_a_rembourser_fourni:
+    else:
+        if not etait_remboursable:
+            # Vient de devenir remboursable : montants par défaut si non précisés.
+            if not montant_du_fourni:
+                db_operation.montant_du = db_operation.montant
+            if not montant_a_rembourser_fourni:
+                db_operation.montant_a_rembourser = db_operation.montant_du
+        elif montant_du_fourni and not montant_a_rembourser_fourni:
+            # LA DETTE CHANGE DE TAILLE, ET RIEN N'EN A ENCORE ÉTÉ RÉGLÉ.
+            #
+            # La route interdit de toucher au montant dû dès qu'un remboursement
+            # y est lié (409, cf. routers/operations.py) : arriver ici avec un
+            # nouveau montant dû veut donc dire qu'aucun règlement n'est encore
+            # intervenu, et que tout reste à rembourser. Sans ce report, faire
+            # passer une dette de 40 à 110 laissait « reste à rembourser » à 40 :
+            # l'opération s'éteignait 70 avant d'être soldée.
             db_operation.montant_a_rembourser = db_operation.montant_du
-
-    if TypeOperation(code) == TypeOperation.pret:
-        # Toujours aligné sur le montant du prêt, jamais un montant partiel.
-        db_operation.montant_du = db_operation.montant
+        # Changer de type change la BORNE de `montant_du` (une dépense
+        # remboursable reclassée en prêt passe d'un plafond à un plancher), et
+        # changer le montant peut l'en faire sortir. La route refuse déjà les
+        # deux (400) ; ceci tient l'invariant pour les appels directs.
+        db_operation.montant_du = _borner_montant_du(
+            code, db_operation.montant, db_operation.montant_du
+        )
         if db_operation.montant_a_rembourser > db_operation.montant_du:
             db_operation.montant_a_rembourser = db_operation.montant_du
 
@@ -1981,13 +2066,9 @@ def create_operation_importee(
         db, type_operation.code, categorie_id
     )
 
-    remboursable_finale = TypeOperation(type_operation.code) in TYPES_REMBOURSABLES
-    if remboursable_finale:
-        montant_du_final = montant_du if montant_du is not None else montant
-        montant_du_final = max(0.0, min(montant_du_final, montant))
-    else:
-        montant_du_final = 0.0
-    montant_a_rembourser = montant_du_final
+    montant_du_final, montant_a_rembourser = _resoudre_montants_remboursement(
+        type_operation.code, montant, montant_du, None
+    )
     db_operation = models.Operation(
         date=date_operation,
         compte_id=compte_id,

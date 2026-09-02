@@ -20,6 +20,12 @@
 // réellement détenu, sans redemander au serveur à chaque frappe.
 let placementDetail = null;
 
+// L'onglet actif de la page : un compte (false) ou le catalogue des titres
+// (true). Déclaré ICI, en tête, et non près des fonctions qui le lisent : un
+// `let` n'existe pas avant sa ligne de déclaration, et `loadPlacements` l'écrit
+// avant de dessiner les onglets. Vit hors de `state` — le noyau ne le lit jamais.
+let vueTitres = false;
+
 /** La case « Afficher les titres archivés » est-elle cochée ? */
 function voirTitresArchives() {
   const case_ = document.getElementById("placements-voir-archives");
@@ -373,12 +379,21 @@ async function loadPlacements() {
     await refreshActionsTitres();
     const comptes = await apiFetch("/placements");
 
+    const contenu = document.getElementById("placements-contenu");
     document.getElementById("placements-aucun-compte").style.display =
       comptes.length === 0 ? "" : "none";
-    document.getElementById("placements-contenu").style.display =
-      comptes.length === 0 ? "none" : "";
+    // `disponible` mémorise ce que cette ligne vient de décider, pour que le
+    // basculement d'onglet ne rallume pas un volet qui n'a aucun compte à
+    // montrer (cf. majVueTitres).
+    contenu.dataset.disponible = comptes.length === 0 ? "0" : "1";
+    contenu.style.display = comptes.length === 0 ? "none" : "";
+
     if (comptes.length === 0) {
-      document.getElementById("placements-onglets").innerHTML = "";
+      // SANS AUCUN COMPTE, le catalogue reste seul à l'écran : c'est là qu'on
+      // crée ses premiers titres, et le masquer laisserait une page vide alors
+      // qu'il y a quelque chose à y faire.
+      vueTitres = true;
+      renderPlacementsOnglets(comptes);
       state.placementCompteId = null;
       return;
     }
@@ -397,21 +412,77 @@ async function loadPlacements() {
   }
 }
 
+/* ---------- Les onglets de la page ----------
+ *
+ * CE QU'ILS CHOISISSENT : ce qu'on regarde. Un compte — son portefeuille, ses
+ * mouvements — ou LE CATALOGUE DES TITRES, qui n'appartient à aucun compte
+ * puisque le même ETF peut être détenu sur plusieurs.
+ *
+ * Le catalogue était auparavant déroulé sous le détail du compte affiché : il
+ * fallait traverser les KPI, les détentions, le formulaire d'achat et
+ * l'historique pour arriver à « Ajouter un titre ». C'est pourtant la partie
+ * qu'on règle une fois puis qu'on ne rouvre que rarement — elle n'avait rien à
+ * faire sur le chemin de ce qu'on consulte tous les jours.
+ *
+ * « Titres » EST TOUJOURS LE DERNIER, après les comptes : les onglets se lisent
+ * du plus fréquent au plus rare.
+ */
+
 function renderPlacementsOnglets(comptes) {
   const barre = document.getElementById("placements-onglets");
   barre.innerHTML = "";
+
+  const activer = (btn) =>
+    [...barre.children].forEach((b) => b.classList.toggle("active", b === btn));
+
   comptes.forEach((compte) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = compte.compte_nom;
-    if (compte.compte_id === state.placementCompteId) btn.classList.add("active");
+    if (!vueTitres && compte.compte_id === state.placementCompteId) {
+      btn.classList.add("active");
+    }
     btn.addEventListener("click", async () => {
       state.placementCompteId = compte.compte_id;
-      [...barre.children].forEach((b) => b.classList.toggle("active", b === btn));
+      vueTitres = false;
+      activer(btn);
+      majVueTitres();
       await loadPlacementDetail(compte.compte_id);
     });
     barre.appendChild(btn);
   });
+
+  const btnTitres = document.createElement("button");
+  btnTitres.type = "button";
+  btnTitres.id = "placements-onglet-titres";
+  btnTitres.textContent = t("Titres suivis");
+  if (vueTitres) btnTitres.classList.add("active");
+  btnTitres.addEventListener("click", () => {
+    vueTitres = true;
+    activer(btnTitres);
+    majVueTitres();
+  });
+  barre.appendChild(btnTitres);
+
+  majVueTitres();
+}
+
+/**
+ * Montre le volet de l'onglet actif.
+ *
+ * `#placements-contenu` reste masqué tant qu'aucun compte de placements
+ * n'existe (cf. loadPlacements) : on ne le rallume donc que si l'appelant
+ * l'avait allumé. Le catalogue, lui, a du sens même sans aucun compte — c'est
+ * là qu'on crée ses premiers titres.
+ */
+function majVueTitres() {
+  const contenu = document.getElementById("placements-contenu");
+  const titres = document.getElementById("placements-titres");
+  if (!titres) return;
+  titres.style.display = vueTitres ? "" : "none";
+  if (contenu && contenu.dataset.disponible === "1") {
+    contenu.style.display = vueTitres ? "none" : "";
+  }
 }
 
 async function loadPlacementDetail(compteId) {

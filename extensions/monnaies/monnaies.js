@@ -173,21 +173,138 @@ function remplirMenusTauxMonnaies() {
   else if (state.monnaies.length > 1) cible.value = String(state.monnaies[1].id);
 }
 
+/* ---------- Les modes de saisie d'un taux ----------
+ *
+ * DEUX FAÇONS D'OBTENIR LE MÊME TAUX : le taper, ou donner un lien de cotation
+ * que l'application relira. Elles vivaient dans deux blocs séparés — deux
+ * listes des mêmes couples, deux formulaires, deux titres « Taux de change »
+ * l'un sous l'autre. Ce sont pourtant les mêmes taux, dans la même table, qui
+ * servent à la même chose : seule la façon de les saisir change.
+ *
+ * D'OÙ CE PETIT REGISTRE. Cette extension déclare le mode « à la main », qui ne
+ * dépend de rien ; « Lecture de cours » déclare le mode « depuis un lien »
+ * quand elle tourne, et le retire quand on l'éteint. Le formulaire, la liste et
+ * les deux menus de monnaies leur sont communs.
+ *
+ * EXPOSÉ EN GLOBAL parce que c'est la seule prise que le noyau laisse entre
+ * deux extensions (cf. extensions/README.md) : les scripts s'exécutent dans la
+ * portée globale, et « Lecture de cours » appelle `enregistrer` au chargement.
+ */
+
+const modesTaux = new Map();
+let modeTauxActif = null;
+
+window.MonnaiesTaux = {
+  /**
+   * Ajoute une façon de saisir un taux.
+   *
+   * `champsHtml()` rend le HTML du champ propre au mode ; `soumettre({source,
+   * cible})` l'enregistre et rend une promesse. `ordre` range le bouton dans la
+   * barre — le mode manuel est à 0, pour rester en tête.
+   *
+   * `apresRendu()`, facultatif, est appelé une fois les champs DANS la page :
+   * c'est le seul moment où un mode peut les remplir depuis le serveur. Sans
+   * lui, un mode qui n'est pas celui affiché au chargement n'aurait jamais
+   * d'occasion de le faire.
+   *
+   * Idempotent : réenregistrer un mode déjà connu le remplace, ce qui permet à
+   * une extension rallumée en cours de session de reposer le sien.
+   */
+  enregistrer(id, { libelle, ordre = 10, champsHtml, soumettre, apresRendu }) {
+    modesTaux.set(id, { id, libelle, ordre, champsHtml, soumettre, apresRendu });
+    renderModesTaux();
+  },
+  retirer(id) {
+    modesTaux.delete(id);
+    if (modeTauxActif === id) modeTauxActif = null;
+    renderModesTaux();
+  },
+  /** Rafraîchit la liste des couples — pour l'extension qui vient d'en écrire un. */
+  rafraichir: () => loadTauxMonnaies(),
+};
+
+function modesTauxTries() {
+  return [...modesTaux.values()].sort(
+    (a, b) => a.ordre - b.ordre || a.id.localeCompare(b.id)
+  );
+}
+
+function renderModesTaux() {
+  const barre = document.getElementById("monnaies-taux-modes");
+  const saisie = document.getElementById("monnaie-taux-saisie");
+  if (!barre || !saisie) return;
+
+  const modes = modesTauxTries();
+  if (modes.length === 0) return;
+  if (!modeTauxActif || !modesTaux.has(modeTauxActif)) modeTauxActif = modes[0].id;
+
+  // MASQUÉE TANT QU'ELLE EST SEULE : un bouton unique ne choisit rien et ne
+  // ferait que répéter le titre du bloc. Même règle que les barres d'onglets du
+  // noyau.
+  barre.style.display = modes.length > 1 ? "" : "none";
+  barre.innerHTML = "";
+  modes.forEach((mode) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = t(mode.libelle);
+    if (mode.id === modeTauxActif) btn.classList.add("active");
+    btn.addEventListener("click", () => {
+      modeTauxActif = mode.id;
+      renderModesTaux();
+    });
+    barre.appendChild(btn);
+  });
+
+  const mode = modesTaux.get(modeTauxActif);
+  saisie.innerHTML = mode.champsHtml();
+  if (mode.apresRendu) mode.apresRendu();
+}
+
+// LE MODE PAR DÉFAUT, celui qui ne dépend d'aucune autre extension : sans
+// « Lecture de cours », c'est le seul, et la barre de modes reste masquée.
+window.MonnaiesTaux.enregistrer("manuel", {
+  libelle: "À la main",
+  ordre: 0,
+  champsHtml: () => `
+    <label for="monnaie-taux-valeur">${t("ce nombre d'unités")}
+      <input type="number" step="any" min="0" id="monnaie-taux-valeur"
+             placeholder="${t("ex. 1,08")}" required />
+    </label>`,
+  soumettre: async ({ source, cible }) => {
+    const valeur = parseFloat(document.getElementById("monnaie-taux-valeur").value);
+    if (!(valeur > 0)) {
+      throw new Error(t("Le taux doit être un nombre strictement positif."));
+    }
+    // PUT : ressaisir un couple met son taux à jour plutôt que d'être refusé —
+    // c'est le geste ordinaire, un taux bouge.
+    await apiFetch("/conversion/taux", {
+      method: "PUT",
+      body: JSON.stringify({
+        monnaie_source_id: source,
+        monnaie_cible_id: cible,
+        taux: valeur,
+      }),
+    });
+    return t("Taux enregistré");
+  },
+});
+
 function renderTauxMonnaies() {
   const bloc = document.getElementById("monnaies-taux-liste");
   if (!bloc) return;
   bloc.innerHTML = "";
+  const formulaire = document.getElementById("form-monnaie-taux");
   if (state.monnaies.length < 2) {
     // Un taux entre une monnaie et elle-même n'existe pas : tant qu'il n'y en a
-    // qu'une, ce bloc n'a rien à proposer et le dire vaut mieux que de montrer
-    // un formulaire dont les deux menus tomberaient sur la même valeur.
+    // qu'une, ce bloc n'a rien à proposer.
     bloc.innerHTML = `<span class="hint">${t(
       "Ajoute une seconde monnaie pour pouvoir saisir un taux."
     )}</span>`;
-    document.getElementById("form-monnaie-taux").style.display = "none";
+    formulaire.style.display = "none";
     return;
   }
-  document.getElementById("form-monnaie-taux").style.display = "";
+  formulaire.style.display = "";
+  renderModesTaux();
 
   if (tauxMonnaies.length === 0) {
     bloc.innerHTML = `<span class="hint">${t("Aucun taux enregistré.")}</span>`;
@@ -200,7 +317,10 @@ function renderTauxMonnaies() {
     // taux : celui qui porte un lien sera écrasé au prochain rafraîchissement,
     // celui qu'on a tapé ne bougera jamais tout seul.
     const provenance = couple.url_cours
-      ? `<span class="hint">${t("relu en ligne")}</span>`
+      ? `<a class="hint" href="${escapeHtml(couple.url_cours)}" target="_blank"
+            rel="noopener noreferrer" title="${escapeHtml(couple.url_cours)}">${t(
+          "relu en ligne"
+        )}</a>`
       : `<span class="hint">${t("saisi à la main")}</span>`;
     ligne.innerHTML = `
       <span class="import-mapping-nom">
@@ -208,7 +328,7 @@ function renderTauxMonnaies() {
         <strong>${couple.taux == null ? "—" : couple.taux}</strong>
         ${escapeHtml(couple.monnaie_cible_symbole)}
       </span>
-      <span class="hint">${escapeHtml(couple.monnaie_source_nom)} →
+      <span class="hint">${escapeHtml(couple.monnaie_source_nom)} &rarr;
         ${escapeHtml(couple.monnaie_cible_nom)}</span>
       ${provenance}
       <button type="button" class="danger" data-taux-supprimer="${couple.id}">${t(
@@ -221,7 +341,9 @@ function renderTauxMonnaies() {
   bloc.querySelectorAll("button[data-taux-supprimer]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       try {
-        await apiFetch(`/conversion/taux/${btn.dataset.tauxSupprimer}`, { method: "DELETE" });
+        await apiFetch(`/conversion/taux/${btn.dataset.tauxSupprimer}`, {
+          method: "DELETE",
+        });
         showMessage(t("Taux supprimé"), "success");
         await loadTauxMonnaies();
       } catch (err) {
@@ -231,32 +353,21 @@ function renderTauxMonnaies() {
   });
 }
 
+// UN SEUL POINT DE SOUMISSION pour tous les modes : les deux menus de monnaies
+// et leur validation leur sont communs, seul l'enregistrement diffère.
 document.getElementById("form-monnaie-taux").addEventListener("submit", async (e) => {
   e.preventDefault();
   const source = Number(document.getElementById("monnaie-taux-source").value);
   const cible = Number(document.getElementById("monnaie-taux-cible").value);
-  const valeur = parseFloat(document.getElementById("monnaie-taux-valeur").value);
   if (source === cible) {
     showMessage(t("Choisis deux monnaies différentes."), "error");
     return;
   }
-  if (!(valeur > 0)) {
-    showMessage(t("Le taux doit être un nombre strictement positif."), "error");
-    return;
-  }
+  const mode = modesTaux.get(modeTauxActif);
+  if (!mode) return;
   try {
-    // PUT : ressaisir un couple met son taux à jour plutôt que d'être refusé —
-    // c'est le geste ordinaire, un taux bouge.
-    await apiFetch("/conversion/taux", {
-      method: "PUT",
-      body: JSON.stringify({
-        monnaie_source_id: source,
-        monnaie_cible_id: cible,
-        taux: valeur,
-      }),
-    });
-    showMessage(t("Taux enregistré"), "success");
-    document.getElementById("monnaie-taux-valeur").value = "";
+    const message = await mode.soumettre({ source, cible });
+    showMessage(message || t("Taux enregistré"), "success");
     await loadTauxMonnaies();
   } catch (err) {
     showMessage(err.message, "error");
@@ -386,12 +497,10 @@ async function appliquerAgregation(annee, mois) {
   agregationNonConverties = reponse.non_converties || [];
   if (!reponse.dashboard) return false;
 
-  const libellePeriode =
-    vue === "annee" ? `Année ${annee}` : libelleMois(annee, mois);
   // LES FONCTIONS D'AFFICHAGE DU NOYAU, telles quelles : la vue convertie et la
   // vue par monnaie doivent se ressembler jusqu'au pixel, et deux rendus
   // parallèles finiraient par ne plus le faire.
-  renderKpisDashboard(reponse.dashboard.kpis[0], libellePeriode);
+  renderKpisDashboard(reponse.dashboard.kpis[0]);
   renderRepartitionComptes(
     reponse.dashboard.comptes,
     state.dashboardMonnaieId,

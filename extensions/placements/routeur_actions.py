@@ -130,7 +130,7 @@ def update_action(action_id: int, payload: schemas.ActionUpdate, db: Session = D
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"« {action.nom} » est encore détenu ({_quantite_lisible(quantite)} "
+                    f"« {action.nom_affiche} » est encore détenu ({_quantite_lisible(quantite)} "
                     "titre(s)) : vends la position avant de l'archiver."
                 ),
             )
@@ -166,7 +166,7 @@ def delete_action(action_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=409,
             detail=(
-                f"« {action.nom} » a des mouvements enregistrés : il ne peut pas être "
+                f"« {action.nom_affiche} » a des mouvements enregistrés : il ne peut pas être "
                 "supprimé sans réécrire les soldes du compte. Archive-le plutôt — il "
                 "quitte les listes, son historique et ses plus-values restent."
             ),

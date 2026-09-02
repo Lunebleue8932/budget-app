@@ -33,6 +33,10 @@ function remplirSelecteurTypesRegle() {
     // Les types internes (titres) ne se posent pas par règle : il leur
     // manquerait le titre, la quantité et le prix.
     .filter((t) => !t.interne)
+    // Les deux types de prêt appartiennent à l'extension « Prêts » : une règle
+    // ne doit pas pouvoir poser un type auquel aucun écran ne donne accès.
+    // `pretsAccessibles` vient du noyau (app.js), toujours chargé avant nous.
+    .filter((t) => pretsAccessibles() || !TYPES_DE_PRET.has(t.code))
     .map((t) => `<option value="${t.code}">${t.nom}</option>`)
     .join("");
   if (precedent) select.value = precedent;

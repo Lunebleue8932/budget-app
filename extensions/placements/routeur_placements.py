@@ -125,7 +125,7 @@ def create_operation_action(
         raise HTTPException(
             status_code=400,
             detail=(
-                f"« {action.nom} » est coté en {action.monnaie.nom}, monnaie que le "
+                f"« {action.nom_affiche} » est coté en {action.monnaie.nom}, monnaie que le "
                 f"compte « {compte.nom} » ne porte pas : ajoute-la au compte "
                 "(Paramètres > Comptes) ou choisis un autre titre."
             ),
@@ -139,7 +139,7 @@ def create_operation_action(
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Quantité insuffisante : {detenue:g} « {action.nom} » "
+                    f"Quantité insuffisante : {detenue:g} « {action.nom_affiche} » "
                     f"détenu(s) sur ce compte, {payload.quantite:g} demandé(s)"
                 ),
             )

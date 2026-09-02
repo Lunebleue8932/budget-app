@@ -17,9 +17,13 @@ from typing import Optional
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
-from .. import crud, models
+from .. import crud, extensions, models
 from ..constants import (
+    CATEGORIES_SENS_ENTREE,
+    EXTENSION_PRETS,
+    LIBELLE_INTERETS_PRETS,
     TYPES_COMPTE_HORS_COURANT,
+    TYPES_HORS_FLUX,
     TYPES_REMBOURSABLES,
     Sens,
     Statut,
@@ -29,6 +33,22 @@ from ..constants import (
 
 # Codes des types dont l'opération est remboursable, pour les filtres SQL.
 _CODES_REMBOURSABLES = [t.value for t in TYPES_REMBOURSABLES]
+_CODES_HORS_FLUX = [t.value for t in TYPES_HORS_FLUX]
+
+# LES INTÉRÊTS D'UN PRÊT : ce qu'on rendra moins ce qu'on a reçu, JAMAIS négatif.
+#
+# `montant_du >= montant` est désormais la règle du type « prêt reçu », tenue à
+# l'écriture (cf. crud.erreur_montant_du / _borner_montant_du) : l'écart est donc
+# positif ou nul par construction, et c'est lui qui coûte quelque chose.
+#
+# LA BORNE À ZÉRO RESTE, pour les lignes écrites AVANT que cette règle existe.
+# Jusque-là un prêt voyait son `montant_du` forcé à `montant` — l'écart valait
+# zéro — mais rien ne garantit qu'aucune base ne porte une valeur inférieure
+# (import, reclassement d'une dépense remboursable). Sans cette borne, un tel
+# prêt RETIRERAIT des sorties du mois : emprunter ferait baisser les dépenses.
+_INTERETS_PRET = func.max(
+    0.0, models.Operation.montant_du - models.Operation.montant
+)
 
 
 def _sums_by_compte_monnaie_and_sens(
@@ -380,15 +400,24 @@ NB_TOP_DEPENSES = 3
 
 def _base_imposable(montant: float, montant_du: Optional[float], code: str) -> float:
     """Ce qu'une opération apporte à l'histogramme : son montant, sauf pour une
-    dépense remboursable (ou un prêt reçu), dont seule la part restant à ma
-    charge est une dépense.
+    dépense remboursable, dont seule la part restant à ma charge est une dépense.
 
-    Extrait ici parce que trois calculs devaient déjà s'accorder sur cette
-    règle — les sommes par catégorie, leur pendant amorti, et maintenant le
-    détail par libellé. Une infobulle qui compterait le montant entier d'une
-    dépense remboursable annoncerait des lignes dont la somme dépasserait la
-    barre qu'elles détaillent."""
-    if code in _CODES_REMBOURSABLES:
+    Extrait ici parce que QUATRE calculs doivent s'accorder sur cette règle —
+    les sommes par catégorie, leur pendant amorti, le détail par libellé, et le
+    total des entrées/sorties. Une infobulle qui compterait le montant entier
+    d'une dépense remboursable annoncerait des lignes dont la somme dépasserait
+    la barre qu'elles détaillent ; un total des sorties qui le ferait ne
+    tomberait jamais d'accord avec l'histogramme posé juste à côté.
+
+    LE PRÊT REÇU N'EST PAS TRAITÉ ICI, alors que c'est l'autre type remboursable.
+    Ses intérêts se calculent à l'envers (`montant_du - montant`, cf.
+    _INTERETS_PRET) et il n'a AUCUNE catégorie — son type EST sa classification.
+    Or les trois appelants de cette fonction partent tous d'une jointure sur
+    `categorie` et d'un `sens = dépense` : un prêt n'y arrive jamais. Il compte
+    dans sa propre barre (cf. _barre_interets_prets) et nulle part ailleurs. Le
+    tester sur `_CODES_REMBOURSABLES`, qui le contient, rendrait donc ici un
+    intérêt NÉGATIF le jour où quelqu'un réemploierait cette fonction."""
+    if code == TypeOperation.remboursable.value:
         return montant - (montant_du or 0.0)
     return montant
 
@@ -523,10 +552,22 @@ def get_depenses_par_categorie(
     Sauf celles que l'utilisateur a éteintes (œil de l'onglet Catégories) : le
     filtre est ici, à la source, plutôt que côté frontend, pour que l'échelle de
     l'histogramme se recalcule sur les seules barres montrées — masquer après
-    coup aurait laissé une catégorie invisible écraser toutes les autres."""
+    coup aurait laissé une catégorie invisible écraser toutes les autres.
+
+    ET SAUF LES CATÉGORIES D'ENTRÉE (cf. constants.CATEGORIES_SENS_ENTREE). Une
+    catégorie dont les opérations sont des ENTRÉES ne peut rien porter ici : les
+    sommes ne comptent que le sens « dépense », et c'est ce filtre qui fait que
+    la somme des barres vaut exactement le total des sorties affiché juste
+    au-dessus. Sa barre restait donc à zéro quoi qu'on y range, avec une
+    infobulle annonçant qu'il ne s'y passait rien alors qu'elle pouvait contenir
+    tout un salaire. Mieux vaut ne pas la dessiner : l'argent qu'elle porte se
+    lit dans « Total entrées », à côté."""
     categories = (
         db.query(models.Categorie)
-        .filter(models.Categorie.visible_dashboard.is_(True))
+        .filter(
+            models.Categorie.visible_dashboard.is_(True),
+            models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE),
+        )
         .order_by(models.Categorie.ordre)
         .all()
     )
@@ -554,7 +595,78 @@ def get_depenses_par_categorie(
                 "top_depenses": tops.get(categorie.nom, []),
             }
         )
+
+    ligne_prets = _barre_interets_prets(db, annee, mois, monnaie_id)
+    if ligne_prets is not None:
+        resultats.append(ligne_prets)
     return resultats
+
+
+# La couleur de la barre des intérêts. Prise EN FIN de palette (cf. app.js,
+# PALETTE_CATEGORIES) : cette barre n'est pas une catégorie, et lui donner
+# l'index 0 la ferait porter la couleur de la première catégorie créée.
+_COULEUR_INTERETS_PRETS = 7
+
+
+def _barre_interets_prets(db: Session, annee, mois, monnaie_id):
+    """La barre « Intérêts de prêts », ou None s'il n'y a rien à montrer.
+
+    CE QU'ELLE EST. Pas une catégorie : aucune ligne de `categorie` ne porte ce
+    nom, on ne peut ni la renommer, ni lui poser un budget, ni l'éteindre. C'est
+    une barre de plus, qui existe pour que l'histogramme dise la MÊME CHOSE que
+    le total des sorties — lequel compte les intérêts d'un prêt
+    (cf. get_flux_periode). Sans elle, chaque prêt rouvrirait l'écart entre les
+    deux chiffres que tout le reste de ce module s'emploie à tenir fermé.
+
+    DEUX CONDITIONS, et les deux comptent :
+
+      - l'extension « Prêts » tourne. Sinon les intérêts ne sont pas non plus
+        dans les sorties, et une barre sans rien en face n'aurait pas de sens ;
+      - le total n'est pas nul. Un prêt sans intérêts (on rend exactement ce
+        qu'on a reçu, `montant_du == montant`) ne coûte rien : afficher une
+        barre à zéro ajouterait une colonne vide à chaque histogramme de
+        quiconque a emprunté.
+    """
+    if not extensions.est_active(EXTENSION_PRETS):
+        return None
+
+    def _interets(statut):
+        total = (
+            db.query(func.sum(_INTERETS_PRET))
+            .join(models.Compte, models.Operation.compte_id == models.Compte.id)
+            .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+            .join(
+                models.TypeOperationDB,
+                models.Operation.type_id == models.TypeOperationDB.id,
+            )
+            .filter(
+                models.TypeOperationDB.code == TypeOperation.pret.value,
+                models.Operation.monnaie_id == monnaie_id,
+                models.Operation.statut == statut,
+                models.TypeCompte.nom.notin_(TYPES_COMPTE_HORS_COURANT),
+                _filtre_periode(annee, mois),
+            )
+            .scalar()
+        )
+        return total or 0.0
+
+    reel = _interets(Statut.reel)
+    previsionnel = reel + _interets(Statut.previsionnel)
+    if abs(previsionnel) < 0.005 and abs(reel) < 0.005:
+        return None
+
+    return {
+        "categorie": LIBELLE_INTERETS_PRETS,
+        "total_reel": reel,
+        "total_previsionnel": previsionnel,
+        # AUCUN BUDGET : on ne se fixe pas une enveloppe d'intérêts, on les
+        # subit. Un trait rouge sur cette barre n'aurait rien à annoncer.
+        "budget_alloue": 0.0,
+        "couleur_index": _COULEUR_INTERETS_PRETS,
+        # Le détail par libellé n'a pas de sens ici : chaque prêt est une ligne,
+        # et son libellé est déjà celui de la barre.
+        "top_depenses": [],
+    }
 
 
 def get_flux_periode(
@@ -591,32 +703,113 @@ def get_flux_periode(
     sorti : ces trois chiffres répondent à « qu'est-ce que cette période me
     coûte », pas à « qu'est-ce qui est passé sur le compte » — sans quoi
     amortir n'aurait d'effet que sur l'histogramme, qui cesserait aussitôt de
-    s'accorder avec le total des sorties juste à côté."""
+    s'accorder avec le total des sorties juste à côté.
+
+    CE QUI EST COMPTÉ, ET POUR COMBIEN — la règle tient en trois lignes :
+
+      - une opération CLASSIQUE, pour son montant entier ;
+      - une DÉPENSE REMBOURSABLE, pour `montant - montant_du` : seulement ce qui
+        reste à ma charge une fois qu'on m'aura rendu le reste ;
+      - un PRÊT REÇU, pour `montant_du - montant` : ses seuls intérêts, et du
+        côté des SORTIES — l'argent emprunté n'est pas un revenu, il faudra le
+        rendre ; ce qu'il coûte est l'écart entre les deux.
+
+    TOUT LE RESTE EST ÉCARTÉ. Les virements internes et les mouvements de titres
+    par le filtre de sens (déplacer de l'argent n'est ni le gagner ni le
+    dépenser), et les deux types de RÈGLEMENT — remboursement reçu, remboursement
+    de prêt — par `TYPES_HORS_FLUX` : ils soldent une dette déjà comptée quand
+    elle est née, et la compter deux fois donnerait un total faux dans le mauvais
+    sens.
+
+    `montant_du` est ce qu'on doit AU DÉPART, figé — pas `montant_a_rembourser`,
+    qui décroît au fil des règlements. C'est le bon des deux : ce qu'une dépense
+    coûte vraiment ne dépend pas de la date à laquelle on est remboursé.
+    """
     filtres_communs = [
         models.Operation.monnaie_id == monnaie_id,
         models.TypeCompte.nom.notin_(TYPES_COMPTE_HORS_COURANT),
         models.Operation.sens.in_([Sens.entree, Sens.depense]),
+        # Les RÈGLEMENTS ne comptent jamais : ils soldent une dette déjà comptée
+        # quand elle est née (cf. constants.TYPES_HORS_FLUX).
+        models.TypeOperationDB.code.notin_(_CODES_HORS_FLUX),
     ]
-    rows = (
-        db.query(models.Operation.sens, func.sum(models.Operation.montant).label("total"))
-        .join(models.Compte, models.Operation.compte_id == models.Compte.id)
-        .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
-        .filter(_filtre_periode(annee, mois), *filtres_communs)
-        .group_by(models.Operation.sens)
-        .all()
+
+    def _requete(montant):
+        return (
+            db.query(models.Operation.sens, func.sum(montant).label("total"))
+            .join(models.Compte, models.Operation.compte_id == models.Compte.id)
+            .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+            .join(
+                models.TypeOperationDB,
+                models.Operation.type_id == models.TypeOperationDB.id,
+            )
+            .filter(_filtre_periode(annee, mois), *filtres_communs)
+            .group_by(models.Operation.sens)
+        )
+
+    est_pret = models.TypeOperationDB.code == TypeOperation.pret.value
+    est_depense_remboursable = and_(
+        models.TypeOperationDB.code == TypeOperation.remboursable.value,
+        models.Operation.sens == Sens.depense,
     )
-    totaux = {sens: (total or 0.0) for sens, total in rows}
+
+    totaux: dict = {}
+
+    # 1. Tout le reste, pour son montant entier.
+    for sens, total in _requete(models.Operation.montant).filter(
+        ~est_pret, ~est_depense_remboursable
+    ):
+        totaux[sens] = totaux.get(sens, 0.0) + (total or 0.0)
+
+    # 2. Une dépense remboursable ne pèse que pour ce qui reste à ma charge.
+    for sens, total in _requete(
+        models.Operation.montant - models.Operation.montant_du
+    ).filter(est_depense_remboursable):
+        totaux[sens] = totaux.get(sens, 0.0) + (total or 0.0)
+
+    # 3. Un prêt reçu pèse pour ses SEULS INTÉRÊTS, et du côté des SORTIES.
+    #
+    # L'argent d'un prêt n'est pas un revenu : il faudra le rendre. Ce qu'il
+    # coûte vraiment, c'est l'écart entre ce qu'on rendra et ce qu'on a reçu —
+    # `montant_du - montant`, qui est positif puisqu'on ne rembourse jamais
+    # moins qu'on n'a emprunté — c'est même la borne que le type impose à la
+    # saisie (cf. crud.erreur_montant_du). C'est un COÛT, il va donc aux
+    # sorties, alors
+    # même que l'opération porte `sens = entrée` : c'est la seule endroit de ce
+    # calcul où le sens de l'écriture ne décide pas de la colonne.
+    #
+    # SEULEMENT SI L'EXTENSION TOURNE. Sans elle, aucun écran n'explique d'où
+    # sortent ces intérêts, et l'histogramme ne porte pas la barre qui leur
+    # correspond : les compter creuserait un écart au lieu d'en combler un.
+    if extensions.est_active(EXTENSION_PRETS):
+        interets = _requete(_INTERETS_PRET).filter(est_pret)
+        for _sens, total in interets:
+            totaux[Sens.depense] = totaux.get(Sens.depense, 0.0) + (total or 0.0)
 
     amorties = (
         db.query(models.Operation)
         .join(models.Compte, models.Operation.compte_id == models.Compte.id)
         .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+        .join(
+            models.TypeOperationDB,
+            models.Operation.type_id == models.TypeOperationDB.id,
+        )
         .filter(_filtre_periode_amortie(annee, mois), *filtres_communs)
         .all()
     )
     for operation in amorties:
-        totaux[operation.sens] = totaux.get(operation.sens, 0.0) + (
-            operation.montant * part_amortie(operation, annee, mois)
+        code = operation.type_operation.code
+        if code == TypeOperation.pret.value:
+            # Même règle qu'au point 3, part amortie comprise.
+            if not extensions.est_active(EXTENSION_PRETS):
+                continue
+            base = max(0.0, operation.montant_du - operation.montant)
+            sens_impute = Sens.depense
+        else:
+            base = _base_imposable(operation.montant, operation.montant_du, code)
+            sens_impute = operation.sens
+        totaux[sens_impute] = totaux.get(sens_impute, 0.0) + (
+            base * part_amortie(operation, annee, mois)
         )
 
     entrees = totaux.get(Sens.entree, 0.0)

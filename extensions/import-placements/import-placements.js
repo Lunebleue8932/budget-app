@@ -90,11 +90,11 @@ const IMPL_INFOS_PROPRIETES_POSITION = {
   prix_revient:
     "Ce qu'UN titre t'a coûté en moyenne, frais compris (le PRU).\n\n" +
     "Par titre, pas le total investi. Si ton relevé donne le total, divise-le " +
-    "avant d'importer — sinon chaque position sera multipliée par sa quantité.",
+    "avant d'importer.",
   valeur_totale:
     "Ce que la ligne vaut aujourd'hui, tous titres confondus.\n\n" +
-    "Elle ne crée aucune détention : elle sert juste à en déduire le cours du " +
-    "titre (valeur ÷ quantité), que ce genre d'export ne donne pas directement.",
+    "Elle ne crée aucune détention : elle sert à déduire le cours du titre " +
+    "(valeur ÷ quantité), que ce genre d'export ne donne pas.",
   type_titre: IMPL_INFO_COLONNE_TYPE_TITRE,
 };
 
@@ -125,8 +125,7 @@ function implInfosProprietes() {
 
 const IMPL_INFOS_PROPRIETES = {
   type_placement:
-    "Ce que la ligne décrit : un achat, une vente, ou un transfert d'espèces " +
-    "vers ou depuis un autre compte.\n\n" +
+    "Ce que la ligne décrit : un achat, une vente, ou un transfert d'espèces.\n\n" +
     "Les mots-clés se règlent juste en dessous. Un libellé inconnu met la ligne " +
     "en erreur plutôt que d'être deviné.",
   nom_valeur:
@@ -135,8 +134,8 @@ const IMPL_INFOS_PROPRIETES = {
     "ligne d'achat ne dit pas de quelle valeur elle parle.",
   code_isin:
     "Le code ISIN du titre (FR0000120073, LU1681043599…).\n\n" +
-    "C'est le seul nom qui ne change jamais : c'est par lui qu'un titre est " +
-    "reconnu d'un import à l'autre. Facultatif si tu lis le nom de la valeur.",
+    "Seul nom qui ne change jamais : c'est par lui qu'un titre est reconnu d'un " +
+    "import à l'autre. Facultatif si tu lis le nom de la valeur.",
   montant:
     "Ce que l'opération a coûté ou rapporté en espèces.\n\n" +
     "C'est lui qui fait foi : le prix par titre vaut montant ÷ quantité, pas le " +
@@ -146,9 +145,9 @@ const IMPL_INFOS_PROPRIETES = {
     "Sans objet sur une ligne de transfert d'espèces, qui peut la laisser vide.",
   cours:
     "Le prix par titre annoncé par le relevé.\n\n" +
-    "Il ne décide de rien : il sert de contrôle. Un écart de plus de 1 % avec le " +
-    "montant divisé par la quantité est signalé au-dessus de l'aperçu, sans " +
-    "jamais bloquer l'import.",
+    "Il ne décide de rien, il sert de contrôle : un écart de plus de 1 % avec " +
+    "le montant divisé par la quantité est signalé au-dessus de l'aperçu, sans " +
+    "bloquer l'import.",
   type_titre: IMPL_INFO_COLONNE_TYPE_TITRE,
 };
 

@@ -46,41 +46,63 @@ PS : si vous avez des suggestions pour le nom, je suis preneur.
 
 ## Installer l'application
 
-Va chercher l'archive correspondant à ton système sur la page
-[Releases](../../releases), décompresse-la quelque part où tu as le droit
-d'écrire (évite `Program Files` : l'application y crée sa base de données à
-côté d'elle-même), et lance `Budget App`.
+> **Aucune version n'est encore publiée.** La page
+> [Releases](../../releases) est vide pour l'instant — les archives y
+> apparaîtront à la première version. En attendant, il faut construire
+> l'application soi-même (voir `README-dev.md`).
 
-Comme elle n'est pas signée numériquement — cette signature coûte de l'argent
-chez Microsoft comme chez Apple — ton système va probablement s'inquiéter au
-premier lancement. Rien d'anormal :
+Une fois une version publiée : va chercher l'archive de ton système, décompresse-la
+quelque part où tu as le droit d'écrire, et lance `Budget App`.
 
-| Système | Ce qu'il faut faire |
-|---|---|
-| **Windows** | SmartScreen affiche un écran bleu : clique *Informations complémentaires*, puis *Exécuter quand même*. |
-| **macOS** | Clic droit sur l'app → *Ouvrir*, et confirme. Un double-clic classique sera refusé la première fois. Détails : [macOS](desktop/platforms/macos/README.md). |
-| **Linux** | Un paquet à installer avant de lancer l'app (le moteur d'affichage) : [Linux](desktop/platforms/linux/README.md). |
+| Système | Archive | Au premier lancement |
+|---|---|---|
+| **Windows** | `budget-app-windows.zip` | SmartScreen affiche un écran bleu : clique *Informations complémentaires*, puis *Exécuter quand même*. |
+| **macOS** | `budget-app-macos.zip` | Clic droit sur l'app → *Ouvrir*, et confirme. Un double-clic sera refusé la première fois. Détails : [macOS](desktop/platforms/macos/README.md). |
+| **Linux** | `budget-app-linux.zip` | Un paquet à installer d'abord, le moteur d'affichage : [Linux](desktop/platforms/linux/README.md). |
 
+**Évite `Program Files`** (et `/Applications` sur macOS) : l'application crée sa
+base de données à côté d'elle-même, et ces dossiers sont protégés en écriture.
+Un dossier de tes documents fait très bien l'affaire.
 
-L'application arrive sans aucune extension activée — le dossier `extensions/`
-est vide au départ, et c'est volontaire.
+Si ton système s'inquiète, c'est normal : l'application **n'est pas signée
+numériquement**. Cette signature se paie tous les ans, chez Microsoft comme chez
+Apple, et je ne l'ai pas prise. Windows et macOS ne savent donc pas qui a écrit
+le programme — ils ne disent pas qu'il est dangereux, ils disent qu'ils ne
+peuvent pas le vérifier. Le tableau ci-dessus donne le geste à faire pour chaque
+système.
 
-Pour en ajouter une : télécharge son archive sur la page
-[Releases](../../releases), décompresse-la dans `extensions/`, puis relance
-l'application. Elle la détecte toute seule et te propose de l'activer.
+### Les extensions
+
+Elles ne sont **pas livrées avec l'application** : le dossier `extensions/`
+arrive vide.
+
+Chacune a sa propre archive sur la page Releases, nommée `extension-<nom>.zip`.
+Télécharge-la, décompresse-la dans `extensions/`, puis relance l'application pour pouvoir l'activer.
+
+Attention à décompresser le dossier de l'extension, pas une archive
+qui le contiendrait.
+L'architecture dans le dossier extensions doit ressembler à ce qui suit - le dossier d'une extension est directement un dossier fille d'"extensions/" :
 
 ```
 Budget App/
-  Budget App.exe
+  Budget App.exe        (ou « Budget App.app » sur macOS)
   data/                 ta base de données
   extensions/
-    placements/         <- le dossier décompressé
+    placements/         <- le dossier décompressé, tel quel
 ```
+
 
 
 Toute erreur au démarrage est écrite en détail dans `erreur.log`, à côté de la
 base de données. Regarde d'abord là, et joins ce fichier si tu me signales le
 problème.
 
-Point légal, par mesure de sécurité. L'app est sous license pour un usage personnel. Aucune licence d'exploitation n'est accordée. 
-Tu peux jeter un oeil au fichier license pour des clarifications.
+## Point légal
+
+Le code est visible, il n'est pas libre pour autant. Tous droits réservés :
+tu peux lire ce dépôt et te servir de l'application pour ton usage personnel,
+mais aucune autorisation d'exploitation n'est accordée — ni redistribution, ni
+usage commercial, ni réutilisation du code dans un autre projet.
+
+Le détail est dans le fichier [LICENSE](LICENSE). Si tu veux faire quelque chose
+qui n'y rentre pas, demande-moi.

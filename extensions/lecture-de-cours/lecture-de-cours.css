@@ -120,10 +120,11 @@
  * elle-même posé : la feuille est chargée pour TOUTE l'application, un
  * sélecteur trop large repeindrait des écrans qui ne la concernent pas.
  */
-.lc-taux {
-  margin-top: 2rem;
-}
-
+/* La barre de mise à jour, posée dans l'en-tête que l'écran des monnaies
+   réserve aux extensions. Le bloc « Taux de change » lui-même appartient
+   désormais à « Monnaies » — liste, formulaire et menus compris ; nous n'y
+   ajoutons qu'un mode de saisie et ce bouton (cf. taux-de-change.js). D'où la
+   disparition des règles qui habillaient notre ancien bloc autonome. */
 .lc-taux-barre {
   display: flex;
   align-items: center;
@@ -134,33 +135,6 @@
 
 .lc-taux-barre .hint {
   margin: 0;
-}
-
-/* Le formulaire d'ajout est un <form> ORDINAIRE : il hérite en entier de la
-   grille, des étiquettes et des champs du noyau (cf. frontend/style.css), et
-   se lit donc exactement comme « Ajouter un titre » ou « Nouveau compte ».
-   Rien à styler ici — c'était tout l'objet du changement, la barre de champs
-   nus qu'il remplace ne ressemblait à aucun autre écran de l'app.
-
-   Le SENS du taux est porté par les deux étiquettes (« Monnaie de départ » /
-   « Monnaie d'arrivée ») là où une flèche le suggérait : il n'est pas
-   décoratif — « 1 EUR = 1,08 USD » et l'inverse sont deux couples distincts,
-   avec deux pages de cotation distinctes. */
-#lc-taux-ajout {
-  margin-top: 0.9rem;
-}
-
-.lc-taux-couple,
-.lc-taux-fraicheur {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-/* Le lien est court et discret : ce qu'on lit sur cette ligne, c'est le taux,
-   pas l'adresse — mais on doit pouvoir vérifier la page d'un clic. */
-.lc-taux-lien {
-  color: var(--text-muted);
-  font-size: 0.85rem;
 }
 
 /* ---------- Le repli du lien de cotation ----------

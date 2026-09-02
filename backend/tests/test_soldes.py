@@ -299,9 +299,11 @@ def test_depenses_par_categorie_previsionnel_cumule_le_reel(db_session):
     assert resultats["Alimentaire"]["total_reel"] == 50.0
     # Le prévisionnel est cumulatif : réel (50) + prévisionnel seul (20).
     assert resultats["Alimentaire"]["total_previsionnel"] == 70.0
-    # La catégorie existe toujours dans le tableau (elle n'est pas "système"),
-    # mais aucune dépense n'y est rattachée.
-    assert resultats["Entrées d'argent"]["total_reel"] == 0.0
+    # « Entrées d'argent » n'a PAS de barre du tout : ses opérations sont des
+    # entrées, et l'histogramme ne somme que des dépenses. Une barre qui ne peut
+    # être qu'à zéro n'apprend rien et laisse croire qu'il ne s'y passe rien
+    # (cf. soldes.get_depenses_par_categorie).
+    assert "Entrées d'argent" not in resultats
     assert "Virement interne" not in resultats
     assert "Remboursements" not in resultats
 

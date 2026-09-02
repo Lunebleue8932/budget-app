@@ -25,26 +25,44 @@
           </div>
         </form>
 
-        <!-- LES TAUX, ET CE QU'ILS PERMETTENT. Ce bloc est le seul endroit de
+        <!-- LES TAUX, ET CE QU'ILS PERMETTENT. C'est le seul endroit de
              l'application d'où une conversion peut naître : partout ailleurs,
-             les montants restent suivis monnaie par monnaie. L'extension
-             « Lecture de cours », quand elle tourne, vient greffer ici de quoi
-             relire un taux en ligne — les taux qu'elle rapporte sont les mêmes
-             et servent à la même chose. -->
-        <h3 id="monnaies-taux-titre">Taux de change<i class="info-bulle" tabindex="0" data-info="Ce que vaut une monnaie dans une autre. Sert uniquement à la case « tout convertir » du dashboard : rien n'est converti sans ce geste, et aucun montant enregistré n'est modifié. Tu n'as besoin que d'un sens par couple, l'inverse se calcule.">i</i></h3>
+             les montants restent suivis monnaie par monnaie.
+
+             UN SEUL BLOC, DEUX FAÇONS DE SAISIR. Il y en avait deux jusqu'ici :
+             celui-ci pour un taux tapé à la main, et un second, posé par
+             l'extension « Lecture de cours », pour un taux relu en ligne. Deux
+             listes des mêmes couples, deux formulaires, deux titres « Taux de
+             change » l'un sous l'autre — alors que ce sont les mêmes taux, dans
+             la même table, qui servent à la même chose. Ils sont désormais
+             fondus, et c'est un bouton qui choisit la façon de saisir. -->
+        <h3 id="monnaies-taux-titre">Taux de change<i class="info-bulle" tabindex="0" data-info="Ce que vaut une monnaie dans une autre. Sert uniquement à la case « tout convertir » du dashboard, et ne modifie aucun montant enregistré. Un seul sens par couple suffit, l'inverse se calcule.">i</i></h3>
+
+        <!-- Rempli par « Lecture de cours » quand elle tourne : le bouton de
+             mise à jour et son compte rendu. Vide, il ne dessine rien. -->
+        <div id="monnaies-taux-entete"></div>
+
         <div id="monnaies-taux-liste" class="import-mappings"></div>
+
         <form id="form-monnaie-taux">
+          <!-- La barre des modes de saisie. MASQUÉE TANT QU'IL N'Y EN A QU'UN,
+               comme toutes les barres d'onglets de l'application : sans
+               « Lecture de cours », il n'y a que la saisie à la main et un
+               bouton unique ne choisirait rien. -->
+          <div class="sous-onglets full-width" id="monnaies-taux-modes"></div>
+
           <label for="monnaie-taux-source">1 unité de
             <select id="monnaie-taux-source"></select>
           </label>
           <label for="monnaie-taux-cible">vaut, en
             <select id="monnaie-taux-cible"></select>
           </label>
-          <label for="monnaie-taux-valeur">ce nombre d'unités
-            <input type="number" step="any" min="0" id="monnaie-taux-valeur" placeholder="ex. 1,08" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Enregistrer le taux</button>
+
+          <!-- Le champ propre au mode choisi : un nombre, ou un lien. -->
+          <div class="full-width" id="monnaie-taux-saisie"></div>
+
+          <div class="actions full-width">
+            <button type="submit" class="primary" id="monnaie-taux-enregistrer">Enregistrer le taux</button>
           </div>
         </form>
 </div>

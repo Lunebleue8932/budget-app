@@ -272,21 +272,21 @@ function ioRenderLegende(bloc) {
 function ioRenderKpis(bloc) {
   const plusValue = bloc.total - bloc.total_investi;
   const signe = plusValue >= 0 ? "positif" : "negatif";
+  // PAS DE SOUS-TEXTE sous ces cartes : chaque libellé se suffit, et une ligne
+  // de glose sous chacun repoussait les chiffres — la seule chose qu'on vient
+  // lire ici. Ce qu'il fallait préciser l'est dans l'infobulle de la section.
   document.getElementById("io-kpis").innerHTML = `
     <div class="kpi-card">
       <div class="kpi-label">${t("Valeur du portefeuille")}</div>
       <div class="kpi-valeur">${formatMontant(bloc.total, bloc.monnaie_id)}</div>
-      <div class="kpi-sous-texte">${t("Tous comptes de placements confondus")}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">${t("Montant investi")}</div>
       <div class="kpi-valeur">${formatMontant(bloc.total_investi, bloc.monnaie_id)}</div>
-      <div class="kpi-sous-texte">${t("Ce que les titres détenus ont coûté")}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">${t("Plus-value latente")}</div>
       <div class="kpi-valeur ${signe}">${formatMontant(plusValue, bloc.monnaie_id)}</div>
-      <div class="kpi-sous-texte">${t("Au dernier cours connu, avant impôt")}</div>
     </div>
   `;
 }

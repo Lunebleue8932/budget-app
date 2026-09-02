@@ -95,6 +95,13 @@ class CategorieCreate(BaseModel):
     nom: str = Field(min_length=1)
 
 
+class CategorieUpdate(BaseModel):
+    """Le renommage, et lui seul. Le budget se règle par sa propre route (il
+    dépend d'un mois et d'une monnaie), la visibilité par la sienne."""
+
+    nom: str = Field(min_length=1)
+
+
 class CategorieRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -255,8 +262,16 @@ class OperationBase(BaseModel):
 
     @model_validator(mode="after")
     def _check_montants_remboursement(self):
-        if self.montant_du is not None and self.montant_du > self.montant:
-            raise ValueError("montant_du ne peut pas dépasser montant")
+        # UNE SEULE DES DEUX RÈGLES DE MONTANT TIENT ICI, et c'est voulu.
+        #
+        # « Le reste à rembourser ne dépasse pas ce qui est dû » vaut pour tout
+        # le monde : elle reste. La borne de `montant_du` par rapport à
+        # `montant`, elle, DÉPEND DU TYPE — plafond pour une dépense
+        # remboursable, plancher pour un prêt reçu (cf. crud.erreur_montant_du) —
+        # et ce modèle ne connaît que `type_id`, un entier qu'il faudrait
+        # résoudre en base pour savoir de quel côté trancher. La garder ici
+        # revenait à appliquer la règle des dépenses aux prêts, qui ne pouvaient
+        # donc porter aucun intérêt.
         if (
             self.montant_du is not None
             and self.montant_a_rembourser is not None

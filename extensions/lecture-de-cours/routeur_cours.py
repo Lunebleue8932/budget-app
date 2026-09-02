@@ -111,7 +111,7 @@ def definir_url(
         resultats=[
             service_cours.Resultat(
                 action.id,
-                action.nom,
+                action.nom_affiche,
                 ok=True,
                 cours=cours.valeur,
                 ancien_cours=ancien,
@@ -146,6 +146,6 @@ def rafraichir_titre(action_id: int, db: Session = Depends(get_db)):
     if not action.url_cours:
         raise HTTPException(
             status_code=400,
-            detail=f"« {action.nom} » n'a pas de lien : ajoute-en un d'abord.",
+            detail=f"« {action.nom_affiche} » n'a pas de lien : ajoute-en un d'abord.",
         )
     return _reponse(db, service_cours.rafraichir(db, [action]))

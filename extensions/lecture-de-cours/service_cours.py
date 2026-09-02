@@ -224,13 +224,13 @@ def rafraichir(db: Session, actions: list[models.Action]) -> Resume:
         action = par_id[action_id]
         if erreur is not None:
             resume.resultats.append(
-                Resultat(action.id, action.nom, ok=False, erreur=erreur)
+                Resultat(action.id, action.nom_affiche, ok=False, erreur=erreur)
             )
             continue
         conflit = ecart_de_devise(cours, action.monnaie)
         if conflit is not None:
             resume.resultats.append(
-                Resultat(action.id, action.nom, ok=False, erreur=conflit)
+                Resultat(action.id, action.nom_affiche, ok=False, erreur=conflit)
             )
             continue
         ancien = action.valeur
@@ -238,7 +238,7 @@ def rafraichir(db: Session, actions: list[models.Action]) -> Resume:
         resume.resultats.append(
             Resultat(
                 action.id,
-                action.nom,
+                action.nom_affiche,
                 ok=True,
                 cours=cours.valeur,
                 ancien_cours=ancien,

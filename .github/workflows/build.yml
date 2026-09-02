@@ -108,6 +108,35 @@ jobs:
           done
           echo "Bundle complet."
 
+      # LE DOSSIER `extensions/` EST LIVRÉ, VIDE MAIS PRÉSENT. L'application le
+      # crée toute seule au premier lancement (cf. app/extensions.py::
+      # preparer_dossiers), ce qui suffit à la faire fonctionner — mais pas à
+      # rendre l'installation compréhensible : on télécharge une extension, on
+      # ouvre l'archive de l'application, et le dossier où la déposer n'y est
+      # pas. Il fallait avoir lancé l'app une fois pour le voir apparaître, ce
+      # que rien n'indiquait.
+      #
+      # Un dossier VIDE ne peut pas voyager dans un zip : d'où le fichier
+      # d'explication, qui sert donc deux fois — il porte le dossier, et il dit
+      # quoi y mettre. Son texte vit dans le dépôt (desktop/) plutôt qu'ici :
+      # il se relit et se corrige comme n'importe quel fichier, sans passer par
+      # les règles de citation d'un script shell dans du YAML.
+      - name: Préparer le dossier des extensions
+        shell: bash
+        run: |
+          set -eu
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # Sur macOS, l'application cherche ses extensions à côté de son
+            # EXÉCUTABLE, donc dans Contents/MacOS — là où vit aussi sa base de
+            # données (cf. app/extensions.py::_racine_projet).
+            cible="desktop/dist/Budget App.app/Contents/MacOS/extensions"
+          else
+            cible="desktop/dist/Budget App/extensions"
+          fi
+          mkdir -p "$cible"
+          cp desktop/extensions-LISEZMOI.txt "$cible/LISEZMOI.txt"
+          echo "Dossier des extensions prêt : $cible"
+
       - name: Archiver
         shell: bash
         run: |

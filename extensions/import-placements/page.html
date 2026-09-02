@@ -51,7 +51,7 @@
 
         <div id="impl-volet-import">
           <!-- ----- Presets ----- -->
-          <h3>Format du fichier<i class="info-bulle" tabindex="0" data-info="Un preset par courtier : il retient quelles colonnes lire et le vocabulaire de ses relevés. Ceux des relevés bancaires sont ailleurs, sur la page Import, et ne se mélangent pas à ceux-ci.">i</i></h3>
+          <h3>Format du fichier<i class="info-bulle" tabindex="0" data-info="Un preset par courtier : colonnes à lire et vocabulaire de ses relevés. Ceux des relevés bancaires vivent à part, sur la page Import.">i</i></h3>
           <div class="preset-chips sous-onglets" id="impl-preset-chips"></div>
           <div class="actions">
             <button type="button" class="primary" id="btn-impl-preset-creer">+ Nouveau preset</button>
@@ -63,7 +63,7 @@
                relevé de compte-titres ne nomme jamais le compte qu'il décrit. -->
           <div class="import-compte-defaut-bloc">
             <label for="impl-preset-compte">
-              Compte de placements de ce preset<i class="info-bulle" tabindex="0" data-info="Un relevé de courtier ne dit nulle part quel compte il décrit. Le lier une fois ici évite de le choisir à chaque import. Laisse vide si plusieurs de tes comptes ont le même format.">i</i>
+              Compte de placements de ce preset<i class="info-bulle" tabindex="0" data-info="Un relevé de courtier ne dit jamais quel compte il décrit. Le lier ici évite de le choisir à chaque import ; laisse vide si plusieurs comptes ont le même format.">i</i>
             </label>
             <select id="impl-preset-compte">
               <option value="">— aucun (choisir à chaque fichier) —</option>
@@ -82,7 +82,7 @@
                  photographie lit une quantité détenue et un prix de revient, et
                  n'a ni l'une ni l'autre. -->
             <div class="import-reglage-champ">
-              <label for="impl-mode-lecture">Le fichier contient<i class="info-bulle" tabindex="0" data-info="Une LISTE D'OPÉRATIONS rejoue l'histoire du compte : une ligne par achat, vente ou transfert, chacune datée. Une PHOTOGRAPHIE dit juste ce que tu détiens aujourd'hui : une ligne par titre, sa quantité, son prix de revient. Prends la photographie si tu arrives avec un portefeuille déjà constitué et que tu n'as pas envie de réimporter dix ans de mouvements.">i</i></label>
+              <label for="impl-mode-lecture">Le fichier contient<i class="info-bulle" tabindex="0" data-info="Une liste d'opérations rejoue l'histoire du compte : une ligne par achat, vente ou transfert, chacune datée. Une photographie dit ce que tu détiens aujourd'hui : une ligne par titre, sa quantité, son prix de revient. La photographie évite de réimporter dix ans de mouvements.">i</i></label>
               <select id="impl-mode-lecture">
                 <option value="operations">Une liste d'opérations (achats, ventes, transferts)</option>
                 <option value="position">Une photographie du compte (titres détenus)</option>
@@ -100,7 +100,7 @@
             </label>
 
             <div id="impl-vocabulaire-section">
-            <h4>Mots-clés de la colonne « Type d'opération »<i class="info-bulle" tabindex="0" data-info="Les mots que TON courtier emploie pour dire achat, vente ou mouvement d'espèces. Ajoute-les un par un avec « + » ou la touche Entrée. Majuscules, accents et espaces sont ignorés. Une liste vide retombe sur les mots par défaut. Un libellé qu'aucune des trois listes ne reconnaît met la ligne en erreur plutôt que d'être deviné : confondre un achat et une vente retournerait une position entière.">i</i></h4>
+            <h4>Mots-clés de la colonne « Type d'opération »<i class="info-bulle" tabindex="0" data-info="Les mots que ton courtier emploie pour dire achat, vente ou mouvement d'espèces. Ajoute-les un par un avec « + » ou Entrée ; majuscules, accents et espaces sont ignorés. Une liste vide retombe sur les mots par défaut, un libellé inconnu met la ligne en erreur.">i</i></h4>
 
             <!-- UN SEUL CONTENEUR pour les trois listes : c'est lui que l'éditeur
                de mots-clés du noyau prend comme GROUPE (cf. app.js), et le
@@ -172,7 +172,7 @@
 
             </div>
 
-            <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info="Comment l'app reconnaît une ligne déjà importée sous ce preset. Deux façons d'y arriver : partir de toutes les colonnes et retirer celles qui bougent d'un export à l'autre (numéro d'ordre, solde courant), ou ne désigner que celles qui identifient une ligne — souvent date + valeur + montant + quantité.">i</i></h4>
+            <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info="Comment l'app reconnaît une ligne déjà importée sous ce preset. Soit toutes les colonnes moins celles qui bougent d'un export à l'autre (numéro d'ordre, solde courant), soit les seules qui identifient une ligne — souvent date + valeur + montant + quantité.">i</i></h4>
             <div class="import-reglage-champ">
               <label for="impl-mode-comparaison">Comparer</label>
               <select id="impl-mode-comparaison">
@@ -202,7 +202,7 @@
                datera toutes les lignes créées. Aujourd'hui par défaut. -->
           <div id="impl-date-position-bloc" class="import-compte-defaut-bloc" style="display:none">
             <label for="impl-date-position">
-              Date de la photographie<i class="info-bulle" tabindex="0" data-info="Le jour où ta photographie a été prise. C'est à partir de cette date que l'app considère que tu détiens ces titres. Aujourd'hui par défaut.">i</i>
+              Date de la photographie<i class="info-bulle" tabindex="0" data-info="Le jour où la photographie a été prise : c'est de cette date que l'app te considère détenteur de ces titres. Aujourd'hui par défaut.">i</i>
             </label>
             <input type="date" id="impl-date-position" />
           </div>
@@ -272,7 +272,7 @@
           <!-- Les titres que la confirmation créera : relus d'un coup d'œil
                avant de valider, plutôt que découverts après coup. -->
           <div id="impl-titres-a-creer-bloc" style="display:none">
-            <h3>Titres qui seront créés<i class="info-bulle" tabindex="0" data-info="L'app ne connaît pas encore ces valeurs : elle les créera à l'import. Si l'une d'elles existe déjà chez toi sous un autre nom, choisis-la à la main sur sa ligne plutôt que de laisser créer un doublon.">i</i></h3>
+            <h3>Titres qui seront créés<i class="info-bulle" tabindex="0" data-info="L'app ne connaît pas encore ces valeurs et les créera à l'import. Si l'une existe déjà chez toi sous un autre nom, choisis-la à la main sur sa ligne.">i</i></h3>
             <div id="impl-titres-a-creer" class="import-mappings"></div>
           </div>
 
@@ -451,7 +451,7 @@
 
         <!-- ----- Règles ----- -->
         <div id="impl-volet-regles" style="display:none">
-          <h3>Règles de type d'opération<i class="info-bulle" tabindex="0" data-info="Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : un achat, une vente, un transfert d'espèces. Elles valent pour tous tes courtiers, et ce que tu écris ici passe avant les mots-clés du preset.">i</i></h3>
+          <h3>Règles de type d'opération<i class="info-bulle" tabindex="0" data-info="Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : achat, vente, transfert d'espèces. Elle vaut pour tous tes courtiers et passe avant les mots-clés du preset.">i</i></h3>
           <p class="hint">
             Les mots-clés de la « Configuration du fichier » comparent un libellé <strong>entier</strong> :
             « Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase —
@@ -522,14 +522,14 @@
                  règle doit être reprise à la main dans l'aperçu avant de pouvoir
                  être importée. -->
             <div class="regle-champ-ligne" id="impl-regle-compte-bloc" style="display:none">
-              <label for="impl-regle-compte">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="L'autre compte : celui d'où vient l'argent versé, ou celui où va l'argent retiré. Pas besoin de préciser le sens, il se déduit du signe du montant. Sans lui, tu devras compléter la ligne à la main dans l'aperçu.">i</i></label>
+              <label for="impl-regle-compte">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="L'autre compte : celui d'où vient l'argent versé, ou celui où va l'argent retiré. Le sens se déduit du signe du montant. Sans lui, la ligne est à compléter à la main dans l'aperçu.">i</i></label>
               <select id="impl-regle-compte"><option value="">— à renseigner à l'import —</option></select>
             </div>
             <!-- L'étiquette du titre. Symétrique du compte en face : celui-ci
                  n'a de sens que sur un transfert, celle-là partout sauf sur un
                  transfert — un mouvement d'espèces ne désigne aucun titre. -->
             <div class="regle-champ-ligne" id="impl-regle-type-titre-bloc">
-              <label for="impl-regle-type-titre">Et type le titre en<i class="info-bulle" tabindex="0" data-info="Pose une étiquette sur le titre que la ligne désigne — ETF, obligation, action. Uniquement sur les titres que l'import crée : un titre que tu as déjà typé garde le tien. Purement descriptif, ça ne change aucun montant.">i</i></label>
+              <label for="impl-regle-type-titre">Et type le titre en<i class="info-bulle" tabindex="0" data-info="Une étiquette posée sur le titre que la ligne désigne — ETF, obligation, action. Uniquement à la création d'un titre : un titre déjà typé garde le sien. Purement descriptif.">i</i></label>
               <select id="impl-regle-type-titre"><option value="">— aucun —</option></select>
             </div>
             <label class="import-option-ligne">

@@ -365,12 +365,26 @@ function reprendreLePremierOnglet(hoteSection) {
 }
 
 function majVisibiliteNavigation(id, actif) {
-  document
-    .querySelectorAll(
-      `button[data-extension="${id}"], [data-extension-greffe="${id}"], ` +
-        `[data-extension-onglet="${id}"]`
-    )
-    .forEach((element) => (element.style.display = actif ? "" : "none"));
+  const aMoi = document.querySelectorAll(
+    `button[data-extension="${id}"], [data-extension-greffe="${id}"], ` +
+      `[data-extension-onglet="${id}"]`
+  );
+  aMoi.forEach((element) => (element.style.display = actif ? "" : "none"));
+
+  // ÉTEINTE ALORS QU'UN DE SES VOLETS ÉTAIT OUVERT : il vient d'être masqué, et
+  // laisser la page dessus donnerait un écran vide sans dire pourquoi. L'écran
+  // hôte se lit sur le volet lui-même plutôt que sur le manifeste : une
+  // extension peut n'avoir AUCUNE navigation déclarée et commander tout de même
+  // des volets écrits dans index.html — c'est le cas de « prets », dont les deux
+  // onglets de la page Opérations appartiennent au noyau.
+  if (!actif) {
+    aMoi.forEach((element) => {
+      if (!element.classList.contains("active")) return;
+      const section = element.closest("section");
+      if (section) reprendreLePremierOnglet(section.id.replace(/^section-/, ""));
+    });
+  }
+
   // Une greffe éteinte doit aussi rendre son nom à l'onglet qu'elle avait
   // rebaptisé, sans quoi « Règles » resterait affiché sur une page qui n'en
   // porte plus.
@@ -380,9 +394,6 @@ function majVisibiliteNavigation(id, actif) {
   if (navigation && navigation.type === "onglet") {
     renommerSectionHote(navigation, actif);
     majBarreOnglets(navigation.hote_section);
-    // Éteinte alors que SON onglet était ouvert : le volet vient d'être masqué,
-    // la page doit revenir sur celui du noyau plutôt que de rester vide.
-    if (!actif) reprendreLePremierOnglet(navigation.hote_section);
   }
 }
 

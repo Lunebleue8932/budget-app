@@ -10,6 +10,7 @@ from ..constants import (
     TYPES_AVEC_CATEGORIE_LIBRE,
     TYPES_INTERNES,
     TYPES_REGLEMENT,
+    TYPES_REMBOURSABLES,
     TYPE_COMPTE_EPARGNE,
     TYPE_COMPTE_PLACEMENT,
     TypeOperation,
@@ -305,6 +306,12 @@ def create_operation(operation: schemas.OperationCreate, db: Session = Depends(g
             db, operation.operations_remboursees, code, operation.montant, operation.monnaie_id
         )
 
+    # La borne de `montant_du` dépend du type et ne peut donc pas se vérifier
+    # dans schemas.OperationBase, qui ne voit qu'un `type_id`.
+    erreur = crud.erreur_montant_du(code, operation.montant, operation.montant_du)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+
     db_operation = crud.create_operation(db, operation)
     return _build_operation_read(db, db_operation)
 
@@ -370,18 +377,28 @@ def update_operation(
         _valider_categorie(db, updates.categorie_id)
 
     montant = updates.montant if updates.montant is not None else db_operation.montant
-    montant_du = (
-        updates.montant_du if updates.montant_du is not None else db_operation.montant_du
-    )
+    # LE `montant_du` QU'AURA L'OPÉRATION APRÈS COUP, pas celui qu'elle porte.
+    # Un type non remboursable n'en porte aucun (0.0, un remplissage, pas une
+    # valeur) : le reclasser en prêt sans rien préciser d'autre lui fera poser
+    # le montant entier (cf. crud.update_operation). Lire le 0.0 du disque
+    # reviendrait à refuser ce reclassement au motif qu'un prêt ne se rembourse
+    # pas à zéro — alors que personne n'a demandé zéro.
+    if updates.montant_du is not None:
+        montant_du = updates.montant_du
+    elif TypeOperation(db_operation.type_code) in TYPES_REMBOURSABLES:
+        montant_du = db_operation.montant_du
+    else:
+        montant_du = montant
     montant_a_rembourser = (
         updates.montant_a_rembourser
         if updates.montant_a_rembourser is not None
         else db_operation.montant_a_rembourser
     )
-    if montant_du > montant:
-        raise HTTPException(
-            status_code=400, detail="montant_du ne peut pas dépasser montant"
-        )
+    # Sur l'ÉTAT FINAL, et avec le type final : reclasser une dépense
+    # remboursable en prêt fait passer `montant_du` d'un plafond à un plancher.
+    erreur = crud.erreur_montant_du(code_final, montant, montant_du)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
     if montant_a_rembourser > montant_du:
         raise HTTPException(
             status_code=400, detail="montant_a_rembourser ne peut pas dépasser montant_du"

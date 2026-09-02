@@ -118,6 +118,35 @@ TYPES_AVEC_CATEGORIE_LIBRE = {TypeOperation.classique, TypeOperation.remboursabl
 # colonne booléenne `remboursable` valait 1 avant la migration 0019.
 TYPES_REMBOURSABLES = {TypeOperation.remboursable, TypeOperation.pret}
 
+# L'identifiant de l'extension qui tient les prêts. Le noyau garde le SCHÉMA
+# (une extension n'emporte jamais ses tables) mais ne compte les prêts dans ses
+# totaux que si l'écran qui les explique est là — sans quoi des intérêts
+# apparaîtraient dans les sorties sans qu'aucun écran ne dise d'où ils
+# viennent. Même procédé que `import_bancaire`, qui interroge « regles ».
+EXTENSION_PRETS = "prets"
+
+# CE QUI NE COMPTE JAMAIS DANS LES FLUX D'UNE PÉRIODE.
+#
+# Un remboursement reçu solde une dépense remboursable ; un remboursement de
+# prêt solde un prêt reçu. Dans les deux cas la dette a DÉJÀ été comptée au
+# moment où elle est née — une dépense remboursable ne pèse que pour ce qui
+# reste à ma charge, un prêt ne pèse que pour ses intérêts. Compter en plus le
+# règlement ferait payer deux fois la même chose, et dans le mauvais sens :
+# recevoir 60 € de remboursement apparaissait comme 60 € d'entrées, après
+# qu'on avait déjà retiré ces 60 € de la dépense.
+#
+# C'est aussi ce qui explique les « dépenses sans catégorie » qui creusaient
+# l'écart avec l'histogramme : un remboursement de prêt n'en porte aucune (son
+# type EST sa classification), il ne pouvait donc apparaître dans aucune barre
+# tout en pesant sur le total.
+TYPES_HORS_FLUX = {TypeOperation.remboursements, TypeOperation.remboursement_pret}
+
+# Le libellé de la barre que les prêts ajoutent à l'histogramme. Ce n'est pas
+# une catégorie — aucune ligne de `categorie` ne porte ce nom, et l'utilisateur
+# ne peut ni la renommer ni lui poser un budget. C'est une barre de plus, qui
+# n'apparaît que si des intérêts sont dus sur la période.
+LIBELLE_INTERETS_PRETS = "Intérêts de prêts"
+
 # Types qui règlent une dette (jamais eux-mêmes remboursables), et la cible
 # qu'ils ont le droit de régler : un remboursement reçu solde une dépense
 # remboursable, un remboursement de prêt solde un prêt reçu.

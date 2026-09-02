@@ -10,7 +10,7 @@
      hôte, et lui en remettre une le cacherait derrière une classe `active` que
      personne ne lui poserait jamais. -->
 <div id="regles-bloc">
-  <h3>Règles de catégorisation<i class="info-bulle" tabindex="0" data-info="Une règle reconnaît des lignes à leur libellé et dit ce qu'elles sont : un virement interne, un prêt, une dépense remboursable… Elle peut aussi poser la catégorie. Ce que tu écris ici passe avant tout le reste.">i</i></h3>
+  <h3>Règles de catégorisation<i class="info-bulle" tabindex="0" data-info="Une règle reconnaît des lignes à leur libellé et dit ce qu'elles sont : virement interne, prêt, dépense remboursable… Elle peut aussi poser la catégorie, et passe avant tout le reste.">i</i></h3>
   <p class="hint">
     Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul
     moyen de marquer une ligne "remboursable" ou de la classer en Prêt / Remboursement sans le
@@ -108,7 +108,7 @@
          être reprise à la main dans l'aperçu avant de pouvoir être
          importée. -->
     <div class="regle-champ-ligne" id="regle-compte-autre-bloc" style="display:none">
-      <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="L'autre compte du virement, celui que le relevé ne nomme pas. Pas besoin de préciser le sens : il se déduit du signe du montant. Sans lui, tu devras compléter la ligne à la main dans l'aperçu.">i</i></label>
+      <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info="L'autre compte du virement, celui que le relevé ne nomme pas. Le sens se déduit du signe du montant. Sans lui, la ligne est à compléter à la main dans l'aperçu.">i</i></label>
       <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
     </div>
     <label class="import-option-ligne">
@@ -117,7 +117,7 @@
     </label>
     <label class="import-option-ligne">
       <input type="checkbox" id="regle-arreter-apres" checked />
-      Arrêter la lecture des règles ici<i class="info-bulle" tabindex="0" data-info="Coché, c'est le réglage habituel : cette règle décide, on ne va pas plus loin. Décoché, les règles suivantes peuvent compléter ce qu'elle laisse ouvert — la catégorie, le compte en face. Le type, lui, reste celui de la première règle qui a mordu.">i</i>
+      Arrêter la lecture des règles ici<i class="info-bulle" tabindex="0" data-info="Coché, le réglage habituel : cette règle décide, on s'arrête là. Décoché, les règles suivantes peuvent compléter ce qu'elle laisse ouvert — la catégorie, le compte en face. Le type reste celui de la première règle qui a mordu.">i</i>
     </label>
 
     <div class="actions">

@@ -258,7 +258,12 @@ def test_chaque_categorie_a_son_propre_classement(db_session):
 
 def test_une_entree_dargent_ne_pollue_pas_le_classement(db_session):
     """L'histogramme ne montre que des dépenses : une entrée classée dans une
-    catégorie visible n'a rien à faire dans le détail d'une barre de sortie."""
+    catégorie visible n'a rien à faire dans le détail d'une barre de sortie.
+
+    Et sa catégorie n'a pas de barre non plus : ne pouvant rien porter ici, elle
+    est écartée à la source plutôt que dessinée vide (cf.
+    soldes.get_depenses_par_categorie). Son salaire se lit dans « Total
+    entrées »."""
     compte = creer_compte(db_session, "Courant")
     _depense(db_session, compte, "Restaurant", 45.0)
     _depense(
@@ -270,7 +275,10 @@ def test_une_entree_dargent_ne_pollue_pas_le_classement(db_session):
     )
 
     assert [d["nature"] for d in _top(db_session)] == ["Restaurant"]
-    assert _top(db_session, categorie="Entrées d'argent") == []
+    barres = soldes.get_depenses_par_categorie(
+        db_session, 2026, 7, get_monnaie_id(db_session)
+    )
+    assert "Entrées d'argent" not in [b["categorie"] for b in barres]
 
 
 def test_un_virement_interne_nentre_dans_aucun_classement(db_session):

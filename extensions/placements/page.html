@@ -78,50 +78,67 @@
         </table>
       </div>
 
-      <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info="Tes titres, communs à tous tes comptes : le même ETF peut être détenu sur deux comptes. Le cours se saisit à la main, ou se relit en ligne avec l'extension Lecture de cours. Il sert à savoir ce que ça vaut aujourd'hui, jamais à recalculer un solde.">i</i></h3>
-      <!-- ARCHIVER PLUTÔT QUE SUPPRIMER. Un titre entièrement vendu n'a plus
-           sa place dans cette liste, mais il ne peut pas être supprimé : ses
-           mouvements portent des opérations d'espèces réelles, et les effacer
-           réécrirait le solde du compte. La case ci-dessous est le seul endroit
-           d'où l'on peut remettre un titre rangé en service. -->
-      <label class="import-option-ligne">
-        <input type="checkbox" id="placements-voir-archives" />
-        Afficher les titres archivés<i class="info-bulle" tabindex="0" data-info="Archiver, c'est ranger, pas effacer : le titre quitte les listes, son historique reste. C'est ici qu'on le remet en service.">i</i>
-      </label>
-      <div id="placements-actions-liste" class="import-mappings"></div>
-      <form id="form-action">
-        <label>Nom du titre
-          <input type="text" id="action-nom" placeholder="ex. Air Liquide" required />
-        </label>
-        <label>Monnaie de cotation
-          <select id="action-monnaie" required></select>
-        </label>
-        <label>Cours actuel
-          <input type="number" step="0.01" min="0" id="action-valeur" value="0" />
-        </label>
-        <!-- Facultatif, et le menu le dit : « — » est sélectionné par défaut.
-             Le type ne sert qu'à regrouper, rien ne le réclame. -->
-        <label>Type
-          <select id="action-type-titre"></select>
-        </label>
-        <div class="actions">
-          <button type="submit" class="primary">Ajouter le titre</button>
-        </div>
-      </form>
+      <!-- TROISIÈME VOLET DE LA PAGE : le catalogue des titres, et non un
+           compte. Les onglets ci-dessus répondent à « qu'est-ce que je
+           regarde ? » — ce PEA, ce CTO, ou la liste des valeurs elle-même.
 
-      <!-- LES ÉTIQUETTES, gérées ici plutôt que dans les Paramètres : on crée
-           « ETF » au moment où l'on en a besoin, c'est-à-dire en typant un
-           titre, et repartir dans un autre écran pour ça ferait perdre le fil.
-           Même forme que les correspondances d'import (.import-mappings) :
-           une ligne par étiquette, un formulaire d'ajout en dessous. -->
-      <h3>Types de titre<i class="info-bulle" tabindex="0" data-info="Tes propres étiquettes — ETF, action en direct, obligation, SCPI — pour regrouper les titres. Purement descriptif : aucun solde ni aucune valorisation n'en dépend. Ça sert surtout au camembert d'exposition de la vue d'ensemble.">i</i></h3>
-      <div id="placements-types-titre-liste" class="import-mappings"></div>
-      <form id="form-type-titre">
-        <label>Nom
-          <input type="text" id="type-titre-nom" placeholder="ex. ETF" required />
+           Il était auparavant déroulé sous le détail du compte affiché, si bien
+           qu'il fallait traverser les KPI, les détentions, le formulaire d'achat
+           et l'historique des mouvements pour arriver à « Ajouter un titre ».
+           C'est la partie qu'on vient régler une fois puis qu'on ne rouvre que
+           rarement : elle n'a rien à faire sur le chemin de ce qu'on consulte
+           tous les jours.
+
+           L'extension « Lecture de cours » vient greffer ses blocs ICI — elle
+           s'accroche à `#placements-actions-liste` et à `#form-action`, qui ont
+           déménagé avec le reste : elle n'a donc rien à changer. -->
+      <div id="placements-titres" style="display:none">
+        <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info="Tes titres, communs à tous tes comptes : le même ETF peut être détenu sur deux comptes. Le cours se saisit à la main, ou se relit en ligne avec l'extension Lecture de cours. Il ne sert qu'à la valorisation, jamais à un solde.">i</i></h3>
+        <!-- ARCHIVER PLUTÔT QUE SUPPRIMER. Un titre entièrement vendu n'a plus
+             sa place dans cette liste, mais il ne peut pas être supprimé : ses
+             mouvements portent des opérations d'espèces réelles, et les effacer
+             réécrirait le solde du compte. La case ci-dessous est le seul endroit
+             d'où l'on peut remettre un titre rangé en service. -->
+        <label class="import-option-ligne">
+          <input type="checkbox" id="placements-voir-archives" />
+          Afficher les titres archivés<i class="info-bulle" tabindex="0" data-info="Archiver, c'est ranger, pas effacer : le titre quitte les listes, son historique reste. C'est ici qu'on le remet en service.">i</i>
         </label>
-        <div class="actions">
-          <button type="submit" class="primary">Ajouter le type</button>
-        </div>
-      </form>
+        <div id="placements-actions-liste" class="import-mappings"></div>
+        <form id="form-action">
+          <label>Nom du titre
+            <input type="text" id="action-nom" placeholder="ex. Air Liquide" required />
+          </label>
+          <label>Monnaie de cotation
+            <select id="action-monnaie" required></select>
+          </label>
+          <label>Cours actuel
+            <input type="number" step="0.01" min="0" id="action-valeur" value="0" />
+          </label>
+          <!-- Facultatif, et le menu le dit : « — » est sélectionné par défaut.
+               Le type ne sert qu'à regrouper, rien ne le réclame. -->
+          <label>Type
+            <select id="action-type-titre"></select>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Ajouter le titre</button>
+          </div>
+        </form>
+
+        <!-- LES ÉTIQUETTES, gérées ici plutôt que dans les Paramètres : on crée
+             « ETF » au moment où l'on en a besoin, c'est-à-dire en typant un
+             titre, et repartir dans un autre écran pour ça ferait perdre le fil.
+             Même forme que les correspondances d'import (.import-mappings) :
+             une ligne par étiquette, un formulaire d'ajout en dessous. -->
+        <h3>Types de titre<i class="info-bulle" tabindex="0" data-info="Tes propres étiquettes — ETF, action en direct, obligation, SCPI — pour regrouper les titres. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.">i</i></h3>
+        <div id="placements-types-titre-liste" class="import-mappings"></div>
+        <form id="form-type-titre">
+          <label>Nom
+            <input type="text" id="type-titre-nom" placeholder="ex. ETF" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Ajouter le type</button>
+          </div>
+        </form>
+      </div>
+
     </section>

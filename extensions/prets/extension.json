@@ -1,0 +1,8 @@
+{
+  "nom": "Prêts",
+  "description": "Suit l'argent qu'on t'a prêté : ce que tu as reçu, ce que tu rendras — intérêts compris — et ce qu'il te reste à rembourser. Les intérêts d'un prêt sont ce qu'il te coûte vraiment : ils comptent dans les sorties du mois et forment leur propre barre dans l'histogramme du dashboard. Sans cette extension, les deux onglets « Prêts reçus » et « Remboursements de prêts » de la page Opérations restent fermés et aucun prêt ne pèse sur tes totaux.",
+  "version": "1.0.0",
+  "frontend": {
+    "js": ["prets.js"]
+  }
+}

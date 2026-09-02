@@ -68,6 +68,21 @@ const CATEGORIE_AUTRES = "Autres";
 const TYPES_CATEGORIE_LIBRE = new Set(["classique", "remboursable"]);
 // Types pour lesquels `remboursable` vaut vrai (cf. constants.TYPES_REMBOURSABLES).
 const TYPES_REMBOURSABLES = new Set(["remboursable", "pret"]);
+// LES DEUX TYPES QUE COMMANDE L'EXTENSION « PRÊTS ».
+//
+// Leurs onglets et leurs boutons de type sont écrits dans index.html, masqués,
+// et portent `data-extension="prets"` : le noyau les montre et les cache tout
+// seul (cf. extensions.js::majVisibiliteNavigation). Cette liste-ci ne sert
+// qu'aux menus construits en JS, que rien ne peut marquer d'un attribut.
+//
+// Le SCHÉMA, lui, reste au noyau : éteindre l'extension ferme la porte, elle ne
+// supprime aucun prêt déjà saisi (cf. extensions/README.md).
+const EXTENSION_PRETS = "prets";
+const TYPES_DE_PRET = new Set(["pret", "remboursement_pret"]);
+
+function pretsAccessibles() {
+  return BudgetApp.extensions.estActive(EXTENSION_PRETS);
+}
 // Type de dette que chaque type de règlement peut solder
 // (cf. constants.CIBLE_PAR_TYPE_REGLEMENT).
 const CIBLE_PAR_TYPE_REGLEMENT = {
@@ -659,6 +674,22 @@ function ciblesEligiblesImport() {
   return state.categories.map((c) => ({ id: c.id, nom: c.nom }));
 }
 
+/**
+ * Le libellé d'une catégorie tel qu'on l'affiche.
+ *
+ * UNE CATÉGORIE EST UNE DONNÉE, PAS UN TEXTE D'INTERFACE : celles que
+ * l'utilisateur crée portent le nom qu'il leur a donné, et les traduire n'aurait
+ * aucun sens. Seules les catégories POSÉES À L'INSTALLATION (cf.
+ * constants.CATEGORIES_INITIALES) ont un équivalent anglais, et `t()` ne rend
+ * que ce qu'il connaît : tout le reste ressort inchangé.
+ *
+ * Passer par ici plutôt que d'appeler `t()` sur place, pour que la règle soit
+ * énoncée une fois — et qu'on sache où ajouter la suivante.
+ */
+function libelleCategorie(nom) {
+  return t(nom);
+}
+
 function nomCategorie(categorieId) {
   // Absente pour de bon : les quatre types sans catégorie libre (virement
   // interne, prêt reçu, remboursement reçu, remboursement de prêt) n'en portent
@@ -667,7 +698,7 @@ function nomCategorie(categorieId) {
   // supprimée qui, elle, a bien existé.
   if (categorieId == null) return "-";
   const c = state.categories.find((c) => c.id === categorieId);
-  return c ? c.nom : `#${categorieId}`;
+  return c ? libelleCategorie(c.nom) : `#${categorieId}`;
 }
 
 /* ---------- Recherche dans la page ---------- */
@@ -1318,10 +1349,7 @@ async function loadDashboardData(annee, mois) {
     const libellePeriode =
       state.dashboardPeriode.vue === "annee" ? `Année ${annee}` : libelleMois(annee, mois);
     document.getElementById("dashboard-periode-libelle").textContent = libellePeriode.toLowerCase();
-    renderKpisDashboard(
-      data.kpis.find((k) => k.monnaie_id === state.dashboardMonnaieId) || null,
-      libellePeriode
-    );
+    renderKpisDashboard(data.kpis.find((k) => k.monnaie_id === state.dashboardMonnaieId) || null);
     const kpisMonnaie = data.kpis.find((k) => k.monnaie_id === monnaieId);
     renderRepartitionComptes(
       data.comptes,
@@ -1374,7 +1402,7 @@ async function loadComptesGlobale() {
   }
 }
 
-function renderKpisDashboard(kpis, libellePeriode) {
+function renderKpisDashboard(kpis) {
   if (!kpis) {
     // Aucun compte, donc aucune monnaie en jeu : rien à agréger.
     [
@@ -1405,16 +1433,6 @@ function renderKpisDashboard(kpis, libellePeriode) {
     kpis.total_avoirs,
     monnaieId
   );
-  // Les titres détenus ne figurent dans aucun solde de compte : le sous-texte
-  // dit d'où vient la part qui n'y est pas.
-  document.getElementById("kpi-total-avoirs-sous-texte").textContent =
-    kpis.valorisation_placements > 0
-      ? `Tous comptes confondus, dont ${formatMontant(
-          kpis.valorisation_placements,
-          monnaieId
-        )} de titres`
-      : "Tous comptes confondus, courant + épargne";
-
   const variationEl = document.getElementById("kpi-variation");
   const variation = kpis.variation_previsionnelle;
   variationEl.textContent = `${
@@ -1423,16 +1441,13 @@ function renderKpisDashboard(kpis, libellePeriode) {
   variationEl.classList.toggle("positif", variation > 0 && !montantEstNul(variation));
   variationEl.classList.toggle("negatif", variation < 0 && !montantEstNul(variation));
   variationEl.classList.toggle("montant-nul", montantEstNul(variation));
-  // LE TITRE SUIT LA VUE, pas seulement le sous-texte : ce chiffre se recalcule
-  // sur la période choisie, et « Variation du mois » au-dessus d'un total
-  // ANNUEL ne se contentait pas d'être imprécis — il annonçait le mauvais
-  // ordre de grandeur. Le titre ne nomme en revanche ni le mois ni l'année :
-  // c'est le sous-texte juste dessous qui le fait, et le répéter n'ajouterait
-  // qu'une ligne qui bouge.
+  // LE TITRE SUIT LA VUE : ce chiffre se recalcule sur la période choisie, et
+  // « Variation du mois » au-dessus d'un total ANNUEL ne se contentait pas
+  // d'être imprécis — il annonçait le mauvais ordre de grandeur. C'est le seul
+  // libellé de la carte depuis que les sous-textes ont été retirés ; le mois
+  // exact, lui, se lit dans le sélecteur de période juste en dessous.
   document.getElementById("kpi-variation-label").textContent =
     state.dashboardPeriode.vue === "annee" ? t("Variation de l'année") : t("Variation du mois");
-  document.getElementById("kpi-variation-sous-texte").textContent =
-    `${libellePeriode} — entrées − sorties, hors épargne`;
 
   renderFluxPeriode(kpis, monnaieId);
   renderHistogrammeDepenses(kpis.depenses_par_categorie, monnaieId);
@@ -1652,8 +1667,8 @@ function couleurCategorie(couleurIndex) {
 function contenuInfobulleHistogramme(depense, monnaieId) {
   const top = depense.top_depenses || [];
   if (top.length === 0) {
-    return `<div class="histo-bulle-titre">${escapeHtml(depense.categorie)}</div>
-      <div class="histo-bulle-vide">${t("Aucune dépense sur la période.")}</div>`;
+    return `<div class="histo-bulle-titre">${escapeHtml(libelleCategorie(depense.categorie))}</div>
+      <div class="histo-bulle-vide">${t("Aucune opération sur la période.")}</div>`;
   }
   const lignes = top
     .map((d) => {
@@ -1668,7 +1683,7 @@ function contenuInfobulleHistogramme(depense, monnaieId) {
       </li>`;
     })
     .join("");
-  return `<div class="histo-bulle-titre">${escapeHtml(depense.categorie)}</div>
+  return `<div class="histo-bulle-titre">${escapeHtml(libelleCategorie(depense.categorie))}</div>
     <ul class="histo-bulle-liste">${lignes}</ul>`;
 }
 
@@ -1745,7 +1760,8 @@ function renderHistogrammeDepenses(depenses, monnaieId) {
         tickBudget = `<rect x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="#ef4444" />`;
       }
 
-      const label = d.categorie.length > 12 ? d.categorie.slice(0, 11) + "…" : d.categorie;
+      const nom = libelleCategorie(d.categorie);
+      const label = nom.length > 12 ? nom.slice(0, 11) + "…" : nom;
 
       // Zone de survol sur TOUTE LA BANDE, pas sur la seule barre : une
       // catégorie à 3 € dessine quelques pixels de haut, impossibles à viser,
@@ -2493,6 +2509,8 @@ function resetCategorieForm() {
   document.getElementById("categorie-id").value = "";
   document.getElementById("categorie-nom").value = "";
   document.getElementById("categorie-nom").disabled = false;
+  document.getElementById("categorie-nom").title = "";
+  delete document.getElementById("categorie-nom").dataset.nomInitial;
   document.getElementById("categorie-budget-bloc").style.display = "none";
   document.getElementById("categorie-budget-hint").style.display = "none";
   document.getElementById("categorie-budget").value = "0";
@@ -2505,8 +2523,19 @@ function fillCategorieForm(categorie, budget, ancre) {
   const moisLabel = libelleMois(state.categoriesPeriode.annee, state.categoriesPeriode.mois);
   const monnaie = monnaieParId(state.categoriesMonnaieId);
   document.getElementById("categorie-id").value = categorie.id;
-  document.getElementById("categorie-nom").value = categorie.nom;
-  document.getElementById("categorie-nom").disabled = true;
+  const champNom = document.getElementById("categorie-nom");
+  champNom.value = categorie.nom;
+  // LE NOM EST MODIFIABLE, sauf « Autres » : elle est retrouvée par son nom
+  // pour recueillir les opérations dont on supprime la catégorie, et la
+  // renommer casserait ce repli (le serveur refuse aussi, cf.
+  // routers/categories.rename_categorie).
+  champNom.disabled = categorie.nom === CATEGORIE_AUTRES;
+  champNom.title = champNom.disabled
+    ? t("« Autres » ne peut pas être renommée : c'est la catégorie de repli.")
+    : "";
+  // Le nom d'AVANT, pour n'appeler la route de renommage que s'il a changé :
+  // réenregistrer un budget sans toucher au nom ne doit pas écrire pour rien.
+  champNom.dataset.nomInitial = categorie.nom;
   document.getElementById("categorie-budget-bloc").style.display = "";
   document.getElementById("categorie-budget-label").textContent = monnaie
     ? `Budget pour ${moisLabel} (${monnaie.symbole})`
@@ -2519,7 +2548,7 @@ function fillCategorieForm(categorie, budget, ancre) {
     hint.textContent = `Valeur héritée d'un mois précédent — enregistrer définit une valeur propre à ${moisLabel}.`;
     hint.style.display = "block";
   }
-  document.getElementById("form-categorie-titre").textContent = `Modifier le budget de "${categorie.nom}"`;
+  document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
 }
 
@@ -2588,12 +2617,12 @@ async function loadCategoriesBudgets(annee, mois) {
       const visible = c.visible_dashboard !== false;
       tr.innerHTML = `
         <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
-        <td>${c.nom}</td>
+        <td>${escapeHtml(libelleCategorie(c.nom))}</td>
         <td>${budgetTexte}</td>
         <td>
           <button type="button" class="bouton-oeil" data-action="visibilite" data-id="${c.id}"
                   title="${visible ? "Ne plus afficher sur le dashboard" : "Afficher sur le dashboard"}"
-                  aria-label="${visible ? "Masquer" : "Afficher"} « ${escapeHtml(c.nom)} » sur le dashboard"
+                  aria-label="${visible ? "Masquer" : "Afficher"} « ${escapeHtml(libelleCategorie(c.nom))} » sur le dashboard"
                   aria-pressed="${visible}">${visible ? ICONE_OEIL : ICONE_OEIL_BARRE}</button>
         </td>
         <td>
@@ -2702,6 +2731,19 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
   const id = document.getElementById("categorie-id").value;
   try {
     if (id) {
+      // DEUX ÉCRITURES, deux routes : le nom appartient à la catégorie, le
+      // budget à un couple (mois, monnaie). Le renommage part en premier —
+      // s'il échoue (« Autres », nom déjà pris), on n'a encore rien changé.
+      const champNom = document.getElementById("categorie-nom");
+      const nomInitial = champNom.dataset.nomInitial || "";
+      const nom = champNom.value.trim();
+      const renomme = !champNom.disabled && nom && nom !== nomInitial;
+      if (renomme) {
+        await apiFetch(`/categories/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({ nom }),
+        });
+      }
       const montant = parseFloat(document.getElementById("categorie-budget").value || "0");
       const { annee, mois } = state.categoriesPeriode;
       await apiFetch(
@@ -2711,7 +2753,7 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
           body: JSON.stringify({ montant }),
         }
       );
-      showMessage(t("Budget modifié"), "success");
+      showMessage(renomme ? t("Catégorie modifiée") : t("Budget modifié"), "success");
     } else {
       const nomInput = document.getElementById("categorie-nom");
       await apiFetch("/categories", {
@@ -2776,6 +2818,29 @@ function syncSelectMonnaieCompte(selectId, blocId, compteId, { forcerAffichage =
   document.getElementById(blocId).style.display =
     forcerAffichage || monnaies.length > 1 ? "" : "none";
   return Number(select.value) || null;
+}
+
+/**
+ * Pose sur « Montant à rembourser » la borne de son type, pour que le
+ * navigateur la dise avant le serveur (cf. crud.erreur_montant_du) :
+ *
+ *   - DÉPENSE REMBOURSABLE : au PLUS le montant avancé — on ne peut pas être
+ *     remboursé plus qu'on n'a payé ;
+ *   - PRÊT REÇU : au MOINS le montant reçu — on rend toujours au moins ce qu'on
+ *     a emprunté, et ce qu'il y a au-dessus est l'intérêt du prêt.
+ *
+ * Les deux bornes sont exactement inverses : c'est tout ce qui sépare les deux
+ * types une fois le montant dû saisi.
+ */
+function majBornesMontantDu() {
+  const type = document.getElementById("operation-type").value;
+  const champ = document.getElementById("operation-montant-du");
+  const montant = parseFloat(document.getElementById("operation-montant").value);
+  champ.removeAttribute("max");
+  champ.min = 0;
+  if (!Number.isFinite(montant)) return;
+  if (type === "pret") champ.min = montant;
+  else if (type === "remboursable") champ.max = montant;
 }
 
 function _refillPreservingSelection(selectEl, fillFn) {
@@ -2848,9 +2913,16 @@ function updateOperationTypeFields() {
   document.getElementById("operation-amortissement-champs-bloc").style.display =
     estAmortissementEligible && estAmortie ? "" : "none";
 
-  document.getElementById("operation-montant-du-bloc").style.display = estRemboursable ? "" : "none";
+  // LES DEUX TYPES REMBOURSABLES portent ces deux champs, et non plus la seule
+  // dépense remboursable : un prêt qui se rend avec des intérêts a lui aussi un
+  // montant dû distinct de son montant. Ce qui change entre eux, c'est la BORNE
+  // — plafond d'un côté, plancher de l'autre (cf. crud.erreur_montant_du) —,
+  // posée ici sur le champ pour que le navigateur la dise avant le serveur.
+  const porteUneDette = TYPES_REMBOURSABLES.has(type);
+  document.getElementById("operation-montant-du-bloc").style.display = porteUneDette ? "" : "none";
   document.getElementById("operation-montant-a-rembourser-bloc").style.display =
-    estRemboursable && enEdition ? "" : "none";
+    porteUneDette && enEdition ? "" : "none";
+  majBornesMontantDu();
   document.getElementById("operation-remboursements-bloc").style.display = estReglement ? "" : "none";
   document.getElementById("operation-remboursements-titre").textContent = estRemboursementPret
     ? "Prêts réglés"
@@ -2884,7 +2956,9 @@ function updateOperationTypeFields() {
 
   updateOperationMonnaieFields();
 
-  if (!estRemboursable) {
+  // L'avertissement « montants figés » se pose sur les DEUX types
+  // remboursables (cf. fillOperationForm) : il se retire donc des deux aussi.
+  if (!TYPES_REMBOURSABLES.has(type)) {
     document.getElementById("operation-rembourse-info").style.display = "none";
   }
   if (estReglement) {
@@ -3247,16 +3321,23 @@ document.getElementById("operation-amortissement-nb-mois").addEventListener("inp
   completerAmortissement("nb");
 });
 
+// Le montant dû recopie le montant tant que l'utilisateur ne l'a pas touché.
+// Vrai des deux côtés, et c'est à chaque fois le cas le plus courant : une
+// dépense qu'on se fera intégralement rendre, un prêt sans intérêts.
 function syncMontantDuSiAuto() {
   const type = document.getElementById("operation-type").value;
   const enEdition = !!document.getElementById("operation-id").value;
-  if (montantDuAutoSync && type === "remboursable" && !enEdition) {
+  if (montantDuAutoSync && TYPES_REMBOURSABLES.has(type) && !enEdition) {
     document.getElementById("operation-montant-du").value =
       document.getElementById("operation-montant").value || "0";
   }
 }
 
-document.getElementById("operation-montant").addEventListener("input", syncMontantDuSiAuto);
+document.getElementById("operation-montant").addEventListener("input", () => {
+  syncMontantDuSiAuto();
+  // La borne du montant dû se lit sur le montant : elle bouge avec lui.
+  majBornesMontantDu();
+});
 document.getElementById("operation-montant-du").addEventListener("input", () => {
   montantDuAutoSync = false;
 });
@@ -3345,6 +3426,10 @@ async function fillOperationForm(op) {
   document.getElementById("operation-statut").value = op.statut;
   document.getElementById("operation-montant-du").value = op.montant_du;
   document.getElementById("operation-montant-a-rembourser").value = op.montant_a_rembourser;
+  // APRÈS le montant, pas avant : la borne du montant dû se lit sur lui, et
+  // updateOperationTypeFields l'a posée plus haut, alors que le formulaire
+  // portait encore le montant de l'opération précédente (ou rien du tout).
+  majBornesMontantDu();
 
   const resteField = document.getElementById("operation-montant-a-rembourser");
   const infoDiv = document.getElementById("operation-rembourse-info");
@@ -3356,7 +3441,7 @@ async function fillOperationForm(op) {
   resteField.disabled = estLie;
   document.getElementById("operation-montant").disabled = estLie;
   document.getElementById("operation-montant-du").disabled = estLie;
-  if (type === "remboursable" && estLie) {
+  if (TYPES_REMBOURSABLES.has(type) && estLie) {
     const details = op.rembourse_par
       .map((r) => `"${r.nature}" (${formatMontant(r.montant_lien, op.monnaie_id)})`)
       .join(", ");
@@ -4526,10 +4611,20 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         nature,
         montant: parseFloat(document.getElementById("operation-montant").value),
         statut: "réel",
+        // CE QU'ON RENDRA, intérêts compris — au moins le montant reçu. L'écart
+        // entre les deux est le seul coût du prêt, et la seule chose qui pèse
+        // sur les sorties du mois (cf. services/soldes.get_flux_periode).
+        montant_du: parseFloat(document.getElementById("operation-montant-du").value || "0"),
         ...champNotes,
         ...recurrencePayload(),
         ...amortissementPayload(),
       };
+      // Comme pour une dépense remboursable : le reste dû ne se saisit qu'à
+      // l'édition, et pas du tout tant qu'un remboursement le verrouille.
+      const resteFieldPret = document.getElementById("operation-montant-a-rembourser");
+      if (id && !resteFieldPret.disabled) {
+        payload.montant_a_rembourser = parseFloat(resteFieldPret.value || "0");
+      }
       if (id) {
         await apiFetch(`/operations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
         showMessage(t("Prêt modifié"), "success");
@@ -4818,36 +4913,36 @@ const CLES_PROPRIETES_AVANCEES = new Set(PROPRIETES_IMPORT_AVANCEES.map(([cle]) 
  */
 const INFOS_PROPRIETES_IMPORT = {
   categorie_banque:
-    "La catégorie que ta banque a elle-même posée sur la ligne.\n\n" +
+    "La catégorie que ta banque a posée elle-même sur la ligne.\n\n" +
     "Elle ne devient pas une catégorie de l'app toute seule : tu fais le " +
-    "rapprochement une fois, et l'app s'en souvient.",
+    "rapprochement une fois, il est retenu.",
   compte_banque:
     "Le compte concerné, quand le fichier le nomme.\n\n" +
-    "Inutile si tu as déjà lié le preset à un compte : ce lien-là s'applique à " +
-    "toutes les lignes.",
+    "Inutile si le preset est déjà lié à un compte : ce lien vaut pour toutes " +
+    "les lignes.",
   sens:
     "À régler seulement si ton relevé n'écrit que des montants positifs et dit " +
     "à part si l'argent entre ou sort.\n\n" +
     "Les mots-clés reconnus se règlent juste en dessous.",
   monnaie:
     "La devise du montant.\n\n" +
-    "Sans elle, la ligne est comptée dans la monnaie principale de son compte — " +
-    "ce qui est faux dès qu'un compte en porte plusieurs.",
+    "Sans elle, la ligne part dans la monnaie principale de son compte — faux " +
+    "dès qu'un compte en porte plusieurs.",
   montant_initial:
-    "Ce qui PART du compte, avant frais et avant conversion. « Montant » décrit " +
-    "alors ce qui ARRIVE.\n\n" +
+    "Ce qui PART du compte, avant frais et avant conversion ; « Montant » " +
+    "décrit alors ce qui ARRIVE.\n\n" +
     "C'est le couple qu'il faut pour importer un virement entre deux devises : " +
     "seul ton relevé connaît les deux montants.",
   monnaie_initiale:
     "La devise du montant envoyé.\n\n" +
-    "Sans elle, l'app la suppose identique à celle du montant reçu, donc qu'il " +
-    "n'y a pas eu de change.",
+    "Sans elle, l'app la suppose identique à celle du montant reçu, donc sans " +
+    "change.",
   frais:
     "Les frais prélevés par la banque.\n\n" +
     "C'est leur DEVISE qui décide auquel des deux montants ils se rapportent : " +
     "dans la monnaie envoyée ils s'y ajoutent, dans celle reçue ils s'en " +
-    "retranchent. Dans une troisième, l'import est refusé — mieux vaut ça qu'un " +
-    "solde faux.",
+    "retranchent. Dans une troisième, l'import est refusé plutôt que de fausser " +
+    "un solde.",
   monnaie_frais:
     "La devise des frais, celle qui dit à quel montant ils s'appliquent.\n\n" +
     "Sans elle, l'app les rattache au montant envoyé et te le signale à chaque " +
@@ -4855,21 +4950,21 @@ const INFOS_PROPRIETES_IMPORT = {
   montant:
     "Le montant de la ligne, avec son signe : négatif il sort, positif il " +
     "entre.\n\n" +
-    "Si ton relevé sépare au contraire sorties et entrées en deux colonnes, " +
-    "éteins celle-ci et règle « Montant au débit » et « Montant au crédit ».",
+    "Si ton relevé sépare sorties et entrées en deux colonnes, éteins celle-ci " +
+    "et règle « Montant au débit » et « Montant au crédit ».",
   montant_debit:
     "Pour les relevés qui SÉPARENT sorties et entrées en deux colonnes, chaque " +
     "ligne n'en remplissant qu'une.\n\n" +
-    "La colonne remplie dit le sens. Un zéro compte comme une case vide, et une " +
-    "ligne qui remplit les deux part en erreur.",
+    "La colonne remplie dit le sens. Un zéro vaut une case vide, une ligne qui " +
+    "remplit les deux part en erreur.",
   montant_credit:
     "L'autre moitié : ce qui ENTRE.\n\n" +
     "Elle va toujours avec « Montant au débit » — allumer ou éteindre l'une fait " +
     "la même chose à l'autre.",
   statut:
     "Où en est l'opération chez ta banque.\n\n" +
-    "Une ligne en attente devient une opération prévisionnelle ; une ligne " +
-    "refusée n'est pas importée du tout. Les mots-clés se règlent plus bas.",
+    "Une ligne en attente devient une opération prévisionnelle, une ligne " +
+    "refusée n'est pas importée. Les mots-clés se règlent plus bas.",
 };
 
 function estProprieteAvancee(propriete) {
@@ -7378,9 +7473,12 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     montantRecuAutomatique = false;
   });
 
-  // Type d'opération (pour reclasser) : les 6 mêmes que la page Opérations.
+  // Type d'opération (pour reclasser) : les mêmes que la page Opérations, donc
+  // sans les deux types de prêt tant que l'extension qui les tient est éteinte.
   const selectType = document.createElement("select");
-  TYPES_OPERATION_IMPORT.forEach((infoType) => {
+  TYPES_OPERATION_IMPORT.filter(
+    (infoType) => pretsAccessibles() || !TYPES_DE_PRET.has(infoType.cle)
+  ).forEach((infoType) => {
     const opt = document.createElement("option");
     opt.value = infoType.cle;
     opt.textContent = labelTypeImport(infoType);
@@ -7520,6 +7618,9 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   let compteChampEmetteur = null;
   let compteChampRecepteur = null;
   let inputMontantDu = null;
+  // De quel côté « Montant à rembourser » est borné : plancher pour un prêt
+  // reçu, plafond pour une dépense remboursable (cf. crud.erreur_montant_du).
+  let montantDuEstPlancher = false;
   let montantDuAutoSync = true;
   let montantAffiche = null;
   let montantsParOperationId = {};
@@ -7971,15 +8072,25 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     rerenderChampsMonnaie();
 
     montantDuWrap.innerHTML = "";
-    if (info.cle === "remboursable") {
+    // LES DEUX TYPES REMBOURSABLES, et non plus la seule dépense remboursable :
+    // un relevé qui décrit un prêt reçu ne dit jamais ses intérêts, mais c'est
+    // ici qu'on peut les ajouter sans avoir à retrouver l'opération après coup.
+    if (TYPES_REMBOURSABLES.has(info.cle)) {
+      montantDuEstPlancher = info.cle === "pret";
       const label = document.createElement("label");
       label.textContent = "Montant à rembourser";
       inputMontantDu = document.createElement("input");
       inputMontantDu.type = "number";
       inputMontantDu.step = "0.01";
-      inputMontantDu.min = "0";
       const montantActuel = parseFloat(inputMontant.value) || 0;
-      inputMontantDu.max = montantActuel;
+      // Bornes exactement inverses (cf. majBornesMontantDu) : on ne se fait pas
+      // rendre plus qu'on n'a avancé, on ne rend pas moins qu'on n'a reçu.
+      if (montantDuEstPlancher) {
+        inputMontantDu.min = montantActuel;
+      } else {
+        inputMontantDu.min = "0";
+        inputMontantDu.max = montantActuel;
+      }
       inputMontantDu.value =
         ligne.montant_du !== null && ligne.montant_du !== undefined ? ligne.montant_du : montantActuel;
       montantDuAutoSync = true;
@@ -8018,13 +8129,15 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   }
 
   // Tant que "Montant à rembourser" n'a pas été touché à la main, il suit le
-  // montant (comportement par défaut : tout est à rembourser), comme sur la
-  // page Opérations.
+  // montant (comportement par défaut : tout est à rembourser, un prêt sans
+  // intérêts), comme sur la page Opérations. Sa borne suit le montant elle
+  // aussi, du côté que le type impose.
   inputMontant.addEventListener("input", () => {
-    if (inputMontantDu && montantDuAutoSync) {
-      inputMontantDu.value = inputMontant.value || "0";
-      inputMontantDu.max = inputMontant.value || "0";
-    }
+    if (!inputMontantDu) return;
+    const montant = inputMontant.value || "0";
+    if (montantDuAutoSync) inputMontantDu.value = montant;
+    if (montantDuEstPlancher) inputMontantDu.min = montant;
+    else inputMontantDu.max = montant;
   });
 
   const labelDate = document.createElement("label");
@@ -8912,7 +9025,7 @@ function renderMappingsCategoriesGalerie(mappings) {
     const titre = document.createElement("div");
     titre.className = "galerie-colonne-titre";
     titre.innerHTML = `
-      <span>${escapeHtml(categorie.nom)}</span>
+      <span>${escapeHtml(libelleCategorie(categorie.nom))}</span>
       <span class="galerie-compteur">${libelles.length}</span>
     `;
     colonne.appendChild(titre);

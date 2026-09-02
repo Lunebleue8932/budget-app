@@ -81,3 +81,8 @@ desktop.ini
 
 # Scripts de mise au point jetables, laissés à la racine du backend.
 backend/_debug*.py
+
+# Outil de diagnostic local : il lit la base PERSONNELLE et affiche des libellés
+# d'opérations à l'écran. Il n'a rien à faire dans un dépôt public — ni le
+# script, ni la tentation de committer une sortie collée à côté.
+backend/diagnostic_ecart_flux.py

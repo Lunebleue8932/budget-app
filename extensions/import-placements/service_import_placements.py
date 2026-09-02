@@ -390,7 +390,7 @@ def _rapprocher_titre(contexte: ContextePresetPlacement, nom: str, isin: str):
         if titre is not None:
             if isin and titre.code_isin and titre.code_isin != isin:
                 return None, (
-                    f"« {titre.nom} » porte déjà le code ISIN {titre.code_isin}, "
+                    f"« {titre.nom_affiche} » porte déjà le code ISIN {titre.code_isin}, "
                     f"le fichier annonce {isin} : ce sont deux valeurs "
                     "différentes. Renomme l'une des deux, ou choisis le titre "
                     "à la main sur cette ligne."
@@ -935,7 +935,10 @@ def _titre_pour_ligne(
         valeur=ligne.cours if ligne.cours is not None else (ligne.prix_unitaire or 0.0),
         code_isin=ligne.code_isin or None,
     )
-    crees.append(action.nom)
+    # `nom_affiche` comme partout ailleurs : un titre qu'on vient de créer
+    # n'a pas encore de renommage, les deux coïncident donc — mais la règle
+    # doit être la même partout, sans quoi le prochain lecteur hésitera.
+    crees.append(action.nom_affiche)
     if action.code_isin:
         contexte.par_isin[action.code_isin] = action
     contexte.par_nom[import_bancaire.normaliser_libelle(action.nom)] = action
@@ -1104,7 +1107,7 @@ def confirmer(
                     ligne.model_copy(
                         update={
                             "erreur": (
-                                f"vente de {ligne.quantite:g} « {action.nom} » alors que "
+                                f"vente de {ligne.quantite:g} « {action.nom_affiche} » alors que "
                                 f"{detenu[cle_position]:g} sont détenus sur ce compte à "
                                 "ce stade du fichier"
                             )

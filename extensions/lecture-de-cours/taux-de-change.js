@@ -2,33 +2,39 @@
  *
  * UNE SECONDE GREFFE, sur un autre hôte. Le fichier voisin
  * (lecture-de-cours.js) ajoute un lien de cotation aux titres de l'extension
- * « placements » ; celui-ci ajoute un bloc « Taux de change » à l'écran de
+ * « placements » ; celui-ci ajoute UNE FAÇON DE SAISIR un taux à l'écran de
  * l'extension « Monnaies ». Les deux volets sont indépendants : avoir l'un des
  * hôtes suffit, et le volet dont l'hôte manque ne pose simplement rien.
  *
- * CE BLOC NE CONVERTIT RIEN. Aucun solde, aucun KPI, aucun budget de
- * l'application n'utilise les taux affichés ici — ils restent suivis monnaie
- * par monnaie, comme ils l'ont toujours été. Le taux est une information qu'on
- * vient lire, pas un opérateur qu'on introduit dans les calculs : lui faire
- * additionner deux devises reviendrait à défaire le choix central de l'app
- * (cf. service_taux.py).
+ * CE QUI A CHANGÉ, ET POURQUOI. Ce fichier posait autrefois son PROPRE bloc
+ * « Taux de change » sous celui de l'extension « Monnaies » : deux listes des
+ * mêmes couples, deux formulaires, deux titres identiques l'un sous l'autre.
+ * Ce sont pourtant les mêmes taux, dans la même table, qui servent à la même
+ * chose — seule la façon de les saisir change. « Monnaies » tient donc
+ * désormais le bloc, et nous n'y déclarons qu'un MODE de saisie de plus
+ * (`MonnaiesTaux.enregistrer`), à côté de « À la main ».
  *
- * MÊME MÉCANIQUE DE GREFFE que pour les titres : on ré-enregistre le chargeur
- * de « monnaies » avec le nôtre, qui appelle le sien puis pose le bloc. Voir
- * l'en-tête de lecture-de-cours.js pour le détail, et extensions/README.md
- * pour les deux prises que le noyau laisse ouvertes.
+ * Il reste deux choses qui n'appartiennent qu'à nous, et qui se posent dans
+ * l'en-tête que l'hôte réserve : le bouton « Mettre à jour les taux » et son
+ * compte rendu.
+ *
+ * CE BLOC NE CONVERTIT RIEN PAR LUI-MÊME. Les taux servent à la case « tout
+ * convertir » du dashboard, apportée par « Monnaies » ; nous ne faisons que les
+ * remplir depuis une page de cotation.
  *
  * TOUT PASSE PAR LE SERVEUR : cette page n'appelle jamais un site de cotation
  * elle-même, elle demande `/taux-change/...` à l'application locale.
  */
 
 const ID_HOTE_MONNAIES = "monnaies";
+const ID_MODE_LIEN = "lien";
 
-// Le dernier état connu des couples suivis, et le dernier compte rendu.
-// Gardés pour que rouvrir l'écran ne fasse pas disparaître le résultat de la
-// mise à jour au lancement.
-let couplesSuivis = [];
+// Le dernier compte rendu de mise à jour. Gardé pour que rouvrir l'écran ne
+// fasse pas disparaître le résultat de la mise à jour au lancement.
 let dernierResumeTaux = null;
+// Les couples suivis EN LIGNE (ceux qui portent un lien), pour le compteur de
+// l'en-tête. La liste complète, elle, appartient à l'hôte.
+let couplesSuivis = [];
 
 function tauxActif() {
   return (
@@ -37,133 +43,140 @@ function tauxActif() {
   );
 }
 
-/* ---------- Le bloc, posé sous la liste des monnaies ---------- */
+/* ---------- Le mode de saisie « depuis un lien » ---------- */
 
 /**
- * Pose (ou retire) le bloc « Taux de change » dans l'écran des monnaies.
+ * Déclare (ou retire) notre façon de saisir un taux.
+ *
+ * Idempotent, et appelé à chaque ouverture de l'écran : c'est ce qui fait
+ * apparaître et disparaître le bouton « Depuis un lien » quand on allume ou
+ * éteint l'extension, sans recharger la page.
+ */
+function declarerModeLien() {
+  if (typeof window.MonnaiesTaux === "undefined") return;
+  if (!tauxActif()) {
+    window.MonnaiesTaux.retirer(ID_MODE_LIEN);
+    return;
+  }
+  window.MonnaiesTaux.enregistrer(ID_MODE_LIEN, {
+    libelle: "Depuis un lien",
+    ordre: 10,
+    champsHtml: () => `
+      <label for="lc-taux-url">${t("Lien de la page de cotation")}
+        <input type="url" id="lc-taux-url" required
+               placeholder="${t(
+                 "Lien de la page de cotation (Google Finance, Yahoo Finance…)"
+               )}" />
+      </label>
+      <p class="hint" id="lc-taux-sources"></p>`,
+    soumettre: enregistrerCoupleDepuisLien,
+    // L'aide se remplit APRÈS que le champ est dans la page : elle vient du
+    // serveur, et ce mode n'est pas celui affiché au chargement — il n'aurait
+    // sinon jamais d'occasion de la poser.
+    apresRendu: poserAideSourcesTaux,
+  });
+}
+
+/**
+ * Enregistre le couple et LIT SON TAUX TOUT DE SUITE.
+ *
+ * Le lien n'est retenu que s'il a donné un nombre (cf. routeur_taux) : un lien
+ * accepté sans être essayé ne se découvre cassé que des semaines plus tard,
+ * devant un taux qui n'a jamais bougé et qu'on croit juste.
+ */
+async function enregistrerCoupleDepuisLien({ source, cible }) {
+  const champUrl = document.getElementById("lc-taux-url");
+  const url = champUrl.value.trim();
+  if (!url) throw new Error(t("Colle le lien de la page de cotation."));
+
+  const reponse = await apiFetch("/taux-change", {
+    method: "POST",
+    body: JSON.stringify({
+      monnaie_source_id: source,
+      monnaie_cible_id: cible,
+      url,
+    }),
+  });
+  memoriserResume(reponse);
+  champUrl.value = "";
+  const lu = reponse.resultats[0];
+  return lu
+    ? t("Taux lu sur {source} : {libelle} = {taux}", {
+        source: lu.source,
+        libelle: lu.libelle,
+        taux: formatQuantite(lu.taux),
+      })
+    : t("Couple enregistré");
+}
+
+/**
+ * Les sources reconnues, sous le champ à remplir. Même liste que pour les
+ * titres — c'est le même lecteur — et elle vient du serveur plutôt que d'un
+ * texte recopié ici, qui pourrait promettre une source disparue.
+ */
+async function poserAideSourcesTaux() {
+  const cible = document.getElementById("lc-taux-sources");
+  if (!cible || cible.dataset.rempli) return;
+  try {
+    const sources = await apiFetch("/taux-change/sources");
+    // UNE SEULE COULEUR, comme la liste des sources de l'écran des placements :
+    // mêler du `<code>` et de l'italique sur une ligne d'aide donne trois
+    // traitements pour une seule information.
+    cible.textContent =
+      t("Pages reconnues") + " — " + sources.map((source) => source.nom).join(", ");
+    cible.dataset.rempli = "1";
+  } catch (err) {
+    /* L'aide n'est pas essentielle : une extension éteinte entre-temps, ou une
+       route fermée, ne doit pas empêcher la saisie de fonctionner. */
+  }
+}
+
+/* ---------- L'en-tête : mettre à jour ce qui est suivi ---------- */
+
+/**
+ * Pose (ou retire) le bouton de mise à jour dans l'en-tête que l'hôte réserve.
  *
  * Idempotente : appelée à chaque ouverture de l'écran, elle ne recrée pas ce
  * qui est déjà là. Elle RETIRE en revanche le bloc quand l'extension vient
  * d'être décochée, sans quoi il resterait affiché jusqu'au rechargement de la
- * page — et ses boutons répondraient 404.
+ * page — et son bouton répondrait 404.
  */
-function poserBlocTaux() {
-  const section = document.getElementById("sous-section-parametres-monnaies");
-  if (!section) return; // extension « Monnaies » absente : rien à greffer
-  const existant = document.getElementById("lc-taux");
+function poserEnteteTaux() {
+  const hote = document.getElementById("monnaies-taux-entete");
+  if (!hote) return; // extension « Monnaies » absente : rien à greffer
+  const existant = document.getElementById("lc-taux-barre");
   if (!tauxActif()) {
     if (existant) existant.remove();
     return;
   }
-  if (existant) return;
-
-  const bloc = document.createElement("div");
-  bloc.id = "lc-taux";
-  bloc.className = "lc-taux";
-  bloc.innerHTML = `
-    <h3>${t("Taux de change")}</h3>
-    <p class="hint">
-      ${t(
-        "Le taux d'un couple de monnaies, relu sur la page de cotation dont tu colles le lien. " +
-          "Rien n'est converti avec : les soldes, les budgets et les KPI restent suivis monnaie " +
-          "par monnaie, et ce taux ne sert qu'à être lu ici."
-      )}
-    </p>
-    <p class="hint" id="lc-taux-sources"></p>
-    <div class="lc-taux-barre">
-      <button type="button" class="primary" id="lc-taux-rafraichir">${t(
-        "Mettre à jour les taux"
-      )}</button>
-      <span class="hint" id="lc-taux-etat"></span>
-    </div>
-    <div id="lc-taux-liste" class="import-mappings"></div>
-    <form id="lc-taux-ajout">
-      <label for="lc-taux-source">${t("Monnaie de départ")}
-        <select id="lc-taux-source"></select>
-      </label>
-      <label for="lc-taux-cible">${t("Monnaie d'arrivée")}
-        <select id="lc-taux-cible"></select>
-      </label>
-      <label class="full-width" for="lc-taux-url">${t("Lien de la page de cotation")}
-        <input type="url" id="lc-taux-url"
-               placeholder="${t("Lien de la page de cotation (Google Finance, Yahoo Finance…)")}" />
-      </label>
-      <div class="actions full-width">
-        <button type="submit" class="primary" id="lc-taux-ajouter">${t(
-          "Suivre ce couple"
-        )}</button>
-      </div>
-    </form>
-  `;
-  section.appendChild(bloc);
-
-  document.getElementById("lc-taux-rafraichir").addEventListener("click", () => {
-    rafraichirTaux("/taux-change/rafraichir");
-  });
-  // Un vrai <form>, donc une vraie soumission : Entrée depuis le champ de lien
-  // enregistre le couple, comme dans tous les formulaires de l'app.
-  document.getElementById("lc-taux-ajout").addEventListener("submit", (evenement) => {
-    evenement.preventDefault();
-    ajouterCouple();
-  });
-}
-
-/* ---------- Rendu ---------- */
-
-function renderCouples() {
-  const liste = document.getElementById("lc-taux-liste");
-  if (!liste) return;
-  liste.innerHTML = "";
-  if (couplesSuivis.length === 0) {
-    liste.innerHTML = `<span class="hint">${t(
-      "Aucun couple suivi pour le moment."
-    )}</span>`;
+  if (existant) {
+    majEtatTaux();
     return;
   }
-  couplesSuivis.forEach((couple) => {
-    const ligne = document.createElement("div");
-    ligne.className = "import-mapping-row";
-    ligne.innerHTML = `
-      <span class="import-mapping-nom">
-        1 ${escapeHtml(couple.monnaie_source_symbole)} =
-        <strong>${couple.taux == null ? "—" : formatQuantite(couple.taux)}</strong>
-        ${escapeHtml(couple.monnaie_cible_symbole)}
-      </span>
-      <span class="lc-taux-couple">${escapeHtml(couple.monnaie_source_nom)} →
-        ${escapeHtml(couple.monnaie_cible_nom)}</span>
-      <a class="lc-taux-lien" href="${escapeHtml(couple.url_cours)}"
-         title="${escapeHtml(couple.url_cours)}" target="_blank" rel="noopener noreferrer">${t(
-           "la page"
-         )}</a>
-      <span class="lc-taux-fraicheur">${escapeHtml(fraicheurTaux(couple.maj_le))}</span>
-      <button type="button" data-lc-rafraichir="${couple.id}">${t("Mettre à jour")}</button>
-      <button type="button" class="danger" data-lc-retirer="${couple.id}">${t(
-        "Ne plus suivre"
-      )}</button>
-    `;
-    liste.appendChild(ligne);
-  });
 
-  liste.querySelectorAll("button[data-lc-rafraichir]").forEach((bouton) => {
-    bouton.addEventListener("click", () =>
-      rafraichirTaux(`/taux-change/${bouton.dataset.lcRafraichir}/rafraichir`)
-    );
-  });
-  liste.querySelectorAll("button[data-lc-retirer]").forEach((bouton) => {
-    bouton.addEventListener("click", () => retirerCouple(bouton.dataset.lcRetirer));
-  });
-}
-
-// `fraicheur` (fichier voisin) dit « cours saisi à la main » quand la date est
-// absente : pour un couple, cette phrase n'aurait aucun sens — un taux ne se
-// saisit nulle part dans l'application.
-function fraicheurTaux(isoDateHeure) {
-  return isoDateHeure ? fraicheur(isoDateHeure) : t("jamais relu");
+  const barre = document.createElement("div");
+  barre.id = "lc-taux-barre";
+  barre.className = "lc-taux-barre";
+  barre.innerHTML = `
+    <button type="button" id="lc-taux-rafraichir">${t("Mettre à jour les taux")}</button>
+    <span class="hint" id="lc-taux-etat"></span>
+  `;
+  hote.appendChild(barre);
+  document
+    .getElementById("lc-taux-rafraichir")
+    .addEventListener("click", () => rafraichirTaux("/taux-change/rafraichir"));
+  majEtatTaux();
 }
 
 function majEtatTaux() {
   const etat = document.getElementById("lc-taux-etat");
   if (!etat) return;
+  if (couplesSuivis.length === 0) {
+    etat.textContent = t(
+      "Aucun taux relu en ligne : choisis « Depuis un lien » pour en suivre un."
+    );
+    return;
+  }
   const morceaux = [
     t("{n} couple(s) suivi(s)", { n: couplesSuivis.length }),
     dernierResumeTaux && dernierResumeTaux.horodatage
@@ -176,69 +189,23 @@ function majEtatTaux() {
   etat.textContent = morceaux.join(" — ");
 }
 
-/**
- * Les deux menus de monnaies, remplis depuis `state.monnaies` — l'état que le
- * noyau tient déjà à jour, plutôt qu'un second appel qui pourrait diverger.
- */
-function remplirMenusMonnaies() {
-  const source = document.getElementById("lc-taux-source");
-  const cible = document.getElementById("lc-taux-cible");
-  if (!source || !cible) return;
-  const options = (state.monnaies || [])
-    .map((m) => `<option value="${m.id}">${escapeHtml(m.nom)} (${escapeHtml(m.symbole)})</option>`)
-    .join("");
-  const avant = { source: source.value, cible: cible.value };
-  source.innerHTML = options;
-  cible.innerHTML = options;
-  if (avant.source) source.value = avant.source;
-  if (avant.cible) cible.value = avant.cible;
-  // Deux monnaies différentes par défaut quand il y en a assez : le couple le
-  // plus courant se suit alors sans toucher aux menus.
-  else if ((state.monnaies || []).length > 1) cible.value = String(state.monnaies[1].id);
-}
-
-/**
- * Les sources reconnues, énoncées au-dessus du champ à remplir. Même liste que
- * pour les titres — c'est le même lecteur — et elle vient du serveur plutôt
- * que d'un texte recopié ici, qui pourrait promettre une source disparue.
- */
-async function poserAideSourcesTaux() {
-  const cible = document.getElementById("lc-taux-sources");
-  if (!cible || cible.dataset.rempli) return;
-  try {
-    const sources = await apiFetch("/taux-change/sources");
-    cible.innerHTML =
-      `<strong>${t("Pages reconnues")}</strong> — ` +
-      sources
-        .map(
-          (source) =>
-            `${escapeHtml(source.nom)} <code>${escapeHtml(source.exemple)}</code>`
-        )
-        .join(" · ");
-    cible.dataset.rempli = "1";
-  } catch (err) {
-    /* L'aide n'est pas essentielle : une extension éteinte entre-temps, ou une
-       route fermée, ne doit pas empêcher le reste du bloc de fonctionner. */
-  }
-}
-
 /* ---------- Serveur ---------- */
 
-function appliquerReponseTaux(reponse) {
-  couplesSuivis = reponse.taux || [];
+function memoriserResume(reponse) {
   dernierResumeTaux = reponse;
-  renderCouples();
+  couplesSuivis = (reponse.taux || []).filter((couple) => couple.url_cours);
   majEtatTaux();
 }
 
 async function chargerCouples() {
   if (!tauxActif()) return;
   try {
+    // `/taux-change` ne rend QUE les couples porteurs d'un lien : c'est
+    // exactement ce que cet en-tête compte (cf. service_taux.couples_suivis).
     couplesSuivis = await apiFetch("/taux-change");
-    renderCouples();
     majEtatTaux();
   } catch (err) {
-    /* Extension éteinte entre-temps, ou hôte absent : le bloc reste vide
+    /* Extension éteinte entre-temps, ou hôte absent : l'en-tête reste vide
        plutôt que d'afficher une erreur sur un écran qui n'a rien demandé. */
   }
 }
@@ -248,7 +215,10 @@ async function rafraichirTaux(url) {
   if (bouton) bouton.disabled = true;
   try {
     const reponse = await apiFetch(url, { method: "POST" });
-    appliquerReponseTaux(reponse);
+    memoriserResume(reponse);
+    // La liste des couples appartient à l'hôte : c'est lui qui la redessine,
+    // avec les nouveaux taux.
+    if (window.MonnaiesTaux) await window.MonnaiesTaux.rafraichir();
     // Les échecs sont NOMMÉS : « 1 en échec » ne dit pas quel couple, et un
     // lien cassé se corrige d'autant plus vite qu'on sait lequel.
     const echecs = (reponse.resultats || []).filter((r) => !r.ok);
@@ -264,59 +234,6 @@ async function rafraichirTaux(url) {
     showMessage(err.message, "error");
   } finally {
     if (bouton) bouton.disabled = false;
-  }
-}
-
-async function ajouterCouple() {
-  const sourceId = Number(document.getElementById("lc-taux-source").value);
-  const cibleId = Number(document.getElementById("lc-taux-cible").value);
-  const champUrl = document.getElementById("lc-taux-url");
-  const url = champUrl.value.trim();
-  if (!url) {
-    showMessage(t("Colle le lien de la page de cotation."), "error");
-    return;
-  }
-  const bouton = document.getElementById("lc-taux-ajouter");
-  bouton.disabled = true;
-  try {
-    const reponse = await apiFetch("/taux-change", {
-      method: "POST",
-      body: JSON.stringify({
-        monnaie_source_id: sourceId,
-        monnaie_cible_id: cibleId,
-        url,
-      }),
-    });
-    appliquerReponseTaux(reponse);
-    champUrl.value = "";
-    const lu = reponse.resultats[0];
-    showMessage(
-      lu
-        ? t("Taux lu sur {source} : {libelle} = {taux}", {
-            source: lu.source,
-            libelle: lu.libelle,
-            taux: formatQuantite(lu.taux),
-          })
-        : t("Couple enregistré"),
-      "success"
-    );
-  } catch (err) {
-    // Le serveur n'a rien enregistré (cf. routeur_taux.creer_couple) : le champ
-    // garde ce qui a été collé, pour qu'on puisse le corriger plutôt que de le
-    // retaper.
-    showMessage(err.message, "error");
-  } finally {
-    bouton.disabled = false;
-  }
-}
-
-async function retirerCouple(tauxId) {
-  try {
-    await apiFetch(`/taux-change/${tauxId}`, { method: "DELETE" });
-    await chargerCouples();
-    showMessage(t("Couple retiré. Aucun montant n'en dépendait."), "success");
-  } catch (err) {
-    showMessage(err.message, "error");
   }
 }
 
@@ -336,10 +253,11 @@ let chargeurMonnaiesOrigine = null;
 
 async function chargerMonnaiesAvecTaux() {
   if (typeof chargeurMonnaiesOrigine === "function") await chargeurMonnaiesOrigine();
-  poserBlocTaux();
+  // DÉCLARÉ AVANT l'en-tête : le mode décide de ce que la barre de saisie
+  // propose, et l'en-tête ne fait que compter ce qui est suivi.
+  declarerModeLien();
+  poserEnteteTaux();
   if (!tauxActif()) return;
-  remplirMenusMonnaies();
-  await poserAideSourcesTaux();
   await chargerCouples();
 }
 
@@ -360,16 +278,3 @@ if (!poserGreffeMonnaies()) {
     if (evenement.detail && evenement.detail.id === ID_HOTE_MONNAIES) poserGreffeMonnaies();
   });
 }
-
-// Une relecture au lancement, comme pour les titres : le taux qu'on regarde en
-// ouvrant l'application est celui du jour, pas celui de la dernière visite.
-// Silencieuse — un échec ici ne doit pas accueillir l'utilisateur par une
-// erreur qu'il n'a pas provoquée.
-setTimeout(async () => {
-  if (!tauxActif()) return;
-  try {
-    appliquerReponseTaux(await apiFetch("/taux-change/rafraichir", { method: "POST" }));
-  } catch (err) {
-    /* Hors ligne, ou extension éteinte : on réessaiera au prochain clic. */
-  }
-}, 1200);

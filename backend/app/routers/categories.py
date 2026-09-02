@@ -124,6 +124,51 @@ def reordonner_categories(payload: schemas.ReordonnerCategoriesInput, db: Sessio
     return crud.get_categories(db)
 
 
+# Déclarée APRÈS /reordonner, et c'est obligatoire : FastAPI retient la PREMIÈRE
+# route dont le chemin correspond, et « /categories/reordonner » se lirait
+# volontiers comme une catégorie dont l'identifiant vaudrait « reordonner ».
+# Même précaution que dans le routeur des règles d'import.
+@router.put("/{categorie_id}", response_model=schemas.CategorieRead)
+def rename_categorie(
+    categorie_id: int, updates: schemas.CategorieUpdate, db: Session = Depends(get_db)
+):
+    """Renomme une catégorie.
+
+    SAUF « Autres ». Elle est retrouvée PAR SON NOM à deux endroits — le repli
+    des opérations dont on supprime la catégorie (crud.migrer_operations_vers_
+    autres) et la suggestion de l'import bancaire — et la renommer ferait échouer
+    les deux, silencieusement puis brutalement. C'est la même raison qui interdit
+    déjà de la supprimer.
+
+    Tout le reste se renomme librement : les opérations pointent sur la ligne,
+    pas sur son libellé, et rien n'a donc à être réécrit derrière.
+    """
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+
+    nom = updates.nom.strip()
+    if not nom:
+        raise HTTPException(status_code=422, detail="Le nom ne peut pas être vide")
+    if nom == db_categorie.nom:
+        return db_categorie
+
+    if db_categorie.nom == CATEGORIE_AUTRES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "La catégorie « Autres » ne peut pas être renommée : c'est elle qui "
+                "recueille les opérations dont on supprime la catégorie, et l'import "
+                "s'en sert comme proposition par défaut."
+            ),
+        )
+    existante = crud.get_categorie_by_nom(db, nom)
+    if existante is not None and existante.id != categorie_id:
+        raise HTTPException(status_code=409, detail="Une catégorie avec ce nom existe déjà")
+
+    return crud.rename_categorie(db, db_categorie, nom)
+
+
 @router.delete("/{categorie_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_categorie(categorie_id: int, db: Session = Depends(get_db)):
     db_categorie = crud.get_categorie(db, categorie_id)
