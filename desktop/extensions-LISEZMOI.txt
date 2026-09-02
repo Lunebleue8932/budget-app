@@ -1,0 +1,40 @@
+Le dossier des extensions
+=========================
+
+C'est ici que tu déposes les extensions que tu télécharges. Il arrive vide :
+l'application est livrée sans aucune extension, et c'est voulu — tu ne gardes
+que ce qui te sert.
+
+Comment en installer une
+------------------------
+
+1. Va sur la page Releases du dépôt et télécharge l'archive de l'extension qui
+   t'intéresse. Elle s'appelle « extension-<nom>.zip ».
+2. Décompresse-la ICI, dans ce dossier. Tu dois obtenir un dossier par
+   extension, à côté de ce fichier :
+
+       extensions/
+         LISEZMOI.txt
+         placements/
+           extension.json
+           ...
+
+   Attention à décompresser le DOSSIER de l'extension, pas une archive qui en
+   contiendrait un autre du même nom.
+3. Relance l'application. Elle te dira qu'elle a trouvé une extension et te
+   proposera de l'allumer.
+
+Une extension trouvée reste ÉTEINTE tant que tu ne l'as pas activée toi-même,
+depuis la fenêtre de lancement ou depuis Paramètres > Extensions. Rien de son
+code n'est chargé avant ce geste.
+
+L'éteindre plus tard ne supprime aucune donnée : son écran disparaît, ce que tu
+as saisi dort en base et revient si tu la rallumes.
+
+Une seule va sur Internet
+-------------------------
+
+« Lecture de cours » est la seule extension qui ouvre une connexion sortante :
+elle va lire un cours de bourse ou un taux de change sur la page dont tu colles
+le lien. Tout le reste de l'application fonctionne hors ligne, et tes données
+ne quittent jamais ta machine.
