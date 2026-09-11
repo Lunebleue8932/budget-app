@@ -128,9 +128,15 @@ def get_dashboard(
     } | set(totaux)
     monnaies = [m for m in crud.get_monnaies(db) if m.id in monnaies_utilisees]
 
+    # UN SEUL CALCUL POUR TOUTES LES MONNAIES, et hors de la boucle : c'est un
+    # STOCK, sans période, donc rien dans les paramètres de l'écran ne le fait
+    # varier (cf. services/soldes.get_reste_a_rembourser).
+    reste_a_rembourser = soldes.get_reste_a_rembourser(db)
+
     kpis = []
     for monnaie in monnaies:
         totaux_monnaie = totaux.get(monnaie.id, {})
+        reste = reste_a_rembourser.get(monnaie.id, {})
         # Un seul appel pour les trois flux : les recalculer séparément
         # ouvrirait la porte à une variation qui ne vaut pas entrées − sorties.
         flux = soldes.get_flux_periode(db, annee, mois, monnaie.id)
@@ -145,6 +151,9 @@ def get_dashboard(
                 valorisation_placements=totaux_monnaie.get("valorisation_placements", 0.0),
                 total_entrees=flux["entrees"],
                 total_sorties=flux["sorties"],
+                reste_a_recevoir=reste.get("a_recevoir", 0.0),
+                reste_a_rendre=reste.get("a_rendre", 0.0),
+                reste_a_rembourser=reste.get("net", 0.0),
                 variation_previsionnelle=flux["variation"],
                 variation_brute=soldes.get_variation_brute(
                     db, annee, mois, monnaie.id

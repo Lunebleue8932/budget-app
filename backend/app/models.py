@@ -14,6 +14,7 @@ from sqlalchemy import (
     CheckConstraint,
     Index,
     UniqueConstraint,
+    true as sa_true,
 )
 from sqlalchemy.orm import relationship
 
@@ -199,6 +200,20 @@ class CompteMonnaie(Base):
     # Position dans la liste du compte ; la première est la monnaie proposée
     # par défaut à la saisie et celle retenue pour les lignes importées.
     ordre = Column(Integer, nullable=False, default=0)
+    # ÉTEINTE (migration 0053) : la monnaie n'est plus PROPOSÉE — ni au
+    # formulaire d'opération, ni au virement, ni à la résolution de monnaie de
+    # l'import — mais ses opérations restent en base, intactes.
+    #
+    # PAS UNE SUPPRESSION. Retirer une monnaie de la liste est refusé dès que le
+    # compte y porte une opération (cf. routers/comptes.update_compte), et c'est
+    # exactement le cas de celle dont on veut se défaire : un compte ouvert un
+    # temps en dollars, soldé depuis, gardait son dollar pour toujours. Éteindre
+    # est le geste qui manquait, et se défait d'un clic.
+    #
+    # LE SOLDE DOIT ÊTRE NUL POUR ÉTEINDRE (garde dans le routeur). C'est ce qui
+    # rend sûr de la faire disparaître des écrans : elle ne porte plus rien, donc
+    # aucun total affiché ne bouge.
+    active = Column(Boolean, nullable=False, default=True, server_default=sa_true())
 
     compte = relationship("Compte", back_populates="monnaies")
     monnaie = relationship("Monnaie")
@@ -286,15 +301,48 @@ class Compte(Base):
         return self.type_compte.nom
 
     @property
+    def monnaies_actives(self) -> list:
+        """Les monnaies que le compte PROPOSE encore, dans leur ordre.
+
+        C'EST LE POINT DE PASSAGE UNIQUE de l'extinction (cf.
+        CompteMonnaie.active). Tout ce qui demande « quelles monnaies ce compte
+        peut-il porter » — validation d'une opération, d'un virement, résolution
+        de la monnaie d'une ligne importée, menus de l'écran — lit celle-ci ou
+        les deux propriétés qui en dérivent. Ce qui demande « qu'a-t-il porté »
+        lit `monnaies` : les soldes, qui doivent continuer de rendre vrai un
+        mois ancien.
+        """
+        return [lien for lien in self.monnaies if lien.active]
+
+    @property
     def monnaie_ids(self) -> set:
+        """Les monnaies dans lesquelles une NOUVELLE écriture est admise.
+
+        Les éteintes en sont absentes : c'est ce qui fait que « tout se passe
+        comme s'il n'y avait plus la monnaie ». Les opérations déjà écrites dans
+        l'une d'elles ne sont pas relues à travers ce filtre — rien ne les
+        revalide, elles restent exactement ce qu'elles sont."""
+        return {lien.monnaie_id for lien in self.monnaies if lien.active}
+
+    @property
+    def monnaie_ids_toutes(self) -> set:
+        """Toutes les monnaies déclarées, éteintes comprises. Ce que le compte
+        a porté, et non ce qu'il accepte encore."""
         return {lien.monnaie_id for lien in self.monnaies}
 
     @property
     def monnaie_principale_id(self):
-        """La première monnaie du compte : celle proposée par défaut à la
-        saisie et retenue pour une ligne importée (un relevé bancaire ne dit
-        pas dans quelle monnaie il est libellé)."""
-        return self.monnaies[0].monnaie_id if self.monnaies else None
+        """La première monnaie ALLUMÉE du compte : celle proposée par défaut à
+        la saisie et retenue pour une ligne importée (un relevé bancaire ne dit
+        pas dans quelle monnaie il est libellé).
+
+        Éteindre la première monnaie d'un compte fait donc passer la suivante en
+        tête, sans avoir à réordonner la liste : l'ordre décrit une préférence,
+        l'extinction décrit une disponibilité, et c'est la seconde qui tranche.
+        None si toutes sont éteintes — le routeur l'interdit (un compte doit
+        garder au moins une monnaie allumée), c'est un filet, pas un cas."""
+        actives = self.monnaies_actives
+        return actives[0].monnaie_id if actives else None
 
     @property
     def est_placement(self) -> bool:
@@ -397,8 +445,31 @@ class Operation(Base):
     monnaie_frais_id = Column(
         Integer, ForeignKey("monnaie.id", ondelete="SET NULL"), nullable=True
     )
+    # À QUI on doit, ou QUI nous doit (migration 0054, extension « Suivi des
+    # remboursements »). NULL est le cas ordinaire et le restera : la
+    # quasi-totalité des opérations d'une base ne sont ni remboursables ni des
+    # prêts.
+    #
+    # SEULS `remboursable` ET `pret` FONT LE SOLDE D'UN PROFIL, par leur
+    # `montant_a_rembourser`. Les deux types de RÈGLEMENT peuvent le porter
+    # aussi, mais leur profil ne compte dans aucun total : la dette qu'ils
+    # soldent a déjà décru toute seule (cf. crud._recalculer_montant_a_rembourser),
+    # et la retirer une seconde fois la compterait deux fois. Il n'y sert qu'à
+    # l'historique — « ce que Marie m'a déjà rendu ».
+    #
+    # SET NULL et non CASCADE : supprimer un profil DÉTACHE ses opérations. Ce
+    # sont de vraies écritures, qui bougent de vrais soldes ; les perdre parce
+    # qu'on efface le nom d'une connaissance serait un désastre silencieux.
+    profil_remboursement_id = Column(
+        Integer,
+        ForeignKey("profil_remboursement.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     compte = relationship("Compte", back_populates="operations")
+    profil_remboursement = relationship(
+        "ProfilRemboursement", back_populates="operations"
+    )
     categorie = relationship("Categorie")
     type_operation = relationship("TypeOperationDB")
     monnaie = relationship("Monnaie", foreign_keys=[monnaie_id])
@@ -495,6 +566,7 @@ class Operation(Base):
         Index("ix_operation_virement_id", "virement_id"),
         Index("ix_operation_recurrence_parent_id", "recurrence_parent_id"),
         Index("ix_operation_monnaie_id", "monnaie_id"),
+        Index("ix_operation_profil_remboursement", "profil_remboursement_id"),
     )
 
 
@@ -1340,5 +1412,43 @@ class SousFiltre(Base):
         back_populates="sous_filtres",
         # Trié comme la liste des opérations de l'app : les plus récentes
         # d'abord, l'id départageant deux opérations du même jour.
+        order_by="desc(Operation.date), desc(Operation.id)",
+    )
+
+
+class ProfilRemboursement(Base):
+    """Qui nous doit, et à qui on doit (extension « Suivi des remboursements »).
+
+    UNE ÉTIQUETTE, ET RIEN DE PLUS — même nature que `TypeTitre`. Un nom, une
+    note, un ordre de lecture. AUCUN calcul du noyau ne la lit : ni un solde, ni
+    un KPI, ni une barre d'histogramme. C'est ce qui permet de la laisser
+    entièrement libre (une personne, une entreprise, « la colocation ») et de la
+    supprimer sans conséquence — les opérations se détachent, elles ne
+    disparaissent pas.
+
+    CE QU'ELLE APPORTE. L'application savait déjà COMBIEN il reste à rembourser ;
+    elle ne savait pas À QUI. Devant quinze dépenses avancées sur six mois, « il
+    te reste 340 € à récupérer » ne dit pas à qui écrire — et c'est pourtant la
+    seule chose qui permette d'agir.
+    """
+
+    __tablename__ = "profil_remboursement"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nom = Column(String, nullable=False, unique=True)
+    # Texte libre, jamais lu par un calcul : « voisin du dessus », « rembourse
+    # en fin de mois ». Non nullable et vide par défaut, comme
+    # `SousFiltre.description` — un NULL aurait ajouté un second cas à tester
+    # dans chaque écran qui l'affiche.
+    description = Column(Text, nullable=False, default="")
+    # L'ordre d'affichage, choisi par l'utilisateur. Trier par nom aurait rangé
+    # en tête celui dont le prénom commence par A, jamais celui qu'on regarde.
+    ordre = Column(Integer, nullable=False, default=0)
+
+    operations = relationship(
+        "Operation",
+        back_populates="profil_remboursement",
+        # Comme la liste des opérations de l'app : les plus récentes d'abord,
+        # l'id départageant deux opérations du même jour.
         order_by="desc(Operation.date), desc(Operation.id)",
     )

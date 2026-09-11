@@ -1,0 +1,179 @@
+/* Extension « Suivi des remboursements ».
+
+   TOUT EST PRÉFIXÉ `suivir` : les feuilles de style des extensions et du noyau
+   habillent le MÊME document, et une classe générique (`.ligne`, `.barre`)
+   repeindrait au passage des écrans qui ne lui ont rien demandé.
+
+   CE QUI N'EST PAS ICI : les cartes du résumé, les tableaux, les lignes de
+   liste, les boutons. Ils reprennent les classes du noyau (`flux-carte`,
+   `import-mapping-row`, `actions`, `hint`) — c'est la même feuille qui les
+   habille, et surtout le même geste à apprendre. */
+
+.suivir-entete {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.suivir-entete h2 {
+  margin-right: auto;
+}
+
+/* La porte d'entrée posée dans la carte « Reste à rembourser » du dashboard.
+   Discrète : c'est le chiffre qu'on lit, pas le bouton — il ne doit pas se
+   disputer l'attention avec la valeur qu'il prolonge. */
+.suivir-porte {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.suivir-porte:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Une ligne du tableau « qui doit combien » ----------
+
+   Quatre colonnes fixes : le nom, la barre divergente, le détail chiffré, le
+   net. Une grille plutôt qu'un `<table>` parce que la barre doit occuper tout
+   l'espace qui reste et se recentrer exactement, ce qu'une cellule de tableau
+   rend pénible. */
+.suivir-ligne {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(120px, 3fr) auto minmax(90px, auto);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  margin-bottom: 0.35rem;
+}
+
+@media (max-width: 700px) {
+  .suivir-ligne {
+    grid-template-columns: 1fr auto;
+  }
+  /* La barre passe sur sa propre rangée, pleine largeur : réduite au tiers
+     d'un écran de téléphone, elle ne comparait plus rien. */
+  .suivir-barre {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+.suivir-ligne-cliquable {
+  cursor: pointer;
+}
+
+.suivir-ligne-cliquable:hover {
+  border-color: var(--border);
+}
+
+/* « Sans profil » n'est pas un profil : c'est un reste à ranger. Il se lit donc
+   comme une consigne, pas comme une ligne du tableau. */
+.suivir-ligne-sans-profil {
+  border-style: dashed;
+}
+
+.suivir-ligne-sans-profil .suivir-ligne-nom {
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.suivir-ligne-nom {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.suivir-ligne-detail {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.suivir-ligne-net {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- La barre divergente ----------
+
+   UN AXE AU MILIEU, deux moitiés égales. La dette pousse à GAUCHE, la créance à
+   DROITE : c'est le côté qui dit le sens, pas la couleur seule — un tableau se
+   lit ainsi d'un coup d'œil, sans lire un seul chiffre.
+
+   La moitié gauche remplit depuis la droite (`justify-content: flex-end`) pour
+   que les deux segments partent bien de l'axe et non des bords. */
+.suivir-barre {
+  display: flex;
+  align-items: center;
+  height: 14px;
+}
+
+.suivir-barre-cote {
+  flex: 1;
+  display: flex;
+  height: 100%;
+  background: var(--bg-surface-alt);
+  overflow: hidden;
+}
+
+.suivir-barre-gauche {
+  justify-content: flex-end;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.suivir-barre-droite {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.suivir-barre-remplissage {
+  height: 100%;
+}
+
+.suivir-creance {
+  background: var(--positif);
+}
+
+.suivir-du {
+  background: var(--negatif);
+}
+
+/* L'axe : un trait, pas une décoration. C'est lui qui donne son sens au côté
+   sur lequel une barre se trouve. */
+.suivir-barre-axe {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  flex: none;
+}
+
+/* ---------- Le détail d'un profil ---------- */
+
+.suivir-detail {
+  border: 1px solid var(--border-soft);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: 0.25rem 0.75rem 0.5rem;
+  margin: -0.35rem 0 0.6rem;
+  background: var(--bg-surface-alt);
+  overflow-x: auto;
+}
+
+/* Une dette soldée et un règlement restent lisibles mais passent au second
+   plan : le détail raconte ce qui s'est passé, le tableau du dessus dit ce qui
+   reste. */
+.suivir-ligne-reglee {
+  opacity: 0.6;
+}
+
+.suivir-affectation {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}

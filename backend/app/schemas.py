@@ -59,6 +59,11 @@ class CompteMonnaieInput(BaseModel):
 
     monnaie_id: int
     solde_initial: float = 0.0
+    # ÉTEINTE = plus proposée à la saisie ni devinée à l'import, mais ses
+    # opérations restent en base (cf. models.CompteMonnaie.active). True par
+    # défaut : un écran qui ne connaît pas encore ce champ continue d'envoyer
+    # des monnaies allumées, ce qui est le cas ordinaire.
+    active: bool = True
 
 
 class CompteMonnaieRead(CompteMonnaieInput):
@@ -66,6 +71,13 @@ class CompteMonnaieRead(CompteMonnaieInput):
 
     monnaie_nom: str
     monnaie_symbole: str
+    # Le solde courant du compte dans cette monnaie, réel et projeté. Renseignés
+    # par le routeur (cf. routers/comptes) POUR QUE L'ÉCRAN SACHE CE QU'IL A LE
+    # DROIT D'ÉTEINDRE sans avoir à recroiser le dashboard : l'extinction exige
+    # un solde nul, et une case grisée dont on ne voit pas pourquoi vaut à peine
+    # mieux qu'un refus après coup.
+    solde_reel: float = 0.0
+    solde_projete: float = 0.0
 
 
 class CompteBase(BaseModel):
@@ -564,6 +576,15 @@ class KpisMonnaieRead(BaseModel):
     # s'accordent pas.
     total_entrees: float = 0.0
     total_sorties: float = 0.0
+    # LA TROISIÈME CARTE POSÉE SOUS LE SÉLECTEUR DE PÉRIODE, et le seul chiffre
+    # de ce bloc qui NE DÉPEND PAS de la période : un stock de créances et de
+    # dettes, pas un flux (cf. services/soldes.get_reste_a_rembourser). Une
+    # dépense avancée en mars reste due en septembre tant qu'on ne m'a pas
+    # remboursé — il n'y a donc rien à filtrer par mois, et l'infobulle de la
+    # carte le dit plutôt que de laisser croire à un chiffre du mois.
+    reste_a_recevoir: float = 0.0
+    reste_a_rendre: float = 0.0
+    reste_a_rembourser: float = 0.0
     variation_previsionnelle: float = 0.0
     # CE QUI EST PASSÉ SUR LES COMPTES pendant la période, sans rien étaler ni
     # retrancher : une dépense amortie en entier au mois où l'argent est sorti,
@@ -1539,6 +1560,12 @@ class BaseDonneesRead(BaseModel):
     # mémorise rien. L'écran le dit, sans quoi on croirait à une panne de la
     # mémorisation.
     build_de_test: bool = False
+    # Installation de MISE AU POINT — serveur de dev lancé depuis le dépôt, ou
+    # bundle construit localement (cf. database.mode_developpement). Elle repart
+    # de sa base native à chaque démarrage, n'écrit jamais dans le profil de
+    # l'utilisateur, et c'est la seule à qui l'écran propose d'y revenir en un
+    # geste (POST /parametres/base/reinitialiser).
+    mode_developpement: bool = False
     # Renseigné par /parametres/base/installer seulement : « ouverte »,
     # « déplacée » ou « créée ». Le frontend ne peut pas le déduire — il ne sait
     # pas si le fichier existait avant sa requête.

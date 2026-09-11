@@ -378,6 +378,25 @@ h4 {
 .flux-valeur.positif { color: var(--positif); }
 .flux-valeur.negatif { color: var(--negatif); }
 
+/* Le détail sous la valeur d'une carte : les deux composantes d'un net, en
+   petit. Vide, il n'occupe aucune place — le `:empty` évite que les trois
+   cartes cessent d'avoir la même hauteur selon ce qu'il y a à dire. */
+.flux-detail {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.flux-detail:empty {
+  display: none;
+}
+
+/* La place réservée à ce qu'une extension pose dans une carte (cf.
+   #flux-remboursements-actions). Rien tant que rien n'y est déposé. */
+.flux-carte-actions:not(:empty) {
+  margin-top: 0.45rem;
+}
+
 /* ---------- Cartes de comptes (dashboard) ---------- */
 
 .comptes-grid {
@@ -3998,4 +4017,34 @@ body.modale-ouverte {
    qui ferait croire à un contenu masqué. */
 td.apercu-col-hors-fichier {
   background-image: none;
+}
+
+/* ---------- Monnaie éteinte (cf. models.CompteMonnaie.active) ----------
+
+   Une monnaie éteinte n'est plus proposée à la saisie ni devinée à l'import,
+   mais ses opérations restent en base. Elle ne disparaît donc pas de la LIGNE
+   DE COMPTE — c'est de là qu'on la rallume — elle y passe seulement au second
+   plan, barrée et estompée. Partout ailleurs (cartes de compte, onglets de
+   monnaie du dashboard) elle s'efface complètement, côté serveur. */
+.monnaie-eteinte {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+/* La case « Active » de la ligne d'une monnaie, dans le formulaire de compte.
+   Grisée quand le solde n'est pas nul : on ne peut pas éteindre une monnaie qui
+   porte encore quelque chose, et la raison est dans le `title`. */
+.compte-monnaie-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.compte-monnaie-active.est-desactive {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

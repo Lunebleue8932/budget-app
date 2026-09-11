@@ -101,6 +101,31 @@ def est_build_de_test() -> bool:
     return (dossier_application() / NOM_MARQUEUR_BUILD_TEST).is_file()
 
 
+def mode_developpement() -> bool:
+    """Ce processus est-il une installation de MISE AU POINT — serveur de dev
+    lancé depuis le dépôt, ou bundle construit localement ?
+
+    C'EST LA CONDITION DU RESET. Les deux cas partagent la même propriété : la
+    base qu'ils ouvrent par défaut est une base de test, et la base personnelle
+    n'y est jamais qu'un détour momentané pour vérifier quelque chose. Ils
+    doivent donc, tous les deux :
+
+      - repartir de la base native à chaque démarrage (cf.
+        `_resoudre_chemin_demarrage`, qui coupe court dans les deux cas) ;
+      - n'écrire JAMAIS le chemin retenu dans le profil (cf.
+        `routers/parametres_base._memoriser`) — ce profil est partagé par toutes
+        les copies de l'application présentes sur la machine, et une base
+        ouverte pour un essai redirigerait la VRAIE application ;
+      - offrir le retour à la base native en un geste (bouton « Revenir à la
+        base de l'application »), pour n'avoir pas à attendre la fermeture.
+
+    UNE VERSION PUBLIÉE N'A RIEN DE TOUT ÇA, et c'est l'inverse exact : elle
+    mémorise (une base qu'on redésigne à chaque lancement n'est pas une base),
+    et sa base « native » est justement celle du dossier condamné — lui offrir
+    un bouton pour y revenir serait un piège."""
+    return not getattr(sys, "frozen", False) or est_build_de_test()
+
+
 # Renseigné quand un chemin ÉTAIT mémorisé mais que le fichier a disparu :
 # disque externe débranché, dossier renommé, fichier supprimé. L'application
 # repart alors sur son emplacement par défaut, mais le panneau « Base de

@@ -1504,7 +1504,9 @@ function renderKpisDashboard(kpis) {
       "kpi-variation",
       "kpi-total-entrees",
       "kpi-total-sorties",
+      "kpi-reste-rembourser",
     ].forEach((id) => (document.getElementById(id).textContent = "-"));
+    document.getElementById("kpi-reste-rembourser-detail").textContent = "";
     dashboardDepensesDuMois = [];
     renderHistogrammeDashboard([], null);
     return;
@@ -1556,17 +1558,22 @@ function renderKpisDashboard(kpis) {
 }
 
 /**
- * Total Entrées, Total Dépenses — les deux chiffres posés sous le sélecteur de
- * période, à côté de l'histogramme qu'ils résument.
+ * Total Entrées, Total Dépenses, Reste à rembourser — les trois chiffres posés
+ * sous le sélecteur de période, à côté de l'histogramme.
  *
- * DEUX CARTES ET PLUS TROIS. La « Différence » qui les suivait valait, à un
- * signe près, la variation affichée en haut de page : deux chiffres pour une
- * seule mesure, dont l'un des deux devait forcément finir par sembler faux.
+ * PLUS DE « DIFFÉRENCE » : celle qui suivait les deux premiers valait, à un
+ * signe près, la variation affichée en haut de page — deux chiffres pour une
+ * seule mesure, dont l'un devait forcément finir par sembler faux.
  *
- * CE QU'ILS RÉPONDENT n'est pas ce que répond la variation du haut : ici, ce
- * que la période COÛTE et RAPPORTE — dépense amortie étalée, dépense
- * remboursable réduite à son reste à charge (cf. get_flux_periode) ; là-haut,
- * ce qui est PASSÉ sur les comptes. Les deux infobulles le disent.
+ * DEUX DES TROIS SUIVENT LA PÉRIODE, LE TROISIÈME NON, et c'est la seule chose
+ * à ne pas confondre ici :
+ *
+ *   - Entrées / Dépenses répondent à ce que la période COÛTE et RAPPORTE —
+ *     dépense amortie étalée, remboursable réduite à son reste à charge (cf.
+ *     get_flux_periode). Ce n'est déjà pas ce que répond la variation du haut,
+ *     qui dit ce qui est PASSÉ sur les comptes ;
+ *   - « Reste à rembourser » est un STOCK : l'état des créances et des dettes
+ *     aujourd'hui. Changer de mois ne le bouge pas, et son infobulle le dit.
  */
 function renderFluxPeriode(kpis, monnaieId) {
   const entrees = kpis.total_entrees || 0;
@@ -1581,6 +1588,46 @@ function renderFluxPeriode(kpis, monnaieId) {
   // Le signe est porté par le libellé (« dépenses ») autant que par la couleur :
   // un total de dépenses s'écrit en positif, c'est une somme dépensée.
   document.getElementById("kpi-total-sorties").textContent = signe(sorties, "−");
+  renderResteARembourser(kpis, monnaieId);
+}
+
+/**
+ * « Reste à rembourser » : le net, et sous lui les deux montants dont il est
+ * fait.
+ *
+ * POURQUOI LE DÉTAIL. Un net à zéro peut aussi bien vouloir dire « personne ne
+ * me doit rien » que « on me doit 500 € et j'en dois 500 » — deux situations qui
+ * n'appellent pas les mêmes gestes. La ligne du dessous les sépare sans
+ * demander un clic.
+ *
+ * LE SIGNE DIT LE SENS : positif, on me doit de l'argent (vert) ; négatif, j'en
+ * dois (rouge). C'est la même convention que la variation du mois, et c'est ce
+ * qui permet de lire la carte sans lire son libellé.
+ *
+ * PAS DE DÉTAIL QUAND IL N'Y A RIEN À DÉTAILLER : sans dette — l'extension
+ * « Prêts » éteinte, ou aucun prêt en cours — le net EST la créance, et répéter
+ * le même chiffre en dessous n'apprendrait rien.
+ */
+function renderResteARembourser(kpis, monnaieId) {
+  const aRecevoir = kpis.reste_a_recevoir || 0;
+  const aRendre = kpis.reste_a_rendre || 0;
+  const net = kpis.reste_a_rembourser || 0;
+
+  const valeurEl = document.getElementById("kpi-reste-rembourser");
+  valeurEl.textContent = `${net > 0 && !montantEstNul(net) ? "+" : ""}${formatMontant(
+    net,
+    monnaieId
+  )}`;
+  valeurEl.classList.toggle("positif", net > 0 && !montantEstNul(net));
+  valeurEl.classList.toggle("negatif", net < 0 && !montantEstNul(net));
+  valeurEl.classList.toggle("montant-nul", montantEstNul(net));
+
+  const detailEl = document.getElementById("kpi-reste-rembourser-detail");
+  detailEl.textContent = montantEstNul(aRendre)
+    ? ""
+    : `${t("on te doit")} ${formatMontant(aRecevoir, monnaieId)} · ${t(
+        "tu dois"
+      )} ${formatMontant(aRendre, monnaieId)}`;
 }
 
 /* ---------- Répartition des avoirs par type de compte (camembert) ---------- */
@@ -2446,12 +2493,27 @@ function activerEditionDoubleClic(conteneur, onEdit) {
 }
 
 /**
- * Une ligne par monnaie de l'app : une case pour l'attacher au compte, et son
- * solde de départ dans cette monnaie. Un compte multi-devises a bien deux
- * soldes initiaux, un champ unique ne pouvait pas dire lequel.
+ * Une ligne par monnaie de l'app : une case pour l'attacher au compte, son
+ * solde de départ dans cette monnaie, et une case « Active ». Un compte
+ * multi-devises a bien deux soldes initiaux, un champ unique ne pouvait pas
+ * dire lequel.
  *
- * `selection` : [{monnaie_id, solde_initial}] dans l'ordre voulu — le premier
- * coché est la monnaie proposée par défaut à la saisie d'une opération.
+ * DEUX CASES QUI NE DISENT PAS LA MÊME CHOSE, et c'est tout l'objet de la
+ * seconde. Décocher la première RETIRE la monnaie du compte, et c'est refusé dès
+ * qu'une opération y est libellée (les montants perdraient le solde qui les
+ * porte) : un compte ouvert un temps en dollars, soldé depuis, ne pouvait donc
+ * plus s'en défaire sans supprimer son historique. Décocher « Active » l'ÉTEINT :
+ * la monnaie cesse d'être proposée à la saisie et devinée à l'import, ses
+ * opérations restent en base, et rallumer se fait d'un clic.
+ *
+ * ÉTEINDRE EXIGE UN SOLDE NUL (refus en 409 côté serveur, cf.
+ * routers/comptes._valider_extinctions) : la case est donc grisée tant qu'il ne
+ * l'est pas, avec la raison en infobulle — une case qu'on coche et qui revient
+ * en arrière renseigne moins qu'une case qu'on ne peut pas cocher.
+ *
+ * `selection` : [{monnaie_id, solde_initial, active, solde_reel, solde_projete}]
+ * dans l'ordre voulu — la première ALLUMÉE est la monnaie proposée par défaut à
+ * la saisie d'une opération.
  */
 function renderCompteMonnaies(selection = []) {
   const bloc = document.getElementById("compte-monnaies");
@@ -2461,9 +2523,18 @@ function renderCompteMonnaies(selection = []) {
       '<span class="hint">Aucune monnaie : crée-en une dans l\'onglet Monnaies.</span>';
     return;
   }
-  const parId = Object.fromEntries(selection.map((s) => [s.monnaie_id, s.solde_initial]));
+  const parId = Object.fromEntries(selection.map((s) => [s.monnaie_id, s]));
   state.monnaies.forEach((monnaie) => {
-    const choisie = monnaie.id in parId;
+    const entree = parId[monnaie.id];
+    const choisie = Boolean(entree);
+    const active = entree ? entree.active !== false : true;
+    // Le même seuil que le serveur (services/soldes.EPSILON_SOLDE_NUL) : des
+    // montants flottants qui se compensent laissent un résidu binaire, et
+    // comparer à zéro exactement ferait dépendre l'extinction de l'ordre de
+    // saisie.
+    const soldee =
+      !entree ||
+      (Math.abs(entree.solde_reel || 0) < 0.005 && Math.abs(entree.solde_projete || 0) < 0.005);
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     row.dataset.monnaieId = monnaie.id;
@@ -2472,13 +2543,31 @@ function renderCompteMonnaies(selection = []) {
       <span class="import-mapping-nom">${escapeHtml(monnaie.nom)} (${escapeHtml(monnaie.symbole)})</span>
       <input type="number" step="0.01" data-role="solde-initial"
              title="${t("Solde initial dans cette monnaie")}"
-             value="${choisie ? parId[monnaie.id] : 0}" ${choisie ? "" : "disabled"} />
+             value="${choisie ? entree.solde_initial : 0}" ${choisie ? "" : "disabled"} />
+      <label class="compte-monnaie-active">
+        <input type="checkbox" data-role="active" ${active ? "checked" : ""} />
+        ${t("Active")}
+      </label>
     `;
     const caseChoisie = row.querySelector("input[data-role='choisie']");
     const champSolde = row.querySelector("input[data-role='solde-initial']");
+    const caseActive = row.querySelector("input[data-role='active']");
+    // Grisée seulement pour ÉTEINDRE : rallumer ne demande rien, c'est le geste
+    // qui rend visible, jamais celui qui cache.
+    const majEtatActive = () => {
+      const peutEteindre = soldee || !caseActive.checked;
+      caseActive.disabled = !caseChoisie.checked || !peutEteindre;
+      caseActive.parentElement.title = peutEteindre
+        ? t("Décoche pour que cette monnaie ne soit plus proposée à la saisie ni devinée à l'import. Les opérations déjà enregistrées restent en base.")
+        : t("Le solde de ce compte dans cette monnaie n'est pas nul : vire ce qui reste ailleurs avant d'éteindre.");
+      caseActive.parentElement.classList.toggle("est-desactive", caseActive.disabled);
+    };
     caseChoisie.addEventListener("change", () => {
       champSolde.disabled = !caseChoisie.checked;
+      majEtatActive();
     });
+    caseActive.addEventListener("change", majEtatActive);
+    majEtatActive();
     bloc.appendChild(row);
   });
 }
@@ -2491,6 +2580,7 @@ function lireCompteMonnaies() {
       solde_initial: parseFloat(
         row.querySelector("input[data-role='solde-initial']").value || "0"
       ),
+      active: row.querySelector("input[data-role='active']").checked,
     }));
 }
 
@@ -2516,8 +2606,16 @@ function fillCompteForm(compte, ancre) {
   document.getElementById("compte-id").value = compte.id;
   document.getElementById("compte-nom").value = compte.nom;
   document.getElementById("compte-type").value = compte.type_id;
+  // Les soldes voyagent avec la liste : c'est eux qui décident si la case
+  // « Active » est cochable (cf. renderCompteMonnaies).
   renderCompteMonnaies(
-    compte.monnaies.map((m) => ({ monnaie_id: m.monnaie_id, solde_initial: m.solde_initial }))
+    compte.monnaies.map((m) => ({
+      monnaie_id: m.monnaie_id,
+      solde_initial: m.solde_initial,
+      active: m.active,
+      solde_reel: m.solde_reel,
+      solde_projete: m.solde_projete,
+    }))
   );
   document.getElementById("form-compte-titre").textContent = `Modifier "${compte.nom}"`;
   document.getElementById("compte-annuler").style.display = "inline-block";
@@ -2593,10 +2691,19 @@ function construireLigneCompte(compte) {
   ligne.innerHTML = `
     <span class="drag-handle" title="${t("Glisser pour réordonner, ou vers une autre carte pour changer de type")}">⠿</span>
     <span class="import-mapping-nom">${escapeHtml(compte.nom)}</span>
+    <!-- LES ÉTEINTES RESTENT LISTÉES ICI, en grisé : c'est la ligne depuis
+         laquelle on rallume, et une monnaie qu'on ne voit nulle part ne se
+         rallume pas. Partout ailleurs (cartes de compte, onglets du dashboard)
+         elles disparaissent, cf. services/soldes.get_soldes_comptes. -->
     <span class="compte-ligne-monnaies">${compte.monnaies
-      .map((m) => escapeHtml(m.monnaie_symbole))
+      .map((m) =>
+        m.active === false
+          ? `<span class="monnaie-eteinte" title="${t("Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.")}">${escapeHtml(m.monnaie_symbole)}</span>`
+          : escapeHtml(m.monnaie_symbole)
+      )
       .join(" · ")}</span>
     <span class="compte-ligne-solde">${compte.monnaies
+      .filter((m) => m.active !== false)
       .map((m) => formatMontant(m.solde_initial, m.monnaie_id))
       .join(" · ")}</span>
     <button type="button" data-action="edit" data-id="${compte.id}">${t("Modifier")}</button>
@@ -3125,21 +3232,47 @@ function compteParId(compteId) {
   return state.comptes.find((c) => c.id === compteId) || null;
 }
 
-// Les monnaies d'un compte, dans l'ordre du compte : la première est celle
-// proposée par défaut.
-function monnaiesDuCompte(compteId) {
+/**
+ * Les monnaies qu'un compte PROPOSE, dans son ordre : la première est celle
+ * retenue par défaut.
+ *
+ * LES ÉTEINTES EN SONT ABSENTES (cf. models.Compte.monnaies_actives, la même
+ * règle côté serveur) : c'est ce qui fait qu'éteindre une monnaie la retire de
+ * tous les menus de saisie sans toucher à une seule opération.
+ *
+ * `monnaieConservee` RATTRAPE LE SEUL CAS OÙ ÇA NE SUFFIT PAS : rouvrir une
+ * opération déjà écrite dans une monnaie depuis éteinte. Sans elle, le menu ne
+ * contiendrait pas sa monnaie, le `select` retomberait silencieusement sur une
+ * autre, et enregistrer sans y toucher aurait changé la devise de l'opération.
+ * On ne PROPOSE pas cette monnaie — on refuse juste de perdre ce qui est là.
+ */
+function monnaiesDuCompte(compteId, monnaieConservee = null) {
   const compte = compteParId(compteId);
-  return compte ? compte.monnaies : [];
+  if (!compte) return [];
+  return compte.monnaies.filter(
+    (m) => m.active !== false || m.monnaie_id === monnaieConservee
+  );
 }
 
 /**
  * Remplit un menu de monnaies avec celles du compte choisi, et affiche son bloc
  * seulement si le choix existe vraiment : sur un compte mono-monnaie il n'y a
  * rien à demander, la monnaie est déduite. Renvoie l'id retenu.
+ *
+ * `monnaieConservee` GARDE DANS LE MENU UNE MONNAIE ÉTEINTE, quand c'est celle
+ * que porte déjà l'opération qu'on rouvre (cf. monnaiesDuCompte). Elle est
+ * passée explicitement, jamais devinée de ce qui est sélectionné : le menu se
+ * resynchronise AUSSI quand on change de compte, et la monnaie choisie pour le
+ * compte précédent n'a aucune raison de survivre au suivant.
  */
-function syncSelectMonnaieCompte(selectId, blocId, compteId, { forcerAffichage = false } = {}) {
+function syncSelectMonnaieCompte(
+  selectId,
+  blocId,
+  compteId,
+  { forcerAffichage = false, monnaieConservee = null } = {}
+) {
   const select = document.getElementById(selectId);
-  const monnaies = monnaiesDuCompte(compteId);
+  const monnaies = monnaiesDuCompte(compteId, monnaieConservee);
   const precedente = Number(select.value) || null;
   select.innerHTML = "";
   monnaies.forEach((m) => {
@@ -3328,7 +3461,13 @@ function updateOperationTypeFields() {
  * identiques — le cas courant — le second montant est masqué et suit le
  * premier.
  */
-function updateOperationMonnaieFields() {
+function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = {}) {
+  // `monnaie` / `monnaieRecue` : les devises de l'opération QU'ON ROUVRE, quand
+  // on en rouvre une. Elles sont gardées dans les menus même éteintes, sans quoi
+  // le `select` retomberait en silence sur une autre et enregistrer sans y
+  // toucher changerait la devise de l'opération (cf. monnaiesDuCompte). Les
+  // écouteurs de changement de compte, eux, appellent sans rien : à ce
+  // moment-là il n'y a plus rien à conserver.
   const type = document.getElementById("operation-type").value;
   const estVirement = type === "virement";
 
@@ -3340,7 +3479,8 @@ function updateOperationMonnaieFields() {
     syncSelectMonnaieCompte(
       "operation-monnaie",
       "operation-monnaie-bloc",
-      Number(document.getElementById("operation-compte").value)
+      Number(document.getElementById("operation-compte").value),
+      { monnaieConservee: monnaie }
     );
     return;
   }
@@ -3354,13 +3494,13 @@ function updateOperationMonnaieFields() {
     "operation-monnaie",
     "operation-monnaie-bloc",
     compteSourceId,
-    { forcerAffichage: true }
+    { forcerAffichage: true, monnaieConservee: monnaie }
   );
   const monnaieDestination = syncSelectMonnaieCompte(
     "operation-monnaie-recue",
     "operation-monnaie-recue-bloc",
     compteDestinationId,
-    { forcerAffichage: true }
+    { forcerAffichage: true, monnaieConservee: monnaieRecue }
   );
 
   const memeMonnaie = monnaieSource === monnaieDestination;
@@ -3375,11 +3515,23 @@ function updateOperationMonnaieFields() {
 }
 
 // Changer de compte change les monnaies possibles : les menus doivent suivre.
+// La flèche est nécessaire : passée directement, la fonction recevrait l'objet
+// Event en premier argument, et lirait ses champs comme des monnaies à
+// conserver.
 ["operation-compte", "operation-compte1", "operation-compte2"].forEach((id) => {
-  document.getElementById(id).addEventListener("change", updateOperationMonnaieFields);
+  document.getElementById(id).addEventListener("change", () => updateOperationMonnaieFields());
 });
+// Changer UNE des deux monnaies d'un virement resynchronise les DEUX menus : on
+// leur repasse donc ce qui y est sélectionné, sans quoi une monnaie éteinte
+// portée par l'autre jambe tomberait du menu au passage — et enregistrer sans y
+// toucher aurait changé sa devise.
 ["operation-monnaie", "operation-monnaie-recue"].forEach((id) => {
-  document.getElementById(id).addEventListener("change", updateOperationMonnaieFields);
+  document.getElementById(id).addEventListener("change", () =>
+    updateOperationMonnaieFields({
+      monnaie: Number(document.getElementById("operation-monnaie").value) || null,
+      monnaieRecue: Number(document.getElementById("operation-monnaie-recue").value) || null,
+    })
+  );
 });
 
 function setOperationType(type) {
@@ -4106,8 +4258,9 @@ async function fillOperationForm(op) {
 
   document.getElementById("operation-date").value = op.date;
   document.getElementById("operation-compte").value = op.compte_id;
-  // Après le compte : les monnaies proposées sont celles de CE compte.
-  updateOperationMonnaieFields();
+  // Après le compte : les monnaies proposées sont celles de CE compte. La
+  // monnaie de l'opération est gardée même si elle a été éteinte depuis.
+  updateOperationMonnaieFields({ monnaie: op.monnaie_id });
   document.getElementById("operation-monnaie").value = op.monnaie_id;
   if (TYPES_CATEGORIE_LIBRE.has(type) && op.categorie_id != null) {
     document.getElementById("operation-categorie").value = op.categorie_id;
@@ -4425,11 +4578,16 @@ async function editerVirementEnLigne(virementId, sortante, entrante, tr) {
   document.getElementById("operation-statut").value = sortante.statut;
   document.getElementById("operation-compte1").value = sortante.compte_id;
   document.getElementById("operation-compte2").value = entrante.compte_id;
-  // Après les comptes : les monnaies proposées sont celles de CES comptes.
-  updateOperationMonnaieFields();
+  // Après les comptes : les monnaies proposées sont celles de CES comptes, plus
+  // celles des deux jambes si elles ont été éteintes depuis.
+  const monnaiesEditees = {
+    monnaie: sortante.monnaie_id,
+    monnaieRecue: entrante.monnaie_id,
+  };
+  updateOperationMonnaieFields(monnaiesEditees);
   document.getElementById("operation-monnaie").value = sortante.monnaie_id;
   document.getElementById("operation-monnaie-recue").value = entrante.monnaie_id;
-  updateOperationMonnaieFields();
+  updateOperationMonnaieFields(monnaiesEditees);
   document.getElementById("operation-montant").value = sortante.montant;
   document.getElementById("operation-montant-recu").value = entrante.montant;
   // LES FRAIS NE SONT PORTÉS QUE PAR UNE JAMBE (cf. crud._jambe_des_frais) :
@@ -11017,6 +11175,14 @@ async function loadParametresBdd() {
           "que pour cette session. Supprime le fichier BUILD-DE-TEST.txt à côté de l'exécutable " +
           "pour qu'elle se comporte comme une version publiée."
       );
+    } else if (etat.mode_developpement) {
+      // Le serveur de dev : même règle, autre raison (il n'y a pas de bundle à
+      // démarquer). Dire laquelle des deux on est évite de chercher un
+      // BUILD-DE-TEST.txt qui n'existe nulle part.
+      messages.push(
+        "Serveur de développement : la base de l'application est celle du dépôt, et rien " +
+          "n'est écrit dans la configuration. Changer de base ne vaut que pour cette session."
+      );
     } else if (!etat.choix_memorise) {
       messages.push(
         "Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session."
@@ -11035,10 +11201,41 @@ async function loadParametresBdd() {
       : `Schéma ${etat.revision_base || "inconnu"}, l'application attend ${etat.revision_app}.`;
     schemaEl.classList.toggle("hint", aJour);
     schemaEl.classList.toggle("import-avertissements", !aJour);
+
+    // LE RESET N'EXISTE QU'EN MODE DÉVELOPPEMENT, et il ne s'affiche que s'il
+    // a quelque chose à faire : proposer « revenir à la base de l'application »
+    // alors qu'on y est déjà est un bouton qui ne peut rien changer.
+    document.getElementById("btn-bdd-reinitialiser").style.display =
+      etat.mode_developpement && !etat.est_dev ? "" : "none";
   } catch (err) {
     showMessage(err.message, "error");
   }
 }
+
+// « Revenir à la base de l'application » — le geste que l'ancienne extension
+// développeur faisait toute seule à chaque fermeture. Redémarrer suffit déjà
+// (le mode développement repart TOUJOURS de sa base native, cf.
+// database._resoudre_chemin_demarrage) ; ce bouton évite simplement d'attendre,
+// et de laisser une base personnelle ouverte derrière soi le temps de la
+// session.
+document.getElementById("btn-bdd-reinitialiser").addEventListener("click", async () => {
+  if (
+    !confirm(
+      t(
+        "Revenir à la base de l'application ? La base actuellement ouverte est simplement " +
+          "refermée — aucun fichier n'est modifié ni supprimé."
+      )
+    )
+  )
+    return;
+  try {
+    rechargerApresBascule(
+      await apiFetch("/parametres/base/reinitialiser", { method: "POST" })
+    );
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+});
 
 document.getElementById("btn-bdd-parcourir").addEventListener("click", async () => {
   // Le vrai sélecteur du système dans l'application de bureau ; à défaut, le

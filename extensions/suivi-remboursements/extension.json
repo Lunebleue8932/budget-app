@@ -1,0 +1,17 @@
+{
+  "nom": "Suivi des remboursements",
+  "description": "Répond à « qui me doit combien, et à qui est-ce que je dois ». L'application sait déjà combien il reste à rembourser ; elle ne savait pas à qui. Tu crées des profils — une personne, une entreprise, la colocation — et tu y rattaches tes dépenses remboursables, tes prêts reçus et leurs règlements. L'écran donne alors, par monnaie, le solde net de chaque profil, ce qu'il te doit face à ce que tu lui dois, et le détail des lignes encore ouvertes. Un profil est une étiquette et rien de plus : aucun solde, aucun KPI, aucune barre d'histogramme ne le lit, et le supprimer détache simplement ses opérations. L'écran s'ouvre depuis la carte « Reste à rembourser » du dashboard.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": ["suivi-remboursements.css"],
+    "js": ["suivi-remboursements.js"]
+  },
+  "navigation": {
+    "type": "page",
+    "section": "suivi-remboursements",
+    "libelle": "Suivi des remboursements",
+    "bouton": false
+  }
+}

@@ -2368,7 +2368,7 @@ def _erreur_monnaie_compte(
     une écriture invisible dans tous les soldes, que rien ne rattraperait."""
     if monnaie_id is not None and monnaie_id in compte.monnaie_ids:
         return None
-    possibles = ", ".join(sorted(lien.monnaie.nom for lien in compte.monnaies))
+    possibles = ", ".join(sorted(lien.monnaie.nom for lien in compte.monnaies_actives))
     return (
         f"le compte {role} « {compte.nom} » ne porte pas la monnaie de cette ligne "
         f"(possibles : {possibles})"

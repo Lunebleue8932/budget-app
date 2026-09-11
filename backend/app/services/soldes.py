@@ -140,7 +140,64 @@ def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
 
     Le solde **réel** n'est jamais borné : il ne compte que des opérations au
     statut réel, déjà survenues par construction.
+
+    UNE MONNAIE ÉTEINTE (cf. models.CompteMonnaie.active) DISPARAÎT TANT QU'ELLE
+    NE PORTE RIEN, et c'est la seule exception à la règle du premier paragraphe.
+    Comme l'extinction exige un solde nul au moment où elle est demandée, c'est
+    le cas de toutes les périodes à partir de là : la ligne s'efface des cartes
+    de compte et des onglets de monnaie du dashboard, et « tout se passe comme
+    s'il n'y avait plus la monnaie ». Sur une période ANTÉRIEURE, où le compte
+    portait encore des montants, elle reparaît telle qu'elle était — l'historique
+    ne se réécrit pas, et un « Total des avoirs » de mars ne perd rien parce
+    qu'on a soldé son compte en dollars en juin.
     """
+    return [
+        {
+            "compte": item["compte"],
+            "soldes": {
+                monnaie_id: solde
+                for monnaie_id, solde in item["soldes"].items()
+                if solde["active"] or not solde_entierement_nul(solde)
+            },
+        }
+        for item in soldes_de_tous_les_liens(db, date_fin=date_fin)
+    ]
+
+
+# En dessous de quoi un solde est tenu pour nul. Les montants sont des flottants
+# et une suite d'opérations qui se compensent laisse un résidu binaire
+# (0.01 + 0.02 - 0.03 ne vaut pas 0) : comparer à zéro exactement ferait
+# dépendre l'extinction d'une monnaie de l'ordre dans lequel ses opérations ont
+# été saisies. Un demi-centime est très en dessous de tout ce qu'une monnaie
+# réelle sait exprimer.
+EPSILON_SOLDE_NUL = 0.005
+
+
+def solde_entierement_nul(solde: dict) -> bool:
+    """Ni argent présent, ni argent attendu : les DEUX soldes sont nuls.
+
+    PUBLIQUE parce que le routeur des comptes la lit aussi : c'est la condition
+    qui autorise à éteindre une monnaie, et la reposer là-bas aurait ouvert la
+    porte à deux définitions du mot « soldée ».
+
+    Le projeté compte autant que le réel. Une monnaie dont le solde réel vaut
+    zéro mais qui porte une opération prévisionnelle n'est pas soldée — elle
+    attend un mouvement, et l'éteindre rendrait invisible l'argent qui va
+    arriver."""
+    return (
+        abs(solde["solde_reel"]) < EPSILON_SOLDE_NUL
+        and abs(solde["solde_projete"]) < EPSILON_SOLDE_NUL
+    )
+
+
+def soldes_de_tous_les_liens(db: Session, date_fin: Optional[date_type] = None):
+    """Comme `get_soldes_comptes`, mais SANS écarter les monnaies éteintes — et
+    chaque solde porte en plus un `active` qui dit laquelle l'est.
+
+    C'est la vue dont a besoin l'ÉCRAN DES COMPTES, et lui seul : pour proposer
+    d'éteindre une monnaie il faut la voir, et pour savoir si on en a le droit il
+    faut son solde (l'extinction exige qu'il soit nul). Partout ailleurs, une
+    monnaie éteinte et soldée n'a rien à dire — d'où les deux fonctions."""
     # Dans l'ordre choisi par l'utilisateur (crud.get_comptes) : les cartes du
     # dashboard se rangent alors comme les lignes de la page Comptes, type par
     # type — c'est là que cet ordre se décide.
@@ -151,14 +208,12 @@ def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
 
     results = []
     for compte in comptes:
-        soldes_initiaux = {lien.monnaie_id: lien.solde_initial for lien in compte.monnaies}
-        monnaies = {lien.monnaie_id: lien.monnaie for lien in compte.monnaies}
         soldes = {}
-        for monnaie_id, monnaie in monnaies.items():
-            cle = (compte.id, monnaie_id)
-            solde_initial = soldes_initiaux[monnaie_id]
-            soldes[monnaie_id] = {
-                "monnaie": monnaie,
+        for lien in compte.monnaies:
+            cle = (compte.id, lien.monnaie_id)
+            solde_initial = lien.solde_initial
+            soldes[lien.monnaie_id] = {
+                "monnaie": lien.monnaie,
                 "solde_initial": solde_initial,
                 "solde_reel": solde_initial + _solde_delta(sums_reel.get(cle, {})),
                 "solde_projete": (
@@ -166,6 +221,7 @@ def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
                     + _solde_delta(sums_total.get(cle, {}))
                     - reste_prets.get(cle, 0.0)
                 ),
+                "active": lien.active,
             }
         results.append({"compte": compte, "soldes": soldes})
     return results
@@ -1202,38 +1258,68 @@ def get_variation_previsionnelle(
     return get_flux_periode(db, annee, mois, monnaie_id)["variation"]
 
 
-def get_total_a_rembourser(db: Session) -> dict:
-    """Net de ce qu'on me doit, PAR MONNAIE : dépenses remboursables encore
-    dues, moins ce que je dois moi-même sur des prêts qu'on m'a accordés. Une
-    dette en dollars ne compense pas une créance en euros, d'où le dict."""
-    totaux: dict = {}
+def _reste_du_par_monnaie(db: Session, code_type: str) -> dict:
+    """Somme de `montant_a_rembourser` par monnaie, pour un type d'opération.
 
-    du_par_depenses = (
+    `montant_a_rembourser` et non `montant_du` : c'est le RESTE, qui décroît au
+    fil des règlements (cf. crud._recalculer_montant_a_rembourser). La question
+    posée ici est « combien reste-t-il », pas « combien devait-on au départ » —
+    l'inverse exact de ce que lisent les flux du mois.
+
+    LE STATUT RÉEL SEULEMENT, des deux côtés. Une dépense remboursable encore
+    prévisionnelle n'a rien avancé : personne ne me doit quoi que ce soit tant
+    que l'argent n'est pas sorti. Un prêt prévisionnel, symétriquement, n'est pas
+    encore reçu — je ne dois rien. Compter l'un sans l'autre donnerait un net qui
+    mélange de l'argent constaté et de l'argent attendu."""
+    lignes = (
         db.query(
             models.Operation.monnaie_id, func.sum(models.Operation.montant_a_rembourser)
         )
         .join(models.TypeOperationDB, models.Operation.type_id == models.TypeOperationDB.id)
         .filter(
-            models.Operation.sens == Sens.depense,
-            models.TypeOperationDB.code == TypeOperation.remboursable.value,
+            models.TypeOperationDB.code == code_type,
             models.Operation.statut == Statut.reel,
         )
         .group_by(models.Operation.monnaie_id)
         .all()
     )
-    for monnaie_id, total in du_par_depenses:
-        totaux[monnaie_id] = totaux.get(monnaie_id, 0.0) + (total or 0.0)
+    return {monnaie_id: (total or 0.0) for monnaie_id, total in lignes}
 
-    du_par_prets = (
-        db.query(
-            models.Operation.monnaie_id, func.sum(models.Operation.montant_a_rembourser)
-        )
-        .join(models.TypeOperationDB, models.Operation.type_id == models.TypeOperationDB.id)
-        .filter(models.TypeOperationDB.code == TypeOperation.pret.value)
-        .group_by(models.Operation.monnaie_id)
-        .all()
+
+def get_reste_a_rembourser(db: Session) -> dict:
+    """Ce qu'on me doit et ce que je dois, PAR MONNAIE :
+
+        {monnaie_id: {"a_recevoir": …, "a_rendre": …, "net": …}}
+
+    UN STOCK, ET NON UN FLUX — c'est ce qui le distingue de tout le reste de ce
+    module, et ce que doit dire l'écran qui l'affiche. Les deux cartes voisines
+    répondent à « qu'est-ce que ce mois coûte et rapporte » et se recalculent
+    quand on change de période ; celle-ci répond à « où en sont mes créances et
+    mes dettes », ce qui n'a pas de période : une dépense avancée en mars reste
+    due en septembre tant qu'on ne m'a pas remboursé. Aucun paramètre d'année ni
+    de mois, donc, et ce n'est pas un oubli.
+
+    JAMAIS DE TOTAL ENTRE MONNAIES, comme partout : une dette en dollars ne
+    compense pas une créance en euros. Le net est calculé DANS chaque monnaie.
+
+    LES PRÊTS NE COMPTENT QUE SI L'EXTENSION QUI LES EXPLIQUE TOURNE. Même
+    procédé que les intérêts de prêt dans les flux du mois (cf.
+    `_barre_interets_prets`) : sans son écran, une dette apparaîtrait dans le
+    chiffre sans qu'aucune page ne dise d'où elle vient. `a_rendre` vaut alors
+    zéro, et le net se réduit à ce qu'on me doit.
+    """
+    a_recevoir = _reste_du_par_monnaie(db, TypeOperation.remboursable.value)
+    a_rendre = (
+        _reste_du_par_monnaie(db, TypeOperation.pret.value)
+        if extensions.est_active(EXTENSION_PRETS)
+        else {}
     )
-    for monnaie_id, total in du_par_prets:
-        totaux[monnaie_id] = totaux.get(monnaie_id, 0.0) - (total or 0.0)
 
-    return totaux
+    return {
+        monnaie_id: {
+            "a_recevoir": a_recevoir.get(monnaie_id, 0.0),
+            "a_rendre": a_rendre.get(monnaie_id, 0.0),
+            "net": a_recevoir.get(monnaie_id, 0.0) - a_rendre.get(monnaie_id, 0.0),
+        }
+        for monnaie_id in set(a_recevoir) | set(a_rendre)
+    }

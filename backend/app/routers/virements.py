@@ -12,7 +12,9 @@ def _valider_monnaie(db: Session, compte: models.Compte, monnaie_id: int, role: 
     if crud.get_monnaie(db, monnaie_id) is None:
         raise HTTPException(status_code=404, detail=f"Monnaie du compte {role} introuvable")
     if monnaie_id not in compte.monnaie_ids:
-        monnaies_possibles = ", ".join(sorted(lien.monnaie.nom for lien in compte.monnaies))
+        monnaies_possibles = ", ".join(
+            sorted(lien.monnaie.nom for lien in compte.monnaies_actives)
+        )
         raise HTTPException(
             status_code=400,
             detail=(

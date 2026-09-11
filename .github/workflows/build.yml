@@ -239,10 +239,16 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             7z a -tzip "../../${{ matrix.archive }}.zip" "Budget App"
           elif [ "${{ runner.os }}" = "macOS" ]; then
-            # -y : préserve les liens symboliques, dont un bundle .app est
-            # rempli (frameworks). Les suivre produirait une archive énorme
-            # et une application que macOS refuse d'ouvrir.
-            zip -ry "../../${{ matrix.archive }}.zip" "Budget App.app"
+            # `ditto` et non `zip` : `zip` ne préserve pas correctement les
+            # attributs étendus et la signature ad-hoc d'un bundle .app une
+            # fois décompressé chez l'utilisateur, ce que Gatekeeper traduit
+            # par « l'app est endommagée » (message différent et plus
+            # définitif que le classique « développeur non identifié »,
+            # et qui n'apparaît pas chez tout le monde car la corruption
+            # dépend du zip/unzip utilisé côté utilisateur). `ditto` est
+            # l'outil qu'Apple documente pour ça : il préserve resource
+            # forks, xattrs et liens symboliques (frameworks compris).
+            ditto -c -k --sequesterRsrc --keepParent "Budget App.app" "../../${{ matrix.archive }}.zip"
           else
             zip -ry "../../${{ matrix.archive }}.zip" "Budget App"
           fi

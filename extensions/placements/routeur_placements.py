@@ -42,8 +42,12 @@ def _lire_compte(db: Session, compte: models.Compte, soldes_espece: dict) -> dic
     # même à zéro) OU si un titre y est valorisé — les deux ne se recoupent pas
     # forcément sur un compte dont on a retiré... rien, mais l'union évite de
     # perdre silencieusement une valorisation.
+    # `monnaies_actives` : une monnaie éteinte n'accepte plus d'achat ni de
+    # vente, elle n'a donc rien à faire dans les menus de cet écran. Elle est
+    # soldée par construction (l'extinction l'exige) — il n'y a donc ni espèces
+    # ni valorisation à y perdre.
     par_monnaie = []
-    for lien in compte.monnaies:
+    for lien in compte.monnaies_actives:
         monnaie_id = lien.monnaie_id
         espece = soldes_espece.get((compte.id, monnaie_id), 0.0)
         valorisation = valorisations.get(monnaie_id, 0.0)

@@ -153,9 +153,10 @@ def test_remboursement_partiel(db_session):
         montant_a_rembourser=60.0,
     )
 
-    total = soldes.get_total_a_rembourser(db_session)[get_monnaie_id(db_session)]
+    total = soldes.get_reste_a_rembourser(db_session)[get_monnaie_id(db_session)]
 
-    assert total == 60.0
+    assert total["a_recevoir"] == 60.0
+    assert total["net"] == 60.0
 
 
 def test_total_a_rembourser_soustrait_les_prets(db_session):
@@ -184,9 +185,53 @@ def test_total_a_rembourser_soustrait_les_prets(db_session):
         montant_a_rembourser=25.0,
     )
 
-    total = soldes.get_total_a_rembourser(db_session)[get_monnaie_id(db_session)]
+    total = soldes.get_reste_a_rembourser(db_session)[get_monnaie_id(db_session)]
 
-    assert total == 35.0
+    # Les DEUX composantes sont rendues, et pas seulement leur différence : un
+    # net à zéro ne dit pas s'il n'y a rien, ou 500 d'un côté et 500 de l'autre.
+    assert total["a_recevoir"] == 60.0
+    assert total["a_rendre"] == 25.0
+    assert total["net"] == 35.0
+
+
+def test_reste_a_rembourser_ignore_les_prets_si_l_extension_est_eteinte(
+    db_session, monkeypatch
+):
+    """Même règle que les intérêts de prêt dans les flux du mois : sans l'écran
+    qui les explique, une dette apparaîtrait dans le chiffre sans qu'aucune page
+    ne dise d'où elle vient."""
+    from app import extensions
+
+    compte = _make_compte(db_session, "Courant")
+    _make_operation(
+        db_session,
+        compte,
+        categorie="Loisirs & sorties",
+        montant=60.0,
+        sens=Sens.depense,
+        statut=Statut.reel,
+        type_code="remboursable",
+        montant_du=60.0,
+        montant_a_rembourser=60.0,
+    )
+    _make_operation(
+        db_session,
+        compte,
+        type_code="pret",
+        montant=25.0,
+        sens=Sens.entree,
+        statut=Statut.reel,
+        montant_du=25.0,
+        montant_a_rembourser=25.0,
+    )
+    monkeypatch.setattr(
+        extensions, "est_active", lambda extension_id: extension_id != "prets"
+    )
+
+    total = soldes.get_reste_a_rembourser(db_session)[get_monnaie_id(db_session)]
+
+    assert total["a_rendre"] == 0.0
+    assert total["net"] == 60.0
 
 
 def test_pret_recu_est_dans_le_solde_reel_mais_pas_dans_le_projete(db_session):

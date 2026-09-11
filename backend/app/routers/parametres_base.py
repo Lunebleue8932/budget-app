@@ -37,13 +37,21 @@ def _memoriser(chemin) -> bool:
     l'écriture a échoué (profil en lecture seule) : la bascule ne vaut alors
     que pour la session, et l'écran le dit.
 
-    UN BUILD DE TEST N'ÉCRIT JAMAIS DANS LE PROFIL. Le fichier de configuration
-    est partagé par toutes les copies de l'application présentes sur la machine :
-    laisser un bundle de mise au point y écrire reviendrait à faire pointer la
-    VRAIE application sur la base qu'on venait d'ouvrir pour un essai. Il se
-    comporte donc comme l'ancienne extension développeur — la bascule vaut pour
-    la session, et rien au-delà."""
-    if database.est_build_de_test():
+    UNE INSTALLATION DE MISE AU POINT N'ÉCRIT JAMAIS DANS LE PROFIL — ni le
+    bundle construit localement, ni le serveur de dev lancé depuis le dépôt. Le
+    fichier de configuration est partagé par toutes les copies de l'application
+    présentes sur la machine : laisser l'une d'elles y écrire reviendrait à faire
+    pointer la VRAIE application sur la base qu'on venait d'ouvrir pour un essai.
+    Elles se comportent donc comme l'ancienne extension développeur — la bascule
+    vaut pour la session, et rien au-delà (cf. database.mode_developpement).
+
+    LE SERVEUR DE DEV ÉTAIT LE TROU. Il n'est pas « gelé », donc
+    `est_build_de_test` répondait faux pour lui et il écrivait le profil comme
+    une version publiée — alors même que `_resoudre_chemin_demarrage` ignore
+    délibérément ce qu'il y écrit. Le chemin retenu ne servait donc jamais à
+    celui qui l'avait posé, et servait à la seule installation qui n'avait rien
+    demandé."""
+    if database.mode_developpement():
         return False
     if database.chemin_a_risque(chemin):
         config_utilisateur.oublier_chemin_base()
@@ -73,6 +81,7 @@ def _lire_etat(migration=None, choix_memorise: bool = True) -> schemas.BaseDonne
         base_memorisee_introuvable=str(introuvable) if introuvable else None,
         choix_memorise=choix_memorise,
         build_de_test=database.est_build_de_test(),
+        mode_developpement=database.mode_developpement(),
     )
 
 
@@ -99,6 +108,46 @@ def set_base(payload: schemas.BaseDonneesUpdate):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return _lire_etat(database.derniere_migration(), _memoriser(chemin))
+
+
+@router.post("/base/reinitialiser", response_model=schemas.BaseDonneesRead)
+def reinitialiser_base():
+    """Revient à la base NATIVE de l'application — celle qui vit à côté de
+    l'exécutable en bundle, dans le dépôt en développement — et oublie le chemin
+    retenu.
+
+    RÉSERVÉE AUX INSTALLATIONS DE MISE AU POINT (cf.
+    database.mode_developpement). Sur une version publiée, la base native est
+    celle du dossier que la mise à jour remplace : un bouton qui y ramène en un
+    clic ne serait pas un raccourci, ce serait la façon la plus courte de perdre
+    ses données.
+
+    CE QU'ELLE ÉVITE D'ATTENDRE. Le redémarrage suffisait déjà à revenir à la
+    base native, `_resoudre_chemin_demarrage` coupant court dans les deux cas.
+    Mais tant qu'on n'a pas redémarré, le processus SERT toujours la base
+    personnelle : elle reste ouverte, et tout ce qui interroge l'API la lit. Le
+    reset ferme cette fenêtre-là tout de suite, sans quitter l'application."""
+    if not database.mode_developpement():
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Le retour à la base de l'application n'existe qu'en mode "
+                "développement : sur une version publiée, cette base vit dans le "
+                "dossier que la prochaine mise à jour remplace."
+            ),
+        )
+    # OUBLIER AVANT DE BASCULER, et le faire même si la bascule échoue ensuite :
+    # ce qui est retenu dans le profil est précisément ce qu'on veut cesser
+    # d'ouvrir. (En mode développement `_memoriser` n'écrit plus rien, mais une
+    # session antérieure a pu laisser un chemin derrière elle.)
+    config_utilisateur.oublier_chemin_base()
+    try:
+        database.changer_base(str(database.DEV_DB_PATH))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _lire_etat(database.derniere_migration(), choix_memorise=False)
 
 
 @router.post("/base/installer", response_model=schemas.BaseDonneesRead)

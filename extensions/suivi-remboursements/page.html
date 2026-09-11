@@ -1,0 +1,86 @@
+<!-- Écran de l'extension « Suivi des remboursements », injecté dans <main> par
+     frontend/extensions.js. C'est un <section> comme ceux du noyau :
+     switchSection le montre et le masque exactement de la même façon.
+
+     PAS D'ONGLET DANS LA BARRE DU HAUT (cf. `bouton: false` dans le manifeste).
+     Cet écran répond à une question qu'on se pose DEVANT UN CHIFFRE : « il me
+     reste 340 € à récupérer — de qui ? ». Sa porte d'entrée est donc ce
+     chiffre lui-même, la carte « Reste à rembourser » du dashboard, où
+     l'extension pose son bouton (cf. suivi-remboursements.js). Une destination
+     de plus dans la barre l'aurait éloigné de la seule chose qui le motive.
+
+     Les identifiants sont préfixés `suivir-` : les écrans de toutes les
+     extensions vivent dans le MÊME document que celui du noyau. -->
+    <section id="section-suivi-remboursements">
+      <div class="suivir-entete">
+        <h2>Suivi des remboursements</h2>
+        <button type="button" id="btn-suivir-retour">&larr; Retour au tableau de bord</button>
+      </div>
+      <p class="hint">
+        Qui te doit combien, et à qui tu dois. Un profil est une étiquette : une personne, une
+        entreprise, la colocation. Rien n'est recalculé ailleurs — les soldes, le dashboard et
+        l'histogramme donnent exactement les mêmes chiffres, cet écran ne fait que les ventiler.
+      </p>
+
+      <!-- UN ONGLET PAR MONNAIE, jamais de total entre elles : une dette en
+           dollars ne compense pas une créance en euros. Masqué tant qu'il n'y
+           en a qu'une, comme partout ailleurs — un onglet unique ne choisit
+           rien. -->
+      <div class="sous-onglets" id="suivir-onglets-monnaie" hidden></div>
+
+      <div id="suivir-vide" class="hint" style="display:none">
+        Rien à suivre pour l'instant : aucune dépense remboursable ni aucun prêt reçu n'attend de
+        règlement. Les lignes apparaîtront ici dès qu'il en existera une.
+      </div>
+
+      <div id="suivir-contenu" style="display:none">
+        <!-- Les trois chiffres de la monnaie affichée, dans l'ordre où on les
+             lit : ce qu'on me doit, ce que je dois, et ce qui reste des deux. -->
+        <div class="flux-periode" id="suivir-resume">
+          <div class="flux-carte">
+            <div class="flux-label">On te doit<i class="info-bulle" tabindex="0" data-info="Le reste dû de tes dépenses remboursables, celles que tu as avancées. Seules les opérations réelles comptent.">i</i></div>
+            <div class="flux-valeur positif" id="suivir-total-recevoir">-</div>
+          </div>
+          <div class="flux-carte">
+            <div class="flux-label">Tu dois<i class="info-bulle" tabindex="0" data-info="Le reste dû de tes prêts reçus. Nécessite l'extension « Prêts » pour qu'il existe des prêts à suivre.">i</i></div>
+            <div class="flux-valeur negatif" id="suivir-total-rendre">-</div>
+          </div>
+          <div class="flux-carte">
+            <div class="flux-label">Solde net<i class="info-bulle" tabindex="0" data-info="Ce qu'on te doit moins ce que tu dois, dans cette monnaie. C'est le même chiffre que la carte « Reste à rembourser » du tableau de bord.">i</i></div>
+            <div class="flux-valeur" id="suivir-total-net">-</div>
+          </div>
+        </div>
+
+        <h3>Qui doit combien<i class="info-bulle" tabindex="0" data-info="Une ligne par profil. La barre va à droite quand on te doit, à gauche quand tu dois ; sa longueur se compare au plus gros solde de la monnaie affichée. Clique une ligne pour voir ses opérations.">i</i></h3>
+        <div id="suivir-tableau"></div>
+
+        <!-- CE QUI N'EST PAS ENCORE RANGÉ, et c'est la liste de travail de
+             l'écran : tant qu'elle n'est pas vide, le tableau au-dessus ne dit
+             pas toute la vérité. Repliée quand elle est vide, plutôt que
+             masquée : sa disparition est ce qui signale qu'on a fini. -->
+        <h3 id="suivir-titre-a-rattacher">À rattacher<i class="info-bulle" tabindex="0" data-info="Les dépenses remboursables et les prêts encore dus qu'aucun profil ne porte, TOUTES MONNAIES CONFONDUES : c'est une liste de rangement, pas un total, et elle ne suit donc pas l'onglet de monnaie. Coche des lignes, choisis un profil, et le tableau du dessus se met à jour.">i</i></h3>
+        <div id="suivir-a-rattacher"></div>
+      </div>
+
+      <h3>Profils<i class="info-bulle" tabindex="0" data-info="Une étiquette, et rien de plus : aucun calcul de l'application ne la lit. En supprimer un détache ses opérations, il ne les efface jamais.">i</i></h3>
+      <div id="suivir-profils"></div>
+
+      <!-- Le titre est OBLIGATOIRE pour `ouvrirFormulaireEnLigne` : c'est lui
+           qui est déplacé sous la ligne éditée, avec le formulaire (cf.
+           app.js). Il dit aussi lequel des deux gestes on est en train de
+           faire, le formulaire étant le même pour créer et pour modifier. -->
+      <h4 id="form-suivir-profil-titre">Ajouter un profil</h4>
+      <form id="form-suivir-profil" class="full-width">
+        <label>Nom
+          <input type="text" id="suivir-profil-nom" placeholder="ex. Marie" required />
+        </label>
+        <label class="full-width">Note
+          <input type="text" id="suivir-profil-description"
+                 placeholder="ex. voisine du dessus, rembourse en fin de mois" />
+        </label>
+        <div class="actions full-width">
+          <button type="submit" class="primary" id="suivir-profil-valider">Ajouter le profil</button>
+          <button type="button" id="suivir-profil-annuler" style="display:none">Annuler</button>
+        </div>
+      </form>
+    </section>

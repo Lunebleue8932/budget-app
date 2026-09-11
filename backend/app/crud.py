@@ -455,6 +455,12 @@ def _appliquer_monnaies_compte(
             lien = models.CompteMonnaie(monnaie_id=entree.monnaie_id)
         lien.solde_initial = entree.solde_initial
         lien.ordre = position
+        # Éteindre / rallumer se fait par cette même liste : c'est l'état voulu
+        # du compte qui arrive, entier, comme pour l'ordre et les soldes
+        # initiaux. La garde qui interdit d'éteindre une monnaie non soldée est
+        # dans le routeur (cf. routers/comptes._valider_extinctions) — ici on
+        # applique, on ne juge pas.
+        lien.active = entree.active
         nouvelles.append(lien)
     # delete-orphan sur la relation : les lignes absentes de la nouvelle liste
     # sont supprimées au flush.

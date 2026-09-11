@@ -15,6 +15,7 @@ temporaire dans le profil, que l'application relirait au démarrage suivant.
 import json
 
 import pytest
+from fastapi import HTTPException
 
 from app import config_utilisateur, database
 from app.routers import parametres_base
@@ -220,10 +221,102 @@ def test_un_build_de_test_n_ecrit_jamais_dans_le_profil(tmp_path, config_tempora
 
 
 def test_hors_build_de_test_le_choix_est_bien_memorise(tmp_path, config_temporaire, monkeypatch):
-    """Le pendant du test précédent : sans marqueur, la mémorisation doit
-    fonctionner — c'est elle qui protège les données des mises à jour."""
+    """Le pendant du test précédent : dans une VERSION PUBLIÉE, la mémorisation
+    doit fonctionner — c'est elle qui protège les données des mises à jour.
+
+    Les deux conditions sont nécessaires : « gelé » (donc packagé) et sans
+    marqueur de build de test. C'est exactement `mode_developpement` à faux."""
+    monkeypatch.setattr(database.sys, "frozen", True, raising=False)
     monkeypatch.setattr(database, "est_build_de_test", lambda: False)
     cible = tmp_path / "mes-documents" / "budget.db"
 
     assert parametres_base._memoriser(cible) is True
     assert config_utilisateur.chemin_base_memorise() == cible
+
+
+# ---------- Le reset du mode développement ----------
+#
+# CE QU'ILS PROTÈGENT, et c'est la même chose que plus haut vue d'un autre
+# angle : une installation de mise au point ne doit JAMAIS laisser derrière elle
+# une base personnelle ouverte — ni dans le profil (le prochain lancement la
+# rouvrirait), ni dans le processus en cours (tout ce qui interroge l'API la
+# lit). Le premier point est tenu par `_memoriser`, le second par la route de
+# réinitialisation.
+
+
+def test_le_serveur_de_dev_est_un_mode_developpement(monkeypatch):
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+    assert database.mode_developpement()
+
+
+def test_un_build_de_test_est_un_mode_developpement(monkeypatch):
+    monkeypatch.setattr(database.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database, "est_build_de_test", lambda: True)
+    assert database.mode_developpement()
+
+
+def test_une_version_publiee_n_est_pas_un_mode_developpement(monkeypatch):
+    monkeypatch.setattr(database.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database, "est_build_de_test", lambda: False)
+    assert not database.mode_developpement()
+
+
+def test_le_serveur_de_dev_n_ecrit_jamais_dans_le_profil(
+    tmp_path, config_temporaire, monkeypatch
+):
+    """LE TROU QUE ÇA BOUCHE. Le serveur de dev n'est pas « gelé » : il écrivait
+    donc le profil comme une version publiée, alors que
+    `_resoudre_chemin_demarrage` ignore délibérément ce qu'il y écrit. Le chemin
+    retenu ne servait jamais à celui qui l'avait posé — il ne servait qu'à la
+    vraie application, qui n'avait rien demandé."""
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+
+    assert parametres_base._memoriser(tmp_path / "perso.db") is False
+    assert config_utilisateur.chemin_base_memorise() is None
+    assert not config_utilisateur.fichier_config().exists()
+
+
+def test_le_demarrage_en_mode_developpement_ignore_le_chemin_memorise(
+    tmp_path, config_temporaire, monkeypatch
+):
+    """« Quand l'app se ferme / ouvre, la base connectée est celle native » :
+    même un chemin laissé dans le profil par une autre copie de l'application ne
+    doit pas être rouvert ici."""
+    perso = tmp_path / "perso.db"
+    perso.write_text("", encoding="utf-8")
+    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(perso)})
+    monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
+    monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+
+    assert database._resoudre_chemin_demarrage() == database._DEFAULT_DEV_DB_PATH
+
+
+def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
+    tmp_path, config_temporaire, monkeypatch, base_restauree
+):
+    """Le geste que l'ancienne extension développeur faisait à la fermeture :
+    refermer la base personnelle tout de suite, sans quitter l'application."""
+    perso = tmp_path / "perso.db"
+    database.installer_base(str(perso))
+    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(perso)})
+    assert database.get_chemin_actuel() == perso.resolve()
+
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+    etat = parametres_base.reinitialiser_base()
+
+    assert database.get_chemin_actuel() == database.DEV_DB_PATH
+    assert etat.est_dev
+    assert config_utilisateur.chemin_base_memorise() is None
+
+
+def test_reinitialiser_est_refuse_a_une_version_publiee(monkeypatch):
+    """Sur une version publiée, la base « native » est celle du dossier que la
+    mise à jour remplace : un bouton qui y ramène en un clic ne serait pas un
+    raccourci, ce serait la façon la plus courte de perdre ses données."""
+    monkeypatch.setattr(database.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database, "est_build_de_test", lambda: False)
+
+    with pytest.raises(HTTPException) as erreur:
+        parametres_base.reinitialiser_base()
+    assert erreur.value.status_code == 403

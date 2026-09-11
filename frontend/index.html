@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=92" />
+  <link rel="stylesheet" href="style.css?v=93" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -220,7 +220,15 @@
            PLUS DE « DIFFÉRENCE » : elle répétait, à un signe près, la variation
            du mois affichée en haut, et laissait croire à deux mesures là où il
            n'y en a qu'une. Ce qui reste, ce sont les deux totaux que
-           l'histogramme détaille (cf. services/soldes.get_flux_periode). -->
+           l'histogramme détaille (cf. services/soldes.get_flux_periode).
+
+           LA TROISIÈME CARTE N'EST PAS UN FLUX, et c'est la seule chose à
+           retenir d'elle : « Reste à rembourser » est un STOCK — ce qu'on me
+           doit encore, ce que je dois encore — qui ne dépend d'aucune période.
+           Une dépense avancée en mars reste due en septembre tant qu'on ne m'a
+           pas remboursé. Elle est posée ici parce que c'est la question qu'on
+           se pose juste après avoir lu ce que le mois coûte, et son infobulle
+           dit qu'elle ne suit pas le sélecteur au-dessus d'elle. -->
       <div class="flux-periode">
         <div class="flux-carte">
           <div class="flux-label">Total Entrées<i class="info-bulle" tabindex="0" data-info="Ce que la période rapporte, virements internes exclus. Un prêt reçu n'y entre pas : il faudra le rendre. Reste sur le mois entier, semaine dépliée ou non.">i</i></div>
@@ -229,6 +237,19 @@
         <div class="flux-carte">
           <div class="flux-label">Total Dépenses<i class="info-bulle" tabindex="0" data-info="Ce que la période coûte, et non ce qui sort du compte : une dépense amortie ne compte que pour sa part du mois, une remboursable pour le reste à charge. Virements internes exclus. Reste sur le mois entier, semaine dépliée ou non.">i</i></div>
           <div class="flux-valeur negatif" id="kpi-total-sorties">-</div>
+        </div>
+        <div class="flux-carte">
+          <div class="flux-label">Reste à rembourser<i class="info-bulle" tabindex="0" data-info="Ce qu'on te doit encore sur tes dépenses remboursables, moins ce que tu dois encore sur les prêts reçus. NE DÉPEND PAS DE LA PÉRIODE : c'est l'état de tes créances et de tes dettes aujourd'hui, pas un chiffre du mois. Seules les opérations réelles comptent.">i</i></div>
+          <div class="flux-valeur" id="kpi-reste-rembourser">-</div>
+          <!-- Le détail des deux composantes : un net à zéro peut cacher 500 €
+               de créances et 500 € de dettes. Masqué quand il n'y a rien à
+               détailler (extension « Prêts » éteinte, ou aucune dette). -->
+          <div class="flux-detail hint" id="kpi-reste-rembourser-detail"></div>
+          <!-- LA PORTE D'ENTRÉE DE « SUIVI DES REMBOURSEMENTS », posée par
+               l'extension elle-même (cf. extensions/suivi-remboursements) :
+               le noyau ne fait que réserver la place. Vide et sans hauteur tant
+               qu'aucune extension n'y met rien. -->
+          <div class="flux-carte-actions" id="flux-remboursements-actions"></div>
         </div>
       </div>
 
@@ -1353,6 +1374,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" id="btn-bdd-parcourir">Parcourir…</button>
             <button type="submit" class="primary">Basculer sur ce fichier</button>
             <button type="button" id="btn-bdd-installer">Créer / déplacer ici</button>
+            <!-- LE RESET, et il n'existe QU'EN MODE DÉVELOPPEMENT (serveur de
+                 dev, ou bundle construit en local) : c'est là que la base
+                 personnelle n'est jamais qu'un détour momentané. Sur une
+                 version publiée, la base « de l'application » est celle du
+                 dossier que la mise à jour remplace — un bouton qui y ramènerait
+                 en un clic serait un piège, pas un raccourci. Masqué d'origine,
+                 révélé par loadParametresBdd. -->
+            <button type="button" id="btn-bdd-reinitialiser" style="display:none">
+              Revenir à la base de l'application
+            </button>
           </div>
         </form>
 
@@ -1376,8 +1407,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        dans switchSection, et l'appelle au démarrage. Il ne fait que DÉFINIR le
        mécanisme — le chargement effectif part de app.js, une fois `apiFetch`
        et `t()` disponibles. -->
-  <script src="i18n.js?v=39"></script>
-  <script src="extensions.js?v=14"></script>
-  <script src="app.js?v=116"></script>
+  <script src="i18n.js?v=40"></script>
+  <script src="extensions.js?v=15"></script>
+  <script src="app.js?v=117"></script>
 </body>
 </html>

@@ -87,7 +87,9 @@ def _valider_monnaie_du_compte(compte: models.Compte, monnaie_id: int) -> None:
     des soldes calculés pour ce compte (cf. services/soldes.py)."""
     if monnaie_id in compte.monnaie_ids:
         return
-    monnaies_possibles = ", ".join(sorted(lien.monnaie.nom for lien in compte.monnaies))
+    monnaies_possibles = ", ".join(
+        sorted(lien.monnaie.nom for lien in compte.monnaies_actives)
+    )
     raise HTTPException(
         status_code=400,
         detail=(

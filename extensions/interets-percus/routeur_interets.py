@@ -69,7 +69,12 @@ def _lire_compte(db: Session, compte: models.Compte) -> schemas_ip.CompteInteret
     return schemas_ip.CompteInteretsRead(
         id=compte.id,
         nom=compte.nom,
-        monnaies=[_monnaie_lue(db, lien.monnaie_id) for lien in compte.monnaies],
+        # Les monnaies ALLUMÉES seulement : cet écran sert à SAISIR un intérêt,
+        # et une monnaie éteinte n'accepte plus de nouvelle écriture (cf.
+        # models.Compte.monnaies_actives). Les intérêts déjà saisis dans l'une
+        # d'elles restent lus par `interets` et `totaux`, qui partent des lignes
+        # et non de la liste du compte.
+        monnaies=[_monnaie_lue(db, lien.monnaie_id) for lien in compte.monnaies_actives],
         interets=[schemas_ip.InteretRead.model_validate(i) for i in interets],
         totaux=_totaux_lus(db, service.totaux_par_monnaie(interets)),
         annees=[

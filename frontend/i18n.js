@@ -1034,6 +1034,78 @@ const TRADUCTIONS = {
       "What the period costs, not what leaves the account: an amortised expense only counts for its share of the month, a reimbursable one for the amount left to bear. Internal transfers excluded. Stays on the whole month, week unfolded or not.",
     "De combien les comptes courants ont boug\u00e9 sur la p\u00e9riode. Tout compte \u00e0 sa date et pour son montant : une d\u00e9pense amortie en entier, une d\u00e9pense remboursable sans d\u00e9duire ce qu'on rendra. Virements internes exclus.":
       "How much the current accounts moved over the period. Everything counts on its date and for its amount: an amortised expense in full, a reimbursable one without deducting what will come back. Internal transfers excluded.",
+    // ----- La troisième carte de flux : un STOCK, pas un flux -----
+    "Reste à rembourser": "Left to settle",
+    "Ce qu'on te doit encore sur tes dépenses remboursables, moins ce que tu dois encore sur les prêts reçus. NE DÉPEND PAS DE LA PÉRIODE : c'est l'état de tes créances et de tes dettes aujourd'hui, pas un chiffre du mois. Seules les opérations réelles comptent.":
+      "What you are still owed on your reimbursable expenses, minus what you still owe on loans received. DOES NOT DEPEND ON THE PERIOD: this is the state of your claims and debts today, not a figure for the month. Only real transactions count.",
+    "on te doit": "you are owed",
+    "tu dois": "you owe",
+    // ----- Le panneau « Base de données » : le reset du mode développement -----
+    "Revenir à la base de l'application": "Back to the application's database",
+    "Revenir à la base de l'application ? La base actuellement ouverte est simplement refermée — aucun fichier n'est modifié ni supprimé.":
+      "Back to the application's database? The database currently open is simply closed — no file is modified or deleted.",
+    // ----- Une monnaie éteinte sur un compte (migration 0053) -----
+    "Active": "Active",
+    "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":
+      "Currency switched off: no longer offered when entering a transaction, nor guessed on import. Its transactions are still in the database.",
+    "Décoche pour que cette monnaie ne soit plus proposée à la saisie ni devinée à l'import. Les opérations déjà enregistrées restent en base.":
+      "Uncheck so this currency is no longer offered when entering a transaction, nor guessed on import. Transactions already recorded stay in the database.",
+    "Le solde de ce compte dans cette monnaie n'est pas nul : vire ce qui reste ailleurs avant d'éteindre.":
+      "This account's balance in that currency is not zero: move what is left elsewhere before switching it off.",
+    // ----- Extension « Suivi des remboursements » -----
+    "Suivi des remboursements": "Repayment tracking",
+    "Voir par personne →": "See by person →",
+    // La flèche fait partie du nœud de texte du bouton : le dictionnaire la
+    // porte donc aussi (cf. traduireDomStatique, qui traduit le nœud entier).
+    "← Retour au tableau de bord": "← Back to the dashboard",
+    "Qui te doit combien, et à qui tu dois. Un profil est une étiquette : une personne, une entreprise, la colocation. Rien n'est recalculé ailleurs — les soldes, le dashboard et l'histogramme donnent exactement les mêmes chiffres, cet écran ne fait que les ventiler.":
+      "Who owes you how much, and whom you owe. A profile is a label: a person, a company, the flatshare. Nothing is recomputed elsewhere — balances, the dashboard and the histogram give exactly the same figures; this screen only breaks them down.",
+    "Rien à suivre pour l'instant : aucune dépense remboursable ni aucun prêt reçu n'attend de règlement. Les lignes apparaîtront ici dès qu'il en existera une.":
+      "Nothing to track yet: no reimbursable expense and no loan received is awaiting settlement. Rows will appear here as soon as one exists.",
+    "On te doit": "You are owed",
+    "Tu dois": "You owe",
+    "Solde net": "Net balance",
+    "Le reste dû de tes dépenses remboursables, celles que tu as avancées. Seules les opérations réelles comptent.":
+      "What is still owed on your reimbursable expenses, the ones you paid up front. Only real transactions count.",
+    "Le reste dû de tes prêts reçus. Nécessite l'extension « Prêts » pour qu'il existe des prêts à suivre.":
+      "What is still owed on the loans you received. Requires the “Loans” extension for there to be any loans to track.",
+    "Ce qu'on te doit moins ce que tu dois, dans cette monnaie. C'est le même chiffre que la carte « Reste à rembourser » du tableau de bord.":
+      "What you are owed minus what you owe, in this currency. It is the same figure as the dashboard's “Left to settle” card.",
+    "Qui doit combien": "Who owes how much",
+    "Une ligne par profil. La barre va à droite quand on te doit, à gauche quand tu dois ; sa longueur se compare au plus gros solde de la monnaie affichée. Clique une ligne pour voir ses opérations.":
+      "One row per profile. The bar goes right when you are owed, left when you owe; its length compares to the largest balance in the currency shown. Click a row to see its transactions.",
+    "À rattacher": "To assign",
+    "Les dépenses remboursables et les prêts encore dus qu'aucun profil ne porte, TOUTES MONNAIES CONFONDUES : c'est une liste de rangement, pas un total, et elle ne suit donc pas l'onglet de monnaie. Coche des lignes, choisis un profil, et le tableau du dessus se met à jour.":
+      "Reimbursable expenses and loans still outstanding that no profile carries, ACROSS ALL CURRENCIES: this is a filing list, not a total, so it does not follow the currency tab. Tick some rows, pick a profile, and the table above updates.",
+    "Profils": "Profiles",
+    "Une étiquette, et rien de plus : aucun calcul de l'application ne la lit. En supprimer un détache ses opérations, il ne les efface jamais.":
+      "A label, and nothing more: no calculation in the application reads it. Deleting one detaches its transactions; it never erases them.",
+    "Ajouter un profil": "Add a profile",
+    "Ajouter le profil": "Add profile",
+    "ex. Marie": "e.g. Marie",
+    "Note": "Note",
+    "ex. voisine du dessus, rembourse en fin de mois": "e.g. neighbour upstairs, repays at the end of the month",
+    "Sans profil": "No profile",
+    "ligne": "row",
+    "lignes": "rows",
+    "Règlement": "Settlement",
+    "Reste dû": "Still owed",
+    "Détacher": "Detach",
+    "Tout cocher": "Tick all",
+    "Rattacher au profil": "Assign to profile",
+    "Rattacher la sélection": "Assign selection",
+    "Coche au moins une ligne à rattacher.": "Tick at least one row to assign.",
+    "Opérations rattachées.": "Transactions assigned.",
+    "Opération détachée.": "Transaction detached.",
+    "Aucune opération rattachée à ce profil.": "No transaction assigned to this profile.",
+    "Crée d'abord un profil ci-dessous, puis reviens rattacher ces lignes.":
+      "Create a profile below first, then come back to assign these rows.",
+    "Aucun profil. Ajoute-en un ci-dessous : c'est à eux que se rattachent les lignes.":
+      "No profile yet. Add one below: rows are assigned to them.",
+    "Glisser pour réordonner": "Drag to reorder",
+    "Supprimer le profil": "Delete profile",
+    "Ses opérations ne sont pas supprimées : elles retournent dans « Sans profil ».":
+      "Its transactions are not deleted: they go back to “No profile”.",
     // ----- L'histogramme d'un projet (extension « Projets ») -----
     "R\u00e9partition par cat\u00e9gorie": "Breakdown by category",
     "Les sorties du projet, r\u00e9parties par cat\u00e9gorie \u2014 virements sortants compris, comme dans le total ci-dessus. Les entr\u00e9es n'y figurent pas : elles se lisent dans le total des entr\u00e9es.":
