@@ -251,6 +251,43 @@ const TRADUCTIONS = {
     "Total": "Total",
     "Part": "Share",
 
+    /* ===== Lot 10 : le budget total du mois et les deux vues du
+       camembert. ===== */
+    "État actuel":
+      "Current state",
+    "Budget du mois":
+      "Month budget",
+    "Budget de la catégorie":
+      "Category budget",
+    "Part du budget":
+      "Share of budget",
+    "sur":
+      "of",
+    "hérité":
+      "inherited",
+    "Budget du mois enregistré.":
+      "Month budget saved.",
+    "Montant invalide.":
+      "Invalid amount.",
+    "Le budget se pose mois par mois : choisis un mois pour l'écrire.":
+      "The budget is set month by month: pick a month to write it.",
+    "Ces chiffres ne s'accordent pas":
+      "These figures do not agree",
+    "Laisser tel quel":
+      "Leave as is",
+    "au lieu de":
+      "instead of",
+    "Mettre le budget à":
+      "Set the budget to",
+    "Mettre l'objectif à":
+      "Set the target to",
+    "Mettre le budget du mois à":
+      "Set the month budget to",
+    "Les parts sont rapportées au BUDGET DU MOIS et non au total dépensé : l'anneau reste donc ouvert sur ce qui n'a pas encore été dépensé. C'est la seule vue où l'objectif d'une catégorie veut dire quelque chose — rapportées au total dépensé, les parts somment 100 % par construction, et une catégorie ne peut tenir sa cible que si toutes les autres tiennent la leur. Ici, chacune est indépendante : « l'alimentaire devait peser 30 % de mon budget, il en pèse 22 % ».":
+      "Shares are measured against the MONTH BUDGET and not against the total spent: the ring therefore stays open on what has not been spent yet. This is the only view where a category's target means anything — measured against the total spent, shares add up to 100 % by construction, and a category can only meet its target if every other one meets its own. Here each is independent: « groceries were meant to weigh 30 % of my budget, they weigh 22 % ».",
+    "Le budget d'une catégorie devrait valoir le budget du mois multiplié par son objectif en pourcentage. Ces trois chiffres se saisissent séparément, et rien n'oblige à les poser tous — mais quand les trois existent et se contredisent, il faut choisir lequel a raison. Rien n'a été corrigé automatiquement : ta dernière saisie est enregistrée telle quelle, et tu peux très bien la laisser ainsi.":
+      "A category's budget should equal the month budget multiplied by its target percentage. These three figures are entered separately, and nothing forces you to set them all — but when all three exist and contradict each other, you have to choose which one is right. Nothing was corrected automatically: your last entry is saved as it is, and you may well leave it that way.",
+
     /* ===== Lot 9 : le gel de l'infobulle et l'onglet « Paramètres
        généraux ». ===== */
     "Paramètres généraux":

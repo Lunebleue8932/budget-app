@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=103" />
+  <link rel="stylesheet" href="style.css?v=104" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -325,7 +325,33 @@
 
       <div class="dashboard-graphes">
         <div id="dashboard-histogramme" class="histogramme-cadre"></div>
-        <div id="dashboard-camembert" class="histogramme-cadre"></div>
+        <!-- LE CAMEMBERT A DEUX VUES, L'HISTOGRAMME UNE SEULE, et c'est ce qui
+             met la bascule ICI et non au-dessus des deux. Un graphe de montants
+             ne change pas de dénominateur : une barre vaut ce qu'elle vaut.
+             Seules des PARTS peuvent être rapportées à autre chose.
+
+             L'en-tête est HORS de #dashboard-camembert : ce conteneur est
+             réécrit en entier à chaque rendu (innerHTML), la bascule y aurait
+             disparu au premier clic. -->
+        <div class="histogramme-cadre camembert-cadre">
+          <div class="camembert-entete">
+            <div class="sous-onglets camembert-vues" id="camembert-vues">
+              <button type="button" data-vue-pie="actuel" class="active">État actuel</button>
+              <button type="button" data-vue-pie="budget">Budget<i class="info-bulle" tabindex="0" data-info-cle="noyau.camembert-vue-budget">i</i></button>
+            </div>
+            <!-- LE RÉGLAGE DU BUDGET NE VIT QUE DANS SA VUE. Affiché en
+                 permanence, il aurait demandé un chiffre dont la vue « état
+                 actuel » ne fait rien — et laissé croire que ce chiffre change
+                 quelque chose au graphe qu'on regarde. -->
+            <div class="camembert-budget-reglage" id="camembert-budget-reglage" hidden>
+              <label for="camembert-budget-total">Budget du mois</label>
+              <input type="number" id="camembert-budget-total" step="0.01" min="0" />
+              <button type="button" id="btn-camembert-budget-total">Enregistrer</button>
+              <span class="hint" id="camembert-budget-herite" hidden>hérité</span>
+            </div>
+          </div>
+          <div id="dashboard-camembert" class="camembert-zone"></div>
+        </div>
       </div>
 
       <!-- LA LÉGENDE, TROISIÈME BLOC ET NON MORCEAU D'UN GRAPHE. Les deux
@@ -339,6 +365,32 @@
            part, objectif en pourcentage et en montant) et éclaire en même temps
            la barre et la tranche correspondantes. -->
       <div id="dashboard-legende" class="histogramme-cadre legende-cadre"></div>
+
+      <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
+           Ouverte APRÈS une saisie, jamais au chargement : c'est une réaction à
+           ce qu'on vient d'écrire, pas un reproche permanent affiché à
+           l'ouverture du dashboard.
+
+           ELLE NE CORRIGE RIEN D'OFFICE. Recalculer la troisième grandeur aurait
+           défait en silence la saisie précédente — poser un budget aurait
+           réécrit un pourcentage, et l'inverse aussi. La fenêtre CONSTATE, et
+           demande laquelle des trois changer : la réponse n'appartient qu'à
+           celui qui a écrit les chiffres. -->
+      <div id="modale-coherence-budgets" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-coherence" role="dialog" aria-modal="true"
+             aria-labelledby="modale-coherence-titre">
+          <div class="epargne-entete">
+            <h2 id="modale-coherence-titre">Ces chiffres ne s'accordent pas</h2>
+            <button type="button" id="btn-coherence-fermer" class="epargne-fermer"
+                    title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <p class="hint" data-texte-cle="noyau.accord-des-budgets"></p>
+          <div id="coherence-lignes"></div>
+          <div class="actions">
+            <button type="button" id="btn-coherence-laisser">Laisser tel quel</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Bloc-notes libre : aucune structure, aucune sémantique. Il grandit
            avec son contenu (cf. ajusterHauteurNoteDashboard) parce qu'une note
@@ -1804,9 +1856,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=3"></script>
-  <script src="i18n.js?v=50"></script>
+  <script src="textes.js?v=4"></script>
+  <script src="i18n.js?v=51"></script>
   <script src="extensions.js?v=16"></script>
-  <script src="app.js?v=128"></script>
+  <script src="app.js?v=129"></script>
 </body>
 </html>

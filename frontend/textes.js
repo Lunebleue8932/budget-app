@@ -49,6 +49,12 @@ const TEXTES = {
   "noyau.gel-infobulle-aide":
     "L'infobulle des graphes suit le curseur et disparaît dès qu'on le retire : tout ce qu'elle contient doit donc se lire sans bouger la souris. Cette touche la FIGE là où elle est — le survol des graphes cesse de la remplacer, et tu récupères ton curseur pour lire son top 3 ou cliquer son bouton tranquillement. La même touche, un clic à côté ou Échap la libèrent.",
 
+  /* ----- Le camembert et ses deux vues ----- */
+  "noyau.camembert-vue-budget":
+    "Les parts sont rapportées au BUDGET DU MOIS et non au total dépensé : l'anneau reste donc ouvert sur ce qui n'a pas encore été dépensé. C'est la seule vue où l'objectif d'une catégorie veut dire quelque chose — rapportées au total dépensé, les parts somment 100 % par construction, et une catégorie ne peut tenir sa cible que si toutes les autres tiennent la leur. Ici, chacune est indépendante : « l'alimentaire devait peser 30 % de mon budget, il en pèse 22 % ».",
+  "noyau.accord-des-budgets":
+    "Le budget d'une catégorie devrait valoir le budget du mois multiplié par son objectif en pourcentage. Ces trois chiffres se saisissent séparément, et rien n'oblige à les poser tous — mais quand les trois existent et se contredisent, il faut choisir lequel a raison. Rien n'a été corrigé automatiquement : ta dernière saisie est enregistrée telle quelle, et tu peux très bien la laisser ainsi.",
+
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":
     "Ce qu'on te doit encore sur tes dépenses remboursables, moins ce que tu dois encore sur les prêts reçus. NE DÉPEND PAS DE LA PÉRIODE : c'est l'état de tes créances et de tes dettes aujourd'hui, pas un chiffre du mois. Seules les opérations réelles comptent.",

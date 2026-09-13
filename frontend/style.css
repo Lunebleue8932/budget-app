@@ -1060,8 +1060,116 @@ form .full-width {
   font-variant-numeric: tabular-nums;
 }
 
-.camembert-rappel-objectif {
-  fill: var(--text-muted);
+
+/* ---------- Les deux vues du camembert (cf. renderPieChartDepenses) ----------
+
+   L'EN-TÊTE EST HORS DU CONTENEUR DE DESSIN. #dashboard-camembert est réécrit
+   en entier à chaque rendu : la bascule y aurait disparu au premier clic. Le
+   cadre porte donc l'en-tête et la zone de dessin, l'un sous l'autre. */
+.camembert-cadre {
+  display: flex;
+  flex-direction: column;
+}
+
+.camembert-entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Ancre de l'infobulle des tranches, positionnée en absolu dedans — le rôle
+   que tenait .histogramme-cadre avant que le cadre gagne un en-tête. */
+.camembert-zone {
+  position: relative;
+  flex: 1;
+}
+
+.camembert-vues button {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.camembert-budget-reglage {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+.camembert-budget-reglage input {
+  width: 7.5rem;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.camembert-budget-reglage button {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+}
+
+/* CE QUI N'A PAS ÉTÉ DÉPENSÉ, dessiné plutôt que laissé en trou : un anneau
+   incomplet sur fond de cadre se lit comme un graphe à moitié tracé. Sur sa
+   piste, il se lit comme un budget à moitié consommé — ce qu'il est. */
+.camembert-piste {
+  stroke: var(--border-soft);
+  opacity: 0.5;
+}
+
+/* Le budget franchi. Rouge, comme le trait de budget des barres : c'est la
+   même limite, dite par l'autre graphe. */
+.camembert-repere-budget {
+  stroke: #ef4444;
+  stroke-width: 2;
+}
+
+.camembert-centre {
+  fill: var(--text-primary);
+}
+
+.camembert-centre-depasse {
+  fill: #ef4444;
+}
+
+/* ---------- La fenêtre d'accord des budgets ---------- */
+
+.modale-coherence {
+  max-width: 34rem;
+}
+
+.coherence-ligne {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.coherence-titre {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+/* Ce que le chiffre DEVRAIT valoir, à côté de ce qu'il vaut : la comparaison
+   est toute la fenêtre, et la reléguer sur une seconde ligne aurait obligé à
+   faire l'aller-retour de l'œil pour chaque catégorie. */
+.coherence-attendu {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.coherence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.coherence-actions button {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.6rem;
 }
 
 /* ---------- L'écran « D'où vient l'écart ? » ----------

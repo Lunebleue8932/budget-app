@@ -78,11 +78,16 @@ const state = {
   // `null` veut dire « toutes » (l'état par défaut, celui d'avant ce filtre).
   // Un Set de NOMS de catégorie, pas d'ids : c'est ce que porte chaque ligne
   // de `DepenseParCategorie` (cf. services/soldes.get_depenses_par_categorie).
-  // Ne filtre QUE ce qui est dessiné : le dénominateur des pourcentages du
-  // camembert reste calculé sur TOUTES les catégories (cf.
-  // renderPieChartDepenses), pour que masquer une part n'en gonfle pas
-  // artificiellement une autre.
+  // Ne filtre QUE ce qui est dessiné. En vue « état actuel », le camembert
+  // recalcule son dénominateur sur les seules catégories retenues — filtrer y
+  // change la question posée. En vue « budget », le dénominateur est le budget
+  // du mois : il ne bouge pas, et retirer une catégorie n'en gonfle aucune
+  // autre (cf. partsCategoriesDashboard).
   dashboardCategoriesVisibles: null,
+  // La vue du camembert : "actuel" (parts du total dépensé) ou "budget" (parts
+  // du budget du mois). Jamais mémorisée d'une session à l'autre — cf.
+  // basculerVuePie.
+  dashboardVuePie: "actuel",
   categoriesPeriode: {},
   triSelections: {
     classique: "date-desc",
@@ -1666,6 +1671,11 @@ async function loadComptesGlobale() {
 // renderHistogrammeDashboard).
 let dashboardDepensesDuMois = [];
 
+// LE BUDGET TOTAL DE LA MÊME PÉRIODE, gardé pour la même raison : c'est le
+// dénominateur de la vue budget du camembert, et basculer d'une vue à l'autre
+// ne doit pas coûter un aller-retour. Zéro = aucun budget posé.
+let dashboardBudgetTotalDuMois = 0;
+
 function renderKpisDashboard(kpis) {
   if (!kpis) {
     // Aucun compte, donc aucune monnaie en jeu : rien à agréger.
@@ -1681,6 +1691,7 @@ function renderKpisDashboard(kpis) {
     ].forEach((id) => (document.getElementById(id).textContent = "-"));
     document.getElementById("kpi-reste-rembourser-detail").textContent = "";
     dashboardDepensesDuMois = [];
+    dashboardBudgetTotalDuMois = 0;
     renderHistogrammeDashboard([], null);
     return;
   }
@@ -1746,6 +1757,7 @@ function renderKpisDashboard(kpis) {
   renderResteARembourser(kpis, monnaieId);
   renderFluxPeriode(kpis, monnaieId);
   dashboardDepensesDuMois = kpis.depenses_par_categorie || [];
+  dashboardBudgetTotalDuMois = kpis.budget_total || 0;
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
 
@@ -2191,19 +2203,48 @@ function couleurCategorie(couleurIndex) {
   return PALETTE_CATEGORIES[couleurIndex % PALETTE_CATEGORIES.length];
 }
 
+/* LES DEUX VUES DU CAMEMBERT. Elles ne diffèrent que par leur DÉNOMINATEUR, et
+   c'est toute la question :
+
+     - « ÉTAT ACTUEL » rapporte chaque catégorie au TOTAL DÉPENSÉ. Les parts
+       somment toujours 100 %, l'anneau est plein, et la question posée est
+       « comment se répartit ce que j'ai dépensé » ;
+     - « BUDGET » les rapporte au BUDGET TOTAL du mois (cf. migration 0057).
+       Les parts somment ce qu'elles somment, l'anneau reste ouvert sur ce qui
+       n'a pas été dépensé, et la question devient « où en suis-je de mon
+       budget ».
+
+   L'OBJECTIF DE RÉPARTITION N'A DE SENS QUE DANS LA SECONDE, et c'est la raison
+   d'être de la première. Rapportées au total dépensé, les parts sont LIÉES :
+   elles somment 100 par construction, donc une catégorie ne peut tenir son
+   objectif que si les autres tiennent le leur — comparer une part à sa cible
+   n'y apprend presque rien, et le faisait même mentir (une seule catégorie à
+   l'écran affichait « je fais 100 %, je devrais faire 30 % »). Rapportées au
+   budget, elles sont INDÉPENDANTES : « l'alimentaire devait peser 30 % de mon
+   budget, il en pèse 22 % » est une phrase vraie, que rien d'autre à l'écran ne
+   fait dire.
+
+   C'EST CE QUI A REMPLACÉ LA RENORMALISATION ET LA RÈGLE DU RESTE IMPLICITE.
+   Les objectifs étaient recalculés au prorata de ce qui restait affiché, avec
+   une part fictive distribuée aux catégories sans objectif pour que le
+   dénominateur soit honnête. Tout cet échafaudage n'existait que pour rendre
+   comparables deux nombres qui ne l'étaient pas ; avec un dénominateur FIXE, il
+   n'a plus lieu d'être — l'objectif s'affiche tel qu'il a été saisi. */
+const VUE_PIE_ACTUEL = "actuel";
+const VUE_PIE_BUDGET = "budget";
+
 /* ---------- Ce que les deux graphes ont en commun ----------
  *
- * L'HISTOGRAMME ET LE CAMEMBERT MONTRENT LA MÊME LISTE, sous deux formes. Tant
- * qu'ils ne portaient que des barres et des parts, chacun pouvait calculer ce
- * dont il avait besoin. Depuis qu'ils partagent une LÉGENDE et une INFOBULLE,
- * deux calculs parallèles finiraient par ne plus tomber d'accord à l'arrondi —
- * et c'est précisément ce qu'une répartition donne à comparer.
+ * L'HISTOGRAMME ET LE CAMEMBERT MONTRENT LA MÊME LISTE, sous deux formes, et
+ * partagent une LÉGENDE et une INFOBULLE. Deux calculs parallèles finiraient
+ * par ne plus tomber d'accord à l'arrondi — et c'est précisément ce qu'une
+ * répartition donne à comparer.
  *
  * `partsCategoriesDashboard` est donc le SEUL endroit où l'on décide du
- * dénominateur, des pourcentages et des objectifs renormalisés. Les trois
- * rendus (barres, tranches, légende) le reçoivent tel quel.
+ * dénominateur et des pourcentages. Les trois rendus le reçoivent tel quel.
  */
-function partsCategoriesDashboard(depenses, visibles) {
+function partsCategoriesDashboard(depenses, visibles, options = {}) {
+  const { vue = VUE_PIE_ACTUEL, budgetTotal = 0 } = options;
   const retenues = depenses.filter((d) => visibles.has(d.categorie));
   // Une catégorie à zéro ne DESSINE pas de tranche (un arc de longueur nulle
   // n'existe pas) mais garde sa barre et sa ligne de légende : elle a quelque
@@ -2211,73 +2252,28 @@ function partsCategoriesDashboard(depenses, visibles) {
   const tranches = retenues.filter((d) => d.total_previsionnel > 0);
   const total = tranches.reduce((somme, d) => somme + d.total_previsionnel, 0);
 
-  // LA RENORMALISATION DES OBJECTIFS, ET LA RÈGLE DU RESTE IMPLICITE.
-  //
-  // LE PROBLÈME. Un objectif de 15 % comparé à une part recalculée sur un
-  // sous-ensemble ne compare plus rien : les deux nombres n'auraient plus le
-  // même dénominateur. Il faut donc renormaliser les objectifs quand un filtre
-  // retire des catégories. Mais sur quelle base ? On pose un objectif sur les
-  // trois catégories qui comptent, pas sur les vingt (cf. migration 0055) : la
-  // somme des objectifs SAISIS ne vaut presque jamais 100.
-  //
-  // LA RÈGLE. Ce qui manque pour atteindre 100 est réparti à parts égales entre
-  // les catégories SANS objectif — un objectif FICTIF, jamais affiché, qui
-  // n'existe que pour donner un dénominateur honnête. Avec lui, la somme des
-  // objectifs effectifs vaut toujours 100, et la renormalisation redevient une
-  // simple règle de trois.
-  //
-  // CE QU'ELLE PRODUIT, sur trois catégories A (30 %), B (20 %) et C (sans) :
-  //
-  //   - C reçoit fictivement les 50 % qui manquent ;
-  //   - SANS FILTRE : facteur 1, on lit A 30 % et B 20 %. La somme affichée vaut
-  //     50 et non 100, ce qui est exact — la moitié du budget n'est visée par
-  //     personne ;
-  //   - EN RETIRANT B : la base retenue vaut 30 + 50 = 80, facteur 100/80, et A
-  //     s'affiche à 37,5 %. La somme affichée ne vaut toujours pas 100, toujours
-  //     à cause de C ;
-  //   - EN RETIRANT C : la base vaut 30 + 20 = 50, facteur 2, A passe à 60 % et
-  //     B à 40 %. La somme vaut 100, et c'est le seul cas où elle le doit — il
-  //     ne reste que des catégories qui visent quelque chose.
-  //
-  // C'EST CE QUI REMPLACE LA CONSERVATION DE LA SOMME DE DÉPART, qui donnait un
-  // résultat faux dans ce dernier cas : elle aurait gardé 50 au lieu de 100, et
-  // une catégorie seule à l'écran aurait affiché « je fais 100 %, je devrais
-  // faire 30 % » alors qu'elle est la seule à viser quoi que ce soit.
-  //
-  // LE RESTE NE PEUT PAS ÊTRE NÉGATIF : le serveur refuse une saisie qui ferait
-  // dépasser 100 % au total (cf. crud.erreur_objectif_pourcentage). Le `max`
-  // n'est qu'un filet pour une base écrite avant cette garde.
-  //
-  // TOUT SE COMPTE SUR `depenses` ENTIER, pas sur les tranches dessinées : sinon
-  // une catégorie sans dépense ce mois-ci — qu'aucun filtre n'a pourtant
-  // retirée — ferait bouger tous les objectifs d'un mois à l'autre.
-  const objectifsSaisis = depenses.reduce((s, d) => s + (d.objectif_pourcentage || 0), 0);
-  const sansObjectif = depenses.filter((d) => !d.objectif_pourcentage).length;
-  const reste = Math.max(0, 100 - objectifsSaisis);
-  const fictif = sansObjectif > 0 ? reste / sansObjectif : 0;
+  // PAS DE BUDGET, PAS DE VUE BUDGET. Zéro veut dire « aucun budget posé » (cf.
+  // crud.get_budget_total) : rapporter des parts à zéro ne donnerait pas des
+  // pourcentages faux, il n'en donnerait aucun.
+  const vueBudget = vue === VUE_PIE_BUDGET && budgetTotal > 0;
+  const base = vueBudget ? budgetTotal : total;
 
-  // L'objectif EFFECTIF d'une catégorie : le sien, ou sa part du reste.
-  const effectif = (d) => d.objectif_pourcentage || fictif;
-  const baseRetenue = retenues.reduce((s, d) => s + effectif(d), 0);
-  const facteur = baseRetenue > 0 ? 100 / baseRetenue : 1;
-
-  // AFFICHÉ SEULEMENT SI L'OBJECTIF A ÉTÉ SAISI. Le fictif sert au dénominateur
-  // et à rien d'autre : l'écrire reviendrait à prêter à l'utilisateur une
-  // intention qu'il n'a pas exprimée, et à remplir la légende d'objectifs qu'il
-  // n'a jamais posés.
-  const objectif = (d) => (d.objectif_pourcentage || 0) * facteur;
   return {
     retenues,
     tranches,
     total,
-    part: (d) => (total > 0 ? (d.total_previsionnel / total) * 100 : 0),
-    objectif,
-    // L'OBJECTIF TRADUIT EN MONTANT, pour l'infobulle de l'histogramme : un
-    // graphe de montants ne se commente pas en pourcentages. C'est la part
-    // visée appliquée au total RÉELLEMENT dessiné — donc ce que la catégorie
-    // « aurait dû » peser sur la période telle qu'elle est filtrée, et non un
-    // budget, qui lui est saisi en valeur et vit ailleurs.
-    objectifMontant: (d) => (total * objectif(d)) / 100,
+    vueBudget,
+    budgetTotal,
+    // LE DÉNOMINATEUR DES PARTS. En vue budget il ne bouge PAS avec le filtre
+    // de catégories : filtrer y retire des tranches sans rien changer aux
+    // autres, ce qui est exactement ce qu'on attend d'une part de budget. En
+    // vue « état actuel », au contraire, il se recalcule sur les seules
+    // catégories retenues — filtrer y change la question.
+    base,
+    part: (d) => (base > 0 ? (d.total_previsionnel / base) * 100 : 0),
+    // L'OBJECTIF TEL QU'IL A ÉTÉ SAISI, et rien qu'en vue budget : ailleurs, il
+    // n'y a pas de dénominateur commun qui le rende comparable à la part.
+    objectif: (d) => (vueBudget ? d.objectif_pourcentage || 0 : 0),
   };
 }
 
@@ -2311,7 +2307,13 @@ function partsCategoriesDashboard(depenses, visibles) {
  * (~1 s), là où une infobulle maison suit le curseur immédiatement.
  */
 function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
-  const { total = null, part = null, objectif = null, objectifMontant = null } = chiffres;
+  const {
+    total = null,
+    part = null,
+    partLibelle = null,
+    budget = null,
+    objectif = null,
+  } = chiffres;
 
   // Les chiffres, en colonnes : c'est tout l'intérêt de les poser l'un sous
   // l'autre. Chacun est tu quand l'appelant ne le passe pas — une ligne vide
@@ -2321,17 +2323,21 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
     lignesChiffres.push([t("Total"), formatMontant(total, monnaieId)]);
   }
   if (part != null) {
-    lignesChiffres.push([t("Part"), formatPourcentage(part)]);
+    lignesChiffres.push([partLibelle || t("Part"), formatPourcentage(part)]);
+  }
+  // DEUX CIBLES, ET NON DEUX ÉCRITURES DE LA MÊME. Le budget est une enveloppe
+  // EN VALEUR posée sur la catégorie pour ce mois-là
+  // (`CategorieBudgetMensuel`) ; l'objectif est une PART du budget total
+  // (`Categorie.objectif_pourcentage`). Les deux se posent séparément, peuvent
+  // se contredire (cf. crud.incoherences_budgets), et afficher l'un traduit
+  // dans l'unité de l'autre les faisait passer pour le même chiffre — c'était
+  // précisément le défaut : le trait rouge de l'histogramme disait une chose,
+  // l'infobulle qui le commentait en disait une autre.
+  if (budget != null && budget > 0) {
+    lignesChiffres.push([t("Budget"), formatMontant(budget, monnaieId)]);
   }
   if (objectif != null && objectif > 0) {
-    // LES DEUX EXPRESSIONS DE L'OBJECTIF SUR UNE SEULE LIGNE quand on a les
-    // deux : c'est un seul et même objectif, dit deux fois. Sur deux lignes, il
-    // se serait lu comme deux cibles différentes.
-    const montant =
-      objectifMontant != null ? ` · ${formatMontant(objectifMontant, monnaieId)}` : "";
-    lignesChiffres.push([t("Objectif"), `${formatPourcentage(objectif)}${montant}`]);
-  } else if (objectifMontant != null && objectifMontant > 0) {
-    lignesChiffres.push([t("Objectif"), formatMontant(objectifMontant, monnaieId)]);
+    lignesChiffres.push([t("Objectif"), formatPourcentage(objectif)]);
   }
 
   const chiffresHtml = lignesChiffres.length
@@ -2609,14 +2615,17 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
  * Le conteneur du dashboard reste la valeur par défaut, les appels d'origine
  * n'ont donc rien à dire de plus.
  *
- * `parts` EST FACULTATIF, et c'est ce qui laisse l'extension « Projets »
- * inchangée : sans lui, l'infobulle se contente du total de la barre, sans
- * objectif — un projet n'en a pas, ses catégories ne visent aucune répartition.
+ * SA CIBLE EST LE BUDGET EN VALEUR, et rien d'autre : le trait rouge d'une
+ * barre et la ligne « Budget » de son infobulle lisent le MÊME
+ * `budget_alloue`. L'infobulle y montrait un temps l'objectif de répartition
+ * traduit en montant (la part visée appliquée au total dessiné) : deux cibles
+ * différentes se retrouvaient alors dans la même unité, au même endroit, et la
+ * seconde recouvrait la première.
  *
  * Le conteneur doit être positionné en relatif : l'infobulle s'y place en
  * absolu (cf. .histo-bulle et placerInfobulleHistogramme).
  */
-function renderHistogrammeDepenses(depenses, monnaieId, container = null, parts = null) {
+function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
   container = container || document.getElementById("dashboard-histogramme");
   if (!container) return;
   container.innerHTML = "";
@@ -2701,9 +2710,9 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, parts 
   `;
 
   // UN GRAPHE DE MONTANTS SE COMMENTE EN MONTANTS : le total de la barre, et
-  // l'objectif traduit dans la même unité. Le pourcentage, lui, est la réponse
-  // du camembert d'à côté — le répéter ici aurait donné deux graphes qui disent
-  // la même chose au lieu de deux questions.
+  // son budget — celui-là même que dessine le trait rouge. Le pourcentage, lui,
+  // est la réponse du camembert d'à côté ; le répéter ici aurait donné deux
+  // graphes qui disent la même chose au lieu de deux questions.
   attacherInfobulleCategorie(
     container,
     [...container.querySelectorAll("svg g[data-index]")],
@@ -2713,7 +2722,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, parts 
         depense,
         html: contenuInfobulleCategorie(depense, monnaieId, {
           total: depense.total_previsionnel,
-          objectifMontant: parts ? parts.objectifMontant(depense) : null,
+          budget: depense.budget_alloue,
         }),
       };
     }
@@ -2805,7 +2814,7 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
   if (!container) return;
   container.innerHTML = "";
 
-  const { tranches, total } = parts;
+  const { tranches, total, vueBudget, budgetTotal } = parts;
   if (total <= 0) {
     container.innerHTML = `<span class="hint">${
       depenses.length === 0
@@ -2818,12 +2827,35 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
   const largeur = PIE_CENTRE_X * 2;
   const hauteur = PIE_CENTRE_Y * 2;
   const circonference = 2 * Math.PI * PIE_RAYON;
+
+  // CE QUE REPRÉSENTE UN TOUR COMPLET. En vue « état actuel », le total
+  // dépensé : l'anneau est plein par construction. En vue « budget », le budget
+  // — l'anneau reste alors OUVERT sur ce qui n'a pas été dépensé, et c'est tout
+  // l'intérêt de la vue : le vide est un chiffre, lui aussi.
+  //
+  // SAUF EN CAS DE DÉPASSEMENT, où le tour vaut de nouveau le total dépensé :
+  // au-delà du budget, garder le budget pour référence ferait tourner les
+  // tranches plus d'une fois sur elles-mêmes, et les dernières recouvriraient
+  // les premières sans que rien ne le signale. L'anneau se remplit donc, et un
+  // repère rouge marque l'endroit où le budget a été franchi.
+  const depassement = vueBudget && total > budgetTotal;
+  const reference = vueBudget && !depassement ? budgetTotal : total;
+
   let angleCumule = 0; // fraction de tour déjà parcourue, dans [0, 1[
   const etiquettes = [];
 
+  // LE FOND DE L'ANNEAU, seulement en vue budget : sans lui, la part non
+  // dépensée serait un trou, indiscernable du cadre — et un anneau incomplet se
+  // lirait comme un graphe à moitié dessiné plutôt que comme un budget à moitié
+  // consommé.
+  const piste = vueBudget
+    ? `<circle class="camembert-piste" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
+        fill="none" stroke-width="${PIE_EPAISSEUR}" />`
+    : "";
+
   const segments = tranches
     .map((d, i) => {
-      const fraction = d.total_previsionnel / total;
+      const fraction = d.total_previsionnel / reference;
       const longueur = fraction * circonference;
       const couleur = couleurCategorie(d.couleur_index ?? i);
       const segment = `<circle class="camembert-part" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
@@ -2840,7 +2872,6 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
       etiquettes.push({
         index: i,
         pourcentage: parts.part(d),
-        objectif: parts.objectif(d),
         // Le pied du crochet, sur le bord de l'anneau…
         ancreX: PIE_CENTRE_X + (PIE_BORD + 1) * sin,
         ancreY: PIE_CENTRE_Y - (PIE_BORD + 1) * cos,
@@ -2855,6 +2886,23 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
     })
     .join("");
 
+  // LE REPÈRE DU BUDGET FRANCHI : un trait radial posé là où l'anneau a fini de
+  // consommer le budget. Il ne dit pas QUELLE catégorie a fait déborder — la
+  // question n'aurait pas de sens, l'ordre des tranches étant celui des
+  // catégories — mais COMBIEN du tour est de trop, ce qui se lit d'un coup
+  // d'œil sur l'arc qui le dépasse.
+  let repereBudget = "";
+  if (depassement) {
+    const angle = (budgetTotal / total) * 2 * Math.PI;
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+    const interieur = PIE_RAYON - PIE_EPAISSEUR / 2 - 2;
+    const exterieur = PIE_RAYON + PIE_EPAISSEUR / 2 + 2;
+    repereBudget = `<line class="camembert-repere-budget"
+      x1="${PIE_CENTRE_X + interieur * sin}" y1="${PIE_CENTRE_Y - interieur * cos}"
+      x2="${PIE_CENTRE_X + exterieur * sin}" y2="${PIE_CENTRE_Y - exterieur * cos}" />`;
+  }
+
   // Chaque côté s'écarte séparément : une étiquette de gauche ne gêne jamais
   // une étiquette de droite, et les mêler aurait poussé les deux colonnes vers
   // le bas pour rien.
@@ -2865,10 +2913,6 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
     .map((e) => {
       const signe = e.droite ? 1 : -1;
       const boutX = e.coudeX + signe * PIE_HORIZONTALE;
-      const objectifTexte =
-        e.objectif > 0
-          ? `<tspan class="camembert-rappel-objectif"> → ${formatPourcentage(e.objectif)}</tspan>`
-          : "";
       return `
         <g class="camembert-rappel" data-index="${e.index}">
           <polyline points="${e.ancreX},${e.ancreY} ${e.coudeX},${e.y} ${boutX},${e.y}"
@@ -2876,10 +2920,31 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
           <text x="${boutX + signe * 3}" y="${e.y}" dominant-baseline="middle"
                 text-anchor="${e.droite ? "start" : "end"}" font-size="10">${formatPourcentage(
                   e.pourcentage
-                )}${objectifTexte}</text>
+                )}</text>
         </g>`;
     })
     .join("");
+
+  // AU CENTRE, CE À QUOI LES PARTS SE RAPPORTENT. En vue « état actuel », le
+  // total dépensé — le dénominateur lui-même. En vue budget, les DEUX chiffres :
+  // n'écrire que le total dépensé aurait laissé deviner le budget à partir des
+  // pourcentages, alors que c'est lui la question.
+  const centre = vueBudget
+    ? `<text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y - 7}" text-anchor="middle"
+             dominant-baseline="middle" font-size="13"
+             class="${depassement ? "camembert-centre-depasse" : "camembert-centre"}">${formatMontant(
+               total,
+               monnaieId
+             )}</text>
+       <text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y + 9}" text-anchor="middle"
+             dominant-baseline="middle" font-size="11" fill="#9ea3b0">${t(
+               "sur"
+             )} ${formatMontant(budgetTotal, monnaieId)}</text>`
+    : `<text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y}" text-anchor="middle"
+             dominant-baseline="middle" font-size="13" fill="#9ea3b0">${formatMontant(
+               total,
+               monnaieId
+             )}</text>`;
 
   container.innerHTML = `
     <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="250"
@@ -2889,16 +2954,16 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
            les traits de rappel et leurs textes sont déjà calculés en
            coordonnées d'écran, les faire tourner avec lui écrirait les
            pourcentages couchés. -->
-      <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${segments}</g>
+      <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${piste}${segments}</g>
+      ${repereBudget}
       ${rappels}
-      <text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y}" text-anchor="middle" dominant-baseline="middle"
-            font-size="13" fill="#9ea3b0">${formatMontant(total, monnaieId)}</text>
+      ${centre}
     </svg>
   `;
 
-  // UN GRAPHE DE PARTS SE COMMENTE EN PARTS : le pourcentage dans le total
-  // affiché au centre, et l'objectif dans la même unité. Le montant, lui, est
-  // la réponse de l'histogramme d'à côté.
+  // UN GRAPHE DE PARTS SE COMMENTE EN PARTS. En vue budget, l'objectif s'y
+  // ajoute : c'est le seul endroit de l'écran où il soit COMPARABLE à la part
+  // affichée à côté, les deux étant rapportés au même budget.
   attacherInfobulleCategorie(
     container,
     [...container.querySelectorAll("circle.camembert-part")],
@@ -2908,6 +2973,7 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
         depense,
         html: contenuInfobulleCategorie(depense, monnaieId, {
           part: parts.part(depense),
+          partLibelle: vueBudget ? t("Part du budget") : t("Part"),
           objectif: parts.objectif(depense),
         }),
       };
@@ -2932,8 +2998,9 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
  * le seul chiffre qui ne se lit nulle part ailleurs d'un coup d'œil.
  *
  * SON INFOBULLE EST LA PLUS COMPLÈTE DES TROIS, et c'est la contrepartie :
- * total, part, objectif en pourcentage ET en montant. Elle est le point
- * d'entrée de qui veut tout savoir sur une catégorie sans choisir son graphe.
+ * total dépensé, part, budget de la catégorie, et son objectif de répartition
+ * quand le camembert est en vue budget. Elle est le point d'entrée de qui veut
+ * tout savoir sur une catégorie sans choisir son graphe.
  */
 function renderLegendeCategories(monnaieId, parts, container = null) {
   container = container || document.getElementById("dashboard-legende");
@@ -2973,8 +3040,9 @@ function renderLegendeCategories(monnaieId, parts, container = null) {
         html: contenuInfobulleCategorie(depense, monnaieId, {
           total: depense.total_previsionnel,
           part: parts.part(depense),
+          partLibelle: parts.vueBudget ? t("Part du budget") : t("Part"),
+          budget: depense.budget_alloue,
           objectif: parts.objectif(depense),
-          objectifMontant: parts.objectifMontant(depense),
         }),
       };
     }
@@ -3231,23 +3299,35 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
         ? dashboardSemainesDonnees.moyenne || []
         : semaine.depenses || [];
 
+  // LE BUDGET SUIT LA MÊME PÉRIODE QUE LES BARRES, découpe des semaines
+  // comprise (cf. soldes.get_budget_total_periode) : une semaine de dépenses
+  // rapportée au budget du mois entier aurait annoncé qu'on tient largement
+  // son budget toutes les semaines, jusqu'à la dernière.
+  const budgetTotal =
+    semaine === null
+      ? dashboardBudgetTotalDuMois
+      : semaine.moyenne
+        ? dashboardSemainesDonnees?.budget_total_moyen || 0
+        : semaine.budget_total || 0;
+
   dashboardDepensesActuels = depenses;
   majPanneauFiltreCategoriesDashboard(depenses);
   const visibles = categoriesVisiblesDashboard(depenses);
 
-  // UN SEUL CALCUL POUR LES TROIS RENDUS (cf. partsCategoriesDashboard). Le
-  // filtre de catégories change le dénominateur des deux graphes de la même
-  // façon : l'échelle de l'histogramme se recalcule sur ses seules barres, le
-  // camembert sur ses seules parts, et la légende ne nomme que ce qui reste.
-  // Filtrer, ici, CHANGE LA QUESTION — « comment se répartissent ces
-  // catégories-là » — et le total du centre le dit en suivant.
-  const parts = partsCategoriesDashboard(depenses, visibles);
+  // UN SEUL CALCUL POUR LES TROIS RENDUS (cf. partsCategoriesDashboard).
+  // L'histogramme recalcule son échelle sur ses seules barres, la légende ne
+  // nomme que ce qui reste, et le camembert rapporte ses parts à ce que sa vue
+  // a choisi — le total dépensé, ou le budget du mois.
+  const parts = partsCategoriesDashboard(depenses, visibles, {
+    vue: state.dashboardVuePie,
+    budgetTotal,
+  });
+  majReglageBudgetPie(budgetTotal, monnaieId);
 
   renderHistogrammeDepenses(
     parts.retenues,
     monnaieId,
-    document.getElementById("dashboard-histogramme"),
-    parts
+    document.getElementById("dashboard-histogramme")
   );
   renderPieChartDepenses(
     depenses,
@@ -3260,6 +3340,252 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   // tranche et sa ligne de légende par le nom de la catégorie.
   cablerSurbrillanceCategories();
 }
+
+/* ---------- Les deux vues du camembert, et le budget qu'elles partagent ----------
+ *
+ * LA VUE NE SE MÉMORISE PAS d'une session à l'autre, et c'est délibéré :
+ * « budget » n'a de sens que le temps qu'on se pose la question, et rouvrir
+ * l'application sur un anneau ouvert aux trois quarts serait une mauvaise
+ * nouvelle affichée sans qu'on l'ait demandée. Le dashboard s'ouvre sur l'état
+ * actuel, comme avant.
+ */
+function basculerVuePie(vue) {
+  state.dashboardVuePie = vue;
+  document.querySelectorAll("#camembert-vues button[data-vue-pie]").forEach((bouton) => {
+    bouton.classList.toggle("active", bouton.dataset.vuePie === vue);
+  });
+  document.getElementById("camembert-budget-reglage").hidden = vue !== VUE_PIE_BUDGET;
+  renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
+}
+
+/**
+ * Remplit le champ du budget avec ce que le serveur vient de rendre.
+ *
+ * PAS PENDANT QU'ON ÉCRIT DEDANS : le dashboard se redessine à chaque clic de
+ * filtre, et réécrire le champ sous les doigts effacerait la saisie en cours.
+ */
+function majReglageBudgetPie(budgetTotal, monnaieId) {
+  const champ = document.getElementById("camembert-budget-total");
+  if (!champ) return;
+  if (document.activeElement !== champ) {
+    champ.value = budgetTotal > 0 ? budgetTotal.toFixed(2) : "";
+  }
+  const symbole = symboleMonnaie(monnaieId);
+  champ.placeholder = symbole ? `0,00 ${symbole}` : "0,00";
+}
+
+/**
+ * Écrit le budget du mois affiché, puis vérifie l'accord des trois grandeurs.
+ *
+ * LA PÉRIODE EST CELLE DU DASHBOARD, mois par mois : en vue annuelle il n'y a
+ * pas UN budget à écrire mais douze, et deviner lequel aurait été un coup de
+ * dé. Le champ est donc fermé sur l'année, et le dit.
+ */
+async function enregistrerBudgetTotalPie() {
+  const { annee, mois } = dashboardAnneeMoisActuel;
+  if (!mois) {
+    showMessage(
+      t("Le budget se pose mois par mois : choisis un mois pour l'écrire."),
+      "error"
+    );
+    return;
+  }
+  const monnaieId = state.dashboardMonnaieId;
+  const brut = document.getElementById("camembert-budget-total").value.trim();
+  const montant = brut === "" ? 0 : Number(brut.replace(",", "."));
+  if (!Number.isFinite(montant) || montant < 0) {
+    showMessage(t("Montant invalide."), "error");
+    return;
+  }
+  try {
+    await apiFetch(
+      `/dashboard/budget-total?monnaie_id=${monnaieId}&annee=${annee}&mois=${mois}`,
+      { method: "PUT", body: JSON.stringify({ montant }) }
+    );
+  } catch (err) {
+    showMessage(err.message, "error");
+    return;
+  }
+  showMessage(t("Budget du mois enregistré."), "success");
+  await loadDashboard();
+  await verifierAccordBudgets(annee, mois, monnaieId);
+}
+
+(function initVuesPie() {
+  document.getElementById("camembert-vues")?.addEventListener("click", (e) => {
+    const bouton = e.target.closest("button[data-vue-pie]");
+    if (bouton) basculerVuePie(bouton.dataset.vuePie);
+  });
+  document
+    .getElementById("btn-camembert-budget-total")
+    ?.addEventListener("click", enregistrerBudgetTotalPie);
+  // Entrée valide, comme dans n'importe quel champ de l'application. Le champ
+  // n'est pas dans un <form> : il vit au-dessus d'un graphe, pas dans un
+  // formulaire, et l'envelopper aurait fait recharger la page à la moindre
+  // touche Entrée.
+  document.getElementById("camembert-budget-total")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      enregistrerBudgetTotalPie();
+    }
+  });
+})();
+
+/* ---------- L'accord des trois grandeurs du budget ----------
+ *
+ * TROIS CHIFFRES QUI SE RÉPONDENT (cf. crud.incoherences_budgets) : le budget
+ * total du mois, le budget d'une catégorie, et son objectif en pourcentage. Le
+ * deuxième devrait valoir le premier multiplié par le troisième.
+ *
+ * CONSTATER, JAMAIS CORRIGER D'OFFICE. Recalculer la troisième grandeur aurait
+ * défait en silence la saisie précédente — poser un budget aurait réécrit un
+ * pourcentage, et l'inverse aussi. La fenêtre montre donc le désaccord et
+ * propose les TROIS façons d'en sortir, chiffrées : la réponse n'appartient
+ * qu'à celui qui a écrit les chiffres.
+ *
+ * OUVERTE APRÈS UNE SAISIE, jamais au chargement d'un écran. Un signalement
+ * permanent affiché à l'ouverture du dashboard aurait cessé d'être lu au bout
+ * de deux jours.
+ */
+let accordBudgetsContexte = null;
+
+async function verifierAccordBudgets(annee, mois, monnaieId) {
+  if (!mois || !monnaieId) return;
+  let rapport;
+  try {
+    rapport = await apiFetch(
+      `/dashboard/coherence-budgets?monnaie_id=${monnaieId}&annee=${annee}&mois=${mois}`
+    );
+  } catch (err) {
+    // UN CONTRÔLE QUI TOMBE EN PANNE NE DOIT PAS AVALER LA SAISIE : elle est
+    // déjà enregistrée, et c'est elle qui compte.
+    return;
+  }
+  if (!rapport.lignes.length) return;
+  accordBudgetsContexte = { annee, mois, monnaieId, rapport };
+  ouvrirModaleAccordBudgets();
+}
+
+function ouvrirModaleAccordBudgets() {
+  const { rapport, monnaieId } = accordBudgetsContexte;
+  const lignes = rapport.lignes;
+  // LE BUDGET TOTAL N'EST PROPOSÉ QUE S'IL RÉCONCILIE TOUT, c'est-à-dire quand
+  // une seule catégorie est en désaccord. Avec deux, le changer ne peut
+  // satisfaire que l'une d'elles — proposer un chiffre qui laisserait la
+  // fenêtre se rouvrir aussitôt serait pire que ne rien proposer.
+  const totalProposable = lignes.length === 1;
+
+  document.getElementById("coherence-lignes").innerHTML = lignes
+    .map(
+      (ligne, index) => `
+      <div class="coherence-ligne">
+        <div class="coherence-titre">${escapeHtml(libelleCategorie(ligne.categorie))}</div>
+        <ul class="histo-bulle-chiffres">
+          <li><span class="histo-bulle-nature">${t(
+            "Budget du mois"
+          )}</span><span class="histo-bulle-montant">${formatMontant(
+            rapport.budget_total,
+            monnaieId
+          )}</span></li>
+          <li><span class="histo-bulle-nature">${t(
+            "Objectif"
+          )}</span><span class="histo-bulle-montant">${formatPourcentage(
+            ligne.objectif_pourcentage
+          )}</span></li>
+          <li><span class="histo-bulle-nature">${t(
+            "Budget de la catégorie"
+          )}</span><span class="histo-bulle-montant">${formatMontant(
+            ligne.budget_categorie,
+            monnaieId
+          )} <span class="coherence-attendu">${t("au lieu de")} ${formatMontant(
+            ligne.budget_attendu,
+            monnaieId
+          )}</span></span></li>
+        </ul>
+        <div class="coherence-actions">
+          <button type="button" data-accord="budget" data-ligne="${index}">${t(
+            "Mettre le budget à"
+          )} ${formatMontant(ligne.budget_attendu, monnaieId)}</button>
+          <button type="button" data-accord="pourcentage" data-ligne="${index}">${t(
+            "Mettre l'objectif à"
+          )} ${formatPourcentage(ligne.pourcentage_attendu)}</button>
+          ${
+            totalProposable
+              ? `<button type="button" data-accord="total" data-ligne="${index}">${t(
+                  "Mettre le budget du mois à"
+                )} ${formatMontant(ligne.total_attendu, monnaieId)}</button>`
+              : ""
+          }
+        </div>
+      </div>`
+    )
+    .join("");
+
+  document.getElementById("modale-coherence-budgets").style.display = "";
+  document.body.classList.add("modale-ouverte");
+}
+
+function fermerModaleAccordBudgets() {
+  document.getElementById("modale-coherence-budgets").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+  accordBudgetsContexte = null;
+}
+
+async function appliquerAccordBudget(quoi, index) {
+  const { annee, mois, monnaieId, rapport } = accordBudgetsContexte;
+  const ligne = rapport.lignes[index];
+  try {
+    if (quoi === "budget") {
+      await apiFetch(
+        `/categories/${ligne.categorie_id}/budget?annee=${annee}&mois=${mois}&monnaie_id=${monnaieId}`,
+        { method: "PUT", body: JSON.stringify({ montant: ligne.budget_attendu }) }
+      );
+    } else if (quoi === "pourcentage") {
+      await apiFetch(`/categories/${ligne.categorie_id}/objectif`, {
+        method: "PUT",
+        body: JSON.stringify({
+          // ARRONDI À LA DÉCIMALE, comme le champ de saisie : proposer
+          // 24,999999 % rouvrirait la fenêtre au tour suivant pour un écart
+          // que personne ne peut ni voir ni corriger.
+          objectif_pourcentage: Math.round(ligne.pourcentage_attendu * 10) / 10,
+        }),
+      });
+    } else {
+      await apiFetch(
+        `/dashboard/budget-total?monnaie_id=${monnaieId}&annee=${annee}&mois=${mois}`,
+        { method: "PUT", body: JSON.stringify({ montant: ligne.total_attendu }) }
+      );
+    }
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    return;
+  }
+  fermerModaleAccordBudgets();
+  await loadDashboard();
+  // ON REVÉRIFIE : corriger une ligne peut en laisser d'autres, et l'arrondi de
+  // l'objectif peut lui-même créer un écart — que la tolérance absorbe, mais
+  // c'est le contrôle qui doit le dire, pas nous.
+  await verifierAccordBudgets(annee, mois, monnaieId);
+}
+
+(function initModaleAccordBudgets() {
+  const modale = document.getElementById("modale-coherence-budgets");
+  if (!modale) return;
+  document
+    .getElementById("btn-coherence-fermer")
+    ?.addEventListener("click", fermerModaleAccordBudgets);
+  document
+    .getElementById("btn-coherence-laisser")
+    ?.addEventListener("click", fermerModaleAccordBudgets);
+  modale.addEventListener("click", (e) => {
+    if (e.target === modale) {
+      fermerModaleAccordBudgets();
+      return;
+    }
+    const bouton = e.target.closest("button[data-accord]");
+    if (bouton) appliquerAccordBudget(bouton.dataset.accord, Number(bouton.dataset.ligne));
+  });
+})();
 
 /**
  * Ce que le titre « Dépenses par catégorie — … » annonce.
@@ -4441,6 +4767,19 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
     }
     resetCategorieForm();
     loadCategories();
+    // L'ACCORD DES TROIS GRANDEURS SE VÉRIFIE APRÈS COUP, jamais avant : la
+    // saisie est enregistrée quoi qu'il arrive, et c'est seulement ensuite
+    // qu'on demande si elle en contredit une autre. Refuser d'écrire aurait
+    // obligé à corriger l'autre bout AVANT de pouvoir poser celui-ci —
+    // c'est-à-dire dans l'ordre inverse de celui où l'on pense.
+    //
+    // SUR LE MOIS ET LA MONNAIE DE CET ÉCRAN-CI (l'onglet Catégories a les
+    // siens, indépendants de ceux du dashboard) : c'est la période dont les
+    // chiffres viennent d'être écrits.
+    if (id) {
+      const { annee, mois } = state.categoriesPeriode;
+      await verifierAccordBudgets(annee, mois, state.categoriesMonnaieId);
+    }
   } catch (err) {
     showMessage(err.message, "error");
   }
