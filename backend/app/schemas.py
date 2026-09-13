@@ -672,6 +672,13 @@ class KpisMonnaieRead(BaseModel):
     # allers-retours auraient laissé exister un instant où le graphe a ses parts
     # sans avoir ce sur quoi les rapporter.
     budget_total: float = 0.0
+    # POSÉ SUR CE MOIS-CI, OU HÉRITÉ D'UN AUTRE (cf. crud._budget_herite). Le
+    # champ du camembert affiche le montant résolu : sans ce drapeau, un budget
+    # hérité passerait pour une saisie oubliée — et depuis que l'héritage
+    # remonte aussi le temps, un mois antérieur à toute saisie affiche lui aussi
+    # un nombre que personne n'y a écrit. VRAI SUR L'ANNÉE ENTIÈRE, où le champ
+    # est de toute façon fermé : douze mois n'ont pas UN budget à qualifier.
+    budget_total_explicite: bool = True
     depenses_par_categorie: list[DepenseParCategorie] = Field(default_factory=list)
 
 

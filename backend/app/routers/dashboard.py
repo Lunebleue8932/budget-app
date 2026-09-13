@@ -270,6 +270,14 @@ def get_dashboard(
                     db, annee, mois, monnaie.id
                 ),
                 budget_total=soldes.get_budget_total_periode(db, annee, mois, monnaie.id),
+                # Sur l'année (mois=None) il n'y a pas UN budget à qualifier :
+                # le champ est fermé de toute façon, et « hérité » n'y voudrait
+                # rien dire.
+                budget_total_explicite=(
+                    crud.budget_total_est_explicite(db, annee, mois, monnaie.id)
+                    if mois is not None
+                    else True
+                ),
                 depenses_par_categorie=[
                     schemas.DepenseParCategorie(**item)
                     for item in soldes.get_depenses_par_categorie(db, annee, mois, monnaie.id)

@@ -3,11 +3,12 @@
 
 CE QUE CES TESTS VERROUILLENT :
 
-  - le budget total se comporte EXACTEMENT comme celui d'une catégorie —
-    héritage du dernier mois explicite, monnaie dans la clé, prorata des jours
-    en semaine, somme des douze mois en vue annuelle. Deux notions voisines qui
-    se découperaient différemment donneraient des parts qui ne s'additionnent
-    pas à ce que l'écran montre à côté ;
+  - le budget total se comporte EXACTEMENT comme celui d'une catégorie — même
+    héritage (le montant explicite le plus proche dans le temps, en avant comme
+    en arrière), monnaie dans la clé, prorata des jours en semaine, somme des
+    douze mois en vue annuelle. Deux notions voisines qui se découperaient
+    différemment donneraient des parts qui ne s'additionnent pas à ce que
+    l'écran montre à côté ;
   - le signalement d'incohérence ne parle QUE quand les trois grandeurs
     existent. Poser un budget total et trois objectifs seulement est l'état
     ordinaire, et le transformer en reproche permanent rendrait la fenêtre
@@ -316,6 +317,33 @@ def test_les_routes_lisent_et_ecrivent_le_budget_total(db_session):
     # Le mois suivant hérite, et le dit.
     suivant = routeur.lire_budget_total(monnaie_id=m, annee=2026, mois=10, db=db_session)
     assert suivant.montant == 2500.0 and suivant.explicite is False
+
+    # Le mois PRÉCÉDENT aussi, maintenant que l'héritage remonte le temps :
+    # c'est justement le cas où la mention compte le plus, puisque le montant
+    # n'a même pas été posé sur un mois d'avant.
+    avant_ = routeur.lire_budget_total(monnaie_id=m, annee=2026, mois=3, db=db_session)
+    assert avant_.montant == 2500.0 and avant_.explicite is False
+
+
+def test_le_dashboard_dit_si_le_budget_du_mois_est_herite(db_session):
+    """Le champ du camembert lit ce drapeau et rien d'autre : sans lui, un
+    budget hérité s'afficherait comme une saisie, et un mois antérieur à toute
+    saisie afficherait un montant que personne n'y a écrit."""
+    from app.routers import dashboard as routeur
+
+    creer_compte(db_session, "Courant")
+    m = monnaie_id(db_session)
+    crud.set_budget_total(db_session, 2026, 9, m, 2500.0)
+
+    def kpi(annee, mois, vue="mois"):
+        lu = routeur.get_dashboard(annee=annee, mois=mois, vue=vue, db=db_session)
+        return next(k for k in lu.kpis if k.monnaie_id == m)
+
+    assert kpi(2026, 9).budget_total_explicite is True
+    assert kpi(2026, 10).budget_total_explicite is False
+    assert kpi(2026, 3).budget_total_explicite is False
+    # L'ANNÉE N'A PAS UN BUDGET À QUALIFIER : douze mois, et un champ fermé.
+    assert kpi(2026, None, vue="annee").budget_total_explicite is True
 
 
 def test_un_budget_negatif_est_refuse_par_le_schema(db_session):

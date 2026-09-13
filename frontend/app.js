@@ -293,10 +293,15 @@ function renderFlechesPeriode(el, vue, onChange) {
  * l'année reste lisible (sinon on ne sait plus lequel des douze mois de quelle
  * année on regarde) ; en vue année, les mois montrent ce que l'année recouvre.
  * Le niveau grisé reste cliquable — cf. .sous-onglets.en-veille.
+ *
+ * EN VUE « TOUT », LES DEUX DORMENT : aucun des deux niveaux ne borne plus rien
+ * (cf. operationDansPeriode). Ils restent affichés, et cliquables — c'est par
+ * eux qu'on redescend dans le temps. Seule la page Opérations connaît ce
+ * troisième cran ; ailleurs, `vue` ne vaut jamais "tout" et rien ne change.
  */
 function appliquerVeillePeriode(elAnnees, elMois, vue) {
-  if (elAnnees) elAnnees.classList.toggle("en-veille", vue === "mois");
-  if (elMois) elMois.classList.toggle("en-veille", vue === "annee");
+  if (elAnnees) elAnnees.classList.toggle("en-veille", vue === "mois" || vue === "tout");
+  if (elMois) elMois.classList.toggle("en-veille", vue === "annee" || vue === "tout");
 }
 
 // Sélecteur à deux niveaux (année puis mois), réutilisé sur le dashboard et la
@@ -1676,6 +1681,12 @@ let dashboardDepensesDuMois = [];
 // ne doit pas coûter un aller-retour. Zéro = aucun budget posé.
 let dashboardBudgetTotalDuMois = 0;
 
+// EST-IL POSÉ SUR CE MOIS-CI, OU HÉRITÉ D'UN AUTRE (cf.
+// KpisMonnaieRead.budget_total_explicite) ? Gardé à côté du montant, et pour la
+// même raison : la bascule de vue ne doit rien redemander au serveur. Vrai par
+// défaut — tant qu'on n'a rien reçu, rien ne permet de dire « hérité ».
+let dashboardBudgetTotalExplicite = true;
+
 function renderKpisDashboard(kpis) {
   if (!kpis) {
     // Aucun compte, donc aucune monnaie en jeu : rien à agréger.
@@ -1692,6 +1703,7 @@ function renderKpisDashboard(kpis) {
     document.getElementById("kpi-reste-rembourser-detail").textContent = "";
     dashboardDepensesDuMois = [];
     dashboardBudgetTotalDuMois = 0;
+    dashboardBudgetTotalExplicite = true;
     renderHistogrammeDashboard([], null);
     return;
   }
@@ -1758,6 +1770,7 @@ function renderKpisDashboard(kpis) {
   renderFluxPeriode(kpis, monnaieId);
   dashboardDepensesDuMois = kpis.depenses_par_categorie || [];
   dashboardBudgetTotalDuMois = kpis.budget_total || 0;
+  dashboardBudgetTotalExplicite = kpis.budget_total_explicite !== false;
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
 
@@ -3150,7 +3163,17 @@ async function drillThroughCategorie(depense) {
   panneau.querySelector('[data-filtre="categorieId"]').value = categorie.id;
   panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
   panneau.querySelector('[data-filtre="dateFin"]').value = fin;
-  trierEtRerender("classique");
+  // LA PÉRIODE SUIT LES DATES QU'ON VIENT DE POSER, et c'est ce qui répare le
+  // défaut de ce bouton : la page Opérations s'ouvrait sur SA période à elle —
+  // le mois courant — pendant que le filtre bornait le mois de la barre
+  // cliquée. Deux bornes qui ne se recoupent pas ne gardent rien : arriver sur
+  // un tableau vide en cliquant « Voir toutes les dépenses » était la règle dès
+  // qu'on regardait autre chose que le mois en cours.
+  //
+  // Les champs sont remplis à la main (pas d'événement `input` sur une
+  // affectation de `value`) : l'appel est donc explicite ici, et il réaffiche
+  // les six onglets lui-même quand il bascule.
+  if (!synchroniserPeriodeAvecFiltres("classique")) trierEtRerender("classique");
 }
 
 /* ---------- Le filtre de catégories du dashboard (histogramme + camembert) ----------
@@ -3372,6 +3395,19 @@ function majReglageBudgetPie(budgetTotal, monnaieId) {
   }
   const symbole = symboleMonnaie(monnaieId);
   champ.placeholder = symbole ? `0,00 ${symbole}` : "0,00";
+
+  // « HÉRITÉ » : le champ montre un montant que personne n'a écrit sur ce
+  // mois-ci. Le dire est devenu indispensable depuis que l'héritage remonte
+  // aussi le temps (cf. crud._budget_herite) — un mois antérieur à toute saisie
+  // affiche désormais un nombre, et sans cette mention il passerait pour une
+  // saisie oubliée. Tu ne la vois JAMAIS sur une semaine ni sur l'année : la
+  // première n'affiche qu'une part au prorata, la seconde une somme de douze
+  // mois, et ni l'une ni l'autre n'est le montant que le champ enregistrerait.
+  const mention = document.getElementById("camembert-budget-herite");
+  if (mention) {
+    const surLeMois = semaineChoisie() === null && Boolean(dashboardAnneeMoisActuel.mois);
+    mention.hidden = !surLeMois || budgetTotal <= 0 || dashboardBudgetTotalExplicite;
+  }
 }
 
 /**
@@ -6855,9 +6891,19 @@ function comparateurOperation(critere) {
 // que le mois choisi, "annee" toute l'année (les flèches du sélecteur montent et
 // descendent d'un cran, cf. renderFlechesPeriode). L'autre niveau n'est jamais
 // oublié — on reste dans un mois DE cette année — il est seulement grisé.
+//
+// « TOUT » EST LE TROISIÈME CRAN, et il n'existe que sur cette page : plus
+// aucune borne de date, toutes les opérations de la base. Il a été ajouté avec
+// la bascule automatique de période (cf. periodeQueDecritLeFiltre) parce qu'il
+// FALLAIT une réponse au cas où le filtre ne tombe ni dans un mois ni dans une
+// année — un filtre « depuis mars 2024 » ne se range nulle part dans
+// l'arborescence, et le laisser sur le mois en cours aurait rendu un tableau
+// vide qui ne dit pas pourquoi. Le dashboard, lui, ne le connaît pas : sa vue
+// voyage jusqu'au serveur, où elle vaut "mois" ou "annee" et rien d'autre.
 const operationsPeriode = { annee: null, mois: null, vue: "mois" };
 
 function operationDansPeriode(op) {
+  if (operationsPeriode.vue === "tout") return true;
   if (!operationsPeriode.annee) return true;
   const [annee, mois] = op.date.split("-").map(Number);
   if (annee !== operationsPeriode.annee) return false;
@@ -7059,9 +7105,38 @@ function moisDisponiblesOperations(annee) {
     .sort((a, b) => a - b);
 }
 
+/**
+ * Les onglets d'année et de mois à afficher.
+ *
+ * CE QUE /meta/periodes RENVOIE NE SUFFIT PLUS : il ne nomme que les périodes
+ * qui PORTENT des opérations, ce qui était juste tant que la période se
+ * choisissait à la main — un onglet vide n'aurait servi à rien. Mais le filtre
+ * la désigne maintenant tout seul (cf. synchroniserPeriodeAvecFiltres), et il
+ * peut parfaitement désigner un mois sans la moindre ligne. Sans son onglet,
+ * l'écran montrait un tableau vide SOUS UNE RANGÉE OÙ AUCUN MOIS N'EST ALLUMÉ :
+ * impossible de savoir ce qu'on regarde, ni comment en sortir.
+ *
+ * LA PÉRIODE CHOISIE EST DONC TOUJOURS DANS LA LISTE, qu'elle porte quelque
+ * chose ou non ; les mois d'une année inconnue de /meta/periodes se réduisent à
+ * celui-là, plutôt que d'étaler douze onglets vides.
+ */
+function anneesOngletsOperations() {
+  const annees = new Set(periodesOperations.map((p) => p.annee));
+  if (operationsPeriode.annee) annees.add(operationsPeriode.annee);
+  return [...annees].sort((a, b) => b - a);
+}
+
+function moisOngletsOperations(annee) {
+  const mois = new Set(moisDisponiblesOperations(annee));
+  if (annee === operationsPeriode.annee && operationsPeriode.mois) {
+    mois.add(operationsPeriode.mois);
+  }
+  return [...mois].sort((a, b) => a - b);
+}
+
 function renderSelecteursPeriodeOperations() {
-  const annees = [...new Set(periodesOperations.map((p) => p.annee))].sort((a, b) => b - a);
-  const moisDispo = moisDisponiblesOperations(operationsPeriode.annee);
+  const annees = anneesOngletsOperations();
+  const moisDispo = moisOngletsOperations(operationsPeriode.annee);
 
   Object.keys(COLONNES_OPERATIONS).forEach((onglet) => {
     const elAnnees = document.getElementById(`operations-periode-annees-${onglet}`);
@@ -7079,17 +7154,42 @@ function renderSelecteursPeriodeOperations() {
     appliquerVeillePeriode(elAnnees, elMois, operationsPeriode.vue);
 
     elAnnees.innerHTML = "";
+    // « TOUT » EN TÊTE DE LA RANGÉE DES ANNÉES, et non une troisième flèche :
+    // ce n'est pas un cran de plus dans l'arborescence des dates, c'est le
+    // choix de n'en prendre aucune. Un onglet le dit ; une flèche l'aurait
+    // rangé dans la même file que « l'année » et « le mois », dont il n'est pas
+    // le voisin. Les deux flèches restent actives à côté et redescendent dans
+    // l'année affichée — c'est par elles, ou par un onglet, qu'on en sort.
+    const btnTout = document.createElement("button");
+    btnTout.type = "button";
+    btnTout.className = "periode-tout";
+    btnTout.textContent = t("Tout");
+    btnTout.title = t("Toutes les périodes, sans borne de date");
+    if (operationsPeriode.vue === "tout") btnTout.classList.add("active");
+    btnTout.addEventListener("click", () => {
+      if (operationsPeriode.vue === "tout") return;
+      operationsPeriode.vue = "tout";
+      appliquerPeriodeOperations();
+    });
+    elAnnees.appendChild(btnTout);
+
     annees.forEach((a) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = a;
-      if (a === operationsPeriode.annee) btn.classList.add("active");
+      if (a === operationsPeriode.annee && operationsPeriode.vue !== "tout") {
+        btn.classList.add("active");
+      }
       btn.addEventListener("click", () => {
         operationsPeriode.annee = a;
         const dispo = moisDisponiblesOperations(a);
         if (!dispo.includes(operationsPeriode.mois)) {
-          operationsPeriode.mois = dispo[dispo.length - 1];
+          operationsPeriode.mois = dispo[dispo.length - 1] ?? operationsPeriode.mois;
         }
+        // Cliquer une année quand on regardait TOUT redescend à cette année :
+        // même geste que cliquer un mois grisé, et pour la même raison — on
+        // désigne ce qu'on veut voir, pas un niveau d'arborescence.
+        if (operationsPeriode.vue === "tout") operationsPeriode.vue = "annee";
         appliquerPeriodeOperations();
       });
       elAnnees.appendChild(btn);
@@ -7100,11 +7200,17 @@ function renderSelecteursPeriodeOperations() {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = MOIS_COURTS_FR[m - 1];
-      if (m === operationsPeriode.mois) btn.classList.add("active");
+      // Allumé même en vue année, où la rangée dort : on reste dans un mois DE
+      // cette année, et l'oublier ferait perdre le fil en redescendant. En vue
+      // « tout », en revanche, plus rien n'est allumé nulle part — c'est ce qui
+      // distingue « toute l'année 2026 » de « toutes les périodes ».
+      if (m === operationsPeriode.mois && operationsPeriode.vue !== "tout") {
+        btn.classList.add("active");
+      }
       btn.addEventListener("click", () => {
         operationsPeriode.mois = m;
-        // Cliquer un mois grisé (vue année) redescend au mois : c'est le geste
-        // naturel pour désigner celui qu'on veut voir.
+        // Cliquer un mois grisé (vue année ou « tout ») redescend au mois :
+        // c'est le geste naturel pour désigner celui qu'on veut voir.
         operationsPeriode.vue = "mois";
         appliquerPeriodeOperations();
       });
@@ -7120,6 +7226,80 @@ function appliquerPeriodeOperations() {
   fermerFormulaireOperation();
   renderSelecteursPeriodeOperations();
   Object.keys(COLONNES_OPERATIONS).forEach(trierEtRerender);
+}
+
+/* ---------- FILTRER SUR DES DATES CHOISIT AUSSI LA PÉRIODE ----------
+ *
+ * DEUX FILTRES DE DATE POUR UN SEUL ÉCRAN, et ils se combinaient en ET : la
+ * rangée d'onglets bornait déjà la période, et les champs « Du/Au » la
+ * bornaient une seconde fois. Rien ne le disait, et le résultat le plus
+ * ordinaire de ce cumul était un tableau VIDE — deux bornes qui ne se
+ * recoupent pas ne gardent rien.
+ *
+ * C'ÉTAIT LE DÉFAUT DU DRILL-THROUGH, exactement : « Voir toutes les dépenses »
+ * depuis une barre d'août posait un filtre sur août, et atterrissait sur la
+ * page Opérations ouverte sur SON mois à elle — le mois courant. Le tableau
+ * était vide, alors que les dépenses existaient : elles étaient simplement dans
+ * l'autre mois.
+ *
+ * LA RÈGLE : l'intervalle demandé décide du cran. Contenu dans un mois, on
+ * bascule sur ce mois ; contenu dans une année, sur cette année ; sinon sur
+ * « Tout », le cran qui n'a été ajouté que pour ça. Les onglets cessent ainsi
+ * de contredire les champs, et ils DISENT ce que les champs demandent — on lit
+ * sur la rangée ce qu'on regarde, au lieu de le déduire de deux dates.
+ *
+ * UN INTERVALLE OUVERT N'EST CONTENU NULLE PART : « depuis mars 2024 » sans
+ * borne de fin va donc à « Tout », et c'est la bonne réponse — le ranger dans
+ * mars 2024 aurait caché tout ce qui vient après, c'est-à-dire ce qu'on
+ * demandait.
+ *
+ * DEUX CHAMPS VIDES NE BASCULENT RIEN. Effacer ses dates (ou cliquer
+ * « Réinitialiser ») ne décrit aucune période : ramener d'office au mois
+ * courant aurait fait sauter l'onglet qu'on venait de choisir à la main. C'est
+ * le seul cas où l'on ne touche à rien — un seul champ rempli, lui, DÉCRIT
+ * quelque chose, et ce quelque chose n'est contenu nulle part.
+ */
+
+/** Le cran que décrivent les deux champs de date d'un onglet, ou null quand ils
+ *  ne décrivent rien — auquel cas la période ne bouge pas. */
+function periodeQueDecritLeFiltre(onglet) {
+  const filtres = lireFiltresOnglet(onglet);
+  const debut = filtres.dateDebut;
+  const fin = filtres.dateFin;
+  // AUCUNE DES DEUX : rien n'est demandé. Ne pas confondre avec « tout » — la
+  // rangée garde l'onglet choisi à la main, que « Réinitialiser » ne doit pas
+  // faire sauter au passage.
+  if (!debut && !fin) return null;
+  // UNE SEULE : l'intervalle est OUVERT d'un côté, donc contenu dans aucun mois
+  // ni aucune année. « Depuis mars 2024 » rangé dans mars 2024 aurait caché
+  // tout ce qui vient après, c'est-à-dire exactement ce qu'on demandait.
+  if (!debut || !fin) return { vue: "tout" };
+  // Bornes inversées : un état que la frappe traverse, et qui ne retient rien.
+  // Y réagir ferait sauter la rangée sur une saisie en cours.
+  if (debut > fin) return null;
+  const [anneeDebut, moisDebut] = debut.split("-").map(Number);
+  const [anneeFin, moisFin] = fin.split("-").map(Number);
+  if (anneeDebut !== anneeFin) return { vue: "tout" };
+  if (moisDebut !== moisFin) return { vue: "annee", annee: anneeDebut };
+  return { vue: "mois", annee: anneeDebut, mois: moisDebut };
+}
+
+/** Aligne la période sur ce que les dates du filtre décrivent. Rend `true` si
+ *  quelque chose a bougé — l'appelant réaffiche alors tout plutôt que le seul
+ *  onglet dont un champ vient de changer, les six partageant la période. */
+function synchroniserPeriodeAvecFiltres(onglet) {
+  const cible = periodeQueDecritLeFiltre(onglet);
+  if (!cible) return false;
+  const identique =
+    cible.vue === operationsPeriode.vue &&
+    (cible.annee === undefined || cible.annee === operationsPeriode.annee) &&
+    (cible.mois === undefined || cible.mois === operationsPeriode.mois);
+  if (identique) return false;
+  operationsPeriode.vue = cible.vue;
+  if (cible.annee !== undefined) operationsPeriode.annee = cible.annee;
+  if (cible.mois !== undefined) operationsPeriode.mois = cible.mois;
+  appliquerPeriodeOperations();
+  return true;
 }
 
 function initTriSelects() {
@@ -7555,7 +7735,13 @@ document.getElementById("btn-supprimer-toutes-operations").addEventListener("cli
 function gererChangementFiltreOperations(e) {
   const panneau = e.target.closest(".filtres[id^='filtres-']");
   if (!panneau) return;
-  trierEtRerender(panneau.id.slice("filtres-".length));
+  const onglet = panneau.id.slice("filtres-".length);
+  // SEULES LES DEUX DATES DÉPLACENT LA PÉRIODE (cf. synchroniserPeriodeAvecFiltres).
+  // Le faire à chaque champ aurait renvoyé au mois courant dès qu'on tape trois
+  // lettres dans « Nature », en défaisant l'onglet choisi à la main juste avant.
+  const champDate = ["dateDebut", "dateFin"].includes(e.target.dataset.filtre);
+  if (champDate && synchroniserPeriodeAvecFiltres(onglet)) return; // a tout réaffiché
+  trierEtRerender(onglet);
 }
 document.addEventListener("input", gererChangementFiltreOperations);
 document.addEventListener("change", gererChangementFiltreOperations);

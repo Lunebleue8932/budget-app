@@ -118,6 +118,12 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         # L'oublier aurait fait disparaître la vue entière dès que la case est
         # cochée, faute de budget dans la monnaie d'arrivée.
         agrege.budget_total += kpi.budget_total * coefficient
+        # UN SEUL BUDGET HÉRITÉ SUFFIT À RENDRE LE TOTAL HÉRITÉ : le champ du
+        # camembert écrirait sinon un montant agrégé comme s'il avait été saisi
+        # tel quel, alors qu'une partie vient d'un autre mois.
+        agrege.budget_total_explicite = (
+            agrege.budget_total_explicite and kpi.budget_total_explicite
+        )
         for depense in kpi.depenses_par_categorie:
             _categorie_agregee(categories, depense, coefficient)
 

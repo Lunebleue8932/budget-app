@@ -1989,6 +1989,8 @@ const TRADUCTIONS = {
     "Afficher": "Show",
     "Filtrer sur l'ann\u00e9e enti\u00e8re": "Filter on the whole year",
     "Filtrer sur un mois": "Filter on a single month",
+    "Tout": "All time",
+    "Toutes les périodes, sans borne de date": "Every period, with no date bounds",
     "Enregistr\u00e9": "Saved",
     "Nouvelle op\u00e9ration": "New transaction",
     "Modifier l'op\u00e9ration": "Edit transaction",

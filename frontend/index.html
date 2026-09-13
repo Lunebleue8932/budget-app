@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=104" />
+  <link rel="stylesheet" href="style.css?v=105" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -342,12 +342,26 @@
             <!-- LE RÉGLAGE DU BUDGET NE VIT QUE DANS SA VUE. Affiché en
                  permanence, il aurait demandé un chiffre dont la vue « état
                  actuel » ne fait rien — et laissé croire que ce chiffre change
-                 quelque chose au graphe qu'on regarde. -->
+                 quelque chose au graphe qu'on regarde.
+
+                 IL SE PORTE COMME UN FILTRE, et non comme un champ inventé pour
+                 ce coin d'écran. Hors formulaire, un <input> ne reçoit RIEN des
+                 styles de l'application (`form input` ne descend que dans un
+                 <form>) : celui-ci n'avait ni fond, ni bordure, ni rayon, ni
+                 anneau de focus — le seul champ nu de toute l'app, posé au
+                 milieu d'un dashboard. La rangée des filtres d'Opérations, elle
+                 aussi hors formulaire, avait déjà répondu à la question ; c'est
+                 sa forme qui est reprise ici (cf. .camembert-budget-reglage). -->
             <div class="camembert-budget-reglage" id="camembert-budget-reglage" hidden>
               <label for="camembert-budget-total">Budget du mois</label>
               <input type="number" id="camembert-budget-total" step="0.01" min="0" />
-              <button type="button" id="btn-camembert-budget-total">Enregistrer</button>
-              <span class="hint" id="camembert-budget-herite" hidden>hérité</span>
+              <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
+                   KpisMonnaieRead.budget_total_explicite). L'héritage remonte
+                   aussi le temps depuis : sans cette mention, un mois antérieur
+                   à toute saisie afficherait un montant qui n'y a jamais été
+                   posé, et passerait pour une saisie oubliée. -->
+              <span class="badge-aucun" id="camembert-budget-herite" hidden>hérité</span>
+              <button type="button" class="primary" id="btn-camembert-budget-total">Enregistrer</button>
             </div>
           </div>
           <div id="dashboard-camembert" class="camembert-zone"></div>
@@ -1856,9 +1870,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=4"></script>
-  <script src="i18n.js?v=51"></script>
-  <script src="extensions.js?v=16"></script>
-  <script src="app.js?v=129"></script>
+  <script src="textes.js?v=5"></script>
+  <script src="i18n.js?v=52"></script>
+  <script src="extensions.js?v=17"></script>
+  <script src="app.js?v=130"></script>
 </body>
 </html>
