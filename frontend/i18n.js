@@ -250,6 +250,17 @@ const TRADUCTIONS = {
     // pourcentages, « Total » un montant.
     "Total": "Total",
     "Part": "Share",
+
+    /* ===== Lot 8 : l'écran « Intérêts perçus ». Presque tout y était bâti
+       en JS, donc jamais vu par traduireDomStatique (qui ne passe qu'une
+       fois, sur le DOM statique) : les clés existaient déjà, personne ne
+       les demandait. ===== */
+    "Versé":
+      "Paid",
+    "Supprimer ce versement":
+      "Delete this payment",
+    "Aucun compte d'épargne. Crée-en un depuis Paramètres → Comptes en choisissant le type « épargne », puis reviens ici.":
+      "No savings account. Create one from Settings → Accounts by choosing the « savings » type, then come back here.",
     /* Le mode de saisie d'un taux, posé par l'extension « Lecture de cours ». */
     "Depuis un lien": "From a link",
 

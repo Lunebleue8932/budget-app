@@ -89,7 +89,7 @@ function epargneAnneesHtml(compte) {
     .join("");
   return `
     <table class="epargne-annees">
-      <thead><tr><th>Année</th><th class="montant">Versé</th></tr></thead>
+      <thead><tr><th>${t("Année")}</th><th class="montant">${t("Versé")}</th></tr></thead>
       <tbody>${lignes}</tbody>
     </table>`;
 }
@@ -97,7 +97,7 @@ function epargneAnneesHtml(compte) {
 /** La liste des versements : ce qui a été saisi, tel quel. */
 function epargneVersementsHtml(compte) {
   if (compte.interets.length === 0) {
-    return `<p class="hint">Aucun versement saisi pour ce compte.</p>`;
+    return `<p class="hint">${t("Aucun versement saisi pour ce compte.")}</p>`;
   }
   const lignes = compte.interets
     .map(
@@ -107,9 +107,9 @@ function epargneVersementsHtml(compte) {
         <td>${escapeHtml(interet.libelle) || `<span class="epargne-vide">—</span>`}</td>
         <td class="montant">${escapeHtml(formatMontant(interet.montant, interet.monnaie_id))}</td>
         <td class="actions-cellule">
-          <button type="button" data-epargne-modifier="${interet.id}">Modifier</button>
+          <button type="button" data-epargne-modifier="${interet.id}">${t("Modifier")}</button>
           <button type="button" class="danger" data-epargne-supprimer="${interet.id}"
-                  title="Supprimer ce versement">${ICONE_POUBELLE}</button>
+                  title="${t("Supprimer ce versement")}">${ICONE_POUBELLE}</button>
         </td>
       </tr>`
     )
@@ -117,7 +117,7 @@ function epargneVersementsHtml(compte) {
   return `
     <table class="epargne-versements">
       <thead>
-        <tr><th>Date</th><th>Libellé</th><th class="montant">Montant</th><th>Actions</th></tr>
+        <tr><th>${t("Date")}</th><th>${t("Libellé")}</th><th class="montant">${t("Montant")}</th><th>${t("Actions")}</th></tr>
       </thead>
       <tbody>${lignes}</tbody>
     </table>`;
@@ -136,7 +136,7 @@ function epargneFormulaireHtml(compte) {
   const monnaieChoisie = interet ? interet.monnaie_id : compte.monnaies[0]?.monnaie_id;
   const selecteurMonnaie =
     compte.monnaies.length > 1
-      ? `<label>Monnaie
+      ? `<label>${t("Monnaie")}
            <select data-epargne-champ="monnaie" data-compte="${compte.id}">
              ${compte.monnaies
                .map(
@@ -152,22 +152,22 @@ function epargneFormulaireHtml(compte) {
 
   return `
     <form class="epargne-form" data-compte="${compte.id}">
-      <label>Date
+      <label>${t("Date")}
         <input type="date" data-epargne-champ="date" data-compte="${compte.id}"
                value="${interet ? interet.date : ""}" required />
       </label>
-      <label>Montant perçu
+      <label>${t("Montant perçu")}
         <input type="number" step="0.01" min="0.01" data-epargne-champ="montant"
                data-compte="${compte.id}" value="${interet ? interet.montant : ""}" required />
       </label>
       ${selecteurMonnaie}
-      <label>Libellé
+      <label>${t("Libellé")}
         <input type="text" data-epargne-champ="libelle" data-compte="${compte.id}"
                placeholder="${escapeHtml(t("intérêts 2025"))}" value="${interet ? escapeHtml(interet.libelle) : ""}" />
       </label>
       <div class="actions">
-        <button type="submit" class="primary">${interet ? "Enregistrer" : "Ajouter"}</button>
-        ${interet ? `<button type="button" data-epargne-annuler="${compte.id}">Annuler</button>` : ""}
+        <button type="submit" class="primary">${interet ? t("Enregistrer") : t("Ajouter")}</button>
+        ${interet ? `<button type="button" data-epargne-annuler="${compte.id}">${t("Annuler")}</button>` : ""}
       </div>
     </form>`;
 }
@@ -185,7 +185,7 @@ function epargneRender() {
         <div class="epargne-compte-entete">
           <h3>${escapeHtml(compte.nom)}</h3>
           <div class="epargne-compte-total">
-            <span class="hint">Total perçu</span>
+            <span class="hint">${t("Total perçu")}</span>
             ${epargneTotauxHtml(compte.totaux)}
           </div>
         </div>
