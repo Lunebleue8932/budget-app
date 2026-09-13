@@ -5226,6 +5226,17 @@ function updateOperationTypeFields() {
   majBornesMontantDu();
   // Après la récurrence et le statut, dont il dépend tous les deux.
   majBlocRapprochement();
+  // « IMPRÉVUE » N'A DE SENS QUE SUR UNE DÉPENSE (extension « Analyse de
+  // budget »). Un virement déplace son propre argent, un règlement solde une
+  // dette déjà connue, un prêt reçu fait entrer de l'argent : aucun des trois
+  // n'est une dépense qu'on aurait pu ne pas voir venir. Le bloc reste par
+  // ailleurs masqué tant que l'extension est éteinte — c'est elle qui le montre
+  // (cf. index.html, data-extension-greffe), et ce style en ligne ne doit donc
+  // pas le rallumer de force.
+  const blocImprevue = document.getElementById("operation-imprevue-bloc");
+  const imprevuePossible = TYPES_CATEGORIE_LIBRE.has(type);
+  if (!imprevuePossible) document.getElementById("operation-imprevue").checked = false;
+  blocImprevue.classList.toggle("champ-hors-sujet", !imprevuePossible);
   document.getElementById("operation-remboursements-bloc").style.display = estReglement ? "" : "none";
   document.getElementById("operation-remboursements-titre").textContent = estRemboursementPret
     ? "Prêts réglés"
@@ -6062,6 +6073,7 @@ function resetOperationForm() {
   document.getElementById("operation-amortissement-nb-mois").value = "";
   remplirDecoupe(null);
   remplirRapprochement(null);
+  document.getElementById("operation-imprevue").checked = false;
   setOperationType("classique");
 }
 
@@ -6119,6 +6131,7 @@ async function fillOperationForm(op) {
   // Après le montant : le compteur du garde-fou compare les parts à LUI.
   majTotalDecoupe();
   document.getElementById("operation-statut").value = op.statut;
+  document.getElementById("operation-imprevue").checked = !!op.imprevue;
   // APRÈS le statut et la récurrence : le bloc n'est visible que si l'un des
   // deux le demande.
   remplirRapprochement(op);
@@ -7844,6 +7857,10 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         // Toujours envoyé, même vide : décocher la case est un geste, et il
         // doit défaire ce que cocher avait fait (cf. lireRapprochementFormulaire).
         ...lireRapprochementFormulaire(),
+        // Même raison : décocher « imprévue » doit la retirer, pas la laisser.
+        // Toujours false sur un type qui ne peut pas la porter (cf.
+        // updateOperationTypeFields).
+        imprevue: document.getElementById("operation-imprevue").checked,
       };
       if (type === "remboursable") {
         payload.montant_du = parseFloat(document.getElementById("operation-montant-du").value || "0");

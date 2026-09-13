@@ -824,6 +824,58 @@ const TRADUCTIONS = {
     "Catégories ▾":
       "Categories ▾",
     "Colonnes": "Columns",
+    "Le solde d'un compte d'épargne dit ce qu'il Y A ; il ne dit pas ce que tu y as MIS ce mois-ci — et c'est pourtant la seule des deux qui résulte d'une décision. Le calcul se lit dans tes virements internes : tout ce qui part d'un compte courant vers un compte d'épargne ou de placements compte comme mis de côté, tout ce qui en revient compte en moins. Un virement d'épargne à épargne ne met rien de côté, il range autrement ce qui l'est déjà : il est ignoré.":
+      "A savings account's balance says what IS there; it does not say what you PUT there this month — and that is the one of the two that follows from a decision. The figure is read from your internal transfers: anything leaving a current account for a savings or investment account counts as set aside, anything coming back counts against it. A savings-to-savings transfer sets nothing aside, it merely rearranges what already is: it is ignored.",
+    "Le grand chiffre est le NET — ce que tu as réellement mis de côté sur l'année. Survole-le pour voir ce qu'il recouvre : un net à zéro peut vouloir dire « je n'ai rien bougé » comme « j'ai versé 2 000 € et j'en ai repris 2 000 ». Seules les opérations RÉELLES comptent, une mise de côté prévue n'ayant pas encore eu lieu. Entre deux monnaies, c'est toujours le montant du côté de l'épargne qui compte : verser 100 € qui arrivent en 108 $ met bien 108 $ de côté.":
+      "The large figure is the NET — what you actually set aside over the year. Hover it to see what it covers: a net of zero can mean « I moved nothing » just as well as « I paid in 2,000 € and took 2,000 back out ». Only REAL transactions count, a planned deposit not having happened yet. Across two currencies it is always the amount on the savings side that counts: paying in 100 € that arrive as 108 $ does set aside 108 $.",
+    "Le minimum que tu veux garder disponible sur tes comptes d'épargne, dans cette monnaie. Il ne bloque RIEN : aucun virement n'est refusé, aucune saisie n'est empêchée. L'app constate et te le dit, là où tu regardes tes comptes d'épargne. Une garde qui t'interdirait de descendre sous ton propre seuil se ferait contourner au premier vrai besoin, et tu aurais appris à ne plus la lire.":
+      "The minimum you want to keep available across your savings accounts, in this currency. It blocks NOTHING: no transfer is refused, no entry is prevented. The app observes and tells you, where you look at your savings accounts. A guard forbidding you to go below your own threshold would be worked around at the first real need, and you would have learnt to stop reading it.",
+    "Les comptes d'ÉPARGNE seulement, et leur solde réel. Un compte de placements porte des titres, qui ne sont disponibles qu'après une vente, à un cours qu'on ne connaît pas d'avance : les compter dans un matelas de sécurité reviendrait à se rassurer avec de l'argent qu'on n'a pas encore. Laisse à zéro pour ne pas poser de seuil du tout.":
+      "SAVINGS accounts only, at their real balance. An investment account holds securities, which are only available after a sale, at a price nobody knows in advance: counting them in a safety cushion would mean reassuring yourself with money you do not have yet. Leave at zero to set no threshold at all.",
+    "Ce que tu n'avais pas vu venir : le plombier, la dent cassée, le pneu. Aucune catégorie ne répond à cette question — une dépense d'alimentation peut être imprévue, une réparation peut être parfaitement attendue — d'où une case à cocher sur la dépense elle-même. Le total te dit, mois par mois, quelle part de ce que tu dépenses n'était pas prévisible.":
+      "What you did not see coming: the plumber, the broken tooth, the tyre. No category answers this question — a grocery expense can be unexpected, a repair can be perfectly expected — hence a tick box on the expense itself. The total tells you, month by month, what share of your spending was not foreseeable.",
+    "Le périmètre est celui de l'histogramme des dépenses du dashboard : dépenses réelles, virements internes exclus. C'est ce qui rend la part comparable à ce que tu lis ailleurs.":
+      "The scope is that of the dashboard's spending histogram: real expenses, internal transfers excluded. That is what makes the share comparable to what you read elsewhere.",
+    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Analyse de budget » regarde.":
+      "Tick if this expense was not foreseeable. Not to be confused with the status: an expense can be forecast and expected (next month's rent), real and unexpected (Tuesday's plumber). Nothing changes in your balances or your totals — it is a label, which only the « Budget analysis » extension looks at.",
+    "Analyse de budget":
+      "Budget analysis",
+    "Ce que tu as mis de côté":
+      "What you set aside",
+    "Matelas de sécurité":
+      "Safety cushion",
+    "Dépenses imprévues":
+      "Unexpected expenses",
+    "Dépense imprévue":
+      "Unexpected expense",
+    "Montant minimum à garder disponible":
+      "Minimum amount to keep available",
+    "Les lignes de l'année":
+      "This year's entries",
+    "Mois par mois":
+      "Month by month",
+    "mis de côté en {annee}":
+      "set aside in {annee}",
+    "d'imprévu en {annee}":
+      "unexpected in {annee}",
+    "Versé {verse} · Repris {retire}":
+      "Paid in {verse} · Taken back {retire}",
+    "{part} de {total} dépensés":
+      "{part} of {total} spent",
+    "Aucun matelas posé pour cette monnaie.":
+      "No cushion set for this currency.",
+    "Il manque {montant}":
+      "{montant} short",
+    "Marge de {montant}":
+      "{montant} of headroom",
+    "{dispo} disponible sur {seuil} voulus":
+      "{dispo} available of {seuil} wanted",
+    "Matelas enregistré.":
+      "Cushion saved.",
+    "Matelas de sécurité franchi : il manque {montant}.":
+      "Safety cushion breached: {montant} short.",
+    "Aucune dépense marquée imprévue cette année.":
+      "No expense marked unexpected this year.",
     "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses.":
       "A forecast expense is there to let you see what is coming — but it also has to go away when the real one arrives. Tick this box and the import will recognise it on your statement: it will then offer to REPLACE it with the real line, instead of adding a second transaction next to it. It always asks first, and nothing is lost if you decline.",
     "L'app reconnaît la vraie dépense à son COMPTE, son MONTANT (au centime près) et sa DATE. Les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour, ou quand ta banque passe au 6 ce qu'elle annonçait au 5. Les deux doivent tomber dans le même mois. Laisse-les vides si tu l'attends au jour dit.":

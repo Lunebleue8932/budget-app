@@ -278,6 +278,41 @@ class CategorieBudgetMensuel(Base):
     )
 
 
+class MatelasSecurite(Base):
+    """LE MINIMUM QU'ON VEUT GARDER DISPONIBLE sur ses comptes d'épargne, par
+    monnaie (migration 0059). Lu par la seule extension « Analyse de budget ».
+
+    UN MONTANT PAR DEVISE ET RIEN D'AUTRE : « 3 000 » ne veut rien dire sans
+    savoir en quelle monnaie, exactement comme un budget. PAS DE MOIS dans la
+    clé en revanche, et c'est toute la différence avec `BudgetTotalMensuel` :
+    un budget se révise tous les mois, un matelas est une intention stable qu'on
+    repose rarement. Lui donner un mois aurait demandé de le ressaisir — ou de
+    lui inventer un héritage — pour une valeur qui ne bouge pas.
+
+    AUCUN CONTRÔLE N'EN DÉCOULE. Franchir son matelas n'empêche rien, ne bloque
+    aucune saisie et ne refuse aucun virement : l'application CONSTATE et le
+    DIT, là où on regarde ses comptes d'épargne. Une garde qui refuserait un
+    virement au motif qu'on descend sous son propre seuil se ferait contourner
+    au premier besoin réel — et aurait appris à ne plus être lue.
+
+    ZÉRO VEUT DIRE « AUCUN MATELAS », comme pour un budget : c'est ce qui permet
+    à l'écran de ne rien afficher plutôt que d'annoncer un seuil toujours
+    tenu."""
+
+    __tablename__ = "matelas_securite"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
+    montant = Column(Float, nullable=False, default=0.0)
+
+    monnaie = relationship("Monnaie")
+
+    __table_args__ = (
+        UniqueConstraint("monnaie_id", name="uq_matelas_securite_monnaie"),
+        CheckConstraint("montant >= 0", name="ck_matelas_securite_montant"),
+    )
+
+
 class BudgetTotalMensuel(Base):
     """Le budget de TOUT un mois, dans une monnaie : ce qu'on se donne le droit
     de dépenser, toutes catégories confondues (migration 0057).
@@ -469,6 +504,23 @@ class Operation(Base):
     # de calendrier, pas une date d'opération. NULL sur tout ce qui a été généré
     # avant la migration, et la date de l'occurrence fait alors foi comme avant.
     recurrence_date_prevue = Column(Date, nullable=True)
+
+    # UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (migration 0059) — le plombier,
+    # la dent cassée, le pneu. Lue par la seule extension « Analyse de budget ».
+    #
+    # UNE ÉTIQUETTE, ET RIEN DE PLUS, de la même nature que `TypeTitre` ou
+    # `ProfilRemboursement` : aucun solde, aucun KPI, aucune barre d'histogramme
+    # ne la lit, et l'application donne exactement les mêmes chiffres que
+    # l'extension tourne ou non. Elle répond à une question qu'aucune catégorie
+    # ne pose — « combien de ce mois n'était pas prévisible ? » — et qui ne se
+    # déduit d'aucune autre colonne : une dépense d'alimentation peut être
+    # imprévue, une réparation peut être parfaitement attendue.
+    #
+    # À NE PAS CONFONDRE AVEC `Statut.previsionnel`, qui dit « pas encore
+    # survenue ». Une dépense peut être prévisionnelle ET prévue (le loyer du
+    # mois prochain), réelle et imprévue (le plombier de mardi) : les deux axes
+    # sont indépendants.
+    imprevue = Column(Boolean, nullable=False, default=False)
 
     # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (migration 0058) ----------
     #

@@ -88,6 +88,14 @@
       "description": "L'extension de dev, au singulier : tout ce qui sert à mettre au point l'application. Contient aujourd'hui le solde prévisionnel à l'import, un tableau des soldes que le fichier va faire bouger, pour comparer au relevé avant de confirmer.",
       "version": "1.1.0",
       "type": "developpeur"
+    },
+    {
+      "id": "analyse-budget",
+      "numero": 11,
+      "nom": "Analyse de budget",
+      "description": "Trois lectures que les autres écrans ne donnent pas. CE QU'ON A MIS DE CÔTÉ sur une période : le solde d'un compte d'épargne dit ce qu'il Y A, jamais ce qu'on y a versé ce mois-ci — le calcul se lit dans les virements internes entre un compte courant et un compte d'épargne ou de placements, et un virement d'épargne à épargne ne met rien de côté. CE QU'ON VEUT GARDER DISPONIBLE : un matelas de sécurité par monnaie, avec un avertissement posé là où l'on regarde ses comptes d'épargne quand on passe dessous — l'application constate, elle ne refuse jamais rien. ET CE QUI N'ÉTAIT PAS PRÉVISIBLE : une case « imprévue » sur une dépense, et le total qu'elle permet, mois par mois — « combien de ce mois n'était pas prévisible ? » ne se déduit d'aucune catégorie, une dépense d'alimentation pouvant être imprévue et une réparation parfaitement attendue. L'extension n'écrit qu'une étiquette et un seuil : elle ne crée, ne modifie et ne supprime aucune opération, et tous les chiffres de l'application sont exactement les mêmes qu'elle tourne ou non. Son écran est un onglet de la page « Vue globale des comptes ».",
+      "version": "1.0.0",
+      "type": "standard"
     }
   ]
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=109" />
+  <link rel="stylesheet" href="style.css?v=110" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -1113,6 +1113,26 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </label>
         </div>
 
+        <!-- UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (extension « Analyse de
+             budget », migration 0059). Masquée d'origine, montrée par
+             l'extension : `data-extension-greffe` couvre un élément qui n'est
+             pas un bouton, là où `data-extension` ne vaut que pour les boutons
+             d'onglet (cf. extensions.js, majVisibiliteNavigation).
+
+             ELLE VIT DANS index.html ET NON DANS L'EXTENSION, comme les onglets
+             des prêts et des remboursables : c'est une propriété de
+             l'opération, et le formulaire qui la porte appartient au noyau. Une
+             extension qui injecterait un champ dans un formulaire du noyau
+             devrait en connaître la grille, l'ordre et le cycle de vie.
+
+             À NE PAS CONFONDRE AVEC LE STATUT : une dépense peut être
+             prévisionnelle et prévue (le loyer du mois prochain), réelle et
+             imprévue (le plombier de mardi). Les deux axes sont indépendants,
+             d'où deux contrôles distincts. -->
+        <label id="operation-imprevue-bloc" data-extension-greffe="analyse-budget" style="display:none">
+          <input type="checkbox" id="operation-imprevue" /> Dépense imprévue<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevue-champ">i</i>
+        </label>
+
         <label id="operation-amorti-bloc">
           <input type="checkbox" id="operation-amorti" /> Amortie sur plusieurs mois
         </label>
@@ -1934,9 +1954,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=9"></script>
-  <script src="i18n.js?v=56"></script>
-  <script src="extensions.js?v=21"></script>
-  <script src="app.js?v=134"></script>
+  <script src="textes.js?v=10"></script>
+  <script src="i18n.js?v=57"></script>
+  <script src="extensions.js?v=22"></script>
+  <script src="app.js?v=135"></script>
 </body>
 </html>

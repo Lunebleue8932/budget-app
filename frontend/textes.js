@@ -82,6 +82,22 @@ const TEXTES = {
     "La devise des frais dit à quel montant ils s'appliquent : sur un virement entre deux monnaies, des frais dans la monnaie envoyée grèvent ce qui part, dans la monnaie reçue ce qui arrive.",
   "noyau.decouper-entre-plusieurs-categories":
     "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
+  /* ----- Extension « Analyse de budget » ----- */
+  "analyse-budget.epargne":
+    "Le solde d'un compte d'épargne dit ce qu'il Y A ; il ne dit pas ce que tu y as MIS ce mois-ci — et c'est pourtant la seule des deux qui résulte d'une décision. Le calcul se lit dans tes virements internes : tout ce qui part d'un compte courant vers un compte d'épargne ou de placements compte comme mis de côté, tout ce qui en revient compte en moins. Un virement d'épargne à épargne ne met rien de côté, il range autrement ce qui l'est déjà : il est ignoré.",
+  "analyse-budget.epargne-aide":
+    "Le grand chiffre est le NET — ce que tu as réellement mis de côté sur l'année. Survole-le pour voir ce qu'il recouvre : un net à zéro peut vouloir dire « je n'ai rien bougé » comme « j'ai versé 2 000 € et j'en ai repris 2 000 ». Seules les opérations RÉELLES comptent, une mise de côté prévue n'ayant pas encore eu lieu. Entre deux monnaies, c'est toujours le montant du côté de l'épargne qui compte : verser 100 € qui arrivent en 108 $ met bien 108 $ de côté.",
+  "analyse-budget.matelas":
+    "Le minimum que tu veux garder disponible sur tes comptes d'épargne, dans cette monnaie. Il ne bloque RIEN : aucun virement n'est refusé, aucune saisie n'est empêchée. L'app constate et te le dit, là où tu regardes tes comptes d'épargne. Une garde qui t'interdirait de descendre sous ton propre seuil se ferait contourner au premier vrai besoin, et tu aurais appris à ne plus la lire.",
+  "analyse-budget.matelas-aide":
+    "Les comptes d'ÉPARGNE seulement, et leur solde réel. Un compte de placements porte des titres, qui ne sont disponibles qu'après une vente, à un cours qu'on ne connaît pas d'avance : les compter dans un matelas de sécurité reviendrait à se rassurer avec de l'argent qu'on n'a pas encore. Laisse à zéro pour ne pas poser de seuil du tout.",
+  "analyse-budget.imprevues":
+    "Ce que tu n'avais pas vu venir : le plombier, la dent cassée, le pneu. Aucune catégorie ne répond à cette question — une dépense d'alimentation peut être imprévue, une réparation peut être parfaitement attendue — d'où une case à cocher sur la dépense elle-même. Le total te dit, mois par mois, quelle part de ce que tu dépenses n'était pas prévisible.",
+  "analyse-budget.imprevues-aide":
+    "Le périmètre est celui de l'histogramme des dépenses du dashboard : dépenses réelles, virements internes exclus. C'est ce qui rend la part comparable à ce que tu lis ailleurs.",
+  "analyse-budget.imprevue-champ":
+    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Analyse de budget » regarde.",
+
   /* ----- Rapprocher une prévisionnelle de la vraie ----- */
   "noyau.import-previsionnelles":
     "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence.",

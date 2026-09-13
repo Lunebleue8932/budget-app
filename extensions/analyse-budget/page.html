@@ -1,0 +1,70 @@
+<!-- Écran de l'extension « Analyse de budget ».
+
+     UN ONGLET, pas une page (cf. le manifeste : navigation.type = "onglet",
+     hote_section = "comptes-globale"). C'est là que Felipe l'a demandé pour
+     l'épargne, et les deux autres lectures y sont ses voisines naturelles :
+     toutes trois répondent à « qu'est-ce que ce mois a fait à mon patrimoine »,
+     là où la vue globale d'à côté répond à « où en suis-je aujourd'hui ».
+
+     C'est donc une `.sous-section` : c'est le gestionnaire délégué de app.js
+     qui la montre et la cache, exactement comme un onglet du noyau.
+
+     UN ONGLET PAR MONNAIE, jamais de total entre elles — comme partout
+     ailleurs. « 3 000 » ne veut rien dire sans savoir en quelle devise, et un
+     matelas franchi dans une monnaie ne dit rien de l'autre. -->
+<div id="sous-section-comptes-globale-analyse-budget" class="sous-section">
+
+  <div class="sous-onglets" id="ab-monnaies"></div>
+
+  <div class="periode-selecteur ab-annee-barre">
+    <label for="ab-annee">Année
+      <select id="ab-annee"></select>
+    </label>
+  </div>
+
+  <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
+  <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
+  <p class="hint" data-texte-cle="analyse-budget.epargne-aide"></p>
+
+  <!-- LE NET EN GRAND, LE DÉTAIL AU SURVOL. Le net est la réponse — « j'ai mis
+       2 300 € de côté cette année » — et les deux composantes disent ce qu'elle
+       recouvre : un net à zéro peut vouloir dire « rien bougé » ou « 2 000
+       versés et 2 000 repris ». La seconde information est nécessaire pour ne
+       pas se tromper sur la première, sans mériter la même place. -->
+  <div class="ab-carte-net" id="ab-epargne-total"></div>
+
+  <!-- Les douze mois : c'est la forme qui répond à « est-ce que je tiens un
+       rythme ? », que le total seul ne dit pas. Douze barres toujours, y compris
+       à zéro — un mois absent se lirait comme un mois non atteint. -->
+  <div class="histogramme-cadre" id="ab-epargne-mois"></div>
+
+  <!-- ---------- LE MATELAS DE SÉCURITÉ ---------- -->
+  <h3>Matelas de sécurité<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.matelas">i</i></h3>
+  <p class="hint" data-texte-cle="analyse-budget.matelas-aide"></p>
+
+  <!-- Le réglage se porte comme un filtre, hors formulaire : même forme que le
+       champ « Budget du mois » du camembert, et pour la même raison — un input
+       hors <form> ne reçoit aucun style de l'application. -->
+  <div class="ab-matelas-reglage">
+    <label for="ab-matelas-montant">Montant minimum à garder disponible</label>
+    <input type="number" id="ab-matelas-montant" step="0.01" min="0" />
+    <button type="button" class="primary" id="btn-ab-matelas">Enregistrer</button>
+  </div>
+
+  <div id="ab-matelas-etat"></div>
+
+  <!-- ---------- CE QUI N'ÉTAIT PAS PRÉVISIBLE ---------- -->
+  <h3>Dépenses imprévues<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevues">i</i></h3>
+  <p class="hint" data-texte-cle="analyse-budget.imprevues-aide"></p>
+
+  <div class="ab-carte-net" id="ab-imprevues-total"></div>
+  <div class="histogramme-cadre" id="ab-imprevues-mois"></div>
+
+  <h4>Les lignes de l'année</h4>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Nature</th><th>Catégorie</th><th>Montant</th></tr>
+    </thead>
+    <tbody id="ab-imprevues-lignes"></tbody>
+  </table>
+</div>

@@ -1,0 +1,172 @@
+/* ---------- Extension « Analyse de budget » ----------
+ *
+ * Tout est préfixé et tout descend d'un élément que cette extension a
+ * elle-même posé : une feuille d'extension est chargée pour TOUTE
+ * l'application, pas seulement pour son écran (cf. frontend/extensions.js), et
+ * un sélecteur trop large repeindrait des pages qui ne la concernent pas.
+ *
+ * Aucune couleur en dur : les variables du noyau portent déjà le thème, et une
+ * valeur recopiée ici cesserait de le suivre au premier ajustement.
+ */
+
+.ab-annee-barre {
+  margin: 0.6rem 0 1rem;
+}
+
+/* LE CHIFFRE QUI RÉPOND, et la phrase qui dit de quoi il parle. Deux tailles
+   très différentes parce que les deux ne se lisent pas de la même façon : le
+   nombre s'attrape d'un coup d'œil, son libellé se lit une fois. */
+.ab-carte-net {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 1rem 1.2rem;
+  margin-bottom: 0.8rem;
+  display: inline-block;
+  min-width: 15rem;
+  cursor: help; /* le détail est dans le title : le curseur doit le dire */
+}
+
+.ab-net-valeur {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ab-net-libelle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+/* ---------- L'histogramme des douze mois ---------- */
+
+.ab-histo-titre {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+
+/* LA LIGNE DE ZÉRO EST VISIBLE, et c'est ce qui rend un mois négatif lisible :
+   sans elle, une barre vers le bas se lirait comme une barre courte vers le
+   haut. */
+.ab-axe-zero {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.ab-barre-positive {
+  fill: var(--positif);
+}
+
+/* UN MOIS OÙ L'ON A REPRIS PLUS QU'ON N'A VERSÉ. Rouge, comme partout ailleurs
+   dans l'application pour ce qui diminue — ici le jugement est mérité : on
+   regarde précisément ce qu'on a mis de côté, et en reprendre est le contraire
+   de ce que la page mesure. */
+.ab-barre-negative {
+  fill: var(--negatif);
+}
+
+.ab-barre-libelle {
+  fill: var(--text-muted);
+}
+
+.ab-barre:hover .ab-barre-positive,
+.ab-barre:hover .ab-barre-negative {
+  opacity: 0.75;
+}
+
+/* ---------- Le matelas de sécurité ---------- */
+
+/* Même forme que le champ « Budget du mois » du camembert, et pour la même
+   raison : hors d'un <form>, un <input> ne reçoit aucun style de
+   l'application. Les valeurs sont reprises de la rangée des filtres, seul
+   endroit du noyau qui avait déjà résolu la question. */
+.ab-matelas-reglage {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+}
+
+.ab-matelas-reglage label {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.ab-matelas-reglage input {
+  width: 9rem;
+  text-align: right;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  transition: border-color 0.15s;
+}
+
+.ab-matelas-reglage input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ab-matelas-carte {
+  border: 1px solid var(--border-soft);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  background: var(--bg-surface);
+  max-width: 28rem;
+}
+
+/* SOUS LE SEUIL : le liseré rouge, et lui seul — pas de fond alarmant. On
+   regarde son propre budget, pas une panne. */
+.ab-matelas-alerte {
+  border-left-color: var(--negatif);
+}
+
+.ab-matelas-ok {
+  border-left-color: var(--positif);
+}
+
+.ab-matelas-verdict {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ab-matelas-comptes {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.ab-matelas-comptes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0;
+  color: var(--text-secondary);
+}
+
+/* ---------- L'avertissement greffé sur la vue globale ----------
+ *
+ * IL N'APPARAÎT QUE QUAND ON EST DESSOUS (cf. analyse-budget.js) : un bandeau
+ * permanent qui dit « tout va bien » cesse d'être lu en trois jours, et avec lui
+ * le jour où il dirait autre chose. D'où une forme qui se remarque — mais posée
+ * contre les cartes qu'elle commente, pas en haut de page comme une alarme.
+ */
+.ab-banniere-matelas {
+  border: 1px solid var(--negatif);
+  border-radius: var(--radius-sm);
+  background: var(--error-bg);
+  color: var(--text-primary);
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.85rem;
+}

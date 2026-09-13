@@ -914,6 +914,16 @@ form .full-width {
   opacity: 1;
 }
 
+/* UN CHAMP QUE LE TYPE COURANT NE CONCERNE PAS, dans un formulaire où il reste
+   affiché : « Dépense imprévue » sur un virement, par exemple. Masqué tout
+   court, il aurait fait sauter la grille du formulaire à chaque changement de
+   type ; laissé tel quel, il aurait demandé une réponse à une question qui ne
+   se pose pas. Éteint et inerte, il dit les deux à la fois. */
+.champ-hors-sujet {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 /* ---------- « Tout », le cran sans borne de date (page Opérations) ----------
  *
  * IL VIT DANS LA RANGÉE DES ANNÉES sans en être une : un FILET le sépare de

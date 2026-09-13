@@ -295,6 +295,12 @@ class OperationBase(BaseModel):
     amortissement_debut: Optional[date_type] = None
     amortissement_fin: Optional[date_type] = None
 
+    # UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (cf. models.Operation.imprevue).
+    # Une étiquette, lue par la seule extension « Analyse de budget » ; aucun
+    # calcul du noyau ne la regarde. Indépendante du STATUT : une dépense peut
+    # être prévisionnelle et prévue, réelle et imprévue.
+    imprevue: bool = False
+
     # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (cf. models.Operation) ----------
     #
     # À quoi ressemblera la vraie dépense quand elle passera au relevé, pour que
@@ -472,6 +478,7 @@ class OperationUpdate(BaseModel):
     # [] efface les mots-clés ; ne pas envoyer la clé les laisse intacts (même
     # convention que `decoupes` et `operations_remboursees`).
     rapprochement_mots_cles: Optional[list[str]] = None
+    imprevue: Optional[bool] = None
     operations_remboursees: Optional[list[OperationRembourseeInput]] = None
 
 
