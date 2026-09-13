@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=102" />
+  <link rel="stylesheet" href="style.css?v=103" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -1097,6 +1097,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <button type="button" data-sous-section="parametres-categories"><img class="onglet-logo" src="/img/category_logo.svg" alt="" width="15" height="15" />Catégories</button>
         </div>
         <div class="sous-onglets-groupe" id="parametres-sous-nav-droite">
+          <!-- EN TÊTE DU GROUPE DE DROITE, celui de ce qui RÈGLE l'application :
+               c'est le seul onglet dont le contenu ne décrit aucun budget. -->
+          <button type="button" data-sous-section="parametres-generaux">Paramètres généraux</button>
           <!-- MÊME LOGO QUE L'EXTENSION « RÈGLES » (extensions/regles,
                navigation.icone = "tool_logo.svg"), posé ici EN DUR plutôt que
                par son JS : Correspondances est un onglet du NOYAU, toujours là
@@ -1113,6 +1116,25 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <button type="button" data-sous-section="parametres-import"><img class="onglet-logo" src="/img/import_logo.svg" alt="" width="15" height="15" />Import</button>
           <button type="button" data-sous-section="parametres-extensions"><img class="onglet-logo" src="/img/extensions_logo.svg" alt="" width="15" height="15" />Extensions</button>
           <button type="button" data-sous-section="parametres-bdd"><img class="onglet-logo" src="/img/database_logo.svg" alt="" width="15" height="15" />Base de données</button>
+        </div>
+      </div>
+
+      <!-- PARAMÈTRES GÉNÉRAUX -->
+      <div id="sous-section-parametres-generaux" class="sous-section">
+        <h3>Paramètres généraux<i class="info-bulle" tabindex="0" data-info-cle="noyau.parametres-generaux">i</i></h3>
+
+        <div class="reglage-bloc">
+          <label for="reglage-touche-gel">Touche qui fige l'infobulle<i class="info-bulle" tabindex="0" data-info-cle="noyau.touche-gel-infobulle">i</i></label>
+          <div class="reglage-touche">
+            <!-- `readonly` ET NON `disabled` : le champ ne se tape pas, il
+                 CAPTURE — il doit donc pouvoir recevoir le focus, ce qu'un
+                 champ désactivé refuse. -->
+            <input type="text" id="reglage-touche-gel" readonly autocomplete="off"
+                   placeholder="Clique ici, puis appuie sur la touche" />
+            <button type="button" id="btn-touche-gel-defaut">Touche par défaut</button>
+            <button type="button" id="btn-touche-gel-aucune">Désactiver</button>
+          </div>
+          <p class="hint" data-texte-cle="noyau.gel-infobulle-aide"></p>
         </div>
       </div>
 
@@ -1782,9 +1804,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=2"></script>
-  <script src="i18n.js?v=49"></script>
+  <script src="textes.js?v=3"></script>
+  <script src="i18n.js?v=50"></script>
   <script src="extensions.js?v=16"></script>
-  <script src="app.js?v=127"></script>
+  <script src="app.js?v=128"></script>
 </body>
 </html>

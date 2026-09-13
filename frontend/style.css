@@ -1421,6 +1421,60 @@ form .full-width {
   pointer-events: auto;
 }
 
+/* UNE INFOBULLE FIGÉE LE DIT (cf. app.js::gelerInfobulle). Le liseré et la
+   note du bas sont la seule chose qui distingue « je l'ai épinglée » de « elle
+   est restée coincée » — sans eux, une bulle qui cesse de suivre le curseur se
+   lit comme une panne. */
+.histo-bulle-gelee {
+  border-color: var(--accent, #6ea8fe);
+  box-shadow: 0 0 0 1px var(--accent, #6ea8fe), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.histo-bulle-gel-note {
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.7rem;
+  color: #9ea3b0;
+  text-align: center;
+}
+
+/* ---------- Paramètres généraux ---------- */
+
+.reglage-bloc {
+  max-width: 46rem;
+  margin-bottom: 1.4rem;
+}
+
+.reglage-bloc > label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.reglage-touche {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* CENTRÉ ET EN CAPITALES, comme une touche de clavier et non comme un mot :
+   ce champ n'affiche pas une valeur saisie mais le NOM d'une touche, et le
+   lire de gauche à droite comme du texte ordinaire ferait chercher un curseur
+   d'écriture qui n'y est pas (il est en `readonly`). */
+.reglage-touche input {
+  width: 12rem;
+  text-align: center;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.reglage-touche input:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
 /* LES CHIFFRES EN TÊTE DE L'INFOBULLE (total, part, objectif), au-dessus du
    classement des trois plus grosses dépenses. Même mise en page en deux
    colonnes que la liste du dessous — un libellé à gauche, sa valeur à droite —

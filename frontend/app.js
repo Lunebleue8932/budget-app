@@ -1227,6 +1227,7 @@ document.getElementById("comptes-globale-sous-nav").addEventListener("click", (e
 // sont des réglages, consultés rarement, pas des pages du quotidien — d'où leur
 // place ici, aux côtés des correspondances et de l'import.
 function chargerSousPageParametres(page) {
+  if (page === "parametres-generaux") loadParametresGeneraux();
   if (page === "parametres-comptes") loadComptes();
   if (page === "parametres-categories") loadCategories();
   if (page === "parametres-correspondances") loadCorrespondances();
@@ -1237,6 +1238,55 @@ function chargerSousPageParametres(page) {
   // le noyau ne les connaît pas par leur nom et demande à qui de droit.
   BudgetApp.extensions.ouvrirSousPage(page);
 }
+
+/* ---------- Paramètres généraux ----------
+ *
+ * L'ONGLET DES RÉGLAGES QUI NE SONT LA DONNÉE DE PERSONNE. Comptes, catégories,
+ * correspondances et base de données décrivent un budget ; ce qu'on règle ici
+ * décrit une FAÇON DE S'EN SERVIR, propre au poste et à qui s'en sert. D'où le
+ * localStorage plutôt qu'une table, comme pour la langue : changer de machine
+ * ne doit pas ramener les habitudes de l'autre.
+ */
+function majAffichageToucheGel() {
+  const champ = document.getElementById("reglage-touche-gel");
+  if (!champ) return;
+  const combo = toucheGelInfobulle();
+  champ.value = combo ? libelleCombo(combo) : t("Désactivé");
+}
+
+function loadParametresGeneraux() {
+  majAffichageToucheGel();
+}
+
+document.getElementById("reglage-touche-gel")?.addEventListener("keydown", (e) => {
+  // TOUT EST INTERCEPTÉ, y compris Tab et Entrée : le champ sert à CAPTURER une
+  // touche, laisser passer la navigation clavier reviendrait à interdire
+  // d'enregistrer précisément les touches qu'on y presse.
+  e.preventDefault();
+  if (e.key === "Escape") {
+    e.target.blur();
+    return;
+  }
+  const combo = comboDepuisEvenement(e);
+  if (!combo) return;
+  definirToucheGelInfobulle(combo);
+  majAffichageToucheGel();
+  showMessage(t("Touche enregistrée."), "success");
+});
+
+document.getElementById("btn-touche-gel-defaut")?.addEventListener("click", () => {
+  definirToucheGelInfobulle(TOUCHE_GEL_DEFAUT);
+  majAffichageToucheGel();
+});
+
+document.getElementById("btn-touche-gel-aucune")?.addEventListener("click", () => {
+  // LA CHAÎNE VIDE EST UN CHOIX, l'absence de clé n'en est pas un : sans cette
+  // distinction, désactiver le gel serait indiscernable d'une installation
+  // neuve, et la touche par défaut reviendrait au prochain lancement.
+  definirToucheGelInfobulle("");
+  degelerInfobulle();
+  majAffichageToucheGel();
+});
 
 function loadParametresSousPage() {
   const btnActif = document.querySelector("#parametres-sous-nav button.active");
@@ -2348,6 +2398,132 @@ function placerInfobulleHistogramme(bulle, container, evenement) {
   bulle.style.top = `${Math.max(0, y)}px`;
 }
 
+/* ---------- GELER L'INFOBULLE ----------
+ *
+ * CE QUE ÇA RÉSOUT. L'infobulle suit le curseur et disparaît dès qu'on le
+ * retire : tout ce qu'elle contient doit donc être lu SANS bouger la souris.
+ * Or elle porte un top 3 de dépenses et un bouton — de quoi vouloir prendre son
+ * temps, comparer deux lignes, ou simplement lâcher la souris pour lire. Une
+ * touche la FIGE : elle reste où elle est, le survol des graphes cesse de
+ * l'écraser, et on récupère son curseur.
+ *
+ * UNE TOUCHE PLUTÔT QU'UN CLIC. Le clic est déjà pris — c'est lui qui filtre la
+ * catégorie — et un clic droit ouvrirait le menu du navigateur. La touche, elle,
+ * ne coûte rien à qui ne la connaît pas : sans elle, l'infobulle se comporte
+ * exactement comme avant.
+ *
+ * ELLE SE RÈGLE DANS PARAMÈTRES → PARAMÈTRES GÉNÉRAUX, et vit dans le
+ * localStorage, comme la langue : c'est un confort de lecture propre au poste,
+ * pas une donnée du budget. Chaîne vide = gel désactivé ; clé absente = la
+ * touche par défaut (et non « désactivé », sans quoi personne ne découvrirait
+ * jamais la fonction).
+ */
+const CLE_TOUCHE_GEL = "budget-app.infobulle.touche-gel";
+// « F » comme figer/freeze : le mot commence pareil dans les deux langues, et
+// la touche n'est prise par rien d'autre sur un graphe qu'on survole.
+const TOUCHE_GEL_DEFAUT = "f";
+
+function toucheGelInfobulle() {
+  try {
+    const valeur = localStorage.getItem(CLE_TOUCHE_GEL);
+    return valeur === null ? TOUCHE_GEL_DEFAUT : valeur;
+  } catch (err) {
+    return TOUCHE_GEL_DEFAUT;
+  }
+}
+
+function definirToucheGelInfobulle(combo) {
+  try {
+    localStorage.setItem(CLE_TOUCHE_GEL, combo);
+  } catch (err) {
+    // Stockage indisponible : le réglage vaut pour la session, et rien de
+    // cassé — comme pour la langue.
+  }
+}
+
+/**
+ * La combinaison décrite par un événement clavier, sous sa forme normalisée
+ * (`"ctrl+shift+f"`), ou `null` si la touche ne peut pas en faire une.
+ *
+ * UN MODIFICATEUR SEUL N'EST PAS UNE COMBINAISON : appuyer sur Ctrl envoie un
+ * `keydown` dont la touche EST « Control ». L'accepter aurait enregistré
+ * « ctrl » comme raccourci, lequel se déclencherait ensuite à chaque fois qu'on
+ * commence n'importe quel autre raccourci.
+ */
+function comboDepuisEvenement(e) {
+  if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return null;
+  const morceaux = [];
+  if (e.ctrlKey) morceaux.push("ctrl");
+  if (e.altKey) morceaux.push("alt");
+  if (e.shiftKey) morceaux.push("shift");
+  if (e.metaKey) morceaux.push("meta");
+  morceaux.push(e.key.toLowerCase());
+  return morceaux.join("+");
+}
+
+/** « ctrl+shift+f » → « Ctrl + Shift + F ». */
+function libelleCombo(combo) {
+  return combo
+    .split("+")
+    .map((m) => (m.length === 1 ? m.toUpperCase() : m.charAt(0).toUpperCase() + m.slice(1)))
+    .join(" + ");
+}
+
+// LA DERNIÈRE BULLE MONTRÉE, ET CELLE QUI EST FIGÉE. Deux variables et non une :
+// la touche fige ce qu'on est en train de regarder, il faut donc savoir ce que
+// c'est AVANT qu'elle soit pressée. Communes à toutes les infobulles de la page
+// (il y en a une par graphe) — une seule peut être figée à la fois, sans quoi
+// l'écran se couvrirait de bulles qu'il faudrait fermer une à une.
+let derniereBulleInfobulle = null;
+let infobulleGelee = null;
+
+function degelerInfobulle() {
+  if (!infobulleGelee) return;
+  infobulleGelee.querySelector(".histo-bulle-gel-note")?.remove();
+  infobulleGelee.classList.remove("histo-bulle-gelee");
+  infobulleGelee.classList.remove("visible");
+  infobulleGelee = null;
+}
+
+function gelerInfobulle(combo) {
+  if (!derniereBulleInfobulle || !derniereBulleInfobulle.classList.contains("visible")) return;
+  infobulleGelee = derniereBulleInfobulle;
+  infobulleGelee.classList.add("histo-bulle-gelee");
+  // LA BULLE DIT COMMENT S'EN DÉFAIRE. Sans cette ligne, une infobulle qui
+  // cesse brusquement de suivre le curseur se lit comme une panne, et rien
+  // n'indique quelle touche vient de la figer ni comment la libérer.
+  const note = document.createElement("div");
+  note.className = "histo-bulle-gel-note";
+  note.textContent = t("Figée — {touche} ou Échap pour libérer", {
+    touche: libelleCombo(combo),
+  });
+  infobulleGelee.appendChild(note);
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && infobulleGelee) {
+    degelerInfobulle();
+    return;
+  }
+  const combo = toucheGelInfobulle();
+  if (!combo) return;
+  // JAMAIS PENDANT UNE SAISIE : la touche par défaut est une lettre, et la
+  // capturer dans un champ de texte empêcherait purement et simplement de
+  // l'écrire.
+  if (e.target?.closest?.("input, textarea, select, [contenteditable=true]")) return;
+  if (comboDepuisEvenement(e) !== combo) return;
+  e.preventDefault();
+  if (infobulleGelee) degelerInfobulle();
+  else gelerInfobulle(combo);
+});
+
+// Un clic HORS de la bulle figée la libère : c'est le geste qu'on fait
+// d'instinct pour « refermer » quelque chose, et il ne peut pas se tromper de
+// cible. Un clic DEDANS ne la ferme pas — elle porte un bouton.
+document.addEventListener("click", (e) => {
+  if (infobulleGelee && !infobulleGelee.contains(e.target)) degelerInfobulle();
+});
+
 /**
  * Pose UNE infobulle dans un conteneur et la câble à une liste de cibles.
  *
@@ -2384,24 +2560,41 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
     fermeture = setTimeout(() => bulle.classList.remove("visible"), 260);
   };
   bulle.addEventListener("mouseenter", annulerFermeture);
-  bulle.addEventListener("mouseleave", fermerBientot);
+  bulle.addEventListener("mouseleave", () => {
+    // Une bulle figée ne se referme pas quand on la quitte : c'est justement ce
+    // qu'on lui a demandé.
+    if (infobulleGelee === bulle) return;
+    fermerBientot();
+  });
 
   cibles.forEach((cible) => {
     cible.addEventListener("mouseenter", (e) => {
+      // UNE BULLE FIGÉE GÈLE AUSSI LE SURVOL, et c'est tout l'intérêt : sans
+      // ça, le premier mouvement de souris vers elle réécrirait son contenu
+      // avec la catégorie qu'on vient de traverser.
+      if (infobulleGelee) return;
       annulerFermeture();
+      derniereBulleInfobulle = bulle;
       const { depense, html } = contenuPour(cible);
       bulle.innerHTML = html;
       // Le bouton est recréé avec le contenu, son écouteur aussi : c'est ce qui
       // permet de capturer `depense` sans table de correspondance.
       bulle.querySelector("[data-drill-through]")?.addEventListener("click", () => {
+        degelerInfobulle();
         bulle.classList.remove("visible");
         drillThroughCategorie(depense);
       });
       bulle.classList.add("visible");
       placerInfobulleHistogramme(bulle, container, e);
     });
-    cible.addEventListener("mousemove", (e) => placerInfobulleHistogramme(bulle, container, e));
-    cible.addEventListener("mouseleave", fermerBientot);
+    cible.addEventListener("mousemove", (e) => {
+      if (infobulleGelee) return;
+      placerInfobulleHistogramme(bulle, container, e);
+    });
+    cible.addEventListener("mouseleave", () => {
+      if (infobulleGelee) return;
+      fermerBientot();
+    });
   });
   return bulle;
 }

@@ -41,6 +41,14 @@
  */
 
 const TEXTES = {
+  /* ----- Paramètres généraux ----- */
+  "noyau.parametres-generaux":
+    "Ce qui règle ta façon de te servir de l'application, et non ton budget : ces réglages vivent sur CE poste, pas dans la base. Changer de machine ne les emporte pas, et effacer les données du navigateur les remet à leur valeur d'origine.",
+  "noyau.touche-gel-infobulle":
+    "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même.",
+  "noyau.gel-infobulle-aide":
+    "L'infobulle des graphes suit le curseur et disparaît dès qu'on le retire : tout ce qu'elle contient doit donc se lire sans bouger la souris. Cette touche la FIGE là où elle est — le survol des graphes cesse de la remplacer, et tu récupères ton curseur pour lire son top 3 ou cliquer son bouton tranquillement. La même touche, un clic à côté ou Échap la libèrent.",
+
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":
     "Ce qu'on te doit encore sur tes dépenses remboursables, moins ce que tu dois encore sur les prêts reçus. NE DÉPEND PAS DE LA PÉRIODE : c'est l'état de tes créances et de tes dettes aujourd'hui, pas un chiffre du mois. Seules les opérations réelles comptent.",

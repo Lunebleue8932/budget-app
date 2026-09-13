@@ -251,6 +251,31 @@ const TRADUCTIONS = {
     "Total": "Total",
     "Part": "Share",
 
+    /* ===== Lot 9 : le gel de l'infobulle et l'onglet « Paramètres
+       généraux ». ===== */
+    "Paramètres généraux":
+      "General settings",
+    "Touche qui fige l'infobulle":
+      "Key that freezes the tooltip",
+    "Clique ici, puis appuie sur la touche":
+      "Click here, then press the key",
+    "Touche par défaut":
+      "Default key",
+    "Désactiver":
+      "Disable",
+    "Désactivé":
+      "Disabled",
+    "Touche enregistrée.":
+      "Key saved.",
+    "Figée — {touche} ou Échap pour libérer":
+      "Frozen — {touche} or Esc to release",
+    "Ce qui règle ta façon de te servir de l'application, et non ton budget : ces réglages vivent sur CE poste, pas dans la base. Changer de machine ne les emporte pas, et effacer les données du navigateur les remet à leur valeur d'origine.":
+      "What settles the way you use the application, not your budget: these settings live on THIS machine, not in the database. Moving to another machine does not carry them over, and clearing the browser's data puts them back to their original value.",
+    "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même.":
+      "Click in the field, then press the key (or combination) you want. It is saved at once. It never acts while you are typing in an input field, so that it does not stop you writing the letter itself.",
+    "L'infobulle des graphes suit le curseur et disparaît dès qu'on le retire : tout ce qu'elle contient doit donc se lire sans bouger la souris. Cette touche la FIGE là où elle est — le survol des graphes cesse de la remplacer, et tu récupères ton curseur pour lire son top 3 ou cliquer son bouton tranquillement. La même touche, un clic à côté ou Échap la libèrent.":
+      "The charts' tooltip follows the cursor and vanishes as soon as you take it away: everything in it therefore has to be read without moving the mouse. This key FREEZES it where it is — hovering the charts stops replacing it, and you get your cursor back to read its top 3 or click its button at leisure. The same key, a click beside it or Esc release it.",
+
     /* ===== Lot 8 : l'écran « Intérêts perçus ». Presque tout y était bâti
        en JS, donc jamais vu par traduireDomStatique (qui ne passe qu'une
        fois, sur le DOM statique) : les clés existaient déjà, personne ne
