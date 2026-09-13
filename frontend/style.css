@@ -1176,13 +1176,6 @@ form .full-width {
   opacity: 0.5;
 }
 
-/* Le budget franchi. Rouge, comme le trait de budget des barres : c'est la
-   même limite, dite par l'autre graphe. */
-.camembert-repere-budget {
-  stroke: #ef4444;
-  stroke-width: 2;
-}
-
 .camembert-centre {
   fill: var(--text-primary);
 }

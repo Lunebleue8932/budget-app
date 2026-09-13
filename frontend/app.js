@@ -2849,8 +2849,14 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
   // SAUF EN CAS DE DÉPASSEMENT, où le tour vaut de nouveau le total dépensé :
   // au-delà du budget, garder le budget pour référence ferait tourner les
   // tranches plus d'une fois sur elles-mêmes, et les dernières recouvriraient
-  // les premières sans que rien ne le signale. L'anneau se remplit donc, et un
-  // repère rouge marque l'endroit où le budget a été franchi.
+  // les premières sans que rien ne le signale. L'anneau se remplit donc.
+  //
+  // ET C'EST LE CENTRE QUI DIT LE DÉPASSEMENT, lui seul : « 3 200 € sur
+  // 2 500 € », le premier chiffre en rouge. Un trait rouge le marquait aussi
+  // sur l'anneau — deux fois la même nouvelle, dont l'une tombait au milieu
+  // d'une tranche à laquelle elle ne se rapportait pas : l'ordre des tranches
+  // est celui des catégories, et rien ne désigne « celle qui a fait déborder ».
+  // Posé là, le trait se lisait pourtant comme une accusation.
   const depassement = vueBudget && total > budgetTotal;
   const reference = vueBudget && !depassement ? budgetTotal : total;
 
@@ -2898,23 +2904,6 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
       return segment;
     })
     .join("");
-
-  // LE REPÈRE DU BUDGET FRANCHI : un trait radial posé là où l'anneau a fini de
-  // consommer le budget. Il ne dit pas QUELLE catégorie a fait déborder — la
-  // question n'aurait pas de sens, l'ordre des tranches étant celui des
-  // catégories — mais COMBIEN du tour est de trop, ce qui se lit d'un coup
-  // d'œil sur l'arc qui le dépasse.
-  let repereBudget = "";
-  if (depassement) {
-    const angle = (budgetTotal / total) * 2 * Math.PI;
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-    const interieur = PIE_RAYON - PIE_EPAISSEUR / 2 - 2;
-    const exterieur = PIE_RAYON + PIE_EPAISSEUR / 2 + 2;
-    repereBudget = `<line class="camembert-repere-budget"
-      x1="${PIE_CENTRE_X + interieur * sin}" y1="${PIE_CENTRE_Y - interieur * cos}"
-      x2="${PIE_CENTRE_X + exterieur * sin}" y2="${PIE_CENTRE_Y - exterieur * cos}" />`;
-  }
 
   // Chaque côté s'écarte séparément : une étiquette de gauche ne gêne jamais
   // une étiquette de droite, et les mêler aurait poussé les deux colonnes vers
@@ -2968,7 +2957,6 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
            coordonnées d'écran, les faire tourner avec lui écrirait les
            pourcentages couchés. -->
       <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${piste}${segments}</g>
-      ${repereBudget}
       ${rappels}
       ${centre}
     </svg>
