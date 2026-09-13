@@ -36,15 +36,26 @@
   text-decoration: underline;
 }
 
+/* ---------- Un montant par monnaie, empilé dans une carte ----------
+
+   Les trois cartes du haut ne portent plus une seule devise : elles les portent
+   TOUTES, une ligne chacune. Empiler n'est pas additionner — chaque ligne garde
+   son symbole, et rien ne somme jamais deux monnaies. Les lignes suivantes sont
+   légèrement plus petites : la première se lit comme le chiffre de la carte, les
+   autres comme ses compléments, sans qu'aucune ne prétende être « la » valeur. */
+.suivir-montant-monnaie + .suivir-montant-monnaie {
+  font-size: 0.85em;
+  margin-top: 0.1rem;
+}
+
 /* ---------- Une ligne du tableau « qui doit combien » ----------
 
-   Quatre colonnes fixes : le nom, la barre divergente, le détail chiffré, le
-   net. Une grille plutôt qu'un `<table>` parce que la barre doit occuper tout
-   l'espace qui reste et se recentrer exactement, ce qu'une cellule de tableau
-   rend pénible. */
+   Le NOM à gauche, et à droite autant de rangées que de monnaies où le profil
+   porte quelque chose. Le nom est donc en dehors des rangées : il ne se répète
+   pas d'une devise à l'autre, et une ligne à deux monnaies reste UNE ligne. */
 .suivir-ligne {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) minmax(120px, 3fr) auto minmax(90px, auto);
+  grid-template-columns: minmax(110px, 1fr) minmax(220px, 4fr);
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
@@ -54,12 +65,38 @@
   margin-bottom: 0.35rem;
 }
 
+/* Chaque rangée : la barre, le détail chiffré, le net.
+
+   LES DEUX DERNIÈRES COLONNES SONT À LARGEUR FIXE, et c'est ce qui fait tenir
+   toute la lecture du tableau. En `auto`, elles prenaient la largeur de LEUR
+   texte : « on te doit 45,00 € · tu dois 150,00 € » est trois fois plus long
+   que « 2 lignes », sa barre était donc plus courte et son axe central décalé
+   de soixante-quinze pixels par rapport à celui de la ligne du dessus. Or l'axe
+   EST la référence — c'est par rapport à lui qu'une barre va à gauche ou à
+   droite, et deux axes à deux endroits rendent deux lignes incomparables.
+   Le détail déborde en points de suspension plutôt que d'écarter la colonne. */
+.suivir-ligne-monnaie {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 200px 110px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.suivir-ligne-monnaie + .suivir-ligne-monnaie {
+  margin-top: 0.4rem;
+}
+
 @media (max-width: 700px) {
   .suivir-ligne {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
   }
   /* La barre passe sur sa propre rangée, pleine largeur : réduite au tiers
-     d'un écran de téléphone, elle ne comparait plus rien. */
+     d'un écran de téléphone, elle ne comparait plus rien. Les deux colonnes qui
+     restent se partagent la largeur — l'alignement des axes est de toute façon
+     assuré par la rangée entière, qui fait toute la largeur. */
+  .suivir-ligne-monnaie {
+    grid-template-columns: 1fr auto;
+  }
   .suivir-barre {
     grid-column: 1 / -1;
     order: 3;
@@ -93,6 +130,8 @@
 .suivir-ligne-detail {
   font-size: 0.75rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .suivir-ligne-net {
@@ -172,8 +211,16 @@
   opacity: 0.6;
 }
 
+/* La rangée « Rattacher au profil » reprend `import-mapping-row` du noyau —
+   c'est lui qui habille le menu déroulant, les règles de thème étant écrites
+   `form select` et ne portant donc que dans un formulaire. Ne reste ici que ce
+   qui lui est propre : le libellé ne doit pas pousser le menu au bout de la
+   rangée comme le ferait le `flex: 1` d'un nom de liste. */
 .suivir-affectation {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.suivir-affectation .import-mapping-nom {
+  flex: none;
+  color: var(--text-secondary);
 }

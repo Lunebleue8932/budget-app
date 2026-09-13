@@ -1,10 +1,16 @@
 /**
  * Extension « Suivi des remboursements » — qui te doit combien, et à qui tu dois.
  *
- * CE QU'ELLE AJOUTE À L'APPLICATION : une seule colonne en base, celle qui dit à
- * qui une dette se rapporte. Aucun montant, aucun solde, aucune barre
- * d'histogramme ne change — l'application donne exactement les mêmes chiffres
- * avec ou sans elle, cet écran ne fait que les ventiler par profil.
+ * ELLE EMPORTE AUSSI LES DEUX TYPES REMBOURSABLES DU NOYAU (« Dépense
+ * remboursable », « Remboursement reçu »), même patron que « Prêts » pour
+ * `pret`/`remboursement_pret` (cf. extensions/prets/prets.js) : le SCHÉMA
+ * reste au noyau (une extension n'emporte jamais ses tables), mais ces deux
+ * types ne sont accessibles, et ne pèsent sur les totaux (flux du mois,
+ * histogramme, « Reste à rembourser »), que si cette extension tourne — cf.
+ * `EXTENSION_SUIVI_REMBOURSEMENTS` et `_remboursable_compte` côté backend
+ * (`services/soldes.py`). Les éléments qui lui appartiennent sont écrits dans
+ * `index.html` avec `display:none` et `data-extension`/`data-extension-onglet`,
+ * révélés ci-dessous par `majVisibilite`.
  *
  * TOUT EST PRÉFIXÉ `suivir`. Les scripts d'extension s'exécutent en portée
  * GLOBALE, dans l'ordre alphabétique des dossiers : une fonction `renderTableau`
@@ -15,12 +21,18 @@
 
 const SUIVIR_ID = "suivi-remboursements";
 
+// Révèle les deux onglets d'Opérations, leurs volets et les deux boutons de
+// type du formulaire — cf. le commentaire de tête. `majVisibilite` fait
+// exactement ce que le noyau appelle déjà à l'extinction depuis Paramètres ;
+// ce fichier n'étant chargé QUE si l'extension est allumée, l'appeler ici
+// suffit à couvrir le démarrage (cf. prets.js, même geste pour « Prêts »).
+BudgetApp.extensions.majVisibilite(SUIVIR_ID, true);
+
 // Ce que l'écran tient entre deux requêtes. `monnaieId` est l'onglet actif, et
 // il survit à un rechargement de la vue : ranger une ligne ne doit pas renvoyer
 // l'utilisateur sur la première devise.
 const suivirEtat = {
   vue: null,
-  monnaieId: null,
   profilDeplie: null,
   operationsDepliees: [],
   profilEnEdition: null,
@@ -42,120 +54,149 @@ function renderSuivirTout() {
   const vue = suivirEtat.vue;
   if (!vue) return;
 
-  // L'onglet actif ne survit que si sa monnaie est encore là : la dernière
-  // dette d'une devise réglée, son onglet disparaît.
-  const monnaies = vue.monnaies || [];
-  if (!monnaies.some((m) => m.monnaie_id === suivirEtat.monnaieId)) {
-    suivirEtat.monnaieId = monnaies.length ? monnaies[0].monnaie_id : null;
-  }
+  const totaux = vue.totaux || [];
+  document.getElementById("suivir-vide").style.display = totaux.length ? "none" : "";
+  document.getElementById("suivir-contenu").style.display = totaux.length ? "" : "none";
 
-  document.getElementById("suivir-vide").style.display = monnaies.length ? "none" : "";
-  document.getElementById("suivir-contenu").style.display = monnaies.length ? "" : "none";
-
-  renderSuivirOngletsMonnaie(monnaies);
-  renderSuivirBloc(monnaies.find((m) => m.monnaie_id === suivirEtat.monnaieId) || null);
+  renderSuivirTotaux(totaux);
+  renderSuivirTableau(vue.soldes || []);
   renderSuivirARattacher();
   renderSuivirProfils();
 }
 
+/* ---------- Les trois cartes du haut ---------- */
+
 /**
- * Un onglet par monnaie, masqué tant qu'il n'y en a qu'une : un onglet unique
- * ne choisit rien et ne ferait que répéter le symbole déjà présent sur chaque
- * montant.
+ * TOUTES LES MONNAIES DANS LA MÊME CARTE, une ligne chacune.
+ *
+ * Il y avait un onglet par devise au-dessus : deux clics pour lire trois
+ * chiffres dont on veut justement la vue d'ensemble, et une moitié de la réponse
+ * cachée derrière l'onglet qu'on ne regarde pas. Empiler ne revient PAS à
+ * additionner — chaque ligne garde son symbole, et rien ne somme jamais deux
+ * devises (l'application ne connaît aucun taux de change).
  */
-function renderSuivirOngletsMonnaie(monnaies) {
-  const barre = document.getElementById("suivir-onglets-monnaie");
-  barre.innerHTML = "";
-  barre.hidden = monnaies.length <= 1;
-  monnaies.forEach((bloc) => {
-    const bouton = document.createElement("button");
-    bouton.type = "button";
-    bouton.textContent = `${bloc.monnaie_nom} (${bloc.monnaie_symbole})`;
-    bouton.classList.toggle("active", bloc.monnaie_id === suivirEtat.monnaieId);
-    bouton.addEventListener("click", () => {
-      suivirEtat.monnaieId = bloc.monnaie_id;
-      // Le détail déplié appartenait à l'ancienne monnaie : le garder ouvert
-      // montrerait des lignes qui ne sont pas celles du tableau au-dessus.
-      suivirEtat.profilDeplie = null;
-      renderSuivirTout();
-    });
-    barre.appendChild(bouton);
+function renderSuivirTotaux(totaux) {
+  suivirEcrireMontants(
+    document.getElementById("suivir-total-recevoir"),
+    totaux,
+    (entree) => entree.a_recevoir
+  );
+  suivirEcrireMontants(
+    document.getElementById("suivir-total-rendre"),
+    totaux,
+    (entree) => entree.a_rendre
+  );
+  suivirEcrireNets(document.getElementById("suivir-total-net"), totaux);
+}
+
+/**
+ * Une ligne par monnaie où `valeur` n'est pas nulle.
+ *
+ * LES MONNAIES À ZÉRO SONT TUES : un compte en dollars qui n'a jamais rien
+ * avancé n'a rien à dire dans « On te doit », et une ligne « 0,00 $ » y ferait
+ * chercher ce qui a bien pu s'y passer. Si tout est nul, une seule ligne à zéro
+ * dans la PREMIÈRE monnaie — mieux qu'une carte vide, qui ressemble à une panne.
+ */
+function suivirEcrireMontants(element, totaux, valeur) {
+  const lignes = totaux.filter((entree) => !montantEstNul(valeur(entree)));
+  element.innerHTML = "";
+  if (!lignes.length) {
+    element.textContent = totaux.length ? formatMontant(0, totaux[0].monnaie_id) : "-";
+    return;
+  }
+  lignes.forEach((entree) => {
+    const ligne = document.createElement("div");
+    ligne.className = "suivir-montant-monnaie";
+    ligne.textContent = formatMontant(valeur(entree), entree.monnaie_id);
+    element.appendChild(ligne);
   });
 }
 
-/* ---------- Le tableau : une ligne par profil ---------- */
-
-function renderSuivirBloc(bloc) {
-  const totalRecevoir = document.getElementById("suivir-total-recevoir");
-  const totalRendre = document.getElementById("suivir-total-rendre");
-  const totalNet = document.getElementById("suivir-total-net");
-  const tableau = document.getElementById("suivir-tableau");
-
-  if (!bloc) {
-    [totalRecevoir, totalRendre, totalNet].forEach((el) => (el.textContent = "-"));
-    tableau.innerHTML = "";
+// Le net, une ligne par monnaie, chacune avec SA couleur : on peut très bien
+// être créancier en euros et débiteur en dollars, et une couleur unique pour la
+// carte entière aurait dû mentir sur l'une des deux.
+function suivirEcrireNets(element, totaux) {
+  element.innerHTML = "";
+  element.classList.remove("positif", "negatif", "montant-nul");
+  if (!totaux.length) {
+    element.textContent = "-";
     return;
   }
+  totaux.forEach((entree) => {
+    const ligne = document.createElement("div");
+    ligne.className = "suivir-montant-monnaie";
+    suivirEcrireNet(ligne, entree.net, entree.monnaie_id);
+    element.appendChild(ligne);
+  });
+}
 
-  const monnaieId = bloc.monnaie_id;
-  totalRecevoir.textContent = formatMontant(bloc.total_a_recevoir, monnaieId);
-  totalRendre.textContent = formatMontant(bloc.total_a_rendre, monnaieId);
-  suivirEcrireNet(totalNet, bloc.net, monnaieId);
+/* ---------- Le tableau : une ligne par profil, une barre par monnaie ---------- */
 
-  // L'ÉCHELLE DES BARRES EST COMMUNE À TOUT LE TABLEAU, et c'est ce qui les rend
-  // comparables : une barre calibrée sur sa propre ligne serait toujours pleine,
-  // et 12 € se lirait comme 1 200 €. Le maximum est pris sur les DEUX côtés,
-  // pour qu'une créance et une dette de même taille aient la même longueur.
-  const echelle = Math.max(
-    1,
-    ...bloc.profils.map((p) => Math.max(p.a_recevoir, p.a_rendre))
+function renderSuivirTableau(soldes) {
+  const tableau = document.getElementById("suivir-tableau");
+  tableau.innerHTML = "";
+
+  // L'ÉCHELLE DES BARRES EST COMMUNE AU TABLEAU, MAIS PAR MONNAIE. Commune,
+  // parce qu'une barre calibrée sur sa propre ligne serait toujours pleine et
+  // que 12 € se lirait comme 1 200 €. Par monnaie, parce que comparer 100 € à
+  // 100 000 ¥ sur le même axe ne veut rien dire — l'application ne connaît aucun
+  // taux, et une barre qui prétendrait le contraire serait le seul endroit à le
+  // faire. Le maximum est pris sur les DEUX côtés, pour qu'une créance et une
+  // dette de même taille aient la même longueur.
+  const echelles = {};
+  soldes.forEach((profil) =>
+    (profil.monnaies || []).forEach((entree) => {
+      echelles[entree.monnaie_id] = Math.max(
+        echelles[entree.monnaie_id] || 1,
+        entree.a_recevoir,
+        entree.a_rendre
+      );
+    })
   );
 
-  tableau.innerHTML = "";
-  bloc.profils.forEach((profil) => {
-    tableau.appendChild(suivirLigneProfil(profil, monnaieId, echelle));
+  soldes.forEach((profil) => {
+    tableau.appendChild(suivirLigneProfil(profil, echelles));
     if (profil.profil_id != null && profil.profil_id === suivirEtat.profilDeplie) {
-      tableau.appendChild(suivirDetailProfil(profil));
+      tableau.appendChild(suivirDetailProfil());
     }
   });
 }
 
 /**
- * Une ligne : le nom, la barre divergente, le net.
+ * Une ligne : le nom à gauche, et à droite une rangée par monnaie — barre
+ * divergente, détail chiffré, net.
  *
  * LA BARRE VA À DROITE QUAND ON NOUS DOIT, À GAUCHE QUAND ON DOIT — un axe
  * central, deux couleurs. C'est la seule forme qui répond d'un coup d'œil à la
  * question de l'écran : un profil qui me doit et un profil à qui je dois ne se
  * distinguent pas par la longueur mais par le CÔTÉ, et le tableau se lit sans
- * lire les chiffres. Un profil qui porte les deux (il me doit 80, je lui dois
- * 30) montre ses deux segments : le net seul aurait effacé la moitié de ce qui
- * s'est passé entre nous.
+ * lire les chiffres. Un profil qui porte les deux dans la MÊME monnaie (il me
+ * doit 80, je lui dois 30) montre ses deux segments : le net seul aurait effacé
+ * la moitié de ce qui s'est passé entre nous.
+ *
+ * UNE BARRE PAR MONNAIE, et non une barre pour le tout : additionner des euros
+ * et des dollars pour dessiner un seul trait aurait inventé un taux de change.
+ * Les monnaies où le profil ne porte rien n'ont pas de rangée — le serveur ne
+ * les envoie pas.
  */
-function suivirLigneProfil(profil, monnaieId, echelle) {
+function suivirLigneProfil(profil, echelles) {
   const ligne = document.createElement("div");
   ligne.className = "suivir-ligne";
   const sansProfil = profil.profil_id == null;
   ligne.classList.toggle("suivir-ligne-sans-profil", sansProfil);
   if (!sansProfil) ligne.dataset.profilId = profil.profil_id;
 
-  const partRecevoir = (profil.a_recevoir / echelle) * 100;
-  const partRendre = (profil.a_rendre / echelle) * 100;
+  const nom = document.createElement("span");
+  nom.className = "suivir-ligne-nom";
+  nom.textContent = profil.profil_nom;
+  ligne.appendChild(nom);
 
-  ligne.innerHTML = `
-    <span class="suivir-ligne-nom">${escapeHtml(profil.profil_nom)}</span>
-    <span class="suivir-barre" role="presentation">
-      <span class="suivir-barre-cote suivir-barre-gauche">
-        <span class="suivir-barre-remplissage suivir-du" style="width:${partRendre.toFixed(2)}%"></span>
-      </span>
-      <span class="suivir-barre-axe"></span>
-      <span class="suivir-barre-cote suivir-barre-droite">
-        <span class="suivir-barre-remplissage suivir-creance" style="width:${partRecevoir.toFixed(2)}%"></span>
-      </span>
-    </span>
-    <span class="suivir-ligne-detail hint">${suivirDetailChiffre(profil, monnaieId)}</span>
-    <span class="suivir-ligne-net"></span>
-  `;
-  suivirEcrireNet(ligne.querySelector(".suivir-ligne-net"), profil.net, monnaieId);
+  const rangees = document.createElement("div");
+  rangees.className = "suivir-ligne-monnaies";
+  (profil.monnaies || []).forEach((entree) => {
+    rangees.appendChild(suivirRangeeMonnaie(entree, echelles[entree.monnaie_id] || 1));
+  });
+  ligne.appendChild(rangees);
 
   // « Sans profil » n'a pas de détail à déplier : ses lignes sont exactement
   // celles de la liste « À rattacher », juste en dessous.
@@ -166,19 +207,42 @@ function suivirLigneProfil(profil, monnaieId, echelle) {
   return ligne;
 }
 
+function suivirRangeeMonnaie(entree, echelle) {
+  const rangee = document.createElement("div");
+  rangee.className = "suivir-ligne-monnaie";
+  const partRecevoir = (entree.a_recevoir / echelle) * 100;
+  const partRendre = (entree.a_rendre / echelle) * 100;
+  rangee.innerHTML = `
+    <span class="suivir-barre" role="presentation">
+      <span class="suivir-barre-cote suivir-barre-gauche">
+        <span class="suivir-barre-remplissage suivir-du" style="width:${partRendre.toFixed(2)}%"></span>
+      </span>
+      <span class="suivir-barre-axe"></span>
+      <span class="suivir-barre-cote suivir-barre-droite">
+        <span class="suivir-barre-remplissage suivir-creance" style="width:${partRecevoir.toFixed(2)}%"></span>
+      </span>
+    </span>
+    <span class="suivir-ligne-detail hint">${suivirDetailChiffre(entree)}</span>
+    <span class="suivir-ligne-net"></span>
+  `;
+  suivirEcrireNet(rangee.querySelector(".suivir-ligne-net"), entree.net, entree.monnaie_id);
+  return rangee;
+}
+
 /**
  * « on te doit 80,00 € · tu dois 30,00 € » — les deux composantes du net.
  *
  * Écrites seulement quand il y en a DEUX : quand un profil n'a que des créances
- * (le cas ordinaire), répéter le net en dessous n'apprendrait rien.
+ * dans cette monnaie (le cas ordinaire), répéter le net à côté n'apprendrait
+ * rien, et le nombre de lignes est plus utile.
  */
-function suivirDetailChiffre(profil, monnaieId) {
-  if (montantEstNul(profil.a_recevoir) || montantEstNul(profil.a_rendre)) {
-    return `${profil.nb_lignes} ${profil.nb_lignes > 1 ? t("lignes") : t("ligne")}`;
+function suivirDetailChiffre(entree) {
+  if (montantEstNul(entree.a_recevoir) || montantEstNul(entree.a_rendre)) {
+    return `${entree.nb_lignes} ${entree.nb_lignes > 1 ? t("lignes") : t("ligne")}`;
   }
-  return `${t("on te doit")} ${formatMontant(profil.a_recevoir, monnaieId)} · ${t(
+  return `${t("on te doit")} ${formatMontant(entree.a_recevoir, entree.monnaie_id)} · ${t(
     "tu dois"
-  )} ${formatMontant(profil.a_rendre, monnaieId)}`;
+  )} ${formatMontant(entree.a_rendre, entree.monnaie_id)}`;
 }
 
 // Le signe dit le sens, comme sur la variation du mois : positif on te doit
@@ -223,7 +287,7 @@ async function suivirBasculerProfil(profilId) {
  * qu'on veut en le dépliant, c'est tout ce qui s'est passé avec cette personne,
  * et son symbole est écrit sur chaque montant.
  */
-function suivirDetailProfil(profil) {
+function suivirDetailProfil() {
   const bloc = document.createElement("div");
   bloc.className = "suivir-detail";
   const lignes = suivirEtat.operationsDepliees || [];
@@ -333,16 +397,20 @@ function renderSuivirARattacher() {
   `;
   conteneur.appendChild(tableau);
 
+  // `import-mapping-row` EST LE COMPOSANT DU NOYAU pour « une rangée de contrôles
+  // sous une liste », et c'est lui qui habille le menu déroulant. Le `<select>`
+  // était nu jusqu'ici : les règles de thème du noyau sont écrites `form select`,
+  // elles ne portent donc que DANS un formulaire, et celui-ci n'en est pas un —
+  // il ressortait aux couleurs du navigateur, seul de son espèce dans toute
+  // l'application. Le poser dans une `<form>` l'aurait habillé aussi, mais en
+  // ajoutant sous le tableau une carte encadrée pour deux contrôles.
   const actions = document.createElement("div");
-  actions.className = "actions";
+  actions.className = "import-mapping-row suivir-affectation";
   actions.innerHTML = `
-    <label class="suivir-affectation">${t("Rattacher au profil")}
-      <select id="suivir-profil-cible">
-        ${profils
-          .map((p) => `<option value="${p.id}">${escapeHtml(p.nom)}</option>`)
-          .join("")}
-      </select>
-    </label>
+    <span class="import-mapping-nom">${t("Rattacher au profil")}</span>
+    <select id="suivir-profil-cible">
+      ${profils.map((p) => `<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join("")}
+    </select>
     <button type="button" class="primary" id="btn-suivir-rattacher" ${
       profils.length ? "" : "disabled"
     }>${t("Rattacher la sélection")}</button>
@@ -533,7 +601,10 @@ BudgetApp.extensions.enregistrer(SUIVIR_ID, { chargeur: loadSuiviRemboursements 
   bouton.id = "btn-suivir-ouvrir";
   bouton.className = "suivir-porte";
   bouton.dataset.extension = SUIVIR_ID;
-  bouton.textContent = t("Voir par personne →");
+  // LE LIBELLÉ EST CELUI DE L'ÉCRAN, et pas une paraphrase de ce qu'on y fera :
+  // « Voir par personne » décrivait l'écran sans le nommer, et rien ne reliait le
+  // bouton au nom sous lequel l'extension s'allume dans les Paramètres.
+  bouton.textContent = t("Suivi des remboursements");
   bouton.style.display = BudgetApp.extensions.estActive(SUIVIR_ID) ? "" : "none";
   // `ongletActif` : cet écran n'a pas de bouton à lui dans la barre du haut (cf.
   // `bouton: false` dans le manifeste). Sans ce second argument, plus aucun
