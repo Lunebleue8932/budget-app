@@ -40,6 +40,12 @@ donnees = [
     # source à l'exécution, ils doivent donc rester des données du bundle
     # et non être compilés dans l'archive.
     (str(BACKEND / "alembic"), "alembic"),
+    # Catalogue des extensions CONNUES (cf. app/extensions.py::catalogue) :
+    # un fichier de données lu à l'exécution (`Path(__file__).parent / ...`),
+    # jamais importé comme module — l'analyse statique de PyInstaller ne le
+    # verrait donc pas tout seul. Destination "app" pour retomber au même
+    # endroit que `__file__` d'`app/extensions.py` une fois figé.
+    (str(BACKEND / "app" / "extensions_catalogue.json"), "app"),
 ]
 
 # LES EXTENSIONS NE SONT PAS EMBARQUÉES, et c'est délibéré. L'application est

@@ -95,7 +95,16 @@ def preparer_dossiers() -> Path:
 class Extension:
     """Une extension découverte : son manifeste, son emplacement, son état."""
 
-    __slots__ = ("id", "nom", "description", "version", "type", "dossier", "manifeste")
+    __slots__ = (
+        "id",
+        "numero",
+        "nom",
+        "description",
+        "version",
+        "type",
+        "dossier",
+        "manifeste",
+    )
 
     def __init__(self, dossier: Path, manifeste: dict, type_extension: str):
         self.dossier = dossier
@@ -105,6 +114,21 @@ class Extension:
         # ne peuvent pas porter le même nom. Un champ `id` recopié dans le
         # manifeste aurait pu diverger du dossier qui le contient.
         self.id = dossier.name
+        # UN NUMÉRO STABLE, LISIBLE DANS TOUTES LES LANGUES. Le nom d'une
+        # extension se traduit — « Placements financiers » devient
+        # « Investments » — et deux personnes qui parlent de la même extension
+        # dans deux langues n'ont alors plus aucun mot en commun. L'identifiant
+        # de dossier le permettrait, mais il ne s'affiche nulle part ; le
+        # numéro, lui, est écrit sur la carte.
+        #
+        # IL VIENT DU MANIFESTE et non d'un compteur calculé à la découverte :
+        # un rang calculé changerait le jour où une extension est ajoutée,
+        # retirée ou simplement absente de la machine — c'est-à-dire exactement
+        # quand on a besoin qu'il ne change pas.
+        #
+        # 0 = PAS DE NUMÉRO : une extension tierce, posée à la main, n'a pas à
+        # en inventer un qui entrerait en collision avec la série livrée.
+        self.numero = manifeste.get("numero", 0)
         self.nom = manifeste.get("nom", self.id)
         self.description = manifeste.get("description", "")
         self.version = manifeste.get("version", "")
@@ -171,6 +195,7 @@ class Extension:
     ) -> dict:
         return {
             "id": self.id,
+            "numero": self.numero,
             "nom": self.nom,
             "description": self.description,
             "version": self.version,
@@ -193,7 +218,69 @@ class Extension:
             # précédent, dans l'autre sens : la case est grisée et DIT
             # pourquoi, plutôt que de refuser au moment du clic.
             "obstacle_desactivation": obstacle_desactivation,
+            # TOUJOURS VRAI ICI : cette méthode ne décrit que des extensions
+            # dont le dossier EST là (cf. `decouvrir`). Le pendant `False` vient
+            # de `entree_catalogue_absente`, pour une extension du catalogue
+            # sans dossier sur cette machine.
+            "installee": True,
         }
+
+
+# ---------- Catalogue : les extensions CONNUES, présentes ou non ----------
+#
+# `decouvrir()` ne voit que ce qui est sur le disque : une extension dont le
+# dossier a été retiré (un build allégé transmis à quelqu'un d'autre, par
+# exemple) disparaît purement et simplement de `GET /extensions`, et Paramètres
+# ne peut donc plus la montrer du tout — pas même pour dire qu'elle existe.
+# Ce catalogue est un instantané statique (id, nom, description, version,
+# type), tenu à la main dans `extensions_catalogue.json`, qui sert UNIQUEMENT
+# à faire apparaître ces entrées-là, grisées, à côté de celles réellement
+# présentes — jamais à les rendre activables : seul un dossier réel le permet.
+
+# EN APPLICATION PACKAGÉE, `__file__` NE POINTE VERS RIEN DE RÉEL : ce module
+# est compilé dans l'archive PYZ, jamais extrait sous ce nom sur le disque —
+# même piège, même remède que `_racine_projet()` ci-dessus. Les DONNÉES,
+# elles, sont bien de vrais fichiers sous `sys._MEIPASS` (cf. budget_app.spec,
+# entrée `extensions_catalogue.json` → destination "app").
+if getattr(sys, "frozen", False):
+    _FICHIER_CATALOGUE = Path(sys._MEIPASS) / "app" / "extensions_catalogue.json"
+else:
+    _FICHIER_CATALOGUE = Path(__file__).resolve().parent / "extensions_catalogue.json"
+
+
+def catalogue() -> list[dict]:
+    """Le contenu de `extensions_catalogue.json`, ou une liste vide si le
+    fichier manque ou est illisible — un catalogue absent ne doit pas
+    empêcher l'écran des extensions RÉELLEMENT présentes de s'afficher."""
+    try:
+        contenu = json.loads(_FICHIER_CATALOGUE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    entrees = contenu.get("extensions")
+    return entrees if isinstance(entrees, list) else []
+
+
+def entree_catalogue_absente(entree: dict) -> dict:
+    """La forme `en_dict`-compatible d'une extension du catalogue qui n'est
+    PAS sur le disque de cette machine : toujours inactive, jamais activable
+    (`dependances_ok` vaut True pour ne montrer QUE l'avertissement
+    "non installée", pas un second qui n'aurait pas de sens sans dossier)."""
+    return {
+        "id": entree.get("id", ""),
+        "numero": entree.get("numero", 0),
+        "nom": entree.get("nom", entree.get("id", "")),
+        "description": entree.get("description", ""),
+        "version": entree.get("version", ""),
+        "type": entree.get("type", "standard"),
+        "actif": False,
+        "nouvelle": False,
+        "frontend": {},
+        "navigation": None,
+        "requiert_une_de": [],
+        "dependances_ok": True,
+        "obstacle_desactivation": None,
+        "installee": False,
+    }
 
 
 def decouvrir() -> dict[str, Extension]:

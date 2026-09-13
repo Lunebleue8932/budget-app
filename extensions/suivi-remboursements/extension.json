@@ -1,12 +1,17 @@
 {
+  "numero": 10,
   "nom": "Suivi des remboursements",
-  "description": "Répond à « qui me doit combien, et à qui est-ce que je dois ». L'application sait déjà combien il reste à rembourser ; elle ne savait pas à qui. Tu crées des profils — une personne, une entreprise, la colocation — et tu y rattaches tes dépenses remboursables, tes prêts reçus et leurs règlements. L'écran donne alors, par monnaie, le solde net de chaque profil, ce qu'il te doit face à ce que tu lui dois, et le détail des lignes encore ouvertes. Un profil est une étiquette et rien de plus : aucun solde, aucun KPI, aucune barre d'histogramme ne le lit, et le supprimer détache simplement ses opérations. L'écran s'ouvre depuis la carte « Reste à rembourser » du dashboard.",
+  "description": "Répond à « qui me doit combien, et à qui est-ce que je dois ». Sans cette extension, les deux onglets « Dépenses remboursables » et « Remboursements reçus » de la page Opérations restent fermés et aucune dépense remboursable ne pèse sur tes totaux (flux du mois, histogramme, « Reste à rembourser ») — exactement comme les prêts sans l'extension « Prêts ». Une fois activée, tu peux en plus créer des profils — une personne, une entreprise, la colocation — et y rattacher tes dépenses remboursables, tes prêts reçus et leurs règlements. L'écran donne alors, par monnaie, le solde net de chaque profil, ce qu'il te doit face à ce que tu lui dois, et le détail des lignes encore ouvertes. Un profil est une étiquette et rien de plus : le supprimer détache simplement ses opérations. L'écran s'ouvre depuis la carte « Reste à rembourser » du dashboard.",
   "version": "1.0.0",
   "backend": "backend.py",
   "frontend": {
     "html": "page.html",
-    "css": ["suivi-remboursements.css"],
-    "js": ["suivi-remboursements.js"]
+    "css": [
+      "suivi-remboursements.css"
+    ],
+    "js": [
+      "suivi-remboursements.js"
+    ]
   },
   "navigation": {
     "type": "page",

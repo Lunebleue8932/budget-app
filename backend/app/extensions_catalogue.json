@@ -1,0 +1,93 @@
+{
+  "_comment": "Instantané des extensions CONNUES à ce jour — id, nom, description, version, type. Sert UNIQUEMENT à afficher dans Paramètres → Extensions celles dont le dossier a été retiré d'une machine donnée (ex. un build allégé transmis à quelqu'un d'autre), pour que le menu reste le même que sur une installation complète — griséee, jamais activable, cf. routers/extensions.list_extensions. Ne remplace JAMAIS extension.json : une extension PRÉSENTE est décrite par son propre manifeste, ce fichier ne sert que pour celles ABSENTES. À METTRE À JOUR À LA MAIN quand une extension est ajoutée, renommée ou retirée du dépôt — comme les autres listes tenues manuellement de ce projet (ORDRE_TYPES, etc.), pas de génération automatique.",
+  "extensions": [
+    {
+      "id": "placements",
+      "numero": 6,
+      "nom": "Placements financiers",
+      "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "import-placements",
+      "numero": 1,
+      "nom": "Import de placements",
+      "description": "Lit une liste d'opérations exportée depuis un compte de placements (achats, ventes, transferts d'espèces) et l'importe en une fois, sur le modèle de l'import de relevé bancaire : un preset par courtier, un aperçu ligne par ligne avant validation, et la même détection de doublons. Les titres inconnus sont créés à l'import, avec leur code ISIN. Nécessite « Placements financiers » : sans elle, il n'y a aucun compte-titres où importer.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "investing-overview",
+      "numero": 3,
+      "nom": "Vue d'ensemble des placements",
+      "description": "Regarde le portefeuille dans son ensemble plutôt que compte par compte : un camembert de la répartition par type de titre (ETF, obligation, action…), avec le détail des lignes qui composent chaque part. Ne calcule aucun solde et ne modifie rien — c'est une lecture. Nécessite « Placements financiers », et les types de titre se créent depuis son écran.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "lecture-de-cours",
+      "numero": 4,
+      "nom": "Lecture de cours",
+      "description": "Va lire un cours sur une page publique de cotation (Google Finance, Yahoo Finance, Boursorama…) : un lien par titre suivi et par couple de monnaies, un bouton de mise à jour sur l'écran concerné, et une relecture au lancement. Seule extension de l'application à émettre des requêtes vers Internet. Nécessite « Placements financiers » ou « Monnaies » : sans l'une des deux, elle n'a rien à mettre à jour.",
+      "version": "2.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "monnaies",
+      "numero": 5,
+      "nom": "Monnaies",
+      "description": "Ajoute, renomme et supprime des monnaies, pour suivre des comptes et des budgets dans plusieurs devises. Chaque solde reste suivi séparément ; une case du dashboard permet, si tu as saisi un taux, de tout ramener à une seule monnaie le temps d'un coup d'œil. Sans cette extension, l'application est mono-devise.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "prets",
+      "numero": 7,
+      "nom": "Prêts",
+      "description": "Suit l'argent qu'on t'a prêté : ce que tu as reçu, ce que tu rendras — intérêts compris — et ce qu'il te reste à rembourser. Les intérêts d'un prêt sont ce qu'il te coûte vraiment : ils comptent dans les sorties du mois et forment leur propre barre dans l'histogramme du dashboard. Sans cette extension, les deux onglets « Prêts reçus » et « Remboursements de prêts » de la page Opérations restent fermés et aucun prêt ne pèse sur tes totaux.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "suivi-remboursements",
+      "numero": 10,
+      "nom": "Suivi des remboursements",
+      "description": "Répond à « qui me doit combien, et à qui est-ce que je dois ». Sans cette extension, les deux onglets « Dépenses remboursables » et « Remboursements reçus » de la page Opérations restent fermés et aucune dépense remboursable ne pèse sur tes totaux (flux du mois, histogramme, « Reste à rembourser ») — exactement comme les prêts sans l'extension « Prêts ». Une fois activée, tu peux en plus créer des profils — une personne, une entreprise, la colocation — et y rattacher tes dépenses remboursables, tes prêts reçus et leurs règlements.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "projets",
+      "numero": 8,
+      "nom": "Projets",
+      "description": "Regroupe des opérations déjà saisies en projets — un voyage, un déménagement, un événement — pour lire d'un coup ce qu'ils ont coûté. Ce n'est pas une catégorie de plus : une catégorie classe une dépense par nature, un projet regroupe par événement à travers les catégories et les comptes. L'écran s'ajoute en onglet de la page des comptes.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "regles",
+      "numero": 9,
+      "nom": "Règles de catégorisation",
+      "description": "Classe automatiquement les lignes d'un relevé d'après leurs libellés : type d'opération, catégorie, compte en face d'un virement. Vue liste ordonnée ou vue galerie par dossiers. Les règles restent en base quand l'extension est éteinte — l'import cesse simplement de les consulter.",
+      "version": "1.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "interets-percus",
+      "numero": 2,
+      "nom": "Intérêts perçus",
+      "description": "Note ce que chaque compte d'épargne t'a RÉELLEMENT rapporté : un montant, une date, tels que le relevé les annonce. Les totaux se font par année et par monnaie, jamais deux devises additionnées. Aucun intérêt n'est écrit en opération : c'est un suivi d'affichage, qui ne touche ni aux soldes ni au dashboard.",
+      "version": "2.0.0",
+      "type": "standard"
+    },
+    {
+      "id": "outils-dev",
+      "numero": 99,
+      "nom": "Outils de développement",
+      "description": "L'extension de dev, au singulier : tout ce qui sert à mettre au point l'application. Contient aujourd'hui le solde prévisionnel à l'import, un tableau des soldes que le fichier va faire bouger, pour comparer au relevé avant de confirmer.",
+      "version": "1.1.0",
+      "type": "developpeur"
+    }
+  ]
+}

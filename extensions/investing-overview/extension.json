@@ -1,4 +1,5 @@
 {
+  "numero": 3,
   "nom": "Vue d'ensemble des placements",
   "description": "Regarde le portefeuille dans son ensemble plutôt que compte par compte : un camembert de la répartition par type de titre (ETF, obligation, action…), avec le détail des lignes qui composent chaque part. Ne calcule aucun solde et ne modifie rien — c'est une lecture. Nécessite « Placements financiers », et les types de titre se créent depuis son écran.",
   "version": "1.0.0",

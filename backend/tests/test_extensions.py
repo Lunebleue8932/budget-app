@@ -686,3 +686,76 @@ def obstacle_a_la_desactivation(db):
     )
     par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
     assert par_id["verrouillee"]["obstacle_desactivation"] is None
+
+
+# ---------- Catalogue : les extensions connues, présentes ou non ----------
+
+
+@pytest.fixture()
+def faux_catalogue(tmp_path, monkeypatch):
+    """Un catalogue jetable, pour ne jamais dépendre du contenu réel de
+    `extensions_catalogue.json` — une extension livrée ajoutée ou retirée ne
+    doit pas casser ces tests-là non plus (même esprit que `faux_projet`)."""
+    fichier = tmp_path / "extensions_catalogue.json"
+
+    def _ecrire(entrees):
+        fichier.write_text(json.dumps({"extensions": entrees}), encoding="utf-8")
+
+    monkeypatch.setattr(extensions, "_FICHIER_CATALOGUE", fichier)
+    return _ecrire
+
+
+def test_une_extension_du_catalogue_absente_du_disque_apparait_grisee(
+    faux_projet, faux_catalogue
+):
+    """Le cas qui motive tout le mécanisme : un build allégé, sans le dossier
+    d'une extension pourtant connue — elle doit rester visible, jamais
+    activable."""
+    faux_catalogue(
+        [{"id": "fantome", "nom": "Fantôme", "description": "Une extension qui n'est pas là.", "version": "9.9.9"}]
+    )
+
+    par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
+
+    assert par_id["fantome"]["installee"] is False
+    assert par_id["fantome"]["actif"] is False
+    assert par_id["fantome"]["nom"] == "Fantôme"
+    assert par_id["fantome"]["version"] == "9.9.9"
+
+
+def test_une_extension_presente_masque_son_entree_de_catalogue(faux_projet, faux_catalogue):
+    """Présente ET dans le catalogue : une seule ligne, la RÉELLE — jamais un
+    doublon, et surtout pas la version figée du catalogue qui la décrirait
+    comme absente alors qu'elle tourne peut-être."""
+    _creer_extension(faux_projet, "extensions", "presente")
+    faux_catalogue([{"id": "presente", "nom": "Ancien nom", "description": "", "version": "0.0.1"}])
+
+    resultat = routeur_extensions.list_extensions(db=None)
+    lignes = [e for e in resultat if e["id"] == "presente"]
+
+    assert len(lignes) == 1
+    assert lignes[0]["installee"] is True
+    assert lignes[0]["nom"] == "Presente"  # cf. _creer_extension : nom = identifiant.title()
+
+
+def test_le_catalogue_absent_ne_casse_rien(faux_projet, monkeypatch):
+    """Un fichier catalogue manquant ou illisible doit laisser l'écran des
+    extensions RÉELLEMENT présentes s'afficher quand même — jamais fatal."""
+    monkeypatch.setattr(extensions, "_FICHIER_CATALOGUE", extensions._racine_projet() / "n-existe-pas.json")
+    _creer_extension(faux_projet, "extensions", "presente")
+
+    resultat = routeur_extensions.list_extensions(db=None)
+
+    assert [e["id"] for e in resultat] == ["presente"]
+
+
+def test_une_extension_absente_ne_peut_pas_etre_activee(faux_projet, faux_catalogue):
+    """Le PUT reste protégé indépendamment du frontend : le catalogue ne
+    rend rien activable, seul un vrai dossier le permet (cf. `_extension_ou_404`)."""
+    faux_catalogue([{"id": "fantome", "nom": "Fantôme", "description": "", "version": "1.0.0"}])
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_extensions.set_extension(
+            "fantome", ExtensionEtatUpdate(actif=True), db=None
+        )
+    assert erreur.value.status_code == 404

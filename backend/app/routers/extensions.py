@@ -28,7 +28,11 @@ def _extension_ou_404(extension_id: str):
 
 @router.get("")
 def list_extensions(db: Session = Depends(get_db)):
-    """Les extensions présentes, avec leur état.
+    """Les extensions présentes, avec leur état — PLUS celles du catalogue qui
+    n'ont pas de dossier sur cette machine (cf. extensions.catalogue), à la
+    suite, pour que l'écran Paramètres reste le même que sur une installation
+    complète : grisées, jamais activables, mais visibles — c'est tout
+    l'intérêt de les montrer.
 
     REDÉCOUVERTES À CHAQUE APPEL plutôt que mises en cache au démarrage :
     déposer un dossier d'extension pendant que l'application tourne la fait
@@ -39,7 +43,7 @@ def list_extensions(db: Session = Depends(get_db)):
     extension ajoutée à chaud s'affiche mais ne répondra qu'après relance
     (cf. app/extensions.py, en-tête)."""
     trouvees = extensions_noyau.decouvrir()
-    return [
+    presentes = [
         extension.en_dict(
             extensions_noyau.est_active(extension_id),
             extensions_noyau.est_annoncee(extension_id),
@@ -54,6 +58,12 @@ def list_extensions(db: Session = Depends(get_db)):
         )
         for extension_id, extension in trouvees.items()
     ]
+    absentes = [
+        extensions_noyau.entree_catalogue_absente(entree)
+        for entree in extensions_noyau.catalogue()
+        if entree.get("id") not in trouvees
+    ]
+    return presentes + absentes
 
 
 @router.post("/annoncees")
