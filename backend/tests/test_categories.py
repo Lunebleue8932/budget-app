@@ -136,8 +136,8 @@ def test_couleur_index_attribue_a_la_creation_et_libere_a_la_suppression(db_sess
     crud.reordonner_categories(db_session, list(reversed(ids)))
     assert crud.get_categorie(db_session, nouvelle.id).couleur_index == couleur_voyages
 
-    # Éteindre le dashboard non plus.
-    crud.set_visibilite_dashboard_categorie(db_session, nouvelle, False)
+    # Poser un objectif non plus.
+    crud.set_objectif_pourcentage_categorie(db_session, nouvelle, 10.0)
     assert crud.get_categorie(db_session, nouvelle.id).couleur_index == couleur_voyages
 
     # Supprimer libère l'index, et lui seul : la suivante le récupère.

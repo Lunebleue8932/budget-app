@@ -84,12 +84,24 @@ def _operation(
     )
 
 
-def _bloc(vue, monnaie_id):
-    return next(bloc for bloc in vue.monnaies if bloc.monnaie_id == monnaie_id)
+def _total(vue, monnaie_id):
+    """Le total tous profils confondus, dans une monnaie."""
+    return next(entree for entree in vue.totaux if entree.monnaie_id == monnaie_id)
 
 
-def _ligne(bloc, profil_id):
-    return next(ligne for ligne in bloc.profils if ligne.profil_id == profil_id)
+def _solde(vue, profil_id, monnaie_id):
+    """Ce qu'un profil doit ou nous doit DANS une monnaie.
+
+    Deux niveaux, dans cet ordre : le profil, puis la devise. C'est l'axe de
+    l'écran depuis que les onglets de monnaie ont disparu — un profil qui ne
+    porte rien dans la devise active disparaissait, pour un écran dont le sujet
+    EST la liste des gens."""
+    ligne = next(l for l in vue.soldes if l.profil_id == profil_id)
+    return next(e for e in ligne.monnaies if e.monnaie_id == monnaie_id)
+
+
+def _profils_affiches(vue):
+    return [ligne.profil_id for ligne in vue.soldes]
 
 
 # ---------- Les deux rôles ----------
@@ -105,7 +117,7 @@ def test_une_depense_remboursable_est_une_creance(db_session):
         db_session,
     )
 
-    ligne = _ligne(_bloc(vue, get_monnaie_id(db_session)), marie.id)
+    ligne = _solde(vue, marie.id, get_monnaie_id(db_session))
     assert ligne.a_recevoir == 100.0
     assert ligne.a_rendre == 0.0
     assert ligne.net == 100.0
@@ -124,7 +136,7 @@ def test_un_pret_recu_est_une_dette(db_session):
         db_session,
     )
 
-    ligne = _ligne(_bloc(vue, get_monnaie_id(db_session)), paul.id)
+    ligne = _solde(vue, paul.id, get_monnaie_id(db_session))
     assert ligne.a_rendre == 300.0
     assert ligne.a_recevoir == 0.0
     assert ligne.net == -300.0
@@ -145,7 +157,7 @@ def test_un_profil_peut_porter_les_deux_a_la_fois(db_session):
         db_session,
     )
 
-    ligne = _ligne(_bloc(vue, get_monnaie_id(db_session)), marie.id)
+    ligne = _solde(vue, marie.id, get_monnaie_id(db_session))
     assert (ligne.a_recevoir, ligne.a_rendre, ligne.net) == (100.0, 30.0, 70.0)
     assert ligne.nb_lignes == 2
 
@@ -168,7 +180,7 @@ def test_un_reglement_ne_compte_dans_aucun_total(db_session):
         db_session,
     )
 
-    ligne = _ligne(_bloc(vue, get_monnaie_id(db_session)), marie.id)
+    ligne = _solde(vue, marie.id, get_monnaie_id(db_session))
     # Le règlement n'est lié à aucune dépense ici : la créance vaut donc encore
     # 100, et le règlement n'en retire rien de son côté.
     assert ligne.a_recevoir == 100.0
@@ -207,7 +219,8 @@ def test_une_dette_entierement_soldee_quitte_le_tableau(db_session):
     db_session.commit()
 
     vue = routeur.get_vue(db_session)
-    assert vue.monnaies == []
+    assert vue.totaux == []
+    assert vue.soldes == []
     # Mais elle reste dans le détail du profil.
     assert [l.id for l in routeur.get_operations_profil(marie.id, db_session)] == [
         operation.id
@@ -220,7 +233,7 @@ def test_une_dette_previsionnelle_ne_compte_pas(db_session):
     compte = creer_compte(db_session, "CC")
     _operation(db_session, compte, "remboursable", 80.0, statut=Statut.previsionnel)
 
-    assert routeur.get_vue(db_session).monnaies == []
+    assert routeur.get_vue(db_session).totaux == []
 
 
 # ---------- Ce qui n'est pas encore rangé ----------
@@ -235,11 +248,12 @@ def test_les_dettes_sans_profil_forment_leur_propre_ligne_et_la_liste_a_rattache
     _operation(db_session, compte, "remboursable", 55.0, nature="Restaurant")
 
     vue = routeur.get_vue(db_session)
-    bloc = _bloc(vue, get_monnaie_id(db_session))
 
-    sans_profil = _ligne(bloc, None)
+    sans_profil = _solde(vue, None, get_monnaie_id(db_session))
     assert sans_profil.a_recevoir == 55.0
-    assert sans_profil.profil_nom == service.LIBELLE_SANS_PROFIL
+    assert next(l for l in vue.soldes if l.profil_id is None).profil_nom == (
+        service.LIBELLE_SANS_PROFIL
+    )
     assert [l.nature for l in vue.a_rattacher] == ["Restaurant"]
 
 
@@ -255,8 +269,7 @@ def test_sans_profil_se_range_en_dernier(db_session):
         db_session,
     )
 
-    bloc = _bloc(routeur.get_vue(db_session), get_monnaie_id(db_session))
-    assert [l.profil_id for l in bloc.profils] == [marie.id, None]
+    assert _profils_affiches(routeur.get_vue(db_session)) == [marie.id, None]
 
 
 def test_un_profil_sans_dette_n_apparait_pas_dans_le_tableau(db_session):
@@ -272,8 +285,7 @@ def test_un_profil_sans_dette_n_apparait_pas_dans_le_tableau(db_session):
     )
 
     vue = routeur.get_vue(db_session)
-    bloc = _bloc(vue, get_monnaie_id(db_session))
-    assert [l.profil_id for l in bloc.profils] == [marie.id]
+    assert _profils_affiches(vue) == [marie.id]
     assert {p.nom for p in vue.profils} == {"Jamais servi", "Marie"}
 
 
@@ -297,8 +309,14 @@ def test_les_monnaies_ne_s_additionnent_jamais(db_session):
     )
 
     vue = routeur.get_vue(db_session)
-    assert _bloc(vue, euro).net == 100.0
-    assert _bloc(vue, dollar).net == -100.0
+    assert _total(vue, euro).net == 100.0
+    assert _total(vue, dollar).net == -100.0
+    # ET SUR LA MÊME LIGNE DE PROFIL, une entrée par devise : l'écran n'a plus
+    # d'onglet de monnaie, il montre les deux d'un coup.
+    ligne = next(l for l in vue.soldes if l.profil_id == marie.id)
+    assert [e.monnaie_id for e in ligne.monnaies] == sorted([euro, dollar])
+    assert _solde(vue, marie.id, euro).net == 100.0
+    assert _solde(vue, marie.id, dollar).net == -100.0
 
 
 # ---------- Les gardes ----------
@@ -354,8 +372,7 @@ def test_detacher_ramene_l_operation_dans_sans_profil(db_session):
         schemas_sr.RattachementInput(operation_ids=[operation.id], profil_id=None),
         db_session,
     )
-    bloc = _bloc(vue, get_monnaie_id(db_session))
-    assert [l.profil_id for l in bloc.profils] == [None]
+    assert _profils_affiches(vue) == [None]
 
 
 # ---------- Rien n'est perdu ----------
@@ -416,12 +433,12 @@ def test_le_total_des_profils_vaut_le_chiffre_du_dashboard(db_session):
     )
 
     monnaie_id = get_monnaie_id(db_session)
-    bloc = _bloc(routeur.get_vue(db_session), monnaie_id)
+    total = _total(routeur.get_vue(db_session), monnaie_id)
     carte = soldes.get_reste_a_rembourser(db_session)[monnaie_id]
 
-    assert bloc.total_a_recevoir == carte["a_recevoir"]
-    assert bloc.total_a_rendre == carte["a_rendre"]
-    assert bloc.net == carte["net"]
+    assert total.a_recevoir == carte["a_recevoir"]
+    assert total.a_rendre == carte["a_rendre"]
+    assert total.net == carte["net"]
 
 
 # ---------- Les profils eux-mêmes ----------

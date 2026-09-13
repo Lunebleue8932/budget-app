@@ -266,13 +266,17 @@ def test_un_remboursement_recu_ne_compte_nulle_part(db_session):
 # ---------- Ce qui diverge exprès ----------
 
 
-def test_eteindre_une_categorie_la_retire_des_barres_pas_du_total(db_session):
-    """Assumé : c'est un réglage d'affichage. Le vérifier l'empêche de
-    disparaître par accident."""
+def test_le_serveur_ne_masque_plus_aucune_categorie(db_session):
+    """L'ŒIL A ÉTÉ RETIRÉ (migration 0056) : le serveur rend toutes les
+    catégories, et c'est le filtre du dashboard — côté écran, non persistant —
+    qui décide de ce qui se dessine.
+
+    Ce test remplace son contraire, qui vérifiait qu'une catégorie éteinte
+    disparaissait des barres sans disparaître du total. La divergence qu'il
+    protégeait n'existe plus : l'histogramme et les flux repartent des mêmes
+    lignes."""
     compte = creer_compte(db_session, "Courant", solde_initial=1000.0)
     _depense(db_session, compte, 80.0)
-    categorie = crud.get_categorie_by_nom(db_session, "Alimentaire")
-    crud.set_visibilite_dashboard_categorie(db_session, categorie, False)
 
-    assert _somme_histogramme(db_session) == pytest.approx(0.0)
+    assert _somme_histogramme(db_session) == pytest.approx(80.0)
     assert _sorties(db_session) == pytest.approx(80.0)

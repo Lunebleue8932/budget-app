@@ -41,6 +41,14 @@ def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
             "budget_alloue": 0.0,
             "top_depenses": [],
             "couleur_index": depense.couleur_index,
+            # PAS DE COEFFICIENT SUR UN POURCENTAGE : l'objectif est une part,
+            # pas un montant, et convertir une part n'a aucun sens. La même
+            # catégorie vue dans deux monnaies porte forcément le même objectif
+            # (il est posé sur la catégorie, cf. models.Categorie), c'est donc
+            # celui de la première ligne rencontrée — et l'oublier aurait fait
+            # disparaître toutes les pastilles d'objectif dès que la case
+            # « Tout convertir » est cochée.
+            "objectif_pourcentage": depense.objectif_pourcentage,
         },
     )
     ligne["total_reel"] += depense.total_reel * coefficient
@@ -96,6 +104,13 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         # La variation brute s'additionne comme les autres totaux : c'est une
         # somme de montants, pas une différence recalculée.
         agrege.variation_brute += kpi.variation_brute * coefficient
+        # LE RESTE À REMBOURSER SE CONVERTIT COMME LE RESTE, bien qu'il ne
+        # dépende d'aucune période : ce sont des montants, et une créance en
+        # dollars converties en euros reste une créance. Les OUBLIER ici ne
+        # ferait pas « rien » — la carte afficherait 0,00 € dès que la case
+        # « Tout convertir » est cochée, ce qui est faux et silencieux.
+        agrege.reste_a_recevoir += kpi.reste_a_recevoir * coefficient
+        agrege.reste_a_rendre += kpi.reste_a_rendre * coefficient
         for depense in kpi.depenses_par_categorie:
             _categorie_agregee(categories, depense, coefficient)
 
@@ -104,6 +119,10 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     # calcul (cf. services/soldes.get_flux_periode) ; la convertir séparément
     # ouvrirait la porte à trois chiffres qui ne s'accordent plus à l'arrondi.
     agrege.variation_previsionnelle = agrege.total_entrees - agrege.total_sorties
+    # Même raison pour le net des remboursements : il vaut ce qu'on me doit
+    # moins ce que je dois, et le convertir à part le ferait diverger de ses
+    # deux composantes à l'arrondi.
+    agrege.reste_a_rembourser = agrege.reste_a_recevoir - agrege.reste_a_rendre
 
     for ligne in categories.values():
         # Les plus grosses dépenses de la catégorie, tous pays confondus, du

@@ -32,6 +32,35 @@ def set_note(payload: schemas.NoteDashboardUpdate, db: Session = Depends(get_db)
     return schemas.NoteDashboardRead(contenu=note.contenu, modifie_le=note.modifie_le)
 
 
+@router.get("/ecart-variations", response_model=schemas.EcartVariationsRead)
+def get_ecart_variations(
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Les opérations qui expliquent l'écart entre les deux variations du
+    dashboard (cf. services.soldes.get_ecart_variations).
+
+    UNE ROUTE À PART, et pas un champ de plus sur `/dashboard`. Ce détail n'est
+    demandé que lorsqu'on clique pour le voir : le calculer à chaque affichage du
+    dashboard aurait chargé toutes les opérations de la période à chaque
+    changement de mois, pour une liste que personne ne regarde neuf fois sur dix.
+    Même raisonnement que `/dashboard/semaines`.
+
+    UNE SEULE MONNAIE, obligatoire : l'application n'additionne jamais deux
+    monnaies, et cet écran détaille l'onglet qu'on regarde déjà.
+
+    `mois=None` DONNE LA VUE ANNUELLE, exactement comme le dashboard : les deux
+    variations s'y calculent sur douze mois, leur écart aussi.
+    """
+    aujourdhui = date.today()
+    annee = annee if annee is not None else aujourdhui.year
+    if mois is not None and (mois < 1 or mois > 12):
+        raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
+    return soldes.get_ecart_variations(db, annee, mois, monnaie_id)
+
+
 @router.get("/semaines", response_model=schemas.DepensesSemainesRead)
 def get_depenses_semaines(
     monnaie_id: int,

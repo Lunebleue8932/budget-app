@@ -14,13 +14,14 @@ import calendar
 from datetime import date as date_type
 from typing import Optional
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from .. import crud, extensions, models
 from ..constants import (
     CATEGORIES_SENS_ENTREE,
     EXTENSION_PRETS,
+    EXTENSION_SUIVI_REMBOURSEMENTS,
     LIBELLE_INTERETS_PRETS,
     TYPES_COMPTE_HORS_COURANT,
     TYPES_HORS_FLUX,
@@ -34,6 +35,15 @@ from ..constants import (
 # Codes des types dont l'opération est remboursable, pour les filtres SQL.
 _CODES_REMBOURSABLES = [t.value for t in TYPES_REMBOURSABLES]
 _CODES_HORS_FLUX = [t.value for t in TYPES_HORS_FLUX]
+
+
+def _remboursable_compte() -> bool:
+    """Si l'extension « Suivi des remboursements » tourne : sans elle, une
+    dépense remboursable ne pèse plus sur AUCUN total (flux, histogramme,
+    infobulle, reste à rembourser) — même règle et même raison que
+    `pret`/EXTENSION_PRETS. Elle reste intacte en base, seulement absente des
+    chiffres tant que rien n'explique à qui elle est due."""
+    return extensions.est_active(EXTENSION_SUIVI_REMBOURSEMENTS)
 
 # LES INTÉRÊTS D'UN PRÊT : ce qu'on rendra moins ce qu'on a reçu, JAMAIS négatif.
 #
@@ -573,6 +583,9 @@ def _sommes_par_categorie(
         .group_by(models.Categorie.nom)
         .all()
     )
+    # Sans l'extension « Suivi des remboursements », une dépense remboursable
+    # ne pèse plus sur aucune catégorie (cf. _base_imposable) : la requête ne
+    # tourne même pas, plutôt que de sommer puis d'ignorer son résultat.
     remboursables = (
         db.query(
             models.Categorie.nom,
@@ -583,6 +596,8 @@ def _sommes_par_categorie(
         .filter(models.TypeOperationDB.code.in_(_CODES_REMBOURSABLES), *filtre_commun)
         .group_by(models.Categorie.nom)
         .all()
+        if _remboursable_compte()
+        else []
     )
 
     totaux: dict = {}
@@ -675,8 +690,16 @@ def _base_imposable(montant: float, montant_du: Optional[float], code: str) -> f
     `categorie` et d'un `sens = dépense` : un prêt n'y arrive jamais. Il compte
     dans sa propre barre (cf. _barre_interets_prets) et nulle part ailleurs. Le
     tester sur `_CODES_REMBOURSABLES`, qui le contient, rendrait donc ici un
-    intérêt NÉGATIF le jour où quelqu'un réemploierait cette fonction."""
+    intérêt NÉGATIF le jour où quelqu'un réemploierait cette fonction.
+
+    SANS L'EXTENSION « SUIVI DES REMBOURSEMENTS » (cf. _remboursable_compte),
+    une dépense remboursable apporte 0 : même règle que pour un prêt sans
+    l'extension « Prêts » (cf. get_flux_periode) — rien n'explique plus à qui
+    l'argent est dû, elle ne doit donc plus peser sur aucun total tant que
+    l'extension est éteinte."""
     if code == TypeOperation.remboursable.value:
+        if not _remboursable_compte():
+            return 0.0
         return montant - (montant_du or 0.0)
     return montant
 
@@ -861,10 +884,13 @@ def get_depenses_par_categorie(
     plus que de vraies (les quatre anciennes catégories système sont devenues
     des types, et leurs opérations n'ont plus de catégorie du tout).
 
-    Sauf celles que l'utilisateur a éteintes (œil de l'onglet Catégories) : le
-    filtre est ici, à la source, plutôt que côté frontend, pour que l'échelle de
-    l'histogramme se recalcule sur les seules barres montrées — masquer après
-    coup aurait laissé une catégorie invisible écraser toutes les autres.
+    TOUTES LES CATÉGORIES SONT RENDUES, et le tri se fait à l'écran. L'œil de
+    l'onglet Catégories filtrait ici, à la source ; il a été retiré (migration
+    0056) au profit du filtre du dashboard, qui vit dans le titre du graphe et
+    pilote l'histogramme, le camembert et la légende ensemble. Ce filtre-là
+    recalcule de toute façon ses trois échelles sur les seules lignes retenues
+    (cf. partsCategoriesDashboard), ce qui était la seule raison de filtrer si
+    tôt.
 
     ET SAUF LES CATÉGORIES D'ENTRÉE (cf. constants.CATEGORIES_SENS_ENTREE). Une
     catégorie dont les opérations sont des ENTRÉES ne peut rien porter ici : les
@@ -876,10 +902,7 @@ def get_depenses_par_categorie(
     lit dans « Total entrées », à côté."""
     categories = (
         db.query(models.Categorie)
-        .filter(
-            models.Categorie.visible_dashboard.is_(True),
-            models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE),
-        )
+        .filter(models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE))
         .order_by(models.Categorie.ordre)
         .all()
     )
@@ -904,6 +927,13 @@ def get_depenses_par_categorie(
                     db, categorie.id, annee, mois, monnaie_id, semaine
                 ),
                 "couleur_index": categorie.couleur_index,
+                # L'INTENTION, à côté du constat. Rien n'est comparé ici : le
+                # camembert pose les deux chiffres l'un contre l'autre, et c'est
+                # l'œil qui tranche. Un écart calculé côté serveur aurait dû
+                # choisir un dénominateur (toutes les catégories ? les seules
+                # affichées ?) alors que ce dénominateur dépend justement du
+                # filtre appliqué à l'écran (cf. renderPieChartDepenses).
+                "objectif_pourcentage": categorie.objectif_pourcentage,
                 "top_depenses": tops.get(categorie.nom, []),
             }
         )
@@ -1144,11 +1174,15 @@ def get_flux_periode(
     ):
         totaux[sens] = totaux.get(sens, 0.0) + (total or 0.0)
 
-    # 2. Une dépense remboursable ne pèse que pour ce qui reste à ma charge.
-    for sens, total in _requete(
-        models.Operation.montant - models.Operation.montant_du
-    ).filter(est_depense_remboursable):
-        totaux[sens] = totaux.get(sens, 0.0) + (total or 0.0)
+    # 2. Une dépense remboursable ne pèse que pour ce qui reste à ma charge —
+    # et seulement si l'extension « Suivi des remboursements » tourne : sans
+    # elle, aucun écran ne dit plus à qui cet argent est dû (même règle qu'au
+    # point 3 pour les prêts, cf. _remboursable_compte).
+    if _remboursable_compte():
+        for sens, total in _requete(
+            models.Operation.montant - models.Operation.montant_du
+        ).filter(est_depense_remboursable):
+            totaux[sens] = totaux.get(sens, 0.0) + (total or 0.0)
 
     # 3. Un prêt reçu pèse pour ses SEULS INTÉRÊTS, et du côté des SORTIES.
     #
@@ -1249,6 +1283,203 @@ def get_variation_brute(
     return totaux.get(Sens.entree, 0.0) - totaux.get(Sens.depense, 0.0)
 
 
+# Pourquoi une opération creuse un écart entre les deux variations. Un code
+# plutôt qu'une phrase : c'est l'écran qui écrit la phrase, et il la traduit.
+RAISON_AMORTISSEMENT = "amortissement"
+RAISON_REMBOURSABLE = "remboursable"
+RAISON_PRET = "pret"
+RAISON_REGLEMENT = "reglement"
+
+
+def _contributions_operation(
+    operation: models.Operation,
+    annee: int,
+    mois: Optional[int],
+    dans_periode_date: bool,
+    prets_actifs: bool,
+    remboursable_actif: bool,
+) -> tuple:
+    """Ce qu'UNE opération apporte à chacune des deux variations.
+
+    CETTE FONCTION EST UN MIROIR, et c'est toute sa difficulté : elle doit rendre
+    exactement ce que `get_variation_brute` et `get_flux_periode` comptent, y
+    compris leurs cas particuliers, sinon la somme des écarts ne vaudrait pas
+    l'écart affiché — et un détail qui ne totalise pas le chiffre qu'il détaille
+    est pire que pas de détail du tout. Le test
+    `test_ecart_variations.py::test_somme_des_ecarts_vaut_la_difference` la tient.
+
+    Les deux valeurs sont SIGNÉES du point de vue du compte : une entrée
+    positive, une dépense négative. C'est ce qui permet de les soustraire sans
+    se demander de quel côté chacune tombait.
+    """
+    code = operation.type_operation.code
+    signe = 1.0 if operation.sens == Sens.entree else -1.0
+    montant_du = operation.montant_du or 0.0
+
+    # ---- La BRUTE : à la date, pour le montant, sans rien retrancher.
+    # Une opération amortie qui ne recoupe la période que par son étalement n'y
+    # apporte RIEN : l'argent est sorti un autre mois.
+    brute = signe * operation.montant if dans_periode_date else 0.0
+
+    # ---- L'ATTRIBUÉE : ce que la période coûte.
+    if code in _CODES_HORS_FLUX:
+        # Un RÈGLEMENT solde une dette déjà comptée quand elle est née.
+        attribuee = 0.0
+    elif operation.amorti:
+        part = part_amortie(operation, annee, mois)
+        if code == TypeOperation.pret.value:
+            attribuee = (
+                -max(0.0, montant_du - operation.montant) * part if prets_actifs else 0.0
+            )
+        else:
+            # `_remboursable_compte()` n'est volontairement PAS testé ici : la
+            # boucle des amorties de `get_flux_periode` ne le teste pas non plus,
+            # et ce miroir doit refléter le calcul tel qu'il est, pas tel qu'on
+            # l'écrirait aujourd'hui.
+            attribuee = (
+                signe * _base_imposable(operation.montant, operation.montant_du, code) * part
+            )
+    elif dans_periode_date:
+        if code == TypeOperation.pret.value:
+            # Un prêt reçu ne compte que pour ses INTÉRÊTS, et du côté des
+            # sorties — d'où le signe négatif quel que soit le sens de
+            # l'écriture.
+            attribuee = -max(0.0, montant_du - operation.montant) if prets_actifs else 0.0
+        elif code == TypeOperation.remboursable.value and operation.sens == Sens.depense:
+            attribuee = (
+                signe * (operation.montant - montant_du) if remboursable_actif else 0.0
+            )
+        else:
+            attribuee = signe * operation.montant
+    else:
+        attribuee = 0.0
+
+    return brute, attribuee
+
+
+def _raison_ecart(operation: models.Operation) -> str:
+    """POURQUOI cette ligne creuse un écart. L'ordre des tests compte : une
+    dépense remboursable ET amortie est d'abord une amortie — c'est l'étalement
+    qui explique le gros de son écart, et c'est lui qu'on veut lire en tête."""
+    code = operation.type_operation.code
+    if operation.amorti:
+        return RAISON_AMORTISSEMENT
+    if code in _CODES_HORS_FLUX:
+        return RAISON_REGLEMENT
+    if code == TypeOperation.pret.value:
+        return RAISON_PRET
+    return RAISON_REMBOURSABLE
+
+
+def get_ecart_variations(
+    db: Session, annee: int, mois: Optional[int], monnaie_id: int
+) -> dict:
+    """Les opérations qui expliquent l'écart entre la variation BRUTE et la
+    variation ATTRIBUÉE, une par une.
+
+    CE QU'ON VIENT Y CHERCHER. Deux chiffres posés côte à côte sur le dashboard
+    ne tombent jamais d'accord, et c'est normal — l'un dit ce qui est passé sur
+    le compte, l'autre ce que la période coûte. Mais « c'est normal » n'est pas
+    une explication : devant 400 € d'écart, la seule question utile est
+    « lesquelles ? ». Cet écran-là y répond, et rien d'autre dans l'application
+    ne le pouvait.
+
+    QUATRE FAMILLES, et il n'y en a pas d'autres — c'est ce qui rend la liste
+    exhaustive plutôt qu'illustrative :
+
+      - un AMORTISSEMENT : la brute compte le montant entier au mois où l'argent
+        est sorti, l'attribuée seulement la part du mois. L'écart change de signe
+        selon qu'on regarde le mois du paiement ou l'un des suivants ;
+      - une DÉPENSE REMBOURSABLE : la brute compte tout, l'attribuée retranche ce
+        qu'on nous rendra ;
+      - un PRÊT REÇU : la brute compte l'argent arrivé, l'attribuée n'en garde
+        que les intérêts, et du côté des sorties ;
+      - un RÈGLEMENT : la brute le compte, l'attribuée l'écarte — la dette qu'il
+        solde a déjà été comptée quand elle est née.
+
+    LE PÉRIMÈTRE EST L'UNION DES DEUX, pas l'intersection : une opération amortie
+    d'un mois antérieur n'apporte rien à la brute de ce mois-ci mais bien quelque
+    chose à l'attribuée, et c'est justement une ligne d'écart. La chercher dans
+    le seul périmètre de la brute l'aurait laissée invisible, et la somme des
+    lignes n'aurait plus valu l'écart.
+
+    RIEN N'EST ARRONDI, ET RIEN N'EST OMIS : on garde toute ligne dont l'écart
+    n'est pas nul au centime. L'invariant — la somme des écarts vaut la
+    différence des deux variations — est ce qui rend cette liste digne de
+    confiance, et il est vérifié par un test.
+    """
+    prets_actifs = extensions.est_active(EXTENSION_PRETS)
+    remboursable_actif = _remboursable_compte()
+
+    operations = (
+        db.query(models.Operation)
+        .join(models.Compte, models.Operation.compte_id == models.Compte.id)
+        .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+        .filter(
+            models.Operation.monnaie_id == monnaie_id,
+            models.TypeCompte.nom.notin_(TYPES_COMPTE_HORS_COURANT),
+            models.Operation.sens.in_([Sens.entree, Sens.depense]),
+            or_(
+                filtre_date_periode(annee, mois),
+                _filtre_periode_amortie(annee, mois),
+            ),
+        )
+        .all()
+    )
+
+    debut_periode = date_type(annee, 1 if mois is None else mois, 1)
+    fin_periode = fin_de_periode(annee, mois)
+
+    lignes = []
+    for operation in operations:
+        dans_periode_date = debut_periode <= operation.date <= fin_periode
+        brute, attribuee = _contributions_operation(
+            operation,
+            annee,
+            mois,
+            dans_periode_date,
+            prets_actifs,
+            remboursable_actif,
+        )
+        ecart = brute - attribuee
+        # Le centime est la plus petite unité que l'écran sait écrire : en
+        # dessous, c'est un résidu de division (une part amortie sur 7 mois) et
+        # non une opération à montrer.
+        if abs(ecart) < 0.005:
+            continue
+        lignes.append(
+            {
+                "operation_id": operation.id,
+                "date": operation.date,
+                "nature": operation.nature,
+                "compte_nom": operation.compte.nom if operation.compte else "",
+                "categorie_nom": operation.categorie.nom if operation.categorie else None,
+                "type_code": operation.type_operation.code,
+                "montant": operation.montant,
+                "sens": operation.sens,
+                "contribution_brute": brute,
+                "contribution_attribuee": attribuee,
+                "ecart": ecart,
+                "raison": _raison_ecart(operation),
+            }
+        )
+
+    # DU PLUS GROS ÉCART AU PLUS PETIT, en valeur absolue : on vient voir ce qui
+    # explique le chiffre, donc ce qui pèse le plus doit se lire en premier. Un
+    # tri par date aurait mis en tête la ligne la plus ancienne, qui n'est
+    # presque jamais celle qu'on cherche.
+    lignes.sort(key=lambda ligne: abs(ligne["ecart"]), reverse=True)
+
+    flux = get_flux_periode(db, annee, mois, monnaie_id)
+    brute_totale = get_variation_brute(db, annee, mois, monnaie_id)
+    return {
+        "variation_brute": brute_totale,
+        "variation_attribuee": flux["variation"],
+        "ecart": brute_totale - flux["variation"],
+        "lignes": lignes,
+    }
+
+
 def get_variation_previsionnelle(
     db: Session, annee: int, mois: Optional[int], monnaie_id: int
 ) -> float:
@@ -1302,13 +1533,19 @@ def get_reste_a_rembourser(db: Session) -> dict:
     JAMAIS DE TOTAL ENTRE MONNAIES, comme partout : une dette en dollars ne
     compense pas une créance en euros. Le net est calculé DANS chaque monnaie.
 
-    LES PRÊTS NE COMPTENT QUE SI L'EXTENSION QUI LES EXPLIQUE TOURNE. Même
+    LES DEUX CÔTÉS NE COMPTENT QUE SI L'EXTENSION QUI LES EXPLIQUE TOURNE. Même
     procédé que les intérêts de prêt dans les flux du mois (cf.
-    `_barre_interets_prets`) : sans son écran, une dette apparaîtrait dans le
-    chiffre sans qu'aucune page ne dise d'où elle vient. `a_rendre` vaut alors
-    zéro, et le net se réduit à ce qu'on me doit.
+    `_barre_interets_prets`) : sans son écran, une dette ou une créance
+    apparaîtrait dans le chiffre sans qu'aucune page ne dise d'où elle vient ou
+    à qui elle est due. `a_recevoir` dépend de « Suivi des remboursements »
+    (cf. _remboursable_compte), `a_rendre` de « Prêts » — chacun vaut alors
+    zéro, et le net se réduit à l'autre côté.
     """
-    a_recevoir = _reste_du_par_monnaie(db, TypeOperation.remboursable.value)
+    a_recevoir = (
+        _reste_du_par_monnaie(db, TypeOperation.remboursable.value)
+        if _remboursable_compte()
+        else {}
+    )
     a_rendre = (
         _reste_du_par_monnaie(db, TypeOperation.pret.value)
         if extensions.est_active(EXTENSION_PRETS)

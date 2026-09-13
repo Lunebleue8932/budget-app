@@ -96,23 +96,39 @@ def set_budget_categorie(
     )
 
 
-@router.put("/{categorie_id}/visibilite", response_model=schemas.CategorieRead)
-def set_visibilite_categorie(
+@router.put("/{categorie_id}/objectif", response_model=schemas.CategorieRead)
+def set_objectif_categorie(
     categorie_id: int,
-    updates: schemas.CategorieVisibiliteUpdate,
+    updates: schemas.CategorieObjectifUpdate,
     db: Session = Depends(get_db),
 ):
-    """Allume ou éteint une catégorie sur le dashboard (œil de l'onglet
-    Catégories).
+    """Fixe (ou retire, avec 0) l'objectif de répartition d'une catégorie.
 
-    Aucune contrainte, pas même sur « Autres » : c'est un réglage d'affichage,
-    et tout éteindre ne fait qu'un histogramme vide — un état parfaitement
-    réversible, contrairement à une suppression."""
+    ON N'EST PAS OBLIGÉ D'ATTEINDRE 100 %, mais on ne peut pas le DÉPASSER, et
+    les deux moitiés de cette règle comptent autant l'une que l'autre :
+
+      - poser un objectif sur trois catégories et rien sur les dix-sept autres
+        est l'état ORDINAIRE. Exiger un total exact aurait obligé à inventer un
+        objectif pour chaque catégorie dont on n'a rien à dire, et rendu
+        impossible l'état où l'on vient d'en poser son premier ;
+      - dépasser 100 %, en revanche, décrit une répartition qui n'existe pas. Ce
+        qui reste à 100 est implicitement réparti entre les catégories sans
+        objectif (cf. renderPieChartDepenses) : au-delà, ce reste devient
+        négatif, et l'écran calculerait sur une base impossible.
+
+    Le refus est un 400 avec le plafond utilisable ANNONCÉ (« celle-ci ne peut
+    pas dépasser 22,5 % ») : un message qui dit seulement « trop grand » oblige à
+    ouvrir dix-neuf autres catégories pour faire l'addition soi-même."""
     db_categorie = crud.get_categorie(db, categorie_id)
     if db_categorie is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
-    return crud.set_visibilite_dashboard_categorie(
-        db, db_categorie, updates.visible_dashboard
+    erreur = crud.erreur_objectif_pourcentage(
+        db, db_categorie, updates.objectif_pourcentage
+    )
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.set_objectif_pourcentage_categorie(
+        db, db_categorie, updates.objectif_pourcentage
     )
 
 

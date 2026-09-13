@@ -442,40 +442,30 @@ def test_le_sens_dun_virement_ne_se_devine_pas(db_session):
         crud._sens_pour_type("virement", None)
 
 
-def test_depenses_par_categorie_ignore_les_categories_eteintes(db_session):
-    """L'œil de l'onglet Catégories retire la catégorie de l'histogramme —
-    et de rien d'autre : l'opération reste bien classée dessus."""
+def test_depenses_par_categorie_rend_toutes_les_categories(db_session):
+    """PLUS AUCUN FILTRE À LA SOURCE depuis le retrait de l'œil (migration
+    0056) : toutes les catégories de dépense descendent à l'écran, et c'est le
+    filtre du dashboard qui décide de ce qui se dessine.
+
+    Seules les catégories d'ENTRÉE restent écartées ici, pour une tout autre
+    raison : leurs opérations ne comptent pas dans les sommes de dépense, leur
+    barre resterait à zéro quoi qu'on y range."""
     compte = _make_compte(db_session, "Courant")
     _make_operation(
         db_session, compte, categorie="Alimentaire", montant=50.0,
         sens=Sens.depense, statut=Statut.reel,
     )
 
-    categorie = crud.get_categorie_by_nom(db_session, "Alimentaire")
-    crud.set_visibilite_dashboard_categorie(db_session, categorie, False)
-
-    resultats = {
-        r["categorie"]: r
-        for r in soldes.get_depenses_par_categorie(db_session, 2026, 7, get_monnaie_id(db_session))
-    }
-    assert "Alimentaire" not in resultats
-    # Les autres sont intactes : c'est un filtre, pas une purge.
-    assert "Loisirs & sorties" in resultats
-    # L'opération n'a pas bougé de catégorie.
-    assert (
-        db_session.query(models.Operation)
-        .filter(models.Operation.categorie_id == categorie.id)
-        .count()
-        == 1
-    )
-
-    # Rallumer la remet exactement où elle était.
-    crud.set_visibilite_dashboard_categorie(db_session, categorie, True)
     resultats = {
         r["categorie"]: r
         for r in soldes.get_depenses_par_categorie(db_session, 2026, 7, get_monnaie_id(db_session))
     }
     assert resultats["Alimentaire"]["total_reel"] == 50.0
+    # Celles qui n'ont rien reçu sont là aussi, à zéro : l'écran a besoin de
+    # toutes les lignes pour calculer le reste implicite des objectifs.
+    assert "Loisirs & sorties" in resultats
+    # La catégorie d'entrée, elle, reste écartée.
+    assert "Entrées d'argent" not in resultats
 
 
 def test_depenses_par_categorie_deduit_le_montant_du_pour_les_remboursables(db_session):

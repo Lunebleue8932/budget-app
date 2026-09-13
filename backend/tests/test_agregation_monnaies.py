@@ -193,6 +193,52 @@ def test_la_variation_vaut_toujours_entrees_moins_sorties(db_session):
     assert kpi.total_sorties == pytest.approx(100.0 + 50.0 * 0.9)
 
 
+def test_le_reste_a_rembourser_est_converti_comme_le_reste(db_session):
+    """CE QU'IL PROTÈGE : la carte « Reste à rembourser » affichait 0,00 € dès
+    qu'on cochait « Tout convertir », tant que l'agrégation ne connaissait pas ses
+    trois champs. Faux, et silencieux — le pire des deux.
+
+    Ce chiffre ne dépend d'AUCUNE période (c'est un stock), mais ce sont bien des
+    montants : une créance en dollars convertie en euros reste une créance."""
+    from app import schemas
+    from app.constants import Sens, Statut
+
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    compte_eur = creer_compte(db_session, "Courant EUR", solde_initial=1000.0)
+    compte_usd = creer_compte(db_session, "Courant USD", monnaies=[(dollar.id, 500.0)])
+    _taux(db_session, dollar, euro, 0.9)
+
+    def _remboursable(compte, monnaie_id, montant):
+        crud.create_operation(
+            db_session,
+            schemas.OperationCreate(
+                date=date(2026, 3, 10),
+                compte_id=compte.id,
+                monnaie_id=monnaie_id,
+                type_id=get_type_id(db_session, "remboursable"),
+                categorie_id=get_categorie_id(db_session, "Charges fixes"),
+                nature="Avance",
+                montant=montant,
+                montant_du=montant,
+                sens=Sens.depense,
+                statut=Statut.reel,
+            ),
+        )
+
+    _remboursable(compte_eur, euro.id, 100.0)
+    _remboursable(compte_usd, dollar.id, 50.0)
+
+    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    (kpi,) = payload.kpis
+    assert kpi.reste_a_recevoir == pytest.approx(100.0 + 50.0 * 0.9)
+    # Le net n'est pas converti à part : il vaut ses deux composantes, sans quoi
+    # les trois chiffres de la carte divergeraient à l'arrondi.
+    assert kpi.reste_a_rembourser == pytest.approx(
+        kpi.reste_a_recevoir - kpi.reste_a_rendre
+    )
+
+
 def test_une_categorie_de_deux_monnaies_devient_une_seule_barre(db_session):
     """C'est justement ce que la conversion permet enfin de dire : « Courses »
     en euros et « Courses » en dollars sont la même catégorie."""

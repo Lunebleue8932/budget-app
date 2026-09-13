@@ -67,35 +67,54 @@ class OperationSuiviRead(BaseModel):
     profil_id: Optional[int] = None
 
 
-class ProfilSoldeRead(BaseModel):
-    """Le solde d'un profil DANS UNE MONNAIE. Jamais de total entre monnaies :
-    une dette en dollars ne compense pas une créance en euros."""
+class MontantMonnaieRead(BaseModel):
+    """Ce qui est dû DANS UNE MONNAIE — pour un profil, ou tous profils
+    confondus.
 
-    profil_id: Optional[int] = None
-    profil_nom: str
+    C'EST LA BRIQUE UNIQUE DE L'ÉCRAN, et c'est voulu : les totaux du haut et la
+    ligne d'un profil répondent à la même question à une portée près. Deux formes
+    auraient demandé deux rendus, et les deux auraient fini par diverger.
+
+    JAMAIS DE TOTAL ENTRE MONNAIES : une dette en dollars ne compense pas une
+    créance en euros, le net est donc calculé DANS chaque monnaie et il y a
+    autant d'entrées que de devises en jeu."""
+
+    monnaie_id: int
+    monnaie_nom: str
+    monnaie_symbole: str
     a_recevoir: float = 0.0
     a_rendre: float = 0.0
     net: float = 0.0
     nb_lignes: int = 0
 
 
-class MonnaieSuiviRead(BaseModel):
-    monnaie_id: int
-    monnaie_nom: str
-    monnaie_symbole: str
-    total_a_recevoir: float = 0.0
-    total_a_rendre: float = 0.0
-    net: float = 0.0
-    # Les profils qui portent quelque chose dans CETTE monnaie, plus la ligne
-    # « Sans profil » quand il reste des dettes non rattachées (profil_id à
-    # None). C'est elle qui donne envie de ranger : sans elle, un total de
-    # profils inférieur au chiffre du dashboard n'aurait aucune explication à
-    # l'écran.
-    profils: list[ProfilSoldeRead] = Field(default_factory=list)
+class ProfilSoldeRead(BaseModel):
+    """Une ligne du tableau : un profil, et ce qu'il doit ou nous doit dans
+    CHACUNE des monnaies où il porte quelque chose.
+
+    PAS D'ONGLET DE MONNAIE AU-DESSUS, d'où cette forme. Un onglet par devise
+    obligeait à cliquer pour savoir si Marie doit aussi des dollars, et faisait
+    disparaître de l'écran un profil qui ne porte rien dans la devise active —
+    pour un écran dont le sujet EST la liste des gens, c'était le mauvais axe.
+    Le profil est donc le premier niveau, et la monnaie le second : une barre par
+    devise, sur la même ligne."""
+
+    profil_id: Optional[int] = None
+    profil_nom: str
+    monnaies: list[MontantMonnaieRead] = Field(default_factory=list)
 
 
 class VueSuiviRead(BaseModel):
-    monnaies: list[MonnaieSuiviRead] = Field(default_factory=list)
+    # Tous profils confondus, une entrée par monnaie : ce que résument les trois
+    # cartes du haut.
+    totaux: list[MontantMonnaieRead] = Field(default_factory=list)
+    # Une ligne par profil qui porte quelque chose, plus « Sans profil » en
+    # dernier quand il reste des dettes non rattachées (profil_id à None). C'est
+    # elle qui donne envie de ranger : sans elle, un total de profils inférieur
+    # au chiffre du dashboard n'aurait aucune explication à l'écran.
+    soldes: list[ProfilSoldeRead] = Field(default_factory=list)
+    # Tous les profils existants, y compris ceux qui ne portent rien : c'est la
+    # liste des menus et de l'écran de gestion.
     profils: list[ProfilRead] = Field(default_factory=list)
     # Les opérations qui FONT une dette (remboursable ou prêt) et qu'aucun profil
     # ne porte encore. C'est la liste de travail de l'écran : tant qu'elle n'est

@@ -173,10 +173,70 @@ def create_categorie(db: Session, categorie: schemas.CategorieCreate) -> models.
     return db_categorie
 
 
-def set_visibilite_dashboard_categorie(
-    db: Session, db_categorie: models.Categorie, visible: bool
+def erreur_objectif_pourcentage(
+    db: Session, db_categorie: models.Categorie, pourcentage: float
+) -> Optional[str]:
+    """Le message d'erreur si cet objectif faisait dépasser 100 % au total, None
+    sinon.
+
+    POURQUOI CETTE BORNE EXISTE MAINTENANT, alors que les objectifs partiels sont
+    admis. L'écran répartit le reste à 100 % entre les catégories SANS objectif
+    (cf. renderPieChartDepenses, la règle du « reste implicite ») : au-delà de
+    100, ce reste devient négatif et la règle n'a plus de sens — on demanderait à
+    des catégories de peser moins que rien. Mieux vaut refuser la saisie que
+    laisser un écran calculer sur une base impossible.
+
+    LA SOMME PORTE SUR TOUTES LES CATÉGORIES, y compris celles qui sont éteintes
+    du dashboard : un objectif est une propriété de la catégorie, pas un réglage
+    d'affichage. Sinon, rallumer une catégorie aurait pu faire basculer le total
+    au-dessus de 100 sans qu'aucune saisie n'ait eu lieu.
+
+    LA CATÉGORIE QU'ON MODIFIE EST EXCLUE de la somme des autres : on remplace sa
+    valeur, on ne l'ajoute pas. Sans ça, ramener un objectif de 60 à 50 aurait été
+    refusé dès que le total frôlait 100.
+
+    UNE TOLÉRANCE D'UN MILLIÈME : les pourcentages se saisissent à la décimale,
+    et une somme de flottants qui vaut 100.00000000000001 n'est pas une faute de
+    l'utilisateur.
+    """
+    autres = (
+        db.query(func.coalesce(func.sum(models.Categorie.objectif_pourcentage), 0.0))
+        .filter(models.Categorie.id != db_categorie.id)
+        .scalar()
+        or 0.0
+    )
+    total = autres + pourcentage
+    if total <= 100.0 + 1e-3:
+        return None
+    return (
+        f"La somme des objectifs dépasserait 100 % ({total:.1f} %). "
+        f"Les autres catégories en portent déjà {autres:.1f} % : "
+        f"celle-ci ne peut pas dépasser {max(0.0, 100.0 - autres):.1f} %."
+    )
+
+
+def set_objectif_pourcentage_categorie(
+    db: Session, db_categorie: models.Categorie, pourcentage: float
 ) -> models.Categorie:
-    db_categorie.visible_dashboard = visible
+    """L'objectif de RÉPARTITION, en pourcentage (cf. migration 0055).
+
+    RIEN À VOIR AVEC `set_budget_categorie`, qui écrit une enveloppe en valeur
+    pour un mois et une monnaie : ici il n'y a ni l'un ni l'autre dans la clé,
+    l'objectif est porté par la catégorie elle-même. Les deux se posent et se
+    retirent indépendamment.
+
+    Les bornes d'UNE valeur (0 à 100) sont déjà vérifiées par le schéma
+    (`CategorieObjectifUpdate`) et par la base
+    (`ck_categorie_objectif_pourcentage`) : on ne les redit pas ici.
+
+    LA BORNE DE LA SOMME, elle, ne peut pas vivre dans un schéma ni dans une
+    contrainte de colonne — elle dépend des AUTRES lignes. Elle est donc
+    vérifiée par `erreur_objectif_pourcentage`, que la route rend en 400, et
+    rappelée ici en dernier filet pour les appels internes."""
+    erreur = erreur_objectif_pourcentage(db, db_categorie, pourcentage)
+    if erreur:
+        raise ValueError(erreur)
+    db_categorie.objectif_pourcentage = pourcentage
     db.commit()
     db.refresh(db_categorie)
     return db_categorie

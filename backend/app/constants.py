@@ -125,6 +125,15 @@ TYPES_REMBOURSABLES = {TypeOperation.remboursable, TypeOperation.pret}
 # viennent. Même procédé que `import_bancaire`, qui interroge « regles ».
 EXTENSION_PRETS = "prets"
 
+# Même procédé, pour l'AUTRE côté remboursable : les dépenses remboursables et
+# les remboursements reçus ne pèsent sur les totaux (part à ma charge dans les
+# sorties, reste dû dans « Reste à rembourser ») que si « Suivi des
+# remboursements » tourne — sans elle, rien ne dit QUI doit cet argent, et un
+# chiffre resterait affiché sans qu'aucun écran ne l'explique. Comme pour
+# `prets`, le SCHÉMA reste au noyau : désactiver l'extension ne supprime aucune
+# opération, elle redevient seulement invisible et hors totaux.
+EXTENSION_SUIVI_REMBOURSEMENTS = "suivi-remboursements"
+
 # CE QUI NE COMPTE JAMAIS DANS LES FLUX D'UNE PÉRIODE.
 #
 # Un remboursement reçu solde une dépense remboursable ; un remboursement de

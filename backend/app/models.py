@@ -86,18 +86,38 @@ class Categorie(Base):
     # Position d'affichage (dropdowns, dashboard, onglet Catégories) ; modifiable
     # par l'utilisateur via les boutons monter/descendre.
     ordre = Column(Integer, nullable=False, default=0)
-    # Affichée ou non dans l'histogramme du dashboard (œil de l'onglet
-    # Catégories). Réglage d'AFFICHAGE seulement : une catégorie éteinte garde
-    # ses opérations, son budget et sa place dans tous les menus — elle ne
-    # disparaît que du graphe, où une barre écrasante ou sans intérêt nuit à la
-    # lecture des autres.
-    visible_dashboard = Column(Boolean, nullable=False, default=True)
+    # PLUS DE `visible_dashboard` (retirée par la migration 0056) : le
+    # dashboard porte son propre filtre de catégories, dans le titre du graphe,
+    # et deux façons de masquer la même catégorie posaient la question à
+    # laquelle personne ne pense — « pourquoi n'apparaît-elle pas, alors qu'elle
+    # est cochée ici ? ». Le filtre de l'écran est en plus le seul des deux qui
+    # ne fausse pas le dénominateur des objectifs de répartition.
     # Index dans la palette de l'histogramme (la palette elle-même vit côté
     # frontend). Attribué à la CRÉATION et jamais recalculé : ni un
     # réordonnancement, ni l'extinction d'une autre catégorie ne doivent changer
     # la couleur d'une barre. Un index n'est repris que si la catégorie qui le
     # portait est supprimée (cf. crud._prochain_couleur_index).
     couleur_index = Column(Integer, nullable=False, default=0)
+    # OBJECTIF DE RÉPARTITION, en pourcentage des dépenses de la période (0 =
+    # aucun objectif, cf. migration 0055). À NE PAS CONFONDRE avec
+    # `CategorieBudgetMensuel.montant`, l'enveloppe en valeur : celle-là dit
+    # « combien puis-je encore dépenser », celui-ci « quelle PART doit aller
+    # là ». Les deux sont décorrélés — aucun ne se déduit de l'autre, et poser
+    # l'un n'oblige jamais à poser l'autre.
+    #
+    # NI MOIS NI MONNAIE dans la clé, contrairement au budget en valeur : un
+    # pourcentage est une intention stable, et 15 % vaut 15 % dans n'importe
+    # quelle devise. AUCUN calcul de solde, de KPI ou de barre ne le lit — il
+    # n'est affiché que par le camembert des dépenses, qui le compare à la part
+    # réellement constatée.
+    objectif_pourcentage = Column(Float, nullable=False, default=0.0)
+
+    __table_args__ = (
+        CheckConstraint(
+            "objectif_pourcentage >= 0 AND objectif_pourcentage <= 100",
+            name="ck_categorie_objectif_pourcentage",
+        ),
+    )
 
 
 class Monnaie(Base):

@@ -98,15 +98,41 @@ def _ligne_lue(operation: models.Operation) -> schemas_sr.OperationSuiviRead:
     )
 
 
-def vue(db: Session) -> schemas_sr.VueSuiviRead:
-    """Le tableau complet : un bloc par monnaie, une ligne par profil, plus les
-    dettes qu'aucun profil ne porte encore.
+def _montant_lu(monnaie, totaux: dict) -> schemas_sr.MontantMonnaieRead:
+    return schemas_sr.MontantMonnaieRead(
+        monnaie_id=monnaie.id,
+        monnaie_nom=monnaie.nom,
+        monnaie_symbole=monnaie.symbole,
+        a_recevoir=totaux["a_recevoir"],
+        a_rendre=totaux["a_rendre"],
+        net=totaux["a_recevoir"] - totaux["a_rendre"],
+        nb_lignes=totaux["nb_lignes"],
+    )
 
-    UN PROFIL N'APPARAÎT QUE LÀ OÙ IL PORTE QUELQUE CHOSE. Un profil créé et
-    jamais utilisé n'ajoute pas une ligne à zéro dans chaque monnaie : il est
-    dans `profils` (donc dans les menus, donc rattachable) et nulle part
-    ailleurs. Sans cette règle, ouvrir l'écran après avoir créé cinq profils
-    donnerait cinq lignes vides par devise."""
+
+def _cumul_vide() -> dict:
+    return {"a_recevoir": 0.0, "a_rendre": 0.0, "nb_lignes": 0}
+
+
+def vue(db: Session) -> schemas_sr.VueSuiviRead:
+    """Le tableau complet : une ligne par profil, portant autant de montants que
+    de monnaies où il doit ou nous doit quelque chose — plus les dettes qu'aucun
+    profil ne porte encore.
+
+    LE PROFIL EST LE PREMIER NIVEAU, LA MONNAIE LE SECOND. C'était l'inverse au
+    début, avec un onglet par devise au-dessus du tableau : il fallait cliquer
+    pour savoir si Marie doit aussi des dollars, et un profil qui ne porte rien
+    dans la devise active disparaissait de l'écran. Pour un écran dont le sujet
+    EST la liste des gens, c'était le mauvais axe. Rien ne s'additionne pour
+    autant d'une monnaie à l'autre — il y a simplement plusieurs montants par
+    ligne, chacun dans sa devise.
+
+    UN PROFIL N'APPARAÎT QUE S'IL PORTE QUELQUE CHOSE. Un profil créé et jamais
+    utilisé n'ajoute pas une ligne à zéro : il est dans `profils` (donc dans les
+    menus, donc rattachable) et nulle part ailleurs. Sans cette règle, ouvrir
+    l'écran après avoir créé cinq profils donnerait cinq lignes vides. Même règle
+    au second niveau : une monnaie où un profil ne doit rien ne lui fait pas une
+    barre de plus."""
     profils = (
         db.query(models.ProfilRemboursement)
         .order_by(models.ProfilRemboursement.ordre, models.ProfilRemboursement.id)
@@ -115,64 +141,55 @@ def vue(db: Session) -> schemas_sr.VueSuiviRead:
     noms = {profil.id: profil.nom for profil in profils}
     rang = {profil.id: position for position, profil in enumerate(profils)}
 
-    # {monnaie_id: {profil_id ou None: {"a_recevoir", "a_rendre", "nb_lignes"}}}
+    # {profil_id ou None: {monnaie_id: {"a_recevoir", "a_rendre", "nb_lignes"}}}
     cumuls: dict = {}
+    # {monnaie_id: <Monnaie>} — l'objet, pour n'avoir pas à le relire ensuite.
     monnaies: dict = {}
+    totaux_globaux: dict = {}
     a_rattacher = []
 
     for operation in _operations_de_dette(db):
         monnaies.setdefault(operation.monnaie_id, operation.monnaie)
-        par_profil = cumuls.setdefault(operation.monnaie_id, {})
-        entree = par_profil.setdefault(
-            operation.profil_remboursement_id,
-            {"a_recevoir": 0.0, "a_rendre": 0.0, "nb_lignes": 0},
-        )
+        par_monnaie = cumuls.setdefault(operation.profil_remboursement_id, {})
+        entree = par_monnaie.setdefault(operation.monnaie_id, _cumul_vide())
+        global_ = totaux_globaux.setdefault(operation.monnaie_id, _cumul_vide())
+
         cle = (
             "a_recevoir"
             if ROLE_PAR_TYPE[operation.type_code] == ROLE_CREANCE
             else "a_rendre"
         )
-        entree[cle] += operation.montant_a_rembourser
-        entree["nb_lignes"] += 1
+        for cumul in (entree, global_):
+            cumul[cle] += operation.montant_a_rembourser
+            cumul["nb_lignes"] += 1
 
         if operation.profil_remboursement_id is None:
             a_rattacher.append(_ligne_lue(operation))
 
-    blocs = []
-    for monnaie_id, monnaie in monnaies.items():
-        par_profil = cumuls[monnaie_id]
-        lignes = [
-            schemas_sr.ProfilSoldeRead(
-                profil_id=profil_id,
-                profil_nom=noms.get(profil_id, LIBELLE_SANS_PROFIL),
-                a_recevoir=totaux["a_recevoir"],
-                a_rendre=totaux["a_rendre"],
-                net=totaux["a_recevoir"] - totaux["a_rendre"],
-                nb_lignes=totaux["nb_lignes"],
-            )
-            for profil_id, totaux in par_profil.items()
-        ]
-        # L'ordre choisi par l'utilisateur, et « Sans profil » EN DERNIER : c'est
-        # un reste à ranger, pas un profil — le mettre en tête sous prétexte que
-        # son id est nul en ferait le sujet de l'écran.
-        lignes.sort(key=lambda l: (l.profil_id is None, rang.get(l.profil_id, 0)))
-        blocs.append(
-            schemas_sr.MonnaieSuiviRead(
-                monnaie_id=monnaie_id,
-                monnaie_nom=monnaie.nom,
-                monnaie_symbole=monnaie.symbole,
-                total_a_recevoir=sum(l.a_recevoir for l in lignes),
-                total_a_rendre=sum(l.a_rendre for l in lignes),
-                net=sum(l.net for l in lignes),
-                profils=lignes,
-            )
+    soldes = [
+        schemas_sr.ProfilSoldeRead(
+            profil_id=profil_id,
+            profil_nom=noms.get(profil_id, LIBELLE_SANS_PROFIL),
+            monnaies=[
+                _montant_lu(monnaies[monnaie_id], totaux)
+                for monnaie_id, totaux in sorted(par_monnaie.items())
+            ],
         )
-    blocs.sort(key=lambda bloc: bloc.monnaie_id)
+        for profil_id, par_monnaie in cumuls.items()
+    ]
+    # L'ordre choisi par l'utilisateur, et « Sans profil » EN DERNIER : c'est un
+    # reste à ranger, pas un profil — le mettre en tête sous prétexte que son id
+    # est nul en ferait le sujet de l'écran.
+    soldes.sort(key=lambda ligne: (ligne.profil_id is None, rang.get(ligne.profil_id, 0)))
 
     a_rattacher.sort(key=lambda ligne: (ligne.date, ligne.id), reverse=True)
 
     return schemas_sr.VueSuiviRead(
-        monnaies=blocs,
+        totaux=[
+            _montant_lu(monnaies[monnaie_id], totaux)
+            for monnaie_id, totaux in sorted(totaux_globaux.items())
+        ],
+        soldes=soldes,
         profils=[schemas_sr.ProfilRead.model_validate(p) for p in profils],
         a_rattacher=a_rattacher,
     )

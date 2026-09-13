@@ -123,20 +123,30 @@ class CategorieRead(BaseModel):
     id: int
     nom: str
     ordre: int
-    # Affichée dans l'histogramme du dashboard. N'a aucun effet ailleurs : la
-    # catégorie reste proposée partout et garde ses opérations.
-    visible_dashboard: bool = True
     # Couleur de la catégorie dans l'histogramme, sous forme d'index de palette
     # (cf. models.Categorie.couleur_index).
     couleur_index: int = 0
+    # OBJECTIF DE RÉPARTITION en % des dépenses de la période, 0 = aucun (cf.
+    # models.Categorie.objectif_pourcentage). Rien du serveur ne le compare à
+    # quoi que ce soit : c'est le camembert du dashboard qui le pose à côté de
+    # la part constatée.
+    objectif_pourcentage: float = 0.0
 
 
-class CategorieVisibiliteUpdate(BaseModel):
-    """Le seul réglage d'affichage d'une catégorie, isolé de tout le reste : le
-    nom n'est pas modifiable et le budget a son propre endpoint (il dépend d'un
-    mois et d'une monnaie, pas de la catégorie seule)."""
+class CategorieObjectifUpdate(BaseModel):
+    """L'objectif de répartition, isolé comme la visibilité l'est déjà.
 
-    visible_dashboard: bool
+    UNE ROUTE À PART, ET PAS UN CHAMP DE PLUS SUR `CategorieUpdate` : le
+    formulaire qui renomme une catégorie et la colonne d'objectifs de l'onglet
+    Catégories ne se remplissent pas au même moment ni par le même geste.
+    Réunis, renommer aurait effacé un objectif chaque fois que le formulaire
+    aurait été ouvert sans y toucher.
+
+    Les bornes doublent celles de la base (cf. migration 0055) : une saisie
+    aberrante doit être refusée AVANT d'arriver au contrainte SQL, qui rendrait
+    une erreur 500 illisible plutôt qu'un 422 qui dit quoi corriger."""
+
+    objectif_pourcentage: float = Field(ge=0, le=100)
 
 
 class TypeOperationRead(BaseModel):
@@ -548,6 +558,68 @@ class DepenseParCategorie(BaseModel):
     # position dans cette liste : la liste est filtrée (catégories éteintes) et
     # réordonnable, la couleur ne doit dépendre ni de l'une ni de l'autre.
     couleur_index: int = 0
+    # OBJECTIF DE RÉPARTITION de la catégorie, en % (0 = aucun, cf.
+    # models.Categorie.objectif_pourcentage). Posé ici plutôt que relu par le
+    # frontend dans `/categories` : le camembert l'affiche à côté de la part
+    # constatée, et deux allers-retours pour un même graphe auraient laissé
+    # exister un instant où l'un des deux chiffres manque.
+    #
+    # LA BARRE « INTÉRÊTS DE PRÊTS » N'EN A PAS et n'en aura jamais : elle ne
+    # correspond à aucune ligne de la table `categorie` (cf.
+    # soldes._barre_interets_prets), il n'y a donc rien sur quoi poser un
+    # objectif. Elle garde le défaut, 0.
+    objectif_pourcentage: float = 0.0
+
+
+class LigneEcartVariation(BaseModel):
+    """Une opération qui creuse un écart entre les deux variations du dashboard.
+
+    ELLE PORTE SES DEUX CONTRIBUTIONS, et pas seulement leur différence : c'est
+    ce qui permet à l'écran d'écrire « comptée 1 200 € au compte, 100 € au mois »
+    plutôt qu'un « 1 100 » dont il faudrait deviner d'où il sort. Les deux sont
+    SIGNÉES du point de vue du compte (entrée positive, dépense négative), donc
+    directement soustrayables.
+    """
+
+    operation_id: int
+    # `date_type` et non `date` : ce module importe `datetime.date` sous cet
+    # alias, parce qu'une bonne partie de ses schémas ont un CHAMP nommé `date`
+    # qui masquerait le type.
+    date: date_type
+    nature: Optional[str] = None
+    compte_nom: str = ""
+    categorie_nom: Optional[str] = None
+    # Le code du type, pas son libellé : c'est la clé stable sur laquelle le
+    # frontend écrit sa logique (cf. TypeOperationRead).
+    type_code: str
+    montant: float
+    sens: str
+    contribution_brute: float
+    contribution_attribuee: float
+    ecart: float
+    # `amortissement`, `remboursable`, `pret` ou `reglement` (cf.
+    # services.soldes.RAISON_*). Un code, pas une phrase : la phrase est écrite
+    # et traduite par l'écran.
+    raison: str
+
+
+class EcartVariationsRead(BaseModel):
+    """Le détail de l'écart entre « Variation sur le mois brute » et
+    « Variation attribuée au mois ».
+
+    LES DEUX TOTAUX SONT RENDUS AVEC LE DÉTAIL, et non relus par le frontend
+    depuis le dashboard : l'écran qui les affiche en tête doit montrer les MÊMES
+    chiffres que ceux dont il liste les causes. Deux sources pour un même couple
+    auraient fini par diverger d'un rafraîchissement à l'autre.
+
+    L'INVARIANT — la somme des `ecart` de `lignes` vaut `ecart` — est ce qui rend
+    cette liste digne de confiance ; il est verrouillé par un test.
+    """
+
+    variation_brute: float
+    variation_attribuee: float
+    ecart: float
+    lignes: list[LigneEcartVariation] = Field(default_factory=list)
 
 
 class KpisMonnaieRead(BaseModel):
