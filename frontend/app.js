@@ -5005,6 +5005,143 @@ function _refillPreservingSelection(selectEl, fillFn) {
   }
 }
 
+/* ---------- RECONNAÎTRE UNE DÉPENSE PRÉVUE À L'IMPORT ----------
+ *
+ * CE QUE ÇA CHANGE. Une dépense prévisionnelle sert à voir venir ; encore
+ * faut-il qu'elle disparaisse quand la vraie arrive. Sans ce bloc, l'import
+ * créait une seconde opération et la même dépense comptait deux fois, jusqu'à
+ * ce qu'on pense à supprimer l'ancienne — personne n'y pense.
+ *
+ * VISIBLE SEULEMENT QUAND IL Y A QUELQUE CHOSE À ATTENDRE : une opération
+ * PRÉVISIONNELLE, ou un modèle RÉCURRENT (dont chaque occurrence héritera de la
+ * fenêtre, cf. crud._fenetre_heritee). Sur une opération réelle et ponctuelle,
+ * le champ n'aurait demandé qu'à être ignoré.
+ *
+ * LE GROUPE DE MOTS-CLÉS EST CELUI DU NOYAU (`creerEditeurMotsCles`), le même
+ * qu'emploient l'import et l'éditeur de règles : une troisième façon de saisir
+ * une liste de mots dans la même application aurait été celle de trop.
+ */
+const GROUPE_MOTS_CLES_RAPPROCHEMENT = "rapprochement-operation";
+
+function rapprochementEstProposable() {
+  const type = document.getElementById("operation-type").value;
+  // Ni sur un virement (deux écritures liées, qu'on n'écrase pas à moitié) ni
+  // sur un règlement (il solde une dette précise, à sa date).
+  if (type === "virement" || type === "remboursements" || type === "remboursement_pret") {
+    return false;
+  }
+  const statut = document.getElementById("operation-statut").value;
+  const recurrente = document.getElementById("operation-recurrente").checked;
+  return statut === "prévisionnel" || recurrente;
+}
+
+function majBlocRapprochement() {
+  const bloc = document.getElementById("operation-rapprochement-bloc");
+  if (!bloc) return;
+  assurerEditeurRapprochement();
+  const proposable = rapprochementEstProposable();
+  bloc.style.display = proposable ? "" : "none";
+  const actif = document.getElementById("operation-rapprochement-actif");
+  // Décochée dès qu'elle cesse d'être proposée : une case cochée mais invisible
+  // continuerait d'envoyer une fenêtre sur une opération qui n'attend plus rien.
+  if (!proposable) actif.checked = false;
+  document.getElementById("operation-rapprochement-champs").style.display =
+    proposable && actif.checked ? "" : "none";
+}
+
+/** La fenêtre et les mots-clés, prêts à partir au serveur.
+ *
+ *  CASE DÉCOCHÉE = ON EFFACE, et non « on ne touche à rien » : décocher est un
+ *  geste, et il doit défaire ce que cocher avait fait. D'où des `null` et une
+ *  liste vide explicites plutôt qu'une clé absente. */
+function lireRapprochementFormulaire() {
+  const actif =
+    rapprochementEstProposable() &&
+    document.getElementById("operation-rapprochement-actif").checked;
+  if (!actif) {
+    return {
+      rapprochement_debut: null,
+      rapprochement_fin: null,
+      rapprochement_mots_cles: [],
+    };
+  }
+  const debut = document.getElementById("operation-rapprochement-debut").value || null;
+  const fin = document.getElementById("operation-rapprochement-fin").value || null;
+  return {
+    rapprochement_debut: debut,
+    rapprochement_fin: fin,
+    rapprochement_mots_cles:
+      motsClesSaisis(GROUPE_MOTS_CLES_RAPPROCHEMENT).mots || [],
+  };
+}
+
+/** Remet le bloc dans l'état décrit par une opération (ou vide, sans argument). */
+function remplirRapprochement(op) {
+  assurerEditeurRapprochement();
+  const actif = Boolean(op && (op.rapprochement_debut || op.rapprochement_fin));
+  document.getElementById("operation-rapprochement-actif").checked =
+    actif || Boolean(op && (op.rapprochement_mots_cles || []).length);
+  document.getElementById("operation-rapprochement-debut").value =
+    (op && op.rapprochement_debut) || "";
+  document.getElementById("operation-rapprochement-fin").value =
+    (op && op.rapprochement_fin) || "";
+  chargerMotsCles(GROUPE_MOTS_CLES_RAPPROCHEMENT, {
+    mots: (op && op.rapprochement_mots_cles) || [],
+  });
+  majBlocRapprochement();
+}
+
+/**
+ * Pose l'éditeur de mots-clés et les deux écouteurs du bloc, UNE SEULE FOIS.
+ *
+ * APPELÉ PARESSEUSEMENT, et non depuis une IIFE en tête de fichier : les
+ * mécanismes qu'il emploie (`creerEditeurMotsCles` et sa table `editeursMotsCles`)
+ * sont déclarés en `const` PLUS BAS dans app.js. Une IIFE ici les atteignait
+ * dans leur zone morte temporelle — et l'exception qui en résultait
+ * interrompait l'évaluation du reste du fichier, laissant l'application à
+ * moitié initialisée (les menus de statut vides, le premier symptôme visible).
+ * Appelé depuis les fonctions du bloc, il ne s'exécute qu'une fois la page
+ * chargée, où tout existe.
+ */
+let editeurRapprochementPose = false;
+
+function assurerEditeurRapprochement() {
+  if (editeurRapprochementPose) return;
+  const champs = document.getElementById("operation-rapprochement-mots-cles");
+  if (!champs) return;
+  editeurRapprochementPose = true;
+  // Le balisage attendu par l'éditeur du noyau, écrit ici plutôt que dans
+  // index.html : il est identique partout, et le recopier une troisième fois
+  // dans le HTML aurait fait trois endroits à corriger le jour où il change.
+  champs.innerHTML = `
+    <div class="import-vocabulaire-champ" data-vocabulaire="mots">
+      <div class="import-vocabulaire-entete">
+        <div class="import-vocabulaire-saisie">
+          <input type="text" spellcheck="false" placeholder="${t("ex. EDF")}" />
+          <button type="button" class="import-vocabulaire-ajouter"
+                  title="${t("Ajouter ce mot-clé")}"
+                  aria-label="${t("Ajouter ce mot-clé")}">+</button>
+        </div>
+        <details class="import-vocabulaire-actualisation">
+          <summary>${t("Retirer")}</summary>
+          <div class="import-vocabulaire-menu" data-role="menu"></div>
+        </details>
+      </div>
+      <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+    </div>`;
+  creerEditeurMotsCles(GROUPE_MOTS_CLES_RAPPROCHEMENT, {
+    conteneur: champs,
+    libelles: { mots: t("Mots-clés") },
+    vide: "Aucun mot-clé : le compte, le montant et la date suffisent à reconnaître la dépense.",
+  });
+  document
+    .getElementById("operation-rapprochement-actif")
+    .addEventListener("change", majBlocRapprochement);
+  // La visibilité du bloc dépend du STATUT et de la RÉCURRENCE : les deux
+  // peuvent changer sans passer par updateOperationTypeFields.
+  document.getElementById("operation-statut").addEventListener("change", majBlocRapprochement);
+}
+
 function updateOperationTypeFields() {
   const type = document.getElementById("operation-type").value;
   const estVirement = type === "virement";
@@ -5087,6 +5224,8 @@ function updateOperationTypeFields() {
   document.getElementById("operation-montant-a-rembourser-bloc").style.display =
     porteUneDette && enEdition ? "" : "none";
   majBornesMontantDu();
+  // Après la récurrence et le statut, dont il dépend tous les deux.
+  majBlocRapprochement();
   document.getElementById("operation-remboursements-bloc").style.display = estReglement ? "" : "none";
   document.getElementById("operation-remboursements-titre").textContent = estRemboursementPret
     ? "Prêts réglés"
@@ -5922,6 +6061,7 @@ function resetOperationForm() {
   champsMoisAmortissement.fin.value = "";
   document.getElementById("operation-amortissement-nb-mois").value = "";
   remplirDecoupe(null);
+  remplirRapprochement(null);
   setOperationType("classique");
 }
 
@@ -5979,6 +6119,9 @@ async function fillOperationForm(op) {
   // Après le montant : le compteur du garde-fou compare les parts à LUI.
   majTotalDecoupe();
   document.getElementById("operation-statut").value = op.statut;
+  // APRÈS le statut et la récurrence : le bloc n'est visible que si l'un des
+  // deux le demande.
+  remplirRapprochement(op);
   document.getElementById("operation-montant-du").value = op.montant_du;
   document.getElementById("operation-montant-a-rembourser").value = op.montant_a_rembourser;
   // APRÈS le montant, pas avant : la borne du montant dû se lit sur lui, et
@@ -7647,6 +7790,7 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         ...champNotes,
         ...recurrencePayload(),
         ...amortissementPayload(),
+        ...lireRapprochementFormulaire(),
       };
       // Comme pour une dépense remboursable : le reste dû ne se saisit qu'à
       // l'édition, et pas du tout tant qu'un remboursement le verrouille.
@@ -7697,6 +7841,9 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         // l'emporte quand elle est là.
         ...decoupePayload(),
         ...amortissementPayload(),
+        // Toujours envoyé, même vide : décocher la case est un geste, et il
+        // doit défaire ce que cocher avait fait (cf. lireRapprochementFormulaire).
+        ...lireRapprochementFormulaire(),
       };
       if (type === "remboursable") {
         payload.montant_du = parseFloat(document.getElementById("operation-montant-du").value || "0");
@@ -8232,6 +8379,10 @@ function reinitialiserImport() {
   importLignesSelectionnees.clear();
   Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
   importLignesSupprimees.clear();
+  // Les refus de rapprochement appartiennent au fichier qu'on quitte : les
+  // garder ferait refuser, sur le fichier suivant, des lignes qui portent le
+  // même numéro sans rien avoir de commun.
+  importRapprochementsRefuses.clear();
   ligneApercuEnEdition = null;
   document.getElementById("import-fichier").value = "";
   document.getElementById("import-fichier-nom").textContent = "";
@@ -8240,6 +8391,7 @@ function reinitialiserImport() {
   document.getElementById("import-apercu-fichier-bloc").style.display = "none";
   document.getElementById("import-avertissements").style.display = "none";
   document.getElementById("import-monnaies-resolues-bloc").style.display = "none";
+  document.getElementById("import-previsionnelles-bloc").style.display = "none";
   reinitialiserReglagesLecture();
   importDernierHistoriqueId = null;
   // La veille repart de zéro : sans ça, la signature du fichier précédent
@@ -10109,6 +10261,7 @@ function toggleSousSection(containerId, nombreLignes) {
 function renderImportApercu() {
   document.getElementById("import-apercu-bloc").style.display = "";
   document.getElementById("import-apercu-nombre").textContent = importApercu.lignes.length;
+  renderImportPrevisionnelles();
 
   // Ni les doublons ni les ressemblances ne rejoignent une des 6 sous-sections
   // par type : elles vivent exclusivement dans leur section dédiée, tant que la
@@ -10142,6 +10295,90 @@ function renderImportApercu() {
   updateBtnImportSupprimerSelectionEtat();
   updateBtnImportConfirmerEtat();
   majVeilleDoublonsVirements();
+}
+
+/* ---------- LES DÉPENSES PRÉVUES RECONNUES DANS LE RELEVÉ ----------
+ *
+ * UN PANNEAU DE DÉCISION, PAS UNE SEPTIÈME SOUS-SECTION. La ligne reste dans sa
+ * sous-section de type, là où on l'édite et où on lui choisit une catégorie ; ce
+ * qui se décide ici est autre chose — ce qu'elle va ÉCRASER — et la sortir de sa
+ * section pour poser cette question l'aurait rendue introuvable.
+ *
+ * COCHÉ PAR DÉFAUT, contrairement aux doublons, et les deux défauts sont
+ * inverses parce que les deux risques le sont : laisser passer un doublon crée
+ * une opération en trop, laisser passer un rapprochement rend une opération
+ * réelle à sa place — ce qui est le comportement voulu. Décocher retombe
+ * exactement sur l'ancien comportement.
+ *
+ * L'ÉTAT VIT ICI ET NON DANS `importApercu` : celui-ci est REMPLACÉ à chaque
+ * relecture du fichier, et le refus qu'on vient d'exprimer serait parti avec.
+ * Vidé quand un nouveau fichier est choisi (cf. reinitialiserImport).
+ */
+const importRapprochementsRefuses = new Set();
+
+function renderImportPrevisionnelles() {
+  const bloc = document.getElementById("import-previsionnelles-bloc");
+  const corps = document.getElementById("import-previsionnelles-liste");
+  if (!bloc || !corps) return;
+  const lignes = importApercu.lignes.filter((l) => l.previsionnelle_id != null);
+  bloc.style.display = lignes.length ? "" : "none";
+  document.getElementById("import-previsionnelles-nombre").textContent = lignes.length;
+  corps.innerHTML = "";
+  if (!lignes.length) return;
+
+  lignes.forEach((ligne) => {
+    const prev = importApercu.previsionnelles[String(ligne.previsionnelle_id)];
+    if (!prev) return;
+    const tr = document.createElement("tr");
+
+    const cellCase = document.createElement("td");
+    const caseACocher = document.createElement("input");
+    caseACocher.type = "checkbox";
+    caseACocher.checked = !importRapprochementsRefuses.has(ligne.ligne);
+    caseACocher.addEventListener("change", () => {
+      if (caseACocher.checked) importRapprochementsRefuses.delete(ligne.ligne);
+      else importRapprochementsRefuses.add(ligne.ligne);
+      tr.classList.toggle("import-rapprochement-refuse", !caseACocher.checked);
+    });
+    cellCase.appendChild(caseACocher);
+    tr.appendChild(cellCase);
+
+    const cellLigne = document.createElement("td");
+    cellLigne.innerHTML = `<strong>${t("ligne")} ${ligne.ligne}</strong> · ${formatDate(
+      ligne.date
+    )} · ${escapeHtml(ligne.nature || "")} · ${formatMontant(
+      ligne.montant,
+      ligne.monnaie_operation_id || ligne.monnaie_id
+    )}`;
+    tr.appendChild(cellLigne);
+
+    // CE QUI SERA ÉCRASÉ, écrit en toutes lettres : accepter d'écraser une
+    // opération sans la voir, c'est signer en aveugle. La FENÊTRE y figure
+    // parce que c'est elle qui explique pourquoi CETTE prévision-là a été
+    // reconnue, et non celle d'à côté.
+    const attendue =
+      prev.rapprochement_debut && prev.rapprochement_fin
+        ? t("prévue entre le {debut} et le {fin}", {
+            debut: formatDate(prev.rapprochement_debut),
+            fin: formatDate(prev.rapprochement_fin),
+          })
+        : t("prévue le {date}", { date: formatDate(prev.date) });
+    const recurrente = prev.recurrente
+      ? ` · <em>${t("occurrence d'une opération récurrente")}</em>`
+      : "";
+    const cellPrev = document.createElement("td");
+    cellPrev.innerHTML = `${escapeHtml(prev.nature || "")} · ${formatMontant(
+      prev.montant,
+      prev.monnaie_id
+    )} · ${escapeHtml(prev.compte_nom)}<br /><span class="hint">${attendue}${recurrente}</span>`;
+    tr.appendChild(cellPrev);
+
+    tr.classList.toggle(
+      "import-rapprochement-refuse",
+      importRapprochementsRefuses.has(ligne.ligne)
+    );
+    corps.appendChild(tr);
+  });
 }
 
 /* ---------- Veille : doublons de virements internes ---------- */
@@ -12031,6 +12268,9 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       monnaies,
       lignes: importLigneOverrides,
       lignes_supprimees: lignesSupprimeesPourCeConfirm,
+      // Une LISTE DE REFUS, et non d'acceptations : le rapprochement a lieu par
+      // défaut (cf. le panneau « Dépenses prévues reconnues »).
+      rapprochements_refuses: [...importRapprochementsRefuses],
     })
   );
 
@@ -12038,7 +12278,19 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
     const resultat = await apiFetchForm(importUrl("/confirmer"), formData);
     importDernierHistoriqueId = resultat.historique_id ?? null;
     afficherResultatImport(resultat);
-    showMessage(`${resultat.operations_creees} opération(s) importée(s).`, "success");
+    // LES DEUX NOMBRES QUAND IL Y A LIEU. Une ligne rapprochée est bien
+    // importée — elle compte dans le total — mais elle n'AJOUTE pas
+    // d'opération : sans cette précision, le total ne collerait pas avec ce
+    // qu'on voit apparaître dans la page Opérations, et rien ne le dirait.
+    showMessage(
+      resultat.rapprochements
+        ? t("{n} opération(s) importée(s), dont {p} qui remplacent une dépense prévue.", {
+            n: resultat.operations_creees,
+            p: resultat.rapprochements,
+          })
+        : `${resultat.operations_creees} opération(s) importée(s).`,
+      "success"
+    );
 
     const lignesRestantes = importApercu.lignes.filter((l) => infoTypeOperationLigne(l).reglement);
     if (lignesRestantes.length === 0) {
@@ -12619,10 +12871,20 @@ async function annulerImport(historiqueId, annulables) {
     const resultat = await apiFetch(importUrl(`/historique/${historiqueId}`), {
       method: "DELETE",
     });
+    // DEUX NOUVELLES, ET NON UNE. Ce que l'import avait ÉCRASÉ (une dépense
+    // prévue) n'est pas supprimé mais RENDU à son état d'origine : les fondre
+    // dans un seul total aurait dit « 14 supprimées » là où deux opérations
+    // sont bien toujours là.
+    const rendues = resultat.previsionnelles_restaurees || 0;
     showMessage(
-      t("Import annulé : {n} opération(s) supprimée(s).", {
-        n: resultat.operations_supprimees,
-      }),
+      rendues
+        ? t("Import annulé : {n} opération(s) supprimée(s), {p} dépense(s) prévue(s) rendue(s).", {
+            n: resultat.operations_supprimees,
+            p: rendues,
+          })
+        : t("Import annulé : {n} opération(s) supprimée(s).", {
+            n: resultat.operations_supprimees,
+          }),
       "success"
     );
     // L'aperçu en cours porte peut-être sur le fichier qu'on vient de rendre

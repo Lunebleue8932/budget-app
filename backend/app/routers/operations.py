@@ -243,6 +243,46 @@ def _valider_amortissement(
         )
 
 
+def _valider_rapprochement(
+    db_operation: models.Operation, updates: schemas.OperationUpdate
+) -> None:
+    """Vérifie la fenêtre de rapprochement telle qu'elle sera APRÈS la
+    modification — même raison que `_valider_amortissement` juste au-dessus :
+    un payload partiel ne dit rien à lui seul des champs qu'il ne porte pas, et
+    déplacer la seule borne de fin est légitime."""
+    champs = updates.model_dump(exclude_unset=True)
+
+    def _final(nom):
+        return champs[nom] if nom in champs else getattr(db_operation, nom)
+
+    debut = _final("rapprochement_debut")
+    fin = _final("rapprochement_fin")
+    if debut is None and fin is None:
+        return
+    if debut is None or fin is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Une fenêtre de rapprochement a deux bornes : donne la date de "
+                "début et celle de fin, ou aucune des deux."
+            ),
+        )
+    if fin < debut:
+        raise HTTPException(
+            status_code=400,
+            detail="La fin de la fenêtre ne peut pas précéder son début.",
+        )
+    if (debut.year, debut.month) != (fin.year, fin.month):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Les deux bornes doivent tomber dans le même mois : une dépense "
+                "prévue dit à quel mois elle appartient, et une fenêtre à cheval "
+                "sur deux mois ne le dirait plus."
+            ),
+        )
+
+
 def _build_operation_read(db: Session, operation: models.Operation) -> schemas.OperationRead:
     read = schemas.OperationRead.model_validate(operation)
     if TypeOperation(operation.type_code) in TYPES_REGLEMENT:
@@ -395,6 +435,7 @@ def update_operation(
         )
 
     _valider_amortissement(db_operation, updates)
+    _valider_rapprochement(db_operation, updates)
 
     code_final = db_operation.type_code
     if updates.type_id is not None and updates.type_id != db_operation.type_id:

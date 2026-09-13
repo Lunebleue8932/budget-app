@@ -824,6 +824,31 @@ const TRADUCTIONS = {
     "Catégories ▾":
       "Categories ▾",
     "Colonnes": "Columns",
+    "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses.":
+      "A forecast expense is there to let you see what is coming — but it also has to go away when the real one arrives. Tick this box and the import will recognise it on your statement: it will then offer to REPLACE it with the real line, instead of adding a second transaction next to it. It always asks first, and nothing is lost if you decline.",
+    "L'app reconnaît la vraie dépense à son COMPTE, son MONTANT (au centime près) et sa DATE. Les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour, ou quand ta banque passe au 6 ce qu'elle annonçait au 5. Les deux doivent tomber dans le même mois. Laisse-les vides si tu l'attends au jour dit.":
+      "The app recognises the real expense by its ACCOUNT, its AMOUNT (to the cent) and its DATE. The two dates below say the window you expect it in — handy when you know the month of a direct debit but not the day, or when your bank posts on the 6th what it announced for the 5th. Both must fall in the same month. Leave them empty if you expect it on the day itself.",
+    "Facultatifs, et inutiles la plupart du temps : le compte, le montant et la date suffisent. Ils servent au cas inverse — deux prélèvements du même montant le même mois, que seul le libellé distingue. Tous doivent se retrouver dans le libellé de la ligne importée ; la casse et les accents n'ont pas d'importance.":
+      "Optional, and needless most of the time: account, amount and date are enough. They are for the opposite case — two direct debits of the same amount in the same month, told apart only by their label. All of them must appear in the imported line's label; case and accents do not matter.",
+    "Reconnaître cette dépense à l'import": "Recognise this expense on import",
+    "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence.":
+      "These statement lines match expenses you had written down in advance, as forecasts. Rather than adding one more transaction next to the forecast, the import will REPLACE the forecast with the real line: the same transaction, now real, with the statement's date and amount. It keeps everything attached to it — its project, its repayment profile, its recurrence.",
+    "Coché, le remplacement a lieu. Décoché, la ligne s'importe comme n'importe quelle autre et la dépense prévue reste telle quelle — tu te retrouves simplement avec les deux, comme avant. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.":
+      "Ticked, the replacement happens. Unticked, the line imports like any other and the forecast expense stays as it is — you simply end up with both, as before. Check the right-hand column before confirming: it says what will be overwritten. And if you get it wrong, cancelling the import restores every forecast to its original state.",
+    "Dépenses prévues reconnues": "Forecast expenses recognised",
+    "{n} opération(s) importée(s), dont {p} qui remplacent une dépense prévue.":
+      "{n} transaction(s) imported, {p} of which replace a forecast expense.",
+    "Import annulé : {n} opération(s) supprimée(s), {p} dépense(s) prévue(s) rendue(s).":
+      "Import cancelled: {n} transaction(s) deleted, {p} forecast expense(s) restored.",
+    "Remplacer": "Replace",
+    "Ligne du relevé": "Statement line",
+    "Remplacera la dépense prévue": "Will replace the forecast expense",
+    "prévue entre le {debut} et le {fin}": "expected between {debut} and {fin}",
+    "prévue le {date}": "expected on {date}",
+    "occurrence d'une opération récurrente": "occurrence of a recurring transaction",
+    "Attendue à partir du": "Expected from",
+    "Jusqu'au": "Until",
+    "Mots-clés du libellé": "Label keywords",
     "Tout convertir":
       "Convert everything",
     "Tout convertir en {monnaie}":

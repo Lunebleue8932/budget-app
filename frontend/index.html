@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=107" />
+  <link rel="stylesheet" href="style.css?v=109" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -1056,6 +1056,39 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <select id="operation-statut" required></select>
         </label>
 
+        <!-- RECONNAÎTRE LA VRAIE DÉPENSE QUAND ELLE PASSERA (cf.
+             models.Operation.rapprochement_debut). Visible uniquement quand
+             l'opération est PRÉVISIONNELLE ou RÉCURRENTE : sur une opération
+             réelle et ponctuelle, il n'y a plus rien à attendre, et le champ
+             n'aurait demandé qu'à être ignoré.
+
+             SUR UNE RÉCURRENTE, C'EST LE MODÈLE QU'ON RÈGLE, et chacune de ses
+             occurrences hérite de la fenêtre en reportant l'écart de jours (cf.
+             crud._fenetre_heritee) : une opération récurrente EST une réelle
+             suivie de prévisionnelles, et la saisir douze fois n'avait aucun
+             sens.
+
+             LA FENÊTRE EST FACULTATIVE : sans elle, la vraie dépense est
+             attendue AU JOUR MÊME, ce qui est déjà le cas le plus courant. -->
+        <div id="operation-rapprochement-bloc" class="full-width" style="display:none">
+          <label class="full-width">
+            <input type="checkbox" id="operation-rapprochement-actif" />
+            Reconnaître cette dépense à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i>
+          </label>
+          <div id="operation-rapprochement-champs" class="full-width" style="display:none">
+            <p class="hint full-width" data-texte-cle="noyau.rapprochement-aide"></p>
+            <label>Attendue à partir du
+              <input type="date" id="operation-rapprochement-debut" />
+            </label>
+            <label>Jusqu'au
+              <input type="date" id="operation-rapprochement-fin" />
+            </label>
+            <label class="full-width">Mots-clés du libellé<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement-mots-cles">i</i>
+              <span id="operation-rapprochement-mots-cles"></span>
+            </label>
+          </div>
+        </div>
+
         <label id="operation-recurrente-bloc">
           <input type="checkbox" id="operation-recurrente" /> Récurrente
         </label>
@@ -1611,6 +1644,37 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div id="import-monnaies-resolues" class="import-mappings"></div>
       </div>
 
+      <!-- LES DÉPENSES QU'ON AVAIT PRÉVUES, RECONNUES DANS LE RELEVÉ (cf.
+           services/rapprochement_previsionnel.py). Un PANNEAU DE DÉCISION posé
+           au-dessus de l'aperçu, et non une septième sous-section : la ligne
+           reste dans sa sous-section de type, là où on l'édite et où on lui
+           choisit une catégorie. Ce qui se décide ici est autre chose — ce que
+           la ligne va ÉCRASER — et la sortir de sa section pour poser cette
+           question l'aurait rendue introuvable.
+
+           MÊME PLACE QUE LES CORRESPONDANCES À CONFIRMER, juste au-dessus, et
+           pour la même raison : ce sont les questions auxquelles il faut avoir
+           répondu avant de confirmer, et on les lit dans l'ordre où on descend.
+
+           COCHÉ PAR DÉFAUT, contrairement aux doublons. Les deux risques sont
+           inverses : laisser passer un doublon crée une opération en trop,
+           laisser passer un rapprochement rend une opération réelle à sa place,
+           ce qui est le comportement voulu. Décocher retombe exactement sur
+           l'ancien comportement — une opération de plus, la prévision
+           intacte. -->
+      <div id="import-previsionnelles-bloc" style="display:none">
+        <h3>Dépenses prévues reconnues — <span id="import-previsionnelles-nombre"></span><i class="info-bulle" tabindex="0" data-info-cle="noyau.import-previsionnelles">i</i></h3>
+        <p class="hint" data-texte-cle="noyau.import-previsionnelles-aide"></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Remplacer</th><th>Ligne du relevé</th><th>Remplacera la dépense prévue</th>
+            </tr>
+          </thead>
+          <tbody id="import-previsionnelles-liste"></tbody>
+        </table>
+      </div>
+
       <div id="import-apercu-bloc" style="display:none">
         <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)</h3>
         <p class="hint">
@@ -1870,9 +1934,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=7"></script>
-  <script src="i18n.js?v=54"></script>
-  <script src="extensions.js?v=19"></script>
-  <script src="app.js?v=132"></script>
+  <script src="textes.js?v=9"></script>
+  <script src="i18n.js?v=56"></script>
+  <script src="extensions.js?v=21"></script>
+  <script src="app.js?v=134"></script>
 </body>
 </html>

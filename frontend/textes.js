@@ -82,6 +82,18 @@ const TEXTES = {
     "La devise des frais dit à quel montant ils s'appliquent : sur un virement entre deux monnaies, des frais dans la monnaie envoyée grèvent ce qui part, dans la monnaie reçue ce qui arrive.",
   "noyau.decouper-entre-plusieurs-categories":
     "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
+  /* ----- Rapprocher une prévisionnelle de la vraie ----- */
+  "noyau.import-previsionnelles":
+    "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence.",
+  "noyau.import-previsionnelles-aide":
+    "Coché, le remplacement a lieu. Décoché, la ligne s'importe comme n'importe quelle autre et la dépense prévue reste telle quelle — tu te retrouves simplement avec les deux, comme avant. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.",
+  "noyau.rapprochement":
+    "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses.",
+  "noyau.rapprochement-aide":
+    "L'app reconnaît la vraie dépense à son COMPTE, son MONTANT (au centime près) et sa DATE. Les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour, ou quand ta banque passe au 6 ce qu'elle annonçait au 5. Les deux doivent tomber dans le même mois. Laisse-les vides si tu l'attends au jour dit.",
+  "noyau.rapprochement-mots-cles":
+    "Facultatifs, et inutiles la plupart du temps : le compte, le montant et la date suffisent. Ils servent au cas inverse — deux prélèvements du même montant le même mois, que seul le libellé distingue. Tous doivent se retrouver dans le libellé de la ligne importée ; la casse et les accents n'ont pas d'importance.",
+
   "noyau.montant-a-rembourser":
     "Sur une dépense remboursable, ce qu'on te rendra : au plus ce que tu as avancé. Sur un prêt reçu, ce que tu rendras : au moins ce qu'on t'a remis — l'écart est l'intérêt du prêt.",
   "noyau.notes-2":

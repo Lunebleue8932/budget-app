@@ -2930,6 +2930,15 @@ button.danger:hover {
   border-bottom: 1px dashed var(--border);
 }
 
+/* UNE LIGNE DONT ON A REFUSÉ LE RAPPROCHEMENT (panneau « Dépenses prévues
+   reconnues »). Elle s'importera comme n'importe quelle autre, et la dépense
+   prévue restera à côté : elle ne disparaît donc PAS du tableau — c'est le
+   choix qu'on vient de faire, et il doit rester relisible et réversible. Éteinte
+   plutôt que barrée : décocher n'est pas une erreur, c'est une décision. */
+.import-rapprochement-refuse td {
+  opacity: 0.5;
+}
+
 /* Le suspect d'un doublon de VIREMENT n'est pas une ligne de fichier mais une
    transaction : une phrase sur toute la largeur, et non des colonnes qu'on
    n'aurait pas de quoi remplir. Le liseré orange la rattache visuellement au

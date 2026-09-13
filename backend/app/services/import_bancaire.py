@@ -182,7 +182,7 @@ from pydantic import ValidationError
 import unicodedata
 
 from .. import crud, extensions, models, schemas
-from . import regles_categorisation
+from . import rapprochement_previsionnel, regles_categorisation
 from ..constants import (
     CATEGORIE_AUTRES,
     DEVISE_PAR_MONTANT_AVANCE,
@@ -2056,6 +2056,25 @@ def previsualiser(
                 )
         lignes.append(ligne_resolue)
 
+    # LES PRÉVISIONNELLES RECONNUES, une fois toutes les lignes résolues : la
+    # recherche a besoin du compte et de la monnaie de la ligne, que `_resoudre_
+    # ligne` vient seulement de poser. Les candidates sont chargées EN UN COUP
+    # pour tout le fichier — une requête par ligne aurait fait trois cents
+    # allers-retours pour relire la même poignée d'opérations.
+    ids_types = crud.id_type_par_code(db)
+    candidates = rapprochement_previsionnel.previsionnelles_rapprochables(
+        db, [l.compte_id for l in lignes]
+    )
+    previsionnelles = {}
+    prises = set()
+    for index, ligne_resolue in enumerate(lignes):
+        trouvee = chercher_previsionnelle(db, candidates, ligne_resolue, ids_types, prises)
+        if trouvee is None:
+            continue
+        prises.add(trouvee.id)
+        lignes[index] = ligne_resolue.model_copy(update={"previsionnelle_id": trouvee.id})
+        previsionnelles[str(trouvee.id)] = _previsionnelle_lisible(db, trouvee)
+
     # "à confirmer" = pas de mapping explicite mémorisé, même si une valeur
     # par défaut a déjà été proposée pour la catégorie. Inclut les lignes
     # doublons : si l'utilisateur les vérifie quand même (faux positif), leur
@@ -2069,6 +2088,7 @@ def previsualiser(
     return schemas.ImportPreview(
         lignes=lignes,
         lignes_existantes=lignes_existantes,
+        previsionnelles=previsionnelles,
         categories_inconnues=categories_inconnues,
         comptes_inconnus=comptes_inconnus,
         monnaies_inconnues=_monnaies_inconnues(lignes),
@@ -2163,6 +2183,80 @@ def _statut_operation(ligne: schemas.ImportLigne) -> Statut:
     if ligne.statut_import == StatutImport.attente.value:
         return Statut.previsionnel
     return Statut.reel
+
+
+# ---------- RECONNAÎTRE UNE DÉPENSE QU'ON AVAIT PRÉVUE ----------
+#
+# Le mécanisme et ses critères vivent dans services/rapprochement_previsionnel :
+# ici, seulement de quoi lui poser la question à partir d'une ligne d'aperçu.
+
+
+def monnaie_de_la_ligne(db, ligne: schemas.ImportLigne) -> Optional[int]:
+    """La monnaie dans laquelle l'opération sera écrite.
+
+    `monnaie_operation_id` D'ABORD, et non `monnaie_id` : sur une sortie à un
+    seul compte, c'est le montant INITIAL qui fait l'opération, dans sa propre
+    monnaie (cf. _appliquer_frais). La règle est celle de `confirmer`, et elle
+    est extraite ici précisément pour que l'aperçu ne puisse pas en appliquer
+    une autre — reconnaître une prévisionnelle dans une devise, puis l'écraser
+    dans une autre, aurait été le pire des deux mondes."""
+    if ligne.compte_id is None:
+        return None
+    compte = crud.get_compte(db, ligne.compte_id)
+    if compte is None:
+        return None
+    return ligne.monnaie_operation_id or ligne.monnaie_id or compte.monnaie_principale_id
+
+
+def chercher_previsionnelle(
+    db,
+    previsionnelles,
+    ligne: schemas.ImportLigne,
+    ids_types: dict,
+    deja_prises,
+):
+    """La prévisionnelle que cette ligne vient solder, ou None.
+
+    LES LIGNES QUI NE CRÉERONT RIEN SONT ÉCARTÉES D'EMBLÉE : une ligne refusée
+    par la banque n'est pas importée du tout, et proposer d'écraser une
+    prévisionnelle avec un paiement qui n'a pas eu lieu serait exactement le
+    contraire de ce qu'on veut. Une ligne EN ATTENTE est écartée aussi : elle
+    créerait elle-même une prévisionnelle, et rapprocher une prévision d'une
+    autre prévision n'apprend rien à personne."""
+    if ligne.statut_import in (StatutImport.refuse.value, StatutImport.attente.value):
+        return None
+    if ligne.erreur:
+        return None
+    type_id = ids_types.get(ligne.type_code)
+    return rapprochement_previsionnel.chercher(
+        previsionnelles,
+        date=ligne.date,
+        montant=ligne.montant,
+        compte_id=ligne.compte_id,
+        monnaie_id=monnaie_de_la_ligne(db, ligne),
+        type_id=type_id,
+        nature=ligne.nature,
+        deja_prises=deja_prises,
+    )
+
+
+def _previsionnelle_lisible(db, previsionnelle) -> schemas.PrevisionnelleRapprochee:
+    """Ce que l'écran montre de la prévisionnelle avant de proposer de
+    l'écraser : accepter sans voir, c'est signer en aveugle."""
+    compte = crud.get_compte(db, previsionnelle.compte_id)
+    return schemas.PrevisionnelleRapprochee(
+        id=previsionnelle.id,
+        date=previsionnelle.date,
+        nature=previsionnelle.nature,
+        montant=previsionnelle.montant,
+        monnaie_id=previsionnelle.monnaie_id,
+        compte_id=previsionnelle.compte_id,
+        compte_nom=compte.nom if compte else "",
+        rapprochement_debut=previsionnelle.rapprochement_debut,
+        rapprochement_fin=previsionnelle.rapprochement_fin,
+        rapprochement_mots_cles=rapprochement_previsionnel.mots_cles(previsionnelle),
+        recurrente=bool(previsionnelle.recurrente),
+    )
 
 
 def _resoudre_comptes_virement(ligne: schemas.ImportLigne) -> tuple[Optional[int], Optional[int]]:
@@ -2460,12 +2554,24 @@ def confirmer(
     lignes_ignorees = []
     doublons_detectes = 0
     lignes_refusees = 0
+    # LES PRÉVISIONNELLES, RECHERCHÉES UNE SECONDE FOIS ICI et non reprises de
+    # l'aperçu : entre les deux, l'utilisateur a pu corriger une date, un
+    # montant ou une catégorie, et c'est l'état FINAL de la ligne qui décide de
+    # ce qu'elle solde. Reprendre le verdict de l'aperçu aurait écrasé une
+    # prévisionnelle avec une ligne qui ne lui ressemble plus.
+    previsionnelles_candidates = rapprochement_previsionnel.previsionnelles_rapprochables(
+        db, [l.compte_id for l in lignes]
+    )
+    previsionnelles_prises = set()
+    rapprochements = 0
     # (données brutes, id de l'opération créée) : le stock anti-doublons n'est
     # alimenté qu'après création réussie, pour que chaque ligne stockée pointe
     # vers une opération réelle. Une ligne supprimée à la main ou en erreur
     # n'entre donc pas au stock — elle n'a rien importé, la revoir au prochain
     # import est le comportement attendu.
-    a_stocker: list[tuple[dict, int]] = []
+    # (données brutes, id de l'opération, instantané d'avant rapprochement) —
+    # le troisième vaut None dans le cas ordinaire.
+    a_stocker: list[tuple[dict, int, Optional[str]]] = []
     for ligne in lignes:
         # Un doublon n'est plus exclu d'office : il est simplement compté pour
         # l'historique, pré-sélectionné côté frontend, et importé si
@@ -2681,7 +2787,9 @@ def confirmer(
             # Rattaché à la jambe sortante : supprimer le virement supprime
             # les deux opérations, donc le CASCADE libère la ligne du stock
             # quelle que soit la jambe retenue ici.
-            a_stocker.append((donnees_par_ligne[ligne.ligne], op_sortante.id))
+            # Un virement ne rapproche jamais de prévisionnelle (cf.
+            # rapprochement_previsionnel) : pas d'instantané à garder.
+            a_stocker.append((donnees_par_ligne[ligne.ligne], op_sortante.id, None))
             operations_creees += 2
             continue
 
@@ -2737,10 +2845,8 @@ def confirmer(
             lignes_ignorees.append(ligne.model_copy(update={"erreur": erreur_monnaie}))
             continue
 
-        operation = crud.create_operation_importee(
-            db,
+        champs_operation = dict(
             date_operation=ligne.date,
-            compte_id=ligne.compte_id,
             type_id=ids_types[ligne.type_code],
             categorie_id=ligne.categorie_id,
             decoupes=ligne.decoupes,
@@ -2760,7 +2866,38 @@ def confirmer(
             frais=ligne.frais or None,
             monnaie_frais_id=ligne.monnaie_frais_id,
         )
-        a_stocker.append((donnees_par_ligne[ligne.ligne], operation.id))
+
+        # LA VRAIE DÉPENSE PREND LA PLACE DE CELLE QU'ON AVAIT PRÉVUE, plutôt
+        # que de s'ajouter à côté d'elle (cf. crud.rapprocher_previsionnelle).
+        # Refusé ligne par ligne dans l'aperçu, on retombe exactement sur
+        # l'ancien comportement — une opération de plus, la prévisionnelle
+        # intacte.
+        previsionnelle = None
+        if ligne.ligne not in overrides.rapprochements_refuses:
+            previsionnelle = chercher_previsionnelle(
+                db, previsionnelles_candidates, ligne, ids_types, previsionnelles_prises
+            )
+        etat_avant = None
+        if previsionnelle is not None:
+            previsionnelles_prises.add(previsionnelle.id)
+            # PRIS AVANT D'ÉCRASER, évidemment : c'est ce qui rend l'annulation
+            # de l'import capable de RENDRE la prévisionnelle au lieu de la
+            # supprimer (cf. annuler_import).
+            etat_avant = crud.instantane_previsionnelle(previsionnelle)
+            operation = crud.rapprocher_previsionnelle(
+                db, previsionnelle, **champs_operation
+            )
+            rapprochements += 1
+        else:
+            operation = crud.create_operation_importee(
+                db, compte_id=ligne.compte_id, **champs_operation
+            )
+        # LE STOCK ANTI-DOUBLONS REÇOIT LA LIGNE DANS LES DEUX CAS : elle a bien
+        # été importée, qu'elle ait créé une opération ou réécrit une prévision.
+        # L'en priver aurait fait revenir la même ligne au prochain relevé,
+        # laquelle n'aurait plus trouvé sa prévisionnelle — devenue réelle — et
+        # aurait cette fois créé le doublon qu'on venait d'éviter.
+        a_stocker.append((donnees_par_ligne[ligne.ligne], operation.id, etat_avant))
         operations_creees += 1
 
     historique = crud.create_import_historique(
@@ -2775,19 +2912,21 @@ def confirmer(
     # réellement créé une opération : le lien operation_id (ON DELETE CASCADE)
     # fait que supprimer l'opération retire aussi la ligne du stock, et donc
     # que le même relevé redevient réimportable.
-    for donnees, operation_id in a_stocker:
+    for donnees, operation_id, etat_avant in a_stocker:
         crud.create_ligne_import_brute(
             db,
             preset_id=preset_id,
             donnees=donnees,
             import_historique_id=historique.id,
             operation_id=operation_id,
+            etat_previsionnel_avant=etat_avant,
         )
 
     return schemas.ImportResultat(
         operations_creees=operations_creees,
         lignes_ignorees=lignes_ignorees,
         doublons_detectes=doublons_detectes,
+        rapprochements=rapprochements,
         historique_id=historique.id,
     )
 
@@ -2882,11 +3021,36 @@ def annuler_import(db, historique_id: int) -> schemas.ImportAnnulationResultat:
             operations_supprimees=0, historique_supprime=False
         )
 
+    # CE QUE L'IMPORT A ÉCRASÉ PLUTÔT QUE CRÉÉ. Une ligne qui a rapproché une
+    # prévisionnelle porte l'instantané de ce que l'opération était avant (cf.
+    # models.LigneImportBrute.etat_previsionnel_avant) : on la REMET dans cet
+    # état au lieu de la supprimer. La supprimer aurait effacé une prévision
+    # écrite à la main pour défaire un import qu'on regrettait — et rien à
+    # l'écran n'aurait dit que le prix de l'annulation était celui-là.
+    instantanes = {
+        ligne.operation_id: ligne.etat_previsionnel_avant
+        for ligne in crud.lignes_import_brutes_d_un_import(db, historique_id)
+        if ligne.operation_id is not None and ligne.etat_previsionnel_avant
+    }
+
     operations = crud.get_operations_d_un_import(db, historique_id)
+    supprimees = 0
+    restaurees = 0
     for operation in operations:
+        instantane = instantanes.get(operation.id)
+        if instantane and crud.restaurer_previsionnelle(db, operation, instantane):
+            # La ligne du stock part quand même (avec l'historique, plus bas) :
+            # le relevé doit redevenir réimportable, et la prévisionnelle rendue
+            # sera alors reconnue de nouveau — exactement l'état d'avant.
+            crud.detacher_ligne_import_brute(db, operation.id)
+            restaurees += 1
+            continue
         crud.delete_operation(db, operation)
+        supprimees += 1
 
     crud.delete_import_historique(db, entree)
     return schemas.ImportAnnulationResultat(
-        operations_supprimees=len(operations), historique_supprime=True
+        operations_supprimees=supprimees,
+        previsionnelles_restaurees=restaurees,
+        historique_supprime=True,
     )

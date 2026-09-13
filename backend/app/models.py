@@ -458,6 +458,47 @@ class Operation(Base):
     recurrence_parent_id = Column(
         Integer, ForeignKey("operation.id", ondelete="SET NULL"), nullable=True
     )
+    # LA DATE QUE LE GÉNÉRATEUR AVAIT PRÉVUE pour cette occurrence (migration
+    # 0058). `generer_occurrences_recurrentes` reconnaît ses occurrences À LEUR
+    # DATE : sans cette colonne, rapprocher l'occurrence du 5 avec une ligne de
+    # relevé datée du 6 déplaçait sa date, et la génération suivante en recréait
+    # aussitôt une au 5 — la dépense revenait en double par l'autre bout, ce que
+    # le rapprochement existe justement pour empêcher.
+    #
+    # Posée à la génération, elle ne bouge plus JAMAIS ensuite : c'est un repère
+    # de calendrier, pas une date d'opération. NULL sur tout ce qui a été généré
+    # avant la migration, et la date de l'occurrence fait alors foi comme avant.
+    recurrence_date_prevue = Column(Date, nullable=True)
+
+    # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (migration 0058) ----------
+    #
+    # CE QU'ELLES RENDENT POSSIBLE. Une opération prévisionnelle décrit une
+    # dépense qu'on sait devoir venir ; quand la vraie arrive au relevé, rien ne
+    # les reliait, et l'import en créait une SECONDE. La même dépense comptait
+    # deux fois jusqu'à ce qu'on pense à supprimer l'ancienne à la main —
+    # personne n'y pense. Ces colonnes disent à quoi la vraie ressemblera, et
+    # l'aperçu d'import PROPOSE alors d'écraser la prévisionnelle plutôt que
+    # d'ajouter une ligne de plus (cf. services/rapprochement_previsionnel.py).
+    #
+    # LA FENÊTRE, et pas seulement une date : on connaît souvent le mois d'un
+    # prélèvement et rarement son jour, et une banque passe volontiers au 6 ce
+    # qu'elle annonçait au 5. NULL des deux côtés veut dire « le jour même »,
+    # c'est-à-dire `date` — ce qui rend rapprochable, sans aucune reprise de
+    # données, tout ce qui existait avant la migration, occurrences de
+    # récurrence comprises.
+    #
+    # LES DEUX BORNES SONT DANS LE MÊME MOIS (garde dans schemas.OperationBase).
+    # Une fenêtre à cheval sur deux mois rendrait ambigu le mois auquel la
+    # dépense appartient — or c'est précisément ce qu'une prévisionnelle sert à
+    # dire, et ce dont le budget du mois a besoin.
+    rapprochement_debut = Column(Date, nullable=True)
+    rapprochement_fin = Column(Date, nullable=True)
+    # Mots-clés cherchés dans le libellé de la ligne importée, combinés en ET,
+    # rangés en JSON comme `ConditionRegle.valeurs`. VIDE DANS LE CAS ORDINAIRE :
+    # le montant et la fenêtre suffisent presque toujours. Ils servent au cas
+    # inverse — deux prélèvements du même montant le même mois, que seul le
+    # libellé distingue.
+    rapprochement_mots_cles = Column(Text, nullable=True)
     # Amortissement : la dépense a bien lieu une seule fois, à `date` (c'est
     # elle qui bouge le solde du compte, ce jour-là et pas un autre), mais elle
     # PÈSE sur plusieurs mois. Les deux bornes délimitent ces mois, incluses,
@@ -1071,6 +1112,21 @@ class LigneImportBrute(Base):
     operation_id = Column(
         Integer, ForeignKey("operation.id", ondelete="CASCADE"), nullable=True
     )
+    # CE QUE L'OPÉRATION ÉTAIT AVANT D'ÊTRE ÉCRASÉE, en JSON (migration 0058) —
+    # renseigné uniquement quand cette ligne a RAPPROCHÉ une prévisionnelle au
+    # lieu de créer une opération (cf. crud.rapprocher_previsionnelle).
+    #
+    # POURQUOI IL EXISTE. Annuler un import supprime les opérations qu'il a
+    # créées ; or une opération rapprochée n'a pas été créée par lui, elle
+    # existait avant en prévisionnel. La supprimer aurait effacé une prévision
+    # écrite à la main pour défaire un import qu'on regrettait — la pire perte
+    # possible, et parfaitement silencieuse. L'annulation la RESTAURE (cf.
+    # services/import_bancaire.annuler_import).
+    #
+    # Rangé ici et non sur `operation` : c'est déjà cette table qui relie un
+    # import à ce qu'il a touché, et l'instantané n'a de sens que le temps où ce
+    # lien existe — il disparaît avec lui.
+    etat_previsionnel_avant = Column(Text, nullable=True)
     date_creation = Column(DateTime, nullable=False)
 
     __table_args__ = (

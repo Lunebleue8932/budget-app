@@ -1,4 +1,5 @@
 import calendar
+import json
 import uuid
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
@@ -1027,6 +1028,24 @@ def _appliquer_decoupes(db_operation: models.Operation, code: str, decoupes) -> 
         )
 
 
+def _serialiser_mots_cles_rapprochement(data: dict) -> None:
+    """La liste de mots-clés du schéma devient le JSON de la colonne.
+
+    UN SEUL SENS À ÉCRIRE ICI : la lecture est prise en charge par le schéma
+    (cf. schemas.OperationBase._lire_mots_cles), qui normalise une chaîne comme
+    une liste. Sans cette traduction, SQLAlchemy rangerait la représentation
+    Python d'une liste (« ['EDF'] ») dans une colonne de texte, et la relecture
+    JSON échouerait en silence sur ce qui ressemble pourtant à la bonne valeur.
+
+    LA CLÉ EST RETIRÉE SI ELLE N'EST PAS FOURNIE dans une mise à jour partielle
+    (`exclude_unset`) : l'absence doit continuer de vouloir dire « n'y touche
+    pas », pas « efface »."""
+    if "rapprochement_mots_cles" not in data:
+        return
+    mots = [str(m).strip() for m in (data["rapprochement_mots_cles"] or []) if str(m).strip()]
+    data["rapprochement_mots_cles"] = json.dumps(mots, ensure_ascii=False) if mots else None
+
+
 def create_operation(db: Session, operation: schemas.OperationCreate) -> models.Operation:
     type_operation = get_type_operation(db, operation.type_id)
     code = type_operation.code
@@ -1050,6 +1069,7 @@ def create_operation(db: Session, operation: schemas.OperationCreate) -> models.
     data["montant_du"], data["montant_a_rembourser"] = _resoudre_montants_remboursement(
         code, data["montant"], data["montant_du"], data["montant_a_rembourser"]
     )
+    _serialiser_mots_cles_rapprochement(data)
 
     db_operation = models.Operation(**data)
     # Les parts AVANT le premier commit : une opération qui naîtrait découpée
@@ -1085,6 +1105,7 @@ def update_operation(
     )
     montant_du_fourni = "montant_du" in data
     montant_a_rembourser_fourni = "montant_a_rembourser" in data
+    _serialiser_mots_cles_rapprochement(data)
     for field, value in data.items():
         setattr(db_operation, field, value)
 
@@ -1259,12 +1280,52 @@ def _prochaine_date_recurrence(d: date_type, frequence: Frequence) -> date_type:
 HORIZON_MOIS_RECURRENCE = 24
 
 
+def _fenetre_heritee(modele: models.Operation, date_occurrence: date_type):
+    """La fenêtre de rapprochement d'une occurrence, déduite de celle du modèle.
+
+    POURQUOI ELLE S'HÉRITE. Une opération récurrente EST, par définition, une
+    opération réelle suivie de prévisionnelles : c'est le cas d'usage le plus
+    évident du rapprochement, et le seul où l'on ne veut surtout pas saisir la
+    fenêtre douze fois. Ce qu'on écrit sur le modèle — « le prélèvement tombe
+    entre le 3 et le 8 » — doit valoir pour chacune de ses occurrences.
+
+    EN ÉCART DE JOURS, ET NON EN DATES RECOPIÉES : recopier telles quelles les
+    bornes de janvier sur l'occurrence de mars aurait donné une fenêtre située
+    deux mois avant l'opération qu'elle décrit, donc vide. On reporte donc
+    l'écart (`debut - date`, `fin - date`) sur la date de l'occurrence.
+
+    PUIS ON RABAT DANS SON MOIS. L'invariant « les deux bornes dans le même
+    mois » vaut pour une occurrence comme pour toute autre opération, et un
+    report de jours peut le franchir (« du 28 au 3 » sur un mois de 30 jours).
+    Rabattre plutôt que refuser : une fenêtre légèrement rétrécie reconnaît
+    encore la vraie ligne, une fenêtre absente ne reconnaît plus rien."""
+    if modele.rapprochement_debut is None or modele.rapprochement_fin is None:
+        return None, None
+    premier = date_occurrence.replace(day=1)
+    dernier = date_occurrence.replace(
+        day=calendar.monthrange(date_occurrence.year, date_occurrence.month)[1]
+    )
+    debut = date_occurrence + (modele.rapprochement_debut - modele.date)
+    fin = date_occurrence + (modele.rapprochement_fin - modele.date)
+    return max(premier, min(debut, dernier)), max(premier, min(fin, dernier))
+
+
 def generer_occurrences_recurrentes(db: Session) -> None:
     """Topping-up paresseux, appelé en tête de toute lecture d'opérations : crée
     les occurrences futures manquantes de chaque modèle récurrent, jusqu'à sa
     date de fin ou l'horizon glissant si infinie. Ne modifie jamais les
     occurrences déjà générées (montant/catégorie/compte y restent figés même
-    si le modèle est modifié depuis)."""
+    si le modèle est modifié depuis).
+
+    UNE OCCURRENCE SE RECONNAÎT À LA DATE QU'ON AVAIT PRÉVUE POUR ELLE, et non
+    à sa date d'opération — les deux ont cessé de coïncider depuis que l'import
+    peut rapprocher une occurrence prévue au 5 d'une ligne passée au 6 (cf.
+    services/rapprochement_previsionnel.py). Sans cette distinction, une
+    occurrence rapprochée puis redatée n'était plus reconnue, et la génération
+    suivante en recréait une à l'ancienne date : la dépense revenait en double
+    par l'autre bout, ce que le rapprochement existe pour empêcher. Les
+    occurrences générées AVANT la migration 0058 n'ont pas de date prévue, et
+    leur date fait alors foi comme auparavant."""
     horizon = _ajouter_mois(date_type.today(), HORIZON_MOIS_RECURRENCE)
     modeles = (
         db.query(models.Operation)
@@ -1275,7 +1336,7 @@ def generer_occurrences_recurrentes(db: Session) -> None:
     for modele in modeles:
         borne = min(modele.recurrence_fin, horizon) if modele.recurrence_fin else horizon
         dates_existantes = {
-            enfant.date
+            enfant.recurrence_date_prevue or enfant.date
             for enfant in db.query(models.Operation)
             .filter(models.Operation.recurrence_parent_id == modele.id)
             .all()
@@ -1283,6 +1344,7 @@ def generer_occurrences_recurrentes(db: Session) -> None:
         courante = _prochaine_date_recurrence(modele.date, modele.frequence)
         while courante <= borne:
             if courante not in dates_existantes:
+                debut_fenetre, fin_fenetre = _fenetre_heritee(modele, courante)
                 db.add(
                     models.Operation(
                         date=courante,
@@ -1298,6 +1360,10 @@ def generer_occurrences_recurrentes(db: Session) -> None:
                         montant_a_rembourser=modele.montant_a_rembourser,
                         recurrente=True,
                         recurrence_parent_id=modele.id,
+                        recurrence_date_prevue=courante,
+                        rapprochement_debut=debut_fenetre,
+                        rapprochement_fin=fin_fenetre,
+                        rapprochement_mots_cles=modele.rapprochement_mots_cles,
                     )
                 )
                 dates_existantes.add(courante)
@@ -2444,6 +2510,35 @@ def list_lignes_import_brutes(db: Session, preset_id: int) -> list[models.LigneI
     )
 
 
+def lignes_import_brutes_d_un_import(
+    db: Session, historique_id: int
+) -> list[models.LigneImportBrute]:
+    """Les lignes de stock issues d'UN import donné.
+
+    Sert à l'annulation, qui a besoin de savoir lesquelles portent l'instantané
+    d'une prévisionnelle écrasée (cf.
+    services/import_bancaire.annuler_import)."""
+    return (
+        db.query(models.LigneImportBrute)
+        .filter(models.LigneImportBrute.import_historique_id == historique_id)
+        .all()
+    )
+
+
+def detacher_ligne_import_brute(db: Session, operation_id: int) -> None:
+    """Retire du stock anti-doublons la ligne qui pointe vers cette opération,
+    SANS toucher à l'opération.
+
+    Le cas d'une prévisionnelle rendue à son état d'avant : l'opération reste
+    (c'est tout l'objet de la restauration), mais le relevé doit redevenir
+    réimportable — or c'est justement cette ligne de stock qui l'en empêche. Le
+    CASCADE habituel ne joue pas ici, puisque rien n'est supprimé."""
+    db.query(models.LigneImportBrute).filter(
+        models.LigneImportBrute.operation_id == operation_id
+    ).delete(synchronize_session=False)
+    db.commit()
+
+
 def create_ligne_import_brute(
     db: Session,
     *,
@@ -2451,12 +2546,14 @@ def create_ligne_import_brute(
     donnees: dict,
     import_historique_id: Optional[int] = None,
     operation_id: Optional[int] = None,
+    etat_previsionnel_avant: Optional[str] = None,
 ) -> models.LigneImportBrute:
     ligne = models.LigneImportBrute(
         preset_id=preset_id,
         donnees=donnees,
         import_historique_id=import_historique_id,
         operation_id=operation_id,
+        etat_previsionnel_avant=etat_previsionnel_avant,
         date_creation=datetime.now(),
     )
     db.add(ligne)
@@ -2558,6 +2655,162 @@ def create_operation_importee(
     db.commit()
     db.refresh(db_operation)
     return db_operation
+
+
+# Ce qu'un rapprochement écrase, et donc exactement ce qu'il faut savoir
+# remettre pour l'annuler. La liste est CELLE DES CHAMPS QUE
+# `rapprocher_previsionnelle` réécrit : les deux se lisent l'une en face de
+# l'autre, et un champ ajouté là doit l'être ici.
+_CHAMPS_INSTANTANE_PREVISIONNELLE = (
+    "date",
+    "type_id",
+    "categorie_id",
+    "nature",
+    "montant",
+    "monnaie_id",
+    "sens",
+    "statut",
+    "montant_du",
+    "montant_a_rembourser",
+    "frais",
+    "monnaie_frais_id",
+    "amorti",
+    "amortissement_debut",
+    "amortissement_fin",
+    "notes",
+    "rapprochement_debut",
+    "rapprochement_fin",
+    "rapprochement_mots_cles",
+)
+
+
+def instantane_previsionnelle(operation: models.Operation) -> str:
+    """Ce que l'opération est À CET INSTANT, en JSON, pour pouvoir l'y remettre.
+
+    LES DÉCOUPES N'EN SONT PAS. Une prévisionnelle découpée est un cas qui
+    n'existe pas en pratique — on ne répartit pas entre catégories une dépense
+    qui n'a pas encore eu lieu — et les faire entrer ici aurait demandé de
+    reconstruire des lignes filles à la restauration. Si le cas se présentait,
+    la découpe serait perdue à l'annulation ; le montant, la date et la
+    catégorie, eux, reviendraient."""
+    etat = {}
+    for champ in _CHAMPS_INSTANTANE_PREVISIONNELLE:
+        valeur = getattr(operation, champ)
+        if isinstance(valeur, date_type):
+            valeur = valeur.isoformat()
+        elif hasattr(valeur, "value"):  # les enums Sens / Statut
+            valeur = valeur.value
+        etat[champ] = valeur
+    return json.dumps(etat, ensure_ascii=False)
+
+
+def restaurer_previsionnelle(db: Session, operation: models.Operation, brut: str) -> bool:
+    """Remet l'opération dans l'état que l'instantané décrit. Rend False si
+    l'instantané est illisible — l'appelant retombe alors sur la suppression,
+    qui reste le comportement d'une opération ordinaire."""
+    try:
+        etat = json.loads(brut)
+    except ValueError:
+        return False
+    if not isinstance(etat, dict):
+        return False
+    dates = {"date", "amortissement_debut", "amortissement_fin", "rapprochement_debut", "rapprochement_fin"}
+    for champ in _CHAMPS_INSTANTANE_PREVISIONNELLE:
+        if champ not in etat:
+            continue
+        valeur = etat[champ]
+        if champ in dates and isinstance(valeur, str):
+            valeur = date_type.fromisoformat(valeur)
+        setattr(operation, champ, valeur)
+    db.commit()
+    return True
+
+
+def rapprocher_previsionnelle(
+    db: Session,
+    previsionnelle: models.Operation,
+    *,
+    date_operation: date_type,
+    type_id: int,
+    categorie_id: Optional[int],
+    nature: str,
+    montant: float,
+    monnaie_id: int,
+    montant_du: Optional[float] = None,
+    sens: Optional[Sens] = None,
+    statut: Statut = Statut.reel,
+    notes: Optional[str] = None,
+    amorti: bool = False,
+    amortissement_debut: Optional[date_type] = None,
+    amortissement_fin: Optional[date_type] = None,
+    decoupes=None,
+    frais: Optional[float] = None,
+    monnaie_frais_id: Optional[int] = None,
+) -> models.Operation:
+    """La vraie dépense ÉCRASE la prévisionnelle, sur place.
+
+    ÉCRASER PLUTÔT QUE « SUPPRIMER PUIS CRÉER », et c'est tout l'intérêt de
+    cette fonction : la ligne GARDE SON IDENTIFIANT, et avec lui tout ce que
+    d'autres tables y ont accroché sans que l'import en sache rien — son
+    rattachement à un projet (`operation_sous_filtre`), son profil de
+    remboursement, et surtout son lien de récurrence. Une suppression suivie
+    d'une création aurait tout perdu en silence, et le générateur d'occurrences
+    aurait aussitôt recréé celle qu'on venait de supprimer.
+
+    CE QUE LA VRAIE LIGNE IMPOSE : la date, le montant, le libellé, la
+    catégorie, le type, le statut. Ce sont les faits, et le relevé fait foi
+    contre une prévision.
+
+    CE QUI DISPARAÎT : la fenêtre de rapprochement et ses mots-clés. Ils
+    décrivaient une dépense ATTENDUE ; elle est arrivée, ils n'ont plus rien à
+    reconnaître, et les garder aurait laissé une opération réelle se proposer
+    elle-même au prochain import.
+
+    LE COMPTE NE CHANGE PAS, parce qu'il n'a pas à changer : c'est l'un des
+    critères de la reconnaissance (cf. services/rapprochement_previsionnel), les
+    deux sont donc déjà le même."""
+    type_operation = get_type_operation(db, type_id)
+    if decoupes:
+        categorie_id = None
+    categorie_id, nom_categorie = _normaliser_categorie_selon_type(
+        db, type_operation.code, categorie_id
+    )
+    montant_du_final, montant_a_rembourser = _resoudre_montants_remboursement(
+        type_operation.code, montant, montant_du, None
+    )
+
+    previsionnelle.date = date_operation
+    previsionnelle.type_id = type_id
+    previsionnelle.categorie_id = categorie_id
+    previsionnelle.nature = nature
+    previsionnelle.montant = montant
+    previsionnelle.monnaie_id = monnaie_id
+    previsionnelle.sens = (
+        sens if sens is not None else _sens_pour_type(type_operation.code, nom_categorie)
+    )
+    previsionnelle.statut = statut
+    previsionnelle.montant_du = montant_du_final
+    previsionnelle.montant_a_rembourser = montant_a_rembourser
+    previsionnelle.frais = frais
+    previsionnelle.monnaie_frais_id = monnaie_frais_id
+    previsionnelle.amorti = amorti
+    previsionnelle.amortissement_debut = amortissement_debut
+    previsionnelle.amortissement_fin = amortissement_fin
+    # UNE NOTE ÉCRITE SUR LA PRÉVISIONNELLE SURVIT quand la ligne importée n'en
+    # porte pas : aucun relevé ne contient de note, et la seule qui existe est
+    # celle qu'on avait prise en écrivant la prévision — l'effacer au nom d'un
+    # champ que le fichier ne remplit jamais serait une perte sèche.
+    if notes:
+        previsionnelle.notes = notes
+    previsionnelle.rapprochement_debut = None
+    previsionnelle.rapprochement_fin = None
+    previsionnelle.rapprochement_mots_cles = None
+
+    _normaliser_amortissement(previsionnelle)
+    _appliquer_decoupes(previsionnelle, type_operation.code, decoupes)
+    db.commit()
+    db.refresh(previsionnelle)
+    return previsionnelle
 
 
 # ---------- Règles de catégorisation ----------

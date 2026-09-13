@@ -1,7 +1,8 @@
+import json
 from datetime import date as date_type, datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .constants import (
     CHAMPS_REGLE_PLACEMENT_VALIDES,
@@ -294,6 +295,71 @@ class OperationBase(BaseModel):
     amortissement_debut: Optional[date_type] = None
     amortissement_fin: Optional[date_type] = None
 
+    # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (cf. models.Operation) ----------
+    #
+    # À quoi ressemblera la vraie dépense quand elle passera au relevé, pour que
+    # l'import la reconnaisse et PROPOSE d'écraser celle-ci plutôt que d'en
+    # ajouter une seconde (cf. services/rapprochement_previsionnel.py).
+    #
+    # NULL DES DEUX CÔTÉS = LE JOUR MÊME, c'est-à-dire `date`. C'est la valeur de
+    # tout ce qui existait avant la migration 0058, et c'est ce qui les rend
+    # rapprochables sans aucune reprise de données.
+    rapprochement_debut: Optional[date_type] = None
+    rapprochement_fin: Optional[date_type] = None
+    # Combinés en ET, cherchés dans le libellé de la ligne importée. Rangés en
+    # JSON côté base ; `_lire_mots_cles` traduit dans les deux sens, si bien que
+    # ni l'écran ni le service ne voient jamais autre chose qu'une liste.
+    rapprochement_mots_cles: list[str] = Field(default_factory=list)
+
+    @field_validator("rapprochement_mots_cles", mode="before")
+    @classmethod
+    def _lire_mots_cles(cls, valeur):
+        """La colonne porte du JSON, l'application une liste.
+
+        NORMALISÉ À LA LECTURE COMME À L'ÉCRITURE, comme `ConditionRegle.valeurs`
+        et pour la même raison : `OperationRead` valide directement l'objet ORM,
+        où ce champ est une chaîne — sans cette traduction, lire une opération
+        lèverait une erreur de type. NULL, chaîne vide et JSON illisible valent
+        tous « aucun mot-clé » : un rapprochement ne doit pas échouer parce
+        qu'une colonne est abîmée, il doit simplement se faire sans mots-clés."""
+        if valeur is None or valeur == "":
+            return []
+        if isinstance(valeur, str):
+            try:
+                lu = json.loads(valeur)
+            except ValueError:
+                return []
+            return [str(m) for m in lu if str(m).strip()] if isinstance(lu, list) else []
+        return [str(m) for m in valeur if str(m).strip()]
+
+    @model_validator(mode="after")
+    def _check_rapprochement(self):
+        """LES DEUX BORNES VONT ENSEMBLE ET TIENNENT DANS UN MOIS.
+
+        UNE SEULE BORNE NE VEUT RIEN DIRE : « à partir du 3 » n'est pas une
+        fenêtre, c'est une moitié de fenêtre, et la refermer d'office sur une
+        date qu'on n'a pas demandée serait pire que de refuser.
+
+        LE MÊME MOIS, parce que c'est ce qu'une prévisionnelle sert à dire :
+        cette dépense pèse sur CE mois-là. Une fenêtre à cheval rendrait ambigu
+        le mois auquel elle appartient, et donc le budget qu'elle consomme."""
+        bornes = (self.rapprochement_debut, self.rapprochement_fin)
+        if all(b is None for b in bornes):
+            return self
+        if any(b is None for b in bornes):
+            raise ValueError(
+                "rapprochement_debut et rapprochement_fin vont ensemble : "
+                "donne les deux, ou aucune"
+            )
+        debut, fin = bornes
+        if fin < debut:
+            raise ValueError("rapprochement_fin ne peut pas précéder rapprochement_debut")
+        if (debut.year, debut.month) != (fin.year, fin.month):
+            raise ValueError(
+                "les deux bornes du rapprochement doivent tomber dans le même mois"
+            )
+        return self
+
     @model_validator(mode="after")
     def _check_amortissement(self):
         if not self.amorti:
@@ -396,6 +462,16 @@ class OperationUpdate(BaseModel):
     amorti: Optional[bool] = None
     amortissement_debut: Optional[date_type] = None
     amortissement_fin: Optional[date_type] = None
+    # La fenêtre de rapprochement (cf. OperationBase). Comme pour
+    # l'amortissement, la cohérence des deux bornes se vérifie sur l'ÉTAT FINAL
+    # de l'opération et non sur le payload — déplacer la seule borne de fin est
+    # légitime — d'où la validation côté routeur plutôt qu'ici. Envoyer null
+    # efface une borne ; ne pas envoyer la clé la laisse intacte.
+    rapprochement_debut: Optional[date_type] = None
+    rapprochement_fin: Optional[date_type] = None
+    # [] efface les mots-clés ; ne pas envoyer la clé les laisse intacts (même
+    # convention que `decoupes` et `operations_remboursees`).
+    rapprochement_mots_cles: Optional[list[str]] = None
     operations_remboursees: Optional[list[OperationRembourseeInput]] = None
 
 
@@ -1229,6 +1305,50 @@ class ImportLigne(BaseModel):
     # numéro figure dans ImportMappingOverrides.lignes_verifiees (l'utilisateur
     # a coché "Vérifiée", override explicite du faux positif).
     doublon_de: Optional[int] = None
+    # Id de l'opération PRÉVISIONNELLE que cette ligne vient solder (cf.
+    # services/rapprochement_previsionnel.py), None dans le cas ordinaire.
+    #
+    # À NE PAS CONFONDRE AVEC `doublon_de`, qui dit « cette ligne du fichier a
+    # déjà été importée » — deux fois la même chose, dont il faut écarter l'une.
+    # Ici, deux choses DIFFÉRENTES décrivent le même mouvement : une prévision
+    # qu'on avait écrite, et le fait qui lui donne raison. On n'en écarte
+    # aucune : la vraie prend la place de la prévision, en gardant son
+    # identifiant (cf. crud.rapprocher_previsionnelle).
+    #
+    # Par défaut la ligne EST rapprochée à la confirmation ; son numéro doit
+    # figurer dans ImportMappingOverrides.rapprochements_refuses pour qu'elle
+    # crée une opération de plus, comme avant.
+    previsionnelle_id: Optional[int] = None
+
+
+class PrevisionnelleRapprochee(BaseModel):
+    """La prévisionnelle qu'une ligne de l'aperçu vient solder, telle qu'elle est
+    AUJOURD'HUI en base — avant d'être écrasée.
+
+    POURQUOI ON L'ENVOIE À L'ÉCRAN. Accepter d'écraser une opération sans la
+    voir, c'est signer en aveugle : il faut pouvoir constater que la ligne
+    proposée est bien celle qu'on avait écrite, et refuser d'un clic sinon.
+    Même rôle que `ImportPreview.lignes_existantes` pour un doublon."""
+
+    id: int
+    date: date_type
+    nature: str
+    montant: float
+    monnaie_id: int
+    compte_id: int
+    # Le nom du compte : l'aperçu affiche la prévisionnelle hors de tout tableau
+    # de comptes, et un id ne dit rien à celui qui lit.
+    compte_nom: str = ""
+    # La fenêtre dans laquelle elle attendait sa vraie ligne (cf.
+    # models.Operation.rapprochement_debut) : c'est ce qui explique POURQUOI
+    # cette ligne-ci a été reconnue, et non celle d'à côté.
+    rapprochement_debut: Optional[date_type] = None
+    rapprochement_fin: Optional[date_type] = None
+    rapprochement_mots_cles: list[str] = Field(default_factory=list)
+    # Vrai si elle est une occurrence d'opération récurrente : l'écraser a alors
+    # une conséquence de plus (l'occurrence cesse d'être attendue), et l'écran
+    # le dit plutôt que de le laisser découvrir.
+    recurrente: bool = False
 
 
 class ApercuFichier(BaseModel):
@@ -1269,6 +1389,9 @@ class ImportPreview(BaseModel):
     # lecture seule à côté de la ligne importée pour comparaison (voir
     # services.import_bancaire._resoudre_ligne_existante).
     lignes_existantes: dict[str, ImportLigne] = Field(default_factory=dict)
+    # Les prévisionnelles reconnues, clé = str(id), référencées par
+    # `previsionnelle_id` ci-dessus. Vide dans le cas ordinaire.
+    previsionnelles: dict[str, PrevisionnelleRapprochee] = Field(default_factory=dict)
     apercu_fichier: ApercuFichier = Field(default_factory=ApercuFichier)
     # Ce que la configuration du preset laisse d'ambigu sans être faux : un
     # montant reçu ou des frais lus sans leur devise (cf. services/
@@ -1328,6 +1451,16 @@ class ImportMappingOverrides(BaseModel):
     # Numéros de ligne exclues de l'import (bouton "Supprimer" de l'aperçu, ou
     # suppression groupée sur une sélection).
     lignes_supprimees: list[int] = Field(default_factory=list)
+    # Numéros de ligne dont le RAPPROCHEMENT a été refusé : elles créent alors
+    # une opération de plus, et la prévisionnelle reste telle quelle.
+    #
+    # UNE LISTE DE REFUS ET NON D'ACCEPTATIONS, contrairement aux doublons
+    # (`lignes_verifiees`) : les deux défauts sont inverses parce que les deux
+    # risques le sont. Laisser passer un doublon crée une opération en trop ;
+    # laisser passer un rapprochement REND une opération réelle à sa place, ce
+    # qui est le comportement voulu — et le refuser retombe exactement sur
+    # l'ancien comportement, jamais sur une perte.
+    rapprochements_refuses: list[int] = Field(default_factory=list)
 
 
 class VirementCandidatDoublon(BaseModel):
@@ -1397,6 +1530,13 @@ class ImportResultat(BaseModel):
     operations_creees: int
     lignes_ignorees: list[ImportLigne]
     doublons_detectes: int = 0
+    # Combien de ces opérations ont ÉCRASÉ une dépense prévue au lieu d'en
+    # créer une (cf. services/rapprochement_previsionnel.py). Compté dans
+    # `operations_creees` — une ligne du fichier a bien donné une opération —
+    # mais dit à part : « 12 importées, dont 2 qui remplacent une dépense
+    # prévue » est la seule phrase qui explique pourquoi le nombre
+    # d'opérations en base n'a pas monté de 12.
+    rapprochements: int = 0
     # Trace créée pour cet import (ImportHistorique.id). Le frontend s'en sert
     # pour rattacher au même import les règlements liés, qu'il crée un par un
     # après coup (cf. services/import_bancaire.enregistrer_ligne_brute) : sans
@@ -1412,6 +1552,13 @@ class ImportAnnulationResultat(BaseModel):
     retrouvent plus (cf. services/import_bancaire.annuler_import)."""
 
     operations_supprimees: int
+    # Les opérations qui n'ont pas été supprimées mais RENDUES à leur état
+    # prévisionnel : l'import les avait écrasées, pas créées (cf.
+    # models.LigneImportBrute.etat_previsionnel_avant). Comptées à part parce
+    # que ce n'est pas la même nouvelle — « 12 opérations supprimées, 2
+    # prévisions rendues » décrit ce qui s'est passé, « 14 supprimées » serait
+    # faux.
+    previsionnelles_restaurees: int = 0
     historique_supprime: bool
 
 
