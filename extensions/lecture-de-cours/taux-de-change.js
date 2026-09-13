@@ -59,7 +59,7 @@ function declarerModeLien() {
     return;
   }
   window.MonnaiesTaux.enregistrer(ID_MODE_LIEN, {
-    libelle: "Depuis un lien",
+    libelle: t("Depuis un lien"),
     ordre: 10,
     champsHtml: () => `
       <label for="lc-taux-url">${t("Lien de la page de cotation")}

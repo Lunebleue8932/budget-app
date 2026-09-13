@@ -93,7 +93,7 @@
            s'accroche à `#placements-actions-liste` et à `#form-action`, qui ont
            déménagé avec le reste : elle n'a donc rien à changer. -->
       <div id="placements-titres" style="display:none">
-        <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info="Tes titres, communs à tous tes comptes : le même ETF peut être détenu sur deux comptes. Le cours se saisit à la main, ou se relit en ligne avec l'extension Lecture de cours. Il ne sert qu'à la valorisation, jamais à un solde.">i</i></h3>
+        <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info-cle="placements.titres-suivis">i</i></h3>
         <!-- ARCHIVER PLUTÔT QUE SUPPRIMER. Un titre entièrement vendu n'a plus
              sa place dans cette liste, mais il ne peut pas être supprimé : ses
              mouvements portent des opérations d'espèces réelles, et les effacer
@@ -101,7 +101,7 @@
              d'où l'on peut remettre un titre rangé en service. -->
         <label class="import-option-ligne">
           <input type="checkbox" id="placements-voir-archives" />
-          Afficher les titres archivés<i class="info-bulle" tabindex="0" data-info="Archiver, c'est ranger, pas effacer : le titre quitte les listes, son historique reste. C'est ici qu'on le remet en service.">i</i>
+          Afficher les titres archivés<i class="info-bulle" tabindex="0" data-info-cle="placements.afficher-les-titres-archives">i</i>
         </label>
         <div id="placements-actions-liste" class="import-mappings"></div>
         <form id="form-action">
@@ -129,7 +129,7 @@
              titre, et repartir dans un autre écran pour ça ferait perdre le fil.
              Même forme que les correspondances d'import (.import-mappings) :
              une ligne par étiquette, un formulaire d'ajout en dessous. -->
-        <h3>Types de titre<i class="info-bulle" tabindex="0" data-info="Tes propres étiquettes — ETF, action en direct, obligation, SCPI — pour regrouper les titres. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.">i</i></h3>
+        <h3>Types de titre<i class="info-bulle" tabindex="0" data-info-cle="placements.types-de-titre">i</i></h3>
         <div id="placements-types-titre-liste" class="import-mappings"></div>
         <form id="form-type-titre">
           <label>Nom

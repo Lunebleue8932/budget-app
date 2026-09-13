@@ -4,7 +4,7 @@
      = "monnaies") : le noyau cherche exactement
      `sous-section-parametres-monnaies` pour y brancher le bouton d'onglet. -->
 <div id="sous-section-parametres-monnaies" class="sous-section">
-        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info="Chaque monnaie garde ses propres soldes et budgets, jamais mélangés aux autres. Le symbole est ce qui s'affiche à côté des montants.">i</i></h3>
+        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info-cle="monnaies.monnaies">i</i></h3>
         <div id="monnaies-liste" class="import-mappings"></div>
 
         <!-- Le titre et le formulaire sont DÉPLACÉS sous la ligne éditée au
@@ -36,7 +36,7 @@
              change » l'un sous l'autre — alors que ce sont les mêmes taux, dans
              la même table, qui servent à la même chose. Ils sont désormais
              fondus, et c'est un bouton qui choisit la façon de saisir. -->
-        <h3 id="monnaies-taux-titre">Taux de change<i class="info-bulle" tabindex="0" data-info="Ce que vaut une monnaie dans une autre. Sert uniquement à la case « tout convertir » du dashboard, et ne modifie aucun montant enregistré. Un seul sens par couple suffit, l'inverse se calcule.">i</i></h3>
+        <h3 id="monnaies-taux-titre">Taux de change<i class="info-bulle" tabindex="0" data-info-cle="monnaies.taux-de-change">i</i></h3>
 
         <!-- Rempli par « Lecture de cours » quand elle tourne : le bouton de
              mise à jour et son compte rendu. Vide, il ne dessine rien. -->

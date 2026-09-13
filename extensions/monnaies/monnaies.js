@@ -435,13 +435,7 @@ function poserBasculeAgregation() {
       <label class="import-option-ligne">
         <input type="checkbox" id="monnaies-agregation-case" />
         <span id="monnaies-agregation-libelle"></span>
-        <i class="info-bulle" tabindex="0" data-info="${escapeHtml(
-          t(
-            "Additionne tes monnaies en une seule, au taux que tu as saisi dans " +
-              "Paramètres → Monnaies. Rien n'est modifié : décoche et tout revient. " +
-              "Une monnaie sans taux est laissée de côté, et signalée."
-          )
-        )}">i</i>
+        <i class="info-bulle" tabindex="0" data-info="${escapeHtml(t(texteAide("monnaies.agregation")))}">i</i>
       </label>
       <div class="hint" id="monnaies-agregation-alerte" style="display:none"></div>
     `;
@@ -541,13 +535,7 @@ function poserBasculeAvoirs() {
       <label class="import-option-ligne">
         <input type="checkbox" id="monnaies-avoirs-case" />
         <span id="monnaies-avoirs-libelle"></span>
-        <i class="info-bulle" tabindex="0" data-info="${escapeHtml(
-          t(
-            "Additionne tes monnaies en une seule, au taux que tu as saisi dans " +
-              "Paramètres → Monnaies. Rien n'est modifié : décoche et tout revient. " +
-              "Une monnaie sans taux est laissée de côté, et signalée."
-          )
-        )}">i</i>
+        <i class="info-bulle" tabindex="0" data-info="${escapeHtml(t(texteAide("monnaies.agregation")))}">i</i>
       </label>
       <div class="hint" id="monnaies-avoirs-alerte" style="display:none"></div>
     `;

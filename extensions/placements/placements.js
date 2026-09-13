@@ -640,7 +640,7 @@ function majResumeOperationAction() {
   const resume = document.getElementById("operation-action-resume");
 
   if (state.actions.length === 0) {
-    resume.textContent = "Ajoute d'abord un titre dans « Titres suivis » ci-dessous.";
+    resume.textContent = t("Ajoute d'abord un titre dans « Titres suivis » ci-dessous.");
     return;
   }
   // Le prix est libellé dans la monnaie de cotation du titre : c'est elle qui
@@ -794,6 +794,23 @@ async function ajouterTotauxPlacementsSurCartes() {
         ligne.textContent = `${t("Total")} : ${formatMontant(bloc.total, bloc.monnaie_id)}`;
         groupe.appendChild(ligne);
       });
+
+      // DRILL-THROUGH : un seul lien par carte (pas un par monnaie, la page
+      // Placements montre tout le portefeuille du compte d'un coup). Poser
+      // `state.placementCompteId` AVANT `switchSection` suffit à ouvrir
+      // directement l'onglet de CE compte — `loadPlacements` (plus haut dans
+      // ce fichier) garde tel quel un `placementCompteId` qui correspond
+      // encore à un compte existant, au lieu de retomber sur le premier.
+      const lien = document.createElement("button");
+      lien.type = "button";
+      lien.className = "compte-total-placement-lien";
+      lien.textContent = t("Voir le portefeuille →");
+      lien.addEventListener("click", () => {
+        state.placementCompteId = compte.compte_id;
+        vueTitres = false;
+        switchSection("placements");
+      });
+      carte.appendChild(lien);
     });
   } catch (err) {
     // Un compte de placements sans total affiché n'est pas bloquant : la

@@ -63,10 +63,15 @@ function remplirSelecteurTypesRegle() {
     // Les types internes (titres) ne se posent pas par règle : il leur
     // manquerait le titre, la quantité et le prix.
     .filter((t) => !t.interne)
-    // Les deux types de prêt appartiennent à l'extension « Prêts » : une règle
-    // ne doit pas pouvoir poser un type auquel aucun écran ne donne accès.
-    // `pretsAccessibles` vient du noyau (app.js), toujours chargé avant nous.
+    // Les deux types de prêt appartiennent à l'extension « Prêts », les deux
+    // types remboursables à « Suivi des remboursements » : une règle ne doit
+    // pas pouvoir poser un type auquel aucun écran ne donne accès.
+    // `pretsAccessibles`/`suiviRemboursementsAccessible` viennent du noyau
+    // (app.js), toujours chargé avant nous.
     .filter((t) => pretsAccessibles() || !TYPES_DE_PRET.has(t.code))
+    .filter(
+      (t) => suiviRemboursementsAccessible() || !TYPES_A_SUIVI_REMBOURSEMENT.has(t.code)
+    )
     .map((t) => `<option value="${t.code}">${t.nom}</option>`)
     .join("");
   if (precedent) select.value = precedent;
@@ -183,7 +188,9 @@ function renderReglesListe() {
   bloc.innerHTML = "";
   if (reglesChargees.length === 0) {
     bloc.innerHTML =
-      '<p class="hint">Aucune règle pour le moment : les lignes importées resteront à classer à la main.</p>';
+      `<p class="hint">${t(
+        "Aucune règle pour le moment : les lignes importées resteront à classer à la main."
+      )}</p>`;
     return;
   }
 

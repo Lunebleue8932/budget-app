@@ -75,28 +75,27 @@ const IMPL_PROPRIETES_POSITION = [
 const IMPL_PROPRIETES_POSITION_OBLIGATOIRES = new Set(["quantite", "prix_revient"]);
 
 // Écrit une fois : la colonne veut dire la même chose dans les deux modes de
-// lecture, et deux textes qui se répondent finiraient par diverger.
-const IMPL_INFO_COLONNE_TYPE_TITRE =
-  "L'étiquette du titre, si ton fichier la porte : ETF, obligation, action…\n\n" +
-  "Facultative, et sans effet sur un montant. Un libellé que tu n'as pas encore " +
-  "créé le sera à l'import. Un titre que l'app connaît déjà garde le type que tu " +
-  "lui as posé.";
 
-const IMPL_INFOS_PROPRIETES_POSITION = {
-  quantite:
-    "Le nombre de titres que tu DÉTIENS au moment de la photographie.\n\n" +
-    "C'est cette quantité qui part en base : l'app ne sait pas comment tu y es " +
-    "arrivé, seulement ce que tu as.",
-  prix_revient:
-    "Ce qu'UN titre t'a coûté en moyenne, frais compris (le PRU).\n\n" +
-    "Par titre, pas le total investi. Si ton relevé donne le total, divise-le " +
-    "avant d'importer.",
-  valeur_totale:
-    "Ce que la ligne vaut aujourd'hui, tous titres confondus.\n\n" +
-    "Elle ne crée aucune détention : elle sert à déduire le cours du titre " +
-    "(valeur ÷ quantité), que ce genre d'export ne donne pas.",
-  type_titre: IMPL_INFO_COLONNE_TYPE_TITRE,
-};
+// Les phrases vivent dans textes.js (cf. son en-tête) ; ne reste ici que la
+// façon de les retrouver. Le préfixe dit le MODE DE LECTURE : une même colonne
+// ne veut pas dire la même chose dans une liste d'opérations et dans une
+/**
+ * Les info-bulles d'un mode de lecture, rassemblées depuis textes.js.
+ *
+ * TOUTES LES CLÉS DU PRÉFIXE, et pas une liste écrite à la main : ajouter une
+ * colonne lisible demanderait sinon de penser à deux endroits, et l'oubli ne se
+ * verrait qu'à l'usage, sous la forme d'une ligne sans explication.
+ */
+function implTextesProprietes(prefixe) {
+  const infos = {};
+  Object.keys(TEXTES).forEach((cle) => {
+    if (cle.startsWith(prefixe)) infos[cle.slice(prefixe.length)] = TEXTES[cle];
+  });
+  return infos;
+}
+
+// photographie du compte.
+const IMPL_INFOS_PROPRIETES_POSITION = implTextesProprietes("import-placements.propriete-position-");
 
 /** Le mode déclaré par l'écran, `operations` tant qu'on n'a rien dit. */
 function implModeLecture() {
@@ -123,33 +122,11 @@ function implInfosProprietes() {
   return implLitUnePosition() ? IMPL_INFOS_PROPRIETES_POSITION : IMPL_INFOS_PROPRIETES;
 }
 
-const IMPL_INFOS_PROPRIETES = {
-  type_placement:
-    "Ce que la ligne décrit : un achat, une vente, ou un transfert d'espèces.\n\n" +
-    "Les mots-clés se règlent juste en dessous. Un libellé inconnu met la ligne " +
-    "en erreur plutôt que d'être deviné.",
-  nom_valeur:
-    "Le nom du titre tel que ton courtier l'écrit.\n\n" +
-    "Facultatif si tu lis l'ISIN, mais il faut l'un des deux : sans eux, une " +
-    "ligne d'achat ne dit pas de quelle valeur elle parle.",
-  code_isin:
-    "Le code ISIN du titre (FR0000120073, LU1681043599…).\n\n" +
-    "Seul nom qui ne change jamais : c'est par lui qu'un titre est reconnu d'un " +
-    "import à l'autre. Facultatif si tu lis le nom de la valeur.",
-  montant:
-    "Ce que l'opération a coûté ou rapporté en espèces.\n\n" +
-    "C'est lui qui fait foi : le prix par titre vaut montant ÷ quantité, pas le " +
-    "cours annoncé. Ton solde colle ainsi au relevé, frais de courtage compris.",
-  quantite:
-    "Le nombre de titres achetés ou vendus.\n\n" +
-    "Sans objet sur une ligne de transfert d'espèces, qui peut la laisser vide.",
-  cours:
-    "Le prix par titre annoncé par le relevé.\n\n" +
-    "Il ne décide de rien, il sert de contrôle : un écart de plus de 1 % avec " +
-    "le montant divisé par la quantité est signalé au-dessus de l'aperçu, sans " +
-    "bloquer l'import.",
-  type_titre: IMPL_INFO_COLONNE_TYPE_TITRE,
-};
+// Les phrases vivent dans textes.js (cf. son en-tête) ; ne reste ici que la
+// façon de les retrouver. Le préfixe dit le MODE DE LECTURE : une même colonne
+// ne veut pas dire la même chose dans une liste d'opérations et dans une
+// photographie du compte.
+const IMPL_INFOS_PROPRIETES = implTextesProprietes("import-placements.propriete-operations-");
 
 // Ce que l'en-tête de « Le fichier tel qu'il est » écrit pour chaque propriété.
 const IMPL_APERCU_PROPRIETES = Object.fromEntries(IMPL_PROPRIETES);

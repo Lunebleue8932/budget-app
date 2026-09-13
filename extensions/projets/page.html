@@ -9,7 +9,7 @@
      C'est donc bien une `.sous-section` : c'est le gestionnaire délégué de
      app.js qui la montre et la cache, exactement comme un onglet du noyau. -->
 <div id="sous-section-comptes-globale-projets" class="sous-section">
-  <h3>Projets<i class="info-bulle" tabindex="0" data-info="Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte.">i</i></h3>
+  <h3>Projets<i class="info-bulle" tabindex="0" data-info-cle="projets.projets">i</i></h3>
   <p class="hint">
     Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les
     opérations concernées. C'est un <strong>regroupement de lecture</strong> — retirer une
@@ -59,7 +59,7 @@
          Rempli par projets.js, une section par monnaie (l'app n'en additionne
          jamais deux). Vide tant que le projet n'a aucune sortie : un cadre sans
          barre n'apprendrait rien. -->
-    <h4 id="projet-histogramme-titre" style="display:none">Répartition par catégorie<i class="info-bulle" tabindex="0" data-info="Les sorties du projet, réparties par catégorie — virements sortants compris, comme dans le total ci-dessus. Les entrées n'y figurent pas : elles se lisent dans le total des entrées.">i</i></h4>
+    <h4 id="projet-histogramme-titre" style="display:none">Répartition par catégorie<i class="info-bulle" tabindex="0" data-info-cle="projets.repartition-par-categorie">i</i></h4>
     <div id="projet-histogramme"></div>
 
     <div class="actions">
@@ -70,7 +70,7 @@
 
     <!-- ----- Le sélecteur d'opérations ----- -->
     <div id="projet-selecteur" class="projet-selecteur" style="display:none">
-      <h4>Ajouter des opérations<i class="info-bulle" tabindex="0" data-info="Ajouter une opération ici ne la retire d'aucun autre projet, et ne change ni sa catégorie ni son compte.">i</i></h4>
+      <h4>Ajouter des opérations<i class="info-bulle" tabindex="0" data-info-cle="projets.ajouter-des-operations">i</i></h4>
       <div class="projet-selecteur-filtres">
         <label for="projet-filtre-debut">Du
           <input type="date" id="projet-filtre-debut" />

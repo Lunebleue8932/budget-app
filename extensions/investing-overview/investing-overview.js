@@ -96,7 +96,7 @@ function ioArc(angleDebut, angleFin) {
  * lourd au plus léger.
  *
  * MÊME FORME QUE CELLE DE L'HISTOGRAMME DES DÉPENSES (cf. app.js,
- * `contenuInfobulleHistogramme`) — mêmes classes, même mise en page, même
+ * `contenuInfobulleCategorie`) — mêmes classes, même mise en page, même
  * limite à trois lignes. Deux graphes voisins qui répondraient différemment au
  * survol demanderaient d'apprendre deux fois le même geste.
  *

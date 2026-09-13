@@ -163,7 +163,7 @@ function epargneFormulaireHtml(compte) {
       ${selecteurMonnaie}
       <label>Libellé
         <input type="text" data-epargne-champ="libelle" data-compte="${compte.id}"
-               placeholder="intérêts 2025" value="${interet ? escapeHtml(interet.libelle) : ""}" />
+               placeholder="${escapeHtml(t("intérêts 2025"))}" value="${interet ? escapeHtml(interet.libelle) : ""}" />
       </label>
       <div class="actions">
         <button type="submit" class="primary">${interet ? "Enregistrer" : "Ajouter"}</button>
