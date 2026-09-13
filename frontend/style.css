@@ -338,9 +338,16 @@ h4 {
    cartes deux fois plus larges que celles d'au-dessus, pour des chiffres du
    même ordre. Sous 700 px, la colonne fantôme disparaît et les deux cartes
    s'empilent comme le reste. */
+/* QUATRE CARTES DEPUIS LA VARIATION ATTRIBUÉE, et une largeur minimale
+   ramenée à 150px pour qu'elles tiennent encore sur une seule rangée : c'est
+   leur voisinage qui fait le sens ici (les deux totaux, leur différence, puis
+   le mouvement réel), et un retour à la ligne au milieu casserait la lecture
+   de gauche à droite. `auto-fit` plutôt qu'un compte figé : sous 1100px, la
+   rangée se replie d'elle-même en deux lignes de deux plutôt que de comprimer
+   quatre montants jusqu'à l'illisible. */
 .flux-periode {
   display: grid;
-  grid-template-columns: repeat(3, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.6rem;
   margin: 0.9rem 0 1.1rem;
 }
@@ -377,6 +384,27 @@ h4 {
 
 .flux-valeur.positif { color: var(--positif); }
 .flux-valeur.negatif { color: var(--negatif); }
+
+/* LA VARIATION BRUTE, EN JAUNE — et elle seule de toute la rangée.
+
+   POURQUOI PAS LE ROUGE/VERT DES AUTRES. Ce code couleur porte un jugement :
+   vert, la période a rapporté ; rouge, elle a coûté. La variation brute ne
+   répond pas à cette question-là — elle dit ce qui est PASSÉ sur le compte,
+   à la date et pour le montant du relevé. Peinte comme sa voisine, elle se
+   serait lue comme une seconde version du même chiffre, dont l'une des deux
+   aurait forcément dû sembler fausse.
+
+   Le jaune n'est pas choisi ici : c'est déjà celui des badges
+   « remboursable » (--badge-remboursable-text), et l'application n'a pas à en
+   apprendre un second.
+
+   PAS DE `!important` : c'est renderKpisDashboard qui ne pose PLUS positif ni
+   negatif sur cette carte (cf. app.js). Une couleur qu'il faut reprendre de
+   force à la règle d'à côté est une couleur que quelqu'un finira par reperdre
+   en ajoutant une troisième règle. */
+.flux-valeur-brute {
+  color: var(--badge-remboursable-text);
+}
 
 /* Le détail sous la valeur d'une carte : les deux composantes d'un net, en
    petit. Vide, il n'occupe aucune place — le `:empty` évite que les trois
@@ -491,6 +519,28 @@ h4 {
   color: var(--compte-placements);
   margin-top: 0.15rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Drill-through vers l'onglet de CE compte sur la page Placements, posé une
+   fois par carte (pas une fois par monnaie : le portefeuille d'un compte ne
+   se scinde pas par devise sur cette page-là). Un lien texte, pas un bouton
+   plein : la carte affiche déjà les soldes en évidence, ceci n'est qu'un
+   raccourci vers le détail. */
+.compte-card .compte-total-placement-lien {
+  display: block;
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--compte-placements);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.compte-card .compte-total-placement-lien:hover {
+  opacity: 0.8;
 }
 
 /* ---------- Tableaux ---------- */
@@ -968,6 +1018,369 @@ form .full-width {
   position: relative;
 }
 
+/* L'histogramme ET le camembert côte à côte : deux vues du même calcul (cf.
+   renderHistogrammeDashboard), pas deux écrans. Repassent l'un sous l'autre
+   dès que la largeur manque plutôt que de se tasser illisibles. */
+.dashboard-graphes {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.dashboard-graphes .histogramme-cadre {
+  flex: 1 1 22rem;
+  margin-bottom: 0;
+}
+
+/* ---------- Le camembert des dépenses (cf. renderPieChartDepenses) ----------
+
+   LA LÉGENDE EST EN BAS, pas à côté du disque. Posée à droite, elle prenait
+   exactement la largeur dont les traits de rappel ont besoin pour écrire les
+   pourcentages, et le disque rétrécissait d'autant — deux façons de dire la
+   même chose qui se disputaient la même place. En dessous, elle a toute la
+   largeur du cadre et se replie sur autant de lignes qu'il faut. */
+.camembert-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.camembert-svg {
+  /* Les traits de rappel héritent de cette couleur (stroke="currentColor") :
+     un gris discret, qui désigne sans concurrencer les tranches. */
+  color: var(--text-muted);
+  display: block;
+}
+
+/* Le pourcentage écrit au bout d'un trait de rappel. En gris : c'est une
+   annotation du graphe, pas un chiffre de même rang que le total du centre. */
+.camembert-rappel text {
+  fill: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.camembert-rappel-objectif {
+  fill: var(--text-muted);
+}
+
+/* ---------- L'écran « D'où vient l'écart ? » ----------
+
+   Le bouton de retour dans la ligne de titre, comme celui des écrans
+   d'extension ouverts depuis ailleurs. C'est le CONTENEUR qui porte la marge
+   automatique : deux marges automatiques dans un même flex se partagent
+   l'espace libre au lieu de pousser (cf. .placements-titre-actions). */
+.ecart-titre-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+#section-ecart-variations h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Les trois cartes du haut reprennent EXACTEMENT la mise en forme de la rangée
+   de flux du dashboard (.flux-periode, .flux-carte) : ce sont les deux mêmes
+   chiffres, et les redessiner autrement aurait demandé de vérifier qu'il s'agit
+   bien des mêmes. */
+.ecart-kpis {
+  max-width: 60rem;
+}
+
+/* La carte de l'écart se détache des deux qu'elle compare : c'est le sujet de
+   la page, pas un troisième chiffre de même rang. */
+.ecart-carte-total {
+  border-color: var(--border);
+  background: var(--bg-surface-alt);
+}
+
+.ecart-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ecart-table th,
+.ecart-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+/* Les trois colonnes de chiffres à droite, en chasse fixe : elles se lisent en
+   colonne — « au compte », « au mois », leur différence — et c'est tout
+   l'intérêt du tableau. */
+.ecart-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ecart-table tbody tr:hover {
+  background: var(--bg-surface-hover);
+}
+
+/* La DATE et le COMPTE ne se coupent pas : ce sont des repères, et « 05 / 
+   Septembre / 2026 » sur trois lignes double la hauteur de chaque rangée sans
+   rien rendre plus lisible. Le libellé, lui, a le droit de revenir à la ligne —
+   c'est la colonne qui doit absorber la largeur qui manque. */
+.ecart-table td:first-child,
+.ecart-table td:nth-child(3) {
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* La catégorie, à la suite du libellé : une précision sur lui, pas une colonne
+   de plus — la page parle de montants, pas de classement. */
+.ecart-categorie {
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 0.78rem;
+}
+
+/* POURQUOI la ligne est là, en pastille. Quatre familles seulement, et chacune
+   sa teinte : on parcourt la page en cherchant « les étalements » ou « les
+   remboursables », pas en lisant les lignes une à une. */
+.ecart-raison {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ecart-raison-amortissement {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--accent-light);
+}
+
+.ecart-raison-remboursable {
+  background: var(--badge-remboursable-bg);
+  color: var(--badge-remboursable-text);
+}
+
+.ecart-raison-pret {
+  background: var(--badge-pret-bg);
+  color: var(--badge-pret-text);
+}
+
+.ecart-raison-reglement {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--badge-ok-text);
+}
+
+/* Un tableau large ne doit jamais faire défiler la PAGE horizontalement : il
+   défile dans son propre cadre. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* LE CADRE DE LA LÉGENDE, sous les deux graphes et aussi large qu'eux deux
+   réunis : elle les sert tous les deux, elle n'appartient à aucun. */
+.legende-cadre {
+  margin-top: 1rem;
+}
+
+/* UNE GRILLE QUI SE REPLIE, à 13rem par colonne : une ligne ne porte plus que
+   la pastille, le nom et la part, elle n'a donc plus besoin de la largeur d'un
+   tableau. Le montant a quitté la légende — l'histogramme juste au-dessus est
+   là pour la vision en brut, et le répéter en colonne revenait à poser un
+   tableau sous un graphe. L'objectif aussi : il est écrit au bord du camembert,
+   là où il se compare à la part constatée. Les deux se retrouvent dans
+   l'infobulle de la ligne, qui est la plus complète des trois. */
+.camembert-legende {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.1rem 1rem;
+}
+
+.camembert-legende-ligne {
+  display: grid;
+  grid-template-columns: 0.65rem minmax(0, 1fr) 3.2rem;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: default;
+}
+
+.camembert-pastille {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* PAS D'ELLIPSE ICI. Un nom trop long revient à la ligne plutôt que de se
+   faire couper : « Vêtements & équipement sport » et « Vêtements & équipement
+   santé » se ressemblent trop à l'ellipse près pour qu'on se permette de les
+   raccourcir, et c'est justement le libellé qu'on vient chercher dans une
+   légende. La colonne est déjà dimensionnée pour que le cas reste rare (cf.
+   .camembert-legende). */
+.camembert-legende-nom {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.camembert-legende-montant {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.camembert-legende-part {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.camembert-legende-objectif {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* La barre survolée s'éclaire, comme les parts des camemberts. L'opacité
+   porte sur le GROUPE entier et non sur ses rectangles : la barre
+   prévisionnelle a déjà une opacité à elle (0.35), qu'une règle CSS sur les
+   `rect` aurait écrasée — on aurait perdu la distinction entre le réel et le
+   prévisionnel au moment précis où on la regarde de près. Multipliée, elle
+   reste au contraire dans le même rapport à la barre pleine. */
+.histo-barre {
+  transition: opacity 0.12s ease;
+}
+
+.histo-barre:hover,
+.histo-barre.survolee {
+  opacity: 0.82;
+}
+
+/* Le camembert « Répartition des avoirs » de la page des comptes (cf.
+   renderRepartitionComptes). `.survolee` plutôt que `:hover` seul : la ligne de
+   légende et la part s'éclairent ensemble, dans les deux sens. */
+.repartition-part {
+  cursor: default;
+  transition: opacity 0.12s ease;
+}
+
+.repartition-part:hover,
+.repartition-part.survolee {
+  opacity: 0.82;
+}
+
+.repartition-legende-ligne.survolee {
+  background: var(--bg-surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- La surbrillance au survol ----------
+
+   CE QUE ÇA RÉSOUT. L'infobulle dit ce qu'on regarde ; elle ne dit pas OÙ on
+   regarde — une bulle qui suit le curseur ne désigne aucune tranche à elle
+   seule. Un léger éclaircissement, lui, le fait sans rien ajouter à l'écran.
+   C'est le procédé déjà employé par le camembert de la « Vue d'ensemble des
+   placements » (.io-part), repris ici à l'identique pour que les trois graphes
+   de l'application répondent pareil au même geste.
+
+   `.survolee` EST POSÉE PAR LE JS et pas seulement par `:hover` : le survol
+   d'une ligne de LÉGENDE doit éclairer sa tranche, et réciproquement — une
+   légende posée en bas est trop loin de sa part pour qu'on les rapproche à
+   l'œil, entre huit pastilles de couleur. */
+.camembert-part {
+  cursor: default;
+  transition: opacity 0.12s ease;
+}
+
+.camembert-part:hover,
+.camembert-part.survolee {
+  opacity: 0.82;
+}
+
+.camembert-legende-ligne.survolee {
+  background: var(--bg-surface-hover);
+}
+
+/* Le bouton du filtre de catégories, posé dans le titre plutôt qu'une case de
+   plus dans le sélecteur de période : il ne pilote pas la PÉRIODE, seulement
+   ce que les deux graphes DESSINENT. */
+.dashboard-filtre-categories {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.6rem;
+  vertical-align: middle;
+}
+
+#btn-dashboard-filtre-categories {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+#btn-dashboard-filtre-categories:hover,
+#btn-dashboard-filtre-categories[aria-expanded="true"] {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.filtre-categories-panneau {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  min-width: 14rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  text-align: left;
+}
+
+.filtre-categories-panneau label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.2rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filtre-categories-panneau label:hover {
+  color: var(--text-primary);
+}
+
+.filtre-categories-tout {
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.4rem !important;
+  font-weight: 600;
+  color: var(--text-primary) !important;
+}
+
+.filtre-categories-couleur {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  flex: none;
+}
+
 /* Infobulle d'une barre de l'histogramme : ce qui compose son montant.
    Maison plutôt qu'un <title> SVG — celui-ci ne porte que du texte brut (ni
    colonne de montants, ni italique) et n'apparaît qu'après le délai du
@@ -995,6 +1408,67 @@ form .full-width {
 .histo-bulle.visible {
   opacity: 1;
   visibility: visible;
+}
+
+/* L'INFOBULLE DU CAMEMBERT REÇOIT LA SOURIS, parce qu'elle porte une action
+   (« Voir toutes les dépenses », cf. contenuInfobulleHistogramme). Celle de
+   l'histogramme, qui ne porte rien de cliquable, reste en `pointer-events:
+   none` : elle ne doit jamais s'interposer entre le curseur et la barre qu'on
+   survole. Le délai de grâce qui rend celle-ci atteignable est côté JS (cf.
+   renderPieChartDepenses) — un CSS ne peut pas retenir un élément le temps que
+   la souris le rejoigne. */
+.histo-bulle-interactive {
+  pointer-events: auto;
+}
+
+/* LES CHIFFRES EN TÊTE DE L'INFOBULLE (total, part, objectif), au-dessus du
+   classement des trois plus grosses dépenses. Même mise en page en deux
+   colonnes que la liste du dessous — un libellé à gauche, sa valeur à droite —
+   parce que c'est ce qui permet de les lire ensemble ; un trait les sépare,
+   parce qu'ils ne répondent pas à la même question. */
+.histo-bulle-chiffres {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.histo-bulle-chiffres li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+/* L'objectif de répartition, à droite de la part constatée. Plus pâle qu'elle,
+   et à dessein : le constat d'abord, l'intention ensuite. La flèche fait la
+   moitié du travail — deux nombres séparés d'un simple espace se lisent comme
+   deux données indépendantes. */
+.histo-bulle-objectif {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Le drill-through, DANS l'infobulle et plus sur le clic de la tranche. Un
+   bouton en pleine largeur sous la liste : ce n'est pas une donnée de plus à
+   lire, c'est une sortie, et elle doit se voir comme telle. */
+.histo-bulle-lien {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.32rem 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent-light);
+  font-size: 0.78rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.histo-bulle-lien:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent);
 }
 
 .histo-bulle-titre {
@@ -1043,6 +1517,14 @@ form .full-width {
 
 .histo-bulle-vide {
   color: var(--text-muted);
+}
+
+/* La part de cette catégorie dans le total de la période, posée par le
+   camembert (cf. renderPieChartDepenses) à côté du nom — un complément du
+   titre, pas une donnée de même rang. */
+.histo-bulle-pourcentage {
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .drag-handle {
@@ -1368,7 +1850,14 @@ button.danger:hover {
   background: var(--bg-surface);
 }
 
-.import-compte-defaut-bloc select {
+/* `font-family: inherit` SUR LES DEUX. Un `<select>` et un `<input>` gardent
+   la police du système (Arial ici) tant qu'on ne la leur reprend pas : côte à
+   côte dans le même bloc, ils ne s'écrivaient pas de la même main. Même objet,
+   même police — c'est la règle, et elle vaut pour tout ce qui se pose dans ce
+   bloc, pas seulement pour le champ qu'on vient d'ajouter. */
+.import-compte-defaut-bloc select,
+.import-compte-defaut-bloc input[type="date"] {
+  font-family: inherit;
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -1376,6 +1865,30 @@ button.danger:hover {
   padding: 0.45rem 0.6rem;
   font-size: 0.9rem;
   min-width: 220px;
+}
+
+/* LE SÉLECTEUR DE DATE DE LA PHOTOGRAPHIE (extension « Import de placements »,
+   bloc #impl-date-position-bloc) : il partage le bloc et donc la règle du
+   sélecteur de compte ci-dessus, au lieu de garder le rendu natif du
+   navigateur — fond blanc, bordure système, hauteur différente — au milieu
+   d'un écran sombre. Il est hors de tout <form>, comme le bloc qui le porte :
+   la règle générale « form input, form select » ne l'atteint pas, d'où cette
+   déclaration explicite (même raison que le commentaire du bloc lui-même).
+
+   `font-family: inherit` : un champ de date garde sinon la police du système,
+   visiblement différente de celle du menu déroulant posé juste au-dessus de lui
+   dans le même bloc.
+
+   RIEN À DÉCLARER POUR LE CALENDRIER qui s'ouvre au clic, ni pour son
+   pictogramme : `color-scheme: dark` est posé une fois pour toutes sur :root en
+   tête de cette feuille, et le filtre du pictogramme juste en dessous. Les
+   redire ici ne ferait que créer deux endroits à corriger le jour où le thème
+   changera. */
+.import-compte-defaut-bloc input[type="date"] {
+  /* Un champ de date n'a pas besoin de la largeur d'un nom de compte : il
+     affiche dix caractères. La règle partagée ci-dessus lui donnait 220px,
+     dont la moitié serait restée vide. */
+  min-width: 0;
 }
 
 /* Option de configuration hors <form> (les règles form input/select ne
@@ -3451,11 +3964,44 @@ mark.recherche-marque-courante {
   opacity: 0.55;
 }
 
+/* Une extension du catalogue sans dossier ici (cf. app.js::renderExtensions) :
+   un trait pointillé plutôt qu'un simple retrait d'opacité, pour qu'on ne la
+   confonde pas avec une extension présente mais simplement éteinte — les deux
+   se grisent, mais pas pour la même raison. */
+.extension-carte.non-installee {
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+.extensions-groupe-titre {
+  margin: 1.1rem 0 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border-soft);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 .extension-entete {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
+}
+
+/* Le numéro de l'extension, devant son nom. Discret et en chasse fixe : il
+   sert à DÉSIGNER une extension d'une langue à l'autre, pas à la classer — une
+   pastille voyante en ferait un rang, ce qu'il n'est pas. */
+.extension-numero {
+  display: inline-block;
+  min-width: 1.5rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
 .extension-nom {
@@ -3786,6 +4332,17 @@ body.modale-ouverte {
 .decoupe-detail-montant {
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+}
+
+/* La ligne repliée d'une note d'opération (cf. app.js::ligneDetailNote) —
+   même traitement que .decoupe-detail, pour la même raison : un détail de la
+   ligne au-dessus, pas une opération de plus. */
+.note-detail > td {
+  background: var(--bg-surface-alt);
+  padding-top: 0.35rem;
+  padding-bottom: 0.5rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
 }
 
 /* Le compte d'où sort un relevé, accolé au nom du fichier dans l'historique

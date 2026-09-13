@@ -1,4 +1,17 @@
-/* ---------- Langue ---------- */
+/* ---------- Textes d'aide, puis langue ---------- */
+
+/**
+ * LES PHRASES D'AIDE D'ABORD, LA TRADUCTION ENSUITE, et l'ordre n'est pas
+ * indifférent.
+ *
+ * index.html ne porte plus le texte de ses pastilles « i » mais une CLÉ (cf.
+ * textes.js, la source unique de toutes ces phrases). `appliquerTextes` pose le
+ * texte français dans `data-info` ; `traduireDomStatique`, juste après, y
+ * cherche sa traduction. Inverser les deux ferait traduire des attributs encore
+ * vides, et l'application s'afficherait intégralement en français une fois
+ * passée à l'anglais.
+ */
+appliquerTextes(document.body);
 
 /**
  * Traduction du texte statique, AVANT tout le reste.
@@ -61,6 +74,15 @@ const state = {
   // NULL — et null veut dire « le mois entier », l'état où l'histogramme est
   // celui que le dashboard a toujours montré.
   dashboardSemaines: { ouvert: false, choix: null },
+  // Les catégories DESSINÉES par l'histogramme et le camembert du dashboard —
+  // `null` veut dire « toutes » (l'état par défaut, celui d'avant ce filtre).
+  // Un Set de NOMS de catégorie, pas d'ids : c'est ce que porte chaque ligne
+  // de `DepenseParCategorie` (cf. services/soldes.get_depenses_par_categorie).
+  // Ne filtre QUE ce qui est dessiné : le dénominateur des pourcentages du
+  // camembert reste calculé sur TOUTES les catégories (cf.
+  // renderPieChartDepenses), pour que masquer une part n'en gonfle pas
+  // artificiellement une autre.
+  dashboardCategoriesVisibles: null,
   categoriesPeriode: {},
   triSelections: {
     classique: "date-desc",
@@ -93,6 +115,16 @@ const TYPES_DE_PRET = new Set(["pret", "remboursement_pret"]);
 
 function pretsAccessibles() {
   return BudgetApp.extensions.estActive(EXTENSION_PRETS);
+}
+
+// MÊME PATRON, POUR LES DEUX TYPES QUE COMMANDE « SUIVI DES REMBOURSEMENTS ».
+// `data-extension="suivi-remboursements"` couvre les boutons d'index.html ;
+// cette liste sert aux mêmes menus construits en JS que TYPES_DE_PRET.
+const EXTENSION_SUIVI_REMBOURSEMENTS = "suivi-remboursements";
+const TYPES_A_SUIVI_REMBOURSEMENT = new Set(["remboursable", "remboursements"]);
+
+function suiviRemboursementsAccessible() {
+  return BudgetApp.extensions.estActive(EXTENSION_SUIVI_REMBOURSEMENTS);
 }
 // Type de dette que chaque type de règlement peut solder
 // (cf. constants.CIBLE_PAR_TYPE_REGLEMENT).
@@ -133,8 +165,20 @@ const TYPE_COMPTE_PLACEMENT = "placements financiers";
 // (cf. constants.TYPES_COMPTE_HORS_COURANT).
 const TYPES_COMPTE_HORS_COURANT = new Set(["épargne", TYPE_COMPTE_PLACEMENT]);
 
+/**
+ * Le libellé d'un type de compte, TRADUIT.
+ *
+ * `TYPE_LABELS` transforme le nom technique de la table (« courant »,
+ * « placements financiers ») en libellé d'écran ; `t()` le passe ensuite dans la
+ * langue courante. Sans lui, « Compte d'épargne » restait en français dans toute
+ * l'application anglaise — en-têtes de groupe, menus déroulants et cartes
+ * compris, puisque tous passent par ici.
+ *
+ * UN TYPE CRÉÉ PAR L'UTILISATEUR traverse `t()` sans y trouver d'entrée et
+ * ressort tel quel : c'est une donnée, elle ne se traduit pas.
+ */
 function typeLabel(value) {
-  return TYPE_LABELS[value] || value;
+  return t(TYPE_LABELS[value] || value);
 }
 
 function capitalizeFirst(text) {
@@ -382,6 +426,23 @@ function formatMontant(valeur, monnaieId) {
   const symbole = symboleMonnaie(monnaieId);
   const nombre = FORMAT_NOMBRE.format(montantEstNul(valeur) ? 0 : valeur);
   return symbole ? `${nombre} ${symbole}` : nombre;
+}
+
+// Un pourcentage, à la française et sans décimale inutile : « 12,4 % », mais
+// « 15 % » et non « 15,0 % ».
+//
+// POURQUOI PAS `FORMAT_NOMBRE` : il impose deux décimales, ce qu'il faut à un
+// montant (les centimes existent) et jamais à une part. Un camembert dont
+// chaque tranche annonce « 12,40 % » donne à lire quatre chiffres là où deux
+// suffisent, et la précision affichée y ferait croire à une exactitude que
+// l'arrondi des montants sous-jacents n'a pas.
+const FORMAT_POURCENTAGE = new Intl.NumberFormat("fr-FR", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+
+function formatPourcentage(valeur) {
+  return `${FORMAT_POURCENTAGE.format(valeur || 0)} %`;
 }
 
 // Poubelle au trait, dessinée en SVG plutôt qu'en emoji : elle hérite de la
@@ -926,6 +987,41 @@ function majCorrespondanceCourante({ defiler = true } = {}) {
   if (defiler) courante.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
+// Les notes d'opération (cf. app.js::indicateurNote, ligneDetailNote) ne sont
+// affichées nulle part dans un tableau — repliées derrière un pictogramme,
+// comme une découpe. `noeudsTexte` ignore tout nœud cache : sans déplier
+// D'ABORD celles qui contiennent le terme cherché, Ctrl+F ne les trouverait
+// jamais. Le Set ne retient que les lignes dépliées PAR LA RECHERCHE, pour ne
+// jamais refermer une note que l'utilisateur a ouverte lui-même à la main.
+const notesOuvertesParRecherche = new Set();
+
+function majBoutonBascule(id, ouvert) {
+  const bouton = document.querySelector(`[data-bascule="${id}"]`);
+  if (!bouton) return;
+  bouton.setAttribute("aria-expanded", String(ouvert));
+  bouton.classList.toggle("ouvert", ouvert);
+}
+
+function synchroniserNotesAvecRecherche(section, terme) {
+  const lignes = section.querySelectorAll(".note-detail");
+  if (lignes.length === 0) return;
+  sansReveillerObservateur(() => {
+    lignes.forEach((ligne) => {
+      const correspond = Boolean(terme) && normaliserRecherche(ligne.textContent).includes(terme);
+      const ouvertePourRecherche = notesOuvertesParRecherche.has(ligne.id);
+      if (correspond && ligne.hidden) {
+        ligne.hidden = false;
+        notesOuvertesParRecherche.add(ligne.id);
+        majBoutonBascule(ligne.id, true);
+      } else if (!correspond && ouvertePourRecherche) {
+        ligne.hidden = true;
+        notesOuvertesParRecherche.delete(ligne.id);
+        majBoutonBascule(ligne.id, false);
+      }
+    });
+  });
+}
+
 function appliquerRecherche({ conserverIndex = true } = {}) {
   const section = sectionActive();
   // Le nettoyage porte sur TOUTE la page, pas seulement la section visible :
@@ -936,6 +1032,7 @@ function appliquerRecherche({ conserverIndex = true } = {}) {
   if (!section) return;
 
   const terme = normaliserRecherche(rechercheTerme).trim();
+  synchroniserNotesAvecRecherche(section, terme);
   if (!terme) {
     rechercheIndex = 0;
     majCorrespondanceCourante({ defiler: false });
@@ -1164,10 +1261,14 @@ async function loadMeta() {
     labels: statutLabel,
   });
 
-  const filtreStatut = document.getElementById("filtre-statut");
-  const tousStatutOption = filtreStatut.firstElementChild;
-  fillSelect(filtreStatut, state.meta.statuts, { labels: statutLabel });
-  filtreStatut.insertBefore(tousStatutOption, filtreStatut.firstChild);
+  // Un `<select class="filtre-select-statut">` par onglet de la page
+  // Opérations qui filtre sur le statut (cf. index.html) : chacun garde son
+  // option "Tous" en tête, comme avant le passage au filtrage par onglet.
+  document.querySelectorAll(".filtre-select-statut").forEach((filtreStatut) => {
+    const tousStatutOption = filtreStatut.firstElementChild;
+    fillSelect(filtreStatut, state.meta.statuts, { labels: statutLabel });
+    filtreStatut.insertBefore(tousStatutOption, filtreStatut.firstChild);
+  });
 
   renderImportVocabulairesDefauts();
 }
@@ -1207,6 +1308,17 @@ async function refreshMonnaies() {
   if (!state.categoriesMonnaieId && state.monnaies.length > 0) {
     state.categoriesMonnaieId = state.monnaies[0].id;
   }
+  // Un `<select class="filtre-select-monnaie">` par champ monnaie filtrable
+  // de la page Opérations (une monnaie envoyée ET une monnaie reçue sur
+  // l'onglet Virements, une seule ailleurs) : préserve la sélection de
+  // chacun, comme refreshComptes/refreshCategories.
+  document.querySelectorAll(".filtre-select-monnaie").forEach((filtreMonnaie) => {
+    _refillPreservingSelection(filtreMonnaie, (el) => {
+      const toutesOption = el.firstElementChild;
+      fillMonnaiesSelect(el, state.monnaies);
+      el.insertBefore(toutesOption, el.firstChild);
+    });
+  });
 }
 
 function fillMonnaiesSelect(selectEl, monnaies) {
@@ -1243,14 +1355,18 @@ function renderOngletsMonnaies(conteneurId, monnaies, monnaieIdActive, onSelect)
 
 async function refreshComptes() {
   state.comptes = await apiFetch("/comptes");
-  const filtreCompte = document.getElementById("filtre-compte");
-  // Préserve la sélection courante du filtre : sans ça, reconstruire la liste
-  // (ex. après un clic sur "Filtrer", qui rafraîchit comptes/catégories avant
-  // de lire les filtres) la remettait silencieusement à "Tous".
-  _refillPreservingSelection(filtreCompte, (el) => {
-    const tousOption = el.firstElementChild;
-    fillComptesSelect(el, state.comptes, { keepFirst: true });
-    el.insertBefore(tousOption, el.firstChild);
+  // Un `<select class="filtre-select-compte">` par champ compte filtrable de
+  // la page Opérations (compte source ET destination sur l'onglet Virements,
+  // un seul ailleurs). Préserve la sélection courante de CHACUN : sans ça,
+  // reconstruire la liste (ex. après un changement de filtre sur un autre
+  // onglet, qui rafraîchit comptes/catégories avant de relire les filtres) la
+  // remettait silencieusement à "Tous".
+  document.querySelectorAll(".filtre-select-compte").forEach((filtreCompte) => {
+    _refillPreservingSelection(filtreCompte, (el) => {
+      const tousOption = el.firstElementChild;
+      fillComptesSelect(el, state.comptes, { keepFirst: true });
+      el.insertBefore(tousOption, el.firstChild);
+    });
   });
 }
 
@@ -1259,10 +1375,12 @@ async function refreshCategories() {
   // catégories de dépense : les quatre anciennes catégories « système » sont
   // devenues des types, plus rien à filtrer ici.
   state.categories = await apiFetch("/categories");
-  _refillPreservingSelection(document.getElementById("filtre-categorie"), (el) => {
-    const tousOption = el.firstElementChild;
-    fillCategoriesSelect(el, state.categories, { keepFirst: true });
-    el.insertBefore(tousOption, el.firstChild);
+  document.querySelectorAll(".filtre-select-categorie").forEach((filtreCategorie) => {
+    _refillPreservingSelection(filtreCategorie, (el) => {
+      const tousOption = el.firstElementChild;
+      fillCategoriesSelect(el, state.categories, { keepFirst: true });
+      el.insertBefore(tousOption, el.firstChild);
+    });
   });
 }
 
@@ -1345,6 +1463,10 @@ async function loadDashboard() {
 }
 
 async function loadDashboardData(annee, mois) {
+  // Posé AVANT le fetch, pas après : un drill-through déclenché pendant que
+  // la requête est en vol doit déjà voir la BONNE période (cf.
+  // dashboardAnneeMoisActuel, drillThroughCategorie).
+  dashboardAnneeMoisActuel = { annee, mois };
   try {
     const url =
       state.dashboardPeriode.vue === "annee"
@@ -1502,6 +1624,7 @@ function renderKpisDashboard(kpis) {
       "kpi-solde-projete",
       "kpi-total-avoirs",
       "kpi-variation",
+      "kpi-variation-attribuee",
       "kpi-total-entrees",
       "kpi-total-sorties",
       "kpi-reste-rembourser",
@@ -1531,16 +1654,26 @@ function renderKpisDashboard(kpis) {
   // comptes, à sa date et pour son montant, sans étaler une dépense amortie ni
   // retrancher ce qu'on nous rendra d'une dépense remboursable (cf.
   // services/soldes.get_variation_brute). C'est la question qu'on se pose
-  // devant un relevé — ce que le mois COÛTE se lit plus bas, dans les deux
-  // cartes de flux, qui répondent à une autre question et n'ont donc jamais le
-  // même chiffre.
+  // devant un relevé — ce que le mois COÛTE se lit dans « Total Dépenses », posé
+  // juste à côté, qui répond à une autre question et n'a donc jamais le même
+  // chiffre.
+  //
+  // SA CARTE EST DESCENDUE DANS LA RANGÉE DU BAS, contre le sélecteur de
+  // période : ce chiffre se recalcule à chaque changement de mois, il n'avait
+  // rien à faire dans une rangée dont tout le reste est un état du jour. Seule
+  // sa PLACE a changé — le calcul, lui, est le même.
+  //
+  // ELLE NE PORTE PLUS NI « positif » NI « negatif » : sa couleur est fixe, le
+  // jaune (cf. .flux-valeur-brute dans style.css). Ces deux classes disent
+  // « la période a rapporté » ou « la période a coûté » — un jugement que ce
+  // chiffre-ci ne prononce pas, et qui l'aurait fait lire comme une seconde
+  // version de la « variation attribuée » posée juste à sa gauche. C'est
+  // celle-là qui porte désormais le code couleur, et elle seule.
   const variationEl = document.getElementById("kpi-variation");
   const variation = kpis.variation_brute || 0;
   variationEl.textContent = `${
     variation >= 0 && !montantEstNul(variation) ? "+" : ""
   }${formatMontant(variation, monnaieId)}`;
-  variationEl.classList.toggle("positif", variation > 0 && !montantEstNul(variation));
-  variationEl.classList.toggle("negatif", variation < 0 && !montantEstNul(variation));
   variationEl.classList.toggle("montant-nul", montantEstNul(variation));
   // LE TITRE SUIT LA VUE : ce chiffre se recalcule sur la période choisie, et
   // « Variation du mois » au-dessus d'un total ANNUEL ne se contentait pas
@@ -1549,31 +1682,42 @@ function renderKpisDashboard(kpis) {
   // exact, lui, se lit dans le sélecteur de période juste en dessous.
   // `firstChild` et non `textContent` : la carte porte une pastille « i » que
   // réécrire tout le libellé emporterait.
-  document.getElementById("kpi-variation-label").firstChild.nodeValue =
-    state.dashboardPeriode.vue === "annee" ? t("Variation de l'année") : t("Variation du mois");
+  const surLAnnee = state.dashboardPeriode.vue === "annee";
+  document.getElementById("kpi-variation-label").firstChild.nodeValue = surLAnnee
+    ? t("Variation sur l'année brute")
+    : t("Variation sur le mois brute");
+  // Le libellé de l'attribuée suit la même vue, pour la même raison : « au
+  // mois » au-dessus d'un total ANNUEL n'est pas seulement imprécis, il annonce
+  // le mauvais ordre de grandeur.
+  document.getElementById("kpi-variation-attribuee-label").firstChild.nodeValue = surLAnnee
+    ? t("Variation attribuée à l'année")
+    : t("Variation attribuée au mois");
 
+  renderResteARembourser(kpis, monnaieId);
   renderFluxPeriode(kpis, monnaieId);
   dashboardDepensesDuMois = kpis.depenses_par_categorie || [];
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
 
 /**
- * Total Entrées, Total Dépenses, Reste à rembourser — les trois chiffres posés
- * sous le sélecteur de période, à côté de l'histogramme.
+ * Total Entrées et Total Dépenses — deux des trois chiffres posés sous le
+ * sélecteur de période, à côté de l'histogramme qu'ils résument. Le troisième,
+ * « Variation », est écrit par renderKpisDashboard.
  *
- * PLUS DE « DIFFÉRENCE » : celle qui suivait les deux premiers valait, à un
- * signe près, la variation affichée en haut de page — deux chiffres pour une
- * seule mesure, dont l'un devait forcément finir par sembler faux.
+ * LES DEUX RANGÉES DE CARTES SE PARTAGENT LE TRAVAIL SELON LE TEMPS : en haut
+ * ce qui ne dépend PAS du sélecteur (solde, reste à rembourser, avoirs), ici ce
+ * qui se recalcule à chaque changement de mois. « Reste à rembourser » est donc
+ * monté là-haut et « Variation » descendue ici — chacune était du mauvais côté,
+ * et il fallait lire une infobulle pour savoir laquelle suivait le sélecteur.
  *
- * DEUX DES TROIS SUIVENT LA PÉRIODE, LE TROISIÈME NON, et c'est la seule chose
- * à ne pas confondre ici :
- *
- *   - Entrées / Dépenses répondent à ce que la période COÛTE et RAPPORTE —
- *     dépense amortie étalée, remboursable réduite à son reste à charge (cf.
- *     get_flux_periode). Ce n'est déjà pas ce que répond la variation du haut,
- *     qui dit ce qui est PASSÉ sur les comptes ;
- *   - « Reste à rembourser » est un STOCK : l'état des créances et des dettes
- *     aujourd'hui. Changer de mois ne le bouge pas, et son infobulle le dit.
+ * L'ANCIENNE CARTE « DIFFÉRENCE » EST DE RETOUR, sous son vrai nom :
+ * « Variation attribuée au mois ». Elle avait été retirée parce qu'elle
+ * répétait, à un signe près, la variation affichée alors en haut de page — deux
+ * chiffres pour une seule mesure, dont l'un devait finir par sembler faux. Ce
+ * n'est plus le cas depuis que la carte d'à côté porte la variation BRUTE : les
+ * deux ne mesurent plus la même chose, et leur ÉCART est exactement ce qu'on
+ * cherchait à rendre lisible — le décalage entre le moment où l'argent sort du
+ * compte et le mois auquel la dépense appartient.
  */
 function renderFluxPeriode(kpis, monnaieId) {
   const entrees = kpis.total_entrees || 0;
@@ -1588,12 +1732,49 @@ function renderFluxPeriode(kpis, monnaieId) {
   // Le signe est porté par le libellé (« dépenses ») autant que par la couleur :
   // un total de dépenses s'écrit en positif, c'est une somme dépensée.
   document.getElementById("kpi-total-sorties").textContent = signe(sorties, "−");
-  renderResteARembourser(kpis, monnaieId);
+
+  // LA VARIATION ATTRIBUÉE : entrées moins dépenses, c'est-à-dire la différence
+  // des deux cartes qu'on vient d'écrire, et rien d'autre.
+  //
+  // CALCULÉE ICI ET NON PAR LE SERVEUR, délibérément. Ce chiffre n'est pas une
+  // mesure de plus à aller chercher : c'est la soustraction des deux qui sont
+  // déjà à l'écran, et l'utilisateur doit pouvoir la refaire de tête. Une route
+  // qui la rendrait aurait ouvert la porte à ce qu'elle cesse, un jour, de
+  // tomber juste avec les deux montants affichés juste à côté — précisément le
+  // défaut qui avait fait retirer l'ancienne carte « Différence ».
+  //
+  // `sorties` est un montant POSITIF (un total dépensé s'écrit en positif, cf.
+  // ci-dessus) : on le retranche, on ne l'ajoute pas.
+  const attribuee = entrees - sorties;
+  const attribueeEl = document.getElementById("kpi-variation-attribuee");
+  attribueeEl.textContent = `${
+    attribuee > 0 && !montantEstNul(attribuee) ? "+" : ""
+  }${formatMontant(attribuee, monnaieId)}`;
+  // ELLE, ET PLUS LA BRUTE, PORTE LE CODE COULEUR ROUGE / VERT : c'est elle qui
+  // répond à « la période a-t-elle coûté ou rapporté ». La brute est en jaune,
+  // fixe, parce qu'elle ne prononce aucun jugement (cf. renderKpisDashboard).
+  attribueeEl.classList.toggle("positif", attribuee > 0 && !montantEstNul(attribuee));
+  attribueeEl.classList.toggle("negatif", attribuee < 0 && !montantEstNul(attribuee));
+  attribueeEl.classList.toggle("montant-nul", montantEstNul(attribuee));
+
+  // LA PORTE DU DÉTAIL NE S'OUVRE QUE S'IL Y A QUELQUE CHOSE DERRIÈRE. Sans
+  // écart entre les deux variations, la page ne contiendrait qu'un tableau vide
+  // — un bouton qui promet une explication et n'en donne aucune apprend surtout
+  // à ne plus cliquer dessus.
+  //
+  // L'ÉCART EST CALCULÉ ICI, sur les deux chiffres déjà affichés, et non demandé
+  // au serveur : c'est la même soustraction que celle de la page, et la faire
+  // faire par une requête juste pour savoir s'il faut montrer un bouton aurait
+  // coûté un aller-retour à chaque changement de mois.
+  const ecart = (kpis.variation_brute || 0) - attribuee;
+  const bouton = document.getElementById("btn-ecart-variations");
+  if (bouton) bouton.style.display = montantEstNul(ecart) ? "none" : "";
 }
 
 /**
  * « Reste à rembourser » : le net, et sous lui les deux montants dont il est
- * fait.
+ * fait. Carte de la rangée du HAUT, parce que c'est un STOCK — l'état des
+ * créances et des dettes aujourd'hui, que changer de mois ne bouge pas.
  *
  * POURQUOI LE DÉTAIL. Un net à zéro peut aussi bien vouloir dire « personne ne
  * me doit rien » que « on me doit 500 € et j'en dois 500 » — deux situations qui
@@ -1629,6 +1810,143 @@ function renderResteARembourser(kpis, monnaieId) {
         "tu dois"
       )} ${formatMontant(aRendre, monnaieId)}`;
 }
+
+/* ---------- D'où vient l'écart entre les deux variations ----------
+ *
+ * CE QUE CET ÉCRAN RÉSOUT. Le dashboard pose deux chiffres côte à côte qui ne
+ * tombent jamais d'accord, et leurs infobulles expliquent POURQUOI c'est normal.
+ * « C'est normal » n'est pourtant pas une réponse : devant 400 € d'écart, la
+ * seule question utile est « lesquelles ? ». Rien dans l'application ne pouvait
+ * y répondre — il fallait ouvrir Opérations et refaire les additions à la main.
+ *
+ * IL NE CALCULE RIEN. Les deux totaux, les lignes et leurs contributions
+ * viennent tous de `/dashboard/ecart-variations` (cf.
+ * services.soldes.get_ecart_variations, un miroir exact des deux calculs qu'il
+ * compare). Recalculer ici la moindre de ces valeurs aurait ouvert la porte à un
+ * détail qui ne totalise pas le chiffre qu'il détaille.
+ */
+
+// Ce que chaque raison veut dire, en une ligne. Le serveur rend un CODE
+// (`amortissement`, `remboursable`, `pret`, `reglement`) et l'écran écrit la
+// phrase : c'est elle qui se traduit, et elle qui se réécrit sans toucher au
+// calcul.
+const ECART_RAISONS = {
+  amortissement: "Dépense étalée",
+  remboursable: "Dépense remboursable",
+  pret: "Prêt reçu",
+  reglement: "Règlement",
+};
+
+function libelleRaisonEcart(raison) {
+  return t(ECART_RAISONS[raison] || raison);
+}
+
+/**
+ * Un montant SIGNÉ du point de vue du compte, avec sa couleur.
+ *
+ * Les trois colonnes de chiffres de ce tableau se lisent ensemble — « au
+ * compte », « au mois », et leur différence — et les trois peuvent être
+ * négatives ou positives indépendamment : une dépense étalée apporte −1 200 au
+ * compte le mois du paiement, 0 les mois suivants, et son écart change de signe
+ * entre les deux. Sans couleur ni signe explicite, il faudrait relire l'en-tête
+ * à chaque ligne pour savoir dans quel sens lire le nombre.
+ */
+function celluleMontantEcart(valeur, monnaieId) {
+  const nul = montantEstNul(valeur);
+  const classe = nul ? "montant-nul" : valeur > 0 ? "positif" : "negatif";
+  const signe = valeur > 0 && !nul ? "+" : "";
+  return `<td class="num ${classe}">${signe}${formatMontant(valeur, monnaieId)}</td>`;
+}
+
+async function loadEcartVariations() {
+  const monnaieId = state.dashboardMonnaieId;
+  if (!monnaieId) return;
+  const { annee, mois } = dashboardAnneeMoisActuel;
+  if (!annee) return;
+
+  // LA MÊME PÉRIODE QUE LE DASHBOARD, reprise de l'état posé au moment du
+  // chargement (cf. dashboardAnneeMoisActuel) plutôt que relue du sélecteur :
+  // c'est l'écart des chiffres AFFICHÉS qu'on vient expliquer, pas celui d'un
+  // mois qu'on aurait changé entre-temps.
+  //
+  // LA VUE ANNUELLE PASSE `mois` À VIDE, exactement comme le dashboard : les
+  // deux variations s'y calculent sur douze mois, leur écart aussi.
+  const enAnnee = state.dashboardPeriode.vue === "annee";
+  const params = new URLSearchParams({ monnaie_id: monnaieId, annee });
+  if (!enAnnee) params.set("mois", mois);
+
+  try {
+    const detail = await apiFetch(`/dashboard/ecart-variations?${params}`);
+
+    // Les libellés suivent la vue, comme sur le dashboard : « au mois » au-dessus
+    // d'un total annuel annoncerait le mauvais ordre de grandeur.
+    document.getElementById("ecart-attribuee-label").firstChild.nodeValue = enAnnee
+      ? t("Variation attribuée à l'année")
+      : t("Variation attribuée au mois");
+    document.getElementById("ecart-brute-label").firstChild.nodeValue = enAnnee
+      ? t("Variation sur l'année brute")
+      : t("Variation sur le mois brute");
+
+    const ecrire = (id, valeur, colorer = true) => {
+      const el = document.getElementById(id);
+      const nul = montantEstNul(valeur);
+      el.textContent = `${valeur > 0 && !nul ? "+" : ""}${formatMontant(valeur, monnaieId)}`;
+      if (!colorer) return;
+      el.classList.toggle("positif", valeur > 0 && !nul);
+      el.classList.toggle("negatif", valeur < 0 && !nul);
+      el.classList.toggle("montant-nul", nul);
+    };
+    ecrire("ecart-attribuee", detail.variation_attribuee);
+    // La brute garde sa couleur fixe, ici comme sur le dashboard : elle ne dit
+    // pas si la période a été bonne, elle dit ce qui est passé.
+    ecrire("ecart-brute", detail.variation_brute, false);
+    ecrire("ecart-total", detail.ecart);
+
+    const lignes = detail.lignes || [];
+    document.getElementById("ecart-vide").style.display = lignes.length ? "none" : "";
+    document.querySelector(".ecart-table").style.display = lignes.length ? "" : "none";
+
+    document.getElementById("ecart-lignes").innerHTML = lignes
+      .map(
+        (ligne) => `
+        <tr data-operation="${ligne.operation_id}">
+          <td>${formatDate(ligne.date)}</td>
+          <td>${
+            ligne.nature
+              ? escapeHtml(ligne.nature)
+              : `<span class="hint">${t("Sans libellé")}</span>`
+          }${
+            ligne.categorie_nom
+              ? ` <i class="ecart-categorie">${escapeHtml(libelleCategorie(ligne.categorie_nom))}</i>`
+              : ""
+          }</td>
+          <td>${escapeHtml(ligne.compte_nom)}</td>
+          <td><span class="ecart-raison ecart-raison-${ligne.raison}">${escapeHtml(
+            libelleRaisonEcart(ligne.raison)
+          )}</span></td>
+          ${celluleMontantEcart(ligne.contribution_brute, monnaieId)}
+          ${celluleMontantEcart(ligne.contribution_attribuee, monnaieId)}
+          ${celluleMontantEcart(ligne.ecart, monnaieId)}
+        </tr>`
+      )
+      .join("");
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+document.getElementById("btn-ecart-variations").addEventListener("click", () => {
+  // `ongletActif` : cet écran n'a pas de bouton à lui dans la barre du haut.
+  // Sans ce second argument, aucun onglet ne resterait allumé et l'application
+  // aurait l'air d'avoir quitté toutes ses pages.
+  switchSection("ecart-variations", { ongletActif: "dashboard" });
+  loadEcartVariations();
+});
+
+// La sortie : on revient d'où l'on vient, jamais ailleurs.
+document
+  .getElementById("btn-ecart-retour")
+  .addEventListener("click", () => switchSection("dashboard"));
 
 /* ---------- Répartition des avoirs par type de compte (camembert) ---------- */
 
@@ -1722,13 +2040,18 @@ function renderRepartitionComptes(comptes, monnaieId, valorisationPlacements = 0
   const epaisseur = 26;
   const circonference = 2 * Math.PI * rayon;
   let avancement = 0;
+  // L'index est celui des parts DESSINÉES (les positives), pas celui de
+  // `parts` : c'est lui qui doit tomber en face de la ligne de légende
+  // correspondante, et la légende ci-dessous liste elle aussi les trois
+  // familles — d'où la clé `cle`, qui les rapproche sans dépendre d'un
+  // comptage parallèle.
   const segments = parts
     .filter((p) => p.montant > 0)
     .map((p) => {
       const fraction = p.montant / totalPositif;
       const longueur = fraction * circonference;
       const segment = `
-        <circle
+        <circle class="repartition-part" data-cle="${p.cle}"
           cx="90" cy="90" r="${rayon}"
           fill="none" stroke="${p.couleur}" stroke-width="${epaisseur}"
           stroke-dasharray="${longueur} ${circonference - longueur}"
@@ -1744,7 +2067,7 @@ function renderRepartitionComptes(comptes, monnaieId, valorisationPlacements = 0
     .map((p) => {
       const pourcentage = totalPositif > 0 ? Math.round((Math.max(0, p.montant) / totalPositif) * 100) : 0;
       return `
-        <li class="repartition-legende-ligne">
+        <li class="repartition-legende-ligne" data-cle="${p.cle}">
           <span class="repartition-pastille" style="background:${p.couleur}"></span>
           <span class="repartition-etiquette">${t(p.etiquette)}</span>
           <span class="repartition-montant ${classeMontant(
@@ -1767,6 +2090,24 @@ function renderRepartitionComptes(comptes, monnaieId, valorisationPlacements = 0
       <ul class="repartition-legende">${legende}</ul>
     </div>
   `;
+
+  // SURVOLER UNE PART L'ÉCLAIRE, et survoler sa ligne de légende fait la même
+  // chose. Ce camembert n'a pas d'infobulle : la surbrillance est ici la SEULE
+  // réponse au geste, et sans elle rien ne confirme qu'on désigne bien la part
+  // qu'on croit. Même procédé, même intensité que les deux autres camemberts de
+  // l'application (cf. .io-part, .camembert-part) — trois graphes voisins qui
+  // réagiraient différemment au même geste demanderaient de l'apprendre trois
+  // fois.
+  const souligner = (cle, actif) => {
+    container
+      .querySelectorAll(`[data-cle="${cle}"]`)
+      .forEach((element) => element.classList.toggle("survolee", actif));
+  };
+  container.querySelectorAll("[data-cle]").forEach((element) => {
+    const cle = element.dataset.cle;
+    element.addEventListener("mouseenter", () => souligner(cle, true));
+    element.addEventListener("mouseleave", () => souligner(cle, false));
+  });
 }
 
 /* ---------- Histogramme dépenses par catégorie ---------- */
@@ -1800,29 +2141,168 @@ function couleurCategorie(couleurIndex) {
   return PALETTE_CATEGORIES[couleurIndex % PALETTE_CATEGORIES.length];
 }
 
+/* ---------- Ce que les deux graphes ont en commun ----------
+ *
+ * L'HISTOGRAMME ET LE CAMEMBERT MONTRENT LA MÊME LISTE, sous deux formes. Tant
+ * qu'ils ne portaient que des barres et des parts, chacun pouvait calculer ce
+ * dont il avait besoin. Depuis qu'ils partagent une LÉGENDE et une INFOBULLE,
+ * deux calculs parallèles finiraient par ne plus tomber d'accord à l'arrondi —
+ * et c'est précisément ce qu'une répartition donne à comparer.
+ *
+ * `partsCategoriesDashboard` est donc le SEUL endroit où l'on décide du
+ * dénominateur, des pourcentages et des objectifs renormalisés. Les trois
+ * rendus (barres, tranches, légende) le reçoivent tel quel.
+ */
+function partsCategoriesDashboard(depenses, visibles) {
+  const retenues = depenses.filter((d) => visibles.has(d.categorie));
+  // Une catégorie à zéro ne DESSINE pas de tranche (un arc de longueur nulle
+  // n'existe pas) mais garde sa barre et sa ligne de légende : elle a quelque
+  // chose à dire — « aucune dépense sur la période ».
+  const tranches = retenues.filter((d) => d.total_previsionnel > 0);
+  const total = tranches.reduce((somme, d) => somme + d.total_previsionnel, 0);
+
+  // LA RENORMALISATION DES OBJECTIFS, ET LA RÈGLE DU RESTE IMPLICITE.
+  //
+  // LE PROBLÈME. Un objectif de 15 % comparé à une part recalculée sur un
+  // sous-ensemble ne compare plus rien : les deux nombres n'auraient plus le
+  // même dénominateur. Il faut donc renormaliser les objectifs quand un filtre
+  // retire des catégories. Mais sur quelle base ? On pose un objectif sur les
+  // trois catégories qui comptent, pas sur les vingt (cf. migration 0055) : la
+  // somme des objectifs SAISIS ne vaut presque jamais 100.
+  //
+  // LA RÈGLE. Ce qui manque pour atteindre 100 est réparti à parts égales entre
+  // les catégories SANS objectif — un objectif FICTIF, jamais affiché, qui
+  // n'existe que pour donner un dénominateur honnête. Avec lui, la somme des
+  // objectifs effectifs vaut toujours 100, et la renormalisation redevient une
+  // simple règle de trois.
+  //
+  // CE QU'ELLE PRODUIT, sur trois catégories A (30 %), B (20 %) et C (sans) :
+  //
+  //   - C reçoit fictivement les 50 % qui manquent ;
+  //   - SANS FILTRE : facteur 1, on lit A 30 % et B 20 %. La somme affichée vaut
+  //     50 et non 100, ce qui est exact — la moitié du budget n'est visée par
+  //     personne ;
+  //   - EN RETIRANT B : la base retenue vaut 30 + 50 = 80, facteur 100/80, et A
+  //     s'affiche à 37,5 %. La somme affichée ne vaut toujours pas 100, toujours
+  //     à cause de C ;
+  //   - EN RETIRANT C : la base vaut 30 + 20 = 50, facteur 2, A passe à 60 % et
+  //     B à 40 %. La somme vaut 100, et c'est le seul cas où elle le doit — il
+  //     ne reste que des catégories qui visent quelque chose.
+  //
+  // C'EST CE QUI REMPLACE LA CONSERVATION DE LA SOMME DE DÉPART, qui donnait un
+  // résultat faux dans ce dernier cas : elle aurait gardé 50 au lieu de 100, et
+  // une catégorie seule à l'écran aurait affiché « je fais 100 %, je devrais
+  // faire 30 % » alors qu'elle est la seule à viser quoi que ce soit.
+  //
+  // LE RESTE NE PEUT PAS ÊTRE NÉGATIF : le serveur refuse une saisie qui ferait
+  // dépasser 100 % au total (cf. crud.erreur_objectif_pourcentage). Le `max`
+  // n'est qu'un filet pour une base écrite avant cette garde.
+  //
+  // TOUT SE COMPTE SUR `depenses` ENTIER, pas sur les tranches dessinées : sinon
+  // une catégorie sans dépense ce mois-ci — qu'aucun filtre n'a pourtant
+  // retirée — ferait bouger tous les objectifs d'un mois à l'autre.
+  const objectifsSaisis = depenses.reduce((s, d) => s + (d.objectif_pourcentage || 0), 0);
+  const sansObjectif = depenses.filter((d) => !d.objectif_pourcentage).length;
+  const reste = Math.max(0, 100 - objectifsSaisis);
+  const fictif = sansObjectif > 0 ? reste / sansObjectif : 0;
+
+  // L'objectif EFFECTIF d'une catégorie : le sien, ou sa part du reste.
+  const effectif = (d) => d.objectif_pourcentage || fictif;
+  const baseRetenue = retenues.reduce((s, d) => s + effectif(d), 0);
+  const facteur = baseRetenue > 0 ? 100 / baseRetenue : 1;
+
+  // AFFICHÉ SEULEMENT SI L'OBJECTIF A ÉTÉ SAISI. Le fictif sert au dénominateur
+  // et à rien d'autre : l'écrire reviendrait à prêter à l'utilisateur une
+  // intention qu'il n'a pas exprimée, et à remplir la légende d'objectifs qu'il
+  // n'a jamais posés.
+  const objectif = (d) => (d.objectif_pourcentage || 0) * facteur;
+  return {
+    retenues,
+    tranches,
+    total,
+    part: (d) => (total > 0 ? (d.total_previsionnel / total) * 100 : 0),
+    objectif,
+    // L'OBJECTIF TRADUIT EN MONTANT, pour l'infobulle de l'histogramme : un
+    // graphe de montants ne se commente pas en pourcentages. C'est la part
+    // visée appliquée au total RÉELLEMENT dessiné — donc ce que la catégorie
+    // « aurait dû » peser sur la période telle qu'elle est filtrée, et non un
+    // budget, qui lui est saisi en valeur et vit ailleurs.
+    objectifMontant: (d) => (total * objectif(d)) / 100,
+  };
+}
+
 /**
- * Le contenu de l'infobulle d'une barre : ce qui compose le montant qu'on
- * survole, du plus lourd au plus léger.
+ * L'infobulle d'une catégorie — la MÊME pour les trois endroits d'où on peut la
+ * demander : une barre, une tranche, une ligne de légende.
+ *
+ * POURQUOI UNE SEULE. Les trois commentent la même catégorie sur la même
+ * période ; trois bulles différentes auraient demandé d'apprendre trois fois où
+ * regarder, et se seraient mises à diverger au premier ajout.
+ *
+ * CHACUN N'EN MONTRE QUE CE QUI LE CONCERNE, et c'est le seul écart :
+ *
+ *   - l'HISTOGRAMME porte des montants → total de la barre, et l'objectif
+ *     traduit en montant ;
+ *   - le CAMEMBERT porte des parts → pourcentage dans le total affiché au
+ *     centre, et l'objectif en pourcentage ;
+ *   - la LÉGENDE ne porte rien d'autre qu'un nom : elle montre LES QUATRE, et
+ *     c'est ce qui en fait le point d'entrée le plus complet des trois.
+ *
+ * LE BOUTON « Voir toutes les dépenses » EST DANS LES TROIS, et il n'est plus
+ * sur le clic d'une barre ni d'une tranche. Ouvrir un autre écran au moindre
+ * clic sur un graphe qu'on est en train de survoler punit un geste qui n'avait
+ * aucune intention — on clique pour poser le curseur, pour reprendre le focus,
+ * et on se retrouve ailleurs. Dans l'infobulle, l'action est NOMMÉE et il faut
+ * aller la chercher : le seul clic qui l'atteint est celui qui la voulait.
  *
  * POURQUOI DU HTML ET PLUS UN <title> SVG. Un <title> ne porte que du texte
  * brut — ni colonne de montants alignée, ni italique pour le nombre de
  * dépenses fondues. Il apparaissait en plus avec le délai du navigateur
  * (~1 s), là où une infobulle maison suit le curseur immédiatement.
- *
- * Le nombre entre parenthèses ne s'affiche QU'À PARTIR DE DEUX : « (1) »
- * n'apprendrait rien et mettrait une parenthèse au bout de presque chaque
- * ligne, exactement là où l'œil cherche le libellé.
  */
-function contenuInfobulleHistogramme(depense, monnaieId) {
-  const top = depense.top_depenses || [];
-  if (top.length === 0) {
-    return `<div class="histo-bulle-titre">${escapeHtml(libelleCategorie(depense.categorie))}</div>
-      <div class="histo-bulle-vide">${t("Aucune opération sur la période.")}</div>`;
+function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
+  const { total = null, part = null, objectif = null, objectifMontant = null } = chiffres;
+
+  // Les chiffres, en colonnes : c'est tout l'intérêt de les poser l'un sous
+  // l'autre. Chacun est tu quand l'appelant ne le passe pas — une ligne vide
+  // vaudrait « zéro », ce qui est faux.
+  const lignesChiffres = [];
+  if (total != null) {
+    lignesChiffres.push([t("Total"), formatMontant(total, monnaieId)]);
   }
-  const lignes = top
+  if (part != null) {
+    lignesChiffres.push([t("Part"), formatPourcentage(part)]);
+  }
+  if (objectif != null && objectif > 0) {
+    // LES DEUX EXPRESSIONS DE L'OBJECTIF SUR UNE SEULE LIGNE quand on a les
+    // deux : c'est un seul et même objectif, dit deux fois. Sur deux lignes, il
+    // se serait lu comme deux cibles différentes.
+    const montant =
+      objectifMontant != null ? ` · ${formatMontant(objectifMontant, monnaieId)}` : "";
+    lignesChiffres.push([t("Objectif"), `${formatPourcentage(objectif)}${montant}`]);
+  } else if (objectifMontant != null && objectifMontant > 0) {
+    lignesChiffres.push([t("Objectif"), formatMontant(objectifMontant, monnaieId)]);
+  }
+
+  const chiffresHtml = lignesChiffres.length
+    ? `<ul class="histo-bulle-chiffres">${lignesChiffres
+        .map(
+          ([libelle, valeur]) =>
+            `<li><span class="histo-bulle-nature">${escapeHtml(
+              libelle
+            )}</span><span class="histo-bulle-montant">${valeur}</span></li>`
+        )
+        .join("")}</ul>`
+    : "";
+
+  const top = depense.top_depenses || [];
+  const lignesTop = top
     .map((d) => {
       // Une dépense fondue à partir de plusieurs opérations le dit ; une seule
-      // reste nue (cf. DepenseTopRead.nombre).
+      // reste nue (cf. DepenseTopRead.nombre). Le nombre entre parenthèses ne
+      // s'affiche QU'À PARTIR DE DEUX : « (1) » n'apprendrait rien et mettrait
+      // une parenthèse au bout de presque chaque ligne, exactement là où l'œil
+      // cherche le libellé.
       const compte =
         d.nombre > 1 ? ` <i class="histo-bulle-compte">(${d.nombre})</i>` : "";
       const nature = d.nature ? escapeHtml(d.nature) : `<span class="hint">${t("Sans libellé")}</span>`;
@@ -1832,8 +2312,19 @@ function contenuInfobulleHistogramme(depense, monnaieId) {
       </li>`;
     })
     .join("");
-  return `<div class="histo-bulle-titre">${escapeHtml(libelleCategorie(depense.categorie))}</div>
-    <ul class="histo-bulle-liste">${lignes}</ul>`;
+
+  const corps = top.length
+    ? `<ul class="histo-bulle-liste">${lignesTop}</ul>`
+    : `<div class="histo-bulle-vide">${t("Aucune opération sur la période.")}</div>`;
+
+  return `<div class="histo-bulle-titre">${escapeHtml(
+    libelleCategorie(depense.categorie)
+  )}</div>
+    ${chiffresHtml}
+    ${corps}
+    <button type="button" class="histo-bulle-lien" data-drill-through>${t(
+      "Voir toutes les dépenses"
+    )}</button>`;
 }
 
 /**
@@ -1858,6 +2349,64 @@ function placerInfobulleHistogramme(bulle, container, evenement) {
 }
 
 /**
+ * Pose UNE infobulle dans un conteneur et la câble à une liste de cibles.
+ *
+ * ÉCRIT UNE FOIS POUR LES TROIS SUPPORTS. Chacun avait sa copie du même
+ * enchaînement (créer la bulle, entrer, suivre, sortir) ; la troisième copie,
+ * celle de la légende, aurait été celle de trop.
+ *
+ * LE DÉLAI DE GRÂCE EST LA PIÈCE QUI N'EST PAS ÉVIDENTE. L'infobulle porte une
+ * action, il faut donc pouvoir l'atteindre — or le trajet du curseur vers elle
+ * passe forcément par les quelques pixels qui la séparent de sa cible, où l'on
+ * n'est plus sur rien. Sans ce délai, elle disparaîtrait sous le curseur qui
+ * vient la chercher. Entrer DANS la bulle annule le départ, en sortir le
+ * relance.
+ *
+ * `contenuPour(cible)` rend {depense, html} : la cible sait ce qu'elle décrit,
+ * cette fonction ne le devine pas.
+ */
+function attacherInfobulleCategorie(container, cibles, contenuPour) {
+  const bulle = document.createElement("div");
+  // `histo-bulle-interactive` : celle-ci porte un bouton, elle doit donc
+  // recevoir la souris (cf. style.css, où .histo-bulle est en pointer-events:
+  // none pour ne jamais s'interposer entre le curseur et le graphe).
+  bulle.className = "histo-bulle histo-bulle-interactive";
+  bulle.setAttribute("role", "tooltip");
+  container.appendChild(bulle);
+
+  let fermeture = null;
+  const annulerFermeture = () => {
+    if (fermeture) clearTimeout(fermeture);
+    fermeture = null;
+  };
+  const fermerBientot = () => {
+    annulerFermeture();
+    fermeture = setTimeout(() => bulle.classList.remove("visible"), 260);
+  };
+  bulle.addEventListener("mouseenter", annulerFermeture);
+  bulle.addEventListener("mouseleave", fermerBientot);
+
+  cibles.forEach((cible) => {
+    cible.addEventListener("mouseenter", (e) => {
+      annulerFermeture();
+      const { depense, html } = contenuPour(cible);
+      bulle.innerHTML = html;
+      // Le bouton est recréé avec le contenu, son écouteur aussi : c'est ce qui
+      // permet de capturer `depense` sans table de correspondance.
+      bulle.querySelector("[data-drill-through]")?.addEventListener("click", () => {
+        bulle.classList.remove("visible");
+        drillThroughCategorie(depense);
+      });
+      bulle.classList.add("visible");
+      placerInfobulleHistogramme(bulle, container, e);
+    });
+    cible.addEventListener("mousemove", (e) => placerInfobulleHistogramme(bulle, container, e));
+    cible.addEventListener("mouseleave", fermerBientot);
+  });
+  return bulle;
+}
+
+/**
  * L'histogramme des dépenses par catégorie.
  *
  * `container` PLUTÔT QU'UN IDENTIFIANT CÂBLÉ : ce graphe n'est plus le seul du
@@ -1867,10 +2416,14 @@ function placerInfobulleHistogramme(bulle, container, evenement) {
  * Le conteneur du dashboard reste la valeur par défaut, les appels d'origine
  * n'ont donc rien à dire de plus.
  *
+ * `parts` EST FACULTATIF, et c'est ce qui laisse l'extension « Projets »
+ * inchangée : sans lui, l'infobulle se contente du total de la barre, sans
+ * objectif — un projet n'en a pas, ses catégories ne visent aucune répartition.
+ *
  * Le conteneur doit être positionné en relatif : l'infobulle s'y place en
  * absolu (cf. .histo-bulle et placerInfobulleHistogramme).
  */
-function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
+function renderHistogrammeDepenses(depenses, monnaieId, container = null, parts = null) {
   container = container || document.getElementById("dashboard-histogramme");
   if (!container) return;
   container.innerHTML = "";
@@ -1933,7 +2486,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
       const zoneSurvol = `<rect x="${margeCote + largeurBande * i}" y="${margeHaut}" width="${largeurBande}" height="${hauteur - margeBas - margeHaut}" fill="transparent" />`;
 
       return `
-        <g data-index="${i}">
+        <g class="histo-barre" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}">
           ${zoneSurvol}
           <rect x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
           ${barrePrevisionnel}
@@ -1954,29 +2507,480 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
     </svg>
   `;
 
-  // Une seule bulle réutilisée par toutes les barres, posée dans le conteneur
-  // (positionné en relatif) : la créer à chaque survol la ferait réapparaître
-  // sans transition, et une bulle par barre encombrerait le DOM pour rien.
-  const bulle = document.createElement("div");
-  bulle.className = "histo-bulle";
-  bulle.setAttribute("role", "tooltip");
-  container.appendChild(bulle);
+  // UN GRAPHE DE MONTANTS SE COMMENTE EN MONTANTS : le total de la barre, et
+  // l'objectif traduit dans la même unité. Le pourcentage, lui, est la réponse
+  // du camembert d'à côté — le répéter ici aurait donné deux graphes qui disent
+  // la même chose au lieu de deux questions.
+  attacherInfobulleCategorie(
+    container,
+    [...container.querySelectorAll("svg g[data-index]")],
+    (groupe) => {
+      const depense = depenses[Number(groupe.dataset.index)];
+      return {
+        depense,
+        html: contenuInfobulleCategorie(depense, monnaieId, {
+          total: depense.total_previsionnel,
+          objectifMontant: parts ? parts.objectifMontant(depense) : null,
+        }),
+      };
+    }
+  );
+}
 
-  container.querySelectorAll("svg g[data-index]").forEach((groupe) => {
-    const depense = depenses[Number(groupe.dataset.index)];
-    groupe.addEventListener("mouseenter", (e) => {
-      bulle.innerHTML = contenuInfobulleHistogramme(depense, monnaieId);
-      bulle.classList.add("visible");
-      placerInfobulleHistogramme(bulle, container, e);
-    });
-    groupe.addEventListener("mousemove", (e) => {
-      placerInfobulleHistogramme(bulle, container, e);
-    });
-    groupe.addEventListener("mouseleave", () => {
-      bulle.classList.remove("visible");
-    });
+/* ---------- Le camembert des dépenses ----------
+ *
+ * GÉOMÉTRIE, en unités du viewBox. Le disque est posé au centre d'un cadre un
+ * peu plus large que haut : les pourcentages s'écrivent À CÔTÉ des tranches, et
+ * il leur faut de la place à gauche comme à droite. Écrits SUR les tranches,
+ * ils auraient été illisibles sur tout ce qui pèse moins de quelques pour cent
+ * — c'est-à-dire précisément ce qu'on vient vérifier.
+ */
+const PIE_CENTRE_X = 190;
+const PIE_CENTRE_Y = 110;
+const PIE_RAYON = 80; // rayon MOYEN de l'anneau (le trait est centré dessus)
+const PIE_EPAISSEUR = 34;
+// Le bord extérieur de l'anneau, d'où part le trait de rappel.
+const PIE_BORD = PIE_RAYON + PIE_EPAISSEUR / 2;
+
+/* LE TRAIT DE RAPPEL EST UN PETIT CROCHET, `_/` à gauche et `\_` à droite, et
+   non la longue potence d'avant. Celle-ci partait du disque pour aller poser
+   tous les pourcentages sur deux colonnes alignées, très loin des tranches : la
+   colonne se lisait bien, mais il fallait suivre vingt pixels de trait gris
+   pour savoir à QUELLE part chaque nombre appartenait — exactement le travail
+   qu'un trait de rappel est censé épargner. Court, il désigne ; long, il relie.
+
+   DEUX SEGMENTS, ET DES PROPORTIONS QUI COMPTENT : une oblique RADIALE (elle
+   prolonge le rayon, donc elle pointe vers le centre — c'est ce qui la rattache
+   sans ambiguïté à sa tranche), puis une horizontale plus courte qu'elle, sur
+   laquelle le texte vient s'asseoir. L'horizontale est ce qui rend le nombre
+   lisible : sans elle, un texte accroché au bout d'une oblique semble flotter. */
+const PIE_OBLIQUE = 11;
+const PIE_HORIZONTALE = 7;
+// L'écart vertical minimal entre deux étiquettes voisines d'un même côté (cf.
+// pieEcarterEtiquettes) : en dessous, deux parts contiguës écrivent l'une sur
+// l'autre.
+const PIE_ECART_MIN = 13;
+
+/**
+ * Écarte verticalement les étiquettes d'un même côté du disque.
+ *
+ * POURQUOI IL EN FAUT UNE. La position naturelle d'une étiquette est la hauteur
+ * du bout de son crochet — c'est ce qui la rattache à sa tranche sans
+ * ambiguïté. Deux tranches fines et voisines ont presque le même milieu : leurs
+ * deux étiquettes se superposent, et on perd les DEUX au lieu d'une.
+ *
+ * L'ALGORITHME EST LE PLUS SIMPLE QUI MARCHE : on trie de haut en bas, on
+ * pousse vers le bas ce qui est trop près du précédent, puis on repasse de bas
+ * en haut pour remonter ce qui aurait débordé du cadre. Deux passes suffisent
+ * tant que le nombre d'étiquettes tient dans la hauteur ; au-delà, elles
+ * finissent collées les unes aux autres plutôt que hors cadre — dégradé, mais
+ * jamais absent.
+ *
+ * LE DÉCALAGE ALLONGE L'OBLIQUE là où il y a collision, et seulement là : c'est
+ * le comportement qu'on attend d'un trait de rappel, et c'est aussi ce qui
+ * permet de le garder court partout ailleurs.
+ */
+function pieEcarterEtiquettes(etiquettes, hauteur) {
+  etiquettes.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < etiquettes.length; i++) {
+    const ecart = etiquettes[i].y - etiquettes[i - 1].y;
+    if (ecart < PIE_ECART_MIN) etiquettes[i].y = etiquettes[i - 1].y + PIE_ECART_MIN;
+  }
+  for (let i = etiquettes.length - 1; i >= 0; i--) {
+    const plancher = hauteur - 6 - PIE_ECART_MIN * (etiquettes.length - 1 - i);
+    if (etiquettes[i].y > plancher) etiquettes[i].y = plancher;
+  }
+  return etiquettes;
+}
+
+/**
+ * Le camembert des dépenses par catégorie (cf. renderHistogrammeDashboard,
+ * seul appelant).
+ *
+ * IL NE CALCULE RIEN LUI-MÊME : parts, total et objectifs viennent de
+ * `partsCategoriesDashboard`, qu'il partage avec l'histogramme et la légende
+ * (cf. son en-tête, où vit le raisonnement sur le dénominateur et la
+ * renormalisation des objectifs).
+ *
+ * PLUS DE LÉGENDE ICI. Elle est devenue un TROISIÈME BLOC, sous les deux
+ * graphes : elle nomme les mêmes catégories pour l'un comme pour l'autre, et en
+ * avoir une par graphe revenait à écrire deux fois la même liste de couleurs,
+ * l'une sous des barres et l'autre sous un anneau.
+ */
+function renderPieChartDepenses(depenses, monnaieId, container, parts) {
+  container = container || document.getElementById("dashboard-camembert");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const { tranches, total } = parts;
+  if (total <= 0) {
+    container.innerHTML = `<span class="hint">${
+      depenses.length === 0
+        ? t("Aucune dépense enregistrée.")
+        : t("Aucune catégorie sélectionnée.")
+    }</span>`;
+    return;
+  }
+
+  const largeur = PIE_CENTRE_X * 2;
+  const hauteur = PIE_CENTRE_Y * 2;
+  const circonference = 2 * Math.PI * PIE_RAYON;
+  let angleCumule = 0; // fraction de tour déjà parcourue, dans [0, 1[
+  const etiquettes = [];
+
+  const segments = tranches
+    .map((d, i) => {
+      const fraction = d.total_previsionnel / total;
+      const longueur = fraction * circonference;
+      const couleur = couleurCategorie(d.couleur_index ?? i);
+      const segment = `<circle class="camembert-part" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
+        fill="none" stroke="${couleur}" stroke-width="${PIE_EPAISSEUR}"
+        stroke-dasharray="${longueur} ${circonference - longueur}"
+        stroke-dashoffset="${-angleCumule * circonference}" />`;
+
+      // L'angle du MILIEU de la tranche, compté depuis midi dans le sens des
+      // aiguilles : c'est ce point-là qu'un trait de rappel doit désigner, pas
+      // un bord partagé avec la tranche voisine.
+      const angle = (angleCumule + fraction / 2) * 2 * Math.PI;
+      const sin = Math.sin(angle);
+      const cos = Math.cos(angle);
+      etiquettes.push({
+        index: i,
+        pourcentage: parts.part(d),
+        objectif: parts.objectif(d),
+        // Le pied du crochet, sur le bord de l'anneau…
+        ancreX: PIE_CENTRE_X + (PIE_BORD + 1) * sin,
+        ancreY: PIE_CENTRE_Y - (PIE_BORD + 1) * cos,
+        // …et son coude, un cran plus loin sur le même rayon.
+        coudeX: PIE_CENTRE_X + (PIE_BORD + PIE_OBLIQUE) * sin,
+        y: PIE_CENTRE_Y - (PIE_BORD + PIE_OBLIQUE) * cos,
+        droite: sin >= 0,
+      });
+
+      angleCumule += fraction;
+      return segment;
+    })
+    .join("");
+
+  // Chaque côté s'écarte séparément : une étiquette de gauche ne gêne jamais
+  // une étiquette de droite, et les mêler aurait poussé les deux colonnes vers
+  // le bas pour rien.
+  const rappels = [
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => e.droite), hauteur),
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => !e.droite), hauteur),
+  ]
+    .map((e) => {
+      const signe = e.droite ? 1 : -1;
+      const boutX = e.coudeX + signe * PIE_HORIZONTALE;
+      const objectifTexte =
+        e.objectif > 0
+          ? `<tspan class="camembert-rappel-objectif"> → ${formatPourcentage(e.objectif)}</tspan>`
+          : "";
+      return `
+        <g class="camembert-rappel" data-index="${e.index}">
+          <polyline points="${e.ancreX},${e.ancreY} ${e.coudeX},${e.y} ${boutX},${e.y}"
+                    fill="none" stroke="currentColor" stroke-width="1" />
+          <text x="${boutX + signe * 3}" y="${e.y}" dominant-baseline="middle"
+                text-anchor="${e.droite ? "start" : "end"}" font-size="10">${formatPourcentage(
+                  e.pourcentage
+                )}${objectifTexte}</text>
+        </g>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="250"
+         xmlns="http://www.w3.org/2000/svg" class="camembert-svg">
+      <!-- Part à midi, sens horaire : -90° ramène le début du premier tracé
+           (3 heures, l'origine d'un cercle SVG) à midi. Seul l'anneau tourne —
+           les traits de rappel et leurs textes sont déjà calculés en
+           coordonnées d'écran, les faire tourner avec lui écrirait les
+           pourcentages couchés. -->
+      <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${segments}</g>
+      ${rappels}
+      <text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y}" text-anchor="middle" dominant-baseline="middle"
+            font-size="13" fill="#9ea3b0">${formatMontant(total, monnaieId)}</text>
+    </svg>
+  `;
+
+  // UN GRAPHE DE PARTS SE COMMENTE EN PARTS : le pourcentage dans le total
+  // affiché au centre, et l'objectif dans la même unité. Le montant, lui, est
+  // la réponse de l'histogramme d'à côté.
+  attacherInfobulleCategorie(
+    container,
+    [...container.querySelectorAll("circle.camembert-part")],
+    (cercle) => {
+      const depense = tranches[Number(cercle.dataset.index)];
+      return {
+        depense,
+        html: contenuInfobulleCategorie(depense, monnaieId, {
+          part: parts.part(depense),
+          objectif: parts.objectif(depense),
+        }),
+      };
+    }
+  );
+}
+
+/**
+ * LA LÉGENDE, TROISIÈME BLOC ET NON MORCEAU D'UN GRAPHE.
+ *
+ * POURQUOI ELLE SORT. Les deux graphes montrent les mêmes catégories dans les
+ * mêmes couleurs : une légende par graphe, c'était écrire deux fois la même
+ * liste, et prendre deux fois la place. Sous les deux, elle occupe toute la
+ * largeur, se replie sur autant de colonnes qu'elle peut, et ce qu'on y lit
+ * vaut pour l'un comme pour l'autre.
+ *
+ * ELLE NE PORTE QUE LE NOM ET LA PART. Le montant a disparu — l'histogramme
+ * juste au-dessus est là pour la vision en brut, et le répéter en colonne
+ * revenait à faire un tableau sous un graphe. L'objectif aussi : il est écrit
+ * au bord du camembert, là où il se compare à la part constatée. Ce qui reste
+ * est ce qui permet de RECONNAÎTRE une catégorie — sa couleur et son nom — plus
+ * le seul chiffre qui ne se lit nulle part ailleurs d'un coup d'œil.
+ *
+ * SON INFOBULLE EST LA PLUS COMPLÈTE DES TROIS, et c'est la contrepartie :
+ * total, part, objectif en pourcentage ET en montant. Elle est le point
+ * d'entrée de qui veut tout savoir sur une catégorie sans choisir son graphe.
+ */
+function renderLegendeCategories(monnaieId, parts, container = null) {
+  container = container || document.getElementById("dashboard-legende");
+  if (!container) return;
+  container.innerHTML = "";
+  // Les catégories RETENUES, pas les seules tranches : une catégorie à zéro
+  // garde sa barre dans l'histogramme, elle doit garder sa ligne ici — sans
+  // quoi une barre resterait sans couleur nommée.
+  const lignes = parts.retenues;
+  if (lignes.length === 0) {
+    container.innerHTML = `<span class="hint">${t("Aucune catégorie sélectionnée.")}</span>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <ul class="camembert-legende">${lignes
+      .map(
+        (d, i) => `
+        <li class="camembert-legende-ligne" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}">
+          <span class="camembert-pastille" style="background:${couleurCategorie(
+            d.couleur_index ?? i
+          )}"></span>
+          <span class="camembert-legende-nom">${escapeHtml(libelleCategorie(d.categorie))}</span>
+          <span class="camembert-legende-part">${formatPourcentage(parts.part(d))}</span>
+        </li>`
+      )
+      .join("")}</ul>
+  `;
+
+  attacherInfobulleCategorie(
+    container,
+    [...container.querySelectorAll(".camembert-legende-ligne")],
+    (ligne) => {
+      const depense = lignes[Number(ligne.dataset.index)];
+      return {
+        depense,
+        html: contenuInfobulleCategorie(depense, monnaieId, {
+          total: depense.total_previsionnel,
+          part: parts.part(depense),
+          objectif: parts.objectif(depense),
+          objectifMontant: parts.objectifMontant(depense),
+        }),
+      };
+    }
+  );
+
+}
+
+/**
+ * SURVOLER UNE BARRE, UNE TRANCHE OU UNE LIGNE DE LÉGENDE ÉCLAIRE LES TROIS.
+ *
+ * CE QUE ÇA RÉSOUT. L'infobulle dit ce qu'on regarde, elle ne dit pas OÙ —
+ * une bulle qui suit le curseur ne désigne rien à elle seule. Et depuis que la
+ * légende est un bloc à part, sous les deux graphes, retrouver laquelle des
+ * huit tranches porte « Réparation & entretien » demanderait de comparer deux
+ * pastilles de couleur à dix centimètres l'une de l'autre.
+ *
+ * PAR LE NOM, ET NON PAR L'INDEX : les trois rendus ne listent pas exactement
+ * les mêmes lignes (le camembert écarte les catégories à zéro, qui gardent
+ * pourtant leur barre et leur ligne de légende). Le nom est la seule clé qu'ils
+ * partagent.
+ *
+ * CÂBLÉ ICI, APRÈS LES TROIS RENDUS, parce que c'est le seul moment où ils
+ * existent tous : posé dans l'un d'eux, il n'aurait trouvé que ce qui était
+ * déjà dessiné.
+ */
+function cablerSurbrillanceCategories() {
+  document.querySelectorAll("[data-categorie]").forEach((element) => {
+    const nom = element.dataset.categorie;
+    const jumeaux = () => [
+      ...document.querySelectorAll(`[data-categorie="${CSS.escape(nom)}"]`),
+    ];
+    element.addEventListener("mouseenter", () =>
+      jumeaux().forEach((el) => el.classList.add("survolee"))
+    );
+    element.addEventListener("mouseleave", () =>
+      jumeaux().forEach((el) => el.classList.remove("survolee"))
+    );
   });
 }
+
+/**
+ * Année/mois RÉELLEMENT affichés par le dashboard, posés au moment même du
+ * chargement plutôt que dérivés de `dashboardSemainesDonnees` (pas encore
+ * chargé au tout premier rendu) : le drill-through d'une barre a besoin de la
+ * période EXACTE, jamais d'un état encore en cours de chargement.
+ */
+let dashboardAnneeMoisActuel = { annee: null, mois: null };
+
+/**
+ * Les bornes de dates de la période AFFICHÉE par l'histogramme/le camembert —
+ * ce que le titre « Dépenses par catégorie — … » annonce (cf.
+ * libellePeriodeHistogramme), traduit en dates pour le drill-through vers
+ * Opérations.
+ *
+ * LA MOYENNE N'A PAS DE BORNES À ELLE : c'est une moyenne de semaines, pas une
+ * semaine — retombe sur le mois entier qu'elle résume.
+ */
+function bornesPeriodeHistogramme(annee, mois) {
+  const pad = (n) => String(n).padStart(2, "0");
+  if (state.dashboardPeriode.vue === "annee") {
+    return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+  }
+  const semaine = semaineChoisie();
+  if (semaine && !semaine.moyenne) {
+    return {
+      debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
+      fin: `${annee}-${pad(mois)}-${pad(semaine.jour_fin)}`,
+    };
+  }
+  // `new Date(annee, mois, 0)` : le jour 0 du mois SUIVANT (index JS, 0-11)
+  // est le dernier jour du mois demandé — pas d'arithmétique de calendrier à
+  // la main (février, années bissextiles...).
+  const dernierJour = new Date(annee, mois, 0).getDate();
+  return { debut: `${annee}-${pad(mois)}-01`, fin: `${annee}-${pad(mois)}-${pad(dernierJour)}` };
+}
+
+/**
+ * Clic sur une barre/tranche : atterrit sur Opérations, onglet classique,
+ * filtré sur cette catégorie et la période affichée.
+ *
+ * L'ONGLET CLASSIQUE PAR DÉFAUT, une limite acceptée : une barre agrège
+ * CLASSIQUE et REMBOURSABLE (les deux seuls types à catégorie libre, cf.
+ * constants.TYPES_AVEC_CATEGORIE_LIBRE), et aucun écran de cette page ne
+ * montre les deux types à la fois — classique couvre le cas principal.
+ *
+ * SANS EFFET si la « catégorie » n'existe pas vraiment (la barre « Intérêts
+ * de prêts », posée par _barre_interets_prets, n'a pas de ligne dans la table
+ * `categorie`) : il n'y a alors rien vers quoi filtrer.
+ */
+async function drillThroughCategorie(depense) {
+  const { annee, mois } = dashboardAnneeMoisActuel;
+  if (!annee) return;
+  // Peut être vide si l'utilisateur n'a encore ouvert ni Opérations ni
+  // Catégories cette session : le dashboard, lui, ne charge pas `state.categories`.
+  if (state.categories.length === 0) await refreshCategories();
+  const categorie = state.categories.find((c) => c.nom === depense.categorie);
+  if (!categorie) return;
+  const { debut, fin } = bornesPeriodeHistogramme(annee, mois);
+
+  switchSection("operations", { ongletActif: "dashboard" });
+  await loadOperations();
+  document.querySelector('#operations-sous-nav button[data-sous-section="classique"]')?.click();
+
+  const panneau = document.getElementById("filtres-classique");
+  panneau.querySelector('[data-filtre="categorieId"]').value = categorie.id;
+  panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
+  panneau.querySelector('[data-filtre="dateFin"]').value = fin;
+  trierEtRerender("classique");
+}
+
+/* ---------- Le filtre de catégories du dashboard (histogramme + camembert) ----------
+ *
+ * UN SEUL CONTRÔLE POUR LES DEUX GRAPHES (cf. renderHistogrammeDashboard) : un
+ * filtre par graphe aurait posé la question à laquelle personne ne pense —
+ * « pourquoi l'histogramme et le camembert ne montrent-ils pas les mêmes
+ * catégories ? ».
+ */
+
+// `null` = toutes (l'état par défaut). Un Set de NOMS de catégorie — ce que
+// porte chaque ligne de DepenseParCategorie, pas un id.
+function categoriesVisiblesDashboard(depenses) {
+  if (!state.dashboardCategoriesVisibles) return new Set(depenses.map((d) => d.categorie));
+  return state.dashboardCategoriesVisibles;
+}
+
+function majCaseToutDashboard(depenses) {
+  const caseTout = document.getElementById("dashboard-filtre-categories-tout");
+  const visibles = categoriesVisiblesDashboard(depenses);
+  caseTout.checked = depenses.length > 0 && visibles.size === depenses.length;
+  caseTout.indeterminate = visibles.size > 0 && visibles.size < depenses.length;
+}
+
+// Reconstruit la liste de cases à cocher d'après les catégories de la période
+// AFFICHÉE (elles changent avec le mois choisi). Reconstruire à chaque rendu
+// plutôt que de ne mettre à jour QUE ce qui change est plus simple et sans
+// conséquence : la liste tient sur quinze lignes au plus.
+function majPanneauFiltreCategoriesDashboard(depenses) {
+  const liste = document.getElementById("dashboard-filtre-categories-liste");
+  const visibles = categoriesVisiblesDashboard(depenses);
+  liste.innerHTML = "";
+  depenses.forEach((d, i) => {
+    const label = document.createElement("label");
+    const case_ = document.createElement("input");
+    case_.type = "checkbox";
+    case_.checked = visibles.has(d.categorie);
+    const couleur = document.createElement("span");
+    couleur.className = "filtre-categories-couleur";
+    couleur.style.background = couleurCategorie(d.couleur_index ?? i);
+    label.appendChild(case_);
+    label.appendChild(couleur);
+    label.appendChild(document.createTextNode(libelleCategorie(d.categorie)));
+    liste.appendChild(label);
+
+    case_.addEventListener("change", () => {
+      const actuel = new Set(categoriesVisiblesDashboard(depenses));
+      if (case_.checked) actuel.add(d.categorie);
+      else actuel.delete(d.categorie);
+      // Toutes cochées : on revient à `null`, la forme canonique de "toutes"
+      // (sinon une catégorie ajoutée PLUS TARD par l'utilisateur — nouvelle
+      // catégorie créée entre deux mois — apparaîtrait décochée par défaut).
+      state.dashboardCategoriesVisibles = actuel.size === depenses.length ? null : actuel;
+      majCaseToutDashboard(depenses);
+      renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
+    });
+  });
+  majCaseToutDashboard(depenses);
+}
+
+(function initFiltreCategoriesDashboard() {
+  const bouton = document.getElementById("btn-dashboard-filtre-categories");
+  const panneau = document.getElementById("dashboard-filtre-categories-panneau");
+  const caseTout = document.getElementById("dashboard-filtre-categories-tout");
+
+  bouton.addEventListener("click", () => {
+    const ouvrir = panneau.hidden;
+    panneau.hidden = !ouvrir;
+    bouton.setAttribute("aria-expanded", String(ouvrir));
+  });
+  // Clic hors du contrôle : referme, comme tout menu déroulant de l'app.
+  document.addEventListener("click", (e) => {
+    if (panneau.hidden) return;
+    if (e.target.closest(".dashboard-filtre-categories")) return;
+    panneau.hidden = true;
+    bouton.setAttribute("aria-expanded", "false");
+  });
+
+  caseTout.addEventListener("change", () => {
+    state.dashboardCategoriesVisibles = caseTout.checked
+      ? null
+      : new Set();
+    majPanneauFiltreCategoriesDashboard(dashboardDepensesActuels);
+    renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
+  });
+})();
+
+// Les dernières `depenses` rendues (mois entier, semaine ou moyenne selon ce
+// qui est choisi) : la case "Tout sélectionner" en a besoin hors de tout
+// rendu de panneau (cf. initFiltreCategoriesDashboard ci-dessus).
+let dashboardDepensesActuels = [];
 
 /* ---------- Le détail par semaine de l'histogramme ---------- */
 
@@ -2027,16 +3031,41 @@ function semaineChoisie() {
  */
 function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   const semaine = semaineChoisie();
-  const container = document.getElementById("dashboard-histogramme");
-  if (semaine === null) {
-    renderHistogrammeDepenses(depensesDuMois, monnaieId, container);
-    return;
-  }
+  const depenses =
+    semaine === null
+      ? depensesDuMois
+      : semaine.moyenne
+        ? dashboardSemainesDonnees.moyenne || []
+        : semaine.depenses || [];
+
+  dashboardDepensesActuels = depenses;
+  majPanneauFiltreCategoriesDashboard(depenses);
+  const visibles = categoriesVisiblesDashboard(depenses);
+
+  // UN SEUL CALCUL POUR LES TROIS RENDUS (cf. partsCategoriesDashboard). Le
+  // filtre de catégories change le dénominateur des deux graphes de la même
+  // façon : l'échelle de l'histogramme se recalcule sur ses seules barres, le
+  // camembert sur ses seules parts, et la légende ne nomme que ce qui reste.
+  // Filtrer, ici, CHANGE LA QUESTION — « comment se répartissent ces
+  // catégories-là » — et le total du centre le dit en suivant.
+  const parts = partsCategoriesDashboard(depenses, visibles);
+
   renderHistogrammeDepenses(
-    semaine.moyenne ? dashboardSemainesDonnees.moyenne || [] : semaine.depenses || [],
+    parts.retenues,
     monnaieId,
-    container
+    document.getElementById("dashboard-histogramme"),
+    parts
   );
+  renderPieChartDepenses(
+    depenses,
+    monnaieId,
+    document.getElementById("dashboard-camembert"),
+    parts
+  );
+  renderLegendeCategories(monnaieId, parts, document.getElementById("dashboard-legende"));
+  // EN DERNIER, quand les trois existent : c'est lui qui apparie une barre, sa
+  // tranche et sa ligne de légende par le nom de la catégorie.
+  cablerSurbrillanceCategories();
 }
 
 /**
@@ -2957,6 +3986,12 @@ function resetCategorieForm() {
   document.getElementById("categorie-budget-bloc").style.display = "none";
   document.getElementById("categorie-budget-hint").style.display = "none";
   document.getElementById("categorie-budget").value = "0";
+  // MASQUÉ À LA CRÉATION, comme le budget : une catégorie qui n'existe pas
+  // encore n'a pas de part à viser, et la route POST /categories ne prend que
+  // le nom. L'objectif se pose au premier passage en modification.
+  document.getElementById("categorie-objectif-bloc").style.display = "none";
+  document.getElementById("categorie-objectif-hint").style.display = "none";
+  document.getElementById("categorie-objectif").value = "0";
   document.getElementById("form-categorie-titre").textContent = "Ajouter une catégorie";
   document.getElementById("categorie-annuler").style.display = "none";
 }
@@ -2991,6 +4026,9 @@ function fillCategorieForm(categorie, budget, ancre) {
     hint.textContent = `Valeur héritée d'un mois précédent — enregistrer définit une valeur propre à ${moisLabel}.`;
     hint.style.display = "block";
   }
+  document.getElementById("categorie-objectif-bloc").style.display = "";
+  document.getElementById("categorie-objectif-hint").style.display = "block";
+  document.getElementById("categorie-objectif").value = categorie.objectif_pourcentage || 0;
   document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
 }
@@ -3054,20 +4092,17 @@ async function loadCategoriesBudgets(annee, mois) {
         c.nom === CATEGORIE_AUTRES
           ? ''
           : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
-      // Même œil que la configuration d'import : ici il ne décide que de la
-      // présence de la catégorie dans l'histogramme du dashboard. Rien d'autre
-      // ne change — les opérations restent classées, le budget reste défini.
-      const visible = c.visible_dashboard !== false;
       tr.innerHTML = `
         <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
         <td>${escapeHtml(libelleCategorie(c.nom))}</td>
         <td>${budgetTexte}</td>
-        <td>
-          <button type="button" class="bouton-oeil" data-action="visibilite" data-id="${c.id}"
-                  title="${visible ? "Ne plus afficher sur le dashboard" : "Afficher sur le dashboard"}"
-                  aria-label="${visible ? "Masquer" : "Afficher"} « ${escapeHtml(libelleCategorie(c.nom))} » sur le dashboard"
-                  aria-pressed="${visible}">${visible ? ICONE_OEIL : ICONE_OEIL_BARRE}</button>
-        </td>
+        <!-- VIDE PLUTÔT QUE « 0 % » quand aucun objectif n'est posé : zéro veut
+             dire « pas d'objectif » (cf. migration 0055), et une colonne de
+             zéros sur vingt lignes aurait donné à lire vingt fois une absence.
+             Ce qui se voit doit être ce qui a été décidé. -->
+        <td class="categorie-objectif-cellule">${
+          c.objectif_pourcentage ? formatPourcentage(c.objectif_pourcentage) : ""
+        }</td>
         <td>
           <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
           ${deleteAction}
@@ -3090,28 +4125,6 @@ async function loadCategoriesBudgets(annee, mois) {
       btn.addEventListener("click", () =>
         editerCategorie(Number(btn.dataset.id), btn.closest("tr"))
       );
-    });
-
-    body.querySelectorAll("button[data-action='visibilite']").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        // Le double-clic sur la ligne ouvre l'édition du budget : sans ça,
-        // basculer l'œil deux fois de suite ouvrirait le formulaire par-dessus.
-        e.stopPropagation();
-        const categorie = state.categories.find((c) => c.id === Number(btn.dataset.id));
-        if (!categorie) return;
-        try {
-          await apiFetch(`/categories/${categorie.id}/visibilite`, {
-            method: "PUT",
-            body: JSON.stringify({
-              visible_dashboard: categorie.visible_dashboard === false,
-            }),
-          });
-          await refreshCategories();
-          await loadCategoriesBudgets(annee, mois);
-        } catch (err) {
-          showMessage(err.message, "error");
-        }
-      });
     });
 
     body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
@@ -3196,7 +4209,35 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
           body: JSON.stringify({ montant }),
         }
       );
-      showMessage(renomme ? t("Catégorie modifiée") : t("Budget modifié"), "success");
+      // TROISIÈME ÉCRITURE, TROISIÈME ROUTE. L'objectif n'a ni le mois ni la
+      // monnaie dans sa clé : le passer dans l'appel ci-dessus aurait fait
+      // d'une part une valeur mensuelle, ce qu'elle n'est pas.
+      //
+      // ENVOYÉ SEULEMENT S'IL A CHANGÉ, comme le nom juste au-dessus : ouvrir
+      // une ligne pour corriger un budget et ressortir en ayant réécrit
+      // l'objectif à l'identique n'est pas faux, mais c'est une écriture pour
+      // rien — et une occasion de plus qu'une erreur réseau fasse échouer un
+      // enregistrement qui n'avait rien à enregistrer.
+      const categorieAvant = state.categories.find((c) => c.id === Number(id));
+      const objectif = parseFloat(
+        document.getElementById("categorie-objectif").value || "0"
+      );
+      const objectifChange =
+        Math.abs(objectif - (categorieAvant?.objectif_pourcentage || 0)) > 1e-9;
+      if (objectifChange) {
+        await apiFetch(`/categories/${id}/objectif`, {
+          method: "PUT",
+          body: JSON.stringify({ objectif_pourcentage: objectif }),
+        });
+      }
+      showMessage(
+        renomme
+          ? t("Catégorie modifiée")
+          : objectifChange
+            ? t("Objectif modifié")
+            : t("Budget modifié"),
+        "success"
+      );
     } else {
       const nomInput = document.getElementById("categorie-nom");
       await apiFetch("/categories", {
@@ -3442,7 +4483,20 @@ function updateOperationTypeFields() {
   }
   if (estReglement) {
     const id = Number(document.getElementById("operation-id").value) || null;
-    populateRemboursementsChecklist({}, id, type);
+    // BASCULE DE PRÉVISUALISATION : cliquer cet onglet en éditant une opération
+    // d'un AUTRE type (ou un virement) ne fait que proposer une conversion —
+    // la checklist est vide puisque rien n'est encore lié, et ça n'a rien à
+    // dire du montant déjà saisi pour l'autre type. Sans ce garde-fou,
+    // recalculerMontantRemboursement() écrasait silencieusement #operation-
+    // montant à 0.00, sans jamais le restaurer en revenant sur l'onglet
+    // d'origine (cf. bug rapporté). Une vraie interaction avec la checklist
+    // (case cochée) continue de recalculer via ses propres listeners.
+    const enEditionExistante = enEdition || virementEnEdition != null;
+    const basculeSansConversion =
+      enEditionExistante && operationEditionTypeOriginal !== type;
+    populateRemboursementsChecklist({}, id, type, {
+      ajusterMontant: !basculeSansConversion,
+    });
   }
 
   syncMontantDuSiAuto();
@@ -3556,6 +4610,15 @@ let montantDuAutoSync = true;
 // sa récurrence n'est alors jamais éditable depuis ce formulaire (cf.
 // updateOperationTypeFields), seul le modèle d'origine l'est.
 let operationEditionEstOccurrenceGeneree = false;
+
+// Le type_code RÉEL de l'opération en cours d'édition (ou "virement" pour un
+// virement, ou null en création) — distinct de l'onglet de type actuellement
+// PRÉVISUALISÉ dans le formulaire (cf. updateOperationTypeFields). Cliquer
+// l'onglet "Remboursement reçu" en éditant une opération classique doit
+// pouvoir montrer la checklist sans toucher au montant de l'opération
+// classique ; comparer ce champ au type prévisualisé est ce qui distingue les
+// deux cas.
+let operationEditionTypeOriginal = null;
 
 document.getElementById("operation-recurrente").addEventListener("change", () => {
   updateOperationTypeFields();
@@ -4203,6 +5266,7 @@ function resetOperationForm() {
   document.getElementById("operation-annuler").style.display = "none";
   montantDuAutoSync = true;
   operationEditionEstOccurrenceGeneree = false;
+  operationEditionTypeOriginal = null;
   virementEnEdition = null;
   document.getElementById("operation-recurrente").checked = false;
   document.getElementById("operation-frequence").value = "mensuelle";
@@ -4225,6 +5289,7 @@ async function fillOperationForm(op) {
   document.getElementById("operation-id").value = op.id;
   montantDuAutoSync = false;
   operationEditionEstOccurrenceGeneree = op.recurrence_parent_id != null;
+  operationEditionTypeOriginal = type;
   setOperationType(type);
 
   document.getElementById("operation-recurrente").checked = !!op.recurrente;
@@ -4326,7 +5391,12 @@ async function fillOperationForm(op) {
 // typeReglement : "remboursements" (règle les dépenses remboursables) ou
 // "remboursement_pret" (règle les prêts reçus). Le type de la cible se lit
 // directement dans CIBLE_PAR_TYPE_REGLEMENT, comme côté serveur.
-async function populateRemboursementsChecklist(preselection, excludeOperationId, typeReglement) {
+async function populateRemboursementsChecklist(
+  preselection,
+  excludeOperationId,
+  typeReglement,
+  { ajusterMontant = true } = {}
+) {
   const liste = document.getElementById("operation-remboursements-liste");
   liste.innerHTML = "Chargement...";
   try {
@@ -4405,7 +5475,7 @@ async function populateRemboursementsChecklist(preselection, excludeOperationId,
       row.appendChild(label);
       liste.appendChild(row);
     });
-    recalculerMontantRemboursement();
+    if (ajusterMontant) recalculerMontantRemboursement();
   } catch (err) {
     liste.innerHTML = "";
     showMessage(err.message, "error");
@@ -4417,34 +5487,6 @@ function recalculerMontantRemboursement() {
     ...document.querySelectorAll("#operation-remboursements-liste .remb-montant"),
   ].reduce((somme, input) => somme + (parseFloat(input.value) || 0), 0);
   document.getElementById("operation-montant").value = total.toFixed(2);
-}
-
-function buildOperationsQuery() {
-  const params = new URLSearchParams();
-  const compte = document.getElementById("filtre-compte").value;
-  const categorieId = document.getElementById("filtre-categorie").value;
-  const statut = document.getElementById("filtre-statut").value;
-  const dateDebut = document.getElementById("filtre-date-debut").value;
-  const dateFin = document.getElementById("filtre-date-fin").value;
-  const montantMin = document.getElementById("filtre-montant-min").value;
-  const montantMax = document.getElementById("filtre-montant-max").value;
-  if (compte) params.set("compte_id", compte);
-  if (categorieId) params.set("categorie_id", categorieId);
-  if (statut) params.set("statut", statut);
-  if (dateDebut) params.set("date_debut", dateDebut);
-  if (dateFin) params.set("date_fin", dateFin);
-  // Une borne laissée vide ne limite rien de ce côté-là. `!== ""` plutôt qu'un
-  // test de véracité : « 0 » est une borne légitime (« au plus 0 » ne retient
-  // que les opérations à montant nul), et un `if (montantMin)` l'aurait avalée.
-  if (montantMin !== "") params.set("montant_min", montantMin);
-  if (montantMax !== "") params.set("montant_max", montantMax);
-  // UN VIREMENT EST INDIVISIBLE, et cet écran l'affiche par paire : sans ce
-  // drapeau, filtrer sur un compte ne ramenait que la jambe qui le touche, et
-  // le virement s'affichait avec « - » en face — comme s'il lui manquait un
-  // compte. Le message d'édition envoyait alors chercher dans l'import une
-  // opération qui n'avait jamais rien eu d'incomplet.
-  params.set("paires_virement", "true");
-  return params.toString();
 }
 
 let operationsCache = [];
@@ -4571,6 +5613,7 @@ async function editerVirementEnLigne(virementId, sortante, entrante, tr) {
   resetOperationForm();
   ouvrirFormulaireOperation("virements", tr);
   virementEnEdition = virementId;
+  operationEditionTypeOriginal = "virement";
   setOperationType("virement");
 
   document.getElementById("operation-date").value = sortante.date;
@@ -4815,13 +5858,54 @@ function ligneDetailDecoupe(op, nbColonnes) {
   return tr;
 }
 
+/**
+ * Un petit pictogramme à côté de la nature, pour une opération qui porte une
+ * NOTE (`Operation.notes`) — jamais montrée nulle part dans un tableau
+ * jusqu'ici (cf. CONTEXTE_PROJET, § notes). Même mécanisme que la découpe
+ * juste au-dessus : `data-bascule` générique, icône « page de texte »
+ * réemployée telle quelle (ICONE_BASCULE_DETAIL).
+ *
+ * `op` n'a besoin que de `id` et `notes` : appelé aussi bien sur une opération
+ * que sur UNE JAMBE de virement (cf. renderVirements), dont l'id propre reste
+ * unique dans la page.
+ */
+function indicateurNote(op) {
+  const titre = t("Voir la note");
+  // `.detail-bascule` : le bouton-pictogramme générique (cf. basculeDetailHtml),
+  // pas une classe à soi — même geste, même image, pour tout ce qui se déplie
+  // dans l'app.
+  return (
+    `<button type="button" class="detail-bascule" data-bascule="note-${op.id}"` +
+    ` aria-expanded="false" aria-controls="note-${op.id}"` +
+    ` title="${escapeHtml(titre)}" aria-label="${escapeHtml(titre)}">${ICONE_BASCULE_DETAIL}</button>`
+  );
+}
+
+// La ligne repliée qui montre le texte de la note. `escapeHtml` ici est
+// nécessaire — contrairement à `op.nature` ailleurs dans ces rendus, ce texte
+// n'a jamais traversé un attribut avant, et peut contenir n'importe quel
+// caractère tapé librement par l'utilisateur (cf. schemas.OperationBase.notes).
+function ligneDetailNote(op, nbColonnes) {
+  const tr = document.createElement("tr");
+  tr.id = `note-${op.id}`;
+  tr.className = "note-detail";
+  tr.hidden = true;
+  tr.innerHTML = `<td colspan="${nbColonnes}">${escapeHtml(op.notes)}</td>`;
+  return tr;
+}
+
+// Complète la cellule "Nature" avec l'indicateur de note quand il y en a une.
+function celluleNature(op) {
+  return op.notes ? `${op.nature} ${indicateurNote(op)}` : op.nature;
+}
+
 function renderClassiques(liste) {
   const nbColonnes = COLONNES_OPERATIONS.classique.length;
   const construireLigne = (op) => {
     const tr = document.createElement("tr");
     if (op.decoupes && op.decoupes.length > 0) tr.classList.add("operation-decoupee");
     tr.innerHTML = `
-      <td>${op.nature}</td>
+      <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${nomCompte(op.compte_id)}</td>
       <td>${celluleCategorieOperation(op)}</td>
@@ -4831,12 +5915,15 @@ function renderClassiques(liste) {
         <button data-action="delete" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    if (!op.decoupes || op.decoupes.length === 0) return tr;
-    // Deux lignes pour une opération : un fragment les insère toutes les deux
-    // là où l'appelant n'en attend qu'une (cf. remplirListeOperations).
+    const detailRows = [];
+    if (op.decoupes && op.decoupes.length > 0) detailRows.push(ligneDetailDecoupe(op, nbColonnes));
+    if (op.notes) detailRows.push(ligneDetailNote(op, nbColonnes));
+    if (detailRows.length === 0) return tr;
+    // Plusieurs lignes pour une opération : un fragment les insère toutes là
+    // où l'appelant n'en attend qu'une (cf. remplirListeOperations).
     const fragment = document.createDocumentFragment();
     fragment.appendChild(tr);
-    fragment.appendChild(ligneDetailDecoupe(op, nbColonnes));
+    detailRows.forEach((ligne) => fragment.appendChild(ligne));
     return fragment;
   };
   const ponctuelles = liste.filter((o) => !o.recurrente);
@@ -4848,6 +5935,7 @@ function renderClassiques(liste) {
 }
 
 function renderRemboursables(liste) {
+  const nbColonnes = COLONNES_OPERATIONS.remboursable.length;
   const construireLigne = (op) => {
     const { cellHtml, rowClass } = resteCellEtRowClass(
       op.montant_du,
@@ -4857,7 +5945,7 @@ function renderRemboursables(liste) {
     const tr = document.createElement("tr");
     if (rowClass) tr.className = rowClass;
     tr.innerHTML = `
-      <td>${op.nature}</td>
+      <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${nomCompte(op.compte_id)}</td>
       <td>${nomCategorie(op.categorie_id)}</td>
@@ -4868,7 +5956,11 @@ function renderRemboursables(liste) {
         <button data-action="delete" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    return tr;
+    if (!op.notes) return tr;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tr);
+    fragment.appendChild(ligneDetailNote(op, nbColonnes));
+    return fragment;
   };
   const ponctuelles = liste.filter((o) => !o.recurrente);
   const recurrentes = liste.filter((o) => o.recurrente);
@@ -4879,6 +5971,7 @@ function renderRemboursables(liste) {
 }
 
 function renderRemboursements(liste) {
+  const nbColonnes = COLONNES_OPERATIONS.remboursements.length;
   const construireLigne = (op) => {
     const couvre =
       (op.operations_remboursees || [])
@@ -4886,7 +5979,7 @@ function renderRemboursements(liste) {
         .join(", ") || "-";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${op.nature}</td>
+      <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${nomCompte(op.compte_id)}</td>
       <td>${couvre}</td>
@@ -4895,7 +5988,11 @@ function renderRemboursements(liste) {
         <button data-action="delete" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    return tr;
+    if (!op.notes) return tr;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tr);
+    fragment.appendChild(ligneDetailNote(op, nbColonnes));
+    return fragment;
   };
   const ponctuelles = liste.filter((o) => !o.recurrente);
   const recurrentes = liste.filter((o) => o.recurrente);
@@ -4932,7 +6029,7 @@ function renderVirements(paires) {
         : montantHtml(reference.montant, reference.sens, reference.monnaie_id);
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${reference.nature}</td>
+      <td>${celluleNature(reference)}</td>
       <td>${change}</td>
       <td>${sortante ? nomCompte(sortante.compte_id) : "-"}</td>
       <td>${entrante ? nomCompte(entrante.compte_id) : "-"}</td>
@@ -4975,6 +6072,12 @@ function renderVirements(paires) {
             // écritures, que la seule lecture du DOM ne donnerait pas.
             tr._paireVirement = paire;
             body.appendChild(tr);
+            // À part (pas un fragment comme les autres onglets) : `tr` doit
+            // rester LUI-MÊME l'élément qui porte `_paireVirement` ci-dessus,
+            // ce qu'un fragment aurait dissous à l'insertion.
+            const [, { sortante, entrante }] = paire;
+            const reference = sortante || entrante;
+            if (reference.notes) body.appendChild(ligneDetailNote(reference, colonnes.length));
           }
         });
         table.appendChild(body);
@@ -5037,6 +6140,7 @@ function renderVirements(paires) {
 }
 
 function renderPrets(liste) {
+  const nbColonnes = COLONNES_OPERATIONS.prets.length;
   const construireLigne = (op) => {
     const { cellHtml, rowClass } = resteCellEtRowClass(
       op.montant_du,
@@ -5046,7 +6150,7 @@ function renderPrets(liste) {
     const tr = document.createElement("tr");
     if (rowClass) tr.className = rowClass;
     tr.innerHTML = `
-      <td>${op.nature}</td>
+      <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${nomCompte(op.compte_id)}</td>
       <td>${cellHtml}</td>
@@ -5055,7 +6159,11 @@ function renderPrets(liste) {
         <button data-action="delete" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    return tr;
+    if (!op.notes) return tr;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tr);
+    fragment.appendChild(ligneDetailNote(op, nbColonnes));
+    return fragment;
   };
   const ponctuelles = liste.filter((o) => !o.recurrente);
   const recurrentes = liste.filter((o) => o.recurrente);
@@ -5066,6 +6174,7 @@ function renderPrets(liste) {
 }
 
 function renderRemboursementPrets(liste) {
+  const nbColonnes = COLONNES_OPERATIONS["remboursement-prets"].length;
   const construireLigne = (op) => {
     const couvre =
       (op.operations_remboursees || [])
@@ -5073,7 +6182,7 @@ function renderRemboursementPrets(liste) {
         .join(", ") || "-";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${op.nature}</td>
+      <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${nomCompte(op.compte_id)}</td>
       <td>${couvre}</td>
@@ -5082,7 +6191,11 @@ function renderRemboursementPrets(liste) {
         <button data-action="delete" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    return tr;
+    if (!op.notes) return tr;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(tr);
+    fragment.appendChild(ligneDetailNote(op, nbColonnes));
+    return fragment;
   };
   const ponctuelles = liste.filter((o) => !o.recurrente);
   const recurrentes = liste.filter((o) => o.recurrente);
@@ -5219,12 +6332,153 @@ function operationDansPeriode(op) {
   return operationsPeriode.vue === "annee" || mois === operationsPeriode.mois;
 }
 
+/* ---------- Filtrage par propriétés, un panneau par onglet ----------
+ *
+ * ENTIÈREMENT CÔTÉ CLIENT, comme le filtre de période juste au-dessus : la
+ * page charge déjà tout (cf. loadOperations), et chaque onglet a ses PROPRES
+ * propriétés (une "découpe" n'a aucun sens sur un virement, un "compte
+ * destination" n'existe que pour un virement) — les donner à un seul filtre
+ * partagé, envoyé au serveur, aurait demandé un paramètre par propriété de
+ * chaque type et un filtre posé sur un onglet aurait affecté les cinq autres,
+ * qui partagent le même chargement.
+ */
+
+// "" = peu importe (case non touchée), "oui"/"non" comparés au booléen réel.
+function correspondBool(valeurFiltre, booleenReel) {
+  if (valeurFiltre === "") return true;
+  return (valeurFiltre === "oui") === Boolean(booleenReel);
+}
+
+// Insensible à la casse et aux accents, comme la recherche Ctrl+F de la page
+// (cf. normaliserRecherche) : "carrefour" doit retrouver "CARREFOUR".
+function correspondTexte(valeurFiltre, texteReel) {
+  if (!valeurFiltre) return true;
+  return normaliserRecherche(texteReel || "").includes(normaliserRecherche(valeurFiltre));
+}
+
+// Sur la valeur ABSOLUE du montant, comme l'ancien filtre partagé qu'il
+// remplace : "au moins 50" attrape aussi bien une dépense de 80 € qu'une
+// entrée de 80 € (cf. l'infobulle posée sur chaque champ "Montant min").
+function correspondMontant(min, max, montant) {
+  const abs = Math.abs(montant);
+  if (min !== "" && abs < parseFloat(min)) return false;
+  if (max !== "" && abs > parseFloat(max)) return false;
+  return true;
+}
+
+// Sur une valeur déjà positive par nature (reste à rembourser, montant dû) :
+// pas de valeur absolue à prendre, contrairement à correspondMontant.
+function correspondPlage(min, max, valeur) {
+  if (min !== "" && valeur < parseFloat(min)) return false;
+  if (max !== "" && valeur > parseFloat(max)) return false;
+  return true;
+}
+
+function correspondDate(dateDebut, dateFin, dateReelle) {
+  if (dateDebut && dateReelle < dateDebut) return false;
+  if (dateFin && dateReelle > dateFin) return false;
+  return true;
+}
+
+// Lit tous les champs [data-filtre] du panneau de l'onglet — un seul endroit
+// à mettre à jour si un champ change de nom, plutôt qu'un getElementById par
+// propriété et par onglet.
+function lireFiltresOnglet(onglet) {
+  const panneau = document.getElementById(`filtres-${onglet}`);
+  const filtres = {};
+  if (!panneau) return filtres;
+  panneau.querySelectorAll("[data-filtre]").forEach((el) => {
+    filtres[el.dataset.filtre] = el.value.trim();
+  });
+  return filtres;
+}
+
+function operationCorrespondFiltres(op, onglet, f) {
+  if (!correspondTexte(f.nature, op.nature)) return false;
+  if (!correspondDate(f.dateDebut, f.dateFin, op.date)) return false;
+  if (f.monnaieId && String(op.monnaie_id) !== f.monnaieId) return false;
+  if (f.montantMin !== undefined && !correspondMontant(f.montantMin, f.montantMax, op.montant)) {
+    return false;
+  }
+  if (f.compteId && String(op.compte_id) !== f.compteId) return false;
+  if (f.statut !== undefined && f.statut !== "" && op.statut !== f.statut) return false;
+  if (f.recurrente !== undefined && !correspondBool(f.recurrente, op.recurrente)) return false;
+  if (f.amortie !== undefined && !correspondBool(f.amortie, op.amorti)) return false;
+  if (f.montantDuMin !== undefined && !correspondPlage(f.montantDuMin, f.montantDuMax, op.montant_du)) {
+    return false;
+  }
+  if (f.resteMin !== undefined && !correspondPlage(f.resteMin, f.resteMax, op.montant_a_rembourser)) {
+    return false;
+  }
+  switch (onglet) {
+    case "classique": {
+      if (f.categorieId && String(op.categorie_id) !== f.categorieId) return false;
+      const estDecoupee = (op.decoupes || []).length > 0;
+      if (!correspondBool(f.decoupe, estDecoupee)) return false;
+      return true;
+    }
+    case "remboursable":
+      if (f.categorieId && String(op.categorie_id) !== f.categorieId) return false;
+      return true;
+    case "remboursements":
+    case "remboursement-prets": {
+      const estLiee = (op.operations_remboursees || []).length > 0;
+      if (!correspondBool(f.lie, estLiee)) return false;
+      return true;
+    }
+    default:
+      return true;
+  }
+}
+
+// L'onglet Virements affiche des PAIRES (cf. loadOperations) : la nature, la
+// date et le statut valent pour les deux jambes (une seule saisie côté
+// formulaire), mais montant/monnaie/compte diffèrent d'un côté à l'autre.
+// Une jambe absente (paire "solo", cf. operationDansPeriode) ne peut
+// satisfaire un filtre qui la concerne — plutôt que de le laisser passer en
+// silence, ce qui masquerait un virement réellement incomplet parmi ceux qui
+// ne correspondent simplement pas.
+function virementCorrespondFiltres(paire, f) {
+  const { sortante, entrante } = paire;
+  const reference = sortante || entrante;
+  if (!correspondTexte(f.nature, reference.nature)) return false;
+  if (!correspondDate(f.dateDebut, f.dateFin, reference.date)) return false;
+  if (f.statut && reference.statut !== f.statut) return false;
+
+  const filtreSortanteActif = f.montantEnvoyeMin || f.montantEnvoyeMax || f.monnaieEnvoyeeId || f.compteSourceId;
+  if (sortante) {
+    if (!correspondMontant(f.montantEnvoyeMin, f.montantEnvoyeMax, sortante.montant)) return false;
+    if (f.monnaieEnvoyeeId && String(sortante.monnaie_id) !== f.monnaieEnvoyeeId) return false;
+    if (f.compteSourceId && String(sortante.compte_id) !== f.compteSourceId) return false;
+  } else if (filtreSortanteActif) {
+    return false;
+  }
+
+  const filtreEntranteActif = f.montantRecuMin || f.montantRecuMax || f.monnaieRecueId || f.compteDestinationId;
+  if (entrante) {
+    if (!correspondMontant(f.montantRecuMin, f.montantRecuMax, entrante.montant)) return false;
+    if (f.monnaieRecueId && String(entrante.monnaie_id) !== f.monnaieRecueId) return false;
+    if (f.compteDestinationId && String(entrante.compte_id) !== f.compteDestinationId) return false;
+  } else if (filtreEntranteActif) {
+    return false;
+  }
+
+  if (f.frais !== "") {
+    const aDesFrais = Boolean((sortante && sortante.frais) || (entrante && entrante.frais));
+    if (!correspondBool(f.frais, aDesFrais)) return false;
+  }
+  return true;
+}
+
 function trierEtRerender(onglet) {
   const critere = state.triSelections[onglet];
+  const filtres = lireFiltresOnglet(onglet);
   let liste;
   if (onglet === "virements") {
-    liste = operationsParOnglet[onglet].filter(([, { sortante, entrante }]) =>
-      operationDansPeriode(sortante || entrante)
+    liste = operationsParOnglet[onglet].filter(
+      ([, paire]) =>
+        operationDansPeriode(paire.sortante || paire.entrante) &&
+        virementCorrespondFiltres(paire, filtres)
     );
     const base = comparateurOperation(critere);
     // Une paire "solo" (virement importé sans second compte connu, cf.
@@ -5232,7 +6486,9 @@ function trierEtRerender(onglet) {
     // deux qui existe plutôt que sur sortante uniquement.
     liste.sort((a, b) => base(a[1].sortante || a[1].entrante, b[1].sortante || b[1].entrante));
   } else {
-    liste = operationsParOnglet[onglet].filter(operationDansPeriode);
+    liste = operationsParOnglet[onglet]
+      .filter(operationDansPeriode)
+      .filter((op) => operationCorrespondFiltres(op, onglet, filtres));
     liste.sort(comparateurOperation(critere));
   }
   RENDER_PAR_ONGLET[onglet](liste);
@@ -5363,9 +6619,13 @@ async function loadOperations() {
     await initSelecteursPeriodeOperations();
     await refreshComptes();
     await refreshCategories();
+    await refreshMonnaies();
     updateOperationTypeFields();
-    const query = buildOperationsQuery();
-    operationsCache = await apiFetch(`/operations${query ? "?" + query : ""}`);
+    // Le filtrage (période ET propriétés, cf. operationCorrespondFiltres) est
+    // entièrement côté client, sur le mois comme sur le reste : la page
+    // charge donc TOUJOURS tout, une fois, plutôt que d'aller-retour au
+    // serveur à chaque champ de filtre posé sur un onglet.
+    operationsCache = await apiFetch("/operations?paires_virement=true");
 
     operationsParOnglet.classique = [];
     operationsParOnglet.remboursable = [];
@@ -5755,16 +7015,29 @@ document.getElementById("btn-supprimer-toutes-operations").addEventListener("cli
   }
 });
 
-document.getElementById("btn-filtrer").addEventListener("click", loadOperations);
-document.getElementById("btn-reset-filtres").addEventListener("click", () => {
-  document.getElementById("filtre-compte").value = "";
-  document.getElementById("filtre-categorie").value = "";
-  document.getElementById("filtre-statut").value = "";
-  document.getElementById("filtre-date-debut").value = "";
-  document.getElementById("filtre-date-fin").value = "";
-  document.getElementById("filtre-montant-min").value = "";
-  document.getElementById("filtre-montant-max").value = "";
-  loadOperations();
+// Filtrage réactif : chaque panneau (#filtres-<onglet>, un par onglet de la
+// page Opérations) applique ses champs au fil de la frappe/sélection, sans
+// bouton "Filtrer" — un seul écouteur délégué couvre les six. `input` pour le
+// texte/nombre/date à chaque frappe, `change` pour les <select> (certains
+// navigateurs ne déclenchent pas `input` dessus).
+function gererChangementFiltreOperations(e) {
+  const panneau = e.target.closest(".filtres[id^='filtres-']");
+  if (!panneau) return;
+  trierEtRerender(panneau.id.slice("filtres-".length));
+}
+document.addEventListener("input", gererChangementFiltreOperations);
+document.addEventListener("change", gererChangementFiltreOperations);
+
+document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
+  bouton.addEventListener("click", () => {
+    const onglet = bouton.dataset.onglet;
+    document
+      .querySelectorAll(`#filtres-${onglet} [data-filtre]`)
+      .forEach((champ) => {
+        champ.value = "";
+      });
+    trierEtRerender(onglet);
+  });
 });
 
 
@@ -5891,7 +7164,7 @@ const PROPRIETES_IMPORT_AVANCEES = [
 const CLES_PROPRIETES_AVANCEES = new Set(PROPRIETES_IMPORT_AVANCEES.map(([cle]) => cle));
 
 /**
- * Ce que chaque propriété veut dire, POSÉ SUR SA PROPRE LIGNE.
+ * Ce que chaque propriété d'import veut dire, POSÉ SUR SA PROPRE LIGNE.
  *
  * Ces textes formaient auparavant un pavé sous le titre « Configuration
  * avancée » : une liste de six points et deux paragraphes qu'il fallait lire
@@ -5900,65 +7173,22 @@ const CLES_PROPRIETES_AVANCEES = new Set(PROPRIETES_IMPORT_AVANCEES.map(([cle]) 
  * ligne : l'explication arrive là où se prend la décision, et le bloc s'ouvre
  * sur la seule liste des propriétés.
  *
+ * LES PHRASES ELLES-MÊMES VIVENT DANS textes.js, comme toutes les autres
+ * indications de l'application — il n'y a qu'un fichier à ouvrir pour les
+ * réécrire. Ne reste ici que la façon de les retrouver.
+ *
+ * `TEXTES[…]` ET NON `texteAide(…)` : une propriété sans explication doit rendre
+ * `undefined`, ce que l'appelant teste pour ne pas dessiner de pastille vide.
+ * `texteAide` rendrait la clé, et on verrait « noyau.import-propriete-sens »
+ * s'afficher dans une bulle.
+ *
  * Le saut de ligne (\n) est rendu tel quel par la bulle (white-space:
  * pre-line) : il sépare le QUOI, en tête, de ses conséquences — c'est tout le
  * formatage dont ces textes ont besoin, et il évite une bulle en pavé.
  */
-const INFOS_PROPRIETES_IMPORT = {
-  categorie_banque:
-    "La catégorie que ta banque a posée elle-même sur la ligne.\n\n" +
-    "Elle ne devient pas une catégorie de l'app toute seule : tu fais le " +
-    "rapprochement une fois, il est retenu.",
-  compte_banque:
-    "Le compte concerné, quand le fichier le nomme.\n\n" +
-    "Inutile si le preset est déjà lié à un compte : ce lien vaut pour toutes " +
-    "les lignes.",
-  sens:
-    "À régler seulement si ton relevé n'écrit que des montants positifs et dit " +
-    "à part si l'argent entre ou sort.\n\n" +
-    "Les mots-clés reconnus se règlent juste en dessous.",
-  monnaie:
-    "La devise du montant.\n\n" +
-    "Sans elle, la ligne part dans la monnaie principale de son compte — faux " +
-    "dès qu'un compte en porte plusieurs.",
-  montant_initial:
-    "Ce qui PART du compte, avant frais et avant conversion ; « Montant » " +
-    "décrit alors ce qui ARRIVE.\n\n" +
-    "C'est le couple qu'il faut pour importer un virement entre deux devises : " +
-    "seul ton relevé connaît les deux montants.",
-  monnaie_initiale:
-    "La devise du montant envoyé.\n\n" +
-    "Sans elle, l'app la suppose identique à celle du montant reçu, donc sans " +
-    "change.",
-  frais:
-    "Les frais prélevés par la banque.\n\n" +
-    "C'est leur DEVISE qui décide auquel des deux montants ils se rapportent : " +
-    "dans la monnaie envoyée ils s'y ajoutent, dans celle reçue ils s'en " +
-    "retranchent. Dans une troisième, l'import est refusé plutôt que de fausser " +
-    "un solde.",
-  monnaie_frais:
-    "La devise des frais, celle qui dit à quel montant ils s'appliquent.\n\n" +
-    "Sans elle, l'app les rattache au montant envoyé et te le signale à chaque " +
-    "import.",
-  montant:
-    "Le montant de la ligne, avec son signe : négatif il sort, positif il " +
-    "entre.\n\n" +
-    "Si ton relevé sépare sorties et entrées en deux colonnes, éteins celle-ci " +
-    "et règle « Montant au débit » et « Montant au crédit ».",
-  montant_debit:
-    "Pour les relevés qui SÉPARENT sorties et entrées en deux colonnes, chaque " +
-    "ligne n'en remplissant qu'une.\n\n" +
-    "La colonne remplie dit le sens. Un zéro vaut une case vide, une ligne qui " +
-    "remplit les deux part en erreur.",
-  montant_credit:
-    "L'autre moitié : ce qui ENTRE.\n\n" +
-    "Elle va toujours avec « Montant au débit » — allumer ou éteindre l'une fait " +
-    "la même chose à l'autre.",
-  statut:
-    "Où en est l'opération chez ta banque.\n\n" +
-    "Une ligne en attente devient une opération prévisionnelle, une ligne " +
-    "refusée n'est pas importée. Les mots-clés se règlent plus bas.",
-};
+function infoProprieteImport(propriete) {
+  return TEXTES[`noyau.import-propriete-${propriete}`];
+}
 
 function estProprieteAvancee(propriete) {
   return CLES_PROPRIETES_AVANCEES.has(propriete);
@@ -6790,7 +8020,7 @@ function creerLigneConfigColonne(propriete, libelle, { actif }) {
   const obligatoire = proprieteImportObligatoire(propriete);
   const index = colonne ? colonne.index : importIndexMemorises[propriete] ?? "";
 
-  const info = INFOS_PROPRIETES_IMPORT[propriete];
+  const info = infoProprieteImport(propriete);
   const bulle = info
     // Plus de `info-bulle-gauche` : le recadrage est calculé à l'ouverture,
     // d'après la place réellement disponible (cf. app.js § « Infobulles »).
@@ -6992,7 +8222,7 @@ function renderImportConfigColonnesComparaison() {
   if (importConfigColonnesComparaison.length === 0) {
     bloc.innerHTML = selection
       ? '<p class="hint erreur-hint">Aucune colonne choisie : ajoute-en au moins une, sinon plus rien ne distingue deux lignes.</p>'
-      : '<p class="hint">Aucune colonne exclue : toutes les colonnes du fichier sont comparées.</p>';
+      : `<p class="hint">${t("Aucune colonne exclue : toutes les colonnes du fichier sont comparées.")}</p>`;
     return;
   }
   importConfigColonnesComparaison.forEach((index, i) => {
@@ -8745,10 +9975,13 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   });
 
   // Type d'opération (pour reclasser) : les mêmes que la page Opérations, donc
-  // sans les deux types de prêt tant que l'extension qui les tient est éteinte.
+  // sans les types dont l'extension qui les tient est éteinte (prêts, ou
+  // suivi des remboursements).
   const selectType = document.createElement("select");
   TYPES_OPERATION_IMPORT.filter(
-    (infoType) => pretsAccessibles() || !TYPES_DE_PRET.has(infoType.cle)
+    (infoType) =>
+      (pretsAccessibles() || !TYPES_DE_PRET.has(infoType.cle)) &&
+      (suiviRemboursementsAccessible() || !TYPES_A_SUIVI_REMBOURSEMENT.has(infoType.cle))
   ).forEach((infoType) => {
     const opt = document.createElement("option");
     opt.value = infoType.cle;
@@ -10403,7 +11636,7 @@ function renderImportMappingsOverview(mappings) {
   if (mappings.categories.length === 0) {
     catBloc.className = "import-mappings";
     catBloc.innerHTML =
-      '<span class="hint">Aucune correspondance de catégorie mémorisée.</span>';
+      `<span class="hint">${t("Aucune correspondance de catégorie mémorisée.")}</span>`;
   } else {
     renderMappingsCategoriesGalerie(mappings.categories);
   }
@@ -10453,7 +11686,9 @@ function renderImportMappingsOverview(mappings) {
   const compteBloc = document.getElementById("import-mapping-comptes-liste");
   compteBloc.innerHTML = "";
   if (mappings.comptes.length === 0) {
-    compteBloc.innerHTML = '<span class="hint">Aucune correspondance de compte mémorisée.</span>';
+    compteBloc.innerHTML = `<span class="hint">${t(
+      "Aucune correspondance de compte mémorisée."
+    )}</span>`;
   } else {
     mappings.comptes.forEach((m) => {
       compteBloc.appendChild(
@@ -10702,9 +11937,12 @@ function manqueExtensionHtml(extension) {
  *
  * Les deux mêmes états qu'avant, nommés en toutes lettres : une case cochée
  * demandait de savoir que « coché » veut dire « activée ».
+ *
+ * SANS DOSSIER, TOUJOURS VERROUILLÉ (cf. e.installee) : aucune dépendance ni
+ * aucun obstacle à lever n'y changerait rien, il n'y a rien à activer.
  */
 function selecteurEtatExtensionHtml(e) {
-  const verrouille = !e.dependances_ok || Boolean(e.obstacle_desactivation);
+  const verrouille = !e.installee || !e.dependances_ok || Boolean(e.obstacle_desactivation);
   return `<select class="extension-etat" data-extension-id="${escapeHtml(e.id)}"
             aria-label="${t("État de l'extension")} — ${escapeHtml(e.nom)}"
             ${verrouille ? "disabled" : ""}>
@@ -10713,41 +11951,57 @@ function selecteurEtatExtensionHtml(e) {
     </select>`;
 }
 
-function renderExtensions(extensions) {
-  const bloc = document.getElementById("extensions-liste");
-  if (extensions.length === 0) {
-    bloc.innerHTML = `<span class="hint">${t("Aucune extension installée.")}</span>`;
-    return;
-  }
-  bloc.innerHTML = extensions
-    .map((e) => {
-      // CE QUE FAIT L'EXTENSION : replié. C'est un paragraphe qu'on lit une
-      // fois, à l'installation, et qui repoussait ensuite vers le bas la seule
-      // chose qu'on vient chercher ici — l'état de chacune.
-      const explication = basculeDetailHtml(
-        `extension-explication-${e.id}`,
-        `<p class="extension-description">${escapeHtml(e.description)}</p>`,
-        { libelle: t("Afficher ce que fait cette extension") }
-      );
-      // CE QUI L'EMPÊCHE DE CHANGER D'ÉTAT : replié aussi, mais signalé à part.
-      // Les deux cas sont exclusifs — il faut être allumée pour qu'éteindre se
-      // pose — et un menu qu'on ne peut pas ouvrir doit DIRE POURQUOI, sans
-      // quoi il passerait pour une panne : d'où le bouton, toujours visible à
-      // côté du menu grisé.
-      const avertissements = [
-        e.dependances_ok ? "" : `<p class="extension-manque">${manqueExtensionHtml(e)}</p>`,
-        e.obstacle_desactivation
-          ? `<p class="extension-manque">${escapeHtml(e.obstacle_desactivation)}</p>`
-          : "",
-      ].join("");
-      const alerte = basculeDetailHtml(`extension-avertissement-${e.id}`, avertissements, {
-        libelle: t("Afficher l'avertissement"),
-        classe: "detail-bascule-alerte",
-      });
-      return `
-      <div class="extension-carte ${e.actif ? "" : "inactive"}">
+/**
+ * Une carte d'extension, présente ou non (cf. `e.installee`).
+ *
+ * MÊME GABARIT DANS LES DEUX CAS : c'est tout l'objet de la demande — une
+ * extension du catalogue sans dossier ici doit se lire comme si elle y était,
+ * description et version comprises, seul l'interrupteur diffère.
+ */
+function carteExtensionHtml(e) {
+  // CE QUE FAIT L'EXTENSION : replié. C'est un paragraphe qu'on lit une
+  // fois, à l'installation, et qui repoussait ensuite vers le bas la seule
+  // chose qu'on vient chercher ici — l'état de chacune.
+  const explication = basculeDetailHtml(
+    `extension-explication-${e.id}`,
+    `<p class="extension-description">${escapeHtml(t(e.description))}</p>`,
+    { libelle: t("Afficher ce que fait cette extension") }
+  );
+  // CE QUI L'EMPÊCHE DE CHANGER D'ÉTAT : replié aussi, mais signalé à part.
+  // Un seul des trois cas peut se présenter à la fois (pas de dossier, pas de
+  // dépendance, obstacle à l'extinction) — un menu qu'on ne peut pas ouvrir
+  // doit DIRE POURQUOI, sans quoi il passerait pour une panne : d'où le
+  // bouton, toujours visible à côté du menu grisé.
+  const avertissements = [
+    e.installee
+      ? ""
+      : `<p class="extension-manque">${t("Non installée sur cette machine : le dossier de cette extension n'est pas présent ici.")}</p>`,
+    e.installee && !e.dependances_ok
+      ? `<p class="extension-manque">${manqueExtensionHtml(e)}</p>`
+      : "",
+    e.obstacle_desactivation
+      ? `<p class="extension-manque">${escapeHtml(e.obstacle_desactivation)}</p>`
+      : "",
+  ].join("");
+  const alerte = basculeDetailHtml(`extension-avertissement-${e.id}`, avertissements, {
+    libelle: t("Afficher l'avertissement"),
+    classe: "detail-bascule-alerte",
+  });
+  const classes = ["extension-carte"];
+  if (!e.actif) classes.push("inactive");
+  if (!e.installee) classes.push("non-installee");
+  return `
+      <div class="${classes.join(" ")}">
         <div class="extension-entete">
-          <span class="extension-nom">${escapeHtml(e.nom)}</span>
+          ${
+            // LE NUMÉRO AVANT LE NOM, parce que c'est lui qui ne bouge pas. Le
+            // nom est traduit juste à côté : entre une application française et
+            // la même en anglais, le numéro est la seule chose qui permette de
+            // dire « l'extension 6 » et d'être compris des deux côtés. Absent
+            // (0) sur une extension tierce, qui n'a pas de numéro attribué.
+            e.numero ? `<span class="extension-numero">${e.numero}</span>` : ""
+          }
+          <span class="extension-nom">${escapeHtml(t(e.nom))}</span>
           ${e.version ? `<span class="extension-version">v${escapeHtml(e.version)}</span>` : ""}
           ${
             // Le badge n'apparaît que sur une extension de développement :
@@ -10766,8 +12020,34 @@ function renderExtensions(extensions) {
         ${explication.panneau}
         ${alerte.panneau}
       </div>`;
-    })
-    .join("");
+}
+
+/**
+ * DEUX GROUPES, installées d'abord : le catalogue (cf. backend
+ * extensions.catalogue) ajoute aux extensions RÉELLEMENT présentes celles qui
+ * ne le sont pas sur cette machine, pour que l'écran reste le même que sur une
+ * installation complète — de quoi voir tout ce que l'app sait faire, même
+ * sans avoir tout installé. La seconde rangée n'apparaît que si elle a
+ * quelque chose à montrer : sur une installation complète, personne n'y
+ * manque, et le titre n'a rien à dire.
+ */
+function renderExtensions(extensions) {
+  const bloc = document.getElementById("extensions-liste");
+  if (extensions.length === 0) {
+    bloc.innerHTML = `<span class="hint">${t("Aucune extension installée.")}</span>`;
+    return;
+  }
+  const installees = extensions.filter((e) => e.installee);
+  const nonInstallees = extensions.filter((e) => !e.installee);
+
+  const sectionInstallees = installees.map(carteExtensionHtml).join("");
+  const sectionNonInstallees =
+    nonInstallees.length === 0
+      ? ""
+      : `<h4 class="extensions-groupe-titre">${t("Non installées sur cette machine")}</h4>
+         ${nonInstallees.map(carteExtensionHtml).join("")}`;
+
+  bloc.innerHTML = sectionInstallees + sectionNonInstallees;
 }
 
 // Délégation : les cartes sont reconstruites à chaque rendu.
@@ -10808,7 +12088,7 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
  * absolute` au-dessus de sa pastille, toujours au même endroit. Une pastille
  * en haut d'écran voyait donc sa bulle sortir par le haut, et une pastille en
  * bord de page sortir par le côté — d'autant plus vite que ces textes sont
- * longs (jusqu'à plusieurs paragraphes, cf. INFOS_PROPRIETES_IMPORT). Une
+ * longs (jusqu'à plusieurs paragraphes, cf. les clés noyau.import-propriete-* de textes.js). Une
  * classe posée à la main (`info-bulle-gauche`) rattrapait quelques cas connus,
  * ce qui revenait à deviner à l'écriture la place qu'il y aurait à l'écran.
  *
@@ -11153,15 +12433,21 @@ async function loadParametresBdd() {
     const messages = [];
     if (etat.a_risque) {
       messages.push(
-        `Cette base est dans le dossier de l'application (${etat.dossier_application}). ` +
-          `Une mise à jour la remplacera : déplace-la ailleurs, par exemple ${etat.chemin_propose}.`
+        t(
+          "Cette base est dans le dossier de l'application ({dossier}). Une mise à jour " +
+            "la remplacera : déplace-la ailleurs, par exemple {propose}.",
+          { dossier: etat.dossier_application, propose: etat.chemin_propose }
+        )
       );
     }
     if (etat.base_memorisee_introuvable) {
       messages.push(
-        `La base retenue au dernier lancement est introuvable : ${etat.base_memorisee_introuvable}. ` +
-          `L'application est repartie sur son emplacement par défaut — rien n'a été effacé, ` +
-          `le fichier est simplement ailleurs (disque débranché, dossier renommé).`
+        t(
+          "La base retenue au dernier lancement est introuvable : {chemin}. L'application " +
+            "est repartie sur son emplacement par défaut — rien n'a été effacé, le fichier " +
+            "est simplement ailleurs (disque débranché, dossier renommé).",
+          { chemin: etat.base_memorisee_introuvable }
+        )
       );
     }
     // L'ORDRE COMPTE : sur un build de test, `choix_memorise` est faux PAR
@@ -11170,22 +12456,26 @@ async function loadParametresBdd() {
     // en donnant la raison.
     if (etat.build_de_test) {
       messages.push(
-        "Build de test construit en local : cette copie ouvre toujours sa propre base de test " +
-          "et n'écrit jamais dans la configuration de l'application. Changer de base ne vaut " +
-          "que pour cette session. Supprime le fichier BUILD-DE-TEST.txt à côté de l'exécutable " +
-          "pour qu'elle se comporte comme une version publiée."
+        t(
+          "Build de test construit en local : cette copie ouvre toujours sa propre base de test " +
+            "et n'écrit jamais dans la configuration de l'application. Changer de base ne vaut " +
+            "que pour cette session. Supprime le fichier BUILD-DE-TEST.txt à côté de l'exécutable " +
+            "pour qu'elle se comporte comme une version publiée."
+        )
       );
     } else if (etat.mode_developpement) {
       // Le serveur de dev : même règle, autre raison (il n'y a pas de bundle à
       // démarquer). Dire laquelle des deux on est évite de chercher un
       // BUILD-DE-TEST.txt qui n'existe nulle part.
       messages.push(
-        "Serveur de développement : la base de l'application est celle du dépôt, et rien " +
-          "n'est écrit dans la configuration. Changer de base ne vaut que pour cette session."
+        t(
+          "Serveur de développement : la base de l'application est celle du dépôt, et rien " +
+            "n'est écrit dans la configuration. Changer de base ne vaut que pour cette session."
+        )
       );
     } else if (!etat.choix_memorise) {
       messages.push(
-        "Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session."
+        t("Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session.")
       );
     }
     alerte.innerHTML = messages.map((m) => `<div>${escapeHtml(m)}</div>`).join("");

@@ -231,6 +231,721 @@ const TRADUCTIONS = {
     // Le titre suit la vue : en vue annuelle, \u00ab du mois \u00bb annoncerait le
     // mauvais ordre de grandeur (cf. renderKpisDashboard).
     "Variation de l'ann\u00e9e": "Change this year",
+    // LES DEUX VARIATIONS, qui ne mesurent pas la même chose. « brute » = ce
+    // qui est passé sur le compte (gross) ; « attribuée » = ce que la période
+    // coûte une fois chaque dépense ramenée au mois auquel elle appartient
+    // (attributed). Les deux couples suivent la vue, mois ou année, comme le
+    // couple d'au-dessus (cf. renderKpisDashboard).
+    "Variation sur le mois brute": "Gross change this month",
+    "Variation sur l'année brute": "Gross change this year",
+    "Variation attribuée au mois": "Change attributed to this month",
+    "Variation attribuée à l'année": "Change attributed to this year",
+
+    // Le camembert des dépenses, l'objectif de répartition par catégorie
+    // et les deux variations (cf. textes.js, où vivent les phrases d'aide).
+    "Voir toutes les dépenses":
+      "See all expenses",
+    // Les libellés de l'infobulle partagée par les deux graphes et la légende
+    // (cf. contenuInfobulleCategorie). « Part » et « Objectif » sont des
+    // pourcentages, « Total » un montant.
+    "Total": "Total",
+    "Part": "Share",
+    /* Le mode de saisie d'un taux, posé par l'extension « Lecture de cours ». */
+    "Depuis un lien": "From a link",
+
+    /* ===== Reprise de traduction, lot 7 : le bandeau « Base de données ». ===== */
+    "Cette base est dans le dossier de l'application ({dossier}). Une mise à jour la remplacera : déplace-la ailleurs, par exemple {propose}.":
+      "This database is in the application folder ({dossier}). An update will replace it: move it elsewhere, for example {propose}.",
+    "La base retenue au dernier lancement est introuvable : {chemin}. L'application est repartie sur son emplacement par défaut — rien n'a été effacé, le fichier est simplement ailleurs (disque débranché, dossier renommé).":
+      "The database kept at the last launch cannot be found: {chemin}. The application restarted from its default location — nothing was erased, the file is simply elsewhere (disk unplugged, folder renamed).",
+    "Build de test construit en local : cette copie ouvre toujours sa propre base de test et n'écrit jamais dans la configuration de l'application. Changer de base ne vaut que pour cette session. Supprime le fichier BUILD-DE-TEST.txt à côté de l'exécutable pour qu'elle se comporte comme une version publiée.":
+      "Test build made locally: this copy always opens its own test database and never writes to the application's configuration. Switching database only holds for this session. Delete the BUILD-DE-TEST.txt file next to the executable for it to behave like a released version.",
+    "Serveur de développement : la base de l'application est celle du dépôt, et rien n'est écrit dans la configuration. Changer de base ne vaut que pour cette session.":
+      "Development server: the application's database is the repository's, and nothing is written to the configuration. Switching database only holds for this session.",
+    "Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session.":
+      "This choice could not be saved: it will only hold for this session.",
+
+    /* ===== Reprise de traduction, lot 6 : les messages d'état vide, qui
+       ne traversaient pas `t()` et n'étaient donc pas traduisibles. ===== */
+    "Aucune correspondance de catégorie mémorisée.":
+      "No category mapping remembered.",
+    "Aucune correspondance de compte mémorisée.":
+      "No account mapping remembered.",
+    "Aucune règle pour le moment : les lignes importées resteront à classer à la main.":
+      "No rule for now: imported rows will stay to be filed by hand.",
+    "Ajoute d'abord un titre dans « Titres suivis » ci-dessous.":
+      "Add a security under « Titres suivis » below first.",
+    "Outils de développement": "Developer tools",
+    // L'extension de développement : non publiée, mais bien affichée
+    // sur la machine qui la porte.
+    "L'EXTENSION DE DEV, au singulier : tout ce qui sert à mettre au point l'application vit ici, et rien d'autre. Un outil de dev n'est pas une petite fonctionnalité — c'est un instrument de relecture, qu'on allume le temps d'une vérification ; en faire une extension par outil aurait rempli la fenêtre de lancement de choses qu'un utilisateur n'a aucune raison de comprendre. Contient aujourd'hui : le solde prévisionnel à l'import, qui pose dans l'aperçu un tableau des soldes que le fichier va faire bouger (solde actuel, variation, solde d'après), pour comparer au relevé AVANT de confirmer.":
+      "THE dev extension, singular: everything used to fine-tune the application lives here, one tool per banner, rather than one extension per tool — they are switched on all together or not at all. Never published: the extensions-dev folder is ignored by git and absent from the Releases.",
+
+    /* ===== Reprise de traduction, lot 5 : les NŒUDS TEXTE ENTIERS des
+       paragraphes d'aide. Un nœud va d'une balise à l'autre, retours à la
+       ligne compris — c'est la phrase complète qui se traduit, pas ses
+       lignes. ===== */
+    ": aucun intérêt n'est écrit en opération, aucun solde et aucun chiffre du dashboard n'en dépend. Si le versement figure sur ton relevé, il entrera de lui-même par l'import — le saisir ici en plus ne le compterait pas deux fois dans tes soldes, mais ne le remplace pas non plus.":
+      ": no interest is written as a transaction, and no balance or dashboard figure depends on it. If the payment appears on your statement, it will come in through the import on its own — recording it here as well would not count it twice in your balances, but it does not replace it either.",
+    "Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page Placements financiers, et la répartition apparaîtra ici.":
+      "No securities held yet. Buy or import securities from the Investments page, and the breakdown will appear here.",
+    "Le navigateur ne transmet jamais le chemin complet d'un fichier choisi via « Parcourir » (limite de sécurité) : ce bouton ne pré-remplit que le nom du fichier, complète le dossier à la main.":
+      "The browser never passes the full path of a file picked through « Browse… » (a security limit): this button only pre-fills the file name, complete the folder by hand.",
+    "Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend : supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à changer le type d'une ligne.":
+      "The duplicates spotted are already ticked. While any stay ticked, the import waits: delete them, or untick the ones you want to import anyway. « Edit » also serves to change the type of a row.",
+    "Quand tu importes les relevés de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons différentes. L'app compare ici la":
+      "When you import the statements of both your banks, the same transfer appears on both sides, written two different ways. The app compares here the",
+    "Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche « Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.":
+      "A label the app does not know yet lands in « Autres »: tick « Confirm » to leave it there, or pick another category. No rush — you can go and create a category elsewhere in the app and come back, the import waits for you.",
+    "elle-même — le compte, les devises, le montant, une date proche — et te montre à quoi chaque ligne ressemble. Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.":
+      "itself — the account, the currencies, the amount, a nearby date — and shows you what each row looks like. Nothing is blocked or ticked in advance: only you know whether you really transferred twice.",
+    "« Basculer » exige un fichier existant. « Créer / déplacer ici » accepte un chemin neuf : il y déplace la base ouverte si elle est encore dans le dossier de l'application, et en crée une vierge sinon.":
+      "« Switch to this file » requires an existing file. « Create / move here » accepts a new path: it moves the open database there if it is still in the application folder, and creates a blank one otherwise.",
+    "À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants illisibles) : la détection automatique du délimiteur et de la virgule décimale française ne convient pas à tous les formats d'export.":
+      "Use this if the file is not read correctly (mixed-up columns, unreadable amounts): automatic detection of the delimiter and the French decimal comma does not suit every export format.",
+    "— l'endroit qu'une mise à jour remplace. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.":
+      "— the very place an update replaces. Give it a place elsewhere: it will be done once and for all.",
+    "intérêts 2025":
+      "2025 interest",
+
+    /* ===== Reprise de traduction, lot 4 : les dernières phrases longues,
+       dont la clé est reprise MOT POUR MOT du texte affiché. ===== */
+    "Ajoute, renomme et supprime des monnaies, pour suivre des comptes et des budgets dans plusieurs devises. Chaque solde reste suivi séparément ; une case du dashboard permet, si tu as saisi un taux, de tout ramener à une seule monnaie le temps d'un coup d'œil. Sans cette extension, l'application est mono-devise.":
+      "Adds, renames and deletes currencies, to track accounts and budgets in several currencies. Each balance stays tracked separately; a « Tout convertir » box brings them back to a single currency, at the rate you enter. Without it, the application is single-currency.",
+    "Ce que l'opération a coûté ou rapporté en espèces. C'est lui qui fait foi : le prix par titre vaut montant ÷ quantité, pas le cours annoncé. Ton solde colle ainsi au relevé, frais de courtage compris.":
+      "What the transaction cost or brought in cash. It is THIS that counts: the imported unit price is amount ÷ quantity, not the quoted price. Your cash balance moves by this amount.",
+    "Ce que la ligne décrit : un achat, une vente, ou un transfert d'espèces. Les mots-clés se règlent juste en dessous. Un libellé inconnu met la ligne en erreur plutôt que d'être deviné.":
+      "What the row describes: a purchase, a sale, or a cash transfer to or from another account. The keywords are set just below. An unknown label puts the row in error rather than guessing.",
+    "Ce qui PART du compte, avant frais et avant conversion ; « Montant » décrit alors ce qui ARRIVE. C'est le couple qu'il faut pour importer un virement entre deux devises : seul ton relevé connaît les deux montants.":
+      "What LEAVES the account, before fees and before conversion; « Montant » then describes what ARRIVES. This is the pair needed to import a transfer between two currencies: without it, the app cannot know at what rate it was done.",
+    "Classe automatiquement les lignes d'un relevé d'après leurs libellés : type d'opération, catégorie, compte en face d'un virement. Vue liste ordonnée ou vue galerie par dossiers. Les règles restent en base quand l'extension est éteinte — l'import cesse simplement de les consulter.":
+      "Automatically classifies a statement's rows by their labels: transaction type, category, account opposite a transfer. Ordered list view or folder view, grouped conditions, splitting a row across several categories. With no rule written, the import behaves exactly as before.",
+    "Le code ISIN du titre (FR0000120073, LU1681043599…). Seul nom qui ne change jamais : c'est par lui qu'un titre est reconnu d'un import à l'autre. Facultatif si tu lis le nom de la valeur.":
+      "The security's ISIN code (FR0000120073, LU1681043599…). It is the only name that never changes: it is by it that a security is recognised from one import to the next. Optional if you read the name.",
+    "Le montant de la ligne, avec son signe : négatif il sort, positif il entre. Si ton relevé sépare sorties et entrées en deux colonnes, éteins celle-ci et règle « Montant au débit » et « Montant au crédit ».":
+      "The row's amount, with its sign: negative it goes out, positive it comes in. If your statement splits outgoings and incomings into two columns, switch this one off and switch the two dedicated columns on.",
+    "Le nom du titre tel que ton courtier l'écrit. Facultatif si tu lis l'ISIN, mais il faut l'un des deux : sans eux, une ligne d'achat ne dit pas de quelle valeur elle parle.":
+      "The security's name as your broker writes it. Optional if you read the ISIN code, but one of the two is indispensable: without them, a purchase row does not say which security it is about.",
+    "Le prix par titre annoncé par le relevé. Il ne décide de rien, il sert de contrôle : un écart de plus de 1 % avec le montant divisé par la quantité est signalé au-dessus de l'aperçu, sans bloquer l'import.":
+      "The price per security announced by the statement. It decides nothing, it serves as a check: a gap of more than 1 % with the amount divided by the quantity is reported.",
+    "Les frais prélevés par la banque. C'est leur DEVISE qui décide auquel des deux montants ils se rapportent : dans la monnaie envoyée ils s'y ajoutent, dans celle reçue ils s'en retranchent. Dans une troisième, l'import est refusé plutôt que de fausser un solde.":
+      "The fees charged by the bank. It is their CURRENCY that decides which of the two amounts they relate to: in the currency sent they add to it, in the currency received they are taken from it.",
+    "Lit une liste d'opérations exportée depuis un compte de placements (achats, ventes, transferts d'espèces) et l'importe en une fois, sur le modèle de l'import de relevé bancaire : un preset par courtier, un aperçu ligne par ligne avant validation, et la même détection de doublons. Les titres inconnus sont créés à l'import, avec leur code ISIN. Nécessite « Placements financiers » : sans elle, il n'y a aucun compte-titres où importer.":
+      "Reads a list of transactions exported from an investment account (purchases, sales, cash transfers) and imports it in one go, modelled on the bank import. Also handles account snapshots (one row per security held). Requires « Placements financiers ».",
+    "Lit une liste d'opérations exportée depuis un compte de placements : achats, ventes et":
+      "Reads a list of transactions exported from an investment account (purchases, sales, cash transfers) and imports it in one go, modelled on the bank import. Also handles account snapshots (one row per security held). Requires « Placements financiers ».",
+    "Note ce que chaque compte d'épargne t'a RÉELLEMENT rapporté : un montant, une date, tels que le relevé les annonce. Les totaux se font par année et par monnaie, jamais deux devises additionnées. Remplace le système de taux d'intérêt : un taux annuel et une fréquence ne pouvaient reconstituer le bon chiffre que si l'app connaissait tous les mouvements du compte depuis son ouverture, et divergeaient du relevé dès qu'un taux changeait en cours d'année ou qu'un import était partiel. Aucun intérêt n'est écrit en opération : c'est un suivi d'affichage, qui ne touche ni aux soldes ni au dashboard. S'ouvre depuis la page Comptes, au-dessus des comptes d'épargne.":
+      "Records what each savings account REALLY earned you: an amount, a date, as the statement announces them. Totals are per year and per currency. Nothing is written as a transaction: no balance and no dashboard figure depends on it.",
+
+    /* ===== Reprise de traduction, lot 3 : les phrases d'aide longues, les
+       descriptions d'extension et les derniers fragments d'écran. ===== */
+    "Le compte émetteur et le compte récepteur doivent être différents, sauf pour une":
+      "The sending and receiving accounts must differ, except for a",
+    "Renseigne le montant reçu : les deux comptes sont dans des monnaies différentes":
+      "Fill in the amount received: the two accounts are in different currencies",
+    "Générée automatiquement par une opération récurrente : modifie ou arrête la récurrence":
+      "Generated automatically by a recurring transaction: edit or stop the recurrence",
+    "La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut":
+      "The expense stays dated the day the money left — the balances and the KPIs at the top",
+    "du dashboard ne bougent pas. Seuls l'histogramme et les totaux de la période":
+      "of the dashboard do not move. Only the histogram and the period totals",
+    "« Autres » ne peut pas être renommée : c'est la catégorie de repli.":
+      "« Autres » cannot be renamed: it is the fallback category.",
+    "Dépose l'export Excel ou CSV de ta banque. Avant de valider, tu auras deux choses à":
+      "Drop your bank's Excel or CSV export. Before confirming, you will have two things to",
+    "faire : dire dans quelles catégories ranger les libellés que l'app ne connaît pas encore,":
+      "do: say which categories the labels the app does not know yet belong to,",
+    "Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche":
+      "A label the app does not know yet lands in « Autres »: tick",
+    "« Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux":
+      "« Confirmer » to leave it there, or pick another category. No rush — you can",
+    "aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.":
+      "go and create a category elsewhere in the app and come back, the import waits for you.",
+    "Quelle colonne du fichier porte quoi. Les numéros sont ceux d'Excel : la première":
+      "Which column of the file carries what. The numbers are Excel's: the first",
+    "Clique sur l'œil pour lire ou ignorer une colonne. Date, Nature et Montant sont":
+      "Click the eye to read or skip a column. Date, Nature and Amount are",
+    "Pour ce que ton relevé dit en plus : le compte, le sens, les devises, les frais.":
+      "For what your statement says on top: the account, the direction, the currencies, the fees.",
+    "Laisse vide si ton relevé tient dans une seule colonne de montant et une seule monnaie.":
+      "Leave empty if your statement fits in a single amount column and a single currency.",
+    "Laisse vide pour garder les mots-clés reconnus par défaut, rappelés sous chaque":
+      "Leave empty to keep the keywords recognised by default, listed under each",
+    "champ. Dès que tu en ajoutes un, il remplace toute la liste par défaut de ce sens-là.":
+      "field. As soon as you add one, it replaces the whole default list for that direction.",
+    "Laisse vide pour garder les mots-clés reconnus par défaut. Dès que tu en ajoutes":
+      "Leave empty to keep the keywords recognised by default. As soon as you add",
+    "À régler seulement si le fichier est mal lu : colonnes mélangées, montants":
+      "Only worth setting if the file is read wrong: mixed-up columns, unreadable",
+    "Les colonnes colorées sont celles que l'app va lire, les grises sont ignorées. Deux":
+      "The coloured columns are the ones the app will read, the grey ones are ignored. Two",
+    "façons de corriger un décalage : glisser un en-tête sur un autre pour échanger les":
+      "ways to fix a mismatch: drag one header onto another to swap the",
+    "deux colonnes, ou saisir les numéros dans « Configuration du fichier » au-dessus.":
+      "two columns, or type the numbers in « Configuration du fichier » above.",
+    "Les colonnes ont changé depuis la dernière lecture. Relire le fichier pour voir ce que":
+      "The columns changed since the last read. Re-read the file to see what",
+    "l'import donnera, puis « Enregistrer la configuration » pour garder cet ordre dans le":
+      "the import will give, then « Enregistrer la configuration » to keep this order in the",
+    "Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend :":
+      "The duplicates spotted are already ticked. While any stay ticked, the import waits:",
+    "supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à":
+      "delete them, or untick the ones you want to import anyway. « Edit » also serves to",
+    "Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle":
+      "These rows are identical to rows already imported: each is followed by the one",
+    "qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour":
+      "it copies. They are ticked to be set aside in one click — untick one to",
+    "l'importer quand même, deux achats identiques le même jour ça arrive.":
+      "import it anyway; two identical purchases on the same day do happen.",
+    "Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes":
+      "These transfers look like a transfer already recorded: same amount, same",
+    "comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé":
+      "accounts, within a few days. That is normal — the same movement appears on the statement",
+    "de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons":
+      "of both your banks, the same transfer shows on both sides, written two ways",
+    "Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.":
+      "Nothing is blocked or ticked in advance: only you know whether you really transferred twice.",
+    "le montant, une date proche — et te montre à quoi chaque ligne ressemble.":
+      "the amount, a nearby date — and shows you what each row looks like.",
+    "(limite de sécurité) : ce bouton ne pré-remplit que le nom du fichier, complète le":
+      "(security limit): this button only pre-fills the file name, complete the",
+    "Le navigateur ne transmet jamais le chemin complet d'un fichier choisi via « Parcourir »":
+      "The browser never passes the full path of a file picked through « Browse… »",
+    "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant":
+      "Your accounts and transactions live in a single file. It currently sits",
+    "remplace. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.":
+      "replaces. Give it a place elsewhere: it will be done once and for all.",
+    "« Basculer » exige un fichier existant. « Créer / déplacer ici » accepte un chemin neuf :":
+      "« Switch to this file » requires an existing file. « Create / move here » accepts a new path:",
+    "il y déplace la base ouverte si elle est encore dans le dossier de l'application, et en":
+      "it moves the open database there if it is still in the application folder, and",
+    "Une base restée à une version de schéma antérieure est mise à jour à la bascule, après":
+      "A database left at an earlier schema version is updated on switching, after a",
+    "copie horodatée à côté du fichier d'origine : une application neuve ne sait pas lire une":
+      "timestamped copy next to the original file: a fresh application cannot read an",
+    "base ancienne, et échouerait sinon sur ses pages principales sans dire pourquoi.":
+      "old database, and would otherwise fail on its main pages without saying why.",
+    "Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul":
+      "A rule automatically classifies imported rows by their labels — it is the only",
+    "moyen de marquer une ligne \"remboursable\" ou de la classer en Prêt / Remboursement sans le":
+      "way to mark a row \"reimbursable\" or to file it as a Loan / Repayment without doing it",
+    "faire à la main. Les règles sont communes à tous les presets d'import.":
+      "by hand. Rules are shared by every import preset.",
+    "correspond — sauf si celle-ci décoche « Arrêter la lecture des règles ici ». Plusieurs règles peuvent alors s'appliquer à une même ligne, mais aucune ne":
+      "matches — unless that one unticks « Arrêter la lecture des règles ici ». Several rules can then apply to the same row, but none",
+    "ne peut plus être défait par une correspondance de catégorie.":
+      "can no longer be undone by a category mapping.",
+    ", qui reste celui de la vue liste (le numéro sur chaque carte le":
+      ", which stays that of the list view (the number on each card",
+    "rappelle). Fais glisser une règle d'un dossier à l'autre pour la ranger. Ce classement":
+      "reminds you). Drag a rule from one folder to another to file it. This filing",
+    "reste sur cet ordinateur — il n'est pas enregistré dans la base.":
+      "stays on this computer — it is not saved in the database.",
+    "Le type détermine ce qui suit : seules « Opération classique » et « Dépense":
+      "The type decides what follows: only « Opération classique » and « Dépense",
+    "remboursable » laissent choisir une catégorie — les autres types imposent la leur.":
+      "remboursable » let you pick a category — the other types impose their own.",
+    "Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se":
+      "Groups combine with each other; inside a group, conditions combine",
+    "combinent selon leur propre connecteur. Deux niveaux suffisent à écrire":
+      "by their own connector. Two levels are enough to write",
+    "Chaque part dit combien elle prend. On peut écrire un nombre (50), un":
+      "Each share says how much it takes. You can write a number (50), a",
+    "pourcentage (30%), une opération (montant - 50), ou utiliser min et max":
+      "percentage (30%), an operation (montant - 50), or use min and max",
+    "— par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne":
+      "— for example min(montant; 50) for « at most 50 € ». The word reste gives",
+    "à une part tout ce que les autres n'ont pas pris ; une seule part peut le":
+      "one share everything the others did not take; only one share can",
+    "transferts d'espèces. Rien n'entre en base avant que tu ne valides l'aperçu.":
+      "cash transfers. Nothing enters the database before you confirm the preview.",
+    "Aucun compte de placements financiers. Crée-en un depuis la page Comptes en choisissant":
+      "No investment account. Create one from the Accounts page by choosing",
+    "Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les":
+      "Each column read is coloured and carries the name of the property that will be imported. The",
+    "colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données,":
+      "grey columns are ignored. If a colour does not land on the right data,",
+    "corrige les numéros de colonne dans \"Configuration du fichier\" au-dessus.":
+      "fix the column numbers in \"Configuration du fichier\" above.",
+    "À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants":
+      "Use this if the file is not read correctly (mixed-up columns, unreadable",
+    "illisibles) : la détection automatique du délimiteur et de la virgule décimale":
+      "amounts): automatic detection of the delimiter and the decimal comma",
+    "Ces lignes ne seront pas importées telles quelles. Corrige-les avec \"Modifier\", ou":
+      "These rows will not be imported as they are. Fix them with \"Modifier\", or",
+    "supprime-les de l'aperçu — le reste du fichier s'importe normalement.":
+      "delete them from the preview — the rest of the file imports normally.",
+    "Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à":
+      "Each row judged identical (excluded columns aside, cf. Configuration du fichier) to",
+    "une ligne déjà importée sous ce preset est affichée ici, suivie en lecture seule de":
+      "a row already imported under this preset is shown here, followed read-only by",
+    "celle qu'elle double. Elles sont pré-sélectionnées pour être supprimées d'un clic —":
+      "the one it duplicates. They are pre-selected to be deleted in one click —",
+    "décoche-en une pour l'importer quand même (deux achats identiques le même jour sont":
+      "untick one to import it anyway (two identical purchases on the same day are",
+    "Les doublons détectés sont pré-sélectionnés. Tant qu'il reste des lignes sélectionnées,":
+      "Detected duplicates are pre-selected. While any rows stay selected,",
+    "l'import est bloqué : supprime-les, ou décoche-les pour les importer quand même.":
+      "the import is blocked: delete them, or untick them to import them anyway.",
+    "touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné :":
+      "touch this preset's account are compared. Nothing is blocked or pre-selected:",
+    "toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie":
+      "only you know whether you really made the movement twice. Each row is followed",
+    "Le relevé ne décrit qu'un côté du mouvement : indique le compte en face. Le sens":
+      "The statement describes only one side of the movement: give the account opposite. The direction",
+    "Une ligne de compte-titres n'a pas de catégorie : un mouvement de titres n'en porte":
+      "A securities-account row has no category: a securities movement carries none",
+    "pas. Un transfert, lui, touche deux comptes et le relevé n'en nomme qu'un — la règle":
+      "at all. A transfer, though, touches two accounts and the statement names only one — the rule",
+    "« Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase —":
+      "« Achat » is a purchase, and nothing else is. When the broker writes a sentence —",
+    "« ACHAT COMPTANT ETF MSCI WORLD », avec le nom du titre dedans — aucune liste de mots-clés":
+      "« ACHAT COMPTANT ETF MSCI WORLD », with the security name inside — no keyword list",
+    "ne peut la reconnaître, parce qu'il n'y a pas deux fois le même libellé dans le fichier.":
+      "can recognise it, because no two rows share the same label in the file.",
+    "correspond : contrairement aux règles bancaires, une règle de placement ne décide que":
+      "matches: unlike bank rules, an investment rule decides only",
+    "d'une chose, il n'y a donc rien à compléter en dessous. Place les cas particuliers":
+      "one thing, so there is nothing to complete below. Put the special cases",
+    "Sans aucune règle, l'import se comporte donc exactement comme avant.":
+      "With no rule at all, the import therefore behaves exactly as before.",
+    "c'est ainsi qu'une détention existe dans l'application, et c'est ce qui rend justes":
+      "that is how a holding exists in the application, and it is what makes",
+    "d'un coup la valorisation et les plus-values. Les espèces du compte baissent donc du":
+      "the valuation and the gains right. The account's cash therefore drops by the",
+    "total investi — pense à poser son solde initial en conséquence.":
+      "total invested — remember to set its opening balance accordingly.",
+    "Ce fichier est-il une PHOTOGRAPHIE du compte (une ligne par titre détenu) ? OK : photographie. Annuler : liste d'opérations (achats, ventes, transferts).":
+      "Is this file a SNAPSHOT of the account (one row per security held)? OK: snapshot. Cancel: list of transactions (purchases, sales, transfers).",
+    "Aucun type. Ajoutes-en un ci-dessous si tu veux regrouper tes titres.":
+      "No type. Add one below if you want to group your securities.",
+    "le type \"Placements financiers\", puis alimente-le par un virement interne.":
+      "the \"Placements financiers\" type, then fund it with an internal transfer.",
+    "Supprimer « {nom} » ? Les {n} titre(s) qui le portent perdront leur type.":
+      "Delete « {nom} »? The {n} securities carrying it will lose their type.",
+    "Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les":
+      "A project is not entered from a transaction: you create it here, then add the",
+    "opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.":
+      "transaction from a project does not delete it, and deleting a project deletes no expense.",
+    "Qui te doit combien, et à qui tu dois. Un profil est une étiquette : une personne, une":
+      "Who owes you how much, and whom you owe. A profile is a label: a person, a",
+    "entreprise, la colocation. Rien n'est recalculé ailleurs — les soldes, le dashboard et":
+      "company, the flat share. Nothing is recomputed elsewhere — the balances, the dashboard and",
+    "l'histogramme donnent exactement les mêmes chiffres, cet écran ne fait que les ventiler.":
+      "the histogram give exactly the same figures, this screen only breaks them down.",
+    "Non installée sur cette machine : le dossier de cette extension n'est pas présent ici.":
+      "Not installed on this machine: this extension's folder is not present here.",
+    "Additionne tes monnaies en une seule, au taux que tu as saisi dans Paramètres → Monnaies. Rien n'est modifié : décoche et tout revient. Une monnaie sans taux est laissée de côté, et signalée.":
+      "Adds your currencies up into one, at the rate you entered in Settings → Currencies. Nothing is changed: untick and everything comes back. A currency without a rate is left aside, and reported.",
+    "L'application lit et écrit dans un seul fichier .db. Tu choisis où il vit ; l'emplacement est retenu d'un lancement à l'autre.":
+      "The application reads and writes a single .db file. You choose where it lives; the location is remembered from one launch to the next.",
+    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici.":
+      "Enter what the bank actually paid you, as the statement announces it. Nothing is computed for you: an annual rate cannot recover the right figure when it changes mid-year. Only savings accounts appear here.",
+    "La catégorie que ta banque a posée elle-même sur la ligne. Elle ne devient pas une catégorie de l'app toute seule : tu fais le rapprochement une fois, il est retenu.":
+      "The category your bank itself put on the row. It does not become an app category on its own: you make the match once, it is remembered.",
+    "Le compte concerné, quand le fichier le nomme. Inutile si le preset est déjà lié à un compte : ce lien vaut pour toutes les lignes.":
+      "The account concerned, when the file names it. Pointless if the preset is already tied to an account: that link holds for every row.",
+    "À régler seulement si ton relevé n'écrit que des montants positifs et dit à part si l'argent entre ou sort. Les mots-clés reconnus se règlent juste en dessous.":
+      "Only worth setting if your statement writes positive amounts only and says separately whether money comes in or goes out. The recognised keywords are set just below.",
+    "La devise du montant. Sans elle, la ligne part dans la monnaie principale de son compte — faux dès qu'un compte en porte plusieurs.":
+      "The amount's currency. Without it, the row goes into its account's main currency — wrong as soon as an account carries several.",
+    "La devise du montant envoyé. Sans elle, l'app la suppose identique à celle du montant reçu, donc sans change.":
+      "The currency of the amount sent. Without it, the app assumes it identical to that of the amount received, so with no exchange.",
+    "La devise des frais, celle qui dit à quel montant ils s'appliquent. Sans elle, l'app les rattache au montant envoyé et te le signale à chaque import.":
+      "The fees' currency, the one that says which amount they apply to. Without it, the app ties them to the amount sent and tells you so at every import.",
+    "Où en est l'opération chez ta banque. Une ligne en attente devient une opération prévisionnelle, une ligne refusée n'est pas importée. Les mots-clés se règlent plus bas.":
+      "Where the transaction stands at your bank. A pending row becomes a forecast transaction, a rejected row is not imported. The keywords are set further down.",
+    "Pour les relevés qui SÉPARENT sorties et entrées en deux colonnes, chaque ligne n'en remplissant qu'une. La colonne remplie dit le sens. Un zéro vaut une case vide, une ligne qui remplit les deux part en erreur.":
+      "For statements that SPLIT outgoings and incomings into two columns, each row filling only one. The filled column gives the direction. A zero counts as an empty box; a row filling both goes to error.",
+    "L'autre moitié : ce qui ENTRE. Elle va toujours avec « Montant au débit » — allumer ou éteindre l'une fait la même chose à l'autre.":
+      "The other half: what COMES IN. It always goes with « Montant au débit » — switching one on or off does the same to the other.",
+    "Le nombre de titres achetés ou vendus. Sans objet sur une ligne de transfert d'espèces, qui peut la laisser vide.":
+      "The number of securities bought or sold. Irrelevant on a cash-transfer row, which may leave it empty.",
+    "L'étiquette du titre, si ton fichier la porte : ETF, obligation, action… Facultative, et sans effet sur un montant. Un libellé que tu n'as pas encore créé le sera à l'import. Un titre que l'app connaît déjà garde le type que tu lui as posé.":
+      "The security's label, if your file carries it: ETF, bond, share… Optional, and with no effect on any amount. A label you have not created yet will be at import time. A security the app already knows keeps the type you gave it.",
+    "Le nombre de titres que tu DÉTIENS au moment de la photographie. C'est cette quantité qui part en base : l'app ne sait pas comment tu y es arrivé, seulement ce que tu as.":
+      "The number of securities you HOLD at the time of the snapshot. It is this quantity that goes into the database: the app does not know how you got there, only what you have.",
+    "Ce qu'UN titre t'a coûté en moyenne, frais compris (le PRU). Par titre, pas le total investi. Si ton relevé donne le total, divise-le avant d'importer.":
+      "What ONE security cost you on average, fees included. Per security, not the total invested. If your statement gives the total, divide it before importing.",
+    "Ce que la ligne vaut aujourd'hui, tous titres confondus. Elle ne crée aucune détention : elle sert à déduire le cours du titre (valeur ÷ quantité), que ce genre d'export ne donne pas.":
+      "What the row is worth today, all securities together. It creates no holding: it serves to deduce the security's price (value ÷ quantity), which this kind of export does not give.",
+    "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne.":
+      "Tracking of a securities portfolio: purchase, sale, valuation at the last price entered and unrealised gains, per investment account. Prices are entered by hand — the application queries no online service.",
+    "Va lire un cours sur une page publique de cotation (Google Finance, Yahoo Finance, Boursorama…) : un lien par titre suivi et par couple de monnaies, un bouton de mise à jour sur l'écran concerné, et une relecture au lancement. Seule extension de l'application à émettre des requêtes vers Internet. Nécessite « Placements financiers » ou « Monnaies » : sans l'une des deux, elle n'a rien à mettre à jour.":
+      "Reads a price from a public quotation page (Google Finance, Yahoo Finance, Boursorama…): one link per tracked security and per currency pair, an update button on the screen concerned, and a re-read at launch. The only extension in the application that sends requests to the Internet. Requires « Placements financiers » or « Monnaies »: without one of the two, it has nothing to update.",
+    "Suit l'argent qu'on t'a prêté : ce que tu as reçu, ce que tu rendras — intérêts compris — et ce qu'il te reste à rembourser. Les intérêts d'un prêt sont ce qu'il te coûte vraiment : ils comptent dans les sorties du mois et forment leur propre barre dans l'histogramme du dashboard. Sans cette extension, les deux onglets « Prêts reçus » et « Remboursements de prêts » de la page Opérations restent fermés et aucun prêt ne pèse sur tes totaux.":
+      "Tracks money lent to you: what you received, what you will give back — interest included — and what is left to repay. A loan's interest is what it really costs you: it counts in the month's outgoings and forms its own bar in the dashboard histogram. Without this extension, the two tabs « Prêts reçus » and « Remboursements de prêts » on the Transactions page stay closed and no loan weighs on your totals.",
+    "Regroupe des opérations déjà saisies en projets — un voyage, un déménagement, un événement — pour lire d'un coup ce qu'ils ont coûté. Ce n'est pas une catégorie de plus : une catégorie classe une dépense par nature et porte un budget mensuel, un projet regroupe par événement à travers les catégories et les comptes, et une même opération peut appartenir à plusieurs projets. Rien n'est recalculé ailleurs : le total d'un projet est une somme affichée, jamais une donnée qui influe sur le dashboard ou les soldes. L'écran s'ajoute en onglet de la page des comptes.":
+      "Groups transactions already entered into projects — a trip, a move, an event — to read at a glance what they cost. It is not one more category: a category files an expense by nature and carries a monthly budget, a project groups by event across categories and accounts, and one transaction can belong to several projects. Nothing is recomputed elsewhere: a project's total is a displayed sum, never a figure that affects the dashboard or the balances. The screen is added as a tab of the accounts page.",
+    "Regarde le portefeuille dans son ensemble plutôt que compte par compte : un camembert de la répartition par type de titre (ETF, obligation, action…), avec le détail des lignes qui composent chaque part. Ne calcule aucun solde et ne modifie rien — c'est une lecture. Nécessite « Placements financiers », et les types de titre se créent depuis son écran.":
+      "Looks at the portfolio as a whole rather than account by account: a pie chart of the breakdown by security type (ETF, bond, share…), with the detail of the lines making up each slice. Computes no balance and changes nothing — it is a read. Requires « Placements financiers », and security types are created from its screen.",
+    "Répond à « qui me doit combien, et à qui est-ce que je dois ». Sans cette extension, les deux onglets « Dépenses remboursables » et « Remboursements reçus » de la page Opérations restent fermés et aucune dépense remboursable ne pèse sur tes totaux (flux du mois, histogramme, « Reste à rembourser ») — exactement comme les prêts sans l'extension « Prêts ». Une fois activée, tu peux en plus créer des profils — une personne, une entreprise, la colocation — et y rattacher tes dépenses remboursables, tes prêts reçus et leurs règlements. L'écran donne alors, par monnaie, le solde net de chaque profil, ce qu'il te doit face à ce que tu lui dois, et le détail des lignes encore ouvertes. Un profil est une étiquette et rien de plus : le supprimer détache simplement ses opérations. L'écran s'ouvre depuis la carte « Reste à rembourser » du dashboard.":
+      "Answers « who owes me how much, and whom do I owe ». Without this extension, the two tabs « Dépenses remboursables » and « Remboursements reçus » on the Transactions page stay closed and no reimbursable expense weighs on your totals (month flows, histogram, « Reste à rembourser ») — exactly like loans without the « Prêts » extension. Once enabled, you can also create profiles — a person, a company, the flat share — and attach your reimbursable expenses, your loans received and their settlements to them. The screen then gives, per currency, each profile's net balance, what it owes you against what you owe it, and the detail of the lines still open. A profile is a label and nothing more: deleting it simply detaches its transactions. The screen opens from the dashboard's « Reste à rembourser » card.",
+
+    /* ===== Reprise de traduction, lot 2 : les libellés courts et les
+       fragments de phrase coupés par un <strong> ou un <em>. ===== */
+    "&larr; Retour au tableau de bord":
+      "&larr; Back to dashboard",
+    "&larr; Retour aux projets":
+      "&larr; Back to projects",
+    "Ouvrir":
+      "Open",
+    "Chercher":
+      "Search",
+    "Rechercher":
+      "Search",
+    "Voir la note":
+      "View note",
+    "Voir le portefeuille →":
+      "View portfolio →",
+    "Description":
+      "Description",
+    "Actualisation":
+      "Refresh",
+    "Groupe":
+      "Group",
+    "Projets":
+      "Projects",
+    "Prêts":
+      "Loans",
+    "Lecture de cours":
+      "Price lookup",
+    "{n} opération(s)":
+      "{n} transactions",
+    "Types de titre":
+      "Security types",
+    "Ajouter le type":
+      "Add type",
+    "Type ajouté":
+      "Type added",
+    "Type renommé":
+      "Type renamed",
+    "Type supprimé":
+      "Type deleted",
+    "Type du titre — purement descriptif":
+      "Security type — purely descriptive",
+    "Nouveau nom pour « {nom} »":
+      "New name for « {nom} »",
+    "Supprimer « {nom} » ?":
+      "Delete « {nom} »?",
+    "aucun titre":
+      "no securities",
+    "titre typé":
+      "typed security",
+    "— aucun type de titre créé —":
+      "— no security type created —",
+    "ex. ETF":
+      "e.g. ETF",
+    "ex. 0":
+      "e.g. 0",
+    "Où ranger tes données ?":
+      "Where should your data live?",
+    "Emplacement du fichier":
+      "File location",
+    "Ranger mes données ici":
+      "Store my data here",
+    "Créer / déplacer ici":
+      "Create / move here",
+    "dans le dossier de l'application":
+      "in the application folder",
+    "dossier à la main.":
+      "folder by hand.",
+    "crée une vierge sinon.":
+      "creates a blank one otherwise.",
+    "— l'endroit qu'une mise à jour":
+      "— the very place an update",
+    "Quand tu importes les relevés":
+      "When you import statements",
+    "Le « i » de chaque ligne dit à quoi elle sert.":
+      "The « i » on each row says what it is for.",
+    "Glisser vers une autre colonne pour reclasser":
+      "Drag to another column to reclassify",
+    "Ce virement est peut-être déjà en base.":
+      "This transfer may already be in the database.",
+    "colonne est la n°1. L'œil barré ne lit pas la colonne.":
+      "column is n°1. The crossed-out eye skips the column.",
+    "obligatoires et ne s'éteignent pas.":
+      "mandatory and cannot be switched off.",
+    "illisibles. L'app devine seule dans la plupart des cas.":
+      "unreadable. The app works it out on its own in most cases.",
+    "française ne convient pas à tous les formats d'export.":
+      "French one does not suit every export format.",
+    "et jeter un œil aux doublons qu'elle a repérés.":
+      "and take a look at the duplicates it spotted.",
+    "changer le type d'une ligne.":
+      "change the type of a row.",
+    "un doublon détecté légitime).":
+      "a legitimate detected duplicate).",
+    "un, il remplace toute la liste par défaut de cet état-là.":
+      "one, it replaces the whole default list for that state.",
+    "répartissent son montant sur les mois choisis.":
+      "spread its amount over the chosen months.",
+    "depuis l'opération d'origine.":
+      "from the original transaction.",
+    "preset.":
+      "preset.",
+    "(émetteur ou récepteur) est déduit du signe du montant.":
+      "(sender or receiver) is deduced from the sign of the amount.",
+    "Et type le titre en":
+      "And types the security as",
+    "du courtier":
+      "from the broker",
+    "achat":
+      "purchase",
+    "avec":
+      "with",
+    "entier":
+      "whole",
+    "daté du jour de la photographie :":
+      "dated the day of the snapshot:",
+    "de ce à quoi elle ressemble.":
+      "of what it looks like.",
+    "peut donc désigner le second.":
+      "can therefore name the second one.",
+    "sur celui du compte courant. Seuls les virements qui":
+      "on the current account's. Only transfers that",
+    "différentes. L'app compare ici la":
+      "different. The app compares here the",
+    "elle-même — le compte, les devises,":
+      "itself — the account, the currencies,",
+    "le type \"Placements financiers\", puis reviens ici.":
+      "the \"Placements financiers\" type, then come back here.",
+    ", et s'arrêtent à la première qui":
+      ", and stop at the first one that",
+    "et s'arrêtent à la première qui":
+      "and stop at the first one that",
+    "d'évaluation":
+      "of evaluation",
+    "ne changent pas l'ordre":
+      "do not change the order",
+    "au-dessus des cas généraux.":
+      "above the general cases.",
+    "défait ce qu'une règle plus haute a décidé :":
+      "undoes what a rule higher up decided:",
+    "en cas de désaccord, la plus haute":
+      "in case of disagreement, the highest one",
+    "gagne":
+      "wins",
+    "les correspondances mémorisées : un type reconnu ici":
+      "the remembered mappings: a type recognised here",
+    "Une règle, elle, sait dire «":
+      "A rule, on the other hand, can say «",
+    "« (A ou B) et C ».":
+      "« (A or B) and C ».",
+    "porter, et la somme doit valoir le montant de la ligne.":
+      "carry it, and the total must equal the row's amount.",
+    "opérations concernées. C'est un":
+      "transactions concerned. It is a",
+    "— retirer une":
+      "— removing a",
+    "Afficher les pages reconnues":
+      "Show recognised pages",
+    "Quelles pages puis-je coller ?":
+      "Which pages can I paste?",
+    "Non installées sur cette machine":
+      "Not installed on this machine",
+
+    /* ===== Reprise de traduction, lot 1 : les écrans signalés comme restés
+       en français (dashboard, comptes, opérations, placements, monnaies).
+       Rangés par écran, dans l'ordre où on les rencontre. ===== */
+    "Catégories ▾":
+      "Categories ▾",
+    "Tout convertir":
+      "Convert everything",
+    "Tout convertir en {monnaie}":
+      "Convert everything to {monnaie}",
+    "Pas de taux pour {monnaies} : ces montants ne sont pas comptés. Saisis leur taux dans Paramètres → Monnaies.":
+      "No rate for {monnaies}: these amounts are left out. Enter their rate in Settings → Currencies.",
+    "Aucune catégorie sélectionnée.":
+      "No category selected.",
+    "Catégorie modifiée":
+      "Category updated",
+    "Compte courant":
+      "Current account",
+    "Compte d'épargne":
+      "Savings account",
+    "Compte de placements":
+      "Investment account",
+    "Intérêts perçus":
+      "Interest received",
+    "Montant perçu":
+      "Amount received",
+    "Total perçu":
+      "Total received",
+    "Aucun versement saisi pour ce compte.":
+      "No payment recorded for this account.",
+    "Supprimer ce versement d'intérêts ?":
+      "Delete this interest payment?",
+    "Une date et un montant supérieur à zéro sont nécessaires.":
+      "A date and an amount greater than zero are required.",
+    "Versement ajouté.":
+      "Payment added.",
+    "Versement modifié.":
+      "Payment updated.",
+    "Versement supprimé.":
+      "Payment deleted.",
+    "Versement":
+      "Payment",
+    "Aucun compte d'épargne. Crée-en un depuis Paramètres → Comptes en choisissant le type":
+      "No savings account. Create one from Settings → Accounts by choosing the type",
+    "« épargne », puis reviens ici.":
+      "« épargne », then come back here.",
+    "Ces montants sont un":
+      "These amounts are a",
+    "suivi d'affichage":
+      "display-only record",
+    ": aucun intérêt n'est écrit en":
+      ": no interest is written as a",
+    "opération, aucun solde et aucun chiffre du dashboard n'en dépend. Si le versement figure sur":
+      "transaction, and no balance or dashboard figure depends on it. If the payment appears on",
+    "ton relevé, il entrera de lui-même par l'import — le saisir ici en plus ne le compterait pas":
+      "your statement, it will come in through the import on its own — recording it here as well would not count it",
+    "deux fois dans tes soldes, mais ne le remplace pas non plus.":
+      "twice in your balances, but it does not replace it either.",
+    "Amorti":
+      "Spread",
+    "Amortie":
+      "Spread",
+    "Récurrent":
+      "Recurring",
+    "Peu importe":
+      "Any",
+    "Oui":
+      "Yes",
+    "Non":
+      "No",
+    "Comporte des frais ?":
+      "Has fees?",
+    "Lié à une opération remboursable ?":
+      "Linked to a reimbursable transaction?",
+    "Lié à un prêt reçu ?":
+      "Linked to a loan received?",
+    "Montant à rembourser min":
+      "Amount owed min",
+    "Montant à rembourser max":
+      "Amount owed max",
+    "Reste à rembourser min":
+      "Still owed min",
+    "Reste à rembourser max":
+      "Still owed max",
+    "Montant envoyé min":
+      "Amount sent min",
+    "Montant envoyé max":
+      "Amount sent max",
+    "Montant reçu min":
+      "Amount received min",
+    "Montant reçu max":
+      "Amount received max",
+    "contient…":
+      "contains…",
+    "La valeur du montant sans son signe. Laisse une case vide pour ne pas borner de ce côté.":
+      "The amount's value without its sign. Leave a box empty not to bound that side.",
+    "Opération classique":
+      "Standard transaction",
+    "Virement interne":
+      "Internal transfer",
+    "Remboursement reçu":
+      "Reimbursement received",
+    "Remboursement de prêt":
+      "Loan repayment",
+    "Vue d'ensemble des placements":
+      "Investments overview",
+    "Vue d'ensemble":
+      "Overview",
+    "Retour aux placements":
+      "Back to investments",
+    "&larr; Retour aux placements":
+      "&larr; Back to investments",
+    "Répartition par type de titre":
+      "Breakdown by security type",
+    "Valeur du portefeuille":
+      "Portfolio value",
+    "Sans type":
+      "No type",
+    "{n} comptes":
+      "{n} accounts",
+    "{n} titre(s)":
+      "{n} securities",
+    "et {n} autre(s)":
+      "and {n} more",
+    "Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page":
+      "No securities held yet. Buy or import securities from the",
+    "Placements financiers, et la répartition apparaîtra ici.":
+      "Investments page, and the breakdown will appear here.",
+    "Enregistrer le taux":
+      "Save rate",
+    "1 unité de":
+      "1 unit of",
+    "vaut, en":
+      "is worth, in",
+    "ce nombre d'unités":
+      "this many units",
+    "ex. 1,08":
+      "e.g. 1.08",
+    "Aucun taux enregistré.":
+      "No rate saved.",
+    "Taux supprimé":
+      "Rate deleted",
+    "relu en ligne":
+      "read online",
+    "saisi à la main":
+      "entered by hand",
+    "Le taux doit être un nombre strictement positif.":
+      "The rate must be a strictly positive number.",
+    "Choisis deux monnaies différentes.":
+      "Choose two different currencies.",
+    "Ajoute une seconde monnaie pour pouvoir saisir un taux.":
+      "Add a second currency before entering a rate.",
+    "Aucun taux relu en ligne : choisis « Depuis un lien » pour en suivre un.":
+      "No rate read online: choose « From a link » to follow one.",
+
+    // L'écran « D'où vient l'écart ? », ouvert depuis la carte de la
+    // variation brute du dashboard (cf. loadEcartVariations).
+    "D'où vient l'écart ?":
+      "Where does the gap come from?",
+    "← Retour au dashboard":
+      "← Back to dashboard",
+    "Les opérations qui l'expliquent":
+      "The transactions that explain it",
+    "Écart":
+      "Gap",
+    "Au compte":
+      "On the account",
+    "Au mois":
+      "On the period",
+    "Pourquoi":
+      "Why",
+    "Libellé":
+      "Label",
+    "Dépense étalée":
+      "Spread expense",
+    "Dépense remboursable":
+      "Reimbursable expense",
+    "Prêt reçu":
+      "Loan received",
+    "Les deux variations ne répondent pas à la même question, elles n'ont donc jamais le même chiffre. Voici, opération par opération, ce qui les sépare sur la période affichée.":
+      "The two changes do not answer the same question, so they never show the same figure. Here is, transaction by transaction, what separates them over the displayed period.",
+    "La variation brute moins la variation attribuée. C'est exactement la somme de la colonne « Écart » ci-dessous : tout ce qui a bougé le compte sans appartenir à cette période, ou l'inverse.":
+      "The gross change minus the attributed change. It is exactly the sum of the « Écart » column below: everything that moved the account without belonging to this period, or the other way round.",
+    "Chaque ligne montre ce que l'opération apporte aux DEUX calculs. « Au compte » : ce qui est passé, à sa date et pour son montant. « Au mois » : ce que la période en porte réellement. Une opération qui compte pareil des deux côtés n'apparaît pas — elle n'explique rien.":
+      "Each row shows what the transaction contributes to BOTH calculations. « On the account »: what went through, on its date and for its amount. « On the period »: what the period actually carries. A transaction counting the same on both sides does not appear — it explains nothing.",
+    "Aucun écart sur cette période : les deux variations disent la même chose.":
+      "No gap over this period: both changes say the same thing.",
+    "Objectif": "Target",
+    "Objectif":
+      "Target",
+    "Objectif de répartition (%)":
+      "Allocation target (%)",
+    "Objectif modifié":
+      "Target updated",
+    "La PART que cette catégorie devrait représenter dans tes dépenses, en pourcentage. Rien à voir avec le budget en valeur posé à gauche : les deux sont indépendants, on peut poser l'un sans l'autre. Ne dépend ni du mois ni de la monnaie. Il s'affiche sur le camembert du dashboard, à droite de la part réellement constatée. Vide = aucun objectif.":
+      "The SHARE this category should represent in your spending, as a percentage. Nothing to do with the amount budget set on the left: the two are independent, you can set one without the other. Does not depend on the month or the currency. It shows on the dashboard pie chart, to the right of the share actually observed. Empty = no target.",
+    "Une part, pas un montant : elle vaut pour tous les mois et toutes les monnaies. 0 = aucun objectif.":
+      "A share, not an amount: it holds for every month and every currency. 0 = no target.",
+    "Ce que la période laisse, au sens de ce qu'elle COÛTE : « Total Entrées » moins « Total Dépenses », les deux cartes juste à gauche. Une dépense amortie n'y pèse que pour sa part du mois, une remboursable pour son reste à charge. Son écart avec la variation brute, à droite, est exactement le décalage entre le moment où l'argent sort et le mois auquel la dépense appartient.":
+      "What the period leaves, in the sense of what it COSTS: « Total Entrées » minus « Total Dépenses », the two cards just to the left. An amortised expense weighs only for its share of the month, a reimbursable one for what it actually costs you. Its gap with the gross change, on the right, is exactly the lag between the moment the money leaves and the month the expense belongs to.",
+    "De combien les comptes courants ont RÉELLEMENT bougé sur la période — le chiffre du relevé. Tout compte à sa date et pour son montant : une dépense amortie en entier, une dépense remboursable sans déduire ce qu'on rendra. Virements internes exclus. En jaune parce qu'elle ne répond pas à la même question que ses voisines : elle ne dit pas si la période a été bonne, elle dit ce qui est passé.":
+      "How much the current accounts ACTUALLY moved over the period — the statement's figure. Everything counts on its date and for its amount: an amortised expense in full, a reimbursable one without deducting what will be paid back. Internal transfers excluded. In yellow because it does not answer the same question as its neighbours: it does not say whether the period was good, it says what went through.",
     "Entr\u00e9es \u2212 sorties (pr\u00e9visionnel inclus)": "Money in \u2212 money out (forecast included)",
     "Total des avoirs": "Total assets",
     "Tous comptes confondus, courant + \u00e9pargne": "All accounts, current + savings",
@@ -1054,7 +1769,6 @@ const TRADUCTIONS = {
       "This account's balance in that currency is not zero: move what is left elsewhere before switching it off.",
     // ----- Extension « Suivi des remboursements » -----
     "Suivi des remboursements": "Repayment tracking",
-    "Voir par personne →": "See by person →",
     // La flèche fait partie du nœud de texte du bouton : le dictionnaire la
     // porte donc aussi (cf. traduireDomStatique, qui traduit le nœud entier).
     "← Retour au tableau de bord": "← Back to the dashboard",
@@ -1065,18 +1779,18 @@ const TRADUCTIONS = {
     "On te doit": "You are owed",
     "Tu dois": "You owe",
     "Solde net": "Net balance",
-    "Le reste dû de tes dépenses remboursables, celles que tu as avancées. Seules les opérations réelles comptent.":
-      "What is still owed on your reimbursable expenses, the ones you paid up front. Only real transactions count.",
-    "Le reste dû de tes prêts reçus. Nécessite l'extension « Prêts » pour qu'il existe des prêts à suivre.":
-      "What is still owed on the loans you received. Requires the “Loans” extension for there to be any loans to track.",
-    "Ce qu'on te doit moins ce que tu dois, dans cette monnaie. C'est le même chiffre que la carte « Reste à rembourser » du tableau de bord.":
-      "What you are owed minus what you owe, in this currency. It is the same figure as the dashboard's “Left to settle” card.",
+    "Le reste dû de tes dépenses remboursables, celles que tu as avancées. Une ligne par monnaie : rien n'est additionné d'une devise à l'autre. Seules les opérations réelles comptent.":
+      "What is still owed on your reimbursable expenses, the ones you paid up front. One line per currency: nothing is added across currencies. Only real transactions count.",
+    "Le reste dû de tes prêts reçus, une ligne par monnaie. Nécessite l'extension « Prêts » pour qu'il existe des prêts à suivre.":
+      "What is still owed on the loans you received, one line per currency. Requires the “Loans” extension for there to be any loans to track.",
+    "Ce qu'on te doit moins ce que tu dois, DANS chaque monnaie — jamais entre elles. C'est le même chiffre que la carte « Reste à rembourser » du tableau de bord, qui n'en montre qu'une à la fois.":
+      "What you are owed minus what you owe, WITHIN each currency — never across them. It is the same figure as the dashboard's “Left to settle” card, which only shows one at a time.",
     "Qui doit combien": "Who owes how much",
-    "Une ligne par profil. La barre va à droite quand on te doit, à gauche quand tu dois ; sa longueur se compare au plus gros solde de la monnaie affichée. Clique une ligne pour voir ses opérations.":
-      "One row per profile. The bar goes right when you are owed, left when you owe; its length compares to the largest balance in the currency shown. Click a row to see its transactions.",
+    "Une ligne par profil, et à l'intérieur une barre par monnaie où il porte quelque chose. La barre va à droite quand on te doit, à gauche quand tu dois ; sa longueur se compare au plus gros solde de SA monnaie — deux devises ne se comparent jamais. Clique une ligne pour voir ses opérations.":
+      "One row per profile, and inside it one bar per currency in which it carries something. The bar goes right when you are owed, left when you owe; its length compares to the largest balance in ITS currency — two currencies are never compared. Click a row to see its transactions.",
     "À rattacher": "To assign",
-    "Les dépenses remboursables et les prêts encore dus qu'aucun profil ne porte, TOUTES MONNAIES CONFONDUES : c'est une liste de rangement, pas un total, et elle ne suit donc pas l'onglet de monnaie. Coche des lignes, choisis un profil, et le tableau du dessus se met à jour.":
-      "Reimbursable expenses and loans still outstanding that no profile carries, ACROSS ALL CURRENCIES: this is a filing list, not a total, so it does not follow the currency tab. Tick some rows, pick a profile, and the table above updates.",
+    "Les dépenses remboursables et les prêts encore dus qu'aucun profil ne porte. Coche des lignes, choisis un profil, et le tableau du dessus se met à jour.":
+      "Reimbursable expenses and loans still outstanding that no profile carries. Tick some rows, pick a profile, and the table above updates.",
     "Profils": "Profiles",
     "Une étiquette, et rien de plus : aucun calcul de l'application ne la lit. En supprimer un détache ses opérations, il ne les efface jamais.":
       "A label, and nothing more: no calculation in the application reads it. Deleting one detaches its transactions; it never erases them.",
@@ -1119,7 +1833,7 @@ const TRADUCTIONS = {
       "Free note: why this rule exists, which statement made it necessary, what to check if it stops matching. Never read by the application.",
     "Note libre : pourquoi cette r\u00e8gle existe, quel relev\u00e9 l'a rendue n\u00e9cessaire. Jamais lue par l'application.":
       "Free note: why this rule exists, which statement made it necessary. Never read by the application.",
-    // Infobulle d'une barre de l'histogramme (cf. contenuInfobulleHistogramme).
+    // Infobulle d'une barre de l'histogramme (cf. contenuInfobulleCategorie).
     "Aucune op\u00e9ration sur la p\u00e9riode.": "No transaction over this period.",
     "Sans libell\u00e9": "No label",
     "La cat\u00e9gorie que ta banque a pos\u00e9e elle-m\u00eame sur la ligne.\n\nElle ne devient pas une cat\u00e9gorie de l'app toute seule : tu fais le rapprochement une fois, il est retenu.":

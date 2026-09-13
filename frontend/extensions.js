@@ -195,6 +195,11 @@ async function injecterHtml(id, fichier, navigation) {
   // passée à l'anglais. La condition de sûreté de traduireDomStatique tient
   // toujours — le fragment sort d'un fichier de l'extension, aucune donnée de
   // l'utilisateur n'y a encore été rendue.
+  // LES MÊMES DEUX PASSES QU'AU DÉMARRAGE, DANS LE MÊME ORDRE (cf. app.js) :
+  // l'écran d'une extension porte ses phrases d'aide en clés comme celui du
+  // noyau, et textes.js les range dans un espace de noms à l'identifiant de
+  // l'extension.
+  appliquerTextes(pose);
   traduireDomStatique(pose);
 }
 
