@@ -666,6 +666,12 @@ class KpisMonnaieRead(BaseModel):
     # et non « qu'est-ce que ce mois me coûte », à laquelle répondent les trois
     # champs juste au-dessus.
     variation_brute: float = 0.0
+    # LE BUDGET TOTAL DE LA PÉRIODE (0 = aucun budget posé, cf.
+    # models.BudgetTotalMensuel). Envoyé avec les dépenses plutôt que relu à
+    # part : c'est le dénominateur de la vue « budget » du camembert, et deux
+    # allers-retours auraient laissé exister un instant où le graphe a ses parts
+    # sans avoir ce sur quoi les rapporter.
+    budget_total: float = 0.0
     depenses_par_categorie: list[DepenseParCategorie] = Field(default_factory=list)
 
 
@@ -679,6 +685,12 @@ class SemaineDepensesRead(BaseModel):
     numero: int
     jour_debut: int
     jour_fin: int
+    # LE BUDGET TOTAL DÉCOUPÉ AU PRORATA DES JOURS, comme celui d'une catégorie
+    # (cf. soldes._budget_alloue_periode) : un budget est posé pour un MOIS, il
+    # n'y a pas d'enveloppe hebdomadaire à lire quelque part. C'est donc « le
+    # rythme qu'il faudrait tenir », et c'est la seule lecture qui garde la
+    # somme des semaines égale au budget du mois.
+    budget_total: float = 0.0
     depenses: list[DepenseParCategorie] = Field(default_factory=list)
 
 
@@ -694,6 +706,54 @@ class DepensesSemainesRead(BaseModel):
     mois: int
     semaines: list[SemaineDepensesRead] = Field(default_factory=list)
     moyenne: list[DepenseParCategorie] = Field(default_factory=list)
+    # Le budget total de la semaine MOYENNE, calculé comme les barres qu'elle
+    # résume : la moyenne des semaines rendues ci-dessus.
+    budget_total_moyen: float = 0.0
+
+
+class BudgetTotalUpdate(BaseModel):
+    """Le budget de tout un mois, dans une monnaie. Zéro RETIRE le budget : la
+    vue « budget » du camembert disparaît alors, plutôt que de rapporter des
+    parts à rien."""
+
+    montant: float = Field(ge=0)
+
+
+class BudgetTotalRead(BaseModel):
+    annee: int
+    mois: int
+    monnaie_id: int
+    montant: float
+    # Posé pour CE mois-ci, ou hérité d'un mois antérieur (cf.
+    # crud.get_budget_total) — l'écran le dit, sans quoi un budget hérité
+    # passerait pour une saisie oubliée.
+    explicite: bool
+
+
+class LigneIncoherenceBudget(BaseModel):
+    """Une catégorie dont le budget en valeur ne vaut pas le budget total
+    multiplié par son objectif en pourcentage.
+
+    LES TROIS CORRECTIONS SONT CALCULÉES ICI, et c'est ce qui permet à la
+    fenêtre de proposer des chiffres exacts plutôt qu'une consigne vague."""
+
+    categorie_id: int
+    categorie: str
+    objectif_pourcentage: float
+    budget_categorie: float
+    budget_attendu: float
+    pourcentage_attendu: float
+    total_attendu: float
+
+
+class IncoherencesBudgetsRead(BaseModel):
+    annee: int
+    mois: int
+    monnaie_id: int
+    budget_total: float
+    # VIDE = TOUT S'ACCORDE, et c'est le cas ordinaire : il faut que les trois
+    # grandeurs existent ET se contredisent pour qu'une ligne apparaisse.
+    lignes: list[LigneIncoherenceBudget] = Field(default_factory=list)
 
 
 class DashboardRead(BaseModel):

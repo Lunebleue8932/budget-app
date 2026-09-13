@@ -278,6 +278,42 @@ class CategorieBudgetMensuel(Base):
     )
 
 
+class BudgetTotalMensuel(Base):
+    """Le budget de TOUT un mois, dans une monnaie : ce qu'on se donne le droit
+    de dépenser, toutes catégories confondues (migration 0057).
+
+    PAS LA SOMME DES BUDGETS DE CATÉGORIE, et c'est la raison d'être de la
+    table : on se fixe d'abord une enveloppe globale, on la répartit ensuite —
+    et rien n'oblige à la répartir en entier. Déduire ce total d'une addition
+    aurait rendu impossible l'état le plus ordinaire : un budget mensuel posé,
+    et trois catégories seulement détaillées.
+
+    MÊME FORME QUE `CategorieBudgetMensuel` : table creuse, un mois sans entrée
+    hérite du dernier mois explicite qui le précède dans la même monnaie (cf.
+    crud.get_budget_total), et la monnaie fait partie de la clé.
+
+    QUI LE LIT : le camembert des dépenses, dans sa vue « budget », et le
+    contrôle de cohérence des trois grandeurs du budget (cf.
+    crud.incoherences_budgets). Aucun solde, aucun KPI, aucune opération."""
+
+    __tablename__ = "budget_total_mensuel"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    annee = Column(Integer, nullable=False)
+    mois = Column(Integer, nullable=False)
+    monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
+    montant = Column(Float, nullable=False, default=0.0)
+
+    monnaie = relationship("Monnaie")
+
+    __table_args__ = (
+        UniqueConstraint("annee", "mois", "monnaie_id", name="uq_budget_total_mensuel"),
+        CheckConstraint("mois >= 1 AND mois <= 12", name="ck_budget_total_mensuel_mois"),
+        CheckConstraint("montant >= 0", name="ck_budget_total_mensuel_montant"),
+        Index("ix_budget_total_mensuel_monnaie", "monnaie_id"),
+    )
+
+
 class TypeCompte(Base):
     """Type de compte (Courant, Épargne, ou tout autre regroupement créé par
     l'utilisateur). Courant/Épargne sont protégés (systeme=True) : ils pilotent

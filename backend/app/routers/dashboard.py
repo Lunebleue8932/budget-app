@@ -32,6 +32,88 @@ def set_note(payload: schemas.NoteDashboardUpdate, db: Session = Depends(get_db)
     return schemas.NoteDashboardRead(contenu=note.contenu, modifie_le=note.modifie_le)
 
 
+def _periode_demandee(annee: Optional[int], mois: Optional[int]) -> tuple[int, int]:
+    """Le mois demandé, ou le mois courant. Les trois routes du budget total
+    partagent cette résolution : elles écrivent et relisent la MÊME case, et
+    deux façons de deviner la période auraient fini par les faire diverger d'un
+    mois au passage de minuit du 31."""
+    aujourdhui = date.today()
+    annee_resolue = annee if annee is not None else aujourdhui.year
+    mois_resolu = mois if mois is not None else aujourdhui.month
+    if mois_resolu < 1 or mois_resolu > 12:
+        raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
+    return annee_resolue, mois_resolu
+
+
+@router.get("/budget-total", response_model=schemas.BudgetTotalRead)
+def lire_budget_total(
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Le budget de tout un mois, résolu par héritage (cf. crud.get_budget_total).
+
+    LE DASHBOARD LE REÇOIT DÉJÀ avec ses KPI : cette route sert au FORMULAIRE,
+    qui a besoin de savoir en plus si le montant est posé pour ce mois-ci ou
+    hérité d'un mois antérieur — un budget hérité affiché sans le dire passe
+    pour une saisie oubliée."""
+    annee, mois = _periode_demandee(annee, mois)
+    return schemas.BudgetTotalRead(
+        annee=annee,
+        mois=mois,
+        monnaie_id=monnaie_id,
+        montant=crud.get_budget_total(db, annee, mois, monnaie_id),
+        explicite=crud.budget_total_est_explicite(db, annee, mois, monnaie_id),
+    )
+
+
+@router.put("/budget-total", response_model=schemas.BudgetTotalRead)
+def ecrire_budget_total(
+    payload: schemas.BudgetTotalUpdate,
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Pose le budget du mois. Zéro le retire de fait — la vue « budget » du
+    camembert disparaît, faute de dénominateur.
+
+    RIEN N'EST REFUSÉ ICI, même si le montant contredit les budgets de
+    catégorie déjà posés : c'est le rôle de `GET /dashboard/coherence-budgets`,
+    que l'écran interroge juste après. Refuser aurait obligé à corriger les
+    vingt catégories AVANT de pouvoir écrire le total, c'est-à-dire dans
+    l'ordre exactement inverse de celui où l'on pense."""
+    annee, mois = _periode_demandee(annee, mois)
+    crud.set_budget_total(db, annee, mois, monnaie_id, payload.montant)
+    return schemas.BudgetTotalRead(
+        annee=annee,
+        mois=mois,
+        monnaie_id=monnaie_id,
+        montant=payload.montant,
+        explicite=True,
+    )
+
+
+@router.get("/coherence-budgets", response_model=schemas.IncoherencesBudgetsRead)
+def lire_coherence_budgets(
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Les catégories dont les trois grandeurs du budget se contredisent.
+
+    INTERROGÉE APRÈS CHAQUE SAISIE des trois — budget total, budget d'une
+    catégorie, objectif en pourcentage — et jamais au chargement d'un écran :
+    c'est une réaction à ce qu'on vient d'écrire, pas un reproche permanent
+    affiché à l'ouverture."""
+    annee, mois = _periode_demandee(annee, mois)
+    return schemas.IncoherencesBudgetsRead(
+        **crud.incoherences_budgets(db, annee, mois, monnaie_id)
+    )
+
+
 @router.get("/ecart-variations", response_model=schemas.EcartVariationsRead)
 def get_ecart_variations(
     monnaie_id: int,
@@ -187,6 +269,7 @@ def get_dashboard(
                 variation_brute=soldes.get_variation_brute(
                     db, annee, mois, monnaie.id
                 ),
+                budget_total=soldes.get_budget_total_periode(db, annee, mois, monnaie.id),
                 depenses_par_categorie=[
                     schemas.DepenseParCategorie(**item)
                     for item in soldes.get_depenses_par_categorie(db, annee, mois, monnaie.id)

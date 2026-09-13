@@ -111,6 +111,13 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         # « Tout convertir » est cochée, ce qui est faux et silencieux.
         agrege.reste_a_recevoir += kpi.reste_a_recevoir * coefficient
         agrege.reste_a_rendre += kpi.reste_a_rendre * coefficient
+        # LE BUDGET TOTAL SE CONVERTIT, LUI, parce que c'est un MONTANT : un
+        # budget de 2 000 $ posé à côté d'un budget de 2 500 € fait bien 4 300 €
+        # de droit de dépenser, et c'est ce chiffre-là que la vue « budget » du
+        # camembert doit prendre pour dénominateur quand tout est converti.
+        # L'oublier aurait fait disparaître la vue entière dès que la case est
+        # cochée, faute de budget dans la monnaie d'arrivée.
+        agrege.budget_total += kpi.budget_total * coefficient
         for depense in kpi.depenses_par_categorie:
             _categorie_agregee(categories, depense, coefficient)
 

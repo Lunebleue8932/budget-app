@@ -328,6 +328,164 @@ def set_budget_categorie(
     db.commit()
 
 
+# ---------- Le budget TOTAL d'un mois, et l'accord des trois grandeurs ----------
+#
+# TROIS CHIFFRES QUI SE RÉPONDENT. Un mois de budget s'écrit désormais avec
+# trois grandeurs, et chacune se saisit à un endroit différent de
+# l'application :
+#
+#   - LE BUDGET TOTAL (ici) — ce qu'on se donne pour tout le mois, posé sur le
+#     camembert ;
+#   - LE BUDGET D'UNE CATÉGORIE (`CategorieBudgetMensuel`) — l'enveloppe en
+#     valeur, posée dans l'onglet Catégories ;
+#   - SON OBJECTIF EN POURCENTAGE (`Categorie.objectif_pourcentage`) — la part
+#     qu'elle devrait peser, posée au même endroit.
+#
+# ELLES NE SONT PAS INDÉPENDANTES : le deuxième devrait valoir le premier
+# multiplié par le troisième. Rien n'oblige à les poser toutes les trois, et
+# tant qu'il en manque une il n'y a rien à vérifier. Mais dès que les trois
+# existent, elles peuvent se contredire — et c'est alors une VRAIE question,
+# dont la réponse n'appartient qu'à celui qui a écrit les chiffres : a-t-il
+# changé d'avis sur l'enveloppe, sur la part, ou sur le total ?
+#
+# D'OÙ UN SIGNALEMENT ET NON UN RECALCUL. Recalculer d'office la troisième
+# aurait défait en silence la saisie précédente — poser un budget de catégorie
+# aurait réécrit son pourcentage, et l'inverse aussi, sans que rien ne le dise.
+# `incoherences_budgets` se contente donc de CONSTATER, et l'écran demande
+# laquelle des trois corriger (cf. app.js, la fenêtre d'accord des budgets).
+
+
+def get_budget_total(db: Session, annee: int, mois: int, monnaie_id: int) -> float:
+    """Budget total résolu pour (annee, mois) dans une monnaie : la dernière
+    entrée explicite à cette date ou avant, sinon 0.0.
+
+    MÊME HÉRITAGE QUE `get_budget_categorie`, et pour la même raison : poser son
+    budget une fois doit valoir pour les mois suivants, sans quoi il faudrait le
+    réécrire tous les trente jours. L'héritage ne traverse jamais les monnaies.
+
+    ZÉRO VEUT DIRE « PAS DE BUDGET », et non « budget nul » : c'est ce qui
+    permet au camembert de savoir qu'il n'a pas de vue budget à proposer, plutôt
+    que d'en dessiner une où tout dépassement serait infini."""
+    entree = (
+        db.query(models.BudgetTotalMensuel)
+        .filter(
+            models.BudgetTotalMensuel.monnaie_id == monnaie_id,
+            or_(
+                models.BudgetTotalMensuel.annee < annee,
+                and_(
+                    models.BudgetTotalMensuel.annee == annee,
+                    models.BudgetTotalMensuel.mois <= mois,
+                ),
+            ),
+        )
+        .order_by(
+            models.BudgetTotalMensuel.annee.desc(),
+            models.BudgetTotalMensuel.mois.desc(),
+        )
+        .first()
+    )
+    return entree.montant if entree else 0.0
+
+
+def budget_total_est_explicite(db: Session, annee: int, mois: int, monnaie_id: int) -> bool:
+    return (
+        db.query(models.BudgetTotalMensuel)
+        .filter(
+            models.BudgetTotalMensuel.monnaie_id == monnaie_id,
+            models.BudgetTotalMensuel.annee == annee,
+            models.BudgetTotalMensuel.mois == mois,
+        )
+        .first()
+        is not None
+    )
+
+
+def set_budget_total(
+    db: Session, annee: int, mois: int, monnaie_id: int, montant: float
+) -> None:
+    entree = (
+        db.query(models.BudgetTotalMensuel)
+        .filter(
+            models.BudgetTotalMensuel.monnaie_id == monnaie_id,
+            models.BudgetTotalMensuel.annee == annee,
+            models.BudgetTotalMensuel.mois == mois,
+        )
+        .first()
+    )
+    if entree:
+        entree.montant = montant
+    else:
+        db.add(
+            models.BudgetTotalMensuel(
+                annee=annee, mois=mois, monnaie_id=monnaie_id, montant=montant
+            )
+        )
+    db.commit()
+
+
+def _ecart_tolere(attendu: float) -> float:
+    """Ce qu'on ne signale pas.
+
+    UN CENTIME AU MOINS, parce que c'est la plus petite unité que l'écran sait
+    écrire, et UN MILLIÈME DU MONTANT au-delà : les pourcentages se saisissent à
+    la décimale, donc 30,1 % d'un budget de 2 500 ne tombe jamais sur un compte
+    rond, et signaler cet écart-là reviendrait à signaler l'arrondi lui-même."""
+    return max(0.01, abs(attendu) * 0.001)
+
+
+def incoherences_budgets(db: Session, annee: int, mois: int, monnaie_id: int) -> dict:
+    """Les catégories dont les trois grandeurs ne s'accordent pas, sur un mois
+    et une monnaie.
+
+    NE SIGNALE QUE CE QUI EST VRAIMENT DIT. Une catégorie sans objectif, ou sans
+    budget en valeur, ou un mois sans budget total : il manque alors un des
+    trois termes de l'équation, et il n'y a rien à contredire. Poser un budget
+    sur trois catégories et rien sur les dix-sept autres reste l'état ordinaire.
+
+    CHAQUE LIGNE PORTE LES TROIS CORRECTIONS POSSIBLES, calculées ici plutôt
+    qu'à l'écran : c'est la même arithmétique dans les trois sens, et la faire
+    côté serveur garantit que le chiffre proposé par la fenêtre est exactement
+    celui qui fera taire le signalement."""
+    total = get_budget_total(db, annee, mois, monnaie_id)
+    lignes = []
+    if total > 0:
+        categories = (
+            db.query(models.Categorie)
+            .filter(models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE))
+            .order_by(models.Categorie.ordre)
+            .all()
+        )
+        for categorie in categories:
+            pourcentage = categorie.objectif_pourcentage or 0.0
+            budget = get_budget_categorie(db, categorie.id, annee, mois, monnaie_id)
+            if pourcentage <= 0 or budget <= 0:
+                continue
+            attendu = total * pourcentage / 100.0
+            if abs(budget - attendu) <= _ecart_tolere(attendu):
+                continue
+            lignes.append(
+                {
+                    "categorie_id": categorie.id,
+                    "categorie": categorie.nom,
+                    "objectif_pourcentage": pourcentage,
+                    "budget_categorie": budget,
+                    "budget_attendu": attendu,
+                    # Les deux autres façons de rétablir l'accord : garder le
+                    # budget de la catégorie et corriger sa part, ou garder les
+                    # deux et corriger le total du mois.
+                    "pourcentage_attendu": budget / total * 100.0,
+                    "total_attendu": budget / pourcentage * 100.0,
+                }
+            )
+    return {
+        "annee": annee,
+        "mois": mois,
+        "monnaie_id": monnaie_id,
+        "budget_total": total,
+        "lignes": lignes,
+    }
+
+
 def reordonner_categories(db: Session, ids_ordonnes: list[int]) -> None:
     """Applique un nouvel ordre d'affichage (glisser-déposer) aux catégories
     listées, dans l'ordre donné. Les ids omis gardent leur ordre actuel."""

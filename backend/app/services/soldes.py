@@ -868,6 +868,24 @@ def _budget_alloue_periode(
     )
 
 
+def get_budget_total_periode(
+    db: Session,
+    annee: int,
+    mois: Optional[int],
+    monnaie_id: int,
+    semaine: Optional[int] = None,
+) -> float:
+    """Le budget TOTAL de la période affichée — même découpage que celui d'une
+    catégorie (cf. _budget_alloue_periode), et c'est ce qui les garde
+    comparables : l'année somme ses douze mois, une semaine prend sa part des
+    jours, et les deux répondent donc toujours de la même période."""
+    if mois is not None:
+        return crud.get_budget_total(db, annee, mois, monnaie_id) * prorata_semaine(
+            annee, mois, semaine
+        )
+    return sum(crud.get_budget_total(db, annee, m, monnaie_id) for m in range(1, 13))
+
+
 def get_depenses_par_categorie(
     db: Session,
     annee: int,
@@ -975,6 +993,9 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
             "numero": rang,
             "jour_debut": debut,
             "jour_fin": fin,
+            "budget_total": get_budget_total_periode(
+                db, annee, mois, monnaie_id, semaine=rang
+            ),
             "depenses": get_depenses_par_categorie(
                 db, annee, mois, monnaie_id, semaine=rang
             ),
@@ -998,6 +1019,12 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
                     "total_previsionnel": 0.0,
                     "budget_alloue": 0.0,
                     "couleur_index": ligne["couleur_index"],
+                    # L'OBJECTIF SUIT LA CATÉGORIE, pas la période : il ne se
+                    # moyenne pas, il se recopie. L'oublier ici faisait
+                    # disparaître toutes les cibles de la vue « Moyenne », sans
+                    # erreur ni trace — la valeur par défaut du schéma, 0, se
+                    # lit exactement comme « aucun objectif posé ».
+                    "objectif_pourcentage": ligne.get("objectif_pourcentage", 0.0),
                     # Le détail par libellé n'a pas de sens sur une moyenne : une
                     # dépense moyenne n'a pas eu lieu. L'infobulle dira
                     # simplement qu'il n'y a rien à détailler.
@@ -1012,6 +1039,10 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
         "mois": mois,
         "semaines": semaines,
         "moyenne": list(moyenne.values()),
+        # La moyenne des budgets des semaines rendues, et non le budget du mois
+        # divisé par quatre : c'est la moyenne des BARRES affichées qui doit
+        # s'accorder à la barre « Moyenne », découpe des jours comprise.
+        "budget_total_moyen": sum(s["budget_total"] for s in semaines) / nombre,
     }
 
 
