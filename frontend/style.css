@@ -1476,14 +1476,30 @@ form .full-width {
 /* Le bouton du filtre de catégories, posé dans le titre plutôt qu'une case de
    plus dans le sélecteur de période : il ne pilote pas la PÉRIODE, seulement
    ce que les deux graphes DESSINENT. */
-.dashboard-filtre-categories {
+/* ---------- LE MENU À COCHER, ET SES DEUX EMPLOIS ----------
+ *
+ * Un bouton discret posé dans un titre, qui déplie une liste de cases : le
+ * filtre de catégories du dashboard, et le choix des colonnes du tableau des
+ * titres détenus (extension « Placements financiers »). Les deux répondent à la
+ * même question — « qu'est-ce que je veux voir ici ? » — et doivent donc se
+ * reconnaître d'un écran à l'autre.
+ *
+ * LES CLASSES SONT CE QUI LE GARANTIT. Ces règles portaient l'identifiant du
+ * seul bouton qui existait alors ; une extension n'avait plus qu'à recopier les
+ * valeurs, et la copie aurait dérivé au premier ajustement. `.filtre-menu` /
+ * `.filtre-menu-bouton` / `.filtre-categories-panneau` sont désormais le
+ * vocabulaire commun, et l'identifiant du dashboard n'est plus qu'un vestige
+ * conservé pour ne rien casser. */
+.dashboard-filtre-categories,
+.filtre-menu {
   position: relative;
   display: inline-block;
   margin-left: 0.6rem;
   vertical-align: middle;
 }
 
-#btn-dashboard-filtre-categories {
+#btn-dashboard-filtre-categories,
+.filtre-menu-bouton {
   font-size: 0.75rem;
   padding: 0.25rem 0.6rem;
   border-radius: var(--radius-sm);
@@ -1494,7 +1510,9 @@ form .full-width {
 }
 
 #btn-dashboard-filtre-categories:hover,
-#btn-dashboard-filtre-categories[aria-expanded="true"] {
+#btn-dashboard-filtre-categories[aria-expanded="true"],
+.filtre-menu-bouton:hover,
+.filtre-menu-bouton[aria-expanded="true"] {
   color: var(--text-primary);
   border-color: var(--accent);
 }

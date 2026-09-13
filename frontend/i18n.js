@@ -823,6 +823,7 @@ const TRADUCTIONS = {
        Rangés par écran, dans l'ordre où on les rencontre. ===== */
     "Catégories ▾":
       "Categories ▾",
+    "Colonnes": "Columns",
     "Tout convertir":
       "Convert everything",
     "Tout convertir en {monnaie}":

@@ -554,33 +554,142 @@ function formatQuantite(valeur) {
   return Number(valeur.toFixed(6)).toLocaleString("fr-FR", { maximumFractionDigits: 6 });
 }
 
+/* ---------- LES COLONNES DU TABLEAU DES TITRES DÉTENUS ----------
+ *
+ * SEPT COLONNES POUR UNE LIGNE, C'ÉTAIT TROP. Une détention porte sa quantité,
+ * son prix de revient, ce qu'elle a coûté, son cours, ce qu'elle vaut et ce
+ * qu'elle a gagné ; devant quinze lignes, on ne lit plus rien.
+ *
+ * TROIS RÉPONDENT À LA QUESTION QU'ON SE POSE EN ARRIVANT — « combien ça vaut,
+ * et est-ce que je gagne ? » : le cours, la valorisation, la plus ou moins-value.
+ * Les trois autres racontent l'HISTOIRE de la ligne — ce qu'on en a acheté, à
+ * quel prix, pour quelle somme — et ne se consultent qu'en y allant exprès.
+ * Elles sont donc ÉTEINTES AU DÉMARRAGE (`defaut: false`) et se rallument d'une
+ * case.
+ *
+ * LE TITRE NE SE CACHE JAMAIS (`verrouillee`) : une ligne sans son nom ne se
+ * rattache plus à rien.
+ *
+ * LE CHOIX NE SURVIT PAS À LA SESSION, comme le filtre de catégories du
+ * dashboard et pour la même raison : c'est une façon de REGARDER, pas un
+ * réglage. Rouvrir l'application sur un tableau amputé de trois colonnes qu'on
+ * avait dépliées un soir pour vérifier un prix de revient serait une surprise,
+ * et la question « pourquoi cette colonne a-t-elle disparu ? » ne se pose plus
+ * jamais si l'écran repart toujours du même état.
+ *
+ * TOUT EST PRÉFIXÉ `PLACEMENTS_` / `placements…` : les scripts d'extension
+ * s'exécutent en portée globale, dans l'ordre alphabétique des dossiers, et un
+ * nom nu se ferait écraser par celui d'une autre extension (cf.
+ * extensions/README.md). Le préfixe `impl` était d'ailleurs déjà pris — c'est
+ * celui d'`import-placements`, qui se charge juste avant.
+ */
+const PLACEMENTS_COLONNES_DETENTIONS = [
+  { cle: "titre", libelle: "Titre", verrouillee: true, defaut: true },
+  { cle: "quantite", libelle: "Quantité", defaut: false },
+  { cle: "prix_revient", libelle: "Prix de revient", defaut: false },
+  { cle: "investi", libelle: "Investi", defaut: false },
+  { cle: "cours", libelle: "Cours", defaut: true },
+  { cle: "valorisation", libelle: "Valorisation", defaut: true },
+  { cle: "plus_value", libelle: "+/- value", defaut: true },
+];
+
+let placementsColonnesDetentionsVisibles = new Set(
+  PLACEMENTS_COLONNES_DETENTIONS.filter((c) => c.defaut).map((c) => c.cle)
+);
+
+/** La cellule d'une colonne pour une détention. Un seul endroit qui sait ce que
+ *  chaque colonne montre — l'en-tête, lui, ne connaît que des libellés. */
+function placementsCelluleDetention(cle, d) {
+  const montant = (valeur) =>
+    `<td class="montant neutre">${formatMontant(valeur, d.monnaie_id)}</td>`;
+  switch (cle) {
+    case "titre":
+      return `<td>${escapeHtml(d.action_nom)}</td>`;
+    case "quantite":
+      return `<td>${formatQuantite(d.quantite)}</td>`;
+    case "prix_revient":
+      return montant(d.prix_revient_unitaire);
+    case "investi":
+      return montant(d.montant_investi);
+    case "cours":
+      return montant(d.valeur_unitaire);
+    case "valorisation":
+      return montant(d.valorisation);
+    case "plus_value": {
+      // Une plus-value nulle n'est ni un gain ni une perte : blanc, et sans
+      // signe (cf. classeMontant / montantEstNul dans app.js).
+      const nulle = montantEstNul(d.plus_value_latente);
+      const signe = classeMontant(
+        d.plus_value_latente,
+        d.plus_value_latente > 0 ? "entree" : "sortie"
+      );
+      const prefixe = nulle ? "" : d.plus_value_latente > 0 ? "+" : "−";
+      return `<td><span class="montant ${signe}">${prefixe}${formatMontant(
+        Math.abs(d.plus_value_latente),
+        d.monnaie_id
+      )}</span></td>`;
+    }
+    default:
+      return "<td></td>";
+  }
+}
+
+/** Le menu du choix des colonnes, posé dans le titre « Titres détenus ».
+ *
+ *  CONSTRUIT UNE SEULE FOIS, et surtout PAS à chaque rendu du tableau. Cocher
+ *  une case redessine le tableau ; si ce rendu reconstruisait le menu, le menu
+ *  se refermerait sous le curseur à chaque case — impossible d'en cocher deux
+ *  de suite, ce qui est pourtant le geste le plus ordinaire ici. La liste ne
+ *  dépend d'ailleurs de rien : sept colonnes, toujours les mêmes.
+ *
+ *  Le tableau, lui, est reconstruit à chaque fois : c'est LUI qui change. */
+function placementsAssurerMenuColonnes() {
+  const conteneur = document.getElementById("placements-colonnes-menu");
+  if (!conteneur || conteneur.dataset.pose === "1") return;
+  conteneur.dataset.pose = "1";
+  creerMenuCases(conteneur, {
+    libelle: t("Colonnes"),
+    options: PLACEMENTS_COLONNES_DETENTIONS.map((c) => ({
+      cle: c.cle,
+      libelle: t(c.libelle),
+      verrouillee: c.verrouillee,
+    })),
+    coches: placementsColonnesDetentionsVisibles,
+    onChange: (choisies) => {
+      // La colonne verrouillée reste cochée quoi qu'il arrive : sa case est
+      // inerte, mais rien n'empêcherait un jour de l'oublier dans le Set.
+      PLACEMENTS_COLONNES_DETENTIONS.filter((c) => c.verrouillee).forEach((c) =>
+        choisies.add(c.cle)
+      );
+      placementsColonnesDetentionsVisibles = choisies;
+      renderDetentions(placementDetail ? placementDetail.detentions : []);
+    },
+  });
+}
+
 function renderDetentions(detentions) {
   const body = document.getElementById("placements-detentions");
+  const entete = document.getElementById("placements-detentions-entete");
+  if (!body || !entete) return;
+
+  const colonnes = PLACEMENTS_COLONNES_DETENTIONS.filter((c) =>
+    placementsColonnesDetentionsVisibles.has(c.cle)
+  );
+  entete.innerHTML = colonnes.map((c) => `<th>${escapeHtml(t(c.libelle))}</th>`).join("");
+  placementsAssurerMenuColonnes();
+
   body.innerHTML = "";
   if (detentions.length === 0) {
-    body.innerHTML = `<tr><td colspan="7" class="hint">${t("Aucun titre détenu sur ce compte.")}</td></tr>`;
+    // Le `colspan` suit le nombre de colonnes AFFICHÉES : figé à sept, la ligne
+    // « aucun titre » aurait débordé du tableau dès qu'on en éteint une.
+    body.innerHTML = `<tr><td colspan="${colonnes.length}" class="hint">${t(
+      "Aucun titre détenu sur ce compte."
+    )}</td></tr>`;
     return;
   }
   detentions.forEach((d) => {
-    // Une plus-value nulle n'est ni un gain ni une perte : blanc, et sans signe
-    // (cf. classeMontant / montantEstNul dans app.js).
-    const nulle = montantEstNul(d.plus_value_latente);
-    const signe = classeMontant(
-      d.plus_value_latente,
-      d.plus_value_latente > 0 ? "entree" : "sortie"
-    );
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(d.action_nom)}</td>
-      <td>${formatQuantite(d.quantite)}</td>
-      <td class="montant neutre">${formatMontant(d.prix_revient_unitaire, d.monnaie_id)}</td>
-      <td class="montant neutre">${formatMontant(d.montant_investi, d.monnaie_id)}</td>
-      <td class="montant neutre">${formatMontant(d.valeur_unitaire, d.monnaie_id)}</td>
-      <td class="montant neutre">${formatMontant(d.valorisation, d.monnaie_id)}</td>
-      <td><span class="montant ${signe}">${
-        nulle ? "" : d.plus_value_latente > 0 ? "+" : "−"
-      }${formatMontant(Math.abs(d.plus_value_latente), d.monnaie_id)}</span></td>
-    `;
+    tr.innerHTML = colonnes.map((c) => placementsCelluleDetention(c.cle, d)).join("");
     body.appendChild(tr);
   });
 }

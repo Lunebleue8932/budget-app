@@ -29,13 +29,28 @@
              plus-value ne s'additionnent pas d'une monnaie à l'autre. -->
         <div id="placements-kpis"></div>
 
-        <h3>Titres détenus</h3>
-        <table>
+        <!-- SEPT COLONNES POUR UNE LIGNE, C'ÉTAIT TROP. Une détention porte sa
+             quantité, son prix de revient, ce qu'elle a coûté, son cours, ce
+             qu'elle vaut et ce qu'elle a gagné — et devant quinze lignes, on ne
+             lit plus rien. TROIS RÉPONDENT À LA QUESTION QU'ON SE POSE EN
+             ARRIVANT (« combien ça vaut, et est-ce que je gagne ? ») : cours,
+             valorisation, +/- value. Les trois autres racontent l'HISTOIRE de
+             la ligne — ce qu'on en a acheté, à quel prix, pour quelle somme —
+             et on ne les consulte qu'en y allant exprès : elles sont donc
+             éteintes au démarrage, et se rallument d'une case.
+
+             LE TITRE NE SE CACHE PAS : une ligne sans son nom ne se rattache
+             plus à rien. Sa case est présente et verrouillée, plutôt qu'absente
+             — une case manquante se cherche longtemps.
+
+             LE SÉLECTEUR EST CELUI DES CATÉGORIES DU DASHBOARD, mécanisme du
+             noyau (`creerMenuCases`) et non une copie : deux menus qui posent
+             la même question doivent se reconnaître d'un écran à l'autre, et
+             une copie aurait dérivé au premier ajustement. -->
+        <h3>Titres détenus<span id="placements-colonnes-menu"></span></h3>
+        <table id="placements-detentions-table">
           <thead>
-            <tr>
-              <th>Titre</th><th>Quantité</th><th>Prix de revient</th><th>Investi</th>
-              <th>Cours</th><th>Valorisation</th><th>+/- value</th>
-            </tr>
+            <tr id="placements-detentions-entete"></tr>
           </thead>
           <tbody id="placements-detentions"></tbody>
         </table>

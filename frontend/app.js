@@ -4052,6 +4052,94 @@ document.addEventListener("click", (evenement) => {
 });
 
 
+/* ---------- LE MENU À COCHER, mécanisme transverse ----------
+ *
+ * UN BOUTON DISCRET DANS UN TITRE, qui déplie une liste de cases : « qu'est-ce
+ * que je veux voir ici ? ». Le filtre de catégories du dashboard l'a inventé ;
+ * le choix des colonnes du tableau des titres détenus (extension « Placements
+ * financiers ») en est le deuxième emploi, et le premier hors du noyau.
+ *
+ * POURQUOI IL VIT ICI et pas dans l'extension : une extension qui recopie un
+ * enchaînement du noyau le fige au jour où elle l'a copié, et les deux menus
+ * auraient cessé de se ressembler au premier ajustement — or se ressembler EST
+ * la fonction de ce contrôle. Même raison que `creerEditeurMotsCles`, que
+ * l'éditeur de règles réemploie tel quel.
+ *
+ * CE QU'IL NE FAIT PAS : décider quoi que ce soit du contenu. Il rend les cases
+ * demandées, il appelle `onChange` avec le Set des clés cochées, et il se
+ * referme au clic hors de lui. Ce qui est coché, ce que ça veut dire et ce qui
+ * doit se redessiner ne regardent que l'appelant.
+ *
+ * LE FILTRE DU DASHBOARD N'A PAS ÉTÉ CONVERTI, et c'est délibéré : ses lignes
+ * portent une pastille de couleur, un état indéterminé sur « Tout
+ * sélectionner » et une forme canonique (`null` = toutes) qui lui est propre.
+ * Les faire entrer ici aurait demandé d'inventer des options pour un seul
+ * appelant. Ce que les deux PARTAGENT — le bouton, le panneau, la façon de se
+ * refermer — est dans la feuille de style, où c'est déjà commun.
+ */
+function creerMenuCases(conteneur, { libelle, options, coches, onChange }) {
+  conteneur.innerHTML = "";
+  conteneur.classList.add("filtre-menu");
+
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "filtre-menu-bouton";
+  bouton.textContent = `${libelle} ▾`;
+  bouton.setAttribute("aria-haspopup", "true");
+  bouton.setAttribute("aria-expanded", "false");
+
+  const panneau = document.createElement("div");
+  panneau.className = "filtre-categories-panneau";
+  panneau.hidden = true;
+
+  const choisies = new Set(coches);
+  options.forEach(({ cle, libelle: texte, verrouillee }) => {
+    const ligne = document.createElement("label");
+    const caseACocher = document.createElement("input");
+    caseACocher.type = "checkbox";
+    caseACocher.checked = choisies.has(cle);
+    // UNE OPTION VERROUILLÉE RESTE VISIBLE, cochée et inerte. La retirer de la
+    // liste aurait laissé croire qu'elle se cache aussi, et fait chercher
+    // longtemps la case qui n'existe pas.
+    caseACocher.disabled = Boolean(verrouillee);
+    caseACocher.addEventListener("change", () => {
+      if (caseACocher.checked) choisies.add(cle);
+      else choisies.delete(cle);
+      onChange(new Set(choisies));
+    });
+    ligne.appendChild(caseACocher);
+    ligne.appendChild(document.createTextNode(texte));
+    panneau.appendChild(ligne);
+  });
+
+  bouton.addEventListener("click", () => {
+    const ouvrir = panneau.hidden;
+    panneau.hidden = !ouvrir;
+    bouton.setAttribute("aria-expanded", String(ouvrir));
+  });
+
+  conteneur.appendChild(bouton);
+  conteneur.appendChild(panneau);
+}
+
+// Clic hors du contrôle : referme, comme tout menu déroulant de l'app.
+//
+// UN SEUL ÉCOUTEUR POUR TOUS LES MENUS, posé une fois et délégué. Chaque appel
+// à `creerMenuCases` en posait un sur `document`, et un menu reconstruit — ce
+// que fait n'importe quel écran qui se redessine — en laissait donc un de plus
+// derrière lui à chaque fois. Une fuite silencieuse, invisible tant qu'on ne
+// compte pas : rien ne casse, le même travail se refait simplement N fois.
+document.addEventListener("click", (e) => {
+  document.querySelectorAll(".filtre-menu").forEach((menu) => {
+    if (menu.contains(e.target)) return;
+    const panneau = menu.querySelector(".filtre-categories-panneau");
+    if (!panneau || panneau.hidden) return;
+    panneau.hidden = true;
+    menu.querySelector(".filtre-menu-bouton")?.setAttribute("aria-expanded", "false");
+  });
+});
+
+
 /* ---------- Comptes ---------- */
 
 /**
