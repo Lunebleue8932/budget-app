@@ -462,7 +462,7 @@ def test_depenses_par_categorie_rend_toutes_les_categories(db_session):
     }
     assert resultats["Alimentaire"]["total_reel"] == 50.0
     # Celles qui n'ont rien reçu sont là aussi, à zéro : l'écran a besoin de
-    # toutes les lignes pour calculer le reste implicite des objectifs.
+    # toutes les lignes, le filtre du dashboard se chargeant de l'affichage.
     assert "Loisirs & sorties" in resultats
     # La catégorie d'entrée, elle, reste écartée.
     assert "Entrées d'argent" not in resultats

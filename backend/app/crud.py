@@ -179,12 +179,14 @@ def erreur_objectif_pourcentage(
     """Le message d'erreur si cet objectif faisait dépasser 100 % au total, None
     sinon.
 
-    POURQUOI CETTE BORNE EXISTE MAINTENANT, alors que les objectifs partiels sont
-    admis. L'écran répartit le reste à 100 % entre les catégories SANS objectif
-    (cf. renderPieChartDepenses, la règle du « reste implicite ») : au-delà de
-    100, ce reste devient négatif et la règle n'a plus de sens — on demanderait à
-    des catégories de peser moins que rien. Mieux vaut refuser la saisie que
-    laisser un écran calculer sur une base impossible.
+    POURQUOI CETTE BORNE EXISTE, alors que les objectifs partiels sont admis. Les
+    objectifs sont des parts D'UN MÊME TOUT, le budget total du mois (cf.
+    models.BudgetTotalMensuel) : au-delà de 100, ils décrivent une répartition de
+    plus que le budget entier. L'accord des trois grandeurs
+    (`incoherences_budgets`) réclamerait alors des enveloppes dont la somme
+    dépasse le total, sans qu'aucune correction proposée ne puisse y remédier.
+    Mieux vaut refuser la saisie que fabriquer un état dont on ne peut plus
+    sortir.
 
     LA SOMME PORTE SUR TOUTES LES CATÉGORIES, y compris celles qui sont éteintes
     du dashboard : un objectif est une propriété de la catégorie, pas un réglage

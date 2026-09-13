@@ -950,7 +950,8 @@ def get_depenses_par_categorie(
                 # l'œil qui tranche. Un écart calculé côté serveur aurait dû
                 # choisir un dénominateur (toutes les catégories ? les seules
                 # affichées ?) alors que ce dénominateur dépend justement du
-                # filtre appliqué à l'écran (cf. renderPieChartDepenses).
+                # la VUE choisie pour le camembert (cf. renderPieChartDepenses
+                # : total dépensé ou budget du mois).
                 "objectif_pourcentage": categorie.objectif_pourcentage,
                 "top_depenses": tops.get(categorie.nom, []),
             }

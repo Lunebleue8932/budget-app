@@ -111,10 +111,9 @@ def set_objectif_categorie(
         est l'état ORDINAIRE. Exiger un total exact aurait obligé à inventer un
         objectif pour chaque catégorie dont on n'a rien à dire, et rendu
         impossible l'état où l'on vient d'en poser son premier ;
-      - dépasser 100 %, en revanche, décrit une répartition qui n'existe pas. Ce
-        qui reste à 100 est implicitement réparti entre les catégories sans
-        objectif (cf. renderPieChartDepenses) : au-delà, ce reste devient
-        négatif, et l'écran calculerait sur une base impossible.
+      - dépasser 100 %, en revanche, décrit une répartition qui n'existe pas :
+        les objectifs sont des parts du budget TOTAL du mois, et leur somme
+        au-delà de 100 répartirait plus que le budget entier.
 
     Le refus est un 400 avec le plafond utilisable ANNONCÉ (« celle-ci ne peut
     pas dépasser 22,5 % ») : un message qui dit seulement « trop grand » oblige à

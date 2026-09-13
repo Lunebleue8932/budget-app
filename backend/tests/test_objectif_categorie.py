@@ -143,7 +143,7 @@ def test_la_somme_des_objectifs_ne_peut_pas_depasser_cent(db_session):
     """ON N'EST PAS OBLIGÉ D'ATTEINDRE 100 %, MAIS ON NE PEUT PAS LE DÉPASSER.
 
     Ce qui reste à 100 est implicitement réparti entre les catégories SANS
-    objectif (cf. renderPieChartDepenses) : au-delà, ce reste devient négatif et
+    objectif : au-delà, la répartition dépasse le budget entier et
     l'écran calculerait sur une base impossible."""
     categories = [c for c in crud.get_categories(db_session)]
     a, b, c = categories[0], categories[1], categories[2]
