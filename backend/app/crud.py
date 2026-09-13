@@ -256,34 +256,66 @@ def get_budgets_explicites_categorie(db: Session, categorie_id: int, monnaie_id:
     )
 
 
+# ---------- L'HÉRITAGE D'UN BUDGET, DANS LES DEUX SENS ----------
+#
+# UN BUDGET EST UNE TABLE CREUSE : on n'écrit un montant que le mois où on
+# change d'avis, et tous les autres l'héritent. Vers l'AVANT, c'est évident —
+# poser son budget une fois doit valoir pour la suite, sans quoi il faudrait le
+# réécrire tous les trente jours. Vers l'ARRIÈRE, ça l'est moins, et c'est
+# pourtant la même idée : un mois antérieur au premier montant saisi n'est pas
+# un mois SANS budget, c'est un mois d'avant qu'on ait pris la peine de l'écrire.
+#
+# CE QUE LE ZÉRO FAISAIT DE TRAVERS. La vue année somme ses douze mois
+# (cf. soldes.get_budget_total_periode) : un budget posé en septembre rendait
+# donc, pour 2026, quatre mois de budget et huit de zéro — un total qui ne
+# ressemble à rien, et un camembert en vue budget dont l'anneau débordait dès
+# février. Le même creux valait pour l'enveloppe d'une catégorie.
+#
+# LA RÈGLE TIENT EN UNE LIGNE : la dernière entrée explicite à cette date ou
+# avant, et à défaut LA PREMIÈRE de toutes. Autrement dit, le montant connu le
+# plus proche dans le temps. Le zéro ne reste alors que pour ce qu'il a toujours
+# voulu dire — AUCUN budget n'a jamais été posé sur cette clé — et c'est ce qui
+# permet au camembert de savoir qu'il n'a pas de vue budget à proposer.
+#
+# L'HÉRITAGE NE TRAVERSE JAMAIS LES MONNAIES, dans un sens comme dans l'autre :
+# un budget en dollars n'hérite que d'un mois lui aussi en dollars.
+
+
+def _budget_herite(requete, colonne_annee, colonne_mois, annee: int, mois: int) -> float:
+    """Résout un budget sur une requête DÉJÀ filtrée sur sa clé (catégorie et/ou
+    monnaie) : le dernier montant à (annee, mois) ou avant, sinon le premier de
+    tous, sinon 0.0."""
+    precedent = (
+        requete.filter(
+            or_(
+                colonne_annee < annee,
+                and_(colonne_annee == annee, colonne_mois <= mois),
+            )
+        )
+        .order_by(colonne_annee.desc(), colonne_mois.desc())
+        .first()
+    )
+    if precedent is not None:
+        return precedent.montant
+    premier = requete.order_by(colonne_annee, colonne_mois).first()
+    return premier.montant if premier is not None else 0.0
+
+
 def get_budget_categorie(
     db: Session, categorie_id: int, annee: int, mois: int, monnaie_id: int
 ) -> float:
-    """Budget résolu pour (annee, mois) DANS une monnaie : la dernière entrée
-    explicite à cette date ou avant (héritage en cascade), sinon 0.0.
-
-    L'héritage ne traverse jamais les monnaies : un budget en dollars n'hérite
-    que d'un mois précédent lui aussi en dollars."""
-    entree = (
-        db.query(models.CategorieBudgetMensuel)
-        .filter(
+    """Enveloppe d'une catégorie pour (annee, mois) DANS une monnaie, résolue par
+    héritage dans les deux sens (cf. le bloc ci-dessus)."""
+    return _budget_herite(
+        db.query(models.CategorieBudgetMensuel).filter(
             models.CategorieBudgetMensuel.categorie_id == categorie_id,
             models.CategorieBudgetMensuel.monnaie_id == monnaie_id,
-            or_(
-                models.CategorieBudgetMensuel.annee < annee,
-                and_(
-                    models.CategorieBudgetMensuel.annee == annee,
-                    models.CategorieBudgetMensuel.mois <= mois,
-                ),
-            ),
-        )
-        .order_by(
-            models.CategorieBudgetMensuel.annee.desc(),
-            models.CategorieBudgetMensuel.mois.desc(),
-        )
-        .first()
+        ),
+        models.CategorieBudgetMensuel.annee,
+        models.CategorieBudgetMensuel.mois,
+        annee,
+        mois,
     )
-    return entree.montant if entree else 0.0
 
 
 def budget_categorie_est_explicite(
@@ -358,35 +390,22 @@ def set_budget_categorie(
 
 
 def get_budget_total(db: Session, annee: int, mois: int, monnaie_id: int) -> float:
-    """Budget total résolu pour (annee, mois) dans une monnaie : la dernière
-    entrée explicite à cette date ou avant, sinon 0.0.
-
-    MÊME HÉRITAGE QUE `get_budget_categorie`, et pour la même raison : poser son
-    budget une fois doit valoir pour les mois suivants, sans quoi il faudrait le
-    réécrire tous les trente jours. L'héritage ne traverse jamais les monnaies.
+    """Budget total du mois dans une monnaie, résolu par le MÊME héritage que
+    l'enveloppe d'une catégorie (cf. le bloc ci-dessus) — les deux grandeurs
+    doivent se comparer, elles ne peuvent pas se combler différemment.
 
     ZÉRO VEUT DIRE « PAS DE BUDGET », et non « budget nul » : c'est ce qui
     permet au camembert de savoir qu'il n'a pas de vue budget à proposer, plutôt
     que d'en dessiner une où tout dépassement serait infini."""
-    entree = (
-        db.query(models.BudgetTotalMensuel)
-        .filter(
+    return _budget_herite(
+        db.query(models.BudgetTotalMensuel).filter(
             models.BudgetTotalMensuel.monnaie_id == monnaie_id,
-            or_(
-                models.BudgetTotalMensuel.annee < annee,
-                and_(
-                    models.BudgetTotalMensuel.annee == annee,
-                    models.BudgetTotalMensuel.mois <= mois,
-                ),
-            ),
-        )
-        .order_by(
-            models.BudgetTotalMensuel.annee.desc(),
-            models.BudgetTotalMensuel.mois.desc(),
-        )
-        .first()
+        ),
+        models.BudgetTotalMensuel.annee,
+        models.BudgetTotalMensuel.mois,
+        annee,
+        mois,
     )
-    return entree.montant if entree else 0.0
 
 
 def budget_total_est_explicite(db: Session, annee: int, mois: int, monnaie_id: int) -> bool:

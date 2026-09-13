@@ -724,9 +724,9 @@ class BudgetTotalRead(BaseModel):
     mois: int
     monnaie_id: int
     montant: float
-    # Posé pour CE mois-ci, ou hérité d'un mois antérieur (cf.
-    # crud.get_budget_total) — l'écran le dit, sans quoi un budget hérité
-    # passerait pour une saisie oubliée.
+    # Posé pour CE mois-ci, ou hérité d'un autre (cf. crud._budget_herite,
+    # qui hérite dans les deux sens) — l'écran le dit, sans quoi un budget
+    # hérité passerait pour une saisie oubliée.
     explicite: bool
 
 

@@ -52,12 +52,12 @@ def lire_budget_total(
     mois: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    """Le budget de tout un mois, résolu par héritage (cf. crud.get_budget_total).
+    """Le budget de tout un mois, résolu par héritage (cf. crud._budget_herite).
 
     LE DASHBOARD LE REÇOIT DÉJÀ avec ses KPI : cette route sert au FORMULAIRE,
     qui a besoin de savoir en plus si le montant est posé pour ce mois-ci ou
-    hérité d'un mois antérieur — un budget hérité affiché sans le dire passe
-    pour une saisie oubliée."""
+    hérité d'un autre — un budget hérité affiché sans le dire passe pour une
+    saisie oubliée."""
     annee, mois = _periode_demandee(annee, mois)
     return schemas.BudgetTotalRead(
         annee=annee,

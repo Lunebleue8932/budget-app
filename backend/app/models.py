@@ -247,9 +247,9 @@ class CompteMonnaie(Base):
 
 class CategorieBudgetMensuel(Base):
     """Budget alloué à une catégorie pour un mois ET une monnaie donnés. Table
-    volontairement creuse : un mois sans entrée hérite du budget du mois
-    explicite le plus récent qui le précède, dans la même monnaie (voir
-    crud.get_budget_categorie).
+    volontairement creuse : un mois sans entrée hérite du montant explicite le
+    plus proche dans le temps, dans la même monnaie — celui qui le précède, ou à
+    défaut le tout premier (voir crud._budget_herite).
 
     La monnaie fait partie de la clé depuis 0021 : un budget « 300 » ne veut
     rien dire si l'on dépense en euros et en dollars sur la même catégorie."""
@@ -288,9 +288,11 @@ class BudgetTotalMensuel(Base):
     aurait rendu impossible l'état le plus ordinaire : un budget mensuel posé,
     et trois catégories seulement détaillées.
 
-    MÊME FORME QUE `CategorieBudgetMensuel` : table creuse, un mois sans entrée
-    hérite du dernier mois explicite qui le précède dans la même monnaie (cf.
-    crud.get_budget_total), et la monnaie fait partie de la clé.
+    MÊME FORME QUE `CategorieBudgetMensuel`, et MÊME HÉRITAGE (cf.
+    crud._budget_herite) : table creuse, un mois sans entrée prend le montant
+    explicite le plus proche dans le temps — avant lui, ou à défaut le premier
+    de tous — et la monnaie fait partie de la clé. Les deux grandeurs se
+    comparent, elles ne peuvent pas se combler différemment.
 
     QUI LE LIT : le camembert des dépenses, dans sa vue « budget », et le
     contrôle de cohérence des trois grandeurs du budget (cf.

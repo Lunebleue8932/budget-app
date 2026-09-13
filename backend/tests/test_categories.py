@@ -54,8 +54,14 @@ def test_budget_categorie_herite_du_mois_precedent(db_session):
     assert crud.get_budget_categorie(db_session, categorie_id, 2026, 7, get_monnaie_id(db_session)) == 300.0
     assert crud.budget_categorie_est_explicite(db_session, categorie_id, 2026, 6, get_monnaie_id(db_session)) is False
 
-    # Un mois antérieur au premier réglage n'hérite de rien.
-    assert crud.get_budget_categorie(db_session, categorie_id, 2026, 4, get_monnaie_id(db_session)) == 0.0
+    # Un mois ANTÉRIEUR au premier réglage hérite de celui-ci : ce n'est pas un
+    # mois sans budget, c'est un mois d'avant qu'on l'ait écrit (même règle que
+    # le budget total, cf. crud._budget_herite).
+    assert crud.get_budget_categorie(db_session, categorie_id, 2026, 4, get_monnaie_id(db_session)) == 300.0
+    assert crud.get_budget_categorie(db_session, categorie_id, 2025, 1, get_monnaie_id(db_session)) == 300.0
+    # Zéro reste réservé à « aucun budget n'a jamais été posé sur cette clé ».
+    autre = get_categorie_id(db_session, "Charges fixes")
+    assert crud.get_budget_categorie(db_session, autre, 2026, 4, get_monnaie_id(db_session)) == 0.0
 
 
 def test_budget_categorie_override_explicite(db_session):

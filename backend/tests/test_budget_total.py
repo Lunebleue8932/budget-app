@@ -73,12 +73,33 @@ def test_heritage_du_dernier_mois_explicite(db_session):
     # Hérité, mais pas explicite : l'écran doit pouvoir le dire.
     assert not crud.budget_total_est_explicite(db_session, 2026, 6, m)
 
-    # Un mois ANTÉRIEUR n'hérite de rien : l'héritage ne remonte pas le temps.
-    assert crud.get_budget_total(db_session, 2025, 12, m) == 0.0
-
     crud.set_budget_total(db_session, 2026, 7, m, 2400.0)
     assert crud.get_budget_total(db_session, 2026, 6, m) == 2000.0
     assert crud.get_budget_total(db_session, 2026, 8, m) == 2400.0
+
+
+def test_heritage_vers_l_arriere(db_session):
+    """UN MOIS ANTÉRIEUR AU PREMIER MONTANT SAISI HÉRITE DE CELUI-CI. Ce n'est
+    pas un mois sans budget, c'est un mois d'avant qu'on ait pris la peine de
+    l'écrire — et la vue année, qui somme ses douze mois, rendait sinon un total
+    fait de quatre mois de budget et de huit zéros."""
+    m = monnaie_id(db_session)
+    crud.set_budget_total(db_session, 2026, 9, m, 2000.0)
+
+    assert crud.get_budget_total(db_session, 2026, 3, m) == 2000.0
+    assert crud.get_budget_total(db_session, 2024, 12, m) == 2000.0
+    # Hérité, jamais explicite : rien n'a été écrit sur ces mois-là.
+    assert not crud.budget_total_est_explicite(db_session, 2026, 3, m)
+
+    # LE PREMIER, et non le plus proche dans l'absolu : avant janvier 2026,
+    # c'est janvier qui vaut, pas septembre.
+    crud.set_budget_total(db_session, 2026, 1, m, 1500.0)
+    assert crud.get_budget_total(db_session, 2025, 11, m) == 1500.0
+    assert crud.get_budget_total(db_session, 2026, 3, m) == 1500.0
+
+    # ET ZÉRO VEUT TOUJOURS DIRE « AUCUN BUDGET NULLE PART » : c'est ce qui
+    # permet au camembert de savoir qu'il n'a pas de vue budget à proposer.
+    assert crud.get_budget_total(db_session, 2026, 3, seconde_monnaie(db_session)) == 0.0
 
 
 def test_l_heritage_ne_traverse_jamais_les_monnaies(db_session):
@@ -236,16 +257,27 @@ def test_l_arrondi_d_un_pourcentage_ne_declenche_rien(db_session):
 
 
 def test_le_signalement_ne_regarde_que_sa_periode_et_sa_monnaie(db_session):
-    """Un désaccord en mars ne doit pas se signaler en septembre : les trois
-    grandeurs sont posées par mois (sauf le pourcentage), et mélanger les mois
-    reviendrait à reprocher une saisie qu'on ne regarde pas."""
+    """Un désaccord d'un mois ne doit pas se signaler sur un mois QUI A SES
+    PROPRES CHIFFRES : les trois grandeurs sont posées par mois (sauf le
+    pourcentage), et mélanger les mois reviendrait à reprocher une saisie qu'on
+    ne regarde pas.
+
+    UN MOIS QUI HÉRITE, LUI, HÉRITE AUSSI DU DÉSACCORD, et c'est la bonne
+    réponse : il porte exactement les mêmes trois chiffres (cf.
+    crud._budget_herite), donc exactement la même contradiction. Août 2026
+    n'est pas un mois sans budget, c'est septembre vu un mois plus tôt."""
     categorie, euro = poser_les_trois(db_session, total=2000.0, pourcentage=30.0, budget=500.0)
     dollar = seconde_monnaie(db_session)
 
     assert crud.incoherences_budgets(db_session, 2026, 9, euro)["lignes"] != []
-    # Le mois précédent n'a ni budget total ni enveloppe : rien à dire.
+    assert crud.incoherences_budgets(db_session, 2026, 8, euro)["lignes"] != []
+
+    # Un mois qui pose SA propre enveloppe, accordée à son total et à sa part,
+    # ne dit plus rien — le désaccord de septembre ne le suit pas.
+    crud.set_budget_categorie(db_session, categorie.id, 2026, 8, euro, 600.0)
     assert crud.incoherences_budgets(db_session, 2026, 8, euro)["lignes"] == []
-    # L'autre monnaie non plus.
+
+    # L'autre monnaie n'hérite de rien : l'héritage ne les traverse jamais.
     assert crud.incoherences_budgets(db_session, 2026, 9, dollar)["lignes"] == []
 
 
