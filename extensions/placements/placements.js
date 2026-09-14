@@ -910,10 +910,26 @@ async function ajouterTotauxPlacementsSurCartes() {
       // directement l'onglet de CE compte — `loadPlacements` (plus haut dans
       // ce fichier) garde tel quel un `placementCompteId` qui correspond
       // encore à un compte existant, au lieu de retomber sur le premier.
+      //
+      // UNE LOUPE AU BORD DROIT, ET PLUS UNE LIGNE DE TEXTE SOUS LES SOLDES.
+      // Posée en dessous, elle allongeait la carte d'une ligne entière et se
+      // lisait comme une quatrième donnée du compte, à hauteur des montants
+      // qu'elle ne commente pas. Au bord droit, à la même place sur chaque
+      // carte, c'est un point d'entrée qu'on trouve sans le lire.
+      //
+      // LE PICTOGRAMME EST UN <img> (cf. frontend/img/LISEZMOI.md) : le fichier
+      // porte ses propres couleurs, il n'hérite donc d'aucune teinte de la
+      // page, et c'est le filtre CSS de .compte-total-placement-lien qui le
+      // ramène au blanc — le même enchaînement que les logos des onglets.
+      // Le TITRE porte la phrase : une icône seule doit se survoler pour
+      // s'expliquer, et un lecteur d'écran n'a rien d'autre à lire.
       const lien = document.createElement("button");
       lien.type = "button";
       lien.className = "compte-total-placement-lien";
-      lien.textContent = t("Voir le portefeuille →");
+      lien.title = t("Voir le portefeuille");
+      lien.setAttribute("aria-label", t("Voir le portefeuille"));
+      lien.innerHTML =
+        '<img src="/img/magnifying_glass_logo.svg" alt="" width="16" height="16" />';
       lien.addEventListener("click", () => {
         state.placementCompteId = compte.compte_id;
         vueTitres = false;

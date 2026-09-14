@@ -453,8 +453,14 @@ h4 {
   border-left-color: var(--compte-epargne);
 }
 
+/* LA MARGE DE LA LOUPE, sur le seul type de carte qui en porte une : posée sur
+   toutes, elle aurait creusé un vide à droite des cartes courantes et épargne
+   pour un bouton qui n'y sera jamais. `position: relative` est ce qui rattache
+   le bouton absolu à SA carte plutôt qu'à la page. */
 .compte-card.placements {
   border-left-color: var(--compte-placements);
+  position: relative;
+  padding-right: 3.4rem;
 }
 
 .compte-card .compte-nom {
@@ -523,24 +529,55 @@ h4 {
 
 /* Drill-through vers l'onglet de CE compte sur la page Placements, posé une
    fois par carte (pas une fois par monnaie : le portefeuille d'un compte ne
-   se scinde pas par devise sur cette page-là). Un lien texte, pas un bouton
-   plein : la carte affiche déjà les soldes en évidence, ceci n'est qu'un
-   raccourci vers le détail. */
+   se scinde pas par devise sur cette page-là).
+
+   UNE LOUPE AU BORD DROIT, ET NON UN LIEN SOUS LES SOLDES. En dessous, il
+   allongeait la carte d'une ligne et venait se lire dans la colonne des
+   montants, à laquelle il ne se rapporte pas. Au bord droit, il occupe la
+   place que le texte laissait vide et se retrouve à la même hauteur sur
+   toutes les cartes — ce qu'on cherche d'un pictogramme, qu'on repère par sa
+   position bien plus que par son dessin.
+
+   EN ABSOLU, et la carte lui réserve sa marge (cf. .compte-card.placements) :
+   un troisième enfant en flux aurait de nouveau poussé la carte vers le bas,
+   ce qu'on cherchait précisément à éviter. */
 .compte-card .compte-total-placement-lien {
-  display: block;
-  margin-top: 0.5rem;
-  background: none;
-  border: none;
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
   padding: 0;
-  font-size: 0.78rem;
-  color: var(--compte-placements);
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+/* LE FICHIER SVG PORTE SES PROPRES COULEURS (un tracé noir), et un SVG chargé
+   par <img> n'hérite d'aucune teinte de la page : on ne peut donc que le
+   FILTRER. `brightness(0) invert(1)` est le seul enchaînement qui donne du
+   blanc à coup sûr — le même que les logos des boutons d'onglet et que le
+   pictogramme de calendrier natif. */
+.compte-card .compte-total-placement-lien img {
+  filter: brightness(0) invert(1);
+  opacity: 0.75;
+  transition: opacity 0.15s;
 }
 
 .compte-card .compte-total-placement-lien:hover {
-  opacity: 0.8;
+  background: var(--bg-surface-hover);
+  border-color: var(--compte-placements);
+}
+
+.compte-card .compte-total-placement-lien:hover img {
+  opacity: 1;
 }
 
 /* ---------- Tableaux ---------- */

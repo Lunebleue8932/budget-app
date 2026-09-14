@@ -669,8 +669,8 @@ const TRADUCTIONS = {
       "Search",
     "Voir la note":
       "View note",
-    "Voir le portefeuille →":
-      "View portfolio →",
+    "Voir le portefeuille":
+      "View portfolio",
     "Description":
       "Description",
     "Actualisation":
