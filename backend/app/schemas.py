@@ -296,7 +296,7 @@ class OperationBase(BaseModel):
     amortissement_fin: Optional[date_type] = None
 
     # UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (cf. models.Operation.imprevue).
-    # Une étiquette, lue par la seule extension « Analyse de budget » ; aucun
+    # Une étiquette, lue par la seule extension « Budget » ; aucun
     # calcul du noyau ne la regarde. Indépendante du STATUT : une dépense peut
     # être prévisionnelle et prévue, réelle et imprévue.
     imprevue: bool = False

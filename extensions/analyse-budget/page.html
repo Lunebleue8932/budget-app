@@ -1,26 +1,67 @@
-<!-- Écran de l'extension « Analyse de budget ».
+<!-- Écran de l'extension « Budget ».
 
-     UN ONGLET, pas une page (cf. le manifeste : navigation.type = "onglet",
-     hote_section = "comptes-globale"). C'est là que Felipe l'a demandé pour
-     l'épargne, et les deux autres lectures y sont ses voisines naturelles :
-     toutes trois répondent à « qu'est-ce que ce mois a fait à mon patrimoine »,
-     là où la vue globale d'à côté répond à « où en suis-je aujourd'hui ».
+     UNE PAGE, ET PLUS UN ONGLET DE LA VUE GLOBALE DES COMPTES (cf. le
+     manifeste : navigation.type = "page", position 1 — juste après le
+     dashboard, dont elle est la question posée à l'avance).
 
-     C'est donc une `.sous-section` : c'est le gestionnaire délégué de app.js
-     qui la montre et la cache, exactement comme un onglet du noyau.
+     POURQUOI ELLE A GRANDI. Le budget du mois se saisissait SUR le camembert
+     du dashboard, et les budgets par catégorie ligne par ligne dans le
+     formulaire de la page Catégories. Trois grandeurs qui se répondent (cf.
+     crud.incoherences_budgets), réglées à trois endroits dont aucun ne
+     s'appelait « budget » — et, pour deux d'entre elles, au milieu d'écrans
+     qui servent à CONSTATER. Un champ à remplir posé entre deux graphes fait
+     tache : on vient y lire ce qui s'est passé, pas y décider ce qui devrait.
 
-     UN ONGLET PAR MONNAIE, jamais de total entre elles — comme partout
-     ailleurs. « 3 000 » ne veut rien dire sans savoir en quelle devise, et un
-     matelas franchi dans une monnaie ne dit rien de l'autre. -->
-<div id="sous-section-comptes-globale-analyse-budget" class="sous-section">
+     ELLES SONT DONC TOUTES ICI, dans l'ordre où l'on y pense : le total du
+     mois d'abord, sa répartition par catégorie ensuite, puis ce que la période
+     a réellement fait — mis de côté, gardé disponible, pas vu venir.
+
+     TOUT EST SOUS LA MÊME MONNAIE ET LA MÊME PÉRIODE, choisies une fois en
+     tête de page : un budget est propre à une monnaie (15 000 ¥ ne se compare
+     à aucun euro) et le total comme les enveloppes sont propres à un mois. Les
+     trois lectures du bas, elles, portent sur l'ANNÉE du mois choisi — elles
+     répondent à « est-ce que je tiens un rythme ? », que douze fois un mois ne
+     dit pas.
+
+     C'est un <section>, comme les écrans du noyau : switchSection la montre et
+     la masque exactement de la même façon. -->
+<section id="section-budget">
+  <h2>Budget</h2>
 
   <div class="sous-onglets" id="ab-monnaies"></div>
 
-  <div class="periode-selecteur ab-annee-barre">
-    <label for="ab-annee">Année
-      <select id="ab-annee"></select>
-    </label>
+  <div class="periode-selecteur">
+    <div class="periode-niveaux">
+      <div class="sous-onglets" id="ab-periode-annees"></div>
+      <div class="sous-onglets sous-onglets-mois" id="ab-periode-mois"></div>
+    </div>
   </div>
+
+  <!-- ---------- LE BUDGET DU MOIS ---------- -->
+  <h3>Budget du mois<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budget-total">i</i></h3>
+  <p class="hint" data-texte-cle="analyse-budget.budget-total-aide"></p>
+
+  <!-- LE RÉGLAGE SE PORTE COMME UN FILTRE, hors formulaire : un <input> hors
+       <form> ne reçoit AUCUN style de l'application (`form input` ne descend
+       que dans un formulaire), et l'envelopper ferait recharger la page à la
+       moindre touche Entrée. C'est la forme qu'il avait déjà sur le camembert,
+       reprise telle quelle — elle n'était pas le problème, sa PLACE l'était. -->
+  <div class="ab-budget-total-reglage">
+    <label for="ab-budget-total">Montant du budget</label>
+    <input type="number" id="ab-budget-total" step="0.01" min="0" />
+    <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
+         crud._budget_herite). L'héritage remonte aussi le temps : sans cette
+         mention, un mois antérieur à toute saisie afficherait un montant qui
+         n'y a jamais été posé, et passerait pour une saisie oubliée. -->
+    <span class="badge-aucun" id="ab-budget-total-herite" hidden>hérité</span>
+    <button type="button" class="primary" id="btn-ab-budget-total">Enregistrer</button>
+  </div>
+
+  <!-- ---------- LES BUDGETS PAR CATÉGORIE ---------- -->
+  <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
+  <p class="hint" data-texte-cle="analyse-budget.budgets-categories-aide"></p>
+
+  <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
 
   <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
   <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
@@ -42,9 +83,8 @@
   <h3>Matelas de sécurité<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.matelas">i</i></h3>
   <p class="hint" data-texte-cle="analyse-budget.matelas-aide"></p>
 
-  <!-- Le réglage se porte comme un filtre, hors formulaire : même forme que le
-       champ « Budget du mois » du camembert, et pour la même raison — un input
-       hors <form> ne reçoit aucun style de l'application. -->
+  <!-- Même forme que le réglage du budget du mois, et pour la même raison : un
+       input hors <form> ne reçoit aucun style de l'application. -->
   <div class="ab-matelas-reglage">
     <label for="ab-matelas-montant">Montant minimum à garder disponible</label>
     <input type="number" id="ab-matelas-montant" step="0.01" min="0" />
@@ -67,4 +107,4 @@
     </thead>
     <tbody id="ab-imprevues-lignes"></tbody>
   </table>
-</div>
+</section>

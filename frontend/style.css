@@ -1229,52 +1229,6 @@ form .operation-cases input[type="checkbox"] {
   padding: 0.25rem 0.6rem;
 }
 
-/* LE RÉGLAGE DU BUDGET SE PORTE COMME UN FILTRE, et non comme un champ dessiné
-   pour ce coin d'écran.
-
-   CE QUI CLOCHAIT. Hors d'un <form>, un <input> ne reçoit AUCUN des styles de
-   l'application : `form input` ne descend que dans un formulaire, et ce
-   champ-là n'en a délibérément pas (cf. app.js, § initVuesPie — l'envelopper
-   aurait fait recharger la page à la moindre touche Entrée). Il n'avait donc ni
-   fond, ni bordure, ni rayon, ni anneau de focus, et trois tailles rognées à la
-   main par-dessus le rendaient plus petit que tout ce qui l'entoure. C'était le
-   seul champ nu de l'application, posé au milieu du dashboard.
-
-   LA RANGÉE DES FILTRES D'OPÉRATIONS AVAIT DÉJÀ RÉPONDU À LA QUESTION : elle
-   aussi vit hors formulaire, et redéclare la même paire fond/bordure plus un
-   libellé en petit secondaire. Ce sont ses valeurs qui sont reprises ici, à
-   l'identique — ce champ n'a aucune raison d'inventer sa propre forme. Le
-   bouton, lui, redevient un bouton ordinaire de l'app : il ENREGISTRE, c'est
-   l'action de ce coin d'écran, et `primary` est ce qui le dit partout
-   ailleurs. */
-.camembert-budget-reglage {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.camembert-budget-reglage label {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.camembert-budget-reglage input {
-  width: 8rem;
-  text-align: right;
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.35rem 0.5rem;
-  transition: border-color 0.15s;
-}
-
-.camembert-budget-reglage input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
 /* CE QUI N'A PAS ÉTÉ DÉPENSÉ, dessiné plutôt que laissé en trou : un anneau
    incomplet sur fond de cadre se lit comme un graphe à moitié tracé. Sur sa
    piste, il se lit comme un budget à moitié consommé — ce qu'il est. */

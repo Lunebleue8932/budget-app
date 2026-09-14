@@ -1,4 +1,4 @@
-"""Point d'entrée backend de l'extension « Analyse de budget ».
+"""Point d'entrée backend de l'extension « Budget ».
 
 Cf. app/extensions.py : le noyau ne cherche ici qu'une variable `router`.
 

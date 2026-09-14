@@ -280,7 +280,7 @@ class CategorieBudgetMensuel(Base):
 
 class MatelasSecurite(Base):
     """LE MINIMUM QU'ON VEUT GARDER DISPONIBLE sur ses comptes d'épargne, par
-    monnaie (migration 0059). Lu par la seule extension « Analyse de budget ».
+    monnaie (migration 0059). Lu par la seule extension « Budget ».
 
     UN MONTANT PAR DEVISE ET RIEN D'AUTRE : « 3 000 » ne veut rien dire sans
     savoir en quelle monnaie, exactement comme un budget. PAS DE MOIS dans la
@@ -506,7 +506,7 @@ class Operation(Base):
     recurrence_date_prevue = Column(Date, nullable=True)
 
     # UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (migration 0059) — le plombier,
-    # la dent cassée, le pneu. Lue par la seule extension « Analyse de budget ».
+    # la dent cassée, le pneu. Lue par la seule extension « Budget ».
     #
     # UNE ÉTIQUETTE, ET RIEN DE PLUS, de la même nature que `TypeTitre` ou
     # `ProfilRemboursement` : aucun solde, aucun KPI, aucune barre d'histogramme

@@ -836,10 +836,8 @@ const TRADUCTIONS = {
       "What you did not see coming: the plumber, the broken tooth, the tyre. No category answers this question — a grocery expense can be unexpected, a repair can be perfectly expected — hence a tick box on the expense itself. The total tells you, month by month, what share of your spending was not foreseeable.",
     "Le périmètre est celui de l'histogramme des dépenses du dashboard : dépenses réelles, virements internes exclus. C'est ce qui rend la part comparable à ce que tu lis ailleurs.":
       "The scope is that of the dashboard's spending histogram: real expenses, internal transfers excluded. That is what makes the share comparable to what you read elsewhere.",
-    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Analyse de budget » regarde.":
-      "Tick if this expense was not foreseeable. Not to be confused with the status: an expense can be forecast and expected (next month's rent), real and unexpected (Tuesday's plumber). Nothing changes in your balances or your totals — it is a label, which only the « Budget analysis » extension looks at.",
-    "Analyse de budget":
-      "Budget analysis",
+    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Budget » regarde.":
+      "Tick if this expense was not foreseeable. Not to be confused with the status: an expense can be forecast and expected (next month's rent), real and unexpected (Tuesday's plumber). Nothing changes in your balances or your totals — it is a label, which only the « Budget » extension looks at.",
     "Ce que tu as mis de côté":
       "What you set aside",
     "Matelas de sécurité":
@@ -1085,14 +1083,6 @@ const TRADUCTIONS = {
     "Objectif": "Target",
     "Objectif":
       "Target",
-    "Objectif de répartition (%)":
-      "Allocation target (%)",
-    "Objectif modifié":
-      "Target updated",
-    "La PART que cette catégorie devrait représenter dans tes dépenses, en pourcentage. Rien à voir avec le budget en valeur posé à gauche : les deux sont indépendants, on peut poser l'un sans l'autre. Ne dépend ni du mois ni de la monnaie. Il s'affiche sur le camembert du dashboard, à droite de la part réellement constatée. Vide = aucun objectif.":
-      "The SHARE this category should represent in your spending, as a percentage. Nothing to do with the amount budget set on the left: the two are independent, you can set one without the other. Does not depend on the month or the currency. It shows on the dashboard pie chart, to the right of the share actually observed. Empty = no target.",
-    "Une part, pas un montant : elle vaut pour tous les mois et toutes les monnaies. 0 = aucun objectif.":
-      "A share, not an amount: it holds for every month and every currency. 0 = no target.",
     "Ce que la période laisse, au sens de ce qu'elle COÛTE : « Total Entrées » moins « Total Dépenses », les deux cartes juste à gauche. Une dépense amortie n'y pèse que pour sa part du mois, une remboursable pour son reste à charge. Son écart avec la variation brute, à droite, est exactement le décalage entre le moment où l'argent sort et le mois auquel la dépense appartient.":
       "What the period leaves, in the sense of what it COSTS: « Total Entrées » minus « Total Dépenses », the two cards just to the left. An amortised expense weighs only for its share of the month, a reimbursable one for what it actually costs you. Its gap with the gross change, on the right, is exactly the lag between the moment the money leaves and the month the expense belongs to.",
     "De combien les comptes courants ont RÉELLEMENT bougé sur la période — le chiffre du relevé. Tout compte à sa date et pour son montant : une dépense amortie en entier, une dépense remboursable sans déduire ce qu'on rendra. Virements internes exclus. En jaune parce qu'elle ne répond pas à la même question que ses voisines : elle ne dit pas si la période a été bonne, elle dit ce qui est passé.":
@@ -1379,11 +1369,31 @@ const TRADUCTIONS = {
 
     // ---------- Param\u00e8tres : cat\u00e9gories ----------
     "Cat\u00e9gories de d\u00e9penses": "Spending categories",
-    "Un budget vaut pour un mois et une monnaie, choisis par les onglets ci-dessous ; un mois non rempli reprend le dernier renseign\u00e9. L'\u0153il de la colonne Dashboard ne fait qu'afficher ou masquer la cat\u00e9gorie dans l'histogramme.":
-      "A budget applies to one month and one currency, picked by the tabs below; a month you leave empty inherits the last one filled in. The eye in the Dashboard column only shows or hides the category in the chart.",
+    "Les cat\u00e9gories dans lesquelles tes d\u00e9penses se rangent : leur nom, et l'ordre dans lequel tu les vois partout ailleurs. Ce qu'on LEUR ALLOUE \u2014 le budget d'un mois, la part qu'elles devraient peser \u2014 se r\u00e8gle sur la page Budget, o\u00f9 elles se voient toutes ensemble. \u00ab Autres \u00bb ne peut ni \u00eatre renomm\u00e9e ni supprim\u00e9e : c'est elle qui recueille les op\u00e9rations d'une cat\u00e9gorie qu'on efface.":
+      "The categories your spending falls into: their name, and the order you see them in everywhere else. What gets ALLOCATED to them \u2014 a month's budget, the share they should weigh \u2014 is set on the Budget page, where they are all visible together. \u00ab Autres \u00bb can neither be renamed nor deleted: it is where the transactions of a category you erase end up.",
     "Ordre": "Order",
     "Budget": "Budget",
     "Ajouter une cat\u00e9gorie": "Add a category",
+
+    // ---------- Extension \u00ab Budget \u00bb : la page ----------
+    "Budget du mois": "Monthly budget",
+    "Montant du budget": "Budget amount",
+    "Budgets par cat\u00e9gorie": "Budgets by category",
+    "Objectif de r\u00e9partition": "Allocation target",
+    "Budget de la cat\u00e9gorie": "Category budget",
+    "Total r\u00e9parti": "Allocated in total",
+    "Aucune cat\u00e9gorie.": "No category.",
+    "h\u00e9rit\u00e9": "inherited",
+    "Ne s'accorde pas avec le budget du mois.":
+      "Does not add up with the monthly budget.",
+    "Ce que tu te donnes \u00e0 d\u00e9penser sur le mois, dans cette monnaie. C'est le d\u00e9nominateur de tout le reste : la vue \u00ab Budget \u00bb du camembert du dashboard y rapporte chaque cat\u00e9gorie, et les objectifs en pourcentage ci-dessous sont des parts de LUI. Un mois que tu n'as pas rempli reprend le dernier montant \u00e9crit \u2014 avant comme apr\u00e8s lui \u2014 et le dit. Z\u00e9ro le retire.":
+      "What you allow yourself to spend over the month, in this currency. It is the denominator of everything else: the dashboard pie chart's \u00ab Budget \u00bb view relates every category to it, and the percentage targets below are shares of IT. A month you have not filled in inherits the nearest amount written \u2014 before or after it \u2014 and says so. Zero removes it.",
+    "Il se pose mois par mois et monnaie par monnaie : 15 000 \u00a5 ne se comparent \u00e0 aucun euro, et un budget de janvier ne dit rien de celui de f\u00e9vrier. Change de mois dans la rang\u00e9e ci-dessus pour en \u00e9crire un autre.":
+      "It is set month by month and currency by currency: 15,000 \u00a5 compare to no euro, and January's budget says nothing about February's. Switch month in the row above to write another one.",
+    "Deux grandeurs par cat\u00e9gorie, et elles ne se d\u00e9duisent pas l'une de l'autre. Le BUDGET est une enveloppe en valeur pour ce mois-ci : il r\u00e9pond \u00e0 \u00ab combien puis-je encore d\u00e9penser \u00bb, et c'est lui que dessine le trait rouge de l'histogramme du dashboard. L'OBJECTIF est une part du budget total, la m\u00eame tous les mois et dans toutes les monnaies : il r\u00e9pond \u00e0 \u00ab quelle part doit aller l\u00e0 \u00bb, et c'est lui qu'affiche le camembert en vue Budget. Poser l'un n'oblige jamais \u00e0 poser l'autre.":
+      "Two quantities per category, and neither follows from the other. The BUDGET is an envelope in money for this month: it answers \u00ab how much can I still spend \u00bb, and it is what the red line on the dashboard chart draws. The TARGET is a share of the total budget, the same every month and in every currency: it answers \u00ab what share should go there \u00bb, and it is what the pie chart shows in Budget view. Setting one never requires setting the other.",
+    "Glisse pour r\u00e9partir, \u00e9cris dans le champ \u00e0 c\u00f4t\u00e9 pour poser une valeur exacte ; c'est en rel\u00e2chant que \u00e7a s'enregistre. Les objectifs ne peuvent pas d\u00e9passer 100 % \u00e0 eux tous \u2014 la course du curseur te dit ce qu'il reste \u00e0 placer \u2014 mais rien ne t'oblige \u00e0 les atteindre : n'en poser que sur trois cat\u00e9gories est le cas ordinaire. Quand le budget d'une cat\u00e9gorie et son objectif ne s'accordent plus avec le total du mois, la ligne le dit et propose les deux corrections chiffr\u00e9es.":
+      "Drag to allocate, type in the field next to it to set an exact value; it saves when you let go. Targets cannot add up past 100 % \u2014 the slider's travel tells you what is left to place \u2014 but nothing forces you to reach it: setting them on three categories only is the ordinary case. When a category's budget and its target no longer add up with the month's total, the row says so and offers both corrections, with figures.",
 
     // ---------- Param\u00e8tres : monnaies ----------
     "Chaque monnaie garde ses propres soldes et budgets, jamais m\u00e9lang\u00e9s aux autres. Le symbole est ce qui s'affiche \u00e0 c\u00f4t\u00e9 des montants.":

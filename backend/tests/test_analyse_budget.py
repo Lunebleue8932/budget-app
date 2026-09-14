@@ -1,4 +1,4 @@
-"""L'extension « Analyse de budget » (migration 0059).
+"""L'extension « Budget » (migration 0059).
 
 CE QUE CES TESTS VERROUILLENT :
 

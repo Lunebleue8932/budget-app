@@ -82,7 +82,17 @@ const TEXTES = {
     "La devise des frais dit à quel montant ils s'appliquent : sur un virement entre deux monnaies, des frais dans la monnaie envoyée grèvent ce qui part, dans la monnaie reçue ce qui arrive.",
   "noyau.decouper-entre-plusieurs-categories":
     "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
-  /* ----- Extension « Analyse de budget » ----- */
+  /* ----- Extension « Budget » -----
+     L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
+     lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
+  "analyse-budget.budget-total":
+    "Ce que tu te donnes à dépenser sur le mois, dans cette monnaie. C'est le dénominateur de tout le reste : la vue « Budget » du camembert du dashboard y rapporte chaque catégorie, et les objectifs en pourcentage ci-dessous sont des parts de LUI. Un mois que tu n'as pas rempli reprend le dernier montant écrit — avant comme après lui — et le dit. Zéro le retire.",
+  "analyse-budget.budget-total-aide":
+    "Il se pose mois par mois et monnaie par monnaie : 15 000 ¥ ne se comparent à aucun euro, et un budget de janvier ne dit rien de celui de février. Change de mois dans la rangée ci-dessus pour en écrire un autre.",
+  "analyse-budget.budgets-categories":
+    "Deux grandeurs par catégorie, et elles ne se déduisent pas l'une de l'autre. Le BUDGET est une enveloppe en valeur pour ce mois-ci : il répond à « combien puis-je encore dépenser », et c'est lui que dessine le trait rouge de l'histogramme du dashboard. L'OBJECTIF est une part du budget total, la même tous les mois et dans toutes les monnaies : il répond à « quelle part doit aller là », et c'est lui qu'affiche le camembert en vue Budget. Poser l'un n'oblige jamais à poser l'autre.",
+  "analyse-budget.budgets-categories-aide":
+    "Glisse pour répartir, écris dans le champ à côté pour poser une valeur exacte ; c'est en relâchant que ça s'enregistre. Les objectifs ne peuvent pas dépasser 100 % à eux tous — la course du curseur te dit ce qu'il reste à placer — mais rien ne t'oblige à les atteindre : n'en poser que sur trois catégories est le cas ordinaire. Quand le budget d'une catégorie et son objectif ne s'accordent plus avec le total du mois, la ligne le dit et propose les deux corrections chiffrées.",
   "analyse-budget.epargne":
     "Le solde d'un compte d'épargne dit ce qu'il Y A ; il ne dit pas ce que tu y as MIS ce mois-ci — et c'est pourtant la seule des deux qui résulte d'une décision. Le calcul se lit dans tes virements internes : tout ce qui part d'un compte courant vers un compte d'épargne ou de placements compte comme mis de côté, tout ce qui en revient compte en moins. Un virement d'épargne à épargne ne met rien de côté, il range autrement ce qui l'est déjà : il est ignoré.",
   "analyse-budget.epargne-aide":
@@ -96,7 +106,7 @@ const TEXTES = {
   "analyse-budget.imprevues-aide":
     "Le périmètre est celui de l'histogramme des dépenses du dashboard : dépenses réelles, virements internes exclus. C'est ce qui rend la part comparable à ce que tu lis ailleurs.",
   "analyse-budget.imprevue-champ":
-    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Analyse de budget » regarde.",
+    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Budget » regarde.",
 
   /* ----- Rapprocher une prévisionnelle de la vraie ----- */
   "noyau.import-previsionnelles":
@@ -119,9 +129,7 @@ const TEXTES = {
   "noyau.monnaies-du-compte":
     "Chaque monnaie du compte garde son propre solde, jamais mélangé aux autres — d'où un solde initial par monnaie.",
   "noyau.categories-de-depenses":
-    "Un budget vaut pour un mois et une monnaie, choisis par les onglets ci-dessous ; un mois non rempli reprend le dernier renseigné. L'œil de la colonne Dashboard ne fait qu'afficher ou masquer la catégorie dans l'histogramme.",
-  "noyau.objectif":
-    "La PART que cette catégorie devrait représenter dans tes dépenses, en pourcentage. Rien à voir avec le budget en valeur posé à gauche : les deux sont indépendants, on peut poser l'un sans l'autre. Ne dépend ni du mois ni de la monnaie. Il s'affiche sur le camembert du dashboard, à droite de la part réellement constatée. Vide = aucun objectif.",
+    "Les catégories dans lesquelles tes dépenses se rangent : leur nom, et l'ordre dans lequel tu les vois partout ailleurs. Ce qu'on LEUR ALLOUE — le budget d'un mois, la part qu'elles devraient peser — se règle sur la page Budget, où elles se voient toutes ensemble. « Autres » ne peut ni être renommée ni supprimée : c'est elle qui recueille les opérations d'une catégorie qu'on efface.",
   "noyau.correspondances-memorisees":
     "Tout ce que l'app a retenu de tes imports : un libellé rangé une fois dans une catégorie y repart tout seul les fois suivantes.",
   "noyau.categories-bancaires":
@@ -152,8 +160,6 @@ const TEXTES = {
     "Une extension ajoute une fonctionnalité. La désactiver fait disparaître son écran sans rien effacer — tout revient si tu la rallumes.",
   "noyau.base-de-donnees":
     "L'application lit et écrit dans un seul fichier .db. Tu choisis où il vit ; l'emplacement est retenu d'un lancement à l'autre.",
-  "noyau.une-part-pas-un-montant-elle-vaut-pour-tous":
-    "Une part, pas un montant : elle vaut pour tous les mois et toutes les monnaies. 0 = aucun objectif.",
 
   /* ----- Extension « Import de placements » ----- */
   "import-placements.format-du-fichier":

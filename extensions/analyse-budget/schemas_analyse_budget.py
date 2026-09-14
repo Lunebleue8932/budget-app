@@ -1,4 +1,4 @@
-"""Les formes que l'extension « Analyse de budget » rend à l'écran.
+"""Les formes que l'extension « Budget » rend à l'écran.
 
 RIEN ICI N'EST UNE DONNÉE NOUVELLE : ce sont des lectures de ce que le noyau
 porte déjà, rangées autrement. Les seules choses que l'extension écrit — une

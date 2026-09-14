@@ -46,11 +46,10 @@ const state = {
   // monnaie à l'autre : elles servent à libeller les montants et à découper en
   // onglets tout ce qui agrège (KPI du dashboard, budgets).
   monnaies: [],
-  // Monnaie sélectionnée dans les onglets du dashboard et de la page
-  // Catégories — deux sélections indépendantes, les deux pages ne se
-  // consultent pas ensemble.
+  // Monnaie sélectionnée dans les onglets du dashboard. La page Catégories
+  // avait la sienne tant qu'elle portait une colonne « Budget » ; celui-ci
+  // vit maintenant sur la page Budget, qui garde la sienne de son côté.
   dashboardMonnaieId: null,
-  categoriesMonnaieId: null,
   // La monnaie du camembert « Répartition des avoirs », page Vue globale des
   // comptes. UNE TROISIÈME SÉLECTION, indépendante des deux autres : cette
   // page-là n'a pas d'onglet de monnaie (chaque carte montre tous ses soldes),
@@ -88,7 +87,6 @@ const state = {
   // du budget du mois). Jamais mémorisée d'une session à l'autre — cf.
   // basculerVuePie.
   dashboardVuePie: "actuel",
-  categoriesPeriode: {},
   triSelections: {
     classique: "date-desc",
     remboursable: "date-desc",
@@ -1365,9 +1363,6 @@ async function refreshMonnaies() {
   if (!state.dashboardMonnaieId && state.monnaies.length > 0) {
     state.dashboardMonnaieId = state.monnaies[0].id;
   }
-  if (!state.categoriesMonnaieId && state.monnaies.length > 0) {
-    state.categoriesMonnaieId = state.monnaies[0].id;
-  }
   // Un `<select class="filtre-select-monnaie">` par champ monnaie filtrable
   // de la page Opérations (une monnaie envoyée ET une monnaie reçue sur
   // l'onglet Virements, une seule ailleurs) : préserve la sélection de
@@ -1681,12 +1676,6 @@ let dashboardDepensesDuMois = [];
 // ne doit pas coûter un aller-retour. Zéro = aucun budget posé.
 let dashboardBudgetTotalDuMois = 0;
 
-// EST-IL POSÉ SUR CE MOIS-CI, OU HÉRITÉ D'UN AUTRE (cf.
-// KpisMonnaieRead.budget_total_explicite) ? Gardé à côté du montant, et pour la
-// même raison : la bascule de vue ne doit rien redemander au serveur. Vrai par
-// défaut — tant qu'on n'a rien reçu, rien ne permet de dire « hérité ».
-let dashboardBudgetTotalExplicite = true;
-
 function renderKpisDashboard(kpis) {
   if (!kpis) {
     // Aucun compte, donc aucune monnaie en jeu : rien à agréger.
@@ -1703,7 +1692,6 @@ function renderKpisDashboard(kpis) {
     document.getElementById("kpi-reste-rembourser-detail").textContent = "";
     dashboardDepensesDuMois = [];
     dashboardBudgetTotalDuMois = 0;
-    dashboardBudgetTotalExplicite = true;
     renderHistogrammeDashboard([], null);
     return;
   }
@@ -1770,7 +1758,6 @@ function renderKpisDashboard(kpis) {
   renderFluxPeriode(kpis, monnaieId);
   dashboardDepensesDuMois = kpis.depenses_par_categorie || [];
   dashboardBudgetTotalDuMois = kpis.budget_total || 0;
-  dashboardBudgetTotalExplicite = kpis.budget_total_explicite !== false;
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
 
@@ -3336,11 +3323,18 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   // L'histogramme recalcule son échelle sur ses seules barres, la légende ne
   // nomme que ce qui reste, et le camembert rapporte ses parts à ce que sa vue
   // a choisi — le total dépensé, ou le budget du mois.
+  // La vue « budget » ne survit pas à l'extinction de l'extension qui l'apporte
+  // (cf. basculerVuePie) : son bouton a disparu, la vue doit suivre.
+  if (state.dashboardVuePie === VUE_PIE_BUDGET && !vueBudgetDisponible()) {
+    state.dashboardVuePie = "actuel";
+    document.querySelectorAll("#camembert-vues button[data-vue-pie]").forEach((bouton) => {
+      bouton.classList.toggle("active", bouton.dataset.vuePie === "actuel");
+    });
+  }
   const parts = partsCategoriesDashboard(depenses, visibles, {
     vue: state.dashboardVuePie,
     budgetTotal,
   });
-  majReglageBudgetPie(budgetTotal, monnaieId);
 
   renderHistogrammeDepenses(
     parts.retenues,
@@ -3359,106 +3353,43 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   cablerSurbrillanceCategories();
 }
 
-/* ---------- Les deux vues du camembert, et le budget qu'elles partagent ----------
+/* ---------- Les deux vues du camembert ----------
  *
  * LA VUE NE SE MÉMORISE PAS d'une session à l'autre, et c'est délibéré :
  * « budget » n'a de sens que le temps qu'on se pose la question, et rouvrir
  * l'application sur un anneau ouvert aux trois quarts serait une mauvaise
  * nouvelle affichée sans qu'on l'ait demandée. Le dashboard s'ouvre sur l'état
  * actuel, comme avant.
+ *
+ * LA VUE « BUDGET » APPARTIENT À L'EXTENSION DU MÊME NOM, et son RÉGLAGE a
+ * déménagé avec elle. Le champ « Budget du mois » vivait ici, dans cette vue et
+ * elle seule — un champ à remplir posé entre deux graphes, sur l'écran où l'on
+ * vient LIRE ce qui s'est passé. Il est désormais en tête de la page Budget,
+ * auprès des deux autres grandeurs auxquelles il se compare (l'enveloppe d'une
+ * catégorie, son objectif de répartition), et le camembert ne fait plus que
+ * rapporter ses parts à ce qui y a été posé.
  */
+function vueBudgetDisponible() {
+  return BudgetApp.extensions.estActive("analyse-budget");
+}
+
 function basculerVuePie(vue) {
-  state.dashboardVuePie = vue;
+  // ÉTEINDRE L'EXTENSION NE RECHARGE PAS LE DASHBOARD : son bouton disparaît
+  // (cf. majVisibiliteNavigation), mais la vue choisie, elle, resterait
+  // « budget » — un anneau ouvert sur un dénominateur qu'on ne peut plus poser
+  // nulle part. La garde est ici et dans renderHistogrammeDashboard, les deux
+  // seuls chemins par lesquels la vue est lue.
+  state.dashboardVuePie = vue === VUE_PIE_BUDGET && !vueBudgetDisponible() ? "actuel" : vue;
   document.querySelectorAll("#camembert-vues button[data-vue-pie]").forEach((bouton) => {
-    bouton.classList.toggle("active", bouton.dataset.vuePie === vue);
+    bouton.classList.toggle("active", bouton.dataset.vuePie === state.dashboardVuePie);
   });
-  document.getElementById("camembert-budget-reglage").hidden = vue !== VUE_PIE_BUDGET;
   renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
-}
-
-/**
- * Remplit le champ du budget avec ce que le serveur vient de rendre.
- *
- * PAS PENDANT QU'ON ÉCRIT DEDANS : le dashboard se redessine à chaque clic de
- * filtre, et réécrire le champ sous les doigts effacerait la saisie en cours.
- */
-function majReglageBudgetPie(budgetTotal, monnaieId) {
-  const champ = document.getElementById("camembert-budget-total");
-  if (!champ) return;
-  if (document.activeElement !== champ) {
-    champ.value = budgetTotal > 0 ? budgetTotal.toFixed(2) : "";
-  }
-  const symbole = symboleMonnaie(monnaieId);
-  champ.placeholder = symbole ? `0,00 ${symbole}` : "0,00";
-
-  // « HÉRITÉ » : le champ montre un montant que personne n'a écrit sur ce
-  // mois-ci. Le dire est devenu indispensable depuis que l'héritage remonte
-  // aussi le temps (cf. crud._budget_herite) — un mois antérieur à toute saisie
-  // affiche désormais un nombre, et sans cette mention il passerait pour une
-  // saisie oubliée. Tu ne la vois JAMAIS sur une semaine ni sur l'année : la
-  // première n'affiche qu'une part au prorata, la seconde une somme de douze
-  // mois, et ni l'une ni l'autre n'est le montant que le champ enregistrerait.
-  const mention = document.getElementById("camembert-budget-herite");
-  if (mention) {
-    const surLeMois = semaineChoisie() === null && Boolean(dashboardAnneeMoisActuel.mois);
-    mention.hidden = !surLeMois || budgetTotal <= 0 || dashboardBudgetTotalExplicite;
-  }
-}
-
-/**
- * Écrit le budget du mois affiché, puis vérifie l'accord des trois grandeurs.
- *
- * LA PÉRIODE EST CELLE DU DASHBOARD, mois par mois : en vue annuelle il n'y a
- * pas UN budget à écrire mais douze, et deviner lequel aurait été un coup de
- * dé. Le champ est donc fermé sur l'année, et le dit.
- */
-async function enregistrerBudgetTotalPie() {
-  const { annee, mois } = dashboardAnneeMoisActuel;
-  if (!mois) {
-    showMessage(
-      t("Le budget se pose mois par mois : choisis un mois pour l'écrire."),
-      "error"
-    );
-    return;
-  }
-  const monnaieId = state.dashboardMonnaieId;
-  const brut = document.getElementById("camembert-budget-total").value.trim();
-  const montant = brut === "" ? 0 : Number(brut.replace(",", "."));
-  if (!Number.isFinite(montant) || montant < 0) {
-    showMessage(t("Montant invalide."), "error");
-    return;
-  }
-  try {
-    await apiFetch(
-      `/dashboard/budget-total?monnaie_id=${monnaieId}&annee=${annee}&mois=${mois}`,
-      { method: "PUT", body: JSON.stringify({ montant }) }
-    );
-  } catch (err) {
-    showMessage(err.message, "error");
-    return;
-  }
-  showMessage(t("Budget du mois enregistré."), "success");
-  await loadDashboard();
-  await verifierAccordBudgets(annee, mois, monnaieId);
 }
 
 (function initVuesPie() {
   document.getElementById("camembert-vues")?.addEventListener("click", (e) => {
     const bouton = e.target.closest("button[data-vue-pie]");
     if (bouton) basculerVuePie(bouton.dataset.vuePie);
-  });
-  document
-    .getElementById("btn-camembert-budget-total")
-    ?.addEventListener("click", enregistrerBudgetTotalPie);
-  // Entrée valide, comme dans n'importe quel champ de l'application. Le champ
-  // n'est pas dans un <form> : il vit au-dessus d'un graphe, pas dans un
-  // formulaire, et l'envelopper aurait fait recharger la page à la moindre
-  // touche Entrée.
-  document.getElementById("camembert-budget-total")?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      enregistrerBudgetTotalPie();
-    }
   });
 })();
 
@@ -3920,7 +3851,7 @@ function fermerFormulaireEnLigne(idFormulaire) {
 /* PIÈGE À CONNAÎTRE : un formulaire encore posé dans une liste qu'on vide par
    `innerHTML` part avec elle, et avec lui tous les écouteurs posés dessus une
    fois pour toutes. D'où l'appel à `fermerFormulaireEnLigne` en tête de chaque
-   rendu de liste concernée (loadComptes, loadCategoriesBudgets,
+   rendu de liste concernée (loadComptes, renderCategories,
    renderMonnaies). */
 
 /**
@@ -4612,7 +4543,27 @@ document.getElementById("form-compte").addEventListener("submit", async (e) => {
 
 document.getElementById("compte-annuler").addEventListener("click", resetCompteForm);
 
-/* ---------- Catégories ---------- */
+/* ---------- Catégories ----------
+ *
+ * CETTE PAGE NE PORTE PLUS QUE LES CATÉGORIES ELLES-MÊMES : leur nom, leur
+ * ordre, leur existence. Les DEUX CHIFFRES qu'on y réglait — le budget du mois
+ * d'une catégorie (`CategorieBudgetMensuel`) et son objectif de répartition
+ * (`Categorie.objectif_pourcentage`) — sont passés sur la page Budget, apportée
+ * par l'extension du même nom.
+ *
+ * POURQUOI ILS SONT PARTIS. Ils se réglaient ligne par ligne, dans un
+ * formulaire qu'il fallait ouvrir vingt fois pour répartir un budget entre
+ * vingt catégories — et sans jamais voir, pendant qu'on écrivait l'un, ce que
+ * valaient les dix-neuf autres. Or c'est exactement la question qu'on se pose
+ * en les posant. Ils demandaient en plus à cette page une MONNAIE et un MOIS,
+ * dont le nom d'une catégorie ne dépend pas : deux rangées d'onglets pour une
+ * seule colonne, et un formulaire qui écrivait sur trois routes ce qu'on avait
+ * ouvert pour corriger une faute de frappe.
+ *
+ * LE SCHÉMA RESTE AU NOYAU, comme toujours (cf. extensions/README.md) :
+ * éteindre l'extension ne perd aucun budget, elle les rend seulement
+ * inatteignables — même règle que « Prêts » et ses deux types d'opération.
+ */
 
 function resetCategorieForm() {
   fermerFormulaireEnLigne("form-categorie");
@@ -4621,23 +4572,12 @@ function resetCategorieForm() {
   document.getElementById("categorie-nom").disabled = false;
   document.getElementById("categorie-nom").title = "";
   delete document.getElementById("categorie-nom").dataset.nomInitial;
-  document.getElementById("categorie-budget-bloc").style.display = "none";
-  document.getElementById("categorie-budget-hint").style.display = "none";
-  document.getElementById("categorie-budget").value = "0";
-  // MASQUÉ À LA CRÉATION, comme le budget : une catégorie qui n'existe pas
-  // encore n'a pas de part à viser, et la route POST /categories ne prend que
-  // le nom. L'objectif se pose au premier passage en modification.
-  document.getElementById("categorie-objectif-bloc").style.display = "none";
-  document.getElementById("categorie-objectif-hint").style.display = "none";
-  document.getElementById("categorie-objectif").value = "0";
   document.getElementById("form-categorie-titre").textContent = "Ajouter une catégorie";
   document.getElementById("categorie-annuler").style.display = "none";
 }
 
-function fillCategorieForm(categorie, budget, ancre) {
+function fillCategorieForm(categorie, ancre) {
   ouvrirFormulaireEnLigne("form-categorie", "form-categorie-titre", ancre);
-  const moisLabel = libelleMois(state.categoriesPeriode.annee, state.categoriesPeriode.mois);
-  const monnaie = monnaieParId(state.categoriesMonnaieId);
   document.getElementById("categorie-id").value = categorie.id;
   const champNom = document.getElementById("categorie-nom");
   champNom.value = categorie.nom;
@@ -4649,139 +4589,74 @@ function fillCategorieForm(categorie, budget, ancre) {
   champNom.title = champNom.disabled
     ? t("« Autres » ne peut pas être renommée : c'est la catégorie de repli.")
     : "";
-  // Le nom d'AVANT, pour n'appeler la route de renommage que s'il a changé :
-  // réenregistrer un budget sans toucher au nom ne doit pas écrire pour rien.
+  // Le nom d'AVANT, pour n'appeler la route de renommage que s'il a changé.
   champNom.dataset.nomInitial = categorie.nom;
-  document.getElementById("categorie-budget-bloc").style.display = "";
-  document.getElementById("categorie-budget-label").textContent = monnaie
-    ? `Budget pour ${moisLabel} (${monnaie.symbole})`
-    : `Budget pour ${moisLabel}`;
-  document.getElementById("categorie-budget").value = budget.montant;
-  const hint = document.getElementById("categorie-budget-hint");
-  if (budget.explicite) {
-    hint.style.display = "none";
-  } else {
-    hint.textContent = `Valeur héritée d'un mois précédent — enregistrer définit une valeur propre à ${moisLabel}.`;
-    hint.style.display = "block";
-  }
-  document.getElementById("categorie-objectif-bloc").style.display = "";
-  document.getElementById("categorie-objectif-hint").style.display = "block";
-  document.getElementById("categorie-objectif").value = categorie.objectif_pourcentage || 0;
   document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
 }
 
-function renderOngletsMonnaiesCategories() {
-  renderOngletsMonnaies(
-    "categories-monnaies",
-    state.monnaies,
-    state.categoriesMonnaieId,
-    (monnaieId) => {
-      state.categoriesMonnaieId = monnaieId;
-      // Le formulaire édite le budget d'une monnaie précise : le laisser
-      // ouvert après un changement d'onglet enregistrerait la valeur sur la
-      // mauvaise.
-      resetCategorieForm();
-      renderOngletsMonnaiesCategories();
-      loadCategoriesBudgets(state.categoriesPeriode.annee, state.categoriesPeriode.mois);
-    }
-  );
-}
-
 async function loadCategories() {
   try {
-    await refreshMonnaies();
     await refreshCategories();
-    // Le budget est propre à une monnaie : l'onglet choisit laquelle, et
-    // recharge la colonne Budget sans toucher au mois sélectionné.
-    renderOngletsMonnaiesCategories();
-    await initPeriodeSelector(
-      document.getElementById("categories-periode-annees"),
-      document.getElementById("categories-periode-mois"),
-      state.categoriesPeriode,
-      loadCategoriesBudgets
-    );
+    renderCategories();
   } catch (err) {
     showMessage(err.message, "error");
   }
 }
 
-async function loadCategoriesBudgets(annee, mois) {
-  if (!state.categoriesMonnaieId) return;
-  try {
-    const budgets = await apiFetch(
-      `/categories/budgets?annee=${annee}&mois=${mois}&monnaie_id=${state.categoriesMonnaieId}`
+function renderCategories() {
+  const body = document.getElementById("categories-liste");
+  // Cf. loadComptes : le formulaire peut être posé dans ce tableau.
+  fermerFormulaireEnLigne("form-categorie");
+  body.innerHTML = "";
+  state.categories.forEach((c) => {
+    const tr = document.createElement("tr");
+    tr.dataset.id = c.id;
+    const deleteAction =
+      c.nom === CATEGORIE_AUTRES
+        ? ""
+        : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
+    tr.innerHTML = `
+      <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
+      <td>${escapeHtml(libelleCategorie(c.nom))}</td>
+      <td>
+        <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
+        ${deleteAction}
+      </td>
+    `;
+    // Déplaçable par sa poignée seulement : le nom de la catégorie reste
+    // copiable.
+    rendreDeplacableParPoignee(tr, ".drag-handle");
+    body.appendChild(tr);
+  });
+
+  const editerCategorie = (id, ligne) => {
+    const categorie = state.categories.find((c) => c.id === id);
+    if (!categorie) return;
+    fillCategorieForm(categorie, ligne);
+  };
+  activerEditionDoubleClic(body, editerCategorie);
+
+  body.querySelectorAll("button[data-action='edit']").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      editerCategorie(Number(btn.dataset.id), btn.closest("tr"))
     );
-    const budgetParId = Object.fromEntries(budgets.map((b) => [b.categorie_id, b]));
-    const moisLabel = libelleMois(annee, mois);
-    document.getElementById("categories-budget-entete").textContent = `Budget (${moisLabel})`;
+  });
 
-    const gerables = state.categories;
-    const body = document.getElementById("categories-liste");
-    // Cf. loadComptes : le formulaire peut être posé dans ce tableau.
-    fermerFormulaireEnLigne("form-categorie");
-    body.innerHTML = "";
-    gerables.forEach((c) => {
-      const budget = budgetParId[c.id] || { montant: 0, explicite: false };
-      const budgetTexte = formatMontant(budget.montant, state.categoriesMonnaieId);
-      const tr = document.createElement("tr");
-      tr.dataset.id = c.id;
-      const deleteAction =
-        c.nom === CATEGORIE_AUTRES
-          ? ''
-          : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
-      tr.innerHTML = `
-        <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
-        <td>${escapeHtml(libelleCategorie(c.nom))}</td>
-        <td>${budgetTexte}</td>
-        <!-- VIDE PLUTÔT QUE « 0 % » quand aucun objectif n'est posé : zéro veut
-             dire « pas d'objectif » (cf. migration 0055), et une colonne de
-             zéros sur vingt lignes aurait donné à lire vingt fois une absence.
-             Ce qui se voit doit être ce qui a été décidé. -->
-        <td class="categorie-objectif-cellule">${
-          c.objectif_pourcentage ? formatPourcentage(c.objectif_pourcentage) : ""
-        }</td>
-        <td>
-          <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
-          ${deleteAction}
-        </td>
-      `;
-      // Déplaçable par sa poignée seulement : le nom de la catégorie et son
-      // budget restent copiables.
-      rendreDeplacableParPoignee(tr, ".drag-handle");
-      body.appendChild(tr);
+  body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm(t("Supprimer cette catégorie ?"))) return;
+      try {
+        await apiFetch(`/categories/${btn.dataset.id}`, { method: "DELETE" });
+        showMessage(t("Catégorie supprimée"), "success");
+        loadCategories();
+      } catch (err) {
+        showMessage(err.message, "error");
+      }
     });
+  });
 
-    const editerCategorie = (id, ligne) => {
-      const categorie = state.categories.find((c) => c.id === id);
-      if (!categorie) return;
-      fillCategorieForm(categorie, budgetParId[id] || { montant: 0, explicite: false }, ligne);
-    };
-    activerEditionDoubleClic(body, editerCategorie);
-
-    body.querySelectorAll("button[data-action='edit']").forEach((btn) => {
-      btn.addEventListener("click", () =>
-        editerCategorie(Number(btn.dataset.id), btn.closest("tr"))
-      );
-    });
-
-    body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        if (!confirm(t("Supprimer cette catégorie ?"))) return;
-        try {
-          await apiFetch(`/categories/${btn.dataset.id}`, { method: "DELETE" });
-          showMessage(t("Catégorie supprimée"), "success");
-          loadCategories();
-        } catch (err) {
-          showMessage(err.message, "error");
-        }
-      });
-    });
-
-    attacherDragReorderCategories(body);
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
+  attacherDragReorderCategories(body);
 }
 
 // Glisser-déposer natif (HTML5) pour réordonner les catégories : plus
@@ -4825,57 +4700,20 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
   const id = document.getElementById("categorie-id").value;
   try {
     if (id) {
-      // DEUX ÉCRITURES, deux routes : le nom appartient à la catégorie, le
-      // budget à un couple (mois, monnaie). Le renommage part en premier —
-      // s'il échoue (« Autres », nom déjà pris), on n'a encore rien changé.
       const champNom = document.getElementById("categorie-nom");
       const nomInitial = champNom.dataset.nomInitial || "";
       const nom = champNom.value.trim();
-      const renomme = !champNom.disabled && nom && nom !== nomInitial;
-      if (renomme) {
+      // RIEN À ÉCRIRE SI LE NOM N'A PAS BOUGÉ : c'est désormais la seule chose
+      // que ce formulaire porte, et réenregistrer un nom identique n'est qu'une
+      // occasion de plus qu'une erreur réseau fasse échouer une écriture qui
+      // n'avait rien à écrire.
+      if (!champNom.disabled && nom && nom !== nomInitial) {
         await apiFetch(`/categories/${id}`, {
           method: "PUT",
           body: JSON.stringify({ nom }),
         });
+        showMessage(t("Catégorie modifiée"), "success");
       }
-      const montant = parseFloat(document.getElementById("categorie-budget").value || "0");
-      const { annee, mois } = state.categoriesPeriode;
-      await apiFetch(
-        `/categories/${id}/budget?annee=${annee}&mois=${mois}&monnaie_id=${state.categoriesMonnaieId}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({ montant }),
-        }
-      );
-      // TROISIÈME ÉCRITURE, TROISIÈME ROUTE. L'objectif n'a ni le mois ni la
-      // monnaie dans sa clé : le passer dans l'appel ci-dessus aurait fait
-      // d'une part une valeur mensuelle, ce qu'elle n'est pas.
-      //
-      // ENVOYÉ SEULEMENT S'IL A CHANGÉ, comme le nom juste au-dessus : ouvrir
-      // une ligne pour corriger un budget et ressortir en ayant réécrit
-      // l'objectif à l'identique n'est pas faux, mais c'est une écriture pour
-      // rien — et une occasion de plus qu'une erreur réseau fasse échouer un
-      // enregistrement qui n'avait rien à enregistrer.
-      const categorieAvant = state.categories.find((c) => c.id === Number(id));
-      const objectif = parseFloat(
-        document.getElementById("categorie-objectif").value || "0"
-      );
-      const objectifChange =
-        Math.abs(objectif - (categorieAvant?.objectif_pourcentage || 0)) > 1e-9;
-      if (objectifChange) {
-        await apiFetch(`/categories/${id}/objectif`, {
-          method: "PUT",
-          body: JSON.stringify({ objectif_pourcentage: objectif }),
-        });
-      }
-      showMessage(
-        renomme
-          ? t("Catégorie modifiée")
-          : objectifChange
-            ? t("Objectif modifié")
-            : t("Budget modifié"),
-        "success"
-      );
     } else {
       const nomInput = document.getElementById("categorie-nom");
       await apiFetch("/categories", {
@@ -4886,19 +4724,6 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
     }
     resetCategorieForm();
     loadCategories();
-    // L'ACCORD DES TROIS GRANDEURS SE VÉRIFIE APRÈS COUP, jamais avant : la
-    // saisie est enregistrée quoi qu'il arrive, et c'est seulement ensuite
-    // qu'on demande si elle en contredit une autre. Refuser d'écrire aurait
-    // obligé à corriger l'autre bout AVANT de pouvoir poser celui-ci —
-    // c'est-à-dire dans l'ordre inverse de celui où l'on pense.
-    //
-    // SUR LE MOIS ET LA MONNAIE DE CET ÉCRAN-CI (l'onglet Catégories a les
-    // siens, indépendants de ceux du dashboard) : c'est la période dont les
-    // chiffres viennent d'être écrits.
-    if (id) {
-      const { annee, mois } = state.categoriesPeriode;
-      await verifierAccordBudgets(annee, mois, state.categoriesMonnaieId);
-    }
   } catch (err) {
     showMessage(err.message, "error");
   }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=110" />
+  <link rel="stylesheet" href="style.css?v=111" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -335,33 +335,25 @@
              disparu au premier clic. -->
         <div class="histogramme-cadre camembert-cadre">
           <div class="camembert-entete">
+            <!-- LA VUE « BUDGET » APPARTIENT À L'EXTENSION DU MÊME NOM. Elle
+                 rapporte chaque catégorie au budget total du mois — un chiffre
+                 qui ne se pose plus que sur la page Budget, et qui n'existe donc
+                 que si l'extension tourne. Un onglet qui ouvre un graphe sans
+                 dénominateur, sans rien offrir pour lui en donner un, est une
+                 impasse : `data-extension` le fait disparaître avec elle (cf.
+                 extensions.js, majVisibiliteNavigation), et `display:none` dans
+                 le HTML parce que rien n'appelle ce mécanisme au démarrage pour
+                 une extension éteinte — c'est l'extension qui ouvre, jamais le
+                 noyau qui ferme.
+
+                 LE RÉGLAGE DU BUDGET A SUIVI. Il vivait ici, dans cette vue et
+                 elle seule : un champ à remplir posé entre deux graphes, sur
+                 l'écran où l'on vient LIRE ce qui s'est passé. Il est désormais
+                 en tête de la page Budget, avec les deux autres grandeurs
+                 auxquelles il se compare. -->
             <div class="sous-onglets camembert-vues" id="camembert-vues">
               <button type="button" data-vue-pie="actuel" class="active">État actuel</button>
-              <button type="button" data-vue-pie="budget">Budget<i class="info-bulle" tabindex="0" data-info-cle="noyau.camembert-vue-budget">i</i></button>
-            </div>
-            <!-- LE RÉGLAGE DU BUDGET NE VIT QUE DANS SA VUE. Affiché en
-                 permanence, il aurait demandé un chiffre dont la vue « état
-                 actuel » ne fait rien — et laissé croire que ce chiffre change
-                 quelque chose au graphe qu'on regarde.
-
-                 IL SE PORTE COMME UN FILTRE, et non comme un champ inventé pour
-                 ce coin d'écran. Hors formulaire, un <input> ne reçoit RIEN des
-                 styles de l'application (`form input` ne descend que dans un
-                 <form>) : celui-ci n'avait ni fond, ni bordure, ni rayon, ni
-                 anneau de focus — le seul champ nu de toute l'app, posé au
-                 milieu d'un dashboard. La rangée des filtres d'Opérations, elle
-                 aussi hors formulaire, avait déjà répondu à la question ; c'est
-                 sa forme qui est reprise ici (cf. .camembert-budget-reglage). -->
-            <div class="camembert-budget-reglage" id="camembert-budget-reglage" hidden>
-              <label for="camembert-budget-total">Budget du mois</label>
-              <input type="number" id="camembert-budget-total" step="0.01" min="0" />
-              <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
-                   KpisMonnaieRead.budget_total_explicite). L'héritage remonte
-                   aussi le temps depuis : sans cette mention, un mois antérieur
-                   à toute saisie afficherait un montant qui n'y a jamais été
-                   posé, et passerait pour une saisie oubliée. -->
-              <span class="badge-aucun" id="camembert-budget-herite" hidden>hérité</span>
-              <button type="button" class="primary" id="btn-camembert-budget-total">Enregistrer</button>
+              <button type="button" data-vue-pie="budget" data-extension="analyse-budget" style="display:none">Budget<i class="info-bulle" tabindex="0" data-info-cle="noyau.camembert-vue-budget">i</i></button>
             </div>
           </div>
           <div id="dashboard-camembert" class="camembert-zone"></div>
@@ -1309,23 +1301,25 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <!-- CATEGORIES -->
+      <!-- CETTE PAGE NE PORTE PLUS QUE LES CATÉGORIES ELLES-MÊMES : leur nom,
+           leur ordre, leur existence. Les DEUX CHIFFRES qu'on y réglait — le
+           budget du mois d'une catégorie et son objectif de répartition — sont
+           passés sur la page Budget (extension « Budget »), où ils se voient
+           tous ensemble et se posent au curseur.
+
+           POURQUOI ILS SONT PARTIS. Ils se réglaient ligne par ligne, dans un
+           formulaire qu'il fallait ouvrir vingt fois pour répartir un budget
+           entre vingt catégories — et sans jamais voir, pendant qu'on écrivait
+           l'un, ce que valaient les dix-neuf autres. Or c'est exactement la
+           question qu'on se pose en les posant. Cette page-ci demandait en
+           plus une monnaie et un mois, dont le nom d'une catégorie ne dépend
+           pas : deux rangées d'onglets pour une seule colonne. -->
       <div id="sous-section-parametres-categories" class="sous-section">
         <h3>Catégories de dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-de-depenses">i</i></h3>
 
-        <div class="sous-onglets" id="categories-monnaies"></div>
-        <div class="sous-onglets" id="categories-periode-annees"></div>
-        <div class="sous-onglets sous-onglets-mois" id="categories-periode-mois"></div>
-
         <table>
           <thead>
-            <!-- DEUX COLONNES POUR DEUX MESURES, et leurs en-têtes le disent.
-                 « Budget » porte le mois entre parenthèses (il en dépend) ;
-                 « Objectif » n'en porte pas, parce qu'il n'en dépend pas —
-                 c'est une part, la même tous les mois et dans toutes les
-                 monnaies (cf. migration 0055). Les mettre côte à côte sans
-                 cette différence d'en-tête aurait laissé croire que changer de
-                 mois change les deux. -->
-            <tr><th>Ordre</th><th>Nom</th><th id="categories-budget-entete">Budget</th><th>Objectif<i class="info-bulle" tabindex="0" data-info-cle="noyau.objectif">i</i></th><th>Actions</th></tr>
+            <tr><th>Ordre</th><th>Nom</th><th>Actions</th></tr>
           </thead>
           <tbody id="categories-liste"></tbody>
         </table>
@@ -1336,23 +1330,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label id="categorie-nom-bloc">Nom
             <input type="text" id="categorie-nom" required />
           </label>
-          <label id="categorie-budget-bloc" style="display:none">
-            <span id="categorie-budget-label">Budget</span>
-            <input type="number" step="0.01" min="0" id="categorie-budget" value="0" />
-          </label>
-          <!-- L'OBJECTIF EST DANS LE MÊME FORMULAIRE QUE LE BUDGET, et c'est
-               le seul endroit où les deux se touchent. Un second formulaire
-               aurait obligé à ouvrir deux fois la même ligne pour régler deux
-               choses qu'on règle en pensant à la même catégorie. Ils partent
-               en revanche par DEUX routes distinctes (cf. le gestionnaire
-               d'envoi), parce qu'ils n'ont ni la même clé ni la même durée de
-               vie. -->
-          <label id="categorie-objectif-bloc" style="display:none">
-            <span>Objectif de répartition (%)</span>
-            <input type="number" step="0.1" min="0" max="100" id="categorie-objectif" value="0" />
-          </label>
-          <div id="categorie-objectif-hint" class="hint full-width" data-texte-cle="noyau.une-part-pas-un-montant-elle-vaut-pour-tous"></div>
-          <div id="categorie-budget-hint" class="hint full-width" style="display:none"></div>
           <div class="actions">
             <button type="submit" class="primary">Enregistrer</button>
             <button type="button" id="categorie-annuler" style="display:none">Annuler</button>
@@ -1979,9 +1956,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=10"></script>
-  <script src="i18n.js?v=57"></script>
+  <script src="textes.js?v=11"></script>
+  <script src="i18n.js?v=58"></script>
   <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=135"></script>
+  <script src="app.js?v=136"></script>
 </body>
 </html>
