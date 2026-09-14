@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=111" />
+  <link rel="stylesheet" href="style.css?v=113" />
 </head>
 <body>
   <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
@@ -446,12 +446,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
          aurait laissé exister un état où les totaux affichés ne sont pas ceux
          dont on lit les causes. -->
     <section id="section-ecart-variations">
-      <h2>D'où vient l'écart ?
+      <h2>D'où vient l'écart ?<i class="info-bulle" tabindex="0" data-info-cle="noyau.ecart-explication">i</i>
         <span class="ecart-titre-actions">
           <button type="button" id="btn-ecart-retour">← Retour au dashboard</button>
         </span>
       </h2>
-      <p class="hint" data-texte-cle="noyau.ecart-explication">Les deux variations ne répondent pas à la même question, elles n'ont donc jamais le même chiffre. Voici, opération par opération, ce qui les sépare sur la période affichée.</p>
 
       <div class="flux-periode ecart-kpis">
         <div class="flux-carte">
@@ -1083,7 +1082,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </label>
 
           <label id="operation-amorti-bloc">
-            <input type="checkbox" id="operation-amorti" /> <span>Amortie sur plusieurs mois</span>
+            <input type="checkbox" id="operation-amorti" /> <span>Amortie sur plusieurs mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.amortie-sur-plusieurs-mois">i</i></span>
           </label>
         </div>
 
@@ -1119,7 +1118,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             Reconnaître cette dépense à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i>
           </label>
           <div id="operation-rapprochement-champs" class="full-width" style="display:none">
-            <p class="hint full-width" data-texte-cle="noyau.rapprochement-aide"></p>
             <label>Attendue à partir du
               <input type="date" id="operation-rapprochement-debut" />
             </label>
@@ -1154,11 +1152,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
 
         <div id="operation-amortissement-champs-bloc" class="full-width" style="display:none">
-          <p class="hint full-width">
-            La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut
-            du dashboard ne bougent pas. Seuls l'histogramme et les totaux de la période
-            répartissent son montant sur les mois choisis.
-          </p>
           <!-- Deux listes déroulantes (mois, puis année) et non un
                <input type="month"> : le champ natif se saisit au clavier
                segment par segment, et une année laissée à moitié tapée rend
@@ -1229,13 +1222,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            laisseraient un onglet actif de chaque côté. -->
       <div class="sous-onglets sous-onglets-deux-groupes" id="parametres-sous-nav">
         <div class="sous-onglets-groupe" id="parametres-sous-nav-gauche">
-          <button type="button" data-sous-section="parametres-comptes" class="active">Comptes</button>
+          <button type="button" data-sous-section="parametres-comptes" class="active"><img class="onglet-logo" src="/img/bank_account_logo.svg" alt="" width="15" height="15" />Comptes</button>
           <button type="button" data-sous-section="parametres-categories"><img class="onglet-logo" src="/img/category_logo.svg" alt="" width="15" height="15" />Catégories</button>
         </div>
         <div class="sous-onglets-groupe" id="parametres-sous-nav-droite">
           <!-- EN TÊTE DU GROUPE DE DROITE, celui de ce qui RÈGLE l'application :
                c'est le seul onglet dont le contenu ne décrit aucun budget. -->
-          <button type="button" data-sous-section="parametres-generaux">Paramètres généraux</button>
+          <button type="button" data-sous-section="parametres-generaux"><img class="onglet-logo" src="/img/gear_logo.svg" alt="" width="15" height="15" />Paramètres généraux</button>
           <!-- MÊME LOGO QUE L'EXTENSION « RÈGLES » (extensions/regles,
                navigation.icone = "tool_logo.svg"), posé ici EN DUR plutôt que
                par son JS : Correspondances est un onglet du NOYAU, toujours là
@@ -1270,7 +1263,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" id="btn-touche-gel-defaut">Touche par défaut</button>
             <button type="button" id="btn-touche-gel-aucune">Désactiver</button>
           </div>
-          <p class="hint" data-texte-cle="noyau.gel-infobulle-aide"></p>
         </div>
       </div>
 
@@ -1330,6 +1322,18 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label id="categorie-nom-bloc">Nom
             <input type="text" id="categorie-nom" required />
           </label>
+          <!-- CATÉGORIE D'ENTRÉE (migration 0060). La même rangée de cases que
+               le formulaire d'opération, pour la même raison : une case se lit
+               à côté de son libellé, jamais au-dessus. Masquée à la CRÉATION —
+               la route POST /categories ne prend que le nom, et le drapeau se
+               pose au premier passage en modification, comme le faisaient le
+               budget et l'objectif avant de déménager. -->
+          <div class="full-width operation-cases" id="categorie-entree-bloc" style="display:none">
+            <label>
+              <input type="checkbox" id="categorie-entree" />
+              <span>Catégorie d'entrée<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-entree">i</i></span>
+            </label>
+          </div>
           <div class="actions">
             <button type="submit" class="primary">Enregistrer</button>
             <button type="button" id="categorie-annuler" style="display:none">Annuler</button>
@@ -1353,12 +1357,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-parametres-import" class="sous-section">
-      <p class="hint">
-        Dépose l'export Excel ou CSV de ta banque. Avant de valider, tu auras deux choses à
-        faire : dire dans quelles catégories ranger les libellés que l'app ne connaît pas encore,
-        et jeter un œil aux doublons qu'elle a repérés.
-      </p>
-
       <h3>Preset<i class="info-bulle" tabindex="0" data-info-cle="noyau.preset">i</i></h3>
       <div class="preset-panel">
         <div class="preset-chips sous-onglets" id="import-preset-chips"></div>
@@ -1396,11 +1394,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="config-avancee-resume" id="import-config-fichier-resume"></span>
         </summary>
 
-        <h4>Colonnes lues</h4>
-        <p class="hint">
-          Clique sur l'œil pour lire ou ignorer une colonne. Date, Nature et Montant sont
-          obligatoires et ne s'éteignent pas.
-        </p>
+        <h4>Colonnes lues<i class="info-bulle" tabindex="0" data-info-cle="noyau.colonnes-lues">i</i></h4>
         <div id="import-config-colonnes"></div>
         <label class="import-option-ligne">
           <input type="checkbox" id="import-ignorer-premiere-ligne" />
@@ -1421,28 +1415,19 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
 
         <details class="config-avancee" id="import-config-avancee">
-        <summary>
-          Configuration avancée
-          <span class="config-avancee-resume" id="import-config-avancee-resume"></span>
-        </summary>
-        <!-- Le détail de chaque propriété a rejoint l'info-bulle de SA ligne
+        <!-- Le détail de chaque propriété vit dans l'info-bulle de SA ligne
              (cf. INFOS_PROPRIETES_IMPORT) : il s'y lit au moment où l'on règle
              la propriété, au lieu d'un pavé à retraverser du regard. -->
-        <p class="hint">
-          Pour ce que ton relevé dit en plus : le compte, le sens, les devises, les frais.
-          Laisse vide si ton relevé tient dans une seule colonne de montant et une seule monnaie.
-          Le « i » de chaque ligne dit à quoi elle sert.
-        </p>
+        <summary>
+          Configuration avancée<i class="info-bulle" tabindex="0" data-info-cle="noyau.configuration-avancee">i</i>
+          <span class="config-avancee-resume" id="import-config-avancee-resume"></span>
+        </summary>
         <div id="import-config-colonnes-avancees"></div>
 
         <!-- N'apparaît que si une colonne « Sens » est configurée : sans elle,
              ces mots-clés ne servent à rien. -->
         <div id="import-sens-libelles-bloc" style="display:none">
           <h4>Mots-clés de la colonne « Sens »<i class="info-bulle" tabindex="0" data-info-cle="noyau.mots-cles-de-la-colonne-sens">i</i></h4>
-          <p class="hint">
-            Laisse vide pour garder les mots-clés reconnus par défaut, rappelés sous chaque
-            champ. Dès que tu en ajoutes un, il remplace toute la liste par défaut de ce sens-là.
-          </p>
           <div class="import-vocabulaire-champ" data-vocabulaire="sortie">
             <div class="import-vocabulaire-entete">
               <label for="import-sens-sortie">Sortie (argent qui part)</label>
@@ -1482,10 +1467,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <!-- Même mécanique, pour la colonne « État ». -->
         <div id="import-statut-libelles-bloc" style="display:none">
           <h4>Mots-clés de la colonne « État »<i class="info-bulle" tabindex="0" data-info-cle="noyau.mots-cles-de-la-colonne-etat">i</i></h4>
-          <p class="hint">
-            Laisse vide pour garder les mots-clés reconnus par défaut. Dès que tu en ajoutes
-            un, il remplace toute la liste par défaut de cet état-là.
-          </p>
           <div class="import-vocabulaire-champ" data-vocabulaire="execute">
             <div class="import-vocabulaire-entete">
               <label for="import-statut-execute">Exécuté (l'argent a bougé)</label>
@@ -1565,14 +1546,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            accessibles à la main pour les ajuster par anticipation. -->
       <details class="config-avancee" id="import-reglages-lecture">
         <summary>
-          Réglages de lecture (délimiteur, séparateur décimal)
+          Réglages de lecture (délimiteur, séparateur décimal)<i class="info-bulle" tabindex="0" data-info-cle="noyau.reglages-de-lecture">i</i>
           <span class="config-avancee-resume" id="import-reglages-lecture-resume"></span>
         </summary>
         <p class="import-avertissement" id="import-reglages-lecture-alerte" style="display:none"></p>
-        <p class="hint">
-          À régler seulement si le fichier est mal lu : colonnes mélangées, montants
-          illisibles. L'app devine seule dans la plupart des cas.
-        </p>
         <div class="import-reglage-champ">
           <label for="import-reglage-delimiteur">Délimiteur de colonnes</label>
           <select id="import-reglage-delimiteur">
@@ -1614,15 +1591,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <!-- Le titre et le bouton de relecture sur une ligne : la relecture est
              une action SUR ce tableau, elle doit être là où il commence. -->
         <div class="apercu-fichier-entete">
-          <h3>Le fichier tel qu'il est</h3>
+          <h3>Le fichier tel qu'il est<i class="info-bulle" tabindex="0" data-info-cle="noyau.le-fichier-tel-qu-il-est">i</i></h3>
           <button type="button" id="btn-import-apercu-relire"
                   title="Relire le fichier avec la configuration actuelle"></button>
         </div>
-        <p class="hint">
-          Les colonnes colorées sont celles que l'app va lire, les grises sont ignorées. Deux
-          façons de corriger un décalage : glisser un en-tête sur un autre pour échanger les
-          deux colonnes, ou saisir les numéros dans « Configuration du fichier » au-dessus.
-        </p>
         <!-- Ce qui manque au tableau quand les en-têtes viennent de bouger : le
              fichier n'a pas encore été relu, les lignes résolues plus bas
              décrivent donc la lecture d'avant. -->
@@ -1640,12 +1612,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <div id="import-resultat" style="display:none"></div>
 
       <div id="import-mappings-bloc" style="display:none">
-        <h3>Catégories bancaires à confirmer</h3>
-        <p class="hint">
-          Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche
-          « Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux
-          aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.
-        </p>
+        <h3>Catégories bancaires à confirmer<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires-a-confirmer">i</i></h3>
         <div class="actions">
           <button type="button" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
         </div>
@@ -1686,7 +1653,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            intacte. -->
       <div id="import-previsionnelles-bloc" style="display:none">
         <h3>Dépenses prévues reconnues — <span id="import-previsionnelles-nombre"></span><i class="info-bulle" tabindex="0" data-info-cle="noyau.import-previsionnelles">i</i></h3>
-        <p class="hint" data-texte-cle="noyau.import-previsionnelles-aide"></p>
         <table>
           <thead>
             <tr>
@@ -1698,12 +1664,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="import-apercu-bloc" style="display:none">
-        <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)</h3>
-        <p class="hint">
-          Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend :
-          supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à
-          changer le type d'une ligne.
-        </p>
+        <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.apercu-import">i</i></h3>
         <div class="actions barre-selection">
           <button type="button" id="btn-import-tout-selectionner">Tout sélectionner</button>
           <button type="button" class="danger" id="btn-import-supprimer-selection" disabled>
@@ -1810,14 +1771,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="hint" id="import-veille-virements-etat" style="display:none"></p>
 
         <div id="import-apercu-section-ressemblances">
-          <h4>Ressemblances — <span id="import-apercu-nombre-ressemblances"></span> ligne(s)</h4>
-          <p class="hint">
-            <strong>Ce virement est peut-être déjà en base.</strong> Quand tu importes les relevés
-            de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons
-            différentes. L'app compare ici la <em>transaction</em> elle-même — le compte, les devises,
-            le montant, une date proche — et te montre à quoi chaque ligne ressemble.
-            Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.
-          </p>
+          <h4>Ressemblances — <span id="import-apercu-nombre-ressemblances"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.ressemblances">i</i></h4>
           <!-- ÉMETTEUR ET RÉCEPTEUR, et non « Catégorie / Compte » comme les
                autres sections : ici toute ligne est un virement, et comparer un
                virement à un autre sans voir d'où à où va l'argent ne veut rien
@@ -1835,12 +1789,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
 
         <div id="import-apercu-section-doublons">
-          <h4>Doublons détectés — <span id="import-apercu-nombre-doublons"></span> ligne(s)</h4>
-          <p class="hint">
-            Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle
-            qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour
-            l'importer quand même, deux achats identiques le même jour ça arrive.
-          </p>
+          <h4>Doublons détectés — <span id="import-apercu-nombre-doublons"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.doublons-detectes">i</i></h4>
           <table>
             <thead>
               <tr>
@@ -1909,11 +1858,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label class="full-width">Chemin complet du fichier .db
             <input type="text" id="bdd-chemin" placeholder="C:\chemin\vers\ma_base.db" />
           </label>
-          <p class="hint full-width">
-            Le navigateur ne transmet jamais le chemin complet d'un fichier choisi via « Parcourir »
-            (limite de sécurité) : ce bouton ne pré-remplit que le nom du fichier, complète le
-            dossier à la main.
-          </p>
           <input type="file" id="bdd-fichier" accept=".db,.sqlite,.sqlite3" hidden />
           <div class="actions full-width">
             <button type="button" id="btn-bdd-parcourir">Parcourir…</button>
@@ -1932,16 +1876,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </form>
 
-        <p class="hint">
-          « Basculer » exige un fichier existant. « Créer / déplacer ici » accepte un chemin neuf :
-          il y déplace la base ouverte si elle est encore dans le dossier de l'application, et en
-          crée une vierge sinon.
-        </p>
-        <p class="hint">
-          Une base restée à une version de schéma antérieure est mise à jour à la bascule, après
-          copie horodatée à côté du fichier d'origine : une application neuve ne sait pas lire une
-          base ancienne, et échouerait sinon sur ses pages principales sans dire pourquoi.
-        </p>
       </div>
     </section>
   </main>
@@ -1956,9 +1890,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=11"></script>
-  <script src="i18n.js?v=58"></script>
+  <script src="textes.js?v=13"></script>
+  <script src="i18n.js?v=60"></script>
   <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=136"></script>
+  <script src="app.js?v=138"></script>
 </body>
 </html>

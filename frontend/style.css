@@ -4918,3 +4918,101 @@ td.apercu-col-hors-fichier {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ---------- Les graphes se dessinent ----------
+ *
+ * UN HISTOGRAMME POUSSE, UN CAMEMBERT SE COLORE. Ce n'est pas de l'ornement :
+ * les deux montrent une quantité, et une quantité qui ARRIVE se lit mieux
+ * qu'une quantité posée d'un coup — l'œil suit le mouvement et rapporte de
+ * lui-même chaque barre à ses voisines, ce qu'une image figée lui demande de
+ * faire tout seul. C'est aussi ce qui dit qu'un graphe vient d'être recalculé,
+ * là où deux rendus successifs très proches se ressemblaient trop pour qu'on
+ * remarque le changement de mois.
+ *
+ * COURT, TOUJOURS. Un graphe qu'on regarde se construire pendant une seconde
+ * et demie devient une attente, et l'attente se paie à chaque clic de mois.
+ * Le tour complet du camembert tient en ~0,6 s (cf. PIE_ANIMATION_MS), une
+ * barre en 0,42 s.
+ *
+ * ET RIEN NE DÉPEND D'ELLES. Les attributs SVG portent déjà la valeur finale :
+ * l'animation ne fait que retarder son affichage. Un navigateur qui ne la
+ * jouerait pas — ou l'utilisateur qui demande moins de mouvement, cf. plus
+ * bas — voit le graphe juste, tout de suite.
+ */
+
+/* LES RECTANGLES DE VALEUR SEULEMENT, jamais le groupe entier : celui-ci porte
+   aussi la zone de survol (invisible, pleine hauteur) et les deux étiquettes.
+   Les animer aurait fait glisser les noms de catégorie et rendu les infobulles
+   injoignables le temps du dessin.
+
+   `transform-box: fill-box` rapporte `transform-origin` à la boîte du
+   rectangle lui-même plutôt qu'au repère du SVG : sans lui, « bottom » désigne
+   le bas du dessin entier, et toutes les barres partiraient du même point. */
+@keyframes histo-pousse {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.histo-fut {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: histo-pousse 0.42s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+  animation-delay: var(--retard, 0ms);
+}
+
+/* Le trait de budget et le nombre ne poussent pas : ils se POSENT, une fois la
+   barre arrivée. Un trait de 3 px qu'on étire ne s'étire pas, il clignote. */
+@keyframes histo-parait {
+  from {
+    opacity: 0;
+  }
+}
+
+.histo-repere,
+.histo-valeur {
+  animation: histo-parait 0.3s ease-out both;
+  animation-delay: calc(var(--retard, 0ms) + 0.3s);
+}
+
+/* LA TRANCHE SE COLORE LE LONG DE L'ANNEAU. Le tiret part de zéro et s'allonge
+   jusqu'à sa part du tour ; `--retard` vaut le temps qu'ont mis les tranches
+   précédentes, si bien que la couleur fait UN tour continu plutôt que de
+   s'allumer partout à la fois.
+   `stroke-dashoffset` n'est pas touché : c'est lui qui dit OÙ commence la
+   tranche, et il est déjà juste. */
+@keyframes camembert-trace {
+  from {
+    stroke-dasharray: 0 var(--tour);
+  }
+  to {
+    stroke-dasharray: var(--part) var(--reste);
+  }
+}
+
+.camembert-part {
+  animation: camembert-trace var(--duree, 300ms) linear both;
+  animation-delay: var(--retard, 0ms);
+}
+
+/* Le fond de l'anneau (vue budget) est là AVANT que les tranches ne le
+   couvrent : il ne se trace pas, il apparaît — c'est le décor, pas la donnée. */
+.camembert-piste {
+  animation: histo-parait 0.25s ease-out both;
+}
+
+/* QUI DEMANDE MOINS DE MOUVEMENT N'EN A PAS. Le réglage système existe pour de
+   vraies raisons (vertiges, migraines), et aucune de ces animations ne porte
+   d'information : les couper ne retire rien du graphe. */
+@media (prefers-reduced-motion: reduce) {
+  .histo-fut,
+  .histo-repere,
+  .histo-valeur,
+  .camembert-part,
+  .camembert-piste {
+    animation: none;
+  }
+}

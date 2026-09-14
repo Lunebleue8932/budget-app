@@ -45,9 +45,7 @@ const TEXTES = {
   "noyau.parametres-generaux":
     "Ce qui règle ta façon de te servir de l'application, et non ton budget : ces réglages vivent sur CE poste, pas dans la base. Changer de machine ne les emporte pas, et effacer les données du navigateur les remet à leur valeur d'origine.",
   "noyau.touche-gel-infobulle":
-    "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même.",
-  "noyau.gel-infobulle-aide":
-    "L'infobulle des graphes suit le curseur et disparaît dès qu'on le retire : tout ce qu'elle contient doit donc se lire sans bouger la souris. Cette touche la FIGE là où elle est — le survol des graphes cesse de la remplacer, et tu récupères ton curseur pour lire son top 3 ou cliquer son bouton tranquillement. La même touche, un clic à côté ou Échap la libèrent.",
+    "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même. Figée, l'infobulle des graphes cesse d'être remplacée par le survol : tu récupères ton curseur pour lire son top 3 ou cliquer son bouton. La même touche, un clic à côté ou Échap la libèrent.",
 
   /* ----- Le camembert et ses deux vues ----- */
   "noyau.camembert-vue-budget":
@@ -82,6 +80,8 @@ const TEXTES = {
     "La devise des frais dit à quel montant ils s'appliquent : sur un virement entre deux monnaies, des frais dans la monnaie envoyée grèvent ce qui part, dans la monnaie reçue ce qui arrive.",
   "noyau.decouper-entre-plusieurs-categories":
     "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
+  "noyau.amortie-sur-plusieurs-mois":
+    "La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut du dashboard ne bougent pas. Seuls l'histogramme et les totaux de la période répartissent son montant sur les mois choisis.",
   /* ----- Extension « Budget » -----
      L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
@@ -110,13 +110,9 @@ const TEXTES = {
 
   /* ----- Rapprocher une prévisionnelle de la vraie ----- */
   "noyau.import-previsionnelles":
-    "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence.",
-  "noyau.import-previsionnelles-aide":
-    "Coché, le remplacement a lieu. Décoché, la ligne s'importe comme n'importe quelle autre et la dépense prévue reste telle quelle — tu te retrouves simplement avec les deux, comme avant. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.",
+    "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence. Coché, le remplacement a lieu ; décoché, la ligne s'importe comme une autre et la dépense prévue reste telle quelle. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.",
   "noyau.rapprochement":
-    "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses.",
-  "noyau.rapprochement-aide":
-    "L'app reconnaît la vraie dépense à son COMPTE, son MONTANT (au centime près) et sa DATE. Les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour, ou quand ta banque passe au 6 ce qu'elle annonçait au 5. Les deux doivent tomber dans le même mois. Laisse-les vides si tu l'attends au jour dit.",
+    "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses. L'app la reconnaît à son COMPTE, son MONTANT (au centime près) et sa DATE ; les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour. Elles doivent tomber dans le même mois, et se laissent vides si tu l'attends au jour dit.",
   "noyau.rapprochement-mots-cles":
     "Facultatifs, et inutiles la plupart du temps : le compte, le montant et la date suffisent. Ils servent au cas inverse — deux prélèvements du même montant le même mois, que seul le libellé distingue. Tous doivent se retrouver dans le libellé de la ligne importée ; la casse et les accents n'ont pas d'importance.",
 
@@ -130,6 +126,8 @@ const TEXTES = {
     "Chaque monnaie du compte garde son propre solde, jamais mélangé aux autres — d'où un solde initial par monnaie.",
   "noyau.categories-de-depenses":
     "Les catégories dans lesquelles tes dépenses se rangent : leur nom, et l'ordre dans lequel tu les vois partout ailleurs. Ce qu'on LEUR ALLOUE — le budget d'un mois, la part qu'elles devraient peser — se règle sur la page Budget, où elles se voient toutes ensemble. « Autres » ne peut ni être renommée ni supprimée : c'est elle qui recueille les opérations d'une catégorie qu'on efface.",
+  "noyau.categorie-entree":
+    "Coche si les opérations que tu ranges ici sont de l'argent qui RENTRE : un salaire, des loyers perçus, une allocation. L'app leur donnera le sens « entrée », ne leur dessinera pas de barre dans l'histogramme des dépenses — elle y resterait à zéro — et ne te demandera pas de budget sur la page Budget. Les opérations DÉJÀ écrites ne bougent pas : leur sens a été posé à leur création, et le réécrire ferait bouger des soldes que tu as peut-être déjà rapprochés de ton relevé.",
   "noyau.correspondances-memorisees":
     "Tout ce que l'app a retenu de tes imports : un libellé rangé une fois dans une catégorie y repart tout seul les fois suivantes.",
   "noyau.categories-bancaires":
@@ -144,12 +142,28 @@ const TEXTES = {
     "Toutes les lignes du fichier iront sur ce compte. Laisse « aucun » si le fichier nomme lui-même le compte de chaque ligne.",
   "noyau.configuration-du-fichier":
     "Quelle colonne de ton fichier porte quelle information. Date, Nature et Montant sont obligatoires ; le reste est dans « Configuration avancée ».",
+  "noyau.colonnes-lues":
+    "Clique sur l'œil pour lire ou ignorer une colonne. Date, Nature et Montant sont obligatoires et ne s'éteignent pas.",
+  "noyau.configuration-avancee":
+    "Pour ce que ton relevé dit en plus : le compte, le sens, les devises, les frais. Laisse vide si ton relevé tient dans une seule colonne de montant et une seule monnaie. Le « i » de chaque ligne dit à quoi elle sert.",
+  "noyau.reglages-de-lecture":
+    "À régler seulement si le fichier est mal lu : colonnes mélangées, montants illisibles. L'app devine seule dans la plupart des cas.",
+  "noyau.le-fichier-tel-qu-il-est":
+    "Les colonnes colorées sont celles que l'app va lire, les grises sont ignorées. Deux façons de corriger un décalage : glisser un en-tête sur un autre pour échanger les deux colonnes, ou saisir les numéros dans « Configuration du fichier » au-dessus.",
+  "noyau.categories-bancaires-a-confirmer":
+    "Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche « Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.",
+  "noyau.apercu-import":
+    "Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend : supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à changer le type d'une ligne.",
+  "noyau.ressemblances":
+    "Ce virement est peut-être déjà en base. Quand tu importes les relevés de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons différentes. L'app compare ici la transaction elle-même — le compte, les devises, le montant, une date proche — et te montre à quoi chaque ligne ressemble. Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.",
+  "noyau.doublons-detectes":
+    "Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour l'importer quand même, deux achats identiques le même jour ça arrive.",
   "noyau.comparaison-des-doublons":
     "Comment l'app reconnaît une ligne déjà importée. Soit toutes les colonnes moins celles qui bougent d'un export à l'autre (solde courant, référence), soit les seules qui identifient une ligne — souvent date + libellé + montant.",
   "noyau.mots-cles-de-la-colonne-sens":
-    "Les mots que ta banque emploie pour dire qu'une ligne sort ou entre. Ajoute-les un par un avec « + » ou Entrée ; majuscules et accents sont ignorés. Retenus avec le preset.",
+    "Les mots que ta banque emploie pour dire qu'une ligne sort ou entre. Ajoute-les un par un avec « + » ou Entrée ; majuscules et accents sont ignorés. Retenus avec le preset. Laisse vide pour garder les mots-clés reconnus par défaut, rappelés sous chaque champ : dès que tu en ajoutes un, il remplace toute la liste par défaut de ce sens-là.",
   "noyau.mots-cles-de-la-colonne-etat":
-    "Les mots que ta banque emploie pour dire où en est une opération, même fonctionnement qu'au-dessus. Un mot inconnu met la ligne en erreur plutôt que d'être deviné.",
+    "Les mots que ta banque emploie pour dire où en est une opération, même fonctionnement qu'au-dessus. Un mot inconnu met la ligne en erreur plutôt que d'être deviné. Laisse vide pour garder les mots-clés reconnus par défaut : dès que tu en ajoutes un, il remplace toute la liste par défaut de cet état-là.",
   "noyau.devises-a-faire-correspondre":
     "Ton relevé écrit « EUR », l'app connaît les monnaies que tu as nommées. Dis-le une fois, c'est retenu pour la suite.",
   "noyau.devises-deja-rattachees":
@@ -159,7 +173,7 @@ const TEXTES = {
   "noyau.extensions":
     "Une extension ajoute une fonctionnalité. La désactiver fait disparaître son écran sans rien effacer — tout revient si tu la rallumes.",
   "noyau.base-de-donnees":
-    "L'application lit et écrit dans un seul fichier .db. Tu choisis où il vit ; l'emplacement est retenu d'un lancement à l'autre.",
+    "L'application lit et écrit dans un seul fichier .db. Tu choisis où il vit ; l'emplacement est retenu d'un lancement à l'autre. « Basculer » exige un fichier existant ; « Créer / déplacer ici » accepte un chemin neuf, et y déplace la base ouverte si elle est encore dans le dossier de l'application. Une base restée à une version de schéma antérieure est mise à jour à la bascule, après copie horodatée à côté du fichier d'origine. Le bouton « Parcourir » ne pré-remplit que le NOM du fichier : un navigateur ne transmet jamais le chemin complet, complète le dossier à la main.",
 
   /* ----- Extension « Import de placements » ----- */
   "import-placements.format-du-fichier":
@@ -177,7 +191,7 @@ const TEXTES = {
   "import-placements.titres-qui-seront-crees":
     "L'app ne connaît pas encore ces valeurs et les créera à l'import. Si l'une existe déjà chez toi sous un autre nom, choisis-la à la main sur sa ligne.",
   "import-placements.regles-de-type-d-operation":
-    "Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : achat, vente, transfert d'espèces. Elle vaut pour tous tes courtiers et passe avant les mots-clés du preset.",
+    "Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : achat, vente, transfert d'espèces. Elle vaut pour tous tes courtiers et passe avant les mots-clés du preset. Les mots-clés de la « Configuration du fichier » comparent un libellé entier : « Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase — « ACHAT COMPTANT ETF MSCI WORLD », avec le nom du titre dedans — aucune liste de mots-clés ne peut la reconnaître, parce qu'il n'y a pas deux fois le même libellé dans le fichier. Une règle, elle, sait dire « contient ACHAT ». Elles sont évaluées de haut en bas et s'arrêtent à la première qui correspond : contrairement aux règles bancaires, une règle de placement ne décide que d'une chose, il n'y a donc rien à compléter en dessous. Place les cas particuliers au-dessus des cas généraux. Une ligne qu'aucune règle ne reconnaît retombe sur les mots-clés du preset. Sans aucune règle, l'import se comporte donc exactement comme avant.",
   "import-placements.description":
     "Note libre : pourquoi cette règle existe, quel relevé l'a rendue nécessaire. Jamais lue par l'application.",
   "import-placements.avec-le-compte-en-face":
@@ -187,7 +201,7 @@ const TEXTES = {
 
   /* ----- Extension « Intérêts perçus » ----- */
   "interets-percus.interets-percus":
-    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici.",
+    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants sont un suivi d'affichage : aucun intérêt n'est écrit en opération, aucun solde et aucun chiffre du dashboard n'en dépend. Si le versement figure sur ton relevé, il entrera de lui-même par l'import — le saisir ici en plus ne le compterait pas deux fois dans tes soldes, mais ne le remplace pas non plus.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
   "investing-overview.repartition-par-type-de-titre":
@@ -209,7 +223,7 @@ const TEXTES = {
 
   /* ----- Extension « Projets » ----- */
   "projets.projets":
-    "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte.",
+    "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.",
   "projets.repartition-par-categorie":
     "Les sorties du projet, réparties par catégorie — virements sortants compris, comme dans le total ci-dessus. Les entrées n'y figurent pas : elles se lisent dans le total des entrées.",
   "projets.ajouter-des-operations":
@@ -217,7 +231,7 @@ const TEXTES = {
 
   /* ----- Extension « Règles » ----- */
   "regles.regles-de-categorisation":
-    "Une règle reconnaît des lignes à leur libellé et dit ce qu'elles sont : virement interne, prêt, dépense remboursable… Elle peut aussi poser la catégorie, et passe avant tout le reste.",
+    "Une règle reconnaît des lignes à leur libellé et dit ce qu'elles sont : virement interne, prêt, dépense remboursable… Elle peut aussi poser la catégorie, et passe avant tout le reste. Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul moyen de marquer une ligne « remboursable » ou de la classer en Prêt / Remboursement sans le faire à la main. Les règles sont communes à tous les presets d'import. Elles sont évaluées de haut en bas, et s'arrêtent à la première qui correspond — sauf si celle-ci décoche « Arrêter la lecture des règles ici ». Plusieurs règles peuvent alors s'appliquer à une même ligne, mais aucune ne défait ce qu'une règle plus haute a décidé : en cas de désaccord, la plus haute gagne. Place les cas particuliers au-dessus des cas généraux. Les règles passent avant les correspondances mémorisées : un type reconnu ici ne peut plus être défait par une correspondance de catégorie. Les dossiers ne servent qu'à s'y retrouver : ils ne changent pas l'ordre d'évaluation, qui reste celui de la vue liste (le numéro sur chaque carte le rappelle). Fais glisser une règle d'un dossier à l'autre pour la ranger. Ce classement reste sur cet ordinateur — il n'est pas enregistré dans la base.",
   "regles.description":
     "Note libre : pourquoi cette règle existe, quel relevé l'a rendue nécessaire, ce qu'il faudra vérifier si elle cesse de mordre. Jamais lue par l'application.",
   "regles.decouper-entre-plusieurs-categories":
@@ -226,6 +240,10 @@ const TEXTES = {
     "L'autre compte du virement, celui que le relevé ne nomme pas. Le sens se déduit du signe du montant. Sans lui, la ligne est à compléter à la main dans l'aperçu.",
   "regles.arreter-la-lecture-des-regles-ici":
     "Coché, le réglage habituel : cette règle décide, on s'arrête là. Décoché, les règles suivantes peuvent compléter ce qu'elle laisse ouvert — la catégorie, le compte en face. Le type reste celui de la première règle qui a mordu.",
+  "regles.conditions":
+    "Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se combinent selon leur propre connecteur. Deux niveaux suffisent à écrire « (A ou B) et C ».",
+  "regles.action":
+    "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.",
 
   /* ----- Extension « Suivi des remboursements » ----- */
   "suivi-remboursements.on-te-doit":
@@ -242,6 +260,8 @@ const TEXTES = {
     "Une étiquette, et rien de plus : aucun calcul de l'application ne la lit. En supprimer un détache ses opérations, il ne les efface jamais.",
   "suivi-remboursements.rien-a-suivre-pour-l-instant-aucune-depense":
     "Rien à suivre pour l'instant : aucune dépense remboursable ni aucun prêt reçu n'attend de règlement. Les lignes apparaîtront ici dès qu'il en existera une.",
+  "suivi-remboursements.suivi-des-remboursements":
+    "Qui te doit combien, et à qui tu dois. Un profil est une étiquette : une personne, une entreprise, la colocation. Rien n'est recalculé ailleurs — les soldes, le dashboard et l'histogramme donnent exactement les mêmes chiffres, cet écran ne fait que les ventiler.",
 
 
   /* ----- L'écran « D'où vient l'écart ? » ----- */
@@ -308,6 +328,30 @@ const TEXTES = {
     "Le prix par titre annoncé par le relevé.\n\nIl ne décide de rien, il sert de contrôle : un écart de plus de 1 % avec le montant divisé par la quantité est signalé au-dessus de l'aperçu, sans bloquer l'import.",
   "import-placements.propriete-operations-type_titre":
     "L'étiquette du titre, si ton fichier la porte : ETF, obligation, action…\n\nFacultative, et sans effet sur un montant. Un libellé que tu n'as pas encore créé le sera à l'import. Un titre que l'app connaît déjà garde le type que tu lui as posé.",
+  "import-placements.import-de-placements":
+    "Lit une liste d'opérations exportée depuis un compte de placements : achats, ventes et transferts d'espèces. Rien n'entre en base avant que tu ne valides l'aperçu.",
+  "import-placements.configuration-du-fichier":
+    "Quelle colonne du fichier porte quoi. Les numéros sont ceux d'Excel : la première colonne est la n°1. L'œil barré ne lit pas la colonne.",
+  "import-placements.reglages-de-lecture-delimiteur-separateur-decimal":
+    "À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants illisibles) : la détection automatique du délimiteur et de la virgule décimale française ne convient pas à tous les formats d'export.",
+  "import-placements.le-fichier-tel-qu-il-est":
+    "Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données, corrige les numéros de colonne dans « Configuration du fichier » au-dessus.",
+  "import-placements.apercu-ligne-s":
+    "Les doublons détectés sont pré-sélectionnés. Tant qu'il reste des lignes sélectionnées, l'import est bloqué : supprime-les, ou décoche-les pour les importer quand même.",
+  "import-placements.titres-detenus-ligne-s":
+    "Chaque ligne devient un achat daté du jour de la photographie : c'est ainsi qu'une détention existe dans l'application, et c'est ce qui rend justes d'un coup la valorisation et les plus-values. Les espèces du compte baissent donc du total investi — pense à poser son solde initial en conséquence.",
+  "import-placements.transferts-internes-ligne-s":
+    "Le relevé ne décrit qu'un côté du mouvement : indique le compte en face. Le sens (émetteur ou récepteur) est déduit du signe du montant.",
+  "import-placements.doublons-detectes-ligne-s":
+    "Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à une ligne déjà importée sous ce preset est affichée ici, suivie en lecture seule de celle qu'elle double. Elles sont pré-sélectionnées pour être supprimées d'un clic — décoche-en une pour l'importer quand même (deux achats identiques le même jour sont un doublon détecté légitime).",
+  "import-placements.transferts-deja-connus-ligne-s":
+    "Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé du courtier et sur celui du compte courant. Seuls les virements qui touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné : toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie de ce à quoi elle ressemble.",
+  "import-placements.lignes-en-erreur-ligne-s":
+    "Ces lignes ne seront pas importées telles quelles. Corrige-les avec « Modifier », ou supprime-les de l'aperçu — le reste du fichier s'importe normalement.",
+  "import-placements.conditions":
+    "Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se combinent selon leur propre connecteur. Deux niveaux suffisent à écrire « (A ou B) et C ».",
+  "import-placements.action":
+    "Une ligne de compte-titres n'a pas de catégorie : un mouvement de titres n'en porte pas. Un transfert, lui, touche deux comptes et le relevé n'en nomme qu'un — la règle peut donc désigner le second.",
 
   /* ----- Extension « Monnaies » — la case d'agrégation (posée par son JS) ----- */
   "monnaies.agregation":

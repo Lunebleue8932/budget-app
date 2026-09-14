@@ -167,6 +167,59 @@
   font-size: 0.85rem;
 }
 
+/* ---------- La barre de contexte : monnaie, année, mois ----------
+ *
+ * TROIS LISTES SUR UNE LIGNE, ET PLUS TROIS RANGÉES D'ONGLETS. Trois choix
+ * qu'on fait en arrivant et qu'on ne rouvre plus prenaient trois rangées
+ * empilées sous la barre d'onglets de la page. Les onglets de période
+ * appartiennent aux écrans qu'on PARCOURT — le dashboard, les opérations, où
+ * l'on saute de mois en mois pour comparer.
+ *
+ * Hors d'un <form>, ni le <label> ni le <select> ne reçoivent le moindre style
+ * de l'application : tout est redéclaré ici, sur les valeurs de la rangée des
+ * filtres d'Opérations, seul endroit du noyau qui avait déjà résolu la
+ * question.
+ */
+.ab-contexte {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.ab-contexte label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.ab-contexte select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+  min-width: 8rem;
+  transition: border-color 0.15s;
+}
+
+.ab-contexte select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* UNE SEULE MONNAIE : la liste reste en place, éteinte. Un champ qui apparaît
+   le jour où l'on crée une seconde devise se cherche ; un champ toujours là ne
+   surprend jamais. */
+.ab-contexte select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 /* ---------- Le budget du mois ----------
  *
  * MÊME FORME QUE LE RÉGLAGE DU MATELAS, à la classe près : deux montants qu'on
@@ -338,5 +391,48 @@
   .ab-budget-somme {
     grid-template-columns: 1fr;
     gap: 0.35rem;
+  }
+}
+
+/* ---------- Les douze barres se dessinent ----------
+ *
+ * MÊME GESTE QUE L'HISTOGRAMME DU NOYAU (cf. .histo-fut dans style.css) : la
+ * barre pousse, les barres se suivent de gauche à droite. La différence tient
+ * au POINT D'ANCRAGE — celui-ci a une ligne de zéro AU MILIEU dès qu'un mois
+ * est négatif, et une barre négative doit donc pousser vers le BAS. Le CSS ne
+ * peut pas le deviner : c'est la classe posée par le JS qui le dit.
+ */
+@keyframes ab-barre-pousse {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.ab-barre-positive,
+.ab-barre-negative {
+  transform-box: fill-box;
+  animation: ab-barre-pousse 0.42s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+  animation-delay: var(--retard, 0ms);
+}
+
+.ab-barre-positive {
+  transform-origin: bottom;
+}
+
+.ab-barre-negative {
+  transform-origin: top;
+}
+
+.ab-barre-libelle {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-barre-positive,
+  .ab-barre-negative {
+    animation: none;
   }
 }

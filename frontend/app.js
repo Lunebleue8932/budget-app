@@ -2112,12 +2112,17 @@ function renderRepartitionComptes(comptes, monnaieId, valorisationPlacements = 0
     .map((p) => {
       const fraction = p.montant / totalPositif;
       const longueur = fraction * circonference;
+      // Le même dessin progressif que le camembert des dépenses (cf.
+      // .camembert-part) : trois familles de comptes seulement, mais la même
+      // règle CSS les sert — deux animations différentes pour deux anneaux
+      // posés dans la même application se seraient vues.
       const segment = `
-        <circle class="repartition-part" data-cle="${p.cle}"
+        <circle class="repartition-part camembert-part" data-cle="${p.cle}"
           cx="90" cy="90" r="${rayon}"
           fill="none" stroke="${p.couleur}" stroke-width="${epaisseur}"
           stroke-dasharray="${longueur} ${circonference - longueur}"
           stroke-dashoffset="${-avancement}"
+          style="--tour:${circonference};--part:${longueur};--reste:${circonference - longueur};--retard:${((avancement / circonference) * PIE_ANIMATION_MS).toFixed(0)}ms;--duree:${Math.max(fraction * PIE_ANIMATION_MS, 60).toFixed(0)}ms"
         />
       `;
       avancement += longueur;
@@ -2232,6 +2237,12 @@ function couleurCategorie(couleurIndex) {
    n'a plus lieu d'être — l'objectif s'affiche tel qu'il a été saisi. */
 const VUE_PIE_ACTUEL = "actuel";
 const VUE_PIE_BUDGET = "budget";
+
+// LE TEMPS QU'UN ANNEAU MET À SE FERMER, tranches mises bout à bout : chacune
+// occupe sa part de cette durée, et part quand la précédente a fini. Assez lent
+// pour qu'on VOIE le tour se faire, assez court pour qu'un changement de mois
+// ne se transforme pas en attente — c'est un rendu, pas une introduction.
+const PIE_ANIMATION_MS = 620;
 
 /* ---------- Ce que les deux graphes ont en commun ----------
  *
@@ -2666,7 +2677,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
       if (d.total_previsionnel > d.total_reel) {
         const hDepasse = (d.total_previsionnel - d.total_reel) * echelle;
         const yDepasse = yReel - hDepasse;
-        barrePrevisionnel = `<rect x="${x}" y="${yDepasse}" width="${largeurBarre}" height="${hDepasse}" fill="${couleur}" opacity="0.35" rx="3" />`;
+        barrePrevisionnel = `<rect class="histo-fut" x="${x}" y="${yDepasse}" width="${largeurBarre}" height="${hDepasse}" fill="${couleur}" opacity="0.35" rx="3" />`;
         yHaut = yDepasse;
       }
 
@@ -2675,7 +2686,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
         const yBudget = hauteur - margeBas - d.budget_alloue * echelle;
         // Rouge (couleur "critical", distincte de la palette catégorielle) :
         // signale une limite, pas une identité de catégorie.
-        tickBudget = `<rect x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="#ef4444" />`;
+        tickBudget = `<rect class="histo-repere" x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="#ef4444" />`;
       }
 
       const nom = libelleCategorie(d.categorie);
@@ -2687,14 +2698,19 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
       // inatteignable alors qu'elle a quelque chose à dire (« aucune dépense »).
       const zoneSurvol = `<rect x="${margeCote + largeurBande * i}" y="${margeHaut}" width="${largeurBande}" height="${hauteur - margeBas - margeHaut}" fill="transparent" />`;
 
+      // LA BARRE POUSSE DEPUIS LA LIGNE DE BASE, et les barres se suivent de
+      // gauche à droite (`--retard`) : l'œil parcourt le graphe dans le sens où
+      // il le lira. Seuls les RECTANGLES DE VALEUR sont animés — la zone de
+      // survol, l'étiquette et le nombre restent où ils sont, sans quoi le
+      // graphe deviendrait inutilisable pendant qu'il se dessine.
       return `
-        <g class="histo-barre" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}">
+        <g class="histo-barre" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" style="--retard:${i * 28}ms">
           ${zoneSurvol}
-          <rect x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
+          <rect class="histo-fut" x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
           ${barrePrevisionnel}
           ${tickBudget}
           <text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="#9ea3b0">${label}</text>
-          <text x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="#e7e8ec">${d.total_previsionnel.toFixed(0)}</text>
+          <text class="histo-valeur" x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="#e7e8ec">${d.total_previsionnel.toFixed(0)}</text>
         </g>
       `;
     })
@@ -2864,10 +2880,16 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
       const fraction = d.total_previsionnel / reference;
       const longueur = fraction * circonference;
       const couleur = couleurCategorie(d.couleur_index ?? i);
+      // LA TRANCHE SE COLORE LE LONG DE L'ANNEAU (cf. .camembert-part) : son
+      // tiret part de zéro et s'allonge jusqu'à sa longueur, après le temps
+      // qu'ont mis les tranches précédentes. Les deux valeurs voyagent en
+      // variables CSS parce que c'est la seule façon d'écrire une keyframe
+      // commune à des tranches qui n'ont pas la même longueur.
       const segment = `<circle class="camembert-part" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
         fill="none" stroke="${couleur}" stroke-width="${PIE_EPAISSEUR}"
         stroke-dasharray="${longueur} ${circonference - longueur}"
-        stroke-dashoffset="${-angleCumule * circonference}" />`;
+        stroke-dashoffset="${-angleCumule * circonference}"
+        style="--tour:${circonference};--part:${longueur};--reste:${circonference - longueur};--retard:${(angleCumule * PIE_ANIMATION_MS).toFixed(0)}ms;--duree:${Math.max(fraction * PIE_ANIMATION_MS, 60).toFixed(0)}ms" />`;
 
       // L'angle du MILIEU de la tranche, compté depuis midi dans le sens des
       // aiguilles : c'est ce point-là qu'un trait de rappel doit désigner, pas
@@ -3561,10 +3583,14 @@ function libellePeriodeHistogramme(annee, mois) {
   const nomMois = libelleMois(annee, mois).toLowerCase();
   if (semaine === null) return nomMois;
   if (semaine.moyenne) {
-    return t("moyenne des {n} semaines de {mois}", {
-      n: (dashboardSemainesDonnees.semaines || []).length,
-      mois: nomMois,
-    });
+    // LE NOMBRE VIENT DU SERVEUR (`semaines_moyennees`), et non de la longueur
+    // de la rangée d'onglets : sur un mois en cours, la moyenne ne porte que
+    // sur les semaines RÉVOLUES (cf. soldes._semaines_revolues). Compter les
+    // barres affichées aurait annoncé cinq semaines pour une moyenne qui en
+    // résume deux — c'est-à-dire exactement l'erreur que ce calcul corrige.
+    const n = dashboardSemainesDonnees.semaines_moyennees
+      || (dashboardSemainesDonnees.semaines || []).length;
+    return t("moyenne des {n} semaines de {mois}", { n, mois: nomMois });
   }
   return t("du {debut} au {fin} {mois}", {
     debut: semaine.jour_debut,
@@ -4572,6 +4598,8 @@ function resetCategorieForm() {
   document.getElementById("categorie-nom").disabled = false;
   document.getElementById("categorie-nom").title = "";
   delete document.getElementById("categorie-nom").dataset.nomInitial;
+  document.getElementById("categorie-entree-bloc").style.display = "none";
+  document.getElementById("categorie-entree").checked = false;
   document.getElementById("form-categorie-titre").textContent = "Ajouter une catégorie";
   document.getElementById("categorie-annuler").style.display = "none";
 }
@@ -4591,6 +4619,8 @@ function fillCategorieForm(categorie, ancre) {
     : "";
   // Le nom d'AVANT, pour n'appeler la route de renommage que s'il a changé.
   champNom.dataset.nomInitial = categorie.nom;
+  document.getElementById("categorie-entree-bloc").style.display = "";
+  document.getElementById("categorie-entree").checked = !!categorie.est_entree;
   document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
 }
@@ -4618,7 +4648,13 @@ function renderCategories() {
         : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
     tr.innerHTML = `
       <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
-      <td>${escapeHtml(libelleCategorie(c.nom))}</td>
+      <td>${escapeHtml(libelleCategorie(c.nom))}${
+        // UNE PASTILLE ET PAS UNE COLONNE : une colonne « Entrée ? » aurait
+        // écrit vingt fois « non » pour dire une fois « oui ». Ce qui se voit
+        // doit être ce qui a été décidé — même règle que la colonne d'objectifs
+        // d'avant, vide plutôt que remplie de zéros.
+        c.est_entree ? `<span class="badge-aucun">${t("entrée")}</span>` : ""
+      }</td>
       <td>
         <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
         ${deleteAction}
@@ -4712,8 +4748,20 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
           method: "PUT",
           body: JSON.stringify({ nom }),
         });
-        showMessage(t("Catégorie modifiée"), "success");
       }
+      // DEUX ROUTES, comme le nom et l'objectif l'étaient : le drapeau
+      // n'appartient pas au même geste que le renommage, et le passer dans
+      // `CategorieUpdate` l'aurait réécrit chaque fois qu'on ouvre la ligne
+      // pour corriger une faute de frappe. Envoyé SEULEMENT s'il a changé.
+      const avant = state.categories.find((c) => c.id === Number(id));
+      const entree = document.getElementById("categorie-entree").checked;
+      if (entree !== !!(avant && avant.est_entree)) {
+        await apiFetch(`/categories/${id}/entree`, {
+          method: "PUT",
+          body: JSON.stringify({ est_entree: entree }),
+        });
+      }
+      showMessage(t("Catégorie modifiée"), "success");
     } else {
       const nomInput = document.getElementById("categorie-nom");
       await apiFetch("/categories", {

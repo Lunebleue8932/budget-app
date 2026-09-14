@@ -1,21 +1,21 @@
 <!-- Écran de l'extension « Projets ».
 
-     UN ONGLET, pas une page (cf. le manifeste : navigation.type = "onglet",
-     hote_section = "comptes-globale"). Le noyau pose ce volet dans la <section>
-     de la page des comptes, à côté de la vue globale, et rebaptise la page
-     « Comptes » tant que l'extension tourne — « Vue globale des comptes »
-     descend alors d'un cran et devient le nom de l'onglet qui l'affiche.
+     UN ONGLET DE LA PAGE BUDGET (cf. le manifeste : navigation.type = "onglet",
+     hote_section = "budget"). Il vivait sur la page des comptes ; il n'y était
+     pas à sa place. La vue globale des comptes dit ce qu'on A — des soldes, à
+     aujourd'hui. Un projet dit ce qu'on a DÉCIDÉ de mettre dans un voyage ou un
+     déménagement : exactement la même nature de décision que le budget d'un
+     mois, à côté duquel il se range désormais.
 
-     C'est donc bien une `.sous-section` : c'est le gestionnaire délégué de
-     app.js qui la montre et la cache, exactement comme un onglet du noyau. -->
-<div id="sous-section-comptes-globale-projets" class="sous-section">
+     D'où la dépendance déclarée (`requiert_une_de`) : sans l'extension
+     « Budget », cette page n'existe pas, et un onglet n'a pas d'hôte. Le noyau
+     grise la case, refuse l'allumage et éteint Projets avec sa dépendance —
+     l'extension n'a rien à en faire.
+
+     C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la
+     montre et la cache, exactement comme un onglet du noyau. -->
+<div id="sous-section-budget-projets" class="sous-section">
   <h3>Projets<i class="info-bulle" tabindex="0" data-info-cle="projets.projets">i</i></h3>
-  <p class="hint">
-    Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les
-    opérations concernées. C'est un <strong>regroupement de lecture</strong> — retirer une
-    opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.
-  </p>
-
   <div class="actions">
     <button type="button" class="primary" id="btn-projet-nouveau">+ Nouveau projet</button>
   </div>

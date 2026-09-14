@@ -12,99 +12,112 @@
      qui servent à CONSTATER. Un champ à remplir posé entre deux graphes fait
      tache : on vient y lire ce qui s'est passé, pas y décider ce qui devrait.
 
-     ELLES SONT DONC TOUTES ICI, dans l'ordre où l'on y pense : le total du
-     mois d'abord, sa répartition par catégorie ensuite, puis ce que la période
-     a réellement fait — mis de côté, gardé disponible, pas vu venir.
+     ELLE PORTE DES ONGLETS (`#budget-sous-nav`), parce que « Projets » est
+     venu s'y ranger : un projet est une enveloppe qu'on se donne pour un
+     voyage ou un déménagement, exactement la même nature de décision que le
+     budget d'un mois. La barre reste masquée tant qu'elle n'a qu'un onglet —
+     c'est le noyau qui s'en charge (cf. extensions.js, majBarreOnglets).
 
-     TOUT EST SOUS LA MÊME MONNAIE ET LA MÊME PÉRIODE, choisies une fois en
-     tête de page : un budget est propre à une monnaie (15 000 ¥ ne se compare
-     à aucun euro) et le total comme les enveloppes sont propres à un mois. Les
-     trois lectures du bas, elles, portent sur l'ANNÉE du mois choisi — elles
-     répondent à « est-ce que je tiens un rythme ? », que douze fois un mois ne
-     dit pas.
+     TROIS RANGÉES D'ONGLETS, C'ÉTAIT TROP. Monnaie, année, mois : trois
+     rangées empilées sous une quatrième, pour trois choix qu'on fait une fois
+     en arrivant et qu'on ne rouvre plus. Elles tiennent maintenant dans UNE
+     barre de trois listes déroulantes. Les onglets d'année et de mois
+     appartiennent aux écrans qu'on PARCOURT (le dashboard, les opérations, où
+     l'on saute de mois en mois pour comparer) ; ici on pose un budget, puis on
+     s'en va.
+
+     Les mois y sont TOUS les douze, et les années débordent de ce que la base
+     contient : un budget se pose souvent sur un mois où l'on n'a encore rien
+     dépensé, et les périodes de `/meta/periodes` — celles qui PORTENT des
+     opérations — n'auraient pas proposé le mois prochain.
 
      C'est un <section>, comme les écrans du noyau : switchSection la montre et
      la masque exactement de la même façon. -->
 <section id="section-budget">
   <h2>Budget</h2>
 
-  <div class="sous-onglets" id="ab-monnaies"></div>
+  <div class="sous-onglets" id="budget-sous-nav" style="display:none">
+    <button type="button" data-sous-section="budget-budget" class="active">Budget</button>
+  </div>
 
-  <div class="periode-selecteur">
-    <div class="periode-niveaux">
-      <div class="sous-onglets" id="ab-periode-annees"></div>
-      <div class="sous-onglets sous-onglets-mois" id="ab-periode-mois"></div>
+  <div id="sous-section-budget-budget" class="sous-section active">
+
+    <div class="ab-contexte">
+      <label for="ab-monnaie">Monnaie
+        <select id="ab-monnaie"></select>
+      </label>
+      <label for="ab-annee">Année
+        <select id="ab-annee"></select>
+      </label>
+      <label for="ab-mois">Mois
+        <select id="ab-mois"></select>
+      </label>
     </div>
+
+    <!-- ---------- LE BUDGET DU MOIS ---------- -->
+    <h3>Budget du mois<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budget-total">i</i></h3>
+
+    <!-- LE RÉGLAGE SE PORTE COMME UN FILTRE, hors formulaire : un <input> hors
+         <form> ne reçoit AUCUN style de l'application (`form input` ne descend
+         que dans un formulaire), et l'envelopper ferait recharger la page à la
+         moindre touche Entrée. C'est la forme qu'il avait déjà sur le camembert,
+         reprise telle quelle — elle n'était pas le problème, sa PLACE l'était. -->
+    <div class="ab-budget-total-reglage">
+      <label for="ab-budget-total">Montant du budget</label>
+      <input type="number" id="ab-budget-total" step="0.01" min="0" />
+      <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
+           crud._budget_herite). L'héritage remonte aussi le temps : sans cette
+           mention, un mois antérieur à toute saisie afficherait un montant qui
+           n'y a jamais été posé, et passerait pour une saisie oubliée. -->
+      <span class="badge-aucun" id="ab-budget-total-herite" hidden>hérité</span>
+      <button type="button" class="primary" id="btn-ab-budget-total">Enregistrer</button>
+    </div>
+
+    <!-- ---------- LES BUDGETS PAR CATÉGORIE ---------- -->
+    <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
+
+    <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
+
+    <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
+    <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
+
+    <!-- LE NET EN GRAND, LE DÉTAIL AU SURVOL. Le net est la réponse — « j'ai mis
+         2 300 € de côté cette année » — et les deux composantes disent ce qu'elle
+         recouvre : un net à zéro peut vouloir dire « rien bougé » ou « 2 000
+         versés et 2 000 repris ». La seconde information est nécessaire pour ne
+         pas se tromper sur la première, sans mériter la même place. -->
+    <div class="ab-carte-net" id="ab-epargne-total"></div>
+
+    <!-- Les douze mois : c'est la forme qui répond à « est-ce que je tiens un
+         rythme ? », que le total seul ne dit pas. Douze barres toujours, y compris
+         à zéro — un mois absent se lirait comme un mois non atteint. -->
+    <div class="histogramme-cadre" id="ab-epargne-mois"></div>
+
+    <!-- ---------- LE MATELAS DE SÉCURITÉ ---------- -->
+    <h3>Matelas de sécurité<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.matelas">i</i></h3>
+
+    <!-- Même forme que le réglage du budget du mois, et pour la même raison : un
+         input hors <form> ne reçoit aucun style de l'application. -->
+    <div class="ab-matelas-reglage">
+      <label for="ab-matelas-montant">Montant minimum à garder disponible</label>
+      <input type="number" id="ab-matelas-montant" step="0.01" min="0" />
+      <button type="button" class="primary" id="btn-ab-matelas">Enregistrer</button>
+    </div>
+
+    <div id="ab-matelas-etat"></div>
+
+    <!-- ---------- CE QUI N'ÉTAIT PAS PRÉVISIBLE ---------- -->
+    <h3>Dépenses imprévues<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevues">i</i></h3>
+
+    <div class="ab-carte-net" id="ab-imprevues-total"></div>
+    <div class="histogramme-cadre" id="ab-imprevues-mois"></div>
+
+    <h4>Les lignes de l'année</h4>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Nature</th><th>Catégorie</th><th>Montant</th></tr>
+      </thead>
+      <tbody id="ab-imprevues-lignes"></tbody>
+    </table>
   </div>
-
-  <!-- ---------- LE BUDGET DU MOIS ---------- -->
-  <h3>Budget du mois<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budget-total">i</i></h3>
-  <p class="hint" data-texte-cle="analyse-budget.budget-total-aide"></p>
-
-  <!-- LE RÉGLAGE SE PORTE COMME UN FILTRE, hors formulaire : un <input> hors
-       <form> ne reçoit AUCUN style de l'application (`form input` ne descend
-       que dans un formulaire), et l'envelopper ferait recharger la page à la
-       moindre touche Entrée. C'est la forme qu'il avait déjà sur le camembert,
-       reprise telle quelle — elle n'était pas le problème, sa PLACE l'était. -->
-  <div class="ab-budget-total-reglage">
-    <label for="ab-budget-total">Montant du budget</label>
-    <input type="number" id="ab-budget-total" step="0.01" min="0" />
-    <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
-         crud._budget_herite). L'héritage remonte aussi le temps : sans cette
-         mention, un mois antérieur à toute saisie afficherait un montant qui
-         n'y a jamais été posé, et passerait pour une saisie oubliée. -->
-    <span class="badge-aucun" id="ab-budget-total-herite" hidden>hérité</span>
-    <button type="button" class="primary" id="btn-ab-budget-total">Enregistrer</button>
-  </div>
-
-  <!-- ---------- LES BUDGETS PAR CATÉGORIE ---------- -->
-  <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
-  <p class="hint" data-texte-cle="analyse-budget.budgets-categories-aide"></p>
-
-  <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
-
-  <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
-  <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
-  <p class="hint" data-texte-cle="analyse-budget.epargne-aide"></p>
-
-  <!-- LE NET EN GRAND, LE DÉTAIL AU SURVOL. Le net est la réponse — « j'ai mis
-       2 300 € de côté cette année » — et les deux composantes disent ce qu'elle
-       recouvre : un net à zéro peut vouloir dire « rien bougé » ou « 2 000
-       versés et 2 000 repris ». La seconde information est nécessaire pour ne
-       pas se tromper sur la première, sans mériter la même place. -->
-  <div class="ab-carte-net" id="ab-epargne-total"></div>
-
-  <!-- Les douze mois : c'est la forme qui répond à « est-ce que je tiens un
-       rythme ? », que le total seul ne dit pas. Douze barres toujours, y compris
-       à zéro — un mois absent se lirait comme un mois non atteint. -->
-  <div class="histogramme-cadre" id="ab-epargne-mois"></div>
-
-  <!-- ---------- LE MATELAS DE SÉCURITÉ ---------- -->
-  <h3>Matelas de sécurité<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.matelas">i</i></h3>
-  <p class="hint" data-texte-cle="analyse-budget.matelas-aide"></p>
-
-  <!-- Même forme que le réglage du budget du mois, et pour la même raison : un
-       input hors <form> ne reçoit aucun style de l'application. -->
-  <div class="ab-matelas-reglage">
-    <label for="ab-matelas-montant">Montant minimum à garder disponible</label>
-    <input type="number" id="ab-matelas-montant" step="0.01" min="0" />
-    <button type="button" class="primary" id="btn-ab-matelas">Enregistrer</button>
-  </div>
-
-  <div id="ab-matelas-etat"></div>
-
-  <!-- ---------- CE QUI N'ÉTAIT PAS PRÉVISIBLE ---------- -->
-  <h3>Dépenses imprévues<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevues">i</i></h3>
-  <p class="hint" data-texte-cle="analyse-budget.imprevues-aide"></p>
-
-  <div class="ab-carte-net" id="ab-imprevues-total"></div>
-  <div class="histogramme-cadre" id="ab-imprevues-mois"></div>
-
-  <h4>Les lignes de l'année</h4>
-  <table>
-    <thead>
-      <tr><th>Date</th><th>Nature</th><th>Catégorie</th><th>Montant</th></tr>
-    </thead>
-    <tbody id="ab-imprevues-lignes"></tbody>
-  </table>
 </section>

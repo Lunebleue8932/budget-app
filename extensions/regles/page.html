@@ -11,21 +11,6 @@
      personne ne lui poserait jamais. -->
 <div id="regles-bloc">
   <h3>Règles de catégorisation<i class="info-bulle" tabindex="0" data-info-cle="regles.regles-de-categorisation">i</i></h3>
-  <p class="hint">
-    Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul
-    moyen de marquer une ligne "remboursable" ou de la classer en Prêt / Remboursement sans le
-    faire à la main. Les règles sont communes à tous les presets d'import.
-  </p>
-  <p class="hint">
-    Elles sont évaluées <strong>de haut en bas</strong>, et s'arrêtent à la première qui
-    correspond — sauf si celle-ci décoche « Arrêter la lecture des règles ici ». Plusieurs règles peuvent alors s'appliquer à une même ligne, mais aucune ne
-    défait ce qu'une règle plus haute a décidé : <strong>en cas de désaccord, la plus haute
-    gagne</strong>. Place les cas particuliers au-dessus des cas généraux.
-  </p>
-  <p class="hint">
-    Les règles passent <strong>avant</strong> les correspondances mémorisées : un type reconnu ici
-    ne peut plus être défait par une correspondance de catégorie.
-  </p>
 
   <div class="regles-barre">
     <div class="actions">
@@ -46,12 +31,6 @@
     <div class="actions">
       <button type="button" id="btn-regle-dossier-nouveau">+ Nouveau dossier</button>
     </div>
-    <p class="hint">
-      Les dossiers ne servent qu'à s'y retrouver : ils <strong>ne changent pas l'ordre
-      d'évaluation</strong>, qui reste celui de la vue liste (le numéro sur chaque carte le
-      rappelle). Fais glisser une règle d'un dossier à l'autre pour la ranger. Ce classement
-      reste sur cet ordinateur — il n'est pas enregistré dans la base.
-    </p>
     <div id="regles-dossiers"></div>
   </div>
 
@@ -73,12 +52,7 @@
       <textarea id="regle-description" rows="2" placeholder="ex. la banque écrit « VIR RECU M DUPONT » pour les remboursements de Paul"></textarea>
     </div>
 
-    <h4>Conditions</h4>
-    <p class="hint">
-      Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se
-      combinent selon leur propre connecteur. Deux niveaux suffisent à écrire
-      « (A ou B) et C ».
-    </p>
+    <h4>Conditions<i class="info-bulle" tabindex="0" data-info-cle="regles.conditions">i</i></h4>
     <div class="regle-champ-ligne">
       <label for="regle-connecteur">Combiner les groupes avec</label>
       <select id="regle-connecteur">
@@ -91,11 +65,7 @@
       <button type="button" id="btn-regle-ajouter-groupe">+ Ajouter un groupe</button>
     </div>
 
-    <h4>Action</h4>
-    <p class="hint">
-      Le type détermine ce qui suit : seules « Opération classique » et « Dépense
-      remboursable » laissent choisir une catégorie — les autres types imposent la leur.
-    </p>
+    <h4>Action<i class="info-bulle" tabindex="0" data-info-cle="regles.action">i</i></h4>
     <div class="regle-champ-ligne">
       <label for="regle-type">Classer comme</label>
       <select id="regle-type">
@@ -124,13 +94,6 @@
       <div class="actions">
         <button type="button" id="btn-regle-decoupe-ajouter">+ Ajouter une part</button>
       </div>
-      <p class="hint">
-        Chaque part dit combien elle prend. On peut écrire un nombre (50), un
-        pourcentage (30%), une opération (montant - 50), ou utiliser min et max
-        — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne
-        à une part tout ce que les autres n'ont pas pris ; une seule part peut le
-        porter, et la somme doit valoir le montant de la ligne.
-      </p>
     </div>
     <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
          Sans ce second compte, chaque ligne reconnue par la règle doit

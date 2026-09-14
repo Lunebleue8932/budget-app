@@ -55,7 +55,10 @@ let abMonnaieId = null;
 // ANNÉE. Un second sélecteur pour ces dernières aurait laissé exister un état
 // où le haut de la page parle de mars et le bas de l'année dernière.
 const abPeriode = { annee: null, mois: null };
-let abPeriodePosee = false;
+// Les périodes qui portent des opérations (`/meta/periodes`), lues une fois.
+// Elles ne servent qu'à PROPOSER des années : celles qu'on peut budgéter
+// débordent largement — on pose un budget sur un mois où l'on n'a rien dépensé.
+let abPeriodesConnues = null;
 
 // Ce que la dernière lecture a rapporté, gardé pour que les rendus ne
 // redemandent rien : les catégories du noyau, leur budget du mois, le budget
@@ -102,10 +105,13 @@ function abHistogramme(conteneur, valeurs, monnaieId, { libelle }) {
       const centre = pas * i + pas / 2;
       const h = Math.abs(v.valeur) * echelle;
       const y = v.valeur >= 0 ? yZero - h : yZero;
+      // La barre pousse depuis la ligne de ZÉRO, donc vers le haut quand la
+      // valeur est positive et vers le bas sinon : c'est la classe qui porte le
+      // point d'ancrage, le CSS ne peut pas le deviner (cf. analyse-budget.css).
       const classe = v.valeur >= 0 ? "ab-barre-positive" : "ab-barre-negative";
       const titre = `${v.libelle} — ${formatMontant(v.valeur, monnaieId)}`;
       return `
-        <g class="ab-barre">
+        <g class="ab-barre" style="--retard:${i * 26}ms">
           <title>${escapeHtml(titre)}</title>
           <rect class="${classe}" x="${centre - largeurBarre / 2}" y="${y}"
                 width="${largeurBarre}" height="${Math.max(h, 0.5)}" rx="2" />
@@ -560,9 +566,22 @@ function abCablerBudgetsCategories() {
     abRenderSomme();
   });
 
-  // LE RELÂCHEMENT ÉCRIT. `change` est l'événement du geste terminé : sur un
-  // curseur il tombe quand on lâche la souris, sur un champ nombre quand on en
-  // sort ou qu'on valide.
+  // LE RELÂCHEMENT ÉCRIT, ET IL ÉCRIT LES DEUX. `change` est l'événement du
+  // geste terminé : sur un curseur il tombe quand on lâche la souris, sur un
+  // champ nombre quand on en sort ou qu'on valide.
+  //
+  // LES DEUX CURSEURS D'UNE LIGNE SONT LIÉS PAR LE BUDGET TOTAL : l'enveloppe
+  // devrait valoir le total multiplié par l'objectif (cf.
+  // crud.incoherences_budgets). Bouger l'un sans l'autre défaisait donc
+  // l'équation à chaque geste, et posait aussitôt sous la ligne le signalement
+  // de désaccord — à chaque relâchement de souris, pour un désaccord qu'on
+  // venait de créer soi-même et dont la correction était calculable. Porter
+  // l'autre chiffre est la seule chose à faire : c'est ce que l'utilisateur
+  // aurait cliqué dans la seconde qui suit.
+  //
+  // SEULEMENT SI LE TOTAL EST POSÉ : sans dénominateur, il n'y a pas d'équation
+  // et l'autre chiffre ne se déduit de rien. On écrit alors le seul qu'on a
+  // touché, exactement comme avant.
   zone.addEventListener("change", async (e) => {
     const champ = e.target.closest("input[data-champ]");
     if (!champ) return;
@@ -575,11 +594,27 @@ function abCablerBudgetsCategories() {
       await abCharger();
       return;
     }
+    const surLeMontant = champ.dataset.champ === "montant";
+    // Arrondis aux mêmes décimales que les champs de saisie : proposer
+    // 24,999999 % laisserait un écart que personne ne peut ni voir ni corriger.
+    const montant = surLeMontant
+      ? valeur
+      : Math.round(abBudgetTotal * (valeur / 100) * 100) / 100;
+    const objectif = surLeMontant
+      ? Math.round((valeur / abBudgetTotal) * 1000) / 10
+      : Math.round(valeur * 10) / 10;
     try {
-      if (champ.dataset.champ === "montant") {
-        await abEcrireBudgetCategorie(categorieId, valeur);
+      if (abBudgetTotal > 0) {
+        // LE MONTANT D'ABORD : c'est celui qui ne peut jamais être refusé. Un
+        // objectif qui ferait dépasser 100 % l'est, lui (400) — écrire dans cet
+        // ordre laisse au pire la ligne dans l'état d'avant pour sa part, et
+        // jamais l'inverse.
+        await abEcrireBudgetCategorie(categorieId, montant);
+        await abEcrireObjectifCategorie(categorieId, objectif);
+      } else if (surLeMontant) {
+        await abEcrireBudgetCategorie(categorieId, montant);
       } else {
-        await abEcrireObjectifCategorie(categorieId, Math.round(valeur * 10) / 10);
+        await abEcrireObjectifCategorie(categorieId, objectif);
       }
     } catch (err) {
       // LE SERVEUR TRANCHE, TOUJOURS : un objectif qui ferait dépasser 100 %
@@ -618,47 +653,53 @@ function abCablerBudgetsCategories() {
   });
 }
 
-/* ---------- L'écran ---------- */
+/* ---------- L'écran ----------
+ *
+ * TROIS LISTES DÉROULANTES ET PLUS TROIS RANGÉES D'ONGLETS. Monnaie, année,
+ * mois : trois choix qu'on fait en arrivant et qu'on ne rouvre plus, qui
+ * prenaient trois rangées empilées sous une quatrième depuis que la page porte
+ * des onglets. Les onglets de période appartiennent aux écrans qu'on PARCOURT —
+ * le dashboard, les opérations, où l'on saute de mois en mois pour comparer ;
+ * ici on pose un budget, puis on s'en va.
+ *
+ * LES DOUZE MOIS, TOUJOURS, et des années qui débordent de ce que la base
+ * contient : `/meta/periodes` ne nomme que les périodes qui PORTENT des
+ * opérations, ce qui suffit pour regarder et jamais pour DÉCIDER — un budget se
+ * pose précisément sur un mois où l'on n'a encore rien dépensé.
+ */
 
-function abRenderOngletsMonnaie() {
-  // LE MÉCANISME DU NOYAU, et non une rangée écrite ici : il masque la barre
-  // quand il n'y a qu'une monnaie (une barre à un seul onglet ne choisit rien)
-  // et écrit le symbole à côté du nom, ce que faisaient déjà tous les autres
-  // écrans. Une rangée recopiée se fige au jour de la copie.
-  renderOngletsMonnaies("ab-monnaies", state.monnaies, abMonnaieId, (monnaieId) => {
-    if (monnaieId === abMonnaieId) return;
-    abMonnaieId = monnaieId;
-    abCharger();
-  });
+function abAnneesProposees() {
+  const courante = new Date().getFullYear();
+  const annees = new Set([courante - 1, courante, courante + 1, abPeriode.annee]);
+  (abPeriodesConnues || []).forEach((p) => annees.add(p.annee));
+  return [...annees].filter(Boolean).sort((a, b) => b - a);
 }
 
-/**
- * Pose le sélecteur de période UNE SEULE FOIS.
- *
- * `initPeriodeSelector` construit ses deux rangées et se recâble lui-même à
- * chaque clic : le rappeler à chaque lecture reconstruirait les onglets sous le
- * curseur. Il ne déclenche rien à la pose — c'est `abCharger` qui lit, juste
- * après.
- *
- * LES PÉRIODES VIENNENT DE `/meta/periodes`, qui ne nomme que celles portant
- * des opérations. Sur une base neuve il n'y en a aucune : on retombe alors sur
- * le mois courant, sans quoi il n'y aurait aucun mois sur lequel poser un
- * budget — et c'est justement le moment où l'on écrit son premier.
- */
-async function abPoserPeriode() {
-  if (abPeriodePosee) return;
-  abPeriodePosee = true;
-  await initPeriodeSelector(
-    document.getElementById("ab-periode-annees"),
-    document.getElementById("ab-periode-mois"),
-    abPeriode,
-    () => abCharger()
+function abRemplirContexte() {
+  const monnaie = document.getElementById("ab-monnaie");
+  fillSelect(
+    monnaie,
+    state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
   );
-  if (!abPeriode.annee) {
-    const aujourdhui = new Date();
-    abPeriode.annee = aujourdhui.getFullYear();
-    abPeriode.mois = aujourdhui.getMonth() + 1;
-  }
+  monnaie.value = String(abMonnaieId);
+  // UNE SEULE MONNAIE : la liste n'a rien à demander. On la laisse en place
+  // plutôt que de la masquer — un champ qui apparaît le jour où l'on crée une
+  // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
+  monnaie.disabled = state.monnaies.length <= 1;
+
+  const annee = document.getElementById("ab-annee");
+  fillSelect(
+    annee,
+    abAnneesProposees().map((a) => ({ value: a, label: String(a) }))
+  );
+  annee.value = String(abPeriode.annee);
+
+  const mois = document.getElementById("ab-mois");
+  fillSelect(
+    mois,
+    MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
+  );
+  mois.value = String(abPeriode.mois);
 }
 
 async function abCharger() {
@@ -666,15 +707,30 @@ async function abCharger() {
   if (abMonnaieId == null || !state.monnaies.some((m) => m.id === abMonnaieId)) {
     abMonnaieId = state.monnaies[0] ? state.monnaies[0].id : null;
   }
-  await abPoserPeriode();
-  abRenderOngletsMonnaie();
+  if (!abPeriode.annee) {
+    const aujourdhui = new Date();
+    abPeriode.annee = aujourdhui.getFullYear();
+    abPeriode.mois = aujourdhui.getMonth() + 1;
+  }
+  if (abPeriodesConnues === null) {
+    // Une seule fois : ces périodes ne servent qu'à proposer les années où
+    // quelque chose s'est passé, et la liste ne bouge pas pendant qu'on règle
+    // un budget.
+    try {
+      abPeriodesConnues = await apiFetch("/meta/periodes");
+    } catch (err) {
+      abPeriodesConnues = [];
+    }
+  }
+  abRemplirContexte();
   if (abMonnaieId == null) return;
+
   const { annee, mois } = abPeriode;
   try {
     // LES TROIS LECTURES DU BAS PORTENT SUR L'ANNÉE du mois choisi : elles
     // répondent à « est-ce que je tiens un rythme ? », que douze fois un mois
     // ne dit pas. Le budget, lui, est propre au mois — d'où deux requêtes qui
-    // ne portent pas la même période, et un seul sélecteur pour les deux.
+    // ne portent pas la même période, et un seul choix pour les deux.
     const requete = `monnaie_id=${abMonnaieId}&annee=${annee}`;
     const requeteMois = `${requete}&mois=${mois}`;
     const [epargne, matelas, imprevues, categories, budgets, budgetTotal, coherence] =
@@ -687,7 +743,12 @@ async function abCharger() {
         apiFetch(`/dashboard/budget-total?${requeteMois}`),
         apiFetch(`/dashboard/coherence-budgets?${requeteMois}`),
       ]);
-    abCategories = categories;
+    // LES CATÉGORIES D'ENTRÉE N'ONT RIEN À FAIRE ICI (`est_entree`, migration
+    // 0060) : on ne se donne pas un budget de salaire, et leur ligne aurait
+    // demandé deux chiffres auxquels il n'y a rien à répondre. Le serveur les
+    // écarte de la même façon du plafond des objectifs et de l'histogramme des
+    // dépenses — c'est la même question, posée trois fois.
+    abCategories = categories.filter((c) => !c.est_entree);
     abBudgets = Object.fromEntries(
       budgets.map((b) => [b.categorie_id, { montant: b.montant, explicite: b.explicite }])
     );
@@ -704,6 +765,44 @@ async function abCharger() {
     showMessage(err.message, "error");
   }
 }
+
+/* ---------- Les onglets de la page ----------
+ *
+ * « PROJETS » EST VENU S'Y RANGER (cf. extensions/projets) : un projet est une
+ * enveloppe qu'on se donne pour un voyage ou un déménagement, exactement la
+ * même nature de décision que le budget d'un mois — et rien à voir avec la vue
+ * globale des comptes, qui dit ce qu'on A.
+ *
+ * LE NOYAU MONTRE ET CACHE LES VOLETS tout seul (gestionnaire délégué de
+ * app.js, commun à tous les écrans à onglets) ; ce qui reste à faire ici est
+ * de CHARGER les données de celui qu'on ouvre — exactement ce que fait
+ * `chargerSousPageComptesGlobale` pour la page des comptes.
+ */
+function abChargerSousPage(page) {
+  if (page === "budget-budget") return abCharger();
+  // Onglet apporté par une autre extension : le noyau sait à qui le demander.
+  return BudgetApp.extensions.ouvrirSousPage(page);
+}
+
+function abOuvrirPage() {
+  const actif = document.querySelector("#budget-sous-nav button.active");
+  return abChargerSousPage(actif ? actif.dataset.sousSection : "budget-budget");
+}
+
+document.getElementById("budget-sous-nav")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-sous-section]");
+  if (btn) abChargerSousPage(btn.dataset.sousSection);
+});
+
+["ab-monnaie", "ab-annee", "ab-mois"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", (e) => {
+    const valeur = Number(e.target.value);
+    if (id === "ab-monnaie") abMonnaieId = valeur;
+    if (id === "ab-annee") abPeriode.annee = valeur;
+    if (id === "ab-mois") abPeriode.mois = valeur;
+    abCharger();
+  });
+});
 
 document.getElementById("btn-ab-matelas")?.addEventListener("click", abEnregistrerMatelas);
 document.getElementById("btn-ab-budget-total")?.addEventListener("click", abEnregistrerBudgetTotal);
@@ -734,6 +833,7 @@ window.appliquerAccordBudget = async function abAppliquerAccordBudget(...args) {
   await abCharger();
   return resultat;
 };
+
 /* ---------- L'AVERTISSEMENT LÀ OÙ ON REGARDE SES COMPTES D'ÉPARGNE ----------
  *
  * POURQUOI IL NE RESTE PAS DANS L'ONGLET. Un matelas franchi est une nouvelle
@@ -801,4 +901,4 @@ window.loadComptesGlobale = async function loadComptesGlobaleAvecMatelas(...args
 // L'IDENTIFIANT RESTE `analyse-budget`, le nom du DOSSIER : c'est lui que le
 // noyau connaît, lui que porte l'état d'activation déjà enregistré, et il ne
 // s'affiche nulle part. Le nom visible, lui, est dans le manifeste.
-BudgetApp.extensions.enregistrer("analyse-budget", { chargeur: abCharger });
+BudgetApp.extensions.enregistrer("analyse-budget", { chargeur: abOuvrirPage });

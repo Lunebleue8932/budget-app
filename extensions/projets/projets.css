@@ -104,9 +104,9 @@
    sans objet ici où presque tout sort. Le signe reste, la couleur part.
    Un ZÉRO garde la sienne (`.montant-nul`, plus discrète) : elle ne dit pas
    « négatif », elle dit « rien ». */
-#sous-section-comptes-globale-projets .montant.entree,
-#sous-section-comptes-globale-projets .montant.sortie,
-#sous-section-comptes-globale-projets .montant.neutre {
+#sous-section-budget-projets .montant.entree,
+#sous-section-budget-projets .montant.sortie,
+#sous-section-budget-projets .montant.neutre {
   color: var(--text-primary);
 }
 

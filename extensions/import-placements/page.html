@@ -16,13 +16,9 @@
            destination à côté d'elle. On y entre par le bouton posé en haut à
            droite de cette page-là, et on en ressort par celui-ci. -->
       <div class="impl-entete">
-        <h2>Import de placements</h2>
+        <h2>Import de placements<i class="info-bulle" tabindex="0" data-info-cle="import-placements.import-de-placements">i</i></h2>
         <button type="button" id="btn-impl-retour">&larr; Retour aux placements</button>
       </div>
-      <p class="hint">
-        Lit une liste d'opérations exportée depuis un compte de placements : achats, ventes et
-        transferts d'espèces. Rien n'entre en base avant que tu ne valides l'aperçu.
-      </p>
 
       <p class="hint" id="impl-aucun-compte" style="display:none">
         Aucun compte de placements financiers. Crée-en un depuis la page Comptes en choisissant
@@ -74,8 +70,7 @@
           <details class="config-avancee config-fichier" id="impl-config-fichier">
             <summary>
               Configuration du fichier
-              <span class="config-avancee-resume" id="impl-config-fichier-resume"></span>
-            </summary>
+              <span class="config-avancee-resume" id="impl-config-fichier-resume"></span><i class="info-bulle" tabindex="0" data-info-cle="import-placements.configuration-du-fichier">i</i></summary>
             <!-- CE QUE LE FICHIER RACONTE, avant même quelle colonne porte
                  quoi : les colonnes proposées en dépendent entièrement. Une
                  liste de mouvements lit une date et un type d'opération ; une
@@ -89,10 +84,6 @@
               </select>
             </div>
 
-            <p class="hint">
-              Quelle colonne du fichier porte quoi. Les numéros sont ceux d'Excel : la première
-              colonne est la n°1. L'œil barré ne lit pas la colonne.
-            </p>
             <div id="impl-config-colonnes"></div>
             <label class="import-option-ligne">
               <input type="checkbox" id="impl-ignorer-premiere-ligne" />
@@ -220,14 +211,8 @@
           <details class="config-avancee" id="impl-reglages-lecture">
             <summary>
               Réglages de lecture (délimiteur, séparateur décimal)
-              <span class="config-avancee-resume" id="impl-reglages-lecture-resume"></span>
-            </summary>
+              <span class="config-avancee-resume" id="impl-reglages-lecture-resume"></span><i class="info-bulle" tabindex="0" data-info-cle="import-placements.reglages-de-lecture-delimiteur-separateur-decimal">i</i></summary>
             <p class="import-avertissement" id="impl-reglages-lecture-alerte" style="display:none"></p>
-            <p class="hint">
-              À utiliser si le fichier n'est pas lu correctement (colonnes mélangées, montants
-              illisibles) : la détection automatique du délimiteur et de la virgule décimale
-              française ne convient pas à tous les formats d'export.
-            </p>
             <div class="import-reglage-champ">
               <label for="impl-reglage-delimiteur">Délimiteur de colonnes</label>
               <select id="impl-reglage-delimiteur">
@@ -255,12 +240,7 @@
           <div id="impl-avertissements" class="import-avertissements" style="display:none"></div>
 
           <div id="impl-apercu-fichier-bloc" style="display:none">
-            <h3>Le fichier tel qu'il est</h3>
-            <p class="hint">
-              Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les
-              colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données,
-              corrige les numéros de colonne dans "Configuration du fichier" au-dessus.
-            </p>
+            <h3>Le fichier tel qu'il est<i class="info-bulle" tabindex="0" data-info-cle="import-placements.le-fichier-tel-qu-il-est">i</i></h3>
             <div class="apercu-fichier-defilement">
               <table id="impl-apercu-fichier-table"></table>
             </div>
@@ -278,11 +258,7 @@
 
           <!-- ----- L'aperçu ----- -->
           <div id="impl-apercu-bloc" style="display:none">
-            <h3>Aperçu — <span id="impl-apercu-nombre"></span> ligne(s)</h3>
-            <p class="hint">
-              Les doublons détectés sont pré-sélectionnés. Tant qu'il reste des lignes sélectionnées,
-              l'import est bloqué : supprime-les, ou décoche-les pour les importer quand même.
-            </p>
+            <h3>Aperçu — <span id="impl-apercu-nombre"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.apercu-ligne-s">i</i></h3>
             <div class="actions barre-selection">
               <button type="button" id="btn-impl-tout-selectionner">Tout sélectionner</button>
               <button type="button" class="danger" id="btn-impl-supprimer-selection" disabled>
@@ -296,13 +272,7 @@
                  prix de revient, valorisation) et ce que l'app en déduit (le
                  cours), pas un montant et une date qui n'y figurent pas. -->
             <div id="impl-apercu-section-position" style="display:none">
-              <h4>Titres détenus — <span id="impl-apercu-nombre-position"></span> ligne(s)</h4>
-              <p class="hint">
-                Chaque ligne devient un <strong>achat</strong> daté du jour de la photographie :
-                c'est ainsi qu'une détention existe dans l'application, et c'est ce qui rend justes
-                d'un coup la valorisation et les plus-values. Les espèces du compte baissent donc du
-                total investi — pense à poser son solde initial en conséquence.
-              </p>
+              <h4>Titres détenus — <span id="impl-apercu-nombre-position"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.titres-detenus-ligne-s">i</i></h4>
               <table>
                 <thead>
                   <tr>
@@ -345,11 +315,7 @@
             </div>
 
             <div id="impl-apercu-section-transfert">
-              <h4>Transferts internes — <span id="impl-apercu-nombre-transfert"></span> ligne(s)</h4>
-              <p class="hint">
-                Le relevé ne décrit qu'un côté du mouvement : indique le compte en face. Le sens
-                (émetteur ou récepteur) est déduit du signe du montant.
-              </p>
+              <h4>Transferts internes — <span id="impl-apercu-nombre-transfert"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.transferts-internes-ligne-s">i</i></h4>
               <table>
                 <thead>
                   <tr>
@@ -373,14 +339,7 @@
                  achat ou d'un transfert : la section les mélange, et une mise en
                  page par ligne les rendrait illisibles côte à côte. -->
             <div id="impl-apercu-section-doublon">
-              <h4>Doublons détectés — <span id="impl-apercu-nombre-doublon"></span> ligne(s)</h4>
-              <p class="hint">
-                Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à
-                une ligne déjà importée sous ce preset est affichée ici, suivie en lecture seule de
-                celle qu'elle double. Elles sont pré-sélectionnées pour être supprimées d'un clic —
-                décoche-en une pour l'importer quand même (deux achats identiques le même jour sont
-                un doublon détecté légitime).
-              </p>
+              <h4>Doublons détectés — <span id="impl-apercu-nombre-doublon"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.doublons-detectes-ligne-s">i</i></h4>
               <table>
                 <thead>
                   <tr>
@@ -398,15 +357,7 @@
                  compte courant. Même forme que « Ressemblances » côté bancaire —
                  la ligne, puis ce à quoi elle ressemble juste en dessous. -->
             <div id="impl-apercu-section-ressemblance" style="display:none">
-              <h4>Transferts déjà connus — <span id="impl-apercu-nombre-ressemblance"></span> ligne(s)</h4>
-              <p class="hint">
-                Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes
-                comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé
-                du courtier <strong>et</strong> sur celui du compte courant. Seuls les virements qui
-                touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné :
-                toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie
-                de ce à quoi elle ressemble.
-              </p>
+              <h4>Transferts déjà connus — <span id="impl-apercu-nombre-ressemblance"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.transferts-deja-connus-ligne-s">i</i></h4>
               <table>
                 <thead>
                   <tr>
@@ -420,11 +371,7 @@
             </div>
 
           <div id="impl-apercu-section-erreur">
-              <h4>Lignes en erreur — <span id="impl-apercu-nombre-erreur"></span> ligne(s)</h4>
-              <p class="hint">
-                Ces lignes ne seront pas importées telles quelles. Corrige-les avec "Modifier", ou
-                supprime-les de l'aperçu — le reste du fichier s'importe normalement.
-              </p>
+              <h4>Lignes en erreur — <span id="impl-apercu-nombre-erreur"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.lignes-en-erreur-ligne-s">i</i></h4>
               <table>
                 <thead>
                   <tr>
@@ -452,23 +399,6 @@
         <!-- ----- Règles ----- -->
         <div id="impl-volet-regles" style="display:none">
           <h3>Règles de type d'opération<i class="info-bulle" tabindex="0" data-info-cle="import-placements.regles-de-type-d-operation">i</i></h3>
-          <p class="hint">
-            Les mots-clés de la « Configuration du fichier » comparent un libellé <strong>entier</strong> :
-            « Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase —
-            « ACHAT COMPTANT ETF MSCI WORLD », avec le nom du titre dedans — aucune liste de mots-clés
-            ne peut la reconnaître, parce qu'il n'y a pas deux fois le même libellé dans le fichier.
-            Une règle, elle, sait dire « <em>contient</em> ACHAT ».
-          </p>
-          <p class="hint">
-            Elles sont évaluées <strong>de haut en bas</strong> et s'arrêtent à la première qui
-            correspond : contrairement aux règles bancaires, une règle de placement ne décide que
-            d'une chose, il n'y a donc rien à compléter en dessous. Place les cas particuliers
-            au-dessus des cas généraux.
-          </p>
-          <p class="hint">
-            Une ligne qu'aucune règle ne reconnaît retombe sur les <strong>mots-clés du preset</strong>.
-            Sans aucune règle, l'import se comporte donc exactement comme avant.
-          </p>
 
           <div class="actions">
             <button type="button" class="primary" id="btn-impl-regle-nouvelle">+ Nouvelle règle</button>
@@ -492,12 +422,7 @@
               <textarea id="impl-regle-description" rows="2" placeholder="ex. ce courtier écrit « ACHAT COMPTANT » suivi du nom du titre"></textarea>
             </div>
 
-            <h4>Conditions</h4>
-            <p class="hint">
-              Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se
-              combinent selon leur propre connecteur. Deux niveaux suffisent à écrire
-              « (A ou B) et C ».
-            </p>
+            <h4>Conditions<i class="info-bulle" tabindex="0" data-info-cle="import-placements.conditions">i</i></h4>
             <div class="regle-champ-ligne">
               <label for="impl-regle-connecteur">Combiner les groupes avec</label>
               <select id="impl-regle-connecteur">
@@ -510,12 +435,7 @@
               <button type="button" id="btn-impl-regle-ajouter-groupe">+ Ajouter un groupe</button>
             </div>
 
-            <h4>Action</h4>
-            <p class="hint">
-              Une ligne de compte-titres n'a pas de catégorie : un mouvement de titres n'en porte
-              pas. Un transfert, lui, touche deux comptes et le relevé n'en nomme qu'un — la règle
-              peut donc désigner le second.
-            </p>
+            <h4>Action<i class="info-bulle" tabindex="0" data-info-cle="import-placements.action">i</i></h4>
             <div class="regle-champ-ligne">
               <label for="impl-regle-type">La ligne décrit</label>
               <select id="impl-regle-type">
