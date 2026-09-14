@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .constants import (
-    CATEGORIES_SENS_ENTREE,
     CATEGORIE_AUTRES,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
@@ -194,6 +193,13 @@ def erreur_objectif_pourcentage(
     d'affichage. Sinon, rallumer une catégorie aurait pu faire basculer le total
     au-dessus de 100 sans qu'aucune saisie n'ait eu lieu.
 
+    SAUF LES CATÉGORIES D'ENTRÉE (`est_entree`, migration 0060), qui n'ont pas
+    de part à viser et ne paraissent donc pas sur la page Budget. Un objectif
+    posé AVANT qu'on coche la case y resterait sinon écrit, invisible, à
+    consommer de la place dans un total que plus rien à l'écran n'explique. Il
+    n'est pas effacé pour autant — décocher la case le rend tel quel, et une
+    saisie ne doit pas disparaître en silence.
+
     LA CATÉGORIE QU'ON MODIFIE EST EXCLUE de la somme des autres : on remplace sa
     valeur, on ne l'ajoute pas. Sans ça, ramener un objectif de 60 à 50 aurait été
     refusé dès que le total frôlait 100.
@@ -205,6 +211,7 @@ def erreur_objectif_pourcentage(
     autres = (
         db.query(func.coalesce(func.sum(models.Categorie.objectif_pourcentage), 0.0))
         .filter(models.Categorie.id != db_categorie.id)
+        .filter(models.Categorie.est_entree.is_(False))
         .scalar()
         or 0.0
     )
@@ -473,7 +480,7 @@ def incoherences_budgets(db: Session, annee: int, mois: int, monnaie_id: int) ->
     if total > 0:
         categories = (
             db.query(models.Categorie)
-            .filter(models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE))
+            .filter(models.Categorie.est_entree.is_(False))
             .order_by(models.Categorie.ordre)
             .all()
         )
@@ -540,12 +547,32 @@ def migrer_operations_vers_autres(db: Session, categorie_a_supprimer: models.Cat
     db.commit()
 
 
+def set_categorie_est_entree(
+    db: Session, db_categorie: models.Categorie, est_entree: bool
+) -> models.Categorie:
+    """Coche (ou décoche) « catégorie d'entrée » (migration 0060).
+
+    UNE ROUTE À PART, comme l'objectif de répartition et pour la même raison :
+    ce drapeau et le nom d'une catégorie ne se règlent ni au même moment ni par
+    le même geste. Réunis sur `CategorieUpdate`, renommer aurait décoché la case
+    chaque fois que le formulaire aurait été envoyé sans y toucher.
+
+    RIEN N'EST RECALCULÉ. Les opérations déjà écrites gardent leur `sens` : il
+    est posé à la création et relu par tous les soldes, et le réécrire ici
+    ferait bouger des chiffres déjà rapprochés d'un relevé, pour un geste qui
+    n'annonce rien de tel."""
+    db_categorie.est_entree = bool(est_entree)
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
 def delete_categorie(db: Session, db_categorie: models.Categorie) -> None:
     db.delete(db_categorie)
     db.commit()
 
 
-def _sens_pour_type(code: str, categorie_nom: Optional[str]) -> Sens:
+def _sens_pour_type(code: str, categorie_est_entree: bool) -> Sens:
     """Le type prime : un remboursement reçu et un prêt reçu sont des entrées
     quelle que soit la catégorie (ils n'en ont d'ailleurs plus). Pour les deux
     types à catégorie libre, le sens reste dérivé de la catégorie.
@@ -567,7 +594,10 @@ def _sens_pour_type(code: str, categorie_nom: Optional[str]) -> Sens:
         )
     if TypeOperation(code) in TYPES_SENS_ENTREE:
         return Sens.entree
-    if categorie_nom is not None and categorie_nom in CATEGORIES_SENS_ENTREE:
+    # `Categorie.est_entree` (migration 0060), et plus une comparaison de nom :
+    # la catégorie des entrées d'argent était reconnue par son libellé, ce qui
+    # la faisait basculer en catégorie de dépense dès qu'on la renommait.
+    if categorie_est_entree:
         return Sens.entree
     return Sens.depense
 
@@ -938,13 +968,18 @@ def _normaliser_amortissement(db_operation: models.Operation) -> None:
 
 def _normaliser_categorie_selon_type(db: Session, type_code: str, categorie_id):
     """Une catégorie n'a de sens que pour les deux types qui l'admettent ; pour
-    les autres, le type EST la classification. Renvoie (categorie_id, nom)."""
+    les autres, le type EST la classification.
+
+    Renvoie (categorie_id, est_entree). C'est le SECOND terme qui a changé avec
+    la migration 0060 : on rendait le NOM, que l'appelant comparait à une chaîne
+    en dur. Une catégorie d'entrée se coche désormais, et le drapeau voyage à la
+    place du libellé."""
     from .constants import TYPES_AVEC_CATEGORIE_LIBRE
 
     if TypeOperation(type_code) not in TYPES_AVEC_CATEGORIE_LIBRE:
-        return None, None
+        return None, False
     categorie = get_categorie(db, categorie_id) if categorie_id is not None else None
-    return (categorie.id if categorie else None), (categorie.nom if categorie else None)
+    return (categorie.id if categorie else None), bool(categorie and categorie.est_entree)
 
 
 def erreur_decoupes(code: str, montant: float, decoupes) -> Optional[str]:
@@ -1057,10 +1092,10 @@ def create_operation(db: Session, operation: schemas.OperationCreate) -> models.
     # son sens d'une catégorie que l'opération n'allait pas garder.
     if operation.decoupes:
         data["categorie_id"] = None
-    data["categorie_id"], nom_categorie = _normaliser_categorie_selon_type(
+    data["categorie_id"], categorie_est_entree = _normaliser_categorie_selon_type(
         db, code, data.get("categorie_id")
     )
-    data["sens"] = _sens_pour_type(code, nom_categorie)
+    data["sens"] = _sens_pour_type(code, categorie_est_entree)
 
     # `remboursable` n'est plus une colonne : il découle du type (dépense
     # remboursable et prêt reçu, exactement les deux cas historiques). Le `code`
@@ -1134,14 +1169,14 @@ def update_operation(
     if db_operation.decoupes:
         db_operation.categorie_id = None
 
-    db_operation.categorie_id, nom_categorie = _normaliser_categorie_selon_type(
+    db_operation.categorie_id, categorie_est_entree = _normaliser_categorie_selon_type(
         db, code, db_operation.categorie_id
     )
 
     # Un virement conserve son sens (transfert_sortant / transfert_entrant) :
     # le recalculer le ramènerait à "dépense" et fausserait le solde du compte.
     if not (etait_virement and TypeOperation(code) == TypeOperation.virement):
-        db_operation.sens = _sens_pour_type(code, nom_categorie)
+        db_operation.sens = _sens_pour_type(code, categorie_est_entree)
 
     est_remboursable = TypeOperation(code) in TYPES_REMBOURSABLES
     if not est_remboursable:
@@ -2615,7 +2650,7 @@ def create_operation_importee(
         # Découpée = pas de catégorie (cf. create_operation, même raison : le
         # sens se calcule d'après elle).
         categorie_id = None
-    categorie_id, nom_categorie = _normaliser_categorie_selon_type(
+    categorie_id, categorie_est_entree = _normaliser_categorie_selon_type(
         db, type_operation.code, categorie_id
     )
 
@@ -2630,7 +2665,11 @@ def create_operation_importee(
         nature=nature,
         montant=montant,
         monnaie_id=monnaie_id,
-        sens=sens if sens is not None else _sens_pour_type(type_operation.code, nom_categorie),
+        sens=(
+            sens
+            if sens is not None
+            else _sens_pour_type(type_operation.code, categorie_est_entree)
+        ),
         statut=statut,
         montant_du=montant_du_final,
         montant_a_rembourser=montant_a_rembourser,
@@ -2772,7 +2811,7 @@ def rapprocher_previsionnelle(
     type_operation = get_type_operation(db, type_id)
     if decoupes:
         categorie_id = None
-    categorie_id, nom_categorie = _normaliser_categorie_selon_type(
+    categorie_id, categorie_est_entree = _normaliser_categorie_selon_type(
         db, type_operation.code, categorie_id
     )
     montant_du_final, montant_a_rembourser = _resoudre_montants_remboursement(
@@ -2786,7 +2825,7 @@ def rapprocher_previsionnelle(
     previsionnelle.montant = montant
     previsionnelle.monnaie_id = monnaie_id
     previsionnelle.sens = (
-        sens if sens is not None else _sens_pour_type(type_operation.code, nom_categorie)
+        sens if sens is not None else _sens_pour_type(type_operation.code, categorie_est_entree)
     )
     previsionnelle.statut = statut
     previsionnelle.montant_du = montant_du_final

@@ -41,9 +41,13 @@ CATEGORIE_ENTREES_ARGENT = "Entrées d'argent"
 # "Autres" est protégée : non supprimable, et sert de repli pour les opérations
 # dont la catégorie a été supprimée.
 CATEGORIE_AUTRES = "Autres"
-# Seule catégorie dont le sens est "entrée" ; les autres entrées d'argent
-# (remboursement reçu, prêt reçu) sont désormais portées par le TYPE.
-CATEGORIES_SENS_ENTREE = {CATEGORIE_ENTREES_ARGENT}
+# LA SEULE CATÉGORIE D'ENTRÉE LIVRÉE, et plus la seule POSSIBLE : le nom ne sert
+# qu'à cocher `Categorie.est_entree` sur la base neuve (et sur les bases en
+# place, cf. migration 0060). Tout ce qui demande ensuite « est-ce une entrée ? »
+# lit la COLONNE — renommer la catégorie ne la faisait sinon pas seulement
+# changer de libellé, elle redevenait une catégorie de dépense en silence, et un
+# second salaire n'avait aucun moyen d'être reconnu.
+CATEGORIES_ENTREE_INITIALES = {CATEGORIE_ENTREES_ARGENT}
 
 
 # ---------- Monnaies ----------

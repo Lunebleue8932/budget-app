@@ -18,7 +18,7 @@ virement interne dont les DEUX écritures sont versées dans le projet s'y annul
 donc de lui-même, ce qui est bien ce qu'il vaut : l'argent n'a pas quitté le
 patrimoine.
 """
-from app.constants import CATEGORIES_SENS_ENTREE, Sens
+from app.constants import Sens
 from app.services.soldes import NB_TOP_DEPENSES
 
 # Les deux sens qui font sortir de l'argent, et les deux qui en font entrer.
@@ -81,11 +81,12 @@ def _lignes_de_depense(operation):
     ne fait pas de requête pour ça."""
     if operation.decoupes:
         return [
-            (part.categorie.nom, part.montant, operation.nature)
+            (part.categorie.nom, part.montant, operation.nature, part.categorie.est_entree)
             for part in operation.decoupes
         ]
-    nom = operation.categorie.nom if operation.categorie else CATEGORIE_SANS
-    return [(nom, operation.montant, operation.nature)]
+    categorie = operation.categorie
+    nom = categorie.nom if categorie else CATEGORIE_SANS
+    return [(nom, operation.montant, operation.nature, bool(categorie and categorie.est_entree))]
 
 
 def depenses_par_categorie(sous_filtre) -> dict[int, list[dict]]:
@@ -117,11 +118,13 @@ def depenses_par_categorie(sous_filtre) -> dict[int, list[dict]]:
         if operation.sens not in SENS_SORTANTS:
             continue
         barres = par_monnaie.setdefault(operation.monnaie_id, {})
-        for nom, montant, nature in _lignes_de_depense(operation):
+        for nom, montant, nature, est_entree in _lignes_de_depense(operation):
             # Une catégorie d'ENTRÉE ne peut rien porter ici (les sorties sont
             # seules comptées) : c'est le même écart que le dashboard refuse de
-            # dessiner, une barre à zéro qui n'apprend rien.
-            if nom in CATEGORIES_SENS_ENTREE:
+            # dessiner, une barre à zéro qui n'apprend rien. Le drapeau de la
+            # catégorie (migration 0060) et plus son nom : elle est renommable,
+            # et il peut y en avoir plusieurs.
+            if est_entree:
                 continue
             barre = barres.setdefault(
                 nom,

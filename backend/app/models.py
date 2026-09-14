@@ -111,6 +111,25 @@ class Categorie(Base):
     # n'est affiché que par le camembert des dépenses, qui le compare à la part
     # réellement constatée.
     objectif_pourcentage = Column(Float, nullable=False, default=0.0)
+    # UNE CATÉGORIE D'ENTRÉE (migration 0060). Ce que l'application
+    # reconnaissait jusque-là par le NOM — la chaîne « Entrées d'argent », dans
+    # `constants.CATEGORIES_SENS_ENTREE` — et qui se coche désormais sur
+    # n'importe laquelle. Renommer la catégorie livrée ne la faisait pas
+    # seulement changer de libellé : elle redevenait une catégorie de dépense,
+    # en silence, et un second salaire n'avait de toute façon aucun moyen d'être
+    # reconnu.
+    #
+    # TROIS LECTEURS, ET RIEN D'AUTRE : le sens par défaut d'une opération qu'on
+    # y range (`crud._sens_pour_type`), l'histogramme des dépenses, qui n'a rien
+    # à dessiner d'une catégorie dont les opérations sont des entrées
+    # (`soldes.get_depenses_par_categorie`), et la page Budget, qui ne demande
+    # ni enveloppe ni objectif pour ce qui rentre.
+    #
+    # ELLE NE RÉÉCRIT AUCUNE OPÉRATION. `Operation.sens` est posé à la création
+    # et relu par tous les soldes : cocher la case change le sens de ce qu'on
+    # écrira ENSUITE, jamais celui des lignes déjà en base — les recalculer
+    # d'office aurait fait bouger des soldes déjà rapprochés d'un relevé.
+    est_entree = Column(Boolean, nullable=False, default=False)
 
     __table_args__ = (
         CheckConstraint(

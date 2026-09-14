@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app import crud, models
 from app.constants import (
+    CATEGORIES_ENTREE_INITIALES,
     CATEGORIES_INITIALES,
     MONNAIE_INITIALE_NOM,
     TYPES_COMPTE_INITIAUX,
@@ -64,7 +65,16 @@ def db_session():
     for position, nom in enumerate(CATEGORIES_INITIALES):
         # `couleur_index` suit l'ordre au départ, comme le rattrapage de la
         # migration 0035 : ensuite il n'appartient plus qu'à la catégorie.
-        session.add(models.Categorie(nom=nom, ordre=position, couleur_index=position))
+        # `est_entree` reproduit la reprise de la migration 0060 : la catégorie
+        # des entrées d'argent la porte, les autres non.
+        session.add(
+            models.Categorie(
+                nom=nom,
+                ordre=position,
+                couleur_index=position,
+                est_entree=nom in CATEGORIES_ENTREE_INITIALES,
+            )
+        )
     for nom in TYPES_COMPTE_INITIAUX:
         session.add(models.TypeCompte(nom=nom, systeme=nom in TYPES_COMPTE_SYSTEME))
     session.commit()

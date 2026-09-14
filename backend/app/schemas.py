@@ -132,6 +132,18 @@ class CategorieRead(BaseModel):
     # quoi que ce soit : c'est le camembert du dashboard qui le pose à côté de
     # la part constatée.
     objectif_pourcentage: float = 0.0
+    # CATÉGORIE D'ENTRÉE (cf. models.Categorie.est_entree, migration 0060) : ses
+    # opérations sont des entrées d'argent, elle n'a donc pas de barre dans
+    # l'histogramme des dépenses et pas de budget à se voir attribuer.
+    est_entree: bool = False
+
+
+class CategorieEntreeUpdate(BaseModel):
+    """Le drapeau « catégorie d'entrée », isolé comme l'objectif l'est déjà —
+    et pour la même raison : renommer une catégorie ne doit jamais décocher une
+    case qu'on n'a pas touchée."""
+
+    est_entree: bool
 
 
 class CategorieObjectifUpdate(BaseModel):

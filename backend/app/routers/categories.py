@@ -131,6 +131,28 @@ def set_objectif_categorie(
     )
 
 
+@router.put("/{categorie_id}/entree", response_model=schemas.CategorieRead)
+def set_entree_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieEntreeUpdate,
+    db: Session = Depends(get_db),
+):
+    """Coche ou décoche « catégorie d'entrée » (migration 0060).
+
+    CE QUE LA CASE CHANGE : le sens par défaut des opérations qu'on rangera
+    ENSUITE dans cette catégorie, sa présence dans l'histogramme des dépenses
+    (une catégorie dont les opérations sont des entrées y resterait à zéro), et
+    sa ligne sur la page Budget — on ne se donne pas un budget de salaire.
+
+    CE QU'ELLE NE CHANGE PAS : les opérations déjà écrites. Leur `sens` est une
+    colonne, posée à la création ; le recalculer d'office aurait fait bouger des
+    soldes déjà rapprochés d'un relevé, sans que rien ne l'annonce."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
+
+
 @router.put("/reordonner", response_model=list[schemas.CategorieRead])
 def reordonner_categories(payload: schemas.ReordonnerCategoriesInput, db: Session = Depends(get_db)):
     """Applique le nouvel ordre d'affichage issu d'un glisser-déposer côté

@@ -1,7 +1,8 @@
 from datetime import date
 
 from app import crud, models, schemas
-from app.constants import CATEGORIES_INITIALES, Statut
+from app.constants import CATEGORIES_INITIALES, Sens, Statut
+from app.services import soldes
 
 from .conftest import creer_compte, get_categorie_id, get_monnaie_id, get_type_id
 
@@ -164,3 +165,115 @@ def test_couleur_index_ne_derive_pas_au_fil_des_creations(db_session):
         crud.migrer_operations_vers_autres(db_session, c)
         crud.delete_categorie(db_session, c)
     assert {c.couleur_index for c in crud.get_categories(db_session)} == depart
+
+
+# ---------- Une catégorie d'ENTRÉE se coche (migration 0060) ----------
+#
+# CE QUE CES TESTS VERROUILLENT. La notion existait, mais par le NOM : une
+# constante contenait « Entrées d'argent », et trois endroits comparaient à
+# elle. Renommer la catégorie la faisait redevenir une catégorie de dépense
+# sans rien dire, et un SECOND revenu — des loyers, une pension — n'avait aucun
+# moyen d'être reconnu. Le drapeau remplace la chaîne :
+#
+#   - le SENS d'une opération qu'on y range suit la case, pas le libellé ;
+#   - l'histogramme des dépenses n'en dessine pas la barre (elle resterait à
+#     zéro, les sommes ne comptant que les sorties) ;
+#   - RIEN N'EST RÉÉCRIT : les opérations déjà en base gardent leur sens, sans
+#     quoi cocher une case ferait bouger des soldes déjà rapprochés d'un relevé.
+
+
+def test_la_categorie_des_entrees_livree_porte_le_drapeau(db_session):
+    categories = {c.nom: c for c in crud.get_categories(db_session)}
+    assert categories["Entrées d'argent"].est_entree is True
+    assert categories["Alimentaire"].est_entree is False
+
+
+def test_le_sens_suit_la_case_et_non_le_nom(db_session):
+    """Une catégorie cochée rend des ENTRÉES, quel que soit son nom — et la
+    catégorie livrée renommée continue d'en rendre."""
+    compte = creer_compte(db_session, "Courant")
+    salaire = crud.create_categorie(db_session, schemas.CategorieCreate(nom="Loyers perçus"))
+    crud.set_categorie_est_entree(db_session, salaire, True)
+
+    operation = crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 10),
+            compte_id=compte.id,
+            monnaie_id=get_monnaie_id(db_session),
+            type_id=get_type_id(db_session, "classique"),
+            categorie_id=salaire.id,
+            nature="Loyer de mars",
+            montant=700,
+            statut=Statut.reel,
+        ),
+    )
+    assert operation.sens == Sens.entree
+
+    # Et le nom ne décide plus de rien : la catégorie livrée, renommée, reste
+    # une catégorie d'entrée.
+    livree = crud.get_categorie_by_nom(db_session, "Entrées d'argent")
+    crud.rename_categorie(db_session, livree, "Revenus")
+    autre = crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 11),
+            compte_id=compte.id,
+            monnaie_id=get_monnaie_id(db_session),
+            type_id=get_type_id(db_session, "classique"),
+            categorie_id=livree.id,
+            nature="Salaire",
+            montant=2000,
+            statut=Statut.reel,
+        ),
+    )
+    assert autre.sens == Sens.entree
+
+
+def test_une_categorie_d_entree_n_a_pas_de_barre(db_session):
+    compte = creer_compte(db_session, "Courant")
+    loyers = crud.create_categorie(db_session, schemas.CategorieCreate(nom="Loyers perçus"))
+    crud.set_categorie_est_entree(db_session, loyers, True)
+    crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 10),
+            compte_id=compte.id,
+            monnaie_id=get_monnaie_id(db_session),
+            type_id=get_type_id(db_session, "classique"),
+            categorie_id=loyers.id,
+            nature="Loyer de mars",
+            montant=700,
+            statut=Statut.reel,
+        ),
+    )
+    barres = soldes.get_depenses_par_categorie(
+        db_session, 2026, 3, get_monnaie_id(db_session)
+    )
+    assert "Loyers perçus" not in {b["categorie"] for b in barres}
+    assert "Alimentaire" in {b["categorie"] for b in barres}
+
+
+def test_cocher_la_case_ne_reecrit_aucune_operation(db_session):
+    """Le sens est posé à la création et relu par tous les soldes : le
+    recalculer ferait bouger des chiffres déjà rapprochés d'un relevé."""
+    compte = creer_compte(db_session, "Courant")
+    categorie = crud.create_categorie(db_session, schemas.CategorieCreate(nom="Divers"))
+    operation = crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 10),
+            compte_id=compte.id,
+            monnaie_id=get_monnaie_id(db_session),
+            type_id=get_type_id(db_session, "classique"),
+            categorie_id=categorie.id,
+            nature="Une sortie",
+            montant=50,
+            statut=Statut.reel,
+        ),
+    )
+    assert operation.sens == Sens.depense
+
+    crud.set_categorie_est_entree(db_session, categorie, True)
+    db_session.refresh(operation)
+    assert operation.sens == Sens.depense
