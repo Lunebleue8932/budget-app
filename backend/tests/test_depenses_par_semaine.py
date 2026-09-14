@@ -223,9 +223,10 @@ def test_le_budget_du_mois_est_lui_aussi_decoupe_au_prorata(db_session):
 
 
 def test_la_moyenne_est_celle_des_semaines_affichees(db_session):
-    """« Moyenne des semaines du mois » : leur somme divisée par leur nombre,
-    dernière semaine courte comprise. C'est le seul calcul qu'on puisse
-    vérifier à l'œil sur les barres d'à côté."""
+    """« Moyenne des semaines révolues du mois » : leur somme divisée par leur
+    nombre, dernière semaine courte comprise. C'est le seul calcul qu'on puisse
+    vérifier à l'œil sur les barres d'à côté. Janvier 2026 est passé : ses cinq
+    semaines sont toutes révolues."""
     compte = creer_compte(db_session, "Courant")
     _depense(db_session, compte, "Courses", 100.0, jour=3)
     _depense(db_session, compte, "Courses", 50.0, jour=10)
@@ -290,3 +291,65 @@ def test_une_depense_d_un_autre_mois_n_entre_dans_aucune_semaine(db_session):
     semaines = _semaines(db_session)["semaines"]
 
     assert sum(_total(s["depenses"]) for s in semaines) == 0.0
+
+
+# ---------- La moyenne ne porte que sur les semaines RÉVOLUES ----------
+#
+# CE QUE CES TESTS VERROUILLENT. Le 14 septembre, un mois de cinq semaines en a
+# deux de vécues et trois qui n'ont pas commencé. Diviser par cinq annonçait une
+# moyenne hebdomadaire deux fois et demie trop basse — et c'est exactement le
+# chiffre qu'on regarde pour savoir si l'on tient son rythme. La semaine EN
+# COURS est écartée elle aussi : à son deuxième jour, elle tire la moyenne vers
+# le bas comme une semaine future, alors qu'elle n'est simplement pas finie.
+#
+# Les BARRES, elles, ne changent pas : toutes les semaines du mois gardent la
+# leur. Seule la moyenne change de périmètre, et l'écran dit sur combien de
+# semaines elle porte.
+
+
+def _bornes(annee, mois):
+    return [
+        {"jour_debut": debut, "jour_fin": fin}
+        for debut, fin in soldes.semaines_du_mois(annee, mois)
+    ]
+
+
+def test_un_mois_passe_garde_toutes_ses_semaines():
+    semaines = _bornes(2026, 1)
+    retenues = soldes._semaines_revolues(2026, 1, semaines, date(2026, 9, 14))
+    assert retenues == semaines
+
+
+def test_un_mois_en_cours_ecarte_les_semaines_a_venir_et_celle_qu_on_vit():
+    """Septembre 2026 : 1→6, 7→13, 14→20, 21→27, 28→30. Le 14, seules les deux
+    premières sont révolues — celle qui commence ce jour-là ne l'est pas."""
+    semaines = _bornes(2026, 9)
+    retenues = soldes._semaines_revolues(2026, 9, semaines, date(2026, 9, 14))
+    assert [(s["jour_debut"], s["jour_fin"]) for s in retenues] == [(1, 6), (7, 13)]
+
+
+def test_dans_la_premiere_semaine_du_mois_la_moyenne_porte_sur_elle():
+    """Aucune semaine révolue : rendre une liste vide ferait une moyenne à
+    zéro, c'est-à-dire une mauvaise nouvelle inventée de toutes pièces."""
+    semaines = _bornes(2026, 9)
+    retenues = soldes._semaines_revolues(2026, 9, semaines, date(2026, 9, 3))
+    assert [(s["jour_debut"], s["jour_fin"]) for s in retenues] == [(1, 6)]
+
+
+def test_un_mois_a_venir_garde_ses_semaines():
+    """Elles sont toutes à zéro de toute façon : c'est le cas où le périmètre
+    n'a aucune conséquence, et où l'inventer en aurait une."""
+    semaines = _bornes(2026, 12)
+    retenues = soldes._semaines_revolues(2026, 12, semaines, date(2026, 9, 14))
+    assert retenues == semaines
+
+
+def test_la_moyenne_d_un_mois_passe_reste_celle_de_toutes_ses_semaines(db_session):
+    compte = creer_compte(db_session, "Courant")
+    _depense(db_session, compte, "Courses", 100.0, jour=3)
+    _depense(db_session, compte, "Courses", 50.0, jour=10)
+
+    resultat = _semaines(db_session)
+
+    assert resultat["semaines_moyennees"] == 5
+    assert _total(resultat["moyenne"]) == pytest.approx(150.0 / 5)

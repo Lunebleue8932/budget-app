@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 
 from .. import crud, extensions, models
 from ..constants import (
-    CATEGORIES_SENS_ENTREE,
     EXTENSION_PRETS,
     EXTENSION_SUIVI_REMBOURSEMENTS,
     LIBELLE_INTERETS_PRETS,
@@ -910,7 +909,7 @@ def get_depenses_par_categorie(
     (cf. partsCategoriesDashboard), ce qui était la seule raison de filtrer si
     tôt.
 
-    ET SAUF LES CATÉGORIES D'ENTRÉE (cf. constants.CATEGORIES_SENS_ENTREE). Une
+    ET SAUF LES CATÉGORIES D'ENTRÉE (`Categorie.est_entree`, migration 0060). Une
     catégorie dont les opérations sont des ENTRÉES ne peut rien porter ici : les
     sommes ne comptent que le sens « dépense », et c'est ce filtre qui fait que
     la somme des barres vaut exactement le total des sorties affiché juste
@@ -920,7 +919,7 @@ def get_depenses_par_categorie(
     lit dans « Total entrées », à côté."""
     categories = (
         db.query(models.Categorie)
-        .filter(models.Categorie.nom.notin_(CATEGORIES_SENS_ENTREE))
+        .filter(models.Categorie.est_entree.is_(False))
         .order_by(models.Categorie.ordre)
         .all()
     )
@@ -963,6 +962,37 @@ def get_depenses_par_categorie(
     return resultats
 
 
+def _semaines_revolues(
+    annee: int, mois: int, semaines: list[dict], aujourdhui: Optional[date_type] = None
+) -> list[dict]:
+    """Les semaines sur lesquelles la moyenne a le droit de porter.
+
+    Une semaine est RÉVOLUE quand son dernier jour est passé. Sur un mois
+    écoulé, elles le sont toutes et rien ne change ; sur le mois en cours, les
+    semaines à venir et celle qu'on est en train de vivre sont écartées — la
+    première n'a rien à dire, la seconde pas encore tout.
+
+    Le repli sur la semaine en cours couvre les tout premiers jours du mois,
+    où aucune n'est révolue : rendre une liste vide ferait une moyenne à zéro,
+    c'est-à-dire une mauvaise nouvelle inventée de toutes pièces.
+
+    `aujourdhui` est un paramètre pour que les tests puissent poser une date
+    plutôt que de détourner l'horloge du module : un calcul dont le résultat
+    dépend du jour où on le lance ne se vérifie pas autrement.
+    """
+    aujourdhui = aujourdhui or date_type.today()
+    revolues = [s for s in semaines if date_type(annee, mois, s["jour_fin"]) < aujourdhui]
+    if revolues:
+        return revolues
+    if (annee, mois) == (aujourdhui.year, aujourdhui.month):
+        en_cours = [
+            s for s in semaines if s["jour_debut"] <= aujourdhui.day <= s["jour_fin"]
+        ]
+        if en_cours:
+            return en_cours
+    return semaines
+
+
 def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int):
     """L'histogramme du mois DÉPLIÉ : une liste de dépenses par catégorie pour
     chaque semaine, plus la moyenne de ces semaines.
@@ -981,12 +1011,27 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
     deux chiffres posés l'un à côté de l'autre qui ne s'accordent pas ne passent
     pas pour une imprécision, mais pour une erreur.
 
-    LA MOYENNE EST CELLE DES SEMAINES AFFICHÉES — leur somme divisée par leur
+    LA MOYENNE EST CELLE DES SEMAINES RÉVOLUES — leur somme divisée par leur
     nombre, dernière semaine courte comprise. C'est le seul calcul qu'on puisse
     vérifier à l'œil sur les barres d'à côté ; normaliser sur sept jours
     donnerait un chiffre plus juste « par semaine pleine », mais qui ne
     correspondrait à aucune moyenne des barres qu'on regarde. L'écran dit sur
     combien de semaines elle porte.
+
+    RÉVOLUES, ET C'EST TOUT LE POINT SUR UN MOIS EN COURS. Le 14 septembre, un
+    mois de cinq semaines en a deux de vécues et trois qui n'ont pas commencé :
+    diviser par cinq annonçait une moyenne hebdomadaire deux fois et demie trop
+    basse, et c'est précisément le chiffre qu'on regarde pour savoir si l'on
+    tient son rythme. La semaine EN COURS est écartée elle aussi — à son
+    deuxième jour, elle tire la moyenne vers le bas exactement comme une semaine
+    future, alors qu'elle n'est pas finie. Elle garde bien sûr sa propre barre :
+    seule la MOYENNE change de périmètre.
+
+    S'IL N'Y A AUCUNE SEMAINE RÉVOLUE (on est dans les tout premiers jours du
+    mois), la moyenne porte sur la semaine en cours, faute de mieux : c'est la
+    seule qui ait quoi que ce soit à dire, et rendre zéro serait pire. Un mois
+    PASSÉ n'est pas concerné — toutes ses semaines sont révolues — et un mois à
+    venir garde les siennes, qui sont de toute façon toutes à zéro.
     """
     bornes = semaines_du_mois(annee, mois)
     semaines = [
@@ -1008,9 +1053,10 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
     # plutôt que d'interroger la base une fois de plus : c'est ce qui garantit
     # que la barre « Moyenne » est bien la moyenne des barres montrées, et non
     # un second calcul qui pourrait en différer.
-    nombre = len(semaines) or 1
+    moyennees = _semaines_revolues(annee, mois, semaines)
+    nombre = len(moyennees) or 1
     moyenne: dict[str, dict] = {}
-    for semaine in semaines:
+    for semaine in moyennees:
         for ligne in semaine["depenses"]:
             cumul = moyenne.setdefault(
                 ligne["categorie"],
@@ -1040,10 +1086,15 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
         "mois": mois,
         "semaines": semaines,
         "moyenne": list(moyenne.values()),
-        # La moyenne des budgets des semaines rendues, et non le budget du mois
-        # divisé par quatre : c'est la moyenne des BARRES affichées qui doit
-        # s'accorder à la barre « Moyenne », découpe des jours comprise.
-        "budget_total_moyen": sum(s["budget_total"] for s in semaines) / nombre,
+        # La moyenne des budgets des semaines MOYENNÉES, et non le budget du
+        # mois divisé par quatre : c'est la moyenne des BARRES prises en compte
+        # qui doit s'accorder à la barre « Moyenne », découpe des jours comprise.
+        "budget_total_moyen": sum(s["budget_total"] for s in moyennees) / nombre,
+        # SUR COMBIEN DE SEMAINES ELLE PORTE. L'écran l'écrit dans le titre du
+        # graphe : une moyenne dont on ne sait pas ce qu'elle recouvre ne se
+        # compare à rien, et sur un mois en cours ce nombre n'est plus celui des
+        # barres affichées.
+        "semaines_moyennees": len(moyennees),
     }
 
 

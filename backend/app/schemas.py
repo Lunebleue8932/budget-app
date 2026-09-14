@@ -809,8 +809,14 @@ class DepensesSemainesRead(BaseModel):
     semaines: list[SemaineDepensesRead] = Field(default_factory=list)
     moyenne: list[DepenseParCategorie] = Field(default_factory=list)
     # Le budget total de la semaine MOYENNE, calculé comme les barres qu'elle
-    # résume : la moyenne des semaines rendues ci-dessus.
+    # résume : la moyenne des semaines RÉVOLUES.
     budget_total_moyen: float = 0.0
+    # SUR COMBIEN DE SEMAINES LA MOYENNE PORTE (cf. soldes._semaines_revolues).
+    # Ce n'est plus forcément le nombre de barres affichées : sur un mois en
+    # cours, les semaines à venir et celle qu'on vit sont écartées. L'écran
+    # l'écrit dans le titre du graphe — une moyenne dont on ignore le périmètre
+    # ne se compare à rien.
+    semaines_moyennees: int = 0
 
 
 class BudgetTotalUpdate(BaseModel):
