@@ -1031,15 +1031,70 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <select id="operation-categorie"></select>
         </label>
 
-        <!-- DÉCOUPE : répartir le montant entre plusieurs catégories. Une seule
-             opération (une ligne au relevé, un mouvement de compte) qui compte
-             dans plusieurs barres de l'histogramme. Réservée aux opérations
-             classiques : les autres types portent une catégorie imposée, un
-             montant dû ou une contrepartie, que la découpe ne saurait pas
-             répartir (cf. crud.erreur_decoupes). -->
-        <label id="operation-decoupee-bloc">
-          <input type="checkbox" id="operation-decoupee" /> Découper entre plusieurs catégories<i class="info-bulle" tabindex="0" data-info-cle="noyau.decouper-entre-plusieurs-categories">i</i>
+        <label id="operation-statut-bloc">Statut
+          <select id="operation-statut" required></select>
         </label>
+
+        <!-- LES QUATRE CASES, CÔTE À CÔTE ET SUR UNE SEULE RANGÉE.
+             Éparpillées dans la grille, elles tombaient chacune dans une
+             colonne différente, séparées par les blocs dépliants de leurs
+             voisines : quatre questions de même nature, posées à quatre
+             endroits, dont on ne pouvait jamais lire l'état d'un coup d'œil.
+             Et comme `form label` empile son contenu en COLONNE, chaque case
+             se retrouvait au-dessus de son propre libellé — un alignement que
+             rien ne justifiait, et qui différait d'une case à l'autre selon la
+             longueur du texte. La rangée les remet en ligne, toutes réglées
+             par la même règle (cf. .operation-cases).
+
+             ELLES VIENNENT APRÈS LES CHAMPS QUI DÉCRIVENT LA TRANSACTION
+             (montant, date, compte, catégorie, statut) : elles ne la décrivent
+             pas, elles disent CE QU'ON EN FAIT. Même raisonnement que la
+             rangée d'amortissement du formulaire en ligne de l'import (cf.
+             .ligne-edition-amortissement).
+
+             CHAQUE BLOC DÉPLIANT RESTE EN DESSOUS, dans l'ordre des cases :
+             une case et son détail à trois lignes d'écart se lisent encore
+             ensemble, deux détails intercalés entre les cases non. -->
+        <div class="full-width operation-cases">
+          <!-- DÉCOUPE : répartir le montant entre plusieurs catégories. Une
+               seule opération (une ligne au relevé, un mouvement de compte) qui
+               compte dans plusieurs barres de l'histogramme. Réservée aux
+               opérations classiques : les autres types portent une catégorie
+               imposée, un montant dû ou une contrepartie, que la découpe ne
+               saurait pas répartir (cf. crud.erreur_decoupes). -->
+          <label id="operation-decoupee-bloc">
+            <input type="checkbox" id="operation-decoupee" /> <span>Découpée<i class="info-bulle" tabindex="0" data-info-cle="noyau.decouper-entre-plusieurs-categories">i</i></span>
+          </label>
+
+          <label id="operation-recurrente-bloc">
+            <input type="checkbox" id="operation-recurrente" /> <span>Récurrente</span>
+          </label>
+
+          <!-- UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (extension « Budget »,
+               migration 0059). Masquée d'origine, montrée par l'extension :
+               `data-extension-greffe` couvre un élément qui n'est pas un
+               bouton, là où `data-extension` ne vaut que pour les boutons
+               d'onglet (cf. extensions.js, majVisibiliteNavigation).
+
+               ELLE VIT DANS index.html ET NON DANS L'EXTENSION, comme les
+               onglets des prêts et des remboursables : c'est une propriété de
+               l'opération, et le formulaire qui la porte appartient au noyau.
+               Une extension qui injecterait un champ dans un formulaire du
+               noyau devrait en connaître la grille, l'ordre et le cycle de vie.
+
+               À NE PAS CONFONDRE AVEC LE STATUT : une dépense peut être
+               prévisionnelle et prévue (le loyer du mois prochain), réelle et
+               imprévue (le plombier de mardi). Les deux axes sont indépendants,
+               d'où deux contrôles distincts. -->
+          <label id="operation-imprevue-bloc" data-extension-greffe="analyse-budget" style="display:none">
+            <input type="checkbox" id="operation-imprevue" /> <span>Dépense imprévue<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevue-champ">i</i></span>
+          </label>
+
+          <label id="operation-amorti-bloc">
+            <input type="checkbox" id="operation-amorti" /> <span>Amortie sur plusieurs mois</span>
+          </label>
+        </div>
+
         <div id="operation-decoupe-bloc" class="full-width" style="display:none">
           <div id="operation-decoupe-parts"></div>
           <div class="decoupe-pied">
@@ -1051,10 +1106,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <span id="operation-decoupe-total" class="decoupe-total"></span>
           </div>
         </div>
-
-        <label id="operation-statut-bloc">Statut
-          <select id="operation-statut" required></select>
-        </label>
 
         <!-- RECONNAÎTRE LA VRAIE DÉPENSE QUAND ELLE PASSERA (cf.
              models.Operation.rapprochement_debut). Visible uniquement quand
@@ -1089,9 +1140,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
 
-        <label id="operation-recurrente-bloc">
-          <input type="checkbox" id="operation-recurrente" /> Récurrente
-        </label>
         <p id="operation-recurrence-info" class="hint full-width" style="display:none">
           Générée automatiquement par une opération récurrente : modifie ou arrête la récurrence
           depuis l'opération d'origine.
@@ -1113,29 +1161,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </label>
         </div>
 
-        <!-- UNE DÉPENSE QU'ON N'AVAIT PAS VUE VENIR (extension « Analyse de
-             budget », migration 0059). Masquée d'origine, montrée par
-             l'extension : `data-extension-greffe` couvre un élément qui n'est
-             pas un bouton, là où `data-extension` ne vaut que pour les boutons
-             d'onglet (cf. extensions.js, majVisibiliteNavigation).
-
-             ELLE VIT DANS index.html ET NON DANS L'EXTENSION, comme les onglets
-             des prêts et des remboursables : c'est une propriété de
-             l'opération, et le formulaire qui la porte appartient au noyau. Une
-             extension qui injecterait un champ dans un formulaire du noyau
-             devrait en connaître la grille, l'ordre et le cycle de vie.
-
-             À NE PAS CONFONDRE AVEC LE STATUT : une dépense peut être
-             prévisionnelle et prévue (le loyer du mois prochain), réelle et
-             imprévue (le plombier de mardi). Les deux axes sont indépendants,
-             d'où deux contrôles distincts. -->
-        <label id="operation-imprevue-bloc" data-extension-greffe="analyse-budget" style="display:none">
-          <input type="checkbox" id="operation-imprevue" /> Dépense imprévue<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevue-champ">i</i>
-        </label>
-
-        <label id="operation-amorti-bloc">
-          <input type="checkbox" id="operation-amorti" /> Amortie sur plusieurs mois
-        </label>
         <div id="operation-amortissement-champs-bloc" class="full-width" style="display:none">
           <p class="hint full-width">
             La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut

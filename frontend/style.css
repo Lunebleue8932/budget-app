@@ -774,6 +774,66 @@ form .full-width {
   color: var(--text-muted);
 }
 
+/* ---------- La rangée de cases du formulaire d'opération ----------
+ *
+ * QUATRE QUESTIONS DE MÊME NATURE, UNE SEULE RANGÉE : découpée, récurrente,
+ * imprévue, amortie. Aucune ne décrit la transaction (ça, c'est le montant, la
+ * date, le compte) ; toutes disent ce qu'on en FAIT. Éparpillées dans la
+ * grille, chacune tombait dans une colonne au gré de la place restante, et les
+ * blocs dépliants de leurs voisines s'intercalaient entre elles : l'état des
+ * quatre ne se lisait jamais d'un coup d'œil.
+ *
+ * ET SURTOUT, ELLES N'ÉTAIENT PAS ALIGNÉES ENTRE ELLES. `form label` empile son
+ * contenu en COLONNE — c'est ce qu'il faut pour « Montant » au-dessus de son
+ * champ, c'est exactement ce qu'il ne faut pas pour une case à cocher, qui se
+ * lit à côté de son libellé. Chaque case se retrouvait donc au-dessus de son
+ * propre texte, à une hauteur qui dépendait de la longueur de ce texte.
+ *
+ * `align-items: center` sur la rangée plutôt que `end` (le réglage de la
+ * grille du formulaire, fait pour aligner le BAS des champs) : quatre cases de
+ * hauteurs identiques n'ont pas de bas à aligner, elles ont un axe.
+ */
+.operation-cases {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.4rem;
+}
+
+/* LE MÊME GABARIT POUR LES QUATRE, sans exception : c'est ce qui les fait lire
+   comme une rangée et non comme quatre contrôles voisins. `!important` n'est
+   pas nécessaire — cette règle est plus spécifique que `form label`. */
+form .operation-cases label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* La case elle-même : taille et teinte communes, et surtout AUCUNE marge —
+   celle que le navigateur pose par défaut décalait chaque case de son voisin
+   d'une valeur qui n'est pas la nôtre. `accent-color` peint la coche avec la
+   couleur d'accent de l'application plutôt qu'avec celle du système. */
+form .operation-cases input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Le libellé ne se coupe pas au milieu : une case dont le texte passe à la
+   ligne casse l'alignement de toute la rangée. Elles retombent en bloc,
+   entières, quand la largeur manque. */
+.operation-cases label > span {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .checklist {
   max-height: 160px;
   overflow-y: auto;
