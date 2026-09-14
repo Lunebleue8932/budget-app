@@ -3143,7 +3143,14 @@ async function drillThroughCategorie(depense) {
   if (!categorie) return;
   const { debut, fin } = bornesPeriodeHistogramme(annee, mois);
 
-  switchSection("operations", { ongletActif: "dashboard" });
+  // LA BARRE DU HAUT SUIT LA PAGE, et c'est la seule règle qui vaille ici.
+  // Ce bouton-ci part vers un écran qui A son propre onglet : forcer
+  // `ongletActif: "dashboard"` laissait « Dashboard » allumé au-dessus de la
+  // page Opérations, et l'application semblait bloquée sur le dashboard —
+  // recliquer « Dashboard » ne faisait alors rien de visible. L'argument n'a de
+  // sens que pour un écran SANS bouton (« D'où vient l'écart ? », les écrans
+  // d'extension ouverts depuis ailleurs), où aucun onglet ne resterait allumé.
+  switchSection("operations");
   await loadOperations();
   document.querySelector('#operations-sous-nav button[data-sous-section="classique"]')?.click();
 
