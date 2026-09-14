@@ -45,6 +45,23 @@
   box-sizing: border-box;
 }
 
+/* `hidden` DOIT CACHER, et une règle à nous ne doit jamais pouvoir le défaire.
+   La feuille du navigateur pose `[hidden] { display: none }` avec la plus
+   faible priorité qui soit : n'IMPORTE quelle règle d'auteur qui donne un
+   `display` à l'élément l'emporte, sans avertissement d'aucune sorte. Trois
+   éléments de l'application étaient dans ce cas, et le symptôme n'avait rien
+   d'évident — la rangée de semaines du dashboard (`.sous-onglets`, en `flex`)
+   ne se REPLIAIT plus une fois dépliée, et le badge « hérité »
+   (`.badge-aucun`, en `inline-block`) s'affichait en permanence. L'attribut
+   était pourtant posé, et le JS faisait exactement ce qu'il annonçait.
+
+   `!important` est ici à sa place : c'est la seule façon de rendre à un
+   attribut du langage le sens qu'il a, et il n'y a aucun cas où l'on veuille
+   afficher un élément marqué `hidden`. */
+[hidden] {
+  display: none !important;
+}
+
 /* Les contrôles NATIFS suivent le thème sombre : sans cette ligne, le sélecteur
    de date s'ouvre en blanc sur blanc et son pictogramme de calendrier reste
    presque noir sur nos fonds. */
@@ -4241,10 +4258,6 @@ mark.recherche-marque-courante {
    porte l'espacement, pas son contenu. */
 .detail-contenu > :last-child {
   margin-bottom: 0;
-}
-
-.detail-contenu[hidden] {
-  display: none;
 }
 
 /* ---------- Panneau des extensions (Paramètres) ---------- */
