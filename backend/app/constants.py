@@ -138,6 +138,13 @@ EXTENSION_PRETS = "prets"
 # opération, elle redevient seulement invisible et hors totaux.
 EXTENSION_SUIVI_REMBOURSEMENTS = "suivi-remboursements"
 
+# L'identifiant de l'extension qui tient les intérêts perçus. Même procédé, même
+# raison : le SCHÉMA (`interet_percu`, migration 0052) est au noyau, et les
+# montants ne rejoignent les soldes d'épargne que si l'écran qui les explique
+# tourne. Sans elle, un livret vaudrait plus que la somme de ses opérations sans
+# qu'aucun écran ne dise d'où viennent ces euros.
+EXTENSION_INTERETS_PERCUS = "interets-percus"
+
 # CE QUI NE COMPTE JAMAIS DANS LES FLUX D'UNE PÉRIODE.
 #
 # Un remboursement reçu solde une dépense remboursable ; un remboursement de

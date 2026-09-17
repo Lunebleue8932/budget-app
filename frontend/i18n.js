@@ -317,6 +317,8 @@ const TRADUCTIONS = {
        en JS, donc jamais vu par traduireDomStatique (qui ne passe qu'une
        fois, sur le DOM statique) : les clés existaient déjà, personne ne
        les demandait. ===== */
+    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants S'AJOUTENT AU SOLDE du compte, sans être écrits en opération : ils n'apparaissent donc pas dans la page Opérations et ne pèsent sur aucun flux du mois. ATTENTION SI TON RELEVÉ LES PORTE AUSSI : importer la ligne d'intérêts après l'avoir saisie ici compterait la somme deux fois — saisis-la ici, ou importe-la, pas les deux.":
+      "Enter what the bank actually paid, exactly as the statement announces it. Nothing is computed for you: an annual rate cannot recover the right figure when it changes mid-year. Only savings accounts appear here. These amounts ARE ADDED TO THE ACCOUNT BALANCE without being written as transactions: they do not show up in the Transactions page and weigh on no monthly flow. CAREFUL IF YOUR STATEMENT CARRIES THEM TOO: importing the interest line after entering it here would count the sum twice — enter it here, or import it, not both.",
     "Versé":
       "Paid",
     "Supprimer ce versement":

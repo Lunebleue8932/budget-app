@@ -203,7 +203,7 @@ const TEXTES = {
 
   /* ----- Extension « Intérêts perçus » ----- */
   "interets-percus.interets-percus":
-    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants sont un suivi d'affichage : aucun intérêt n'est écrit en opération, aucun solde et aucun chiffre du dashboard n'en dépend. Si le versement figure sur ton relevé, il entrera de lui-même par l'import — le saisir ici en plus ne le compterait pas deux fois dans tes soldes, mais ne le remplace pas non plus.",
+    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants S'AJOUTENT AU SOLDE du compte, sans être écrits en opération : ils n'apparaissent donc pas dans la page Opérations et ne pèsent sur aucun flux du mois. ATTENTION SI TON RELEVÉ LES PORTE AUSSI : importer la ligne d'intérêts après l'avoir saisie ici compterait la somme deux fois — saisis-la ici, ou importe-la, pas les deux.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
   "investing-overview.repartition-par-type-de-titre":

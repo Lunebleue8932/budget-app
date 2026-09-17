@@ -65,20 +65,45 @@ def test_saisir_des_interets_ne_cree_aucune_operation(db_session):
     assert db_session.query(models.Operation).count() == 0
 
 
-def test_saisir_des_interets_ne_touche_pas_au_solde(db_session):
+def test_les_interets_entrent_dans_le_solde_du_compte(db_session):
+    """CE QUE LA BANQUE A VERSÉ EST SUR LE COMPTE. Un livret dont les intérêts
+    sont le seul mouvement de l'année restait sinon durablement sous son
+    relevé — et l'écart grandissait d'année en année.
+
+    Ils s'ajoutent aux DEUX soldes, comme un solde initial : les mettre dans le
+    seul projeté aurait annoncé de l'argent à venir alors qu'il est déjà là."""
     from app.services import soldes
 
     compte = _livret(db_session, solde_initial=1000.0)
     monnaie_id = get_monnaie_id(db_session)
-    avant = soldes.get_soldes_comptes(db_session)
     _verser(db_session, compte, 42.0)
-    apres = soldes.get_soldes_comptes(db_session)
 
-    def solde_reel(etat):
-        item = next(i for i in etat if i["compte"].id == compte.id)
-        return item["soldes"][monnaie_id]["solde_reel"]
+    item = next(
+        i for i in soldes.get_soldes_comptes(db_session) if i["compte"].id == compte.id
+    )
+    assert item["soldes"][monnaie_id]["solde_reel"] == 1042.0
+    assert item["soldes"][monnaie_id]["solde_projete"] == 1042.0
 
-    assert solde_reel(apres) == solde_reel(avant) == 1000.0
+
+def test_sans_l_extension_les_interets_quittent_le_solde(db_session, monkeypatch):
+    """MÊME RÈGLE QUE LES PRÊTS : le schéma reste au noyau, les montants restent
+    en base, mais ils ne comptent que si l'écran qui les explique tourne. Un
+    chiffre qui apparaît sans qu'aucun écran ne dise d'où il vient est pire que
+    le chiffre qui manque."""
+    from app import extensions
+    from app.services import soldes
+
+    compte = _livret(db_session, solde_initial=1000.0)
+    monnaie_id = get_monnaie_id(db_session)
+    _verser(db_session, compte, 42.0)
+    monkeypatch.setattr(
+        extensions, "est_active", lambda extension_id: extension_id != "interets-percus"
+    )
+
+    item = next(
+        i for i in soldes.get_soldes_comptes(db_session) if i["compte"].id == compte.id
+    )
+    assert item["soldes"][monnaie_id]["solde_reel"] == 1000.0
 
 
 # ---------- Les totaux ----------

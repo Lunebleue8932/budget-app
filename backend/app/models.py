@@ -1501,12 +1501,21 @@ class InteretPercu(Base):
     banque, elle, ANNONCE le montant : le saisir prend dix secondes et vaut
     n'importe quelle reconstitution.
 
-    UN CALCUL D'AFFICHAGE MALGRÉ TOUT : aucun solde, aucun KPI, aucune
-    projection du noyau ne lit cette table, et rien n'est jamais écrit en
-    opération. Si l'intérêt doit bouger le solde, c'est que le relevé le porte —
-    il entrera donc par l'import, comme n'importe quelle autre ligne. Une base
-    dont l'extension est éteinte se comporte exactement comme si elle n'existait
-    pas.
+    ILS ENTRENT DANS LE SOLDE, SANS ÊTRE UNE OPÉRATION (cf.
+    services/soldes._interets_percus_par_compte_monnaie). Ils s'ajoutent au solde
+    réel et au solde projeté du compte exactement comme le fait un solde initial.
+    Ne pas les compter laissait un livret durablement sous son relevé, sur des
+    comptes dont les intérêts sont souvent le seul mouvement de l'année.
+
+    ET POURTANT PAS UNE OPÉRATION, et c'est la raison du journal séparé : un
+    relevé importé peut porter la même ligne d'intérêts, et la même somme
+    compterait alors deux fois. La contrepartie assumée est qu'un intérêt ne se
+    détaille pas dans la page Opérations et ne pèse sur aucun flux de période —
+    un compte d'épargne étant hors courant, il en était de toute façon écarté.
+
+    RIEN SI L'EXTENSION EST ÉTEINTE : les montants restent en base et quittent
+    les soldes, comme les prêts sans leur extension. Un chiffre qui apparaît sans
+    qu'aucun écran ne l'explique est pire que le chiffre qui manque.
 
     Dans le noyau bien que l'écran soit dans l'extension : une extension
     n'emporte jamais son schéma. L'éteindre masque l'écran et garde les

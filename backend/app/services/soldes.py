@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from .. import crud, extensions, models
 from ..constants import (
+    EXTENSION_INTERETS_PERCUS,
     EXTENSION_PRETS,
     EXTENSION_SUIVI_REMBOURSEMENTS,
     LIBELLE_INTERETS_PRETS,
@@ -128,6 +129,46 @@ def _reste_du_prets_par_compte_monnaie(
     return {(compte_id, monnaie_id): (total or 0.0) for compte_id, monnaie_id, total in rows}
 
 
+def _interets_percus_par_compte_monnaie(db: Session) -> dict:
+    """Les intérêts perçus, par couple (compte, monnaie).
+
+    ILS ENTRENT DANS LE SOLDE SANS ÊTRE UNE OPÉRATION (`models.InteretPercu`,
+    extension « Intérêts perçus »). La banque ANNONCE un montant, on le saisit,
+    et le livret vaut d'autant plus : ne pas le compter laissait un solde
+    durablement inférieur au relevé, sur les comptes dont c'est précisément le
+    seul mouvement de l'année.
+
+    POURQUOI PAS UNE OPÉRATION, tant qu'à faire. Parce qu'un relevé importé peut
+    porter la même ligne, et que la même somme compterait alors deux fois.
+    L'intérêt reste donc un journal à part, qui s'AJOUTE au solde exactement
+    comme le fait un solde initial — la contrepartie est qu'il ne se détaille
+    pas dans la page Opérations, et qu'il ne pèse sur aucun flux de période.
+    Cette seconde moitié n'a rien d'un défaut : un compte d'épargne est HORS
+    COURANT, donc déjà écarté des flux et des variations (cf.
+    TYPES_COMPTE_HORS_COURANT). Le seul total qui bouge est celui des avoirs, et
+    c'est bien ce qu'on lui demande.
+
+    PAS DE BORNE DE DATE, comme le solde réel qu'ils rejoignent : celui-ci
+    compte tout ce qui est déjà survenu, sans se demander quelle période
+    l'écran affiche.
+
+    SEULEMENT SI L'EXTENSION TOURNE — même règle que les prêts : un chiffre qui
+    apparaît sans qu'aucun écran ne l'explique est pire que le chiffre qui
+    manque."""
+    if not extensions.est_active(EXTENSION_INTERETS_PERCUS):
+        return {}
+    rows = (
+        db.query(
+            models.InteretPercu.compte_id,
+            models.InteretPercu.monnaie_id,
+            func.sum(models.InteretPercu.montant).label("total"),
+        )
+        .group_by(models.InteretPercu.compte_id, models.InteretPercu.monnaie_id)
+        .all()
+    )
+    return {(compte_id, monnaie_id): (total or 0.0) for compte_id, monnaie_id, total in rows}
+
+
 def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
     """Un élément par compte, chacun portant un solde PAR MONNAIE :
 
@@ -226,6 +267,7 @@ def soldes_de_tous_les_liens(db: Session, date_fin: Optional[date_type] = None):
     sums_reel = _sums_by_compte_monnaie_and_sens(db, statut=Statut.reel)
     sums_total = _sums_by_compte_monnaie_and_sens(db, statut=None, date_fin=date_fin)
     reste_prets = _reste_du_prets_par_compte_monnaie(db, date_fin=date_fin)
+    interets = _interets_percus_par_compte_monnaie(db)
 
     results = []
     for compte in comptes:
@@ -233,12 +275,21 @@ def soldes_de_tous_les_liens(db: Session, date_fin: Optional[date_type] = None):
         for lien in compte.monnaies:
             cle = (compte.id, lien.monnaie_id)
             solde_initial = lien.solde_initial
+            # LES INTÉRÊTS PERÇUS S'AJOUTENT AUX DEUX SOLDES, comme le solde
+            # initial : ce sont des euros qui SONT là (cf.
+            # _interets_percus_par_compte_monnaie). Les mettre dans le seul
+            # projeté aurait annoncé de l'argent à venir alors qu'il est déjà
+            # versé.
+            interets_percus = interets.get(cle, 0.0)
             soldes[lien.monnaie_id] = {
                 "monnaie": lien.monnaie,
                 "solde_initial": solde_initial,
-                "solde_reel": solde_initial + _solde_delta(sums_reel.get(cle, {})),
+                "solde_reel": (
+                    solde_initial + interets_percus + _solde_delta(sums_reel.get(cle, {}))
+                ),
                 "solde_projete": (
                     solde_initial
+                    + interets_percus
                     + _solde_delta(sums_total.get(cle, {}))
                     - reste_prets.get(cle, 0.0)
                 ),
