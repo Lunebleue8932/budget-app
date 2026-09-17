@@ -168,7 +168,7 @@ def _preset_wise(db, nom="Wise", colonnes=None, devises=True):
         nom,
         colonnes if colonnes is not None else _COLONNES_WISE,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
     )
     if devises:
         for monnaie in crud.get_monnaies(db):
@@ -1260,7 +1260,7 @@ def test_preset_ordinaire_reste_insensible_a_la_configuration_avancee(db_session
             {"index": 3, "propriete": "montant"},
         ],
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
     )
     contenu = _fichier_wise([[date(2026, 7, 1), "Courses", -45.2]])
 

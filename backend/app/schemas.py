@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .constants import (
     CHAMPS_REGLE_PLACEMENT_VALIDES,
     CHAMPS_REGLE_VALIDES,
+    MAX_LIGNES_ENTETE,
     NB_MAX_PARTS_DECOUPE,
     OPERATEURS_NOMBRE,
     operateurs_admis,
@@ -1390,8 +1391,12 @@ class ApercuFichier(BaseModel):
     # Les colonnes absentes de ce dict ne sont pas importées.
     proprietes_par_colonne: dict[str, str] = Field(default_factory=dict)
     total_lignes: int = 0
-    # True si la première ligne affichée est l'en-tête ignoré (ImportPreset).
-    premiere_ligne_ignoree: bool = False
+    # Combien des lignes CI-DESSUS sont des lignes de tête sautées (cf.
+    # ImportPreset.lignes_entete). Ce n'est pas toujours le réglage lui-même :
+    # l'aperçu écarte les lignes vides, qui comptent pourtant dans ce que le
+    # preset saute. Les montrer sans le dire ferait croire que l'import les a
+    # lues.
+    lignes_entete: int = 0
 
 
 class ImportPreview(BaseModel):
@@ -1694,9 +1699,13 @@ class ImportPresetRead(BaseModel):
     # seules à comparer (cf. constants.ModeComparaison).
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
-    # True = la première ligne du fichier est un en-tête à sauter. False
-    # (défaut) = c'est déjà une ligne de données.
-    ignorer_premiere_ligne: bool = False
+    # Combien de lignes de tête ne sont pas des données. 0 (défaut) = le fichier
+    # commence par une opération ; 1 = un en-tête ; davantage pour les relevés
+    # qui ouvrent sur un titulaire, un numéro de compte et une ligne vide.
+    # Le plafond est là pour qu'un chiffre saisi de travers (« 100 » pour « 1 »)
+    # se voie tout de suite, au lieu de rendre un aperçu vide sans raison
+    # visible.
+    lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
     # Vocabulaire de la colonne « Sens » propre à ce relevé. Listes vides =
     # celui du code (constants.LIBELLES_SENS_*), en français.
     libelles_sens_sortie: list[str] = Field(default_factory=list)
@@ -1739,7 +1748,7 @@ class ImportPresetCreate(BaseModel):
     colonnes: list[ColonneImportConfig]
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
-    ignorer_premiere_ligne: bool = False
+    lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code
@@ -1767,7 +1776,7 @@ class ImportPresetUpdate(BaseModel):
     colonnes: list[ColonneImportConfig]
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
-    ignorer_premiere_ligne: bool = False
+    lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code

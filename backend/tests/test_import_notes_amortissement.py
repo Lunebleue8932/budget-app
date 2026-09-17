@@ -39,7 +39,7 @@ def _construire_fichier(lignes: list[dict]) -> bytes:
 
 def _make_preset(db, nom="Défaut"):
     return crud.create_import_preset(
-        db, nom, COLONNES_IMPORT_PAR_DEFAUT, [], ignorer_premiere_ligne=True
+        db, nom, COLONNES_IMPORT_PAR_DEFAUT, [], lignes_entete=1
     )
 
 

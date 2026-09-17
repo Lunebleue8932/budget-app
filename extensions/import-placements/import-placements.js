@@ -470,13 +470,30 @@ function implVocabulaireSaisi() {
   return saisi;
 }
 
+/**
+ * Les lignes de tête d'un preset de placements, toujours un nombre — et les
+ * deux fonctions sont PRÉFIXÉES comme tout ce que ce fichier déclare : les
+ * scripts d'extension s'exécutent en portée globale, et un nom générique s'y
+ * fait écraser par celui d'une extension chargée après (cf. extensions/README).
+ */
+function implLignesEntete(preset) {
+  const valeur = Number(preset?.lignes_entete);
+  return Number.isFinite(valeur) && valeur > 0 ? Math.floor(valeur) : 0;
+}
+
+function implLignesEnteteSaisies() {
+  const champ = document.getElementById("impl-lignes-entete");
+  const valeur = Math.floor(Number(champ?.value));
+  if (!Number.isFinite(valeur) || valeur <= 0) return 0;
+  return Math.min(valeur, Number(champ.max) || valeur);
+}
+
 async function loadImplConfiguration() {
   const preset = await apiFetch(implUrl(""));
   implConfigColonnes = preset.colonnes.map((c) => ({ ...c }));
   implConfigColonnesComparaison = [...(preset.colonnes_comparaison || [])];
   document.getElementById("impl-mode-comparaison").value = preset.mode_comparaison;
-  document.getElementById("impl-ignorer-premiere-ligne").checked =
-    preset.ignorer_premiere_ligne;
+  document.getElementById("impl-lignes-entete").value = implLignesEntete(preset);
   document.getElementById("impl-preset-compte").value = preset.compte_id || "";
   // AVANT `renderImplConfig` : c'est le mode qui décide des colonnes proposées.
   document.getElementById("impl-mode-lecture").value =
@@ -499,8 +516,7 @@ async function enregistrerImplConfiguration() {
         colonnes: implConfigColonnes,
         colonnes_comparaison: implConfigColonnesComparaison,
         mode_comparaison: implModeComparaison(),
-        ignorer_premiere_ligne: document.getElementById("impl-ignorer-premiere-ligne")
-          .checked,
+        lignes_entete: implLignesEnteteSaisies(),
         mode_lecture: implModeLecture(),
         ...implVocabulaireSaisi(),
       }),
@@ -683,9 +699,10 @@ function renderApercuFichierImpl() {
   }
   const corps = apercu.lignes
     .map((ligne, index) => {
-      // La ligne d'en-tête ignorée est montrée mais barrée : voir qu'elle est
-      // bien exclue vaut mieux que de la faire disparaître silencieusement.
-      const enteteIgnoree = apercu.premiere_ligne_ignoree && index === 0;
+      // Les lignes de tête ignorées sont montrées mais barrées : voir qu'elles
+      // sont bien exclues vaut mieux que de les faire disparaître
+      // silencieusement.
+      const enteteIgnoree = index < (apercu.lignes_entete || 0);
       const cellules = [];
       for (let i = 1; i <= largeur; i++) {
         cellules.push(`<td class="${classe(i)}">${escapeHtml(ligne[i - 1] || "")}</td>`);
@@ -2129,7 +2146,7 @@ document.getElementById("btn-impl-preset-creer").addEventListener("click", async
           propriete,
           index: i + 1,
         })),
-        ignorer_premiere_ligne: true,
+        lignes_entete: 1,
         mode_lecture: photo ? "position" : "operations",
       }),
     });
@@ -2161,8 +2178,7 @@ document.getElementById("btn-impl-preset-renommer").addEventListener("click", as
         colonnes: implConfigColonnes,
         colonnes_comparaison: implConfigColonnesComparaison,
         mode_comparaison: implModeComparaison(),
-        ignorer_premiere_ligne: document.getElementById("impl-ignorer-premiere-ligne")
-          .checked,
+        lignes_entete: implLignesEnteteSaisies(),
         ...implVocabulaireSaisi(),
       }),
     });

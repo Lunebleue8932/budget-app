@@ -52,7 +52,7 @@ def _preset(db, nom="Banque", colonnes=None, sortie=None, entree=None):
         nom,
         colonnes if colonnes is not None else _COLONNES_AVEC_SENS,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
         libelles_sens_sortie=sortie,
         libelles_sens_entree=entree,
     )

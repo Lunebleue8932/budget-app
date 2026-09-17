@@ -79,7 +79,7 @@ def _preset(db, compte=None, colonnes=None, **kwargs):
         kwargs.pop("nom", "Courtier"),
         colonnes if colonnes is not None else COLONNES_IMPORT_POSITION_PAR_DEFAUT,
         [],
-        ignorer_premiere_ligne=True,
+        lignes_entete=1,
         compte_id=compte.id if compte else None,
         domaine=DomaineImport.placement.value,
         mode_lecture=ModeLecturePlacement.position.value,

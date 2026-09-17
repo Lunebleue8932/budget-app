@@ -107,7 +107,7 @@ def _preset(db, compte, colonnes=None, **kwargs):
         kwargs.pop("nom", "Courtier"),
         colonnes or _COLONNES,
         [],
-        ignorer_premiere_ligne=True,
+        lignes_entete=1,
         compte_id=compte.id,
         domaine=DomaineImport.placement.value,
         **kwargs,

@@ -325,6 +325,15 @@ class ModeComparaison(str, enum.Enum):
     selection = "selection"
 
 
+# COMBIEN DE LIGNES DE TÊTE UN PRESET PEUT SAUTER AU PLUS (migration 0062). Un
+# relevé qui ouvre sur un titulaire, un numéro de compte, une période et une
+# ligne vide en a quatre ; vingt est déjà généreux. Le plafond n'existe pas pour
+# protéger quoi que ce soit — il existe pour qu'un « 100 » tapé à la place d'un
+# « 1 » soit refusé tout de suite, plutôt que de rendre un aperçu vide dont rien
+# n'expliquerait la cause.
+MAX_LIGNES_ENTETE = 20
+
+
 # ---------- Colonne « Sens » ----------
 # Ce qu'un relevé écrit pour dire qu'une ligne est une sortie ou une entrée,
 # quand il n'écrit que des montants positifs. Comparé après passage en

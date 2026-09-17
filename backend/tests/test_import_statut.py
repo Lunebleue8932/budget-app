@@ -51,7 +51,7 @@ def _preset(db, nom="Banque", colonnes=None, **vocabulaire):
         nom,
         colonnes if colonnes is not None else _COLONNES,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
         **vocabulaire,
     )
 

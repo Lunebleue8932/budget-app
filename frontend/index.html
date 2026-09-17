@@ -1397,8 +1397,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <h4>Colonnes lues<i class="info-bulle" tabindex="0" data-info-cle="noyau.colonnes-lues">i</i></h4>
         <div id="import-config-colonnes"></div>
         <label class="import-option-ligne">
-          <input type="checkbox" id="import-ignorer-premiere-ligne" />
-          La première ligne du fichier est un en-tête (à ne pas importer)
+          Lignes de tête à ne pas importer
+          <input type="number" id="import-lignes-entete" min="0" max="20" step="1" value="0" />
+          <i class="info-bulle" tabindex="0" data-info-cle="noyau.lignes-entete">i</i>
         </label>
 
         <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info-cle="noyau.comparaison-des-doublons">i</i></h4>
@@ -1890,9 +1891,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=13"></script>
-  <script src="i18n.js?v=60"></script>
+  <script src="textes.js?v=14"></script>
+  <script src="i18n.js?v=61"></script>
   <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=139"></script>
+  <script src="app.js?v=140"></script>
 </body>
 </html>

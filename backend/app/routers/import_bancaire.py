@@ -293,7 +293,7 @@ def create_preset(payload: schemas.ImportPresetCreate, db: Session = Depends(get
         payload.nom,
         [c.model_dump() for c in payload.colonnes],
         payload.colonnes_comparaison,
-        ignorer_premiere_ligne=payload.ignorer_premiere_ligne,
+        lignes_entete=payload.lignes_entete,
         compte_id=payload.compte_id,
         mode_comparaison=payload.mode_comparaison.value,
         **_vocabulaires_nettoyes(payload),
@@ -319,7 +319,7 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
         colonnes=[c.model_dump() for c in payload.colonnes],
         colonnes_comparaison=payload.colonnes_comparaison,
         mode_comparaison=payload.mode_comparaison.value,
-        ignorer_premiere_ligne=payload.ignorer_premiere_ligne,
+        lignes_entete=payload.lignes_entete,
         compte_id=payload.compte_id,
         **_vocabulaires_nettoyes(payload),
     )

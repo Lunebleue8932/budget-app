@@ -1156,6 +1156,9 @@ const TRADUCTIONS = {
     "Sans date de fin": "No end date",
     "Date de fin": "End date",
     "Colonnes lues": "Columns read",
+    "Lignes de tête à ne pas importer": "Header rows to skip",
+    "Combien de lignes, en tête du fichier, ne sont pas des opérations : les intitulés de colonnes, mais aussi le nom du titulaire, le numéro de compte ou une ligne vide que certaines banques écrivent avant. Laisse 0 si le fichier commence directement par une opération.":
+      "How many rows at the top of the file are not transactions: the column headings, but also the account holder's name, the account number or a blank row that some banks write first. Leave 0 if the file starts straight away with a transaction.",
     "{n} colonne(s) lue(s)": "{n} column(s) read",
     "doublons : toutes les colonnes": "duplicates: every column",
     "doublons : toutes sauf {n}": "duplicates: all but {n}",

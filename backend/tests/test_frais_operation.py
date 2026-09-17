@@ -70,7 +70,7 @@ def _importer(db, compte, lignes, autre=None, colonnes=None):
         "Ma banque",
         colonnes or COLONNES,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
         compte_id=compte.id,
     )
     for monnaie in crud.get_monnaies(db):

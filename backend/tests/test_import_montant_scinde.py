@@ -51,7 +51,7 @@ def _preset(db, nom="Banque", colonnes=None):
         nom,
         colonnes if colonnes is not None else _COLONNES_SCINDEES,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
     )
 
 

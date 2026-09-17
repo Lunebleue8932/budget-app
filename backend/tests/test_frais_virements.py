@@ -75,7 +75,7 @@ def _preset(db, compte, colonnes=None):
         "Ma banque",
         colonnes or COLONNES,
         [],
-        ignorer_premiere_ligne=False,
+        lignes_entete=0,
         compte_id=compte.id,
     )
 

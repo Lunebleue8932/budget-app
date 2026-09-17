@@ -63,8 +63,8 @@ def _make_compte(db, nom="CC Perso"):
     return creer_compte(db, nom)
 
 
-def _make_preset(db, nom="Défaut", colonnes=None, colonnes_exclues=None, ignorer_premiere_ligne=True):
-    """ignorer_premiere_ligne=True par défaut ici parce que les deux
+def _make_preset(db, nom="Défaut", colonnes=None, colonnes_exclues=None, lignes_entete=1):
+    """lignes_entete=1 par défaut ici parce que les deux
     constructeurs de fichier ci-dessus écrivent une ligne d'en-tête. Le défaut
     applicatif est l'inverse (False : la première ligne est une donnée) —
     couvert par les tests dédiés en fin de fichier."""
@@ -73,7 +73,7 @@ def _make_preset(db, nom="Défaut", colonnes=None, colonnes_exclues=None, ignore
         nom,
         colonnes if colonnes is not None else COLONNES_IMPORT_PAR_DEFAUT,
         colonnes_exclues or [],
-        ignorer_premiere_ligne=ignorer_premiere_ligne,
+        lignes_entete=lignes_entete,
     )
 
 
@@ -91,7 +91,7 @@ def test_lire_lignes_brutes_extrait_les_bonnes_colonnes(db_session):
     )
 
     lignes = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
     )
 
     assert len(lignes) == 1
@@ -118,7 +118,7 @@ def test_lire_lignes_brutes_capture_toutes_les_colonnes(db_session):
     )
 
     lignes = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
     )
 
     donnees = lignes[0]["donnees_completes"]
@@ -213,7 +213,7 @@ def test_lire_lignes_brutes_lit_un_csv_avec_point_virgule(db_session):
     ).encode("utf-8")
 
     lignes = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
     )
 
     assert len(lignes) == 1
@@ -233,7 +233,7 @@ def test_lire_lignes_brutes_decode_un_csv_cp1252_avec_accents(db_session):
     contenu = texte.encode("cp1252")
 
     lignes = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
     )
 
     assert lignes[0]["nature"] == "Café Déjeuner"
@@ -1888,7 +1888,7 @@ def test_lire_lignes_brutes_saute_len_tete_quand_le_preset_le_demande(db_session
     )
 
     lignes = import_bancaire.lire_lignes_brutes(
-        contenu, _COLONNES_TROIS, ignorer_premiere_ligne=True
+        contenu, _COLONNES_TROIS, lignes_entete=1
     )
 
     assert [l["nature"] for l in lignes] == ["Courses"]
@@ -1932,7 +1932,7 @@ def test_lire_lignes_brutes_csv_francais_sans_entete(db_session):
 
 def test_apercu_fichier_expose_les_lignes_brutes_et_le_mapping_des_colonnes(db_session):
     compte = _make_compte(db_session)
-    preset = _make_preset(db_session, ignorer_premiere_ligne=True)
+    preset = _make_preset(db_session, lignes_entete=1)
     contenu = _construire_fichier_avec_reference(
         [
             {
@@ -1953,7 +1953,7 @@ def test_apercu_fichier_expose_les_lignes_brutes_et_le_mapping_des_colonnes(db_s
     # En-tête + ligne de données : les deux sont exposées telles quelles, y
     # compris l'en-tête ignoré (affiché barré côté frontend).
     assert apercu.total_lignes == 2
-    assert apercu.premiere_ligne_ignoree is True
+    assert apercu.lignes_entete == 1
     assert apercu.lignes[0][0] == "Colonne 1"
     assert apercu.lignes[1][3] == "Courses"
     # Colonne 12 lue dans le fichier mais non mappée : présente dans les
@@ -1992,7 +1992,7 @@ def test_apercu_fichier_expose_toutes_les_lignes_dun_gros_fichier(db_session):
     assert apercu.lignes[-1][3] == "Op 79"
 
 
-def test_previsualiser_respecte_ignorer_premiere_ligne_du_preset(db_session):
+def test_previsualiser_respecte_lignes_entete_du_preset(db_session):
     compte = _make_compte(db_session)
     contenu = _fichier_trois_colonnes(
         [
@@ -2002,7 +2002,7 @@ def test_previsualiser_respecte_ignorer_premiere_ligne_du_preset(db_session):
     )
 
     preset_sans_entete = _make_preset(
-        db_session, colonnes=_COLONNES_TROIS, ignorer_premiere_ligne=False
+        db_session, colonnes=_COLONNES_TROIS, lignes_entete=0
     )
     preview = import_bancaire.previsualiser(
         db_session, preset_sans_entete.id, contenu, compte_id_defaut=compte.id
@@ -2010,12 +2010,75 @@ def test_previsualiser_respecte_ignorer_premiere_ligne_du_preset(db_session):
     assert [l.nature for l in preview.lignes] == ["Courses", "Essence"]
 
     preset_avec_entete = _make_preset(
-        db_session, nom="Avec en-tête", colonnes=_COLONNES_TROIS, ignorer_premiere_ligne=True
+        db_session, nom="Avec en-tête", colonnes=_COLONNES_TROIS, lignes_entete=1
     )
     preview = import_bancaire.previsualiser(
         db_session, preset_avec_entete.id, contenu, compte_id_defaut=compte.id
     )
     assert [l.nature for l in preview.lignes] == ["Essence"]
+
+
+def test_previsualiser_saute_plusieurs_lignes_de_tete(db_session):
+    """LE CAS QUI A FAIT AJOUTER LE NOMBRE : beaucoup de banques n'exportent pas
+    une table mais une PAGE — titulaire, numéro de compte, ligne vide, puis
+    seulement les intitulés de colonnes. Un booléen n'en sautait qu'une, et les
+    trois autres arrivaient dans l'aperçu comme des opérations illisibles."""
+    compte = _make_compte(db_session)
+    contenu = _fichier_trois_colonnes(
+        [
+            ["Relevé de compte", None, None],
+            ["FR76 1234 5678", None, None],
+            [None, None, None],
+            ["Date", "Libellé", "Montant"],
+            [date(2026, 7, 1), "Courses", -45.2],
+            [date(2026, 7, 2), "Essence", -60.0],
+        ]
+    )
+    preset = _make_preset(db_session, colonnes=_COLONNES_TROIS, lignes_entete=4)
+
+    preview = import_bancaire.previsualiser(
+        db_session, preset.id, contenu, compte_id_defaut=compte.id
+    )
+
+    assert [l.nature for l in preview.lignes] == ["Courses", "Essence"]
+    # Le numéro de ligne reste celui du fichier, donc celui qu'Excel affiche :
+    # c'est par lui qu'on retrouve une ligne à corriger.
+    assert [l.ligne for l in preview.lignes] == [5, 6]
+
+
+def test_l_apercu_ne_barre_que_les_lignes_de_tete_qu_il_montre(db_session):
+    """L'aperçu ÉCARTE les lignes vides, qui comptent pourtant dans ce que le
+    preset saute. Renvoyer le réglage tel quel aurait barré une ligne de données
+    à chaque ligne vide sautée — exactement celle qu'on venait vérifier."""
+    compte = _make_compte(db_session)
+    contenu = _fichier_trois_colonnes(
+        [
+            ["Relevé de compte", None, None],
+            [None, None, None],
+            ["Date", "Libellé", "Montant"],
+            [date(2026, 7, 1), "Courses", -45.2],
+        ]
+    )
+    preset = _make_preset(db_session, colonnes=_COLONNES_TROIS, lignes_entete=3)
+
+    apercu = import_bancaire.previsualiser(
+        db_session, preset.id, contenu, compte_id_defaut=compte.id
+    ).apercu_fichier
+
+    # Trois lignes sautées, mais l'une d'elles est vide et n'est pas affichée :
+    # l'écran n'a que deux lignes à barrer, et la troisième affichée est bien
+    # une opération.
+    assert apercu.lignes_entete == 2
+    assert apercu.total_lignes == 3
+    assert apercu.lignes[2][1] == "Courses"
+
+
+def test_un_preset_neuf_ne_saute_rien(db_session):
+    """Zéro est le défaut, et c'est le seul qui ne perde rien : un fichier qui
+    commence par une opération la garde."""
+    preset = crud.create_import_preset(db_session, nom="Neuf")
+
+    assert preset.lignes_entete == 0
 
 
 def test_import_avec_colonnes_personnalisees(db_session):
@@ -2298,12 +2361,12 @@ def test_lire_lignes_brutes_avec_un_delimiteur_impose(db_session):
     # Sans le préciser : la détection automatique ne reconnaît pas "|", et
     # relit tout sur une seule colonne.
     sans_delimiteur = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
     )
     assert sans_delimiteur[0]["nature"] is None
 
     avec_delimiteur = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, ignorer_premiere_ligne=True, delimiteur="|"
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1, delimiteur="|"
     )
     assert avec_delimiteur[0]["nature"] == "Courses"
     assert avec_delimiteur[0]["montant_brut"] == "-45,2"

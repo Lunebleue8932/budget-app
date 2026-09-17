@@ -1000,11 +1000,15 @@ class ImportPreset(Base):
     mode_comparaison = Column(
         String, nullable=False, default=ModeComparaison.exclusion.value
     )
-    # False (défaut) = la première ligne du fichier est une ligne de données.
-    # True = c'est un en-tête, à sauter. Tous les formats ne mettent pas
-    # d'en-tête ; le supposer systématiquement faisait perdre une opération à
-    # chaque import (voir services.import_bancaire.lire_lignes_brutes).
-    ignorer_premiere_ligne = Column(Boolean, nullable=False, default=False)
+    # COMBIEN DE LIGNES DE TÊTE NE SONT PAS DES DONNÉES (migration 0062). Zéro
+    # (défaut) = le fichier commence directement par une opération. Tous les
+    # formats ne mettent pas d'en-tête, et plusieurs en mettent PLUSIEURS : un
+    # relevé exporté par une banque ouvre volontiers sur le nom du titulaire, le
+    # numéro de compte, une ligne vide, puis les intitulés de colonnes. Le
+    # booléen d'avant (`ignorer_premiere_ligne`) n'en sautait qu'une, et les
+    # suivantes arrivaient dans l'aperçu comme autant d'opérations illisibles
+    # qu'il fallait supprimer à la main à chaque import.
+    lignes_entete = Column(Integer, nullable=False, default=0)
 
     # Vocabulaire de la colonne « Sens » DE CETTE BANQUE : ["Débit", "D"…] et
     # ["Crédit", "C"…]. Listes vides (défaut) = on retombe sur

@@ -14,7 +14,7 @@ de revue n'est persisté après coup.
 
 La première ligne du fichier est une ligne de données par défaut ; les formats
 qui commencent par un en-tête le déclarent via ImportPreset.
-ignorer_premiere_ligne (cf. lire_lignes_brutes).
+lignes_entete (cf. lire_lignes_brutes).
 
 Une catégorie bancaire non mémorisée est proposée automatiquement dans
 "Autres" (jamais laissée bloquante) — c'est une suggestion à confirmer côté
@@ -573,15 +573,17 @@ def _brute_vide(ligne_num: int, propriete_vers_cle: dict) -> dict:
 def lire_lignes_brutes(
     contenu: bytes,
     colonnes_config: list[dict],
-    ignorer_premiere_ligne: bool = False,
+    lignes_entete: int = 0,
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
 ) -> list[dict]:
-    """`ignorer_premiere_ligne` (ImportPreset) : tous les formats de relevé ne
-    commencent pas par un en-tête. Le supposer systématiquement faisait perdre
-    une opération à chaque import des formats qui n'en ont pas. `ligne` reste
-    dans tous les cas le numéro de ligne physique dans le fichier (1-based),
-    donc directement comparable à ce que l'utilisateur voit dans Excel.
+    """`lignes_entete` (ImportPreset) : combien de lignes de TÊTE ne sont pas
+    des données. Zéro pour les formats qui commencent par une opération — les
+    sauter systématiquement faisait perdre une opération à chaque import ; plus
+    d'une pour les relevés qui ouvrent sur un titulaire, un numéro de compte et
+    une ligne vide avant leurs intitulés de colonnes. `ligne` reste dans tous
+    les cas le numéro de ligne physique dans le fichier (1-based), donc
+    directement comparable à ce que l'utilisateur voit dans Excel.
 
     `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis.
 
@@ -596,9 +598,13 @@ def lire_lignes_brutes(
         _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
     )
     toutes = _lire_toutes_les_lignes(contenu, delimiteur)
-    depart = 2 if ignorer_premiere_ligne else 1
+    # Un nombre négatif, ou plus grand que le fichier, ne décrit rien : la
+    # tranche s'en accommode d'elle-même (`toutes[0:]`, `toutes[999:]` = vide),
+    # et le numéro de départ doit suivre exactement le même calcul, sans quoi
+    # les lignes de l'aperçu ne porteraient plus le numéro qu'Excel affiche.
+    sautees = max(0, lignes_entete or 0)
     lignes = []
-    for i, row in enumerate(toutes[1:] if ignorer_premiere_ligne else toutes, start=depart):
+    for i, row in enumerate(toutes[sautees:], start=sautees + 1):
         if row is None or all(v is None or v == "" for v in row):
             continue
 
@@ -1871,7 +1877,7 @@ def _texte_cellule_apercu(valeur) -> str:
 def construire_apercu_fichier(
     contenu: bytes,
     colonnes_config: list[dict],
-    ignorer_premiere_ligne: bool,
+    lignes_entete: int,
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
 ) -> schemas.ApercuFichier:
@@ -1894,11 +1900,19 @@ def construire_apercu_fichier(
     propriete_vers_cle = (
         _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
     )
-    toutes = [
-        ligne
-        for ligne in _lire_toutes_les_lignes(contenu, delimiteur)
-        if ligne is not None and not all(v is None or v == "" for v in ligne)
-    ]
+    brutes = _lire_toutes_les_lignes(contenu, delimiteur)
+
+    def porte_quelque_chose(ligne):
+        return ligne is not None and not all(v is None or v == "" for v in ligne)
+
+    toutes = [ligne for ligne in brutes if porte_quelque_chose(ligne)]
+    # COMBIEN DE LIGNES AFFICHÉES SONT DES LIGNES DE TÊTE, et non combien le
+    # preset en saute : l'aperçu ÉCARTE les lignes vides, et une banque en écrit
+    # volontiers une entre ses intitulés et ses opérations. Renvoyer le réglage
+    # tel quel aurait barré une ligne de données à chaque ligne vide sautée —
+    # exactement celle qu'on voulait vérifier.
+    sautees = max(0, lignes_entete or 0)
+    lignes_entete_affichees = sum(1 for ligne in brutes[:sautees] if porte_quelque_chose(ligne))
     largeur = max((len(ligne) for ligne in toutes), default=0)
     lignes = [
         [_texte_cellule_apercu(ligne[i]) if i < len(ligne) else "" for i in range(largeur)]
@@ -1913,7 +1927,7 @@ def construire_apercu_fichier(
         lignes=lignes,
         proprietes_par_colonne=proprietes,
         total_lignes=len(toutes),
-        premiere_ligne_ignoree=ignorer_premiere_ligne,
+        lignes_entete=lignes_entete_affichees,
     )
 
 
@@ -2038,7 +2052,7 @@ def previsualiser(
     for brute in lire_lignes_brutes(
         contenu,
         preset.colonnes,
-        preset.ignorer_premiere_ligne,
+        preset.lignes_entete,
         delimiteur,
     ):
         doublon = detecter_doublon(
@@ -2096,7 +2110,7 @@ def previsualiser(
         apercu_fichier=construire_apercu_fichier(
             contenu,
             preset.colonnes,
-            preset.ignorer_premiere_ligne,
+            preset.lignes_entete,
             delimiteur,
         ),
         avertissements=avertissements_configuration(preset),
@@ -2513,7 +2527,7 @@ def confirmer(
     for brute in lire_lignes_brutes(
         contenu,
         preset.colonnes,
-        preset.ignorer_premiere_ligne,
+        preset.lignes_entete,
         delimiteur,
     ):
         doublon = detecter_doublon(
@@ -2972,7 +2986,7 @@ def enregistrer_ligne_brute(
     correspondrait plus à celle que l'utilisateur a vue et liée."""
     preset = crud.get_import_preset(db, preset_id)
     for brute in lire_lignes_brutes(
-        contenu, preset.colonnes, preset.ignorer_premiere_ligne, delimiteur
+        contenu, preset.colonnes, preset.lignes_entete, delimiteur
     ):
         if brute["ligne"] == numero_ligne:
             crud.create_ligne_import_brute(

@@ -8236,7 +8236,7 @@ document.getElementById("btn-import-preset-renommer").addEventListener("click", 
         colonnes: preset.colonnes,
         colonnes_comparaison: preset.colonnes_comparaison,
         mode_comparaison: preset.mode_comparaison,
-        ignorer_premiere_ligne: preset.ignorer_premiere_ligne,
+        lignes_entete: preset.lignes_entete,
         libelles_sens_sortie: preset.libelles_sens_sortie,
         libelles_sens_entree: preset.libelles_sens_entree,
         libelles_statut_execute: preset.libelles_statut_execute,
@@ -8501,12 +8501,34 @@ document.getElementById("import-preset-compte").addEventListener("change", () =>
  * lui, les aurait signalés. Seul le NOM du preset reste dehors : il n'entre
  * dans aucun calcul.
  */
+/**
+ * Les lignes de tête d'un preset, toujours un nombre.
+ *
+ * TROIS FORMES POUR LA MÊME ABSENCE — le champ manquant, `null`, ou du texte
+ * qui n'est pas un nombre — et une seule réponse : zéro, « le fichier commence
+ * par une opération ». Sans ce passage obligé, un `undefined` se serait glissé
+ * dans la signature de l'aperçu, qui aurait alors changé sans que rien n'ait
+ * bougé, et relu le fichier à chaque enregistrement.
+ */
+function lignesEnteteDe(config) {
+  const valeur = Number(config?.lignes_entete);
+  return Number.isFinite(valeur) && valeur > 0 ? Math.floor(valeur) : 0;
+}
+
+/** Ce que le champ affiche, borné comme le serveur le borne. */
+function lignesEnteteSaisies() {
+  const champ = document.getElementById("import-lignes-entete");
+  const valeur = Math.floor(Number(champ?.value));
+  if (!Number.isFinite(valeur) || valeur <= 0) return 0;
+  return Math.min(valeur, Number(champ.max) || valeur);
+}
+
 function signatureApercu(config) {
   return JSON.stringify({
     colonnes: config.colonnes,
     colonnes_comparaison: config.colonnes_comparaison || [],
     mode_comparaison: config.mode_comparaison,
-    ignorer_premiere_ligne: config.ignorer_premiere_ligne === true,
+    lignes_entete: lignesEnteteDe(config),
     compte_id: config.compte_id ?? null,
     // Les mots-clés de sens décident du SIGNE de chaque montant, ceux d'état de
     // ce qui est importé ou non : en changer relit forcément le fichier
@@ -8525,8 +8547,7 @@ async function loadImportConfiguration() {
   importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
   importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
-  document.getElementById("import-ignorer-premiere-ligne").checked =
-    config.ignorer_premiere_ligne === true;
+  document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
   renderImportVocabulaires(config);
   renderImportConfig();
   renderImportPresetCompte(config.compte_id);
@@ -9189,7 +9210,7 @@ document.getElementById("btn-import-config-enregistrer").addEventListener("click
         colonnes: importConfigColonnes,
         colonnes_comparaison: importConfigColonnesComparaison,
         mode_comparaison: modeComparaisonChoisi(),
-        ignorer_premiere_ligne: document.getElementById("import-ignorer-premiere-ligne").checked,
+        lignes_entete: lignesEnteteSaisies(),
         ...vocabulairesSaisis(),
       }),
     });
@@ -9201,8 +9222,7 @@ document.getElementById("btn-import-config-enregistrer").addEventListener("click
     importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
     importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
     document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
-    document.getElementById("import-ignorer-premiere-ligne").checked =
-      config.ignorer_premiere_ligne === true;
+    document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
     // Réaffichés depuis la réponse : le serveur a retiré les entrées vides et
     // les doublons, l'utilisateur doit voir ce qui a réellement été retenu.
     renderImportVocabulaires(config);
@@ -9540,9 +9560,10 @@ function renderApercuFichier() {
 
   const corps = apercu.lignes
     .map((ligne, index) => {
-      // La ligne d'en-tête ignorée est montrée mais barrée : voir qu'elle est
-      // bien exclue vaut mieux que de la faire disparaître silencieusement.
-      const estEnteteIgnoree = apercu.premiere_ligne_ignoree && index === 0;
+      // Les lignes de tête ignorées sont montrées mais barrées : voir qu'elles
+      // sont bien exclues vaut mieux que de les faire disparaître
+      // silencieusement.
+      const estEnteteIgnoree = index < (apercu.lignes_entete || 0);
       const cellules = [];
       for (let i = 1; i <= largeur; i++) {
         // Une colonne hors fichier n'a rien à montrer : cellule vide, et grise
@@ -12865,7 +12886,7 @@ function afficherResultatImport(resultat) {
   if (resultat.lignes_ignorees.length > 0) {
     html += `
       <div class="hint">${resultat.lignes_ignorees.length} ligne(s) ignorée(s) :</div>
-      <ul class="import-lignes-ignorees">
+      <ul class="import-lignes-entete">
         ${resultat.lignes_ignorees
           .map((l) => `<li>Ligne ${l.ligne} — ${l.nature || "?"} : ${l.erreur}</li>`)
           .join("")}

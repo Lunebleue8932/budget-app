@@ -55,7 +55,7 @@ def _fichier(lignes: list[dict]) -> bytes:
 
 def _preset(db):
     return crud.create_import_preset(
-        db, "Défaut", COLONNES_IMPORT_PAR_DEFAUT, [], ignorer_premiere_ligne=True
+        db, "Défaut", COLONNES_IMPORT_PAR_DEFAUT, [], lignes_entete=1
     )
 
 

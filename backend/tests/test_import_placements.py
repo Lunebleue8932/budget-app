@@ -47,7 +47,7 @@ schemas_pl = charger_module_extension(
 
 def _fichier(lignes: list[dict]) -> bytes:
     """Un classeur aux sept colonnes de COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
-    précédé d'une ligne d'en-tête (d'où `ignorer_premiere_ligne=True` dans
+    précédé d'une ligne d'en-tête (d'où `lignes_entete=1` dans
     `_preset`)."""
     classeur = openpyxl.Workbook()
     feuille = classeur.active
@@ -87,7 +87,7 @@ def _preset(db, compte=None, nom="Courtier", colonnes=None, **kwargs):
         nom,
         colonnes if colonnes is not None else COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
         [],
-        ignorer_premiere_ligne=True,
+        lignes_entete=1,
         compte_id=compte.id if compte else None,
         domaine=DomaineImport.placement.value,
         **kwargs,

@@ -158,6 +158,8 @@ const TEXTES = {
     "Ce virement est peut-être déjà en base. Quand tu importes les relevés de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons différentes. L'app compare ici la transaction elle-même — le compte, les devises, le montant, une date proche — et te montre à quoi chaque ligne ressemble. Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.",
   "noyau.doublons-detectes":
     "Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour l'importer quand même, deux achats identiques le même jour ça arrive.",
+  "noyau.lignes-entete":
+    "Combien de lignes, en tête du fichier, ne sont pas des opérations : les intitulés de colonnes, mais aussi le nom du titulaire, le numéro de compte ou une ligne vide que certaines banques écrivent avant. Laisse 0 si le fichier commence directement par une opération.",
   "noyau.comparaison-des-doublons":
     "Comment l'app reconnaît une ligne déjà importée. Soit toutes les colonnes moins celles qui bougent d'un export à l'autre (solde courant, référence), soit les seules qui identifient une ligne — souvent date + libellé + montant.",
   "noyau.mots-cles-de-la-colonne-sens":

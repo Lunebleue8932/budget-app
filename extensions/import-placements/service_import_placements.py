@@ -809,7 +809,7 @@ def previsualiser(
         apercu_fichier=import_bancaire.construire_apercu_fichier(
             contenu,
             preset.colonnes,
-            preset.ignorer_premiere_ligne,
+            preset.lignes_entete,
             delimiteur,
             propriete_vers_cle=(
                 PROPRIETE_VERS_CLE_POSITION
@@ -833,7 +833,7 @@ def _lecture_du_fichier(contexte, preset, contenu, delimiteur):
     return import_bancaire.lire_lignes_brutes(
         contenu,
         preset.colonnes,
-        preset.ignorer_premiere_ligne,
+        preset.lignes_entete,
         delimiteur,
         propriete_vers_cle=(
             PROPRIETE_VERS_CLE_POSITION if position else PROPRIETE_VERS_CLE

@@ -2131,7 +2131,7 @@ def create_import_preset(
     nom: str,
     colonnes: Optional[list[dict]] = None,
     colonnes_comparaison: Optional[list[int]] = None,
-    ignorer_premiere_ligne: bool = False,
+    lignes_entete: int = 0,
     compte_id: Optional[int] = None,
     mode_comparaison: Optional[str] = None,
     libelles_sens_sortie: Optional[list[str]] = None,
@@ -2165,7 +2165,7 @@ def create_import_preset(
         colonnes=colonnes,
         colonnes_comparaison=colonnes_comparaison or [],
         mode_comparaison=mode_comparaison or ModeComparaison.exclusion.value,
-        ignorer_premiere_ligne=ignorer_premiere_ligne,
+        lignes_entete=lignes_entete,
         libelles_sens_sortie=libelles_sens_sortie or [],
         libelles_sens_entree=libelles_sens_entree or [],
         libelles_statut_execute=libelles_statut_execute or [],
@@ -2196,7 +2196,7 @@ def update_import_preset(
     colonnes: Optional[list[dict]] = None,
     colonnes_comparaison: Optional[list[int]] = None,
     mode_comparaison: Optional[str] = None,
-    ignorer_premiere_ligne: Optional[bool] = None,
+    lignes_entete: Optional[int] = None,
     compte_id=_INCHANGE,
     libelles_sens_sortie: Optional[list[str]] = None,
     libelles_sens_entree: Optional[list[str]] = None,
@@ -2221,8 +2221,8 @@ def update_import_preset(
         preset.colonnes_comparaison = colonnes_comparaison
     if mode_comparaison is not None:
         preset.mode_comparaison = mode_comparaison
-    if ignorer_premiere_ligne is not None:
-        preset.ignorer_premiere_ligne = ignorer_premiere_ligne
+    if lignes_entete is not None:
+        preset.lignes_entete = lignes_entete
     if libelles_sens_sortie is not None:
         preset.libelles_sens_sortie = libelles_sens_sortie
     if libelles_sens_entree is not None:
