@@ -3080,6 +3080,13 @@ function renderLegendeCategories(monnaieId, parts, container = null) {
  */
 function cablerSurbrillanceCategories() {
   document.querySelectorAll("[data-categorie]").forEach((element) => {
+    // UN ÉLÉMENT DÉJÀ CÂBLÉ NE SE RECÂBLE PAS. Un rendu PARTIEL existe désormais
+    // (cf. renderVuePieDashboard, qui laisse l'histogramme en place) : sans
+    // cette marque, chaque bascule de vue posait une seconde paire d'écouteurs
+    // sur des barres que personne n'avait recréées — une fuite silencieuse, le
+    // même travail refait N fois.
+    if (element.dataset.surbrillanceCablee) return;
+    element.dataset.surbrillanceCablee = "1";
     const nom = element.dataset.categorie;
     const jumeaux = () => [
       ...document.querySelectorAll(`[data-categorie="${CSS.escape(nom)}"]`),
@@ -3309,15 +3316,15 @@ function semaineChoisie() {
 }
 
 /**
- * L'histogramme du dashboard — mois, semaine ou moyenne selon ce qui est
- * choisi.
+ * CE QUE LES TROIS RENDUS PARTAGENT : les dépenses de la période choisie (mois,
+ * semaine ou moyenne), le budget qui va avec, et le calcul unique des parts.
  *
- * TOUT PASSE PAR ICI, y compris les rendus déclenchés par une extension (la
- * vue convertie de « Monnaies » rappelle `renderKpisDashboard`) : c'est ce qui
- * empêche un rendu venu d'ailleurs de ramener le mois sous une rangée de
- * semaines où l'une est cochée.
+ * EXTRAIT DE `renderHistogrammeDashboard` parce que la bascule de vue du
+ * camembert a besoin des mêmes grandeurs SANS redessiner l'histogramme (cf.
+ * renderVuePieDashboard) : recopier l'enchaînement aurait laissé les deux
+ * chemins diverger au premier ajustement.
  */
-function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
+function contexteGraphesDashboard(depensesDuMois) {
   const semaine = semaineChoisie();
   const depenses =
     semaine === null
@@ -3357,6 +3364,20 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
     vue: state.dashboardVuePie,
     budgetTotal,
   });
+  return { depenses, parts };
+}
+
+/**
+ * L'histogramme du dashboard — mois, semaine ou moyenne selon ce qui est
+ * choisi.
+ *
+ * TOUT PASSE PAR ICI, y compris les rendus déclenchés par une extension (la
+ * vue convertie de « Monnaies » rappelle `renderKpisDashboard`) : c'est ce qui
+ * empêche un rendu venu d'ailleurs de ramener le mois sous une rangée de
+ * semaines où l'une est cochée.
+ */
+function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
+  const { depenses, parts } = contexteGraphesDashboard(depensesDuMois);
 
   renderHistogrammeDepenses(
     parts.retenues,
@@ -3372,6 +3393,34 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   renderLegendeCategories(monnaieId, parts, document.getElementById("dashboard-legende"));
   // EN DERNIER, quand les trois existent : c'est lui qui apparie une barre, sa
   // tranche et sa ligne de légende par le nom de la catégorie.
+  cablerSurbrillanceCategories();
+}
+
+/**
+ * CHANGER DE VUE NE REDESSINE QUE LE CAMEMBERT ET SA LÉGENDE.
+ *
+ * Les deux vues ne diffèrent que par leur DÉNOMINATEUR (cf.
+ * renderPieChartDepenses) : les barres, elles, portent des montants et ne
+ * dépendent d'aucune des deux — `parts.retenues` est le même des deux côtés.
+ * Passer par `renderHistogrammeDashboard` les redessinait pourtant toutes, et
+ * rejouait donc leur animation de croissance à chaque aller-retour entre
+ * « État actuel » et « Budget » : le graphe qu'on ne regardait pas s'agitait
+ * pendant qu'on lisait l'autre, et l'animation cessait de dire ce pour quoi
+ * elle existe — qu'un graphe vient d'être RECALCULÉ.
+ *
+ * LA LÉGENDE, ELLE, SUIT : elle porte la PART de chaque catégorie, qui se
+ * rapporte justement au dénominateur qu'on vient de changer.
+ */
+function renderVuePieDashboard(depensesDuMois, monnaieId) {
+  const { depenses, parts } = contexteGraphesDashboard(depensesDuMois);
+
+  renderPieChartDepenses(
+    depenses,
+    monnaieId,
+    document.getElementById("dashboard-camembert"),
+    parts
+  );
+  renderLegendeCategories(monnaieId, parts, document.getElementById("dashboard-legende"));
   cablerSurbrillanceCategories();
 }
 
@@ -3405,7 +3454,7 @@ function basculerVuePie(vue) {
   document.querySelectorAll("#camembert-vues button[data-vue-pie]").forEach((bouton) => {
     bouton.classList.toggle("active", bouton.dataset.vuePie === state.dashboardVuePie);
   });
-  renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
+  renderVuePieDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
 }
 
 (function initVuesPie() {
