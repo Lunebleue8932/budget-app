@@ -5,13 +5,34 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app import crud, models
 from app.constants import (
-    CATEGORIES_ENTREE_INITIALES,
-    CATEGORIES_INITIALES,
     MONNAIE_INITIALE_NOM,
     TYPES_COMPTE_INITIAUX,
     TYPES_COMPTE_SYSTEME,
     TypeOperation,
 )
+
+# LES CATÉGORIES DE LA SUITE DE TESTS, et non plus celles que l'application
+# LIVRE (`constants.CATEGORIES_INITIALES`, réduit à la seule « Autres » par la
+# migration 0061). Les deux listes ont longtemps été la même, et elles ne
+# répondent pourtant pas à la même question : une base neuve doit s'ouvrir sur
+# une liste presque vide, là où ces tests ont besoin de RÉPARTIR des dépenses
+# entre plusieurs catégories — un histogramme à une barre, un camembert à une
+# tranche et une somme d'objectifs à un terme ne vérifient rien.
+#
+# Ces noms-là sont donc du DÉCOR, et rien ne les livre à personne. Deux d'entre
+# eux gardent malgré tout un rôle : « Autres », que l'application cherche par
+# son nom (repli d'une catégorie supprimée, cf. constants.CATEGORIE_AUTRES), et
+# « Entrées d'argent », la seule que le décor coche en catégorie d'entrée.
+CATEGORIES_TEST = [
+    "Alimentaire",
+    "Loisirs & sorties",
+    "Charges fixes",
+    "Réparation & entretien",
+    "Vêtements & équipement sport",
+    "Autres",
+    "Entrées d'argent",
+]
+CATEGORIES_TEST_ENTREE = {"Entrées d'argent"}
 
 
 def pytest_configure(config):
@@ -58,21 +79,18 @@ def db_session():
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine)
     session = TestingSessionLocal()
-    # Reproduit le seed des migrations : les tests s'appuient sur les mêmes
-    # données de départ que la vraie base. Les catégories ne contiennent plus
-    # que de vraies catégories de dépense depuis 0019 — les quatre anciennes
-    # catégories système sont devenues des types.
-    for position, nom in enumerate(CATEGORIES_INITIALES):
+    # Reproduit le seed des migrations pour tout ce qui est LIVRÉ (types de
+    # compte, types d'opération, monnaie) et pose par-dessus le décor de
+    # catégories de la suite (cf. CATEGORIES_TEST, plus haut).
+    for position, nom in enumerate(CATEGORIES_TEST):
         # `couleur_index` suit l'ordre au départ, comme le rattrapage de la
         # migration 0035 : ensuite il n'appartient plus qu'à la catégorie.
-        # `est_entree` reproduit la reprise de la migration 0060 : la catégorie
-        # des entrées d'argent la porte, les autres non.
         session.add(
             models.Categorie(
                 nom=nom,
                 ordre=position,
                 couleur_index=position,
-                est_entree=nom in CATEGORIES_ENTREE_INITIALES,
+                est_entree=nom in CATEGORIES_TEST_ENTREE,
             )
         )
     for nom in TYPES_COMPTE_INITIAUX:

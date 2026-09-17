@@ -27,27 +27,27 @@ class Frequence(str, enum.Enum):
 # elles ne contiennent plus que de vraies catégories : les quatre anciennes
 # "catégories système" (Remboursements, Virement interne, Prêts, Remboursement
 # prêts) sont devenues des TYPES d'opération (voir TypeOperation ci-dessous).
-CATEGORIES_INITIALES = [
-    "Alimentaire",
-    "Loisirs & sorties",
-    "Charges fixes",
-    "Réparation & entretien",
-    "Vêtements & équipement sport",
-    "Autres",
-    "Entrées d'argent",
-]
+#
+# UNE SEULE CATÉGORIE EST LIVRÉE (migration 0061). Les six autres que posait
+# 0006 — « Alimentaire », « Loisirs & sorties », « Charges fixes »,
+# « Réparation & entretien », « Vêtements & équipement sport », « Entrées
+# d'argent » — n'étaient pas des catégories par défaut mais celles d'un budget
+# particulier, imposées à toute installation. Les catégories d'une personne ne
+# sont pas celles d'une autre : elles se créent maintenant depuis l'onglet
+# Catégories, sur une liste qui commence vide.
+CATEGORIES_INITIALES = ["Autres"]
 
-CATEGORIE_ENTREES_ARGENT = "Entrées d'argent"
 # "Autres" est protégée : non supprimable, et sert de repli pour les opérations
-# dont la catégorie a été supprimée.
+# dont la catégorie a été supprimée. C'est aussi ce qui la fait rester seule au
+# départ : l'application la CHERCHE PAR SON NOM, une base qui ne la porterait
+# pas laisserait ce repli sans réponse.
 CATEGORIE_AUTRES = "Autres"
-# LA SEULE CATÉGORIE D'ENTRÉE LIVRÉE, et plus la seule POSSIBLE : le nom ne sert
-# qu'à cocher `Categorie.est_entree` sur la base neuve (et sur les bases en
-# place, cf. migration 0060). Tout ce qui demande ensuite « est-ce une entrée ? »
-# lit la COLONNE — renommer la catégorie ne la faisait sinon pas seulement
-# changer de libellé, elle redevenait une catégorie de dépense en silence, et un
-# second salaire n'avait aucun moyen d'être reconnu.
-CATEGORIES_ENTREE_INITIALES = {CATEGORIE_ENTREES_ARGENT}
+# AUCUNE CATÉGORIE D'ENTRÉE N'EST LIVRÉE, et il n'y en a plus besoin : depuis
+# `Categorie.est_entree` (migration 0060), être une catégorie d'entrée SE COCHE,
+# et n'importe quel nom peut l'être — « Salaire », « Loyers perçus », une
+# pension. Tout ce qui demande « est-ce une entrée ? » lit la COLONNE, jamais un
+# nom : le « Entrées d'argent » qu'on livrait n'était plus qu'un exemple de plus.
+CATEGORIES_ENTREE_INITIALES: set[str] = set()
 
 
 # ---------- Monnaies ----------

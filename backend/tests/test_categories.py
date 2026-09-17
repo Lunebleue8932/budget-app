@@ -4,12 +4,28 @@ from app import crud, models, schemas
 from app.constants import CATEGORIES_INITIALES, Sens, Statut
 from app.services import soldes
 
-from .conftest import creer_compte, get_categorie_id, get_monnaie_id, get_type_id
+from .conftest import (
+    CATEGORIES_TEST,
+    creer_compte,
+    get_categorie_id,
+    get_monnaie_id,
+    get_type_id,
+)
 
 
 def test_seed_categories_presentes(db_session):
     noms = {c.nom for c in db_session.query(models.Categorie).all()}
-    assert noms == set(CATEGORIES_INITIALES)
+    assert noms == set(CATEGORIES_TEST)
+
+
+def test_l_application_ne_livre_que_autres():
+    """CE QUE LA BASE NEUVE CONTIENT, et c'est tout (cf. migration 0061).
+
+    Les cinq catégories de dépense et la catégorie d'entrée d'autrefois étaient
+    celles d'un budget particulier. « Autres » reste seule parce que
+    l'application la cherche par son nom, et que rien d'autre n'est
+    présupposable du budget de quelqu'un."""
+    assert CATEGORIES_INITIALES == ["Autres"]
 
 
 def test_la_table_ne_contient_que_de_vraies_categories(db_session):

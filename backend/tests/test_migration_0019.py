@@ -104,13 +104,10 @@ def test_migration_0019_reussit_sur_une_base_avec_operations_de_types_systeme(tm
     }
     assert sans_categorie == {"Prêt Marie", "Remb Marie", "Virement Livret", "Remb prêt"}
 
+    # Les quatre anciennes catégories système ont disparu de la table : c'est
+    # ce que 0019 vérifie ici. Des six autres catégories livrées par 0006, il ne
+    # reste rien non plus — mais pour une tout autre raison, et bien plus loin
+    # dans la chaîne : la migration 0061 retire celles qui n'ont jamais servi, et
+    # les seules opérations de ce test tombent dans « Autres ».
     noms_categories = {r[0] for r in conn.execute("select nom from categorie").fetchall()}
-    assert noms_categories == {
-        "Alimentaire",
-        "Autres",
-        "Charges fixes",
-        "Réparation & entretien",
-        "Vêtements & équipement sport",
-        "Entrées d'argent",
-        "Loisirs & sorties",
-    }
+    assert noms_categories == {"Autres"}
