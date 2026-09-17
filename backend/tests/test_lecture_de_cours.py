@@ -78,19 +78,26 @@ PAGE_BOURSORAMA_TRACKER = """
 </body></html>
 """
 
-# Extrait réel d'une page Google Finance : le bloc de l'instrument porte
-# `data-last-price`, les valeurs de la colonne de droite portent `data-price`.
-# C'est cette asymétrie que l'extraction exploite — et le second bloc ci-dessous
-# est là pour vérifier qu'on ne rapporte pas le cours du voisin.
+# Extrait réel d'une page Google Finance : le cours n'est plus dans un attribut
+# du HTML mais dans les tableaux `AF_initDataCallback` que la page passe à son
+# propre script. Chaque bloc parle d'UN instrument et se termine par sa
+# désignation canonique (« AI:EPA ») : c'est elle qui sert d'ancre. Le second
+# bloc ci-dessous est celui d'une valeur de la colonne de droite, et il est là
+# pour vérifier qu'on ne rapporte pas le cours du voisin.
 PAGE_GOOGLE = """
 <html><body>
-  <div role="heading" aria-level="1" class="zzDege">Air Liquide</div>
-  <div jscontroller="NdbN0c" data-mid="/g/1dv1hvhd" data-exchange="EPA"
-       data-currency-code="EUR" data-last-price="167.12" data-tz-offset=7200000>
-    <div class="YMlKec fxKbKc">167,12&nbsp;€</div>
-  </div>
-  <div jsname="UEIKff" data-symbol="ENGI" data-exchange="EPA" data-name="Engie"
-       data-currency-code="EUR" data-price="25.13"></div>
+  <div class="gO24Ff">Air Liquide</div>
+  <div class="N6SYTe"><span jsname="Pdsbrc"><span>167,12&nbsp;€</span></span></div>
+  <script class="ds:2">AF_initDataCallback({key: 'ds:2', hash: '7', data:[[[
+    ["/g/1dv1hvhd",["AI","EPA"],"Air Liquide",0,"EUR",[167.12,-0.97,-0.58,2,2,2],
+     null,168.09,"#d40c15","FR","/m/079tgb",[1789643947],"Europe/Paris",7200,
+     "/g/1dv1hvhd",null,null,[1789643897],null,null,null,"AI:EPA",0,null,null,null,1]
+  ]]], sideChannel: {}});</script>
+  <script class="ds:5">AF_initDataCallback({key: 'ds:5', hash: '11', data:[[[
+    ["/m/02qw1zx",["ENGI","EPA"],"Engie",0,"EUR",[25.13,0.1,0.4,2,2,2],
+     null,25.03,null,"FR",null,[1789643947],"Europe/Paris",7200,"/m/02qw1zx",
+     null,null,null,null,null,null,"ENGI:EPA",0]
+  ]]], sideChannel: {}});</script>
 </body></html>
 """
 
@@ -98,8 +105,11 @@ PAGE_GOOGLE = """
 # et cent fois trop grand pour un titre libellé en livres.
 PAGE_GOOGLE_LONDRES = """
 <html><body>
-  <div role="heading" aria-level="1">HSBC</div>
-  <div data-exchange="LON" data-currency-code="GBX" data-last-price="1518.4"></div>
+  <script class="ds:2">AF_initDataCallback({key: 'ds:2', hash: '7', data:[[[
+    ["/g/1hhb_6ktp",["HSBA","LON"],"HSBC",0,"GBX",[1518.4,2.0,0.13,2,2,2],
+     null,1516.4,null,"GB",null,[1789643947],"Europe/London",3600,"/g/1hhb_6ktp",
+     null,null,null,null,null,null,"HSBA:LON",0]
+  ]]], sideChannel: {}});</script>
 </body></html>
 """
 
@@ -193,8 +203,8 @@ def test_yahoo_lit_lapi_et_non_la_page(monkeypatch):
 
 
 def test_google_rend_le_cours_la_devise_et_le_nom(sans_reseau):
-    """Le cours vient de `data-last-price` et non du texte affiché : « 167,12 €
-    » dépend de la langue du visiteur, l'attribut non."""
+    """Le cours vient des données de la page et non du texte affiché :
+    « 167,12 € » dépend de la langue du visiteur, le tableau non."""
     sans_reseau["google.com"] = PAGE_GOOGLE
 
     cours = source_cours.lire_cours("https://www.google.com/finance/quote/AI:EPA")
@@ -205,10 +215,20 @@ def test_google_rend_le_cours_la_devise_et_le_nom(sans_reseau):
     assert cours.source == "google"
 
 
+def test_google_lit_aussi_une_page_beta(sans_reseau):
+    """Google sert la même page sous `/finance/beta/quote/…` : un lien copié
+    depuis là doit se lire comme l'autre, et non finir sur « lien incomplet »."""
+    sans_reseau["google.com"] = PAGE_GOOGLE
+
+    cours = source_cours.lire_cours("https://www.google.com/finance/beta/quote/AI:EPA")
+
+    assert cours.valeur == 167.12
+
+
 def test_google_ne_prend_pas_le_cours_de_la_colonne_de_droite(sans_reseau):
-    """Une page Google affiche une dizaine d'autres valeurs. Elles portent
-    `data-price` là où l'instrument de la page porte `data-last-price` : c'est
-    cette asymétrie qui rend l'ancre sûre, pas l'ordre d'apparition."""
+    """Une page Google affiche une dizaine d'autres valeurs, chacune dans son
+    propre bloc de données. Seul celui qui porte la désignation canonique de
+    l'URL est lu — l'ancre est cet identifiant, pas l'ordre d'apparition."""
     sans_reseau["google.com"] = PAGE_GOOGLE
 
     cours = source_cours.lire_cours("https://www.google.com/finance/quote/AI:EPA")
@@ -228,10 +248,16 @@ def test_google_verifie_la_place_de_cotation(sans_reseau):
 
 
 def test_google_accepte_un_lien_sans_place_de_cotation(sans_reseau):
-    """Les cryptomonnaies s'écrivent « BTC-EUR », sans place : il n'y a alors
-    rien à vérifier, et le seul bloc de la page est le bon."""
+    """Les cryptomonnaies et les paires de devises s'écrivent « BTC-EUR », sans
+    place de cotation : leur bloc n'a donc pas de couple symbole/place à
+    comparer (`null`), et c'est la désignation canonique qui l'identifie."""
     sans_reseau["google.com"] = """
-      <html><body><div data-last-price="65891.72"></div></body></html>
+      <html><body><script class="ds:2">AF_initDataCallback({key: 'ds:2', hash: '8',
+        data:[[[["/g/11bvvzqspv",null,"Bitcoin (BTC / EUR)",3,null,
+        [65891.72,84.1,0.12,2,2,2],null,65807.6,null,null,null,[1789644799],null,0,
+        "/g/11bvvzqspv",["BTC","EUR","Bitcoin","Euro","/m/05p0rrx","/m/02l6h",2],
+        null,[1789644739],null,null,null,"BTC-EUR",null,null,2]]]],
+        sideChannel: {}});</script></body></html>
     """
 
     cours = source_cours.lire_cours("https://www.google.com/finance/quote/BTC-EUR")

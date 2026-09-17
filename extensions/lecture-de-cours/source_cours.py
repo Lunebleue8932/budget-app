@@ -64,7 +64,18 @@ TAILLE_MAX_OCTETS = 8 * 1024 * 1024
 # discret ; ce n'est pas la relation qu'on veut avec un site qu'on interroge
 # trois fois par jour. Un agent vide, lui, ne marche pas : celui par défaut
 # d'urllib se fait refuser par Yahoo (429).
-AGENT = "Budget App (extension lecture-de-cours ; lecture de cours pour usage personnel)"
+#
+# LE PRÉFIXE `Mozilla/5.0 (compatible; …)` EST LA FORME CONSENTIE de cette
+# déclaration, et il est devenu indispensable : Google Finance rend depuis peu
+# une page « Non compatible » — 600 Ko sans un seul cours dedans — à tout agent
+# qui ne le porte pas. C'est la forme qu'emploient les robots d'indexation qui
+# se nomment, et elle ne prétend RIEN : le produit reste écrit en clair après
+# `compatible;`, là où un agent copié de Chrome aurait annoncé un navigateur que
+# nous ne sommes pas.
+AGENT = (
+    "Mozilla/5.0 (compatible; Budget App ; extension lecture-de-cours ; "
+    "lecture de cours pour usage personnel)"
+)
 
 
 class CoursIllisible(Exception):
@@ -296,75 +307,108 @@ def _lire_yahoo(url: str) -> Cours:
     )
 
 
-# La balise qui porte le cours chez Google, et ses attributs. `data-last-price`
-# n'apparaît qu'UNE FOIS par page, sur l'instrument de la page : les valeurs de
-# la colonne de droite (« vous pourriez aussi suivre ») portent `data-price`,
-# un attribut différent. C'est cette asymétrie qui rend l'ancre sûre.
-_BALISE_COURS_GOOGLE = re.compile(r'<[a-zA-Z]+[^>]*\bdata-last-price="[^"]*"[^>]*>')
-_ATTRIBUT = re.compile(r'([a-zA-Z-]+)="([^"]*)"')
+def _texte_json(brut: str) -> str:
+    """Un libellé tel qu'il est écrit dans un tableau JavaScript, rendu lisible.
 
-# Le titre de la page, au sens ARIA : `role="heading" aria-level="1"`. Une ancre
-# sémantique, pas une classe CSS — les classes de Google sont engendrées
-# (`zzDege`, `YMlKec`) et changent sans prévenir, là où le rôle d'un élément
-# décrit ce qu'il EST et ne bouge pas.
-_TITRE_GOOGLE = re.compile(
-    r'<[a-zA-Z]+[^>]*\brole="heading"[^>]*\baria-level="1"[^>]*>([^<]{1,80})<'
+    « S\\u0026P 500 » doit s'afficher « S&P 500 » : les blocs de Google échappent
+    l'esperluette en JSON, puis le tout traverse le HTML. Les deux couches se
+    défont dans cet ordre, et une chaîne qui refuserait de se décoder est rendue
+    telle quelle — un nom bizarre vaut mieux qu'un cours perdu."""
+    try:
+        decode = json.loads(f'"{brut}"')
+    except ValueError:
+        decode = brut
+    return unescape(decode).strip()
+
+
+# Un bloc de données que la page passe à son propre script. Google en sert une
+# vingtaine par page (`ds:0` à `ds:19`) : le cours de l'instrument, mais aussi
+# l'indice du pays, les valeurs de la colonne de droite, les résultats
+# trimestriels. Les découper d'abord est ce qui permet ensuite de ne lire QUE
+# celui qui parle de l'instrument demandé.
+_BLOC_DONNEES_GOOGLE = re.compile(r"AF_initDataCallback\(\{key:\s*'ds:\d+'.*?\}\);", re.S)
+
+# L'instrument lui-même, dans un de ces blocs :
+#
+#   ["/g/1dv1hvhd",["AI","EPA"],"Air Liquide",0,"EUR",[165.44,-0.97,-0.58,…],…
+#    \__ identifiant  \__ symbole  \__ nom     |  \__ devise  \__ cours
+#        Google           et place             \__ genre (0 action, 1 indice,
+#                                                  3 paire de devises)
+#
+# Trois écarts à connaître, tous rencontrés : un INDICE n'a pas de devise
+# (`null` à sa place), une PAIRE DE DEVISES ou une CRYPTO n'a pas de couple
+# symbole/place (`null` aussi, la paire étant nommée plus loin dans le bloc), et
+# le cours est en notation scientifique sur les très petites valeurs.
+#
+# LES BLANCS SONT TOLÉRÉS entre les éléments : la page n'en met aucun, mais un
+# tableau recopié dans un test se lit sur plusieurs lignes, et une lecture qui
+# ne saurait pas les traverser ne se vérifierait que sur une ligne de 1 200
+# signes — que personne ne relit.
+_INSTRUMENT_GOOGLE = re.compile(
+    r'\["/[a-z]/[^"]+",\s*'
+    r'(?P<identite>\[[^\[\]]*\]|null),\s*'
+    r'"(?P<libelle>[^"]*)",\s*'
+    r"\d+,\s*"
+    r'(?:"(?P<devise>[A-Za-z]{2,5})"|null),\s*'
+    r"\[(?P<cours>-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?),"
 )
 
 
 def _lire_google(url: str) -> Cours:
-    """Google Finance, par les attributs de données de sa page.
+    """Google Finance, par les données que sa page donne à son propre script.
 
     LA PAGE QUE TOUT LE MONDE TROUVE EN PREMIER, d'où sa présence ici : chercher
     le nom d'une société mène à `google.com/finance/quote/SYMBOLE:PLACE` avant
     de mener nulle part ailleurs.
 
-    Le cours n'est pas lu dans le texte affiché (« 167,12 € », dont le format
-    dépend de la langue du visiteur) mais dans `data-last-price`, l'attribut que
-    la page donne à son propre script : un nombre normalisé, à point décimal,
-    accompagné de `data-currency-code` et `data-exchange`. C'est du HTML, donc
-    plus fragile qu'une API — mais l'ancre est une donnée machine, pas une
-    apparence.
+    ON NE LIT PAS LE TEXTE AFFICHÉ (« 165,44 € », dont le format dépend de la
+    langue du visiteur et la classe CSS d'un engendreur) mais les tableaux
+    `AF_initDataCallback` : un cours normalisé à point décimal, le code ISO de
+    la devise et le nom de l'instrument, dans la forme même où le JavaScript de
+    la page les reçoit.
 
-    LA PLACE DE COTATION EST VÉRIFIÉE quand l'URL en porte une (`AI:EPA`) : le
-    bloc lu doit annoncer la même. Une page Google affiche une dizaine d'autres
-    valeurs ; le jour où l'une d'elles porterait le même attribut, on refuserait
-    de lire au lieu d'écrire le cours du voisin.
+    L'ANCRE EST L'IDENTIFIANT DE L'URL, et c'est ce qui rend la lecture sûre :
+    le bloc retenu est celui qui porte `"AI:EPA"` — la désignation canonique que
+    Google donne à l'instrument de la page — et, quand l'URL nomme une place de
+    cotation, le couple symbole/place lu doit être exactement le même. Une page
+    affiche une dizaine d'autres valeurs ; sans cette double vérification, on
+    écrirait un jour le cours du voisin au lieu de refuser de lire.
+
+    CE QUI A CHANGÉ, ET POURQUOI C'EST ÉCRIT ICI. L'attribut `data-last-price`,
+    sur lequel cette lecture reposait, a disparu de la page ; et le serveur rend
+    désormais un « Non compatible » de 600 Ko à qui ne se présente pas comme un
+    navigateur (cf. AGENT). Les deux ensemble donnaient une page entière sans un
+    seul cours dedans — une panne silencieuse, du jour au lendemain, sans que
+    rien n'ait bougé de notre côté.
     """
     segment = _symbole_du_chemin(url)
     symbole, _, place = segment.partition(":")
-    if not symbole or segment in ("finance", "quote"):
+    if not symbole or segment in ("finance", "quote", "beta"):
         raise CoursIllisible(
             "Lien Google Finance incomplet : il doit désigner un titre, par "
             "exemple https://www.google.com/finance/quote/AI:EPA"
         )
 
     html = telecharger(url)
-    blocs = [
-        dict(_ATTRIBUT.findall(balise))
-        for balise in _BALISE_COURS_GOOGLE.findall(html)
-    ]
-    if place:
-        blocs = [
-            bloc
-            for bloc in blocs
-            if bloc.get("data-exchange", "").upper() == place.upper()
-        ]
-    if not blocs:
-        raise CoursIllisible(
-            f"Google Finance ne publie pas de cours pour « {segment} » : vérifie "
-            "le symbole et la place de cotation dans le lien"
-        )
+    identite_attendue = f'["{symbole}","{place}"]' if place else None
+    for bloc in _BLOC_DONNEES_GOOGLE.findall(html):
+        if f'"{segment}"' not in bloc:
+            continue
+        for instrument in _INSTRUMENT_GOOGLE.finditer(bloc):
+            if identite_attendue and instrument.group("identite") != identite_attendue:
+                continue
+            return Cours(
+                valeur=_valider(nombre_ecrit(instrument.group("cours"))),
+                # Absente sur les indices, présente partout ailleurs. Attention,
+                # Londres est coté en `GBX` — des pence (cf. service_cours).
+                devise=instrument.group("devise") or None,
+                libelle=_texte_json(instrument.group("libelle")) or segment,
+                source="google",
+            )
 
-    bloc = blocs[0]
-    titres = _TITRE_GOOGLE.findall(html)
-    return Cours(
-        valeur=_valider(nombre_ecrit(bloc["data-last-price"])),
-        # Absente sur les cryptomonnaies, présente partout ailleurs. Attention,
-        # Londres est coté en `GBX` — des pence (cf. service_cours).
-        devise=bloc.get("data-currency-code") or None,
-        libelle=unescape(titres[0]).strip() if titres else segment,
-        source="google",
+    raise CoursIllisible(
+        f"Google Finance ne publie pas de cours pour « {segment} » : vérifie "
+        "le symbole et la place de cotation dans le lien"
     )
 
 
