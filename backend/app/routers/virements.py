@@ -24,6 +24,21 @@ def _valider_monnaie(db: Session, compte: models.Compte, monnaie_id: int, role: 
         )
 
 
+def _refuser_comptes_eteints(*comptes, precedents: set[int] = frozenset()) -> None:
+    """Un virement ne part ni n'arrive sur un compte ÉTEINT (cf.
+    crud.erreur_compte_eteint), LES DEUX JAMBES étant des écritures neuves.
+
+    `precedents` porte les comptes que le virement touchait DÉJÀ : corriger la
+    date ou le montant d'un vieux virement vers un compte clôturé depuis reste
+    possible, seul le fait d'en désigner un nouveau est refusé."""
+    for compte in comptes:
+        erreur = crud.erreur_compte_eteint(
+            compte, precedent_id=compte.id if compte.id in precedents else None
+        )
+        if erreur:
+            raise HTTPException(status_code=400, detail=erreur)
+
+
 @router.post("", response_model=schemas.VirementRead, status_code=status.HTTP_201_CREATED)
 def create_virement(virement: schemas.VirementCreate, db: Session = Depends(get_db)):
     compte_source = crud.get_compte(db, virement.compte_source_id)
@@ -33,6 +48,8 @@ def create_virement(virement: schemas.VirementCreate, db: Session = Depends(get_
     compte_destination = crud.get_compte(db, virement.compte_destination_id)
     if compte_destination is None:
         raise HTTPException(status_code=404, detail="Compte destination introuvable")
+
+    _refuser_comptes_eteints(compte_source, compte_destination)
 
     # Chaque jambe porte sa propre monnaie, chacune devant appartenir au compte
     # qu'elle touche : c'est ce qui rend un virement entre monnaies possible
@@ -84,6 +101,12 @@ def update_virement(
     compte_destination = crud.get_compte(db, virement.compte_destination_id)
     if compte_destination is None:
         raise HTTPException(status_code=404, detail="Compte destination introuvable")
+
+    _refuser_comptes_eteints(
+        compte_source,
+        compte_destination,
+        precedents={operation.compte_id for operation in operations},
+    )
 
     _valider_monnaie(db, compte_source, virement.monnaie_id, "source")
     _valider_monnaie(

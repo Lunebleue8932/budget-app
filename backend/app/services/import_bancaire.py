@@ -1741,6 +1741,18 @@ def _resoudre_ligne(
         elif nom_categorie_banque:
             categorie_id = crud.get_mapping_categorie(db, preset_id, nom_categorie_banque)
 
+        # UNE CATÉGORIE ÉTEINTE NE CLASSE PLUS RIEN (cf. models.Categorie.active).
+        # Une règle écrite il y a six mois, ou une correspondance mémorisée,
+        # continuerait sinon d'y ranger des lignes que le formulaire, lui,
+        # refuse d'y mettre. On retombe sur le cas « rien ne classe cette
+        # ligne » — « Autres », en suggestion à confirmer — plutôt que de la
+        # refuser : l'import ne doit pas s'arrêter sur une règle devenue
+        # obsolète, il doit redemander.
+        if categorie_id is not None:
+            categorie_choisie = crud.get_categorie(db, categorie_id)
+            if categorie_choisie is not None and not categorie_choisie.active:
+                categorie_id = None
+
         if categorie_id is None:
             # Ni règle ni correspondance : on propose "Autres" par défaut plutôt
             # que de bloquer la ligne — l'utilisateur confirme ou change ce choix
@@ -2187,6 +2199,50 @@ def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
     return ", ".join(manques) if manques else None
 
 
+def elements_eteints(db) -> tuple[dict, dict]:
+    """(comptes éteints, catégories éteintes), chacun {id: nom}.
+
+    Chargés UNE FOIS pour tout le fichier, comme tout ce qui entoure la
+    résolution d'une ligne : un relevé de trois cents lignes ne doit pas poser
+    six cents requêtes pour vérifier deux drapeaux."""
+    comptes = {
+        compte.id: compte.nom
+        for compte in db.query(models.Compte).filter(models.Compte.actif.is_(False))
+    }
+    categories = {
+        categorie.id: categorie.nom
+        for categorie in db.query(models.Categorie).filter(
+            models.Categorie.active.is_(False)
+        )
+    }
+    return comptes, categories
+
+
+def _erreur_eteints(ligne: schemas.ImportLigne, comptes: dict, categories: dict) -> Optional[str]:
+    """Ce qu'une ligne désigne et qui est ÉTEINT (cf. models.Compte.actif).
+
+    L'IMPORT EST UNE ÉCRITURE COMME UNE AUTRE, et c'est tout l'enjeu : ce que le
+    formulaire d'opération refuse, un relevé ne doit pas pouvoir le faire entrer
+    par la porte de derrière. La ligne est refusée avec un motif qui NOMME
+    l'élément — « compte non résolu » aurait envoyé chercher une colonne mal lue
+    là où il suffit de rallumer.
+
+    Une CATÉGORIE éteinte n'arrive en principe jamais jusqu'ici : la résolution
+    la remplace par « Autres » (cf. _resoudre_ligne). Le test reste, parce que
+    l'aperçu se retouche à la main et qu'une ligne peut en désigner une autre."""
+    motifs = []
+    for compte_id in (ligne.compte_id, ligne.compte_id_autre):
+        if compte_id in comptes:
+            motifs.append(f"le compte « {comptes[compte_id]} » est éteint")
+    ids_categories = [ligne.categorie_id] + [d.categorie_id for d in (ligne.decoupes or [])]
+    for categorie_id in ids_categories:
+        if categorie_id in categories:
+            motifs.append(f"la catégorie « {categories[categorie_id]} » est éteinte")
+    # Un virement vers son propre compte éteint dirait deux fois la même chose.
+    uniques = list(dict.fromkeys(motifs))
+    return ", ".join(uniques) if uniques else None
+
+
 def _statut_operation(ligne: schemas.ImportLigne) -> Statut:
     """Réel, sauf pour une ligne que la banque annonce en attente.
 
@@ -2564,6 +2620,11 @@ def confirmer(
             f"configuration avancée, ou corrige la colonne de devise qui la qualifie."
         )
 
+    # Chargés une fois pour tout le fichier (cf. elements_eteints) : ce que le
+    # formulaire d'opération refuse, un relevé ne doit pas le faire entrer par
+    # la porte de derrière.
+    comptes_eteints, categories_eteintes = elements_eteints(db)
+
     operations_creees = 0
     lignes_ignorees = []
     doublons_detectes = 0
@@ -2679,8 +2740,11 @@ def confirmer(
                 if ligne.erreur and ligne.erreur != avant:
                     erreur_frais = ligne.erreur
         manques = _erreur_ligne(ligne)
+        eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes)
         ligne = ligne.model_copy(
-            update={"erreur": ", ".join(m for m in (manques, erreur_frais) if m) or None}
+            update={
+                "erreur": ", ".join(m for m in (manques, eteints, erreur_frais) if m) or None
+            }
         )
 
         if ligne.erreur:

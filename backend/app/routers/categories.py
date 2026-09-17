@@ -153,6 +153,45 @@ def set_entree_categorie(
     return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
 
 
+@router.put("/{categorie_id}/etat", response_model=schemas.CategorieRead)
+def set_etat_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieEtatUpdate,
+    db: Session = Depends(get_db),
+):
+    """Allume ou éteint une catégorie (migration 0063).
+
+    CE QUE L'EXTINCTION CHANGE : la catégorie quitte les menus où l'on SAISIT —
+    le formulaire d'opération, l'éditeur de règles, les correspondances
+    d'import, la page Budget — et le serveur refuse une nouvelle écriture qui la
+    désignerait (cf. crud.erreur_categorie_eteinte).
+
+    CE QU'ELLE NE CHANGE PAS : tout le reste. Ses opérations gardent leur
+    catégorie, comptent dans les soldes et dans sa barre d'histogramme tant
+    qu'elles sont dans la période regardée. Une catégorie rangée en septembre ne
+    doit rien retirer au mois de mars.
+
+    RALLUMER NE DEMANDE RIEN, comme pour une monnaie : c'est le geste qui rend
+    visible, jamais celui qui cache."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    # « Autres » NE S'ÉTEINT PAS. L'application la cherche par son nom : c'est
+    # le repli d'une opération dont on supprime la catégorie, et la suggestion
+    # d'une ligne importée qu'aucune règle ne classe. Éteinte, ces deux chemins
+    # désigneraient une catégorie que le serveur refuse par ailleurs d'accepter.
+    if not updates.active and db_categorie.nom == CATEGORIE_AUTRES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {CATEGORIE_AUTRES} » ne s'éteint pas : c'est là que retombent "
+                "les opérations dont la catégorie est supprimée, et les lignes "
+                "importées qu'aucune règle ne classe."
+            ),
+        )
+    return crud.set_categorie_active(db, db_categorie, updates.active)
+
+
 @router.put("/reordonner", response_model=list[schemas.CategorieRead])
 def reordonner_categories(payload: schemas.ReordonnerCategoriesInput, db: Session = Depends(get_db)):
     """Applique le nouvel ordre d'affichage issu d'un glisser-déposer côté

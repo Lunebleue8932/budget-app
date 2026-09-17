@@ -131,6 +131,25 @@ class Categorie(Base):
     # d'office aurait fait bouger des soldes déjà rapprochés d'un relevé.
     est_entree = Column(Boolean, nullable=False, default=False)
 
+    # UNE CATÉGORIE ÉTEINTE (migration 0063) : plus proposée nulle part, et
+    # toujours là. Même geste et même mot que `CompteMonnaie.active` — une
+    # catégorie dont on ne se sert plus encombrait tous les menus pour toujours,
+    # la supprimer renvoyant ses opérations dans « Autres ».
+    #
+    # CE QUI CHANGE EST LA SAISIE, ET ELLE SEULE : le formulaire d'opération,
+    # l'éditeur de règles, les correspondances d'import et la page Budget ne la
+    # proposent plus, et le serveur refuse une NOUVELLE écriture qui la
+    # désignerait. Ce qui est déjà écrit ne bouge pas d'un centime : ses
+    # opérations comptent dans les soldes, les KPI et sa barre d'histogramme
+    # comme avant — sans quoi le total d'un mois passé changerait le jour où on
+    # range une catégorie.
+    #
+    # ELLE DISPARAÎT DES GRAPHES QUAND ELLE NE PORTE RIEN, et seulement alors
+    # (cf. soldes.get_depenses_par_categorie) : une catégorie allumée à zéro
+    # garde sa barre, elle a quelque chose à dire ; une catégorie éteinte à
+    # zéro n'a plus rien à dire du tout.
+    active = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+
     __table_args__ = (
         CheckConstraint(
             "objectif_pourcentage >= 0 AND objectif_pourcentage <= 100",
@@ -396,6 +415,18 @@ class Compte(Base):
     # d'avant ne laissait aucun moyen de mettre en tête le compte qu'on regarde
     # le plus.
     ordre = Column(Integer, nullable=False, default=0)
+    # UN COMPTE ÉTEINT (migration 0063) : un compte clôturé, qu'on ne veut plus
+    # voir proposé, et dont l'historique doit rester. Même mécanisme que
+    # `CompteMonnaie.active`, d'un cran au-dessus — c'est le compte entier qui
+    # s'éteint, ses monnaies avec.
+    #
+    # AUCUNE NOUVELLE ÉCRITURE : ni opération, ni virement, ni ligne importée.
+    # Les anciennes restent, et le compte DISPARAÎT DES ÉCRANS DE SOLDE TANT
+    # QU'IL NE PORTE RIEN (cf. soldes.get_soldes_comptes) : sur une période où
+    # il portait encore de l'argent, il reparaît tel qu'il était. C'est ce qui
+    # permet de l'éteindre sans rien exiger — un solde qui n'est pas nul reste
+    # affiché, donc rien ne disparaît en silence.
+    actif = Column(Boolean, nullable=False, default=True, server_default=sa_true())
 
     operations = relationship("Operation", back_populates="compte")
     type_compte = relationship("TypeCompte")

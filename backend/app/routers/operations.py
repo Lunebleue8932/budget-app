@@ -106,6 +106,27 @@ def _valider_categorie(db: Session, categorie_id: int) -> models.Categorie:
     return categorie
 
 
+def _refuser_eteint(
+    compte: Optional[models.Compte] = None,
+    categorie: Optional[models.Categorie] = None,
+    compte_precedent_id: Optional[int] = None,
+    categorie_precedente_id: Optional[int] = None,
+) -> None:
+    """Un compte ou une catégorie ÉTEINTS n'acceptent plus de nouvelle écriture
+    (cf. crud.erreur_compte_eteint).
+
+    LES `precedent_id` SONT CE QUI REND LA MODIFICATION POSSIBLE : une opération
+    déjà rangée là se rouvre, se corrige et s'enregistre comme avant. Ce qui est
+    refusé est le geste qui DÉSIGNE l'élément éteint, jamais celui qui le laisse
+    où il est."""
+    for erreur in (
+        crud.erreur_compte_eteint(compte, compte_precedent_id),
+        crud.erreur_categorie_eteinte(categorie, categorie_precedente_id),
+    ):
+        if erreur:
+            raise HTTPException(status_code=400, detail=erreur)
+
+
 def _cible_valide_pour_reglement(depense: models.Operation, code_reglement: str) -> bool:
     """Un règlement ne peut viser qu'un seul type de cible : un remboursement
     reçu solde une dépense remboursable, un remboursement de prêt solde un prêt
@@ -356,8 +377,10 @@ def create_operation(operation: schemas.OperationCreate, db: Session = Depends(g
     code = type_operation.code
     # La catégorie n'est exigée (et validée) que pour les types qui l'admettent :
     # pour les autres, crud.create_operation la neutralise de toute façon.
+    categorie = None
     if TypeOperation(code) in TYPES_AVEC_CATEGORIE_LIBRE and operation.categorie_id is not None:
-        _valider_categorie(db, operation.categorie_id)
+        categorie = _valider_categorie(db, operation.categorie_id)
+    _refuser_eteint(compte=compte, categorie=categorie)
 
     if operation.operations_remboursees and TypeOperation(code) not in TYPES_REGLEMENT:
         raise HTTPException(
@@ -440,11 +463,18 @@ def update_operation(
     code_final = db_operation.type_code
     if updates.type_id is not None and updates.type_id != db_operation.type_id:
         code_final = _valider_type(db, updates.type_id).code
+    categorie_finale = None
     if (
         TypeOperation(code_final) in TYPES_AVEC_CATEGORIE_LIBRE
         and updates.categorie_id is not None
     ):
-        _valider_categorie(db, updates.categorie_id)
+        categorie_finale = _valider_categorie(db, updates.categorie_id)
+    _refuser_eteint(
+        compte=compte_final,
+        categorie=categorie_finale,
+        compte_precedent_id=db_operation.compte_id,
+        categorie_precedente_id=db_operation.categorie_id,
+    )
 
     montant = updates.montant if updates.montant is not None else db_operation.montant
     # LE `montant_du` QU'AURA L'OPÉRATION APRÈS COUP, pas celui qu'elle porte.

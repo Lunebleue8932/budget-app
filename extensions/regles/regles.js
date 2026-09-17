@@ -593,7 +593,10 @@ function ajouterPartDecoupeRegle(categorieId = null, formule = "") {
   `;
   conteneur.appendChild(ligne);
   const select = ligne.querySelector(".regle-decoupe-categorie");
-  fillCategoriesSelect(select, state.categories, { keepFirst: true });
+  // UNE CATÉGORIE ÉTEINTE NE CLASSE PLUS RIEN (cf. categoriesProposables du
+  // noyau) : elle quitte le menu, sauf si cette part la désigne déjà — auquel
+  // cas rouvrir la règle l'aurait reclassée en silence.
+  fillCategoriesSelect(select, categoriesProposables(categorieId ?? null), { keepFirst: true });
   if (categorieId != null) select.value = categorieId;
   ligne.querySelector("[data-role='supprimer-part']").addEventListener("click", () => {
     ligne.remove();
@@ -643,7 +646,11 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-type").value = regle ? regle.type_code : "classique";
 
   _refillPreservingSelection(document.getElementById("regle-categorie"), (el) =>
-    fillCategoriesSelect(el, state.categories, { keepFirst: true })
+    fillCategoriesSelect(
+      el,
+      categoriesProposables(regle && regle.categorie_id != null ? regle.categorie_id : null),
+      { keepFirst: true }
+    )
   );
   regleCategorieMemorisee = regle && regle.categorie_id != null ? String(regle.categorie_id) : "";
   document.getElementById("regle-categorie").value = regleCategorieMemorisee;

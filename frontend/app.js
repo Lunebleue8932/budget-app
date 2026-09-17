@@ -4359,7 +4359,12 @@ async function loadComptes() {
 
 function construireLigneCompte(compte) {
   const ligne = document.createElement("div");
-  ligne.className = "import-mapping-row";
+  // UN COMPTE ÉTEINT RESTE LISTÉ ICI, barré : c'est la ligne d'où on le
+  // rallume, et un compte qu'on ne voit nulle part ne se rallume pas. Partout
+  // ailleurs il disparaît dès qu'il ne porte plus rien (cf.
+  // services/soldes.get_soldes_comptes) — même règle qu'une monnaie éteinte.
+  const eteint = compte.actif === false;
+  ligne.className = eteint ? "import-mapping-row ligne-eteinte" : "import-mapping-row";
   ligne.dataset.id = compte.id;
   ligne.innerHTML = `
     <span class="drag-handle" title="${t("Glisser pour réordonner, ou vers une autre carte pour changer de type")}">⠿</span>
@@ -4380,6 +4385,12 @@ function construireLigneCompte(compte) {
       .map((m) => formatMontant(m.solde_initial, m.monnaie_id))
       .join(" · ")}</span>
     <button type="button" data-action="edit" data-id="${compte.id}">${t("Modifier")}</button>
+    <button type="button" data-action="etat" data-id="${compte.id}"
+            title="${escapeHtml(
+              t(
+                "Un compte éteint n'est plus proposé à la saisie ni à l'import. Ses opérations restent en base, et il reparaît sur une période où il portait encore de l'argent."
+              )
+            )}">${eteint ? t("Rallumer") : t("Éteindre")}</button>
     <button type="button" data-action="delete" data-id="${compte.id}" class="danger">${t("Supprimer")}</button>
   `;
   // Déplaçable par sa poignée seulement : le nom du compte reste copiable.
@@ -4397,6 +4408,24 @@ function cablerActionsComptes(conteneur) {
     btn.addEventListener("click", () => {
       const compte = state.comptes.find((c) => c.id === Number(btn.dataset.id));
       fillCompteForm(compte, btn.closest(".import-mapping-row"));
+    });
+  });
+
+  conteneur.querySelectorAll("button[data-action='etat']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const compte = state.comptes.find((c) => c.id === Number(btn.dataset.id));
+      if (!compte) return;
+      try {
+        await apiFetch(`/comptes/${compte.id}/etat`, {
+          method: "PUT",
+          body: JSON.stringify({ actif: compte.actif === false }),
+        });
+        showMessage(compte.actif === false ? t("Compte rallumé") : t("Compte éteint"), "success");
+        await refreshComptes();
+        loadComptes();
+      } catch (err) {
+        showMessage(err.message, "error");
+      }
     });
   });
 
@@ -4691,10 +4720,25 @@ function renderCategories() {
   state.categories.forEach((c) => {
     const tr = document.createElement("tr");
     tr.dataset.id = c.id;
-    const deleteAction =
-      c.nom === CATEGORIE_AUTRES
-        ? ""
-        : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
+    // UNE CATÉGORIE ÉTEINTE RESTE LISTÉE ICI, barrée : c'est la ligne d'où on
+    // la rallume. Ailleurs — menus de saisie, règles, page Budget — elle a
+    // disparu, et sa barre d'histogramme ne subsiste que sur les périodes où
+    // elle porte des dépenses.
+    const eteinte = c.active === false;
+    if (eteinte) tr.classList.add("ligne-eteinte");
+    // « Autres » ne s'éteint pas plus qu'elle ne se supprime : c'est le repli
+    // d'une opération dont on retire la catégorie (le serveur refuse aussi).
+    const estAutres = c.nom === CATEGORIE_AUTRES;
+    const deleteAction = estAutres
+      ? ""
+      : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
+    const etatAction = estAutres
+      ? ""
+      : `<button data-action="etat" data-id="${c.id}" title="${escapeHtml(
+          t(
+            "Une catégorie éteinte n'est plus proposée à la saisie, ni par les règles d'import, ni sur la page Budget. Ses opérations restent en base et gardent leur barre sur les périodes où elles tombent."
+          )
+        )}">${eteinte ? t("Rallumer") : t("Éteindre")}</button>`;
     tr.innerHTML = `
       <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
       <td>${escapeHtml(libelleCategorie(c.nom))}${
@@ -4706,6 +4750,7 @@ function renderCategories() {
       }</td>
       <td>
         <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
+        ${etatAction}
         ${deleteAction}
       </td>
     `;
@@ -4726,6 +4771,26 @@ function renderCategories() {
     btn.addEventListener("click", () =>
       editerCategorie(Number(btn.dataset.id), btn.closest("tr"))
     );
+  });
+
+  body.querySelectorAll("button[data-action='etat']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const categorie = state.categories.find((c) => c.id === Number(btn.dataset.id));
+      if (!categorie) return;
+      try {
+        await apiFetch(`/categories/${categorie.id}/etat`, {
+          method: "PUT",
+          body: JSON.stringify({ active: categorie.active === false }),
+        });
+        showMessage(
+          categorie.active === false ? t("Catégorie rallumée") : t("Catégorie éteinte"),
+          "success"
+        );
+        loadCategories();
+      } catch (err) {
+        showMessage(err.message, "error");
+      }
+    });
   });
 
   body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
@@ -4830,16 +4895,49 @@ document.getElementById("categorie-annuler").addEventListener("click", resetCate
 
 /* ---------- Opérations ---------- */
 
-function comptesEligibles(type) {
+/**
+ * Les comptes qu'un menu de saisie peut proposer pour ce type d'opération.
+ *
+ * LES ÉTEINTS EN SONT ABSENTS (cf. models.Compte.actif, la même règle côté
+ * serveur), exactement comme les monnaies éteintes le sont de `monnaiesDuCompte`
+ * — c'est ce qui fait qu'éteindre un compte le retire de tous les menus sans
+ * toucher à une seule opération.
+ *
+ * `conserve` RATTRAPE LE SEUL CAS OÙ ÇA NE SUFFIT PAS : rouvrir une opération
+ * écrite sur un compte depuis éteint. Sans lui, le menu ne contiendrait pas son
+ * compte, le `select` retomberait en silence sur un autre, et enregistrer sans
+ * y toucher aurait déplacé l'opération de compte.
+ */
+function comptesEligibles(type, conserve = null) {
   // Seul un virement interne peut toucher l'épargne et les comptes-titres :
   // sur ces comptes, l'argent n'arrive et ne repart pas autrement (cf.
   // routers/operations._valider_compte_operations_libres).
-  if (type === "virement") return state.comptes;
-  return state.comptes.filter((c) => !TYPES_COMPTE_HORS_COURANT.has(c.type_nom));
+  const parType =
+    type === "virement"
+      ? state.comptes
+      : state.comptes.filter((c) => !TYPES_COMPTE_HORS_COURANT.has(c.type_nom));
+  return parType.filter((c) => c.actif !== false || c.id === conserve);
 }
 
-function categoriesEligibles(type) {
-  return TYPES_CATEGORIE_LIBRE.has(type) ? state.categories : [];
+/** Même règle pour les catégories (cf. models.Categorie.active). */
+function categoriesEligibles(type, conserve = null) {
+  if (!TYPES_CATEGORIE_LIBRE.has(type)) return [];
+  return state.categories.filter((c) => c.active !== false || c.id === conserve);
+}
+
+/**
+ * LES MÊMES DEUX RÈGLES, POUR LES MENUS QUI NE DÉPENDENT PAS D'UN TYPE
+ * D'OPÉRATION : le compte lié à un preset, le compte par défaut d'un import, la
+ * cible d'une correspondance, la catégorie d'une ligne d'aperçu. Tous désignent
+ * où ira une écriture À VENIR — un élément éteint n'y a donc plus sa place,
+ * sauf s'il est déjà celui qui y est posé (`conserve`).
+ */
+function comptesProposables(conserve = null) {
+  return state.comptes.filter((c) => c.actif !== false || c.id === conserve);
+}
+
+function categoriesProposables(conserve = null) {
+  return state.categories.filter((c) => c.active !== false || c.id === conserve);
 }
 
 function compteParId(compteId) {
@@ -5179,20 +5277,23 @@ function updateOperationTypeFields() {
   montantField.readOnly = estReglement;
   montantField.disabled = estReglement;
 
+  // CE QUE LE MENU PORTE DÉJÀ RESTE PROPOSÉ, même éteint : c'est l'opération
+  // qu'on est en train de rouvrir (cf. comptesEligibles).
+  const valeurDe = (el) => Number(el.value) || null;
   if (estVirement) {
     _refillPreservingSelection(document.getElementById("operation-compte1"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type))
+      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
     );
     _refillPreservingSelection(document.getElementById("operation-compte2"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type))
+      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
     );
   } else {
     _refillPreservingSelection(document.getElementById("operation-compte"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type))
+      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
     );
     if (TYPES_CATEGORIE_LIBRE.has(type)) {
       _refillPreservingSelection(document.getElementById("operation-categorie"), (el) =>
-        fillCategoriesSelect(el, categoriesEligibles(type))
+        fillCategoriesSelect(el, categoriesEligibles(type, valeurDe(el)))
       );
     }
   }
@@ -5679,7 +5780,10 @@ function ajouterPartDecoupe(categorieId = null, montant = null) {
   `;
   conteneur.appendChild(ligne);
   const select = ligne.querySelector(".decoupe-categorie");
-  fillCategoriesSelect(select, categoriesEligibles(TYPE_DECOUPABLE));
+  // `categorieId` est celle que la part PORTE DÉJÀ : elle reste dans le menu
+  // même éteinte, sans quoi rouvrir une découpe ancienne l'aurait reclassée en
+  // silence (cf. comptesEligibles).
+  fillCategoriesSelect(select, categoriesEligibles(TYPE_DECOUPABLE, categorieId));
   if (categorieId != null) select.value = categorieId;
   majTotalDecoupe();
 }
@@ -8458,7 +8562,7 @@ function renderImportReglagesLecture() {
  */
 function renderImportPresetCompte(compteId) {
   const select = document.getElementById("import-preset-compte");
-  fillComptesSelect(select, state.comptes, { keepFirst: true });
+  fillComptesSelect(select, comptesProposables(compteId ?? null), { keepFirst: true });
   select.value = compteId != null ? String(compteId) : "";
   updateImportPresetCompteAvertissement();
 }
@@ -9265,7 +9369,7 @@ function toggleImportCompteDefautBloc() {
 function updateImportCompteDefautVisibility() {
   toggleImportCompteDefautBloc();
   _refillPreservingSelection(document.getElementById("import-compte-defaut"), (el) =>
-    fillComptesSelect(el, state.comptes, { keepFirst: true })
+    fillComptesSelect(el, comptesProposables(Number(el.value) || null), { keepFirst: true })
   );
 }
 
@@ -9737,7 +9841,7 @@ function renderImportMappings() {
   compteBloc.innerHTML = "";
   importApercu.comptes_inconnus.forEach((nomBanque) => {
     compteBloc.appendChild(
-      creerLigneMapping(nomBanque, state.comptes, importMappingComptes, () => {
+      creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, () => {
         appliquerMappingsLocalement();
         renderImportApercu();
       })
@@ -10886,7 +10990,7 @@ function creerChampCompteAvecIndice(valeurInitiale) {
   placeholder.value = "";
   placeholder.textContent = "- À choisir -";
   select.appendChild(placeholder);
-  fillComptesSelect(select, state.comptes, { keepFirst: true });
+  fillComptesSelect(select, comptesProposables(valeurInitiale ?? null), { keepFirst: true });
 
   let confirme = valeurInitiale !== null && valeurInitiale !== undefined;
   if (confirme) {
@@ -11517,7 +11621,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       const label = document.createElement("label");
       label.textContent = "Catégorie";
       selectCategorie = document.createElement("select");
-      state.categories.forEach((c) => {
+      categoriesProposables(ligne.categorie_id ?? null).forEach((c) => {
         const opt = document.createElement("option");
         opt.value = c.id;
         opt.textContent = c.nom;
@@ -12705,7 +12809,7 @@ function renderImportMappingsOverview(mappings) {
   } else {
     mappings.comptes.forEach((m) => {
       compteBloc.appendChild(
-        _creerLigneMappingActuel(m.nom_banque, m.compte_id, state.comptes, {
+        _creerLigneMappingActuel(m.nom_banque, m.compte_id, comptesProposables(m.compte_id), {
           onChange: async (compteId) => {
             try {
               await _appliquerATousLesPresets(m.preset_ids, "/mappings/compte", {

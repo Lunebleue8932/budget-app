@@ -160,7 +160,7 @@ def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
     ne se réécrit pas, et un « Total des avoirs » de mars ne perd rien parce
     qu'on a soldé son compte en dollars en juin.
     """
-    return [
+    lisibles = [
         {
             "compte": item["compte"],
             "soldes": {
@@ -170,6 +170,18 @@ def get_soldes_comptes(db: Session, date_fin: Optional[date_type] = None):
             },
         }
         for item in soldes_de_tous_les_liens(db, date_fin=date_fin)
+    ]
+    # UN COMPTE ÉTEINT DISPARAÎT TANT QU'IL NE PORTE RIEN (cf.
+    # models.Compte.actif) — exactement la règle d'une monnaie éteinte, d'un
+    # cran au-dessus. C'est ce qui permet de l'éteindre SANS RIEN EXIGER : tant
+    # qu'il reste de l'argent dessus, sa carte est là, et aucun total ne perd
+    # quoi que ce soit en silence. Sur une période antérieure, il reparaît tel
+    # qu'il était.
+    return [
+        item
+        for item in lisibles
+        if item["compte"].actif
+        or any(not solde_entierement_nul(solde) for solde in item["soldes"].values())
     ]
 
 
@@ -909,6 +921,9 @@ def get_depenses_par_categorie(
     (cf. partsCategoriesDashboard), ce qui était la seule raison de filtrer si
     tôt.
 
+    UNE CATÉGORIE ÉTEINTE (`Categorie.active`, migration 0063) N'EST RENDUE QUE
+    SI ELLE PORTE QUELQUE CHOSE sur la période — voir la boucle plus bas.
+
     ET SAUF LES CATÉGORIES D'ENTRÉE (`Categorie.est_entree`, migration 0060). Une
     catégorie dont les opérations sont des ENTRÉES ne peut rien porter ici : les
     sommes ne comptent que le sens « dépense », et c'est ce filtre qui fait que
@@ -935,6 +950,16 @@ def get_depenses_par_categorie(
     for categorie in categories:
         valeur_reelle = reel.get(categorie.nom, 0.0)
         valeur_previsionnelle = valeur_reelle + previsionnel_seul.get(categorie.nom, 0.0)
+        # UNE CATÉGORIE ÉTEINTE DISPARAÎT QUAND ELLE NE PORTE RIEN (cf.
+        # models.Categorie.active). Une catégorie allumée garde sa barre à zéro,
+        # elle a quelque chose à dire — « rien dépensé ce mois-ci » ; une
+        # catégorie qu'on a rangée n'a plus rien à dire du tout. Mais elle
+        # REPARAÎT dès qu'on regarde une période où elle porte des dépenses :
+        # sans quoi la somme des barres cesserait de valoir le total des sorties
+        # affiché juste au-dessus, et le mois de mars changerait le jour où l'on
+        # fait le ménage dans ses catégories.
+        if not categorie.active and not valeur_reelle and not valeur_previsionnelle:
+            continue
         resultats.append(
             {
                 "categorie": categorie.nom,

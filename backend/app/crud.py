@@ -188,10 +188,17 @@ def erreur_objectif_pourcentage(
     Mieux vaut refuser la saisie que fabriquer un état dont on ne peut plus
     sortir.
 
-    LA SOMME PORTE SUR TOUTES LES CATÉGORIES, y compris celles qui sont éteintes
-    du dashboard : un objectif est une propriété de la catégorie, pas un réglage
-    d'affichage. Sinon, rallumer une catégorie aurait pu faire basculer le total
-    au-dessus de 100 sans qu'aucune saisie n'ait eu lieu.
+    LA SOMME PORTE SUR TOUTES LES CATÉGORIES, y compris celles qu'un filtre
+    masque et CELLES QUI SONT ÉTEINTES (`active`, migration 0063) : un objectif
+    est une propriété de la catégorie, pas un réglage d'affichage. Sinon,
+    rallumer une catégorie aurait pu faire basculer le total au-dessus de 100
+    sans qu'aucune saisie n'ait eu lieu.
+
+    UNE CATÉGORIE ÉTEINTE QUI GARDE UN OBJECTIF RÉSERVE DONC SA PART, et le
+    message le DIT — elle ne paraît plus sur la page Budget, et un plafond
+    inexpliqué envoie compter à la main les dix-neuf autres lignes. Pour libérer
+    cette part : rallumer, ramener l'objectif à zéro, rééteindre. Trois gestes,
+    mais aucune saisie effacée dans le dos de qui l'a écrite.
 
     SAUF LES CATÉGORIES D'ENTRÉE (`est_entree`, migration 0060), qui n'ont pas
     de part à viser et ne paraissent donc pas sur la page Budget. Un objectif
@@ -208,19 +215,29 @@ def erreur_objectif_pourcentage(
     et une somme de flottants qui vaut 100.00000000000001 n'est pas une faute de
     l'utilisateur.
     """
-    autres = (
-        db.query(func.coalesce(func.sum(models.Categorie.objectif_pourcentage), 0.0))
-        .filter(models.Categorie.id != db_categorie.id)
-        .filter(models.Categorie.est_entree.is_(False))
-        .scalar()
-        or 0.0
-    )
+    def somme(*filtres):
+        requete = (
+            db.query(func.coalesce(func.sum(models.Categorie.objectif_pourcentage), 0.0))
+            .filter(models.Categorie.id != db_categorie.id)
+            .filter(models.Categorie.est_entree.is_(False))
+        )
+        for filtre in filtres:
+            requete = requete.filter(filtre)
+        return requete.scalar() or 0.0
+
+    autres = somme()
     total = autres + pourcentage
     if total <= 100.0 + 1e-3:
         return None
+    part_eteinte = somme(models.Categorie.active.is_(False))
+    precision = (
+        f" (dont {part_eteinte:.1f} % sur des catégories éteintes)"
+        if part_eteinte > 1e-3
+        else ""
+    )
     return (
         f"La somme des objectifs dépasserait 100 % ({total:.1f} %). "
-        f"Les autres catégories en portent déjà {autres:.1f} % : "
+        f"Les autres catégories en portent déjà {autres:.1f} %{precision} : "
         f"celle-ci ne peut pas dépasser {max(0.0, 100.0 - autres):.1f} %."
     )
 
@@ -891,6 +908,68 @@ def get_operation(db: Session, operation_id: int):
 # Écart en deçà duquel deux montants sont le même : une saisie au centime passe
 # par des flottants, où 100.0 peut arriver en 99.99999999999999.
 TOLERANCE_MONTANT = 1e-9
+
+
+# ---------- Ce qui est ÉTEINT n'accepte plus de nouvelle écriture ----------
+#
+# UN COMPTE ET UNE CATÉGORIE S'ÉTEIGNENT (migration 0063) comme une monnaie de
+# compte avant eux : ils disparaissent des menus, ils gardent leur histoire.
+# Les deux fonctions ci-dessous sont LA règle, et les routeurs les appellent
+# plutôt que de la reposer chacun à sa façon — une porte d'entrée qui aurait
+# oublié le test aurait suffi à rendre l'extinction décorative.
+#
+# CE QU'ELLES NE REFUSENT JAMAIS, et c'est la moitié qui compte : l'opération
+# qui PORTAIT DÉJÀ cet élément. Rouvrir une dépense ancienne pour corriger sa
+# date, et se la voir refuser parce que sa catégorie a été rangée entre-temps,
+# reviendrait à figer tout ce qui a été écrit avant l'extinction. D'où le
+# `precedent_id` : on refuse le geste qui DÉSIGNE un élément éteint, pas celui
+# qui le laisse là où il est.
+
+
+def erreur_compte_eteint(
+    compte: Optional[models.Compte], precedent_id: Optional[int] = None
+) -> Optional[str]:
+    """La phrase à rendre si ce compte est éteint, ou None."""
+    if compte is None or compte.actif or compte.id == precedent_id:
+        return None
+    return (
+        f"Le compte « {compte.nom} » est éteint : rallume-le depuis Paramètres → "
+        "Comptes pour y écrire de nouveau."
+    )
+
+
+def erreur_categorie_eteinte(
+    categorie: Optional[models.Categorie], precedent_id: Optional[int] = None
+) -> Optional[str]:
+    """La phrase à rendre si cette catégorie est éteinte, ou None."""
+    if categorie is None or categorie.active or categorie.id == precedent_id:
+        return None
+    return (
+        f"La catégorie « {categorie.nom} » est éteinte : rallume-la depuis "
+        "Paramètres → Catégories pour y ranger de nouveau des opérations."
+    )
+
+
+def set_compte_actif(db: Session, db_compte: models.Compte, actif: bool) -> models.Compte:
+    """Allume ou éteint un compte. RIEN N'EST SUPPRIMÉ ni recalculé : ses
+    opérations restent, ses soldes aussi, et il reparaît sur toute période où il
+    portait quelque chose (cf. soldes.get_soldes_comptes)."""
+    db_compte.actif = bool(actif)
+    db.commit()
+    db.refresh(db_compte)
+    return db_compte
+
+
+def set_categorie_active(
+    db: Session, db_categorie: models.Categorie, active: bool
+) -> models.Categorie:
+    """Allume ou éteint une catégorie. Mêmes garanties que pour un compte : les
+    opérations déjà rangées là gardent leur catégorie, et sa barre
+    d'histogramme reste tant qu'elle porte des dépenses."""
+    db_categorie.active = bool(active)
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
 
 
 def erreur_montant_du(

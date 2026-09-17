@@ -748,7 +748,13 @@ async function abCharger() {
     // demandé deux chiffres auxquels il n'y a rien à répondre. Le serveur les
     // écarte de la même façon du plafond des objectifs et de l'histogramme des
     // dépenses — c'est la même question, posée trois fois.
-    abCategories = categories.filter((c) => !c.est_entree);
+    // UNE CATÉGORIE ÉTEINTE NON PLUS (`active`, migration 0063) : aucune
+    // nouvelle dépense n'y tombera, lui demander une enveloppe et une part
+    // reviendrait à répartir un budget sur ce qu'on vient justement de ranger.
+    // Son objectif déjà écrit, lui, continue de compter dans le plafond des
+    // 100 % — et le serveur le dit quand il refuse (cf.
+    // crud.erreur_objectif_pourcentage).
+    abCategories = categories.filter((c) => !c.est_entree && c.active !== false);
     abBudgets = Object.fromEntries(
       budgets.map((b) => [b.categorie_id, { montant: b.montant, explicite: b.explicite }])
     );

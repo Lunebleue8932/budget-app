@@ -4901,6 +4901,18 @@ td.apercu-col-hors-fichier {
   text-decoration: line-through;
 }
 
+/* La ligne d'un COMPTE ou d'une CATÉGORIE éteints (cf. models.Compte.actif) :
+   grisée et barrée, sur les deux écrans d'où on les rallume. Seul le NOM est
+   barré, pas la rangée entière — les boutons d'action doivent rester lisibles,
+   c'est par eux qu'on revient en arrière. */
+.ligne-eteinte > td:not(:last-child),
+.ligne-eteinte > .import-mapping-nom,
+.ligne-eteinte > .compte-ligne-monnaies,
+.ligne-eteinte > .compte-ligne-solde {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
 /* La case « Active » de la ligne d'une monnaie, dans le formulaire de compte.
    Grisée quand le solde n'est pas nul : on ne peut pas éteindre une monnaie qui
    porte encore quelque chose, et la raison est dans le `title`. */

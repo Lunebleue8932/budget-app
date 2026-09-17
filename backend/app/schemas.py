@@ -106,6 +106,10 @@ class CompteRead(CompteBase):
     id: int
     type_nom: str
     monnaies: list[CompteMonnaieRead]
+    # COMPTE ÉTEINT (cf. models.Compte.actif, migration 0063) : plus proposé à
+    # la saisie, et toujours là. L'écran des comptes le montre barré, c'est de
+    # là qu'on le rallume.
+    actif: bool = True
 
 
 class CategorieCreate(BaseModel):
@@ -125,6 +129,10 @@ class CategorieRead(BaseModel):
     id: int
     nom: str
     ordre: int
+    # CATÉGORIE ÉTEINTE (cf. models.Categorie.active, migration 0063) : plus
+    # proposée à la saisie, et toujours là. Les écrans qui font SAISIR la
+    # filtrent, ceux qui font LIRE l'historique la gardent.
+    active: bool = True
     # Couleur de la catégorie dans l'histogramme, sous forme d'index de palette
     # (cf. models.Categorie.couleur_index).
     couleur_index: int = 0
@@ -145,6 +153,23 @@ class CategorieEntreeUpdate(BaseModel):
     case qu'on n'a pas touchée."""
 
     est_entree: bool
+
+
+class CategorieEtatUpdate(BaseModel):
+    """L'interrupteur d'une catégorie, isolé comme le drapeau d'entrée et
+    l'objectif le sont déjà : trois gestes différents, trois routes, et
+    renommer n'éteint jamais rien par mégarde."""
+
+    active: bool
+
+
+class CompteEtatUpdate(BaseModel):
+    """L'interrupteur d'un compte. À part de `CompteUpdate` pour la même raison,
+    et parce que celui-ci remplace TOUTE la liste des monnaies : éteindre un
+    compte depuis le formulaire aurait demandé de renvoyer une configuration
+    entière pour basculer un booléen."""
+
+    actif: bool
 
 
 class CategorieObjectifUpdate(BaseModel):

@@ -1931,6 +1931,17 @@ const TRADUCTIONS = {
       "Uncheck so this currency is no longer offered when entering a transaction, nor guessed on import. Transactions already recorded stay in the database.",
     "Le solde de ce compte dans cette monnaie n'est pas nul : vire ce qui reste ailleurs avant d'éteindre.":
       "This account's balance in that currency is not zero: move what is left elsewhere before switching it off.",
+    // ----- Un compte ou une catégorie éteints (migration 0063) -----
+    "Éteindre": "Switch off",
+    "Rallumer": "Switch back on",
+    "Compte éteint": "Account switched off",
+    "Compte rallumé": "Account switched back on",
+    "Catégorie éteinte": "Category switched off",
+    "Catégorie rallumée": "Category switched back on",
+    "Un compte éteint n'est plus proposé à la saisie ni à l'import. Ses opérations restent en base, et il reparaît sur une période où il portait encore de l'argent.":
+      "A switched-off account is no longer offered when entering a transaction or importing. Its transactions stay in the database, and it reappears over any period where it still held money.",
+    "Une catégorie éteinte n'est plus proposée à la saisie, ni par les règles d'import, ni sur la page Budget. Ses opérations restent en base et gardent leur barre sur les périodes où elles tombent.":
+      "A switched-off category is no longer offered when entering a transaction, by import rules, or on the Budget page. Its transactions stay in the database and keep their bar over the periods they fall in.",
     // ----- Extension « Suivi des remboursements » -----
     "Suivi des remboursements": "Repayment tracking",
     // La flèche fait partie du nœud de texte du bouton : le dictionnaire la

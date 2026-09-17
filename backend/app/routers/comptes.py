@@ -42,6 +42,7 @@ def _compte_read(compte: models.Compte, soldes: dict | None = None) -> schemas.C
             )
             for lien in compte.monnaies
         ],
+        actif=compte.actif,
     )
 
 
@@ -156,6 +157,31 @@ def reordonner_comptes(payload: schemas.ReordonnerComptesInput, db: Session = De
     dans l'ordre de déclaration, tenterait de lire "reordonner" comme un id."""
     crud.reordonner_comptes(db, payload.ordre)
     return list_comptes(db)
+
+
+@router.put("/{compte_id}/etat", response_model=schemas.CompteRead)
+def set_etat_compte(
+    compte_id: int, updates: schemas.CompteEtatUpdate, db: Session = Depends(get_db)
+):
+    """Allume ou éteint un compte (migration 0063).
+
+    CE QUE L'EXTINCTION CHANGE : le compte quitte les menus de saisie
+    (opération, virement, import, placements) et le serveur refuse toute
+    nouvelle écriture qui le désignerait (cf. crud.erreur_compte_eteint). Il
+    disparaît en plus des écrans de solde TANT QU'IL NE PORTE RIEN — sur une
+    période où il portait encore de l'argent, il reparaît tel qu'il était.
+
+    ELLE NE DEMANDE RIEN, contrairement à l'extinction d'une MONNAIE, qui exige
+    un solde nul. La différence n'est pas un oubli : une monnaie éteinte
+    disparaît d'une carte de compte qui, elle, reste affichée — le montant
+    s'évanouirait au milieu des autres. Un compte, lui, reste visible tant qu'il
+    porte quelque chose : rien ne peut disparaître en silence, et il n'y a donc
+    rien à interdire."""
+    db_compte = crud.get_compte(db, compte_id)
+    if db_compte is None:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    crud.set_compte_actif(db, db_compte, updates.actif)
+    return _compte_read(db_compte, _soldes_du_compte(db, compte_id))
 
 
 @router.get("/{compte_id}", response_model=schemas.CompteRead)
