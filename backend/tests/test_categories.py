@@ -18,14 +18,50 @@ def test_seed_categories_presentes(db_session):
     assert noms == set(CATEGORIES_TEST)
 
 
-def test_l_application_ne_livre_que_autres():
-    """CE QUE LA BASE NEUVE CONTIENT, et c'est tout (cf. migration 0061).
+def test_l_application_livre_des_categories_d_orientation():
+    """CE QUE LA BASE NEUVE CONTIENT, et c'est tout (migrations 0061 et 0064).
 
-    Les cinq catégories de dépense et la catégorie d'entrée d'autrefois étaient
-    celles d'un budget particulier. « Autres » reste seule parce que
-    l'application la cherche par son nom, et que rien d'autre n'est
-    présupposable du budget de quelqu'un."""
-    assert CATEGORIES_INITIALES == ["Autres"]
+    Quatre postes que tout le monde a, plus les deux protégées. Les six d'avant
+    décrivaient un budget PARTICULIER (« Vêtements & équipement sport ») ;
+    celles-ci orientent sans décrire personne, et se suppriment d'un clic."""
+    assert CATEGORIES_INITIALES == [
+        "Alimentaire",
+        "Loisirs",
+        "Transports",
+        "Charges fixes",
+        "Autres",
+        "Entrées d'argent",
+    ]
+
+
+def test_entrees_d_argent_ne_se_supprime_pas(db_session):
+    """LA SEULE CATÉGORIE D'ENTRÉE LIVRÉE. La supprimer basculerait tous les
+    salaires déjà saisis dans « Autres » — c'est-à-dire du côté des DÉPENSES —
+    et laisserait une base sans nulle part où ranger ce qui rentre."""
+    import pytest
+    from fastapi import HTTPException
+    from app.routers import categories as routeur
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur.delete_categorie(get_categorie_id(db_session, "Entrées d'argent"), db_session)
+
+    assert erreur.value.status_code == 400
+
+
+def test_entrees_d_argent_se_renomme(db_session):
+    """Elle n'est PAS reconnue par son nom : c'est la colonne `est_entree` qui
+    la désigne (migration 0060). « Salaire », « Revenus » — le nom appartient à
+    l'utilisateur, contrairement à celui d'« Autres »."""
+    from app.routers import categories as routeur
+
+    lue = routeur.rename_categorie(
+        get_categorie_id(db_session, "Entrées d'argent"),
+        schemas.CategorieUpdate(nom="Revenus"),
+        db_session,
+    )
+
+    assert lue.nom == "Revenus"
+    assert lue.est_entree is True
 
 
 def test_la_table_ne_contient_que_de_vraies_categories(db_session):

@@ -56,8 +56,12 @@ def _id_categorie(conn, nom: str) -> int:
 
 
 def test_une_base_neuve_n_a_que_autres(tmp_path):
+    """JUSQU'À CETTE RÉVISION, et pas plus loin : la 0064 repose ensuite quatre
+    catégories d'ORIENTATION sur une base neuve (« Alimentaire », « Loisirs »,
+    « Transports », « Charges fixes »), qui ne décrivent le budget de personne.
+    Ce qui se vérifie ici est le nettoyage, pas l'état final."""
     db_path = tmp_path / "neuve.db"
-    _alembic(db_path, "head")
+    _alembic(db_path, "0061")
 
     assert _noms_categories(db_path) == {"Autres"}
 
@@ -144,8 +148,8 @@ def test_une_categorie_creee_par_l_utilisateur_n_est_jamais_touchee(tmp_path):
 
 def test_aucune_categorie_livree_ne_survit_sans_raison(tmp_path):
     """Le complément du test précédent : ce qui n'a jamais servi part, et il
-    n'en reste aucune."""
+    n'en reste aucune. Arrêté à 0061 pour la même raison."""
     db_path = tmp_path / "vide.db"
-    _alembic(db_path, "head")
+    _alembic(db_path, "0061")
 
     assert _noms_categories(db_path) & CATEGORIES_LIVREES_AUTREFOIS == set()

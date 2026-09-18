@@ -1505,6 +1505,11 @@ const TRADUCTIONS = {
     // l'utilisateur cr\u00e9e gardent le nom qu'il leur a donn\u00e9. Seules celles que
     // l'application pose elle-m\u00eame \u00e0 l'installation ont un \u00e9quivalent anglais,
     // et `t()` ne rend que ce qu'il conna\u00eet (cf. libelleCategorie dans app.js).
+    "Alimentaire": "Food & groceries",
+    "Loisirs": "Leisure",
+    "Transports": "Transport",
+    "Charges fixes": "Fixed costs",
+    "Entrées d'argent": "Income",
     "Autres": "Others",
 
     // ---------- Param\u00e8tres : import, annulation d'un import ----------

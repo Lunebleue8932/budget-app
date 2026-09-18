@@ -98,6 +98,11 @@ const state = {
 };
 
 const CATEGORIE_AUTRES = "Autres";
+// La catégorie d'ENTRÉE livrée (cf. constants.CATEGORIE_ENTREES_ARGENT). Elle se
+// renomme librement — c'est la case « catégorie d'entrée » qui la reconnaît,
+// jamais son nom — mais elle ne se SUPPRIME pas : ses opérations basculeraient
+// dans « Autres », donc du côté des dépenses.
+const CATEGORIE_ENTREES_ARGENT = "Entrées d'argent";
 
 // Types dont la catégorie est libre : les quatre autres n'en portent aucune,
 // leur type EST leur classification (cf. constants.TYPES_AVEC_CATEGORIE_LIBRE).
@@ -714,7 +719,11 @@ function fillCategoriesSelect(selectEl, categories, { keepFirst = false } = {}) 
   categories.forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.id;
-    opt.textContent = c.nom;
+    // Par `libelleCategorie` comme partout ailleurs : les catégories livrées
+    // ont un équivalent anglais, celles que l'utilisateur crée ressortent
+    // inchangées. Un menu qui resterait en français sous une interface anglaise
+    // se lirait comme un oubli.
+    opt.textContent = libelleCategorie(c.nom);
     selectEl.appendChild(opt);
   });
 }
@@ -4729,7 +4738,12 @@ function renderCategories() {
     // « Autres » ne s'éteint pas plus qu'elle ne se supprime : c'est le repli
     // d'une opération dont on retire la catégorie (le serveur refuse aussi).
     const estAutres = c.nom === CATEGORIE_AUTRES;
-    const deleteAction = estAutres
+    // DEUX PROTECTIONS DIFFÉRENTES, et elles ne couvrent pas la même chose :
+    // « Autres » ne se supprime ni ne s'éteint (deux chemins la cherchent par
+    // son nom), « Entrées d'argent » ne se supprime pas mais s'éteint très bien
+    // — une fois qu'une autre catégorie porte la case « entrée ».
+    const protegee = estAutres || c.nom === CATEGORIE_ENTREES_ARGENT;
+    const deleteAction = protegee
       ? ""
       : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
     const etatAction = estAutres

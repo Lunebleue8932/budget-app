@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas
-from ..constants import CATEGORIE_AUTRES
+from ..constants import CATEGORIE_AUTRES, CATEGORIE_ENTREES_ARGENT
 from ..database import get_db
 
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -254,6 +254,23 @@ def delete_categorie(categorie_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=400,
             detail="La catégorie 'Autres' ne peut pas être supprimée",
+        )
+    # « ENTRÉES D'ARGENT » NON PLUS, et pour une autre raison : c'est la seule
+    # catégorie d'ENTRÉE livrée (cf. constants.CATEGORIES_ENTREE_INITIALES). La
+    # supprimer basculerait tous les salaires déjà saisis dans « Autres »,
+    # c'est-à-dire du côté des DÉPENSES, et laisserait une base sans nulle part
+    # où ranger ce qui rentre. Elle se RENOMME, elle, librement : c'est la
+    # colonne `est_entree` qui la reconnaît, jamais son nom.
+    if db_categorie.nom == CATEGORIE_ENTREES_ARGENT:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La catégorie « {CATEGORIE_ENTREES_ARGENT} » ne peut pas être "
+                "supprimée : c'est la catégorie d'entrée livrée avec l'application, "
+                "et ses opérations basculeraient du côté des dépenses. Tu peux la "
+                "renommer, ou l'éteindre après avoir coché « catégorie d'entrée » "
+                "sur une autre."
+            ),
         )
     # Les opérations de cette catégorie basculent vers "Autres" plutôt que de
     # bloquer la suppression.

@@ -28,26 +28,49 @@ class Frequence(str, enum.Enum):
 # "catégories système" (Remboursements, Virement interne, Prêts, Remboursement
 # prêts) sont devenues des TYPES d'opération (voir TypeOperation ci-dessous).
 #
-# UNE SEULE CATÉGORIE EST LIVRÉE (migration 0061). Les six autres que posait
-# 0006 — « Alimentaire », « Loisirs & sorties », « Charges fixes »,
-# « Réparation & entretien », « Vêtements & équipement sport », « Entrées
-# d'argent » — n'étaient pas des catégories par défaut mais celles d'un budget
-# particulier, imposées à toute installation. Les catégories d'une personne ne
-# sont pas celles d'une autre : elles se créent maintenant depuis l'onglet
-# Catégories, sur une liste qui commence vide.
-CATEGORIES_INITIALES = ["Autres"]
+# QUATRE CATÉGORIES POUR ORIENTER, ET PAS UNE DE PLUS (migration 0064). La 0061
+# avait tout retiré, et une liste vide est une autre façon de mal accueillir :
+# devant un seul « Autres », personne ne devine que les catégories se créent à
+# la main, ni à quoi elles servent. Les six d'avant décrivaient un budget
+# PARTICULIER (« Vêtements & équipement sport ») ; celles-ci sont les postes que
+# tout le monde a — alimentaire, loisirs, transports, charges fixes — et se
+# suppriment d'un clic quand elles ne conviennent pas.
+#
+# ELLES SE TRADUISENT, contrairement à celles que l'utilisateur crée : ce sont
+# les seules dont l'application connaisse le nom (cf. frontend/app.
+# libelleCategorie et le dictionnaire i18n). Une catégorie livrée est un texte
+# d'accueil autant qu'une donnée.
+CATEGORIES_INITIALES = [
+    "Alimentaire",
+    "Loisirs",
+    "Transports",
+    "Charges fixes",
+    "Autres",
+    "Entrées d'argent",
+]
 
-# "Autres" est protégée : non supprimable, et sert de repli pour les opérations
-# dont la catégorie a été supprimée. C'est aussi ce qui la fait rester seule au
-# départ : l'application la CHERCHE PAR SON NOM, une base qui ne la porterait
-# pas laisserait ce repli sans réponse.
+# DEUX CATÉGORIES SONT PROTÉGÉES (non supprimables), et pour deux raisons
+# différentes :
+#
+#   - « Autres » parce que l'application la CHERCHE PAR SON NOM : c'est le repli
+#     d'une opération dont la catégorie est supprimée, et la suggestion d'une
+#     ligne importée qu'aucune règle ne classe. Une base qui ne la porterait pas
+#     laisserait ces deux chemins sans réponse ;
+#   - « Entrées d'argent » parce que c'est la SEULE catégorie d'entrée livrée
+#     (cf. CATEGORIES_ENTREE_INITIALES) : la supprimer renverrait tous les
+#     salaires déjà saisis dans « Autres », c'est-à-dire dans les DÉPENSES, et
+#     une base sans aucune catégorie d'entrée n'a plus rien où ranger ce qui
+#     rentre. Elle se RENOMME, elle, librement — c'est la colonne `est_entree`
+#     qui la reconnaît, jamais son nom (migration 0060).
 CATEGORIE_AUTRES = "Autres"
-# AUCUNE CATÉGORIE D'ENTRÉE N'EST LIVRÉE, et il n'y en a plus besoin : depuis
-# `Categorie.est_entree` (migration 0060), être une catégorie d'entrée SE COCHE,
-# et n'importe quel nom peut l'être — « Salaire », « Loyers perçus », une
-# pension. Tout ce qui demande « est-ce une entrée ? » lit la COLONNE, jamais un
-# nom : le « Entrées d'argent » qu'on livrait n'était plus qu'un exemple de plus.
-CATEGORIES_ENTREE_INITIALES: set[str] = set()
+CATEGORIE_ENTREES_ARGENT = "Entrées d'argent"
+CATEGORIES_PROTEGEES = {CATEGORIE_AUTRES, CATEGORIE_ENTREES_ARGENT}
+
+# LA CATÉGORIE D'ENTRÉE LIVRÉE, et plus la seule POSSIBLE : le nom ne sert qu'à
+# cocher `Categorie.est_entree` sur la base neuve. Tout ce qui demande ensuite
+# « est-ce une entrée ? » lit la COLONNE — n'importe quelle autre catégorie peut
+# la rejoindre d'une case à cocher, « Salaire », « Loyers perçus », une pension.
+CATEGORIES_ENTREE_INITIALES = {CATEGORIE_ENTREES_ARGENT}
 
 
 # ---------- Monnaies ----------
