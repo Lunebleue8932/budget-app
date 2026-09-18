@@ -1,5 +1,5 @@
 {
-  "_comment": "Instantané des extensions CONNUES à ce jour — id, nom, description, version, type. Sert UNIQUEMENT à afficher dans Paramètres → Extensions celles dont le dossier a été retiré d'une machine donnée (ex. un build allégé transmis à quelqu'un d'autre), pour que le menu reste le même que sur une installation complète — griséee, jamais activable, cf. routers/extensions.list_extensions. Ne remplace JAMAIS extension.json : une extension PRÉSENTE est décrite par son propre manifeste, ce fichier ne sert que pour celles ABSENTES. À METTRE À JOUR À LA MAIN quand une extension est ajoutée, renommée ou retirée du dépôt — comme les autres listes tenues manuellement de ce projet (ORDRE_TYPES, etc.), pas de génération automatique.",
+  "_comment": "Instantané des extensions CONNUES à ce jour — id, nom, description, version, type. Sert UNIQUEMENT à afficher dans Paramètres → Extensions celles dont le dossier a été retiré d'une machine donnée (ex. un build allégé transmis à quelqu'un d'autre), pour que le menu reste le même que sur une installation complète — griséee, jamais activable, cf. routers/extensions.list_extensions. Ne remplace JAMAIS extension.json : une extension PRÉSENTE est décrite par son propre manifeste, ce fichier ne sert que pour celles ABSENTES. N'Y FIGURENT QUE LES EXTENSIONS LIVRÉES : une extension de développement n'existe pas pour qui installe l'application, et une entrée qui la nommerait la ferait apparaître, grisée, dans l'écran de tout le monde — `catalogue()` écarte de toute façon ces entrées. À METTRE À JOUR À LA MAIN quand une extension est ajoutée, renommée ou retirée du dépôt — comme les autres listes tenues manuellement de ce projet (ORDRE_TYPES, etc.), pas de génération automatique.",
   "extensions": [
     {
       "id": "placements",
@@ -80,14 +80,6 @@
       "description": "Note ce que chaque compte d'épargne t'a RÉELLEMENT rapporté : un montant, une date, tels que le relevé les annonce. Les totaux se font par année et par monnaie, jamais deux devises additionnées. Aucun intérêt n'est écrit en opération : c'est un suivi d'affichage, qui ne touche ni aux soldes ni au dashboard.",
       "version": "2.0.0",
       "type": "standard"
-    },
-    {
-      "id": "outils-dev",
-      "numero": 99,
-      "nom": "Outils de développement",
-      "description": "L'extension de dev, au singulier : tout ce qui sert à mettre au point l'application. Contient aujourd'hui le solde prévisionnel à l'import, un tableau des soldes que le fichier va faire bouger, pour comparer au relevé avant de confirmer.",
-      "version": "1.1.0",
-      "type": "developpeur"
     },
     {
       "id": "analyse-budget",

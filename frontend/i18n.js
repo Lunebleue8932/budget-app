@@ -350,12 +350,6 @@ const TRADUCTIONS = {
       "No rule for now: imported rows will stay to be filed by hand.",
     "Ajoute d'abord un titre dans « Titres suivis » ci-dessous.":
       "Add a security under « Titres suivis » below first.",
-    "Outils de développement": "Developer tools",
-    // L'extension de développement : non publiée, mais bien affichée
-    // sur la machine qui la porte.
-    "L'EXTENSION DE DEV, au singulier : tout ce qui sert à mettre au point l'application vit ici, et rien d'autre. Un outil de dev n'est pas une petite fonctionnalité — c'est un instrument de relecture, qu'on allume le temps d'une vérification ; en faire une extension par outil aurait rempli la fenêtre de lancement de choses qu'un utilisateur n'a aucune raison de comprendre. Contient aujourd'hui : le solde prévisionnel à l'import, qui pose dans l'aperçu un tableau des soldes que le fichier va faire bouger (solde actuel, variation, solde d'après), pour comparer au relevé AVANT de confirmer.":
-      "THE dev extension, singular: everything used to fine-tune the application lives here, one tool per banner, rather than one extension per tool — they are switched on all together or not at all. Never published: the extensions-dev folder is ignored by git and absent from the Releases.",
-
     /* ===== Reprise de traduction, lot 5 : les NŒUDS TEXTE ENTIERS des
        paragraphes d'aide. Un nœud va d'une balise à l'autre, retours à la
        ligne compris — c'est la phrase complète qui se traduit, pas ses

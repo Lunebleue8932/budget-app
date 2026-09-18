@@ -46,9 +46,12 @@ FICHIER_MANIFESTE = "extension.json"
 # Les deux racines scannées, dans cet ordre. « standard » d'abord pour qu'une
 # extension de développement portant le même identifiant ne masque jamais une
 # extension livrée par accident (cf. `decouvrir`, qui refuse le doublon).
+TYPE_STANDARD = "standard"
+TYPE_DEVELOPPEUR = "developpeur"
+
 DOSSIERS = (
-    ("extensions", "standard"),
-    ("extensions-dev", "developpeur"),
+    ("extensions", TYPE_STANDARD),
+    ("extensions-dev", TYPE_DEVELOPPEUR),
 )
 
 
@@ -251,13 +254,28 @@ else:
 def catalogue() -> list[dict]:
     """Le contenu de `extensions_catalogue.json`, ou une liste vide si le
     fichier manque ou est illisible — un catalogue absent ne doit pas
-    empêcher l'écran des extensions RÉELLEMENT présentes de s'afficher."""
+    empêcher l'écran des extensions RÉELLEMENT présentes de s'afficher.
+
+    LES ENTRÉES DE DÉVELOPPEMENT SONT ÉCARTÉES ICI, et non laissées à la bonne
+    tenue du fichier. Le catalogue existe pour dire « cette extension existe,
+    tu ne l'as pas installée » : appliqué à une extension de développement,
+    c'est exactement le contraire de ce qu'on veut — elle n'est livrée à
+    personne, et l'annoncer dans l'écran de tout le monde ferait chercher un
+    dossier qui n'existe dans aucune release. Le filtre est au point de
+    passage plutôt que dans le JSON : une entrée ajoutée par distraction ne
+    peut alors plus ressortir."""
     try:
         contenu = json.loads(_FICHIER_CATALOGUE.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return []
     entrees = contenu.get("extensions")
-    return entrees if isinstance(entrees, list) else []
+    if not isinstance(entrees, list):
+        return []
+    return [
+        entree
+        for entree in entrees
+        if isinstance(entree, dict) and entree.get("type") != TYPE_DEVELOPPEUR
+    ]
 
 
 def entree_catalogue_absente(entree: dict) -> dict:

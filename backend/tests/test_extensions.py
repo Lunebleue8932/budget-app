@@ -723,6 +723,36 @@ def test_une_extension_du_catalogue_absente_du_disque_apparait_grisee(
     assert par_id["fantome"]["version"] == "9.9.9"
 
 
+def test_le_catalogue_ne_montre_aucune_extension_de_developpement(
+    faux_projet, faux_catalogue
+):
+    """CE QUI N'EST LIVRÉ À PERSONNE N'EST ANNONCÉ À PERSONNE.
+
+    Le catalogue existe pour dire « cette extension existe, tu ne l'as pas
+    installée ». Appliqué à une extension de DÉVELOPPEMENT, il dit exactement
+    le contraire de ce qu'on veut : elle n'est dans aucune release, et
+    l'annoncer ferait chercher un dossier qui n'existe nulle part. Le filtre est
+    au point de passage (`extensions.catalogue`) plutôt que dans le JSON —
+    une entrée ajoutée par distraction ne peut alors plus ressortir."""
+    faux_catalogue(
+        [
+            {"id": "livree", "nom": "Livrée", "description": "", "version": "1.0.0"},
+            {
+                "id": "interne",
+                "nom": "Outils internes",
+                "description": "",
+                "version": "1.0.0",
+                "type": "developpeur",
+            },
+        ]
+    )
+
+    ids = {e["id"] for e in routeur_extensions.list_extensions(db=None)}
+
+    assert "livree" in ids
+    assert "interne" not in ids
+
+
 def test_une_extension_presente_masque_son_entree_de_catalogue(faux_projet, faux_catalogue):
     """Présente ET dans le catalogue : une seule ligne, la RÉELLE — jamais un
     doublon, et surtout pas la version figée du catalogue qui la décrirait
