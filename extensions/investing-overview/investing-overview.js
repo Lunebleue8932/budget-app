@@ -205,9 +205,9 @@ function ioRenderCamembert(bloc) {
          role="img" aria-label="${escapeHtml(t("Répartition par type de titre"))}">
       ${parts}
       <text x="${IO_CENTRE}" y="${IO_CENTRE - 4}" text-anchor="middle"
-            font-size="9" fill="#9ea3b0">${escapeHtml(t("Total"))}</text>
+            font-size="9" fill="var(--text-secondary)">${escapeHtml(t("Total"))}</text>
       <text x="${IO_CENTRE}" y="${IO_CENTRE + 12}" text-anchor="middle"
-            font-size="13" fill="#e7e8ec">${escapeHtml(
+            font-size="13" fill="var(--text-primary)">${escapeHtml(
               formatMontant(total, bloc.monnaie_id)
             )}</text>
     </svg>

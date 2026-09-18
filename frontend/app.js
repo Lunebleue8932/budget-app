@@ -596,22 +596,58 @@ function montantHtml(montant, sens, monnaieId) {
 
 // Toasts empilés en bas à droite (façon apps modernes) : plusieurs messages
 // peuvent coexister sans s'écraser, et ils ne décalent pas la mise en page.
+/**
+ * Fait disparaître un message, animation comprise.
+ *
+ * LE `setTimeout` DE SECOURS N'EST PAS UNE CEINTURE ET BRETELLES : un
+ * `animationend` qui n'arrive jamais laisse le message à l'écran POUR TOUJOURS,
+ * et c'est exactement ce qui se passe quand l'animation ne joue pas — onglet en
+ * arrière-plan au moment où elle démarre, `prefers-reduced-motion`, fenêtre
+ * masquée. Le message finit par s'accumuler avec les suivants, et l'écran garde
+ * des nouvelles vieilles d'une heure. Le délai vaut un peu plus que l'animation
+ * (250 ms) : ce qui se termine normalement est déjà parti quand il expire.
+ */
+function fermerMessage(toast) {
+  if (toast.dataset.ferme) return;
+  toast.dataset.ferme = "1";
+  toast.classList.add("sortant");
+  toast.addEventListener("animationend", () => toast.remove());
+  setTimeout(() => toast.remove(), 400);
+}
+
 function showMessage(text, type, { persistent = false } = {}) {
   const container = document.getElementById("toast-container");
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
+
+  // UNE CROIX, ET PAS SEULEMENT UNE SURFACE CLIQUABLE. Le message se fermait
+  // déjà d'un clic n'importe où, mais rien ne le disait : devant un message qui
+  // reste (les persistants le font exprès), on attend qu'il parte au lieu de
+  // penser à cliquer dessus. La croix rend visible ce qui existait.
+  const fermer = document.createElement("button");
+  fermer.type = "button";
+  fermer.className = "toast-fermer";
+  fermer.textContent = "×";
+  fermer.title = t("Fermer ce message");
+  fermer.setAttribute("aria-label", fermer.title);
+  fermer.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fermerMessage(toast);
+  });
+  toast.appendChild(fermer);
+
+  const texte = document.createElement("span");
   // Dernier filet pour les messages VENUS DU SERVEUR : ceux de l'app sont déjà
   // passés par `t()` à l'appel (une seconde traduction ne trouve rien et laisse
   // le texte tel quel), mais une erreur d'API arrive ici en français brut, sans
   // que l'appelant sache seulement ce qu'elle dit (cf. apiFetch, qui la relaie).
-  toast.textContent = traduireMessageServeur(text);
-  toast.addEventListener("click", () => toast.remove());
+  texte.textContent = traduireMessageServeur(text);
+  toast.appendChild(texte);
+
+  toast.addEventListener("click", () => fermerMessage(toast));
   container.appendChild(toast);
   if (!persistent) {
-    setTimeout(() => {
-      toast.classList.add("sortant");
-      toast.addEventListener("animationend", () => toast.remove());
-    }, 4500);
+    setTimeout(() => fermerMessage(toast), 4500);
   }
 }
 
@@ -1264,6 +1300,59 @@ function chargerSousPageParametres(page) {
  * localStorage plutôt qu'une table, comme pour la langue : changer de machine
  * ne doit pas ramener les habitudes de l'autre.
  */
+/* ----- Le thème -----
+ *
+ * DEUX JEUX DE VARIABLES CSS, ET RIEN D'AUTRE (cf. style.css, `:root
+ * [data-theme="clair"]`) : toute la feuille passe par elles, extensions
+ * comprises, et changer de thème n'est qu'une bascule d'attribut sur `<html>`.
+ * Aucune règle n'est dupliquée, donc aucune ne peut diverger de l'autre.
+ *
+ * IL EST POSÉ DANS LE <head>, PAS ICI : ce fichier est chargé en fin de page,
+ * après le premier rendu, et appliquer le mode clair d'ici ferait clignoter
+ * l'écran en sombre à chaque ouverture (cf. index.html). Ce qui reste ici est
+ * le CHANGEMENT de thème, qui a lieu bien après.
+ *
+ * DANS LE localStorage comme la langue et la touche de gel : c'est un confort
+ * de lecture propre au poste, pas une donnée du budget. Les trois états valent
+ * ici comme ailleurs — « clair », « sombre », et l'absence de clé, qui retombe
+ * sur le thème sombre, celui de l'application depuis toujours.
+ */
+const CLE_THEME = "budget-app.theme";
+const THEME_DEFAUT = "sombre";
+
+function themeEnregistre() {
+  try {
+    return localStorage.getItem(CLE_THEME) === "clair" ? "clair" : THEME_DEFAUT;
+  } catch (err) {
+    return THEME_DEFAUT;
+  }
+}
+
+function appliquerTheme(theme) {
+  if (theme === "clair") document.documentElement.dataset.theme = "clair";
+  else delete document.documentElement.dataset.theme;
+  try {
+    localStorage.setItem(CLE_THEME, theme);
+  } catch (err) {
+    // Stockage indisponible : le thème vaut pour la session, et rien de cassé.
+  }
+}
+
+function majAffichageTheme() {
+  const select = document.getElementById("reglage-theme");
+  if (select) select.value = themeEnregistre();
+}
+
+document.getElementById("reglage-theme")?.addEventListener("change", (e) => {
+  appliquerTheme(e.target.value);
+  // RIEN À REDESSINER ICI, et c'est une propriété du seul endroit d'où le
+  // réglage se change : les graphes relisent les variables CSS en JavaScript
+  // (cf. couleurTypeCompte) et gardent donc les teintes de l'ancien thème dans
+  // leur SVG — mais ils vivent sur d'autres écrans, que `switchSection`
+  // recharge en y revenant. Le reste de l'interface suit la feuille de style,
+  // donc change au moment même où l'attribut bascule.
+});
+
 function majAffichageToucheGel() {
   const champ = document.getElementById("reglage-touche-gel");
   if (!champ) return;
@@ -1272,6 +1361,7 @@ function majAffichageToucheGel() {
 }
 
 function loadParametresGeneraux() {
+  majAffichageTheme();
   majAffichageToucheGel();
 }
 
@@ -2695,7 +2785,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
         const yBudget = hauteur - margeBas - d.budget_alloue * echelle;
         // Rouge (couleur "critical", distincte de la palette catégorielle) :
         // signale une limite, pas une identité de catégorie.
-        tickBudget = `<rect class="histo-repere" x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="#ef4444" />`;
+        tickBudget = `<rect class="histo-repere" x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="var(--budget-line)" />`;
       }
 
       const nom = libelleCategorie(d.categorie);
@@ -2718,14 +2808,14 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
           <rect class="histo-fut" x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
           ${barrePrevisionnel}
           ${tickBudget}
-          <text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="#9ea3b0">${label}</text>
-          <text class="histo-valeur" x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="#e7e8ec">${d.total_previsionnel.toFixed(0)}</text>
+          <text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${label}</text>
+          <text class="histo-valeur" x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${d.total_previsionnel.toFixed(0)}</text>
         </g>
       `;
     })
     .join("");
 
-  const ligneBase = `<line x1="${margeCote}" y1="${hauteur - margeBas}" x2="${largeur - margeCote}" y2="${hauteur - margeBas}" stroke="#4b5163" stroke-width="1" />`;
+  const ligneBase = `<line x1="${margeCote}" y1="${hauteur - margeBas}" x2="${largeur - margeCote}" y2="${hauteur - margeBas}" stroke="var(--border)" stroke-width="1" />`;
 
   container.innerHTML = `
     <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="${hauteur}" xmlns="http://www.w3.org/2000/svg">
@@ -2957,11 +3047,11 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
                monnaieId
              )}</text>
        <text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y + 9}" text-anchor="middle"
-             dominant-baseline="middle" font-size="11" fill="#9ea3b0">${t(
+             dominant-baseline="middle" font-size="11" fill="var(--text-secondary)">${t(
                "sur"
              )} ${formatMontant(budgetTotal, monnaieId)}</text>`
     : `<text x="${PIE_CENTRE_X}" y="${PIE_CENTRE_Y}" text-anchor="middle"
-             dominant-baseline="middle" font-size="13" fill="#9ea3b0">${formatMontant(
+             dominant-baseline="middle" font-size="13" fill="var(--text-secondary)">${formatMontant(
                total,
                monnaieId
              )}</text>`;
@@ -9300,7 +9390,25 @@ document.getElementById("import-mode-comparaison").addEventListener("change", ()
   renderImportConfigColonnesComparaison();
 });
 
-document.getElementById("btn-import-config-enregistrer").addEventListener("click", async () => {
+/**
+ * Enregistre la configuration du preset, puis relit le fichier si l'aperçu
+ * affiché ne décrit plus ce que l'import fera.
+ *
+ * UNE FONCTION ET DEUX BOUTONS (cf. l'icône de relecture de l'aperçu) : la
+ * relecture n'envoyait au serveur que les COLONNES, et lisait le reste du
+ * preset tel qu'il est ENREGISTRÉ — lignes de tête, mode de comparaison,
+ * vocabulaires. Un réglage changé sans être enregistré était donc ignoré par la
+ * relecture, qui rendait un aperçu décrivant l'ancienne configuration : on
+ * corrigeait, on relisait, rien ne bougeait, et rien ne disait pourquoi.
+ * Enregistrer d'abord fait disparaître l'écart au lieu de l'expliquer.
+ *
+ * Rend `true` si la configuration est passée, `false` si elle a été refusée —
+ * l'appelant sait alors qu'il n'y a rien eu à relire.
+ */
+async function enregistrerConfigurationImport({
+  relireToujours = false,
+  message = t("Configuration enregistrée"),
+} = {}) {
   // Une colonne activée sans numéro (ou à 0) serait refusée par le serveur avec
   // un message d'erreur de validation illisible : on nomme la propriété
   // concernée, seule chose qui dise où corriger.
@@ -9315,7 +9423,7 @@ document.getElementById("btn-import-config-enregistrer").addEventListener("click
       }),
       "error"
     );
-    return;
+    return false;
   }
   try {
     const config = await apiFetch(importUrl(""), {
@@ -9355,7 +9463,7 @@ document.getElementById("btn-import-config-enregistrer").addEventListener("click
     // que toutes les lignes affichaient "compte à mapper" à l'import.
     toggleImportCompteDefautBloc();
     await loadImportPresets();
-    showMessage(t("Configuration enregistrée"), "success");
+    showMessage(message, "success");
     // Un fichier déjà chargé a été analysé avec l'ANCIENNE configuration : ses
     // couleurs de colonnes, ses en-têtes de propriété, ses lignes résolues et
     // ses doublons décrivent un import qui n'a plus cours. On le relit donc,
@@ -9364,11 +9472,19 @@ document.getElementById("btn-import-config-enregistrer").addEventListener("click
     // bonnes données, ou de voir une exclusion faire apparaître les doublons
     // qu'elle débloque. Rien à faire si seul le nom a bougé (cf.
     // signatureApercu).
-    if (apercuPerime && importFichierActuel) await relireFichierImport();
+    if ((apercuPerime || relireToujours) && importFichierActuel) {
+      await relireFichierImport();
+    }
+    return true;
   } catch (err) {
     showMessage(err.message, "error");
+    return false;
   }
-});
+}
+
+document.getElementById("btn-import-config-enregistrer").addEventListener("click", () =>
+  enregistrerConfigurationImport()
+);
 
 // Le compte "pour ce fichier" ne sert que faute de mieux : il disparaît dès
 // qu'une colonne le désigne ligne par ligne, et dès que le preset est lié à un
@@ -9784,19 +9900,26 @@ function majBoutonRelireApercu() {
 }
 
 document.getElementById("btn-import-apercu-relire").innerHTML = ICONE_RELIRE;
+// CE BOUTON ENREGISTRE AVANT DE RELIRE, et c'est ce qui le rend fiable : la
+// relecture ne transmettait que les COLONNES, et lisait tout le reste du preset
+// tel qu'il est enregistré. Un réglage modifié sans être enregistré — le nombre
+// de lignes de tête, le mode de comparaison, un vocabulaire — était donc ignoré,
+// et l'aperçu revenait décrire l'ancienne configuration sans rien dire. Le
+// geste qu'on faisait alors (corriger, relire, ne rien voir changer) n'avait
+// aucune issue.
+//
+// Un ordre de colonnes obtenu en glissant trois en-têtes est du même coup GARDÉ
+// dans le preset, là où il fallait penser à « Enregistrer la configuration »
+// pour ne pas le perdre au fichier suivant.
 document.getElementById("btn-import-apercu-relire").addEventListener("click", async () => {
   if (!importFichierActuel) {
     showMessage(t("Aucun fichier chargé à relire."), "error");
     return;
   }
-  await relireFichierImport();
-  // LE RAPPEL QUI MANQUAIT : relire montre ce que l'import DONNERA, mais
-  // n'écrit rien. Un ordre de colonnes obtenu en glissant trois en-têtes serait
-  // perdu au prochain fichier si personne ne dit qu'il reste à enregistrer.
-  showMessage(
-    t("Fichier relu. « Enregistrer la configuration » pour garder cet ordre de colonnes dans le preset."),
-    "success"
-  );
+  await enregistrerConfigurationImport({
+    relireToujours: true,
+    message: t("Configuration enregistrée, fichier relu."),
+  });
 });
 
 // Ce que la configuration laisse d'ambigu sans être faux (montant envoyé ou frais

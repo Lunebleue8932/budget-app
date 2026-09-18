@@ -39,6 +39,77 @@
   --radius: 10px;
   --radius-sm: 6px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-flottant: 0 8px 24px rgba(0, 0, 0, 0.45);
+  /* Le fond des trois messages. En variable parce qu'un fond presque noir n'a
+     rien à faire sous un texte vert foncé : le mode clair les redéfinit. */
+  --toast-error-bg: #2a1518;
+  --toast-success-bg: #12261a;
+  --toast-warning-bg: #2a2011;
+  /* Les deux colonnes de l'aperçu d'import qui ont leur propre teinte (compte
+     bancaire, devise) : claires sur fond sombre, donc à assombrir en clair. */
+  --col-compte-text: #a78bfa;
+  --col-monnaie-text: #5eead4;
+}
+
+/* ---------- MODE CLAIR ----------
+ *
+ * UN SEUL BLOC, ET RIEN D'AUTRE À RÉÉCRIRE : toute la feuille passe par les
+ * variables ci-dessus, extensions comprises. Changer de thème redéfinit une
+ * trentaine de valeurs ; aucune règle de mise en page, aucune ombre, aucun
+ * dégradé n'est dupliqué. C'est ce qui rend le mode clair tenable — un second
+ * jeu de règles aurait divergé du premier au premier ajustement.
+ *
+ * LES COULEURS DE SENS SONT PLUS SOMBRES QU'EN MODE NUIT, et ce n'est pas un
+ * goût : un vert clair sur blanc ne se lit pas. Le rouge, le vert et l'orange
+ * descendent donc d'un ou deux crans, et gardent exactement les mêmes rôles.
+ *
+ * LA PALETTE DES CATÉGORIES NE CHANGE PAS (cf. PALETTE_CATEGORIES dans app.js) :
+ * ses huit teintes sont déjà moyennement sombres, elles tiennent sur les deux
+ * fonds — et une catégorie qui changerait de couleur avec le thème perdrait ce
+ * qui fait qu'on la reconnaît d'un coup d'œil.
+ */
+:root[data-theme="clair"] {
+  --bg-page: #f5f6f8;
+  --bg-header: rgba(245, 246, 248, 0.85);
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #eef0f4;
+  --bg-surface-hover: #e3e7ee;
+  --border: #d3d8e0;
+  --border-soft: #e5e8ed;
+  --text-primary: #191c22;
+  --text-secondary: #4d5461;
+  /* Assez sombre pour rester LISIBLE sur blanc : un gris qui suffit sur fond
+     noir tombe à 3,5 de contraste sur fond clair, sous le seuil de lecture
+     confortable. Les libellés de KPI et les notes d'écran passent par là. */
+  --text-muted: #666d7a;
+  --accent: #2563eb;
+  --accent-light: #3b82f6;
+  --accent-hover: #1d4ed8;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --negatif: #c62828;
+  --positif: #15803d;
+  --depense: #c2410c;
+  --budget-line: #dc2626;
+  --success-bg: rgba(21, 128, 61, 0.12);
+  --success-text: #146c34;
+  --error-bg: rgba(220, 38, 38, 0.1);
+  --error-text: #b3261e;
+  --badge-remboursable-bg: rgba(161, 98, 7, 0.14);
+  --badge-remboursable-text: #a16207;
+  --badge-pret-bg: rgba(194, 65, 12, 0.14);
+  --badge-pret-text: #c2410c;
+  --badge-ok-bg: rgba(21, 128, 61, 0.12);
+  --badge-ok-text: #15803d;
+  --compte-epargne: #6d28d9;
+  --compte-placements: #0d9488;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(15, 23, 42, 0.06);
+  --shadow-flottant: 0 8px 24px rgba(15, 23, 42, 0.16);
+  --toast-error-bg: #fdecec;
+  --toast-success-bg: #e9f6ed;
+  --toast-warning-bg: #fdf4e3;
+  --col-compte-text: #6d28d9;
+  --col-monnaie-text: #0f766e;
 }
 
 * {
@@ -62,11 +133,16 @@
   display: none !important;
 }
 
-/* Les contrôles NATIFS suivent le thème sombre : sans cette ligne, le sélecteur
-   de date s'ouvre en blanc sur blanc et son pictogramme de calendrier reste
-   presque noir sur nos fonds. */
+/* Les contrôles NATIFS suivent le thème : sans cette ligne, le sélecteur de date
+   s'ouvre en blanc sur blanc et son pictogramme de calendrier reste presque noir
+   sur nos fonds. Le mode clair rend la valeur inverse — c'est le navigateur qui
+   dessine ces contrôles, et lui seul sait le faire. */
 :root {
   color-scheme: dark;
+}
+
+:root[data-theme="clair"] {
+  color-scheme: light;
 }
 
 /* Et le pictogramme lui-même en BLANC FRANC. Le dessin est fourni par le
@@ -86,6 +162,16 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   opacity: 0.8;
   cursor: pointer;
   transition: opacity 0.15s;
+}
+
+/* EN MODE CLAIR, PAS D'INVERSION : le pictogramme doit rester noir, sans quoi
+   il serait blanc sur blanc. `brightness(0)` seul l'écrase en noir pur quelle
+   que soit sa couleur d'origine — même raisonnement que plus haut, arrêté une
+   étape plus tôt. */
+:root[data-theme="clair"] input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="clair"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+:root[data-theme="clair"] input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0);
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
@@ -586,6 +672,11 @@ h4 {
   filter: brightness(0) invert(1);
   opacity: 0.75;
   transition: opacity 0.15s;
+}
+
+/* Même remarque qu'ailleurs : en mode clair, le tracé reste noir. */
+:root[data-theme="clair"] .compte-card .compte-total-placement-lien img {
+  filter: brightness(0);
 }
 
 .compte-card .compte-total-placement-lien:hover {
@@ -1259,7 +1350,7 @@ form .operation-cases input[type="checkbox"] {
 }
 
 .camembert-centre-depasse {
-  fill: #ef4444;
+  fill: var(--danger);
 }
 
 /* ---------- La fenêtre d'accord des budgets ---------- */
@@ -1687,9 +1778,9 @@ form .operation-cases input[type="checkbox"] {
 .histo-bulle-gel-note {
   margin-top: 0.4rem;
   padding-top: 0.35rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--border);
   font-size: 0.7rem;
-  color: #9ea3b0;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -2015,12 +2106,41 @@ button.danger:hover {
 }
 
 .toast {
-  padding: 0.7rem 1rem;
+  position: relative;
+  /* La croix vit dans le coin HAUT GAUCHE : le padding de ce côté lui fait sa
+     place, pour qu'aucune ligne de texte ne passe dessous. */
+  padding: 0.7rem 1rem 0.7rem 2rem;
   border-radius: var(--radius-sm);
   font-size: 0.88rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-flottant);
   animation: toast-in 0.25s ease-out;
   border: 1px solid;
+  cursor: pointer;
+}
+
+/* LA CROIX D'UN MESSAGE. Discrète au repos, franche au survol : elle est là
+   pour être trouvée quand on la cherche, pas pour disputer la lecture au texte
+   qu'elle accompagne. Elle hérite de la couleur du message (rouge, vert,
+   orange) plutôt que d'en imposer une quatrième. */
+.toast-fermer {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.2rem;
+  padding: 0 0.25rem;
+  border: none;
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.toast-fermer:hover {
+  background: none;
+  border: none;
+  opacity: 1;
 }
 
 .toast.sortant {
@@ -2038,13 +2158,13 @@ button.danger:hover {
 }
 
 .toast.error {
-  background: #2a1518;
+  background: var(--toast-error-bg);
   color: var(--error-text);
   border-color: rgba(248, 113, 113, 0.4);
 }
 
 .toast.success {
-  background: #12261a;
+  background: var(--toast-success-bg);
   color: var(--success-text);
   border-color: rgba(74, 222, 128, 0.35);
 }
@@ -2053,7 +2173,7 @@ button.danger:hover {
    Le ton des avertissements du reste de l'app — un doublon possible, une
    configuration douteuse : quelque chose à vérifier, pas à réparer. */
 .toast.warning {
-  background: #2a2011;
+  background: var(--toast-warning-bg);
   color: var(--badge-remboursable-text);
   border-color: rgba(234, 179, 8, 0.4);
 }
@@ -3629,7 +3749,7 @@ tr.ligne-apercu-edition td:has(> button) {
 .apercu-fichier-defilement th.col-compte_banque,
 .apercu-fichier-defilement td.col-compte_banque {
   background-image: linear-gradient(rgba(124, 58, 237, 0.14), rgba(124, 58, 237, 0.14));
-  color: #a78bfa;
+  color: var(--col-compte-text);
 }
 
 /* Les trois devises, dans une teinte distincte des montants qu'elles
@@ -3637,13 +3757,13 @@ tr.ligne-apercu-edition td:has(> button) {
 .apercu-fichier-defilement th.col-monnaie,
 .apercu-fichier-defilement td.col-monnaie {
   background-image: linear-gradient(rgba(45, 212, 191, 0.12), rgba(45, 212, 191, 0.12));
-  color: #5eead4;
+  color: var(--col-monnaie-text);
 }
 
 .apercu-fichier-defilement th.col-monnaie_initiale,
 .apercu-fichier-defilement td.col-monnaie_initiale {
   background-image: linear-gradient(rgba(45, 212, 191, 0.08), rgba(45, 212, 191, 0.08));
-  color: #5eead4;
+  color: var(--col-monnaie-text);
 }
 
 .apercu-fichier-defilement th.col-monnaie_frais,
@@ -4705,6 +4825,13 @@ body.modale-ouverte {
 .sous-onglets button:hover .onglet-logo,
 .sous-onglets button.active .onglet-logo {
   opacity: 1;
+}
+
+/* EN MODE CLAIR, LE MÊME LOGO EN NOIR : ces boutons vivent sur un fond clair,
+   et le blanc y disparaîtrait. `brightness(0)` seul suffit — c'est
+   l'écrasement en noir, sans le retournement qui suit en mode nuit. */
+:root[data-theme="clair"] .onglet-logo {
+  filter: brightness(0);
 }
 
 /* ---------- Les réglages du camembert « Répartition des avoirs » ---------- */

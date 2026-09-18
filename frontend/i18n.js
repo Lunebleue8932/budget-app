@@ -1748,6 +1748,13 @@ const TRADUCTIONS = {
     "Preset renomm\u00e9": "Preset renamed",
     "Preset supprim\u00e9": "Preset deleted",
     "Configuration enregistr\u00e9e": "Configuration saved",
+    "Configuration enregistrée, fichier relu.": "Configuration saved, file re-read.",
+    "Fermer ce message": "Dismiss this message",
+    "Thème": "Theme",
+    "Sombre": "Dark",
+    "Clair": "Light",
+    "Le mode clair ou le mode sombre. Le choix vit sur cette machine, comme la langue : il ne voyage pas avec tes données, et l'autre poste garde le sien.":
+      "Light or dark mode. The choice lives on this machine, like the language: it does not travel with your data, and the other computer keeps its own.",
     "Choisis d'abord un fichier \u00e0 analyser.": "Choose a file to analyse first.",
     "Aucun preset d'import disponible : cr\u00e9es-en un d'abord.":
       "No import preset available: create one first.",

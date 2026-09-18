@@ -44,6 +44,8 @@ const TEXTES = {
   /* ----- Paramètres généraux ----- */
   "noyau.parametres-generaux":
     "Ce qui règle ta façon de te servir de l'application, et non ton budget : ces réglages vivent sur CE poste, pas dans la base. Changer de machine ne les emporte pas, et effacer les données du navigateur les remet à leur valeur d'origine.",
+  "noyau.theme":
+    "Le mode clair ou le mode sombre. Le choix vit sur cette machine, comme la langue : il ne voyage pas avec tes données, et l'autre poste garde le sien.",
   "noyau.touche-gel-infobulle":
     "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même. Figée, l'infobulle des graphes cesse d'être remplacée par le survol : tu récupères ton curseur pour lire son top 3 ou cliquer son bouton. La même touche, un clic à côté ou Échap la libèrent.",
 
