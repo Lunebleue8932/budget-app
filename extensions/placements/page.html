@@ -1,7 +1,20 @@
-<!-- Écran de l'extension « Placements financiers », injecté dans <main>
-     par frontend/extensions.js. C'est un <section> comme ceux du noyau :
-     switchSection le montre et le masque exactement de la même façon. -->
-    <section id="section-placements">
+<!-- Écran de l'extension « Placements financiers ».
+
+     UN ONGLET DE LA PAGE DES COMPTES (cf. le manifeste : navigation.type =
+     "onglet", hote_section = "comptes-globale"), et non plus une page à part
+     dans la barre du haut. Les deux répondaient à la MÊME question — qu'est-ce
+     que je détiens, à cet instant — l'une en soldes de comptes, l'autre en
+     titres ; les séparer obligeait à additionner de tête ce qui forme un seul
+     patrimoine, et laissait le camembert « Répartition des avoirs » décrire des
+     avoirs dont une part vivait sur l'autre écran. La page prend d'ailleurs le
+     nom de ce qu'elle montre alors : « Vue des avoirs » (section_libelle).
+
+     C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la
+     montre et la cache, exactement comme un onglet du noyau. Son titre est un
+     <h2> et non un <h3> comme les autres onglets — il porte les boutons que
+     deux extensions viennent y poser (import de placements, vue d'ensemble), et
+     rétrograder ce titre aurait décalé tout ce qui s'y accroche. -->
+<div id="sous-section-comptes-globale-placements" class="sous-section">
       <!-- LE CONTENEUR DES ACTIONS EST DÉCLARÉ ICI, chez l'hôte, même quand
            aucune extension n'y pose de bouton. C'est ce qui garantit qu'elles
            se GROUPENT au bord droit : chacune posant son bouton directement
@@ -156,4 +169,4 @@
         </form>
       </div>
 
-    </section>
+    </div>

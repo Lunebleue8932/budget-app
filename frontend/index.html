@@ -508,8 +508,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
     <section id="section-comptes-globale">
       <h2 id="titre-comptes-globale">Vue globale des comptes</h2>
 
+      <!-- LA BARRE RESTE MASQUÉE TANT QU'ELLE EST SEULE (cf.
+           extensions.majBarreOnglets) : son unique onglet ne choisirait rien et
+           répéterait le titre de la page. Elle apparaît dès que « Placements
+           financiers » pose le sien — et le libellé ci-dessous devient alors
+           utile, d'où « Comptes » plutôt que le nom complet de la page, qui
+           serait écrit deux fois l'un sous l'autre. -->
       <div class="sous-onglets" id="comptes-globale-sous-nav" style="display:none">
-        <button type="button" data-sous-section="comptes-globale-vue" class="active">Vue globale des comptes</button>
+        <button type="button" data-sous-section="comptes-globale-vue" class="active">Comptes</button>
       </div>
 
       <div id="sous-section-comptes-globale-vue" class="sous-section active">
@@ -1922,8 +1928,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
   <script src="textes.js?v=16"></script>
-  <script src="i18n.js?v=66"></script>
+  <script src="i18n.js?v=67"></script>
   <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=147"></script>
+  <script src="app.js?v=148"></script>
 </body>
 </html>

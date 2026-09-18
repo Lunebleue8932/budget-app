@@ -356,7 +356,7 @@ const TRADUCTIONS = {
        lignes. ===== */
     ": aucun intérêt n'est écrit en opération, aucun solde et aucun chiffre du dashboard n'en dépend. Si le versement figure sur ton relevé, il entrera de lui-même par l'import — le saisir ici en plus ne le compterait pas deux fois dans tes soldes, mais ne le remplace pas non plus.":
       ": no interest is written as a transaction, and no balance or dashboard figure depends on it. If the payment appears on your statement, it will come in through the import on its own — recording it here as well would not count it twice in your balances, but it does not replace it either.",
-    "Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page Placements financiers, et la répartition apparaîtra ici.":
+    "Aucun titre détenu pour le moment. Achète ou importe des titres depuis l'onglet Placements financiers, et la répartition apparaîtra ici.":
       "No securities held yet. Buy or import securities from the Investments page, and the breakdown will appear here.",
     "Le navigateur ne transmet jamais le chemin complet d'un fichier choisi via « Parcourir » (limite de sécurité) : ce bouton ne pré-remplit que le nom du fichier, complète le dossier à la main.":
       "The browser never passes the full path of a file picked through « Browse… » (a security limit): this button only pre-fills the file name, complete the folder by hand.",
@@ -1094,11 +1094,15 @@ const TRADUCTIONS = {
     "Comptes courants": "Current accounts",
     "Comptes d'\u00e9pargne": "Savings accounts",
     "Comptes de placements": "Investment accounts",
-    "Le solde affich\u00e9 est celui des esp\u00e8ces disponibles sur le compte ; les titres d\u00e9tenus sont valoris\u00e9s dans \u00ab Total des avoirs \u00bb et d\u00e9taill\u00e9s dans la page Placements financiers.":
+    "Le solde affich\u00e9 est celui des esp\u00e8ces disponibles sur le compte ; les titres d\u00e9tenus sont valoris\u00e9s dans \u00ab Total des avoirs \u00bb et d\u00e9taill\u00e9s dans l'onglet Placements financiers.":
       "The balance shown is the cash available on the account; the securities you hold are valued under \u201cTotal assets\u201d and detailed on the Investments page.",
 
     // ---------- Vue globale des comptes ----------
     "Vue globale des comptes": "Global account overview",
+    // Le nom que prend cette page quand « Placements financiers » tourne : elle
+    // montre alors les deux moitiés du patrimoine (cf. son manifeste,
+    // navigation.section_libelle).
+    "Vue des avoirs": "Assets overview",
     "Le solde affich\u00e9 repr\u00e9sente les esp\u00e8ces disponibles. La valeur de tes titres se lit dans Placements financiers.":
       "The balance shown is the available cash. What your holdings are worth is on the Investments page.",
     "D\u00e9penses par cat\u00e9gorie \u2014": "Spending by category \u2014",
@@ -1821,12 +1825,12 @@ const TRADUCTIONS = {
       "This currency is still used by an account, a transaction, a budget or a security: it cannot be deleted.",
     "Les op\u00e9rations classiques et remboursements ne peuvent pas cibler un compte d'\u00e9pargne ; utilise un virement interne.":
       "Standard transactions and reimbursements cannot target a savings account; use an internal transfer.",
-    "Un compte de placements financiers n'accepte que des virements internes et des achats/ventes de titres (page Placements financiers).":
+    "Un compte de placements financiers n'accepte que des virements internes et des achats/ventes de titres (onglet Placements financiers).":
       "An investment account only accepts internal transfers and security purchases or sales (Investments page).",
     "Type d'op\u00e9ration introuvable": "Transaction type not found",
     "Le type 'Virement interne' est r\u00e9serv\u00e9 aux virements, cr\u00e9\u00e9s via /virements (deux \u00e9critures li\u00e9es).":
       "The 'Virement interne' type is reserved for transfers, created through /virements (two linked entries).",
-    "Cette \u00e9criture appartient \u00e0 un achat/vente de titres : modifie-la depuis la page Placements financiers.":
+    "Cette \u00e9criture appartient \u00e0 un achat/vente de titres : modifie-la depuis l'onglet Placements financiers.":
       "This entry belongs to a security purchase or sale: edit it from the Investments page.",
     "Op\u00e9ration introuvable": "Transaction not found",
     "Cette op\u00e9ration fait partie d'un virement : supprimez le virement et recr\u00e9ez l'op\u00e9ration pour en changer le type.":
@@ -2572,11 +2576,11 @@ const MOTIFS_SERVEUR = [
     "The $1 account “$2” does not hold this currency (possible: $3).",
   ],
   [
-    /^Le type « (.+) » est géré par la page Placements financiers et ne peut pas être posé ici\.$/,
+    /^Le type « (.+) » est géré par l'onglet Placements financiers et ne peut pas être posé ici\.$/,
     "The “$1” type is managed by the Investments page and cannot be set here.",
   ],
   [
-    /^Le type « (.+) » ne peut pas être posé par une règle : les achats\/ventes de titres se saisissent depuis la page Placements financiers\.$/,
+    /^Le type « (.+) » ne peut pas être posé par une règle : les achats\/ventes de titres se saisissent depuis l'onglet Placements financiers\.$/,
     "The “$1” type cannot be set by a rule: security purchases and sales are entered from the Investments page.",
   ],
   [

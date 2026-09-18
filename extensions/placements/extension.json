@@ -1,7 +1,7 @@
 {
   "numero": 6,
   "nom": "Placements financiers",
-  "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne.",
+  "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne. Son écran est un ONGLET de la page des avoirs, à côté de la vue des comptes : les deux répondent à la même question — ce qu'on détient à cet instant, en soldes d'un côté, en titres de l'autre.",
   "version": "1.0.0",
   "backend": "backend.py",
   "frontend": {
@@ -14,9 +14,10 @@
     ]
   },
   "navigation": {
-    "type": "page",
-    "section": "placements",
+    "type": "onglet",
+    "hote_section": "comptes-globale",
+    "sous_section": "placements",
     "libelle": "Placements financiers",
-    "position": 3
+    "section_libelle": "Vue des avoirs"
   }
 }

@@ -6,7 +6,7 @@ mélangerait donnerait des parts fausses avec l'air d'être juste. Un portefeuil
 à cheval sur deux devises rend donc deux répartitions, que l'écran présente sous
 deux onglets — exactement comme le dashboard.
 
-TOUS COMPTES CONFONDUS. C'est la raison d'être de cet écran : la page Placements
+TOUS COMPTES CONFONDUS. C'est la raison d'être de cet écran : l'onglet Placements
 répond déjà « qu'y a-t-il sur ce PEA », et n'a aucun moyen de répondre « à quoi
 suis-je exposé, en tout ». Le prix de revient, lui, se déroule par portefeuille
 (cf. services/placements._replier_mouvements) : les détentions sont donc lues

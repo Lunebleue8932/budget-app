@@ -1,6 +1,6 @@
 /* ---------- Extension « Vue d'ensemble des placements » ----------
  *
- * CE QUE CET ÉCRAN AJOUTE. La page Placements répond « qu'y a-t-il sur ce
+ * CE QUE CET ÉCRAN AJOUTE. L'onglet Placements répond « qu'y a-t-il sur ce
  * PEA » : un onglet par compte, et le détail de ses lignes. Elle n'a aucun
  * moyen de répondre « à quoi suis-je exposé, en tout » — la question qu'on se
  * pose quand on détient le même ETF sur deux comptes et qu'on veut savoir ce
@@ -348,7 +348,7 @@ async function loadInvestingOverview() {
 
 BudgetApp.extensions.enregistrer(IO_ID, { chargeur: loadInvestingOverview });
 
-/* ---------- La porte d'entrée : un bouton sur la page Placements ----------
+/* ---------- La porte d'entrée : un bouton sur l'onglet Placements ----------
  *
  * MÊME MÉCANIQUE QUE L'ÉCRAN D'IMPORT (cf. import-placements.js, dont l'en-tête
  * détaille le raisonnement) : cet écran est une façon de REGARDER le
@@ -364,7 +364,7 @@ BudgetApp.extensions.enregistrer(IO_ID, { chargeur: loadInvestingOverview });
  * échoue au premier essai et se rejoue sur `budgetapp:extension-chargee`.
  */
 function poserBoutonVueEnsemble() {
-  const section = document.getElementById("section-placements");
+  const section = document.getElementById("sous-section-comptes-globale-placements");
   if (!section) return false;
   if (document.getElementById("btn-io-ouvrir")) return true;
   const titre = section.querySelector("h2");
@@ -390,7 +390,7 @@ function poserBoutonVueEnsemble() {
   // Sans ce second argument, aucun onglet ne resterait allumé et l'application
   // aurait l'air d'avoir quitté toutes ses pages.
   bouton.addEventListener("click", () =>
-    switchSection(IO_ID, { ongletActif: "placements" })
+    switchSection(IO_ID, { ongletActif: "comptes-globale" })
   );
   actions.appendChild(bouton);
   return true;
@@ -407,4 +407,4 @@ if (!poserBoutonVueEnsemble()) {
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document
   .getElementById("btn-io-retour")
-  .addEventListener("click", () => switchSection("placements"));
+  .addEventListener("click", () => switchSection("comptes-globale", { sousSection: "comptes-globale-placements" }));

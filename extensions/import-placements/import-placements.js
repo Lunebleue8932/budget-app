@@ -1313,7 +1313,7 @@ async function confirmerImportImpl() {
   await loadImplPresets();
   await loadImplHistorique();
   // Les titres créés doivent apparaître dans le menu d'édition du prochain
-  // import, et la page Placements a de nouveaux mouvements à montrer.
+  // import, et l'onglet Placements a de nouveaux mouvements à montrer.
   await refreshTitresImpl();
   await refreshComptes();
 }
@@ -1462,7 +1462,7 @@ async function chargerPresetImpl() {
 }
 
 async function loadImportPlacements() {
-  // On entre ici par le bouton d'import de la page Placements : l'écran doit
+  // On entre ici par le bouton d'import de l'onglet Placements : l'écran doit
   // s'ouvrir sur son volet d'import, jamais sur l'onglet « Règles » laissé
   // ouvert d'une visite précédente.
   reinitialiserOngletsImpl();
@@ -2297,7 +2297,7 @@ BudgetApp.extensions.enregistrer("import-placements", {
   chargeur: loadImportPlacements,
 });
 
-/* ---------- La porte d'entrée : un bouton sur la page Placements ----------
+/* ---------- La porte d'entrée : un bouton sur l'onglet Placements ----------
  *
  * CE QUI A CHANGÉ, ET POURQUOI. Cet écran avait son propre onglet dans la
  * barre du haut, juste à côté de « Placements financiers ». Deux onglets
@@ -2309,7 +2309,7 @@ BudgetApp.extensions.enregistrer("import-placements", {
  *
  * COMMENT ON SE GREFFE. Le noyau n'offre aucune API « ajoute-toi à l'écran
  * d'une autre extension » ; on pose donc le bouton nous-même dans le titre de
- * `#section-placements`, dès que celui-ci existe.
+ * `#sous-section-comptes-globale-placements`, dès que celui-ci existe.
  *
  * ON NE RÉ-ENREGISTRE PAS LE CHARGEUR DE « placements », contrairement à la
  * greffe des cours (cf. lecture-de-cours.js). Deux raisons, et la seconde
@@ -2326,7 +2326,7 @@ BudgetApp.extensions.enregistrer("import-placements", {
 const IMPL_ID = "import-placements";
 
 /**
- * Pose le bouton d'import au bord droit du titre de la page Placements.
+ * Pose le bouton d'import au bord droit du titre de l'onglet Placements.
  *
  * DANS le `<h2>` et non après lui : c'est ce qui le met sur la ligne du titre
  * sans introduire d'élément entre le titre et ce qui le suit — la barre de
@@ -2342,10 +2342,10 @@ const IMPL_ID = "import-placements";
  * Éteindre l'import depuis les Paramètres retire donc la porte d'entrée
  * sur-le-champ, sans une ligne de plus ici.
  *
- * Rend false tant que la page Placements n'est pas là : l'appelant réessaiera.
+ * Rend false tant que l'onglet Placements n'est pas là : l'appelant réessaiera.
  */
 function poserBoutonImportPlacements() {
-  const section = document.getElementById("section-placements");
+  const section = document.getElementById("sous-section-comptes-globale-placements");
   if (!section) return false;
   if (document.getElementById("btn-impl-ouvrir")) return true;
   const titre = section.querySelector("h2");
@@ -2369,7 +2369,7 @@ function poserBoutonImportPlacements() {
   // aucun onglet ne serait allumé et l'application aurait l'air d'avoir quitté
   // toutes ses pages.
   bouton.addEventListener("click", () =>
-    switchSection("import-placements", { ongletActif: "placements" })
+    switchSection("import-placements", { ongletActif: "comptes-globale" })
   );
   actions.appendChild(bouton);
   return true;
@@ -2386,4 +2386,4 @@ if (!poserBoutonImportPlacements()) {
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document
   .getElementById("btn-impl-retour")
-  .addEventListener("click", () => switchSection("placements"));
+  .addEventListener("click", () => switchSection("comptes-globale", { sousSection: "comptes-globale-placements" }));

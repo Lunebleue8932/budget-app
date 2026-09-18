@@ -56,7 +56,7 @@ class LignePlacement(BaseModel):
     # Le nom du titre en base, qui peut différer de celui du fichier quand le
     # rapprochement s'est fait par l'ISIN. C'est celui-là qui fait foi : un
     # courtier abrège, un autre pas, et renommer un titre à chaque import
-    # réécrirait l'historique de la page Placements.
+    # réécrirait l'historique de l'onglet Placements.
     action_nom: str = ""
     titre_a_creer: bool = False
     # L'ÉTIQUETTE À POSER SUR LE TITRE, si la ligne en désigne une — par une

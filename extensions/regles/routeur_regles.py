@@ -47,7 +47,7 @@ def _valider_action(db: Session, type_id: int, categorie_id, compte_autre_id, de
             status_code=400,
             detail=(
                 f"Le type « {type_operation.nom} » ne peut pas être posé par une règle : "
-                "les achats/ventes de titres se saisissent depuis la page Placements financiers."
+                "les achats/ventes de titres se saisissent depuis l'onglet Placements financiers."
             ),
         )
 

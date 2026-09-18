@@ -581,7 +581,7 @@ BudgetApp.extensions.enregistrer(SUIVIR_ID, { chargeur: loadSuiviRemboursements 
  * fallu se souvenir qu'il existe.
  *
  * LE CONTENEUR EST DÉCLARÉ PAR LE NOYAU (`#flux-remboursements-actions`, dans
- * index.html), comme `.placements-titre-actions` l'est pour la page Placements :
+ * index.html), comme `.placements-titre-actions` l'est pour l'onglet Placements :
  * c'est lui qui réserve la place, l'extension n'y met que son bouton. Il est
  * donc TOUJOURS présent quand ce script s'exécute — pas besoin du rattrapage sur
  * `budgetapp:extension-chargee` dont ont besoin les greffes posées sur l'écran

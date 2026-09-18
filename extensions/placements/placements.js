@@ -933,7 +933,7 @@ async function ajouterTotauxPlacementsSurCartes() {
       lien.addEventListener("click", () => {
         state.placementCompteId = compte.compte_id;
         vueTitres = false;
-        switchSection("placements");
+        switchSection("comptes-globale", { sousSection: "comptes-globale-placements" });
       });
       carte.appendChild(lien);
     });

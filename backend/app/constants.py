@@ -103,7 +103,7 @@ class TypeOperation(str, enum.Enum):
     remboursement_pret = "remboursement_pret"
     # Mouvement d'espèces d'un achat ou d'une vente de titres. Type "interne"
     # (cf. TYPES_INTERNES) : il n'est jamais choisi à la main, il naît toujours
-    # avec sa ligne OperationAction depuis la page Placements financiers.
+    # avec sa ligne OperationAction depuis l'onglet Placements financiers.
     action = "action"
 
 
@@ -211,7 +211,7 @@ TYPE_COMPTE_COURANT = "courant"
 TYPE_COMPTE_EPARGNE = "épargne"
 # Compte-titres : deux soldes à la fois, des espèces (alimentées par virement
 # interne, dépensées à l'achat de titres) et un portefeuille de titres détenus
-# (cf. models.Action / models.OperationAction, page Placements financiers).
+# (cf. models.Action / models.OperationAction, onglet Placements financiers).
 TYPE_COMPTE_PLACEMENT = "placements financiers"
 TYPES_COMPTE_INITIAUX = [TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT]
 TYPES_COMPTE_SYSTEME = {TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT}

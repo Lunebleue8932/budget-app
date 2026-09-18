@@ -1231,17 +1231,45 @@ function fermerRecherche() {
  * barre du haut, quand ce n'est pas celui qu'on ouvre.
  *
  * Un écran d'extension peut ne pas avoir de bouton à lui (`bouton: false` dans
- * son manifeste) : « Import de placements » s'ouvre depuis la page Placements
+ * son manifeste) : « Import de placements » s'ouvre depuis l'onglet Placements
  * et en est une action, pas une destination. La barre doit alors continuer de
  * montrer d'où l'on vient, sinon plus rien n'y est allumé et l'application a
  * l'air d'avoir quitté toutes ses pages.
  */
-function switchSection(name, { ongletActif = name } = {}) {
+/**
+ * Pose un onglet d'un écran SANS le charger : les classes, et rien d'autre.
+ *
+ * POURQUOI PAS UN `.click()`, qui ferait tout d'un coup : le gestionnaire
+ * délégué qu'il déclencherait charge lui aussi le volet, et le chargeur de la
+ * section suit juste derrière — deux fois la même requête, pour un seul écran
+ * ouvert. Ici on désigne l'onglet, et le chargeur de la section (qui lit le
+ * bouton actif) remplit le bon volet, une fois.
+ */
+function activerOngletSansCharger(section, sousSection) {
+  const barre = document.getElementById(`${section}-sous-nav`);
+  const bouton = barre?.querySelector(`button[data-sous-section="${sousSection}"]`);
+  if (!bouton) return;
+  barre
+    .querySelectorAll("button[data-sous-section]")
+    .forEach((b) => b.classList.remove("active"));
+  bouton.classList.add("active");
+  const portee = document.getElementById(`section-${section}`);
+  portee.querySelectorAll(":scope > .sous-section").forEach((s) => s.classList.remove("active"));
+  document.getElementById(`sous-section-${sousSection}`)?.classList.add("active");
+}
+
+function switchSection(name, { ongletActif = name, sousSection = null } = {}) {
   document.querySelectorAll("section").forEach((s) => s.classList.remove("active"));
   document.getElementById(`section-${name}`).classList.add("active");
   document.querySelectorAll("nav button").forEach((b) => b.classList.remove("active"));
   // `?.` : rien ne garantit un bouton — cf. `ongletActif` ci-dessus.
   document.querySelector(`nav button[data-section="${ongletActif}"]`)?.classList.add("active");
+
+  // UN ONGLET PRÉCIS, AVANT les chargeurs : ceux-ci lisent le bouton actif pour
+  // savoir quel volet remplir (cf. loadComptesGlobaleSousPage). C'est par là
+  // qu'une extension revient sur son propre onglet — « Placements financiers »
+  // est l'un des deux volets de la page des avoirs.
+  if (sousSection) activerOngletSansCharger(name, sousSection);
 
   if (name === "dashboard") loadDashboard();
   if (name === "comptes-globale") loadComptesGlobaleSousPage();
@@ -7830,7 +7858,7 @@ async function loadOperations() {
     };
     // Les écritures d'espèces des achats/ventes de titres ne s'affichent pas
     // ici : elles n'existent que par leur contrepartie et se gèrent depuis la
-    // page Placements financiers.
+    // onglet Placements financiers.
     const codesInternes = new Set(
       state.typesOperation.filter((t) => t.interne).map((t) => t.code)
     );

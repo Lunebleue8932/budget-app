@@ -131,7 +131,7 @@ function fraicheur(isoDateHeure) {
  * consulte, pas une notification qu'on chasse.
  */
 function poserBarre() {
-  const section = document.getElementById("section-placements");
+  const section = document.getElementById("sous-section-comptes-globale-placements");
   if (!section) return; // extension « placements » absente : rien à greffer
   const existante = document.getElementById("pw-barre");
   if (!actif()) {
@@ -497,7 +497,7 @@ async function rafraichir(route) {
  * l'ouverture suivante le referait de toute façon.
  */
 async function rechargerEcran() {
-  const section = document.getElementById("section-placements");
+  const section = document.getElementById("sous-section-comptes-globale-placements");
   if (!section || !section.classList.contains("active")) return;
   if (typeof loadPlacements === "function") await loadPlacements();
 }
@@ -513,7 +513,7 @@ async function rechargerEcran() {
  * DISCRÈTE QUAND ELLE RÉUSSIT, VISIBLE QUAND ELLE ÉCHOUE : un toast de succès
  * à chaque ouverture deviendrait du bruit, mais un cours qu'on croit frais et
  * qui ne l'est pas est précisément le piège que cette extension doit éviter.
- * Le compte rendu complet, lui, attend sur la page Placements.
+ * Le compte rendu complet, lui, attend sur l'onglet Placements.
  */
 async function rafraichirAuLancement() {
   if (!actif()) return;
@@ -565,7 +565,7 @@ async function chargerPlacementsAvecCours() {
 let infoBulleOrigine = null;
 
 function ajusterInfoBulle() {
-  const bulle = document.querySelector("#section-placements h3 .info-bulle");
+  const bulle = document.querySelector("#sous-section-comptes-globale-placements h3 .info-bulle");
   if (!bulle) return;
   // Le texte d'origine est gardé au premier passage : désactiver l'extension
   // doit rendre la page telle qu'elle serait sans elle, texte compris.

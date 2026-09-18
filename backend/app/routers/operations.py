@@ -23,7 +23,7 @@ router = APIRouter(prefix="/operations", tags=["operations"])
 def _valider_compte_operations_libres(compte: models.Compte) -> None:
     """Épargne et placements ne se pilotent pas à l'opération : l'argent y
     arrive et en repart par virement interne, et sur un compte-titres il se
-    transforme en titres via la page Placements financiers."""
+    transforme en titres via l'onglet Placements financiers."""
     if compte.type_nom == TYPE_COMPTE_EPARGNE:
         raise HTTPException(
             status_code=400,
@@ -37,7 +37,7 @@ def _valider_compte_operations_libres(compte: models.Compte) -> None:
             status_code=400,
             detail=(
                 "Un compte de placements financiers n'accepte que des virements "
-                "internes et des achats/ventes de titres (page Placements financiers)."
+                "internes et des achats/ventes de titres (onglet Placements financiers)."
             ),
         )
 
@@ -60,7 +60,7 @@ def _valider_type(db: Session, type_id: int) -> models.TypeOperationDB:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Le type « {type_operation.nom} » est géré par la page "
+                f"Le type « {type_operation.nom} » est géré par l'onglet "
                 "Placements financiers et ne peut pas être posé ici."
             ),
         )
@@ -76,7 +76,7 @@ def _refuser_si_interne(operation: models.Operation) -> None:
             status_code=409,
             detail=(
                 "Cette écriture appartient à un achat/vente de titres : "
-                "modifie-la depuis la page Placements financiers."
+                "modifie-la depuis l'onglet Placements financiers."
             ),
         )
 

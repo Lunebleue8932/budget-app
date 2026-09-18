@@ -24,7 +24,7 @@ TROIS TYPES DE LIGNE, TROIS TRAITEMENTS
 
   - `achat` / `vente` : un mouvement de titres. Il crée le couple habituel
     (OperationAction + Operation de type `action`) par crud.create_operation_action,
-    exactement comme la page Placements le fait à la main ;
+    exactement comme l'onglet Placements le fait à la main ;
   - `transfert` : un mouvement d'ESPÈCES entre ce compte-titres et un autre
     compte (l'alimentation d'un PEA, un retrait vers le compte courant). Aucun
     titre n'y bouge : c'est un virement interne ordinaire, créé par
