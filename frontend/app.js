@@ -220,6 +220,20 @@ const MOIS_COURTS_FR = nomsMois("short").map((nom) =>
   capitalizeFirst(nom.replace(".", "").slice(0, 4))
 );
 
+/**
+ * "2026-07-05" -> "05 Juil. 2026", le format des CELLULES.
+ *
+ * LE MOIS ABRÉGÉ parce qu'ici la date partage sa ligne avec tout le reste : une
+ * colonne de « 15 Septembre 2026 » pousse la nature, le montant et le compte
+ * vers la droite pour un mot que trois lettres suffisent à reconnaître. Le
+ * format long reste celui des séparateurs de journée et des phrases, où la date
+ * est le sujet.
+ */
+function formatDateCourte(isoDate) {
+  const [annee, mois, jour] = isoDate.split("-").map(Number);
+  return `${String(jour).padStart(2, "0")} ${MOIS_COURTS_FR[mois - 1]}. ${annee}`;
+}
+
 // "2026-07-05" -> "05 Juillet 2026"
 function formatDate(isoDate) {
   const [annee, mois, jour] = isoDate.split("-").map(Number);
@@ -6671,6 +6685,75 @@ function ongletDeListe(listeId) {
   return listeId.replace(/^liste-/, "").replace(/-(ponctuelles|recurrentes)$/, "");
 }
 
+/* ---------- Deux façons de ranger un tableau d'opérations ----------
+ *
+ * TANT QUE LE TRI EST CHRONOLOGIQUE, la date appartient au GROUPE : chaque
+ * journée forme un bloc introduit par « Jeudi 3 septembre 2026 », et aucune
+ * ligne ne répète une date que le bloc annonce déjà. C'est la lecture d'un
+ * relevé, et c'est l'affichage d'origine.
+ *
+ * DÈS QU'ON TRIE AUTREMENT — par montant, par compte, par catégorie — ce
+ * groupement n'a plus rien à grouper : l'ordre n'étant plus chronologique,
+ * chaque « journée » se réduit le plus souvent à une ligne, et l'écran se
+ * remplit d'en-têtes de date qui séparent des opérations une par une. Le
+ * classement demandé devient illisible par la mise en forme qui servait
+ * l'autre.
+ *
+ * ALORS LA DATE DESCEND DANS LA LIGNE, en première colonne : elle reste
+ * lisible, elle cesse d'ordonner. Et comme rien ne découpe plus la liste, un
+ * filet — le même que celui des journées, sans sa date — revient toutes les dix
+ * lignes : de quoi suivre une ligne du regard jusqu'au bout sans compter les
+ * rangées à la main.
+ */
+function triParDate(onglet) {
+  return String(state.triSelections[onglet] || "").startsWith("date-");
+}
+
+/** Les colonnes d'un onglet, DATE comprise quand le tri ne l'est pas. */
+function colonnesOperations(onglet) {
+  const colonnes = COLONNES_OPERATIONS[onglet] || [];
+  return triParDate(onglet) ? colonnes : ["Date", ...colonnes];
+}
+
+// Dix lignes : assez pour que le filet ne hache pas la lecture, assez peu pour
+// qu'aucun bloc ne dépasse la hauteur d'un écran.
+const LIGNES_PAR_BLOC = 10;
+
+/**
+ * Les blocs d'un tableau : une journée chacun quand le tri est chronologique,
+ * une dizaine de lignes sinon. Chaque bloc porte le `jour` que son séparateur
+ * doit annoncer, ou `null` quand il n'y a rien à annoncer.
+ */
+function blocsOperations(liste, onglet, dateDe = (op) => op.date) {
+  if (triParDate(onglet)) {
+    return [...grouperParJour(liste, dateDe)].map(([jour, elements]) => ({ jour, elements }));
+  }
+  const blocs = [];
+  for (let depart = 0; depart < liste.length; depart += LIGNES_PAR_BLOC) {
+    blocs.push({ jour: null, elements: liste.slice(depart, depart + LIGNES_PAR_BLOC) });
+  }
+  return blocs;
+}
+
+/**
+ * Pose la cellule de date en tête d'une ligne, quand le tri l'a fait descendre
+ * du séparateur (cf. colonnesOperations).
+ *
+ * LE NŒUD PEUT ÊTRE UN FRAGMENT — une opération découpée ou annotée en rend
+ * plusieurs lignes (cf. renderClassiques) : la date va sur la PREMIÈRE, les
+ * lignes de détail traversant de toute façon toute la largeur.
+ */
+function avecCelluleDate(noeud, dateIso, onglet) {
+  if (triParDate(onglet)) return noeud;
+  const tr = noeud.tagName === "TR" ? noeud : noeud.querySelector("tr");
+  if (!tr) return noeud;
+  const td = document.createElement("td");
+  td.className = "operation-date";
+  td.textContent = dateIso ? formatDateCourte(dateIso) : "-";
+  tr.insertBefore(td, tr.firstChild);
+  return noeud;
+}
+
 // Regroupe une liste déjà triée par date, en conservant l'ordre : le premier
 // jour rencontré reste le premier affiché.
 function grouperParJour(liste, dateDe = (op) => op.date) {
@@ -6697,10 +6780,13 @@ function remplirListeOperations(listeId, liste, construireLigne) {
   conteneur.innerHTML = "";
   if (liste.length === 0) return;
 
-  const colonnes = COLONNES_OPERATIONS[ongletDeListe(listeId)] || [];
+  const onglet = ongletDeListe(listeId);
+  const colonnes = colonnesOperations(onglet);
   const table = document.createElement("table");
-  // Chaque JOURNÉE y forme un bloc arrondi distinct, au lieu d'un seul cadre
-  // continu pour tout le tableau (cf. .table-operations dans style.css).
+  // Chaque BLOC y forme un cadre arrondi distinct — une journée, ou une dizaine
+  // de lignes quand le tri n'est plus chronologique (cf. blocsOperations) — au
+  // lieu d'un seul cadre continu pour tout le tableau (cf. .table-operations
+  // dans style.css).
   table.className = "table-operations";
   // Les en-têtes vivent en français dans COLONNES_OPERATIONS (lisible en
   // regard du reste du fichier) et se traduisent au rendu.
@@ -6708,11 +6794,18 @@ function remplirListeOperations(listeId, liste, construireLigne) {
     .map((c) => `<th>${t(c)}</th>`)
     .join("")}</tr></thead>`;
 
-  grouperParJour(liste).forEach((operations, jour) => {
+  blocsOperations(liste, onglet).forEach((bloc, rang) => {
     const body = document.createElement("tbody");
     body.className = "jour-groupe";
-    body.appendChild(ligneSeparatriceJour(jour, colonnes.length));
-    operations.forEach((op) => body.appendChild(construireLigne(op)));
+    // LE PREMIER BLOC N'A PAS DE FILET quand il n'annonce rien : l'en-tête du
+    // tableau le précède déjà, et un trait juste dessous ne séparerait que lui
+    // de lui-même.
+    if (bloc.jour !== null || rang > 0) {
+      body.appendChild(ligneSeparatriceJour(bloc.jour, colonnes.length));
+    }
+    bloc.elements.forEach((op) =>
+      body.appendChild(avecCelluleDate(construireLigne(op), op.date, onglet))
+    );
     table.appendChild(body);
     wireEditDeleteButtons(body);
   });
@@ -6732,12 +6825,17 @@ function ligneSeparatriceJour(jour, nbColonnes) {
   td.colSpan = nbColonnes;
   const contenu = document.createElement("div");
   contenu.className = "jour-separateur-contenu";
-  const date = document.createElement("span");
-  date.className = "jour-separateur-date";
-  date.textContent = libelleJour(jour);
+  // `jour` À NULL : le même filet, sans rien annoncer. C'est le repère des dix
+  // lignes, quand le tri n'est plus chronologique (cf. blocsOperations) — la
+  // date, elle, est alors dans chaque ligne.
+  if (jour !== null) {
+    const date = document.createElement("span");
+    date.className = "jour-separateur-date";
+    date.textContent = libelleJour(jour);
+    contenu.appendChild(date);
+  }
   const trait = document.createElement("span");
   trait.className = "jour-separateur-trait";
-  contenu.appendChild(date);
   contenu.appendChild(trait);
   td.appendChild(contenu);
   tr.appendChild(td);
@@ -6837,7 +6935,7 @@ function celluleNature(op) {
 }
 
 function renderClassiques(liste) {
-  const nbColonnes = COLONNES_OPERATIONS.classique.length;
+  const nbColonnes = colonnesOperations("classique").length;
   const construireLigne = (op) => {
     const tr = document.createElement("tr");
     if (op.decoupes && op.decoupes.length > 0) tr.classList.add("operation-decoupee");
@@ -6872,7 +6970,7 @@ function renderClassiques(liste) {
 }
 
 function renderRemboursables(liste) {
-  const nbColonnes = COLONNES_OPERATIONS.remboursable.length;
+  const nbColonnes = colonnesOperations("remboursable").length;
   const construireLigne = (op) => {
     const { cellHtml, rowClass } = resteCellEtRowClass(
       op.montant_du,
@@ -6908,7 +7006,7 @@ function renderRemboursables(liste) {
 }
 
 function renderRemboursements(liste) {
-  const nbColonnes = COLONNES_OPERATIONS.remboursements.length;
+  const nbColonnes = colonnesOperations("remboursements").length;
   const construireLigne = (op) => {
     const couvre =
       (op.operations_remboursees || [])
@@ -6987,40 +7085,46 @@ function renderVirements(paires) {
     const utilisables = paires.filter(([, { sortante, entrante }]) => sortante || entrante);
     if (utilisables.length === 0) return;
 
-    const colonnes = COLONNES_OPERATIONS.virements;
+    const colonnes = colonnesOperations("virements");
     const table = document.createElement("table");
-    // Même bloc arrondi par journée que les autres onglets.
+    // Mêmes blocs que les autres onglets : une journée, ou une dizaine de
+    // lignes quand le tri n'est plus chronologique (cf. blocsOperations).
     table.className = "table-operations";
     // Les en-têtes vivent en français dans COLONNES_OPERATIONS (lisible en
-  // regard du reste du fichier) et se traduisent au rendu.
-  table.innerHTML = `<thead><tr>${colonnes
-    .map((c) => `<th>${t(c)}</th>`)
-    .join("")}</tr></thead>`;
+    // regard du reste du fichier) et se traduisent au rendu.
+    table.innerHTML = `<thead><tr>${colonnes
+      .map((c) => `<th>${t(c)}</th>`)
+      .join("")}</tr></thead>`;
 
-    grouperParJour(utilisables, ([, { sortante, entrante }]) => (sortante || entrante).date).forEach(
-      (pairesDuJour, jour) => {
-        const body = document.createElement("tbody");
-        body.className = "jour-groupe";
-        body.appendChild(ligneSeparatriceJour(jour, colonnes.length));
-        pairesDuJour.forEach((paire) => {
-          const tr = construireLigne(paire);
-          if (tr) {
-            // La paire est retenue sur la ligne : l'édition a besoin des deux
-            // écritures, que la seule lecture du DOM ne donnerait pas.
-            tr._paireVirement = paire;
-            body.appendChild(tr);
-            // À part (pas un fragment comme les autres onglets) : `tr` doit
-            // rester LUI-MÊME l'élément qui porte `_paireVirement` ci-dessus,
-            // ce qu'un fragment aurait dissous à l'insertion.
-            const [, { sortante, entrante }] = paire;
-            const reference = sortante || entrante;
-            if (reference.notes) body.appendChild(ligneDetailNote(reference, colonnes.length));
-          }
-        });
-        table.appendChild(body);
-        cablerActionsVirements(body);
+    // LA DATE D'UNE PAIRE est celle de sa ligne de référence : les deux jambes
+    // d'un virement la partagent (une seule saisie), et une paire « solo » n'en
+    // a qu'une des deux.
+    const dateDe = ([, { sortante, entrante }]) => (sortante || entrante).date;
+
+    blocsOperations(utilisables, "virements", dateDe).forEach((bloc, rang) => {
+      const body = document.createElement("tbody");
+      body.className = "jour-groupe";
+      if (bloc.jour !== null || rang > 0) {
+        body.appendChild(ligneSeparatriceJour(bloc.jour, colonnes.length));
       }
-    );
+      bloc.elements.forEach((paire) => {
+        const tr = construireLigne(paire);
+        if (tr) {
+          // La paire est retenue sur la ligne : l'édition a besoin des deux
+          // écritures, que la seule lecture du DOM ne donnerait pas.
+          tr._paireVirement = paire;
+          body.appendChild(avecCelluleDate(tr, dateDe(paire), "virements"));
+          // À part (pas un fragment comme les autres onglets) : `tr` doit
+          // rester LUI-MÊME l'élément qui porte `_paireVirement` ci-dessus,
+          // ce qu'un fragment aurait dissous à l'insertion.
+          const [, { sortante, entrante }] = paire;
+          const reference = sortante || entrante;
+          if (reference.notes) body.appendChild(ligneDetailNote(reference, colonnes.length));
+        }
+      });
+      table.appendChild(body);
+      cablerActionsVirements(body);
+    });
 
     conteneur.appendChild(table);
   }
@@ -7077,7 +7181,7 @@ function renderVirements(paires) {
 }
 
 function renderPrets(liste) {
-  const nbColonnes = COLONNES_OPERATIONS.prets.length;
+  const nbColonnes = colonnesOperations("prets").length;
   const construireLigne = (op) => {
     const { cellHtml, rowClass } = resteCellEtRowClass(
       op.montant_du,
@@ -7111,7 +7215,7 @@ function renderPrets(liste) {
 }
 
 function renderRemboursementPrets(liste) {
-  const nbColonnes = COLONNES_OPERATIONS["remboursement-prets"].length;
+  const nbColonnes = colonnesOperations("remboursement-prets").length;
   const construireLigne = (op) => {
     const couvre =
       (op.operations_remboursees || [])

@@ -4161,6 +4161,18 @@ mark.recherche-marque-courante {
   padding-top: 0.75rem;
 }
 
+/* LA DATE DANS LA LIGNE, quand le tri n'est plus chronologique (cf.
+   colonnesOperations dans app.js). Compacte et grise : elle situe l'opération
+   sans disputer la place à ce qu'on est venu comparer — un montant, un compte,
+   une catégorie. `white-space: nowrap` pour qu'elle ne se casse jamais en deux
+   lignes, ce qui ferait respirer le tableau autrement à chaque rangée. */
+.operation-date {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  width: 1%;
+}
+
 .jour-separateur-date {
   color: var(--text-secondary);
   font-size: 0.78rem;
