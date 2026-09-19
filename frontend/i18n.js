@@ -980,6 +980,10 @@ const TRADUCTIONS = {
       "Switching an extension off deletes NO data: its screen disappears, its rows sleep in the database, and everything comes back intact when you switch it on again. That is why you can try one without risking anything.",
 
     /* ===== Les deux axes d'une étiquette de titre (0066) ===== */
+    "Monnaie éteinte":
+      "Currency switched off",
+    "Monnaie rallumée":
+      "Currency switched back on",
     "Sans enveloppe":
       "No wrapper",
     "COMMENT tes titres sont détenus : ETF, action en direct, fonds, SCPI. Tes propres étiquettes, que tu nommes comme tu veux. À ne pas confondre avec la classe d'actif juste en dessous, qui dit à QUOI ils exposent — un ETF obligataire est un ETF et de l'obligataire. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.":

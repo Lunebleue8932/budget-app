@@ -182,6 +182,16 @@ class Monnaie(Base):
     # Ordre d'affichage (onglets du dashboard, menus) : l'ordre de création par
     # défaut, l'euro restant donc en tête sur une base migrée.
     ordre = Column(Integer, nullable=False, default=0)
+    # RANGÉE, PAS EFFACÉE (migration 0068). Même idée que `CompteMonnaie.active`,
+    # d'un cran plus haut : celle-là retire une monnaie d'UN compte, celle-ci la
+    # retire de l'application entière. Un dollar ouvert le temps d'un voyage,
+    # soldé depuis, restait dans le menu de chaque opération pour toujours — le
+    # supprimer étant refusé dès qu'une opération y est libellée.
+    #
+    # ÉTEINDRE NE SUPPRIME RIEN : les opérations restent en base, leurs montants
+    # gardent leur devise, les soldes historiques ne bougent pas. Plus aucune
+    # NOUVELLE écriture ne la désigne, voilà tout.
+    active = Column(Boolean, nullable=False, default=True)
 
 
 class TauxChange(Base):

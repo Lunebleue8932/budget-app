@@ -47,11 +47,18 @@ function renderMonnaies() {
   }
   state.monnaies.forEach((monnaie) => {
     const row = document.createElement("div");
-    row.className = "import-mapping-row";
+    // UNE MONNAIE ÉTEINTE RESTE LISTÉE ICI, barrée : c'est la ligne d'où on la
+    // rallume, et une monnaie qu'on ne voit nulle part ne se rallume pas.
+    // Partout ailleurs elle a quitté les menus de saisie (cf.
+    // monnaiesDuCompte, renderCompteMonnaies dans le noyau).
+    const eteinte = monnaie.active === false;
+    row.className = eteinte ? "import-mapping-row ligne-eteinte" : "import-mapping-row";
     row.dataset.id = monnaie.id;
+    // UNE SEULE ACTION DANS LA LIGNE. « Modifier » ne faisait que répéter le
+    // double-clic, et « Éteindre » est passé dans le formulaire : cet écran est
+    // fait pour être lu.
     row.innerHTML = `
       <span class="import-mapping-nom">${escapeHtml(monnaie.nom)} — ${escapeHtml(monnaie.symbole)}</span>
-      <button type="button" data-action="modifier-monnaie" data-id="${monnaie.id}">${t("Modifier")}</button>
       <button type="button" data-action="supprimer-monnaie" data-id="${monnaie.id}" class="danger">${t("Supprimer")}</button>
     `;
     bloc.appendChild(row);
@@ -69,14 +76,20 @@ function renderMonnaies() {
     document.getElementById("monnaie-symbole").value = monnaie.symbole;
     document.getElementById("form-monnaie-titre").textContent = `${t("Modifier")} « ${monnaie.nom} »`;
     document.getElementById("monnaie-annuler").style.display = "inline-block";
+    // `cablerBoutonEtat` est un mécanisme du NOYAU, partagé avec les comptes et
+    // les catégories : trois écrans qui posent le même bouton pour le même
+    // geste doivent le poser pareil (cf. app.js).
+    cablerBoutonEtat("monnaie-etat", {
+      eteint: monnaie.active === false,
+      protege: false,
+      url: `/monnaies/${monnaie.id}/etat`,
+      corps: { active: monnaie.active === false },
+      message:
+        monnaie.active === false ? t("Monnaie rallumée") : t("Monnaie éteinte"),
+      apres: loadMonnaies,
+    });
   };
   activerEditionDoubleClic(bloc, editerMonnaie);
-
-  bloc.querySelectorAll("button[data-action='modifier-monnaie']").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      editerMonnaie(Number(btn.dataset.id), btn.closest(".import-mapping-row"))
-    );
-  });
 
   bloc.querySelectorAll("button[data-action='supprimer-monnaie']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -99,6 +112,8 @@ function resetMonnaieForm() {
   document.getElementById("monnaie-symbole").value = "";
   document.getElementById("form-monnaie-titre").textContent = t("Ajouter une monnaie");
   document.getElementById("monnaie-annuler").style.display = "none";
+  // EN CRÉATION, RIEN À ÉTEINDRE.
+  document.getElementById("monnaie-etat").style.display = "none";
 }
 
 document.getElementById("form-monnaie").addEventListener("submit", async (e) => {

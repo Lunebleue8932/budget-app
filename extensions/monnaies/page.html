@@ -19,8 +19,13 @@
           <label>Symbole
             <input type="text" id="monnaie-symbole" placeholder="ex. $" maxlength="8" required />
           </label>
+          <!-- ÉTEINDRE EST ICI, comme pour un compte ou une catégorie : la
+               liste est faite pour être LUE, et un geste qui se décide en
+               regardant la monnaie se prend là où on la regarde. Masqué à la
+               création — il n'y a rien à éteindre qui n'existe pas encore. -->
           <div class="actions">
             <button type="submit" class="primary">Enregistrer</button>
+            <button type="button" id="monnaie-etat" style="display:none"></button>
             <button type="button" id="monnaie-annuler" style="display:none">Annuler</button>
           </div>
         </form>

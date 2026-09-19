@@ -4355,7 +4355,14 @@ function renderCompteMonnaies(selection = []) {
     return;
   }
   const parId = Object.fromEntries(selection.map((s) => [s.monnaie_id, s]));
-  state.monnaies.forEach((monnaie) => {
+  // UNE MONNAIE ÉTEINTE NE S'AJOUTE PLUS À UN COMPTE (migration 0068), mais
+  // celle que le compte porte DÉJÀ reste affichée : c'est la ligne d'où l'on
+  // voit son solde, et la faire disparaître d'un formulaire rouvert pour
+  // corriger un nom donnerait l'impression qu'on vient de la retirer.
+  const proposables = state.monnaies.filter(
+    (m) => m.active !== false || parId[m.id]
+  );
+  proposables.forEach((monnaie) => {
     const entree = parId[monnaie.id];
     const choisie = Boolean(entree);
     const active = entree ? entree.active !== false : true;
@@ -4428,6 +4435,9 @@ function resetCompteForm() {
   );
   document.getElementById("form-compte-titre").textContent = "Ajouter un compte";
   document.getElementById("compte-annuler").style.display = "none";
+  // EN CRÉATION, RIEN À ÉTEINDRE : le bouton d'état ne vaut que devant un
+  // compte qui existe déjà.
+  document.getElementById("compte-etat").style.display = "none";
 }
 
 function fillCompteForm(compte, ancre) {
@@ -4450,6 +4460,14 @@ function fillCompteForm(compte, ancre) {
   );
   document.getElementById("form-compte-titre").textContent = `Modifier "${compte.nom}"`;
   document.getElementById("compte-annuler").style.display = "inline-block";
+  cablerBoutonEtat("compte-etat", {
+    eteint: compte.actif === false,
+    protege: false,
+    url: `/comptes/${compte.id}/etat`,
+    corps: { actif: compte.actif === false },
+    message: compte.actif === false ? t("Compte rallumé") : t("Compte éteint"),
+    apres: loadComptes,
+  });
 }
 
 /**
@@ -4542,13 +4560,9 @@ function construireLigneCompte(compte) {
       .filter((m) => m.active !== false)
       .map((m) => formatMontant(m.solde_initial, m.monnaie_id))
       .join(" · ")}</span>
-    <button type="button" data-action="edit" data-id="${compte.id}">${t("Modifier")}</button>
-    <button type="button" data-action="etat" data-id="${compte.id}"
-            title="${escapeHtml(
-              t(
-                "Un compte éteint n'est plus proposé à la saisie ni à l'import. Ses opérations restent en base, et il reparaît sur une période où il portait encore de l'argent."
-              )
-            )}">${eteint ? t("Rallumer") : t("Éteindre")}</button>
+    <!-- UNE SEULE ACTION DANS LA LIGNE. « Modifier » ne faisait que répéter le
+         double-clic, et « Éteindre » est passé dans le formulaire — c'est là
+         qu'on regarde le compte au moment de le décider. -->
     <button type="button" data-action="delete" data-id="${compte.id}" class="danger">${t("Supprimer")}</button>
   `;
   // Déplaçable par sa poignée seulement : le nom du compte reste copiable.
@@ -4560,31 +4574,6 @@ function cablerActionsComptes(conteneur) {
   activerEditionDoubleClic(conteneur, (id, ligne) => {
     const compte = state.comptes.find((c) => c.id === id);
     if (compte) fillCompteForm(compte, ligne);
-  });
-
-  conteneur.querySelectorAll("button[data-action='edit']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const compte = state.comptes.find((c) => c.id === Number(btn.dataset.id));
-      fillCompteForm(compte, btn.closest(".import-mapping-row"));
-    });
-  });
-
-  conteneur.querySelectorAll("button[data-action='etat']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const compte = state.comptes.find((c) => c.id === Number(btn.dataset.id));
-      if (!compte) return;
-      try {
-        await apiFetch(`/comptes/${compte.id}/etat`, {
-          method: "PUT",
-          body: JSON.stringify({ actif: compte.actif === false }),
-        });
-        showMessage(compte.actif === false ? t("Compte rallumé") : t("Compte éteint"), "success");
-        await refreshComptes();
-        loadComptes();
-      } catch (err) {
-        showMessage(err.message, "error");
-      }
-    });
   });
 
   conteneur.querySelectorAll("button[data-action='delete']").forEach((btn) => {
@@ -4838,6 +4827,44 @@ function resetCategorieForm() {
   document.getElementById("categorie-entree").checked = false;
   document.getElementById("form-categorie-titre").textContent = "Ajouter une catégorie";
   document.getElementById("categorie-annuler").style.display = "none";
+  document.getElementById("categorie-etat").style.display = "none";
+}
+
+/**
+ * Le bouton « Éteindre » / « Rallumer » d'un formulaire d'édition.
+ *
+ * ÉCRIT UNE FOIS POUR LES DEUX ÉCRANS (catégories, comptes) : ils posent le
+ * même bouton, au même endroit, pour le même geste — seules la route et la
+ * phrase changent. Deux copies auraient divergé au premier ajustement, et c'est
+ * précisément le défaut qu'on vient de corriger sur les champs de saisie.
+ *
+ * L'ÉCOUTEUR EST REMPLACÉ À CHAQUE OUVERTURE (`onclick` et non
+ * `addEventListener`) : le bouton, lui, n'est jamais recréé — il vit dans le
+ * HTML du formulaire — et y empiler un écouteur par ligne double-cliquée
+ * finirait par éteindre trois catégories d'un clic.
+ *
+ * MASQUÉ QUAND `protege` : « Autres » ne s'éteint pas (deux chemins la
+ * cherchent par son nom), et le serveur le refuse de toute façon. Montrer un
+ * bouton qui rend 409 n'apprend rien.
+ */
+function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apres }) {
+  const bouton = document.getElementById(boutonId);
+  if (!bouton) return;
+  if (protege) {
+    bouton.style.display = "none";
+    return;
+  }
+  bouton.style.display = "inline-block";
+  bouton.textContent = eteint ? t("Rallumer") : t("Éteindre");
+  bouton.onclick = async () => {
+    try {
+      await apiFetch(url, { method: "PUT", body: JSON.stringify(corps) });
+      showMessage(message, "success");
+      apres();
+    } catch (err) {
+      showMessage(traduireMessageServeur(err.message), "error");
+    }
+  };
 }
 
 function fillCategorieForm(categorie, ancre) {
@@ -4859,6 +4886,15 @@ function fillCategorieForm(categorie, ancre) {
   document.getElementById("categorie-entree").checked = !!categorie.est_entree;
   document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
+  cablerBoutonEtat("categorie-etat", {
+    eteint: categorie.active === false,
+    protege: categorie.nom === CATEGORIE_AUTRES,
+    url: `/categories/${categorie.id}/etat`,
+    corps: { active: categorie.active === false },
+    message:
+      categorie.active === false ? t("Catégorie rallumée") : t("Catégorie éteinte"),
+    apres: loadCategories,
+  });
 }
 
 async function loadCategories() {
@@ -4895,13 +4931,7 @@ function renderCategories() {
     const deleteAction = protegee
       ? ""
       : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
-    const etatAction = estAutres
-      ? ""
-      : `<button data-action="etat" data-id="${c.id}" title="${escapeHtml(
-          t(
-            "Une catégorie éteinte n'est plus proposée à la saisie, ni par les règles d'import, ni sur la page Budget. Ses opérations restent en base et gardent leur barre sur les périodes où elles tombent."
-          )
-        )}">${eteinte ? t("Rallumer") : t("Éteindre")}</button>`;
+
     tr.innerHTML = `
       <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
       <td>${escapeHtml(libelleCategorie(c.nom))}${
@@ -4911,11 +4941,11 @@ function renderCategories() {
         // d'avant, vide plutôt que remplie de zéros.
         c.est_entree ? `<span class="badge-aucun">${t("entrée")}</span>` : ""
       }</td>
-      <td>
-        <button data-action="edit" data-id="${c.id}">${t("Modifier")}</button>
-        ${etatAction}
-        ${deleteAction}
-      </td>
+      <!-- UNE SEULE ACTION DANS LA LISTE, la seule qui n'a pas sa place
+           ailleurs. « Modifier » ne faisait que répéter le double-clic, et
+           « Éteindre » est passé dans le formulaire : trois boutons par ligne
+           sur un écran qu'on vient LIRE, c'est deux de trop. -->
+      <td>${deleteAction}</td>
     `;
     // Déplaçable par sa poignée seulement : le nom de la catégorie reste
     // copiable.
@@ -4929,32 +4959,6 @@ function renderCategories() {
     fillCategorieForm(categorie, ligne);
   };
   activerEditionDoubleClic(body, editerCategorie);
-
-  body.querySelectorAll("button[data-action='edit']").forEach((btn) => {
-    btn.addEventListener("click", () =>
-      editerCategorie(Number(btn.dataset.id), btn.closest("tr"))
-    );
-  });
-
-  body.querySelectorAll("button[data-action='etat']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const categorie = state.categories.find((c) => c.id === Number(btn.dataset.id));
-      if (!categorie) return;
-      try {
-        await apiFetch(`/categories/${categorie.id}/etat`, {
-          method: "PUT",
-          body: JSON.stringify({ active: categorie.active === false }),
-        });
-        showMessage(
-          categorie.active === false ? t("Catégorie rallumée") : t("Catégorie éteinte"),
-          "success"
-        );
-        loadCategories();
-      } catch (err) {
-        showMessage(err.message, "error");
-      }
-    });
-  });
 
   body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -5125,8 +5129,28 @@ function monnaiesDuCompte(compteId, monnaieConservee = null) {
   const compte = compteParId(compteId);
   if (!compte) return [];
   return compte.monnaies.filter(
-    (m) => m.active !== false || m.monnaie_id === monnaieConservee
+    (m) =>
+      // DEUX EXTINCTIONS, ET LES DEUX FERMENT CE MENU : celle du LIEN (cette
+      // monnaie sur ce compte, migration 0053) et celle de la MONNAIE
+      // elle-même (partout, migration 0068). La seconde ne redit pas la
+      // première — un compte peut porter une monnaie encore allumée pour lui
+      // alors qu'on vient de la ranger pour toute l'application.
+      (m.active !== false && monnaieEstActive(m.monnaie_id)) ||
+      m.monnaie_id === monnaieConservee
   );
+}
+
+/**
+ * Une monnaie est-elle encore proposée à la saisie ?
+ *
+ * INCONNUE VAUT ACTIVE : `state.monnaies` peut ne pas être encore chargé au
+ * moment où un formulaire se dessine, et masquer une monnaie qu'on n'a pas su
+ * lire serait pire que la proposer — on perdrait le seul menu par lequel
+ * l'opération peut s'écrire.
+ */
+function monnaieEstActive(monnaieId) {
+  const monnaie = monnaieParId(monnaieId);
+  return !monnaie || monnaie.active !== false;
 }
 
 /**

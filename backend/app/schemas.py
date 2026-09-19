@@ -38,6 +38,14 @@ class MonnaieUpdate(BaseModel):
     symbole: Optional[str] = Field(default=None, min_length=1, max_length=8)
 
 
+class MonnaieEtatUpdate(BaseModel):
+    """Allumer ou éteindre une monnaie. Un seul champ, et une route à part :
+    `MonnaieUpdate` traite `None` comme « ne change pas », ce qui rendrait
+    impossible de distinguer « éteins-la » d'un simple renommage."""
+
+    active: bool
+
+
 class MonnaieRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +53,10 @@ class MonnaieRead(BaseModel):
     nom: str
     symbole: str
     ordre: int
+    # Une monnaie éteinte n'est plus proposée à la saisie ni devinée à l'import
+    # (cf. models.Monnaie.active). Elle reste rendue par cette route : c'est la
+    # page des monnaies qui la montre, barrée, et c'est de là qu'on la rallume.
+    active: bool = True
 
 
 class TypeCompteRead(BaseModel):

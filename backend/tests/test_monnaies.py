@@ -713,3 +713,117 @@ def test_supprimer_la_monnaie_de_trop_rouvre_la_porte(db_session):
     db_session.commit()
 
     assert backend_monnaies.obstacle_a_la_desactivation(db_session) is None
+
+
+# ---------- Éteindre une monnaie (migration 0068) ----------
+#
+# LA MÊME IDÉE QUE `CompteMonnaie.active`, D'UN CRAN PLUS HAUT : celle-là retire
+# une monnaie d'UN compte, celle-ci la retire de l'application entière. La
+# condition est donc plus dure — AUCUN compte ne doit porter de solde, et aucun
+# titre ne doit être détenu dans cette monnaie.
+
+
+def _eteindre(db, monnaie_id, active=False):
+    return routeur_monnaies.set_etat_monnaie(
+        monnaie_id, schemas.MonnaieEtatUpdate(active=active), db=db
+    )
+
+
+def test_une_monnaie_soldee_partout_s_eteint(db_session):
+    """LE CAS QUI JUSTIFIE TOUT : un dollar ouvert le temps d'un voyage, soldé
+    depuis. Le supprimer est refusé (des opérations y sont libellées), et il
+    restait donc dans chaque menu pour toujours."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+
+    lue = _eteindre(db_session, dollar)
+    assert lue.active is False
+    # RALLUMER NE DEMANDE RIEN : c'est le geste qui rend visible.
+    assert _eteindre(db_session, dollar, active=True).active is True
+
+
+def test_un_solde_non_nul_empeche_l_extinction_et_nomme_le_compte(db_session):
+    """ON NOMME CE QUI BLOQUE. Devant huit comptes, « c'est refusé » n'apprend
+    rien : savoir lequel n'est pas soldé est la seule chose qui permette
+    d'agir."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 250.0)])
+
+    with pytest.raises(HTTPException) as erreur:
+        _eteindre(db_session, dollar)
+    assert erreur.value.status_code == 409
+    assert "Voyage" in erreur.value.detail
+
+
+def test_des_titres_detenus_empechent_l_extinction(db_session):
+    """LE PIÈGE PROPRE À CETTE EXTINCTION : un compte-titres peut n'avoir aucune
+    espèce dans une monnaie tout en détenant des titres qui y sont cotés.
+    Éteindre la devise ferait disparaître cette valorisation des écrans sans
+    qu'une seule opération ait bougé."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    compte = creer_compte(
+        db_session,
+        "PEA",
+        type_nom="placements financiers",
+        monnaies=[(euro, 0.0), (dollar, 1000.0)],
+    )
+    titre = crud.create_action(db_session, "Apple", dollar, 200.0)
+    crud.create_operation_action(
+        db_session,
+        compte_id=compte.id,
+        action=titre,
+        sens=SensAction.achat,
+        quantite=5,
+        prix_unitaire=200.0,
+        date_operation=date(2026, 5, 4),
+    )
+
+    with pytest.raises(HTTPException) as erreur:
+        _eteindre(db_session, dollar)
+    assert erreur.value.status_code == 409
+    assert "Apple" in erreur.value.detail
+
+
+def test_la_derniere_monnaie_allumee_ne_s_eteint_pas(db_session):
+    """UNE APPLICATION SANS MONNAIE ACTIVE n'a plus de quoi libeller une
+    opération : chaque formulaire de saisie proposerait une liste vide. Même
+    protection que « Autres » côté catégories."""
+    euro = get_monnaie_id(db_session)
+    with pytest.raises(HTTPException) as erreur:
+        _eteindre(db_session, euro)
+    assert erreur.value.status_code == 409
+
+
+def test_eteindre_ne_touche_a_aucun_solde(db_session):
+    """LA PROMESSE DE TOUTES LES EXTINCTIONS DE L'APP : éteindre ne supprime
+    rien. Les opérations restent en base, leurs montants gardent leur devise, et
+    les soldes historiques ne bougent pas d'un centime."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    compte = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 4, 2),
+            nature="Souvenir",
+            montant=40.0,
+            sens="dépense",
+            statut=Statut.reel,
+            compte_id=compte.id,
+            monnaie_id=dollar,
+            categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+            type_id=get_type_id(db_session, "classique"),
+            decoupes=[],
+        ),
+    )
+    avant = soldes.get_soldes_comptes(db_session)
+
+    # Le solde n'est plus nul : on éteint de force, en écrivant la colonne
+    # directement — ce que la route refuserait, et c'est bien ce qu'on veut
+    # vérifier ici : que l'état de la monnaie ne PEUT PAS changer un chiffre.
+    crud.set_monnaie_active(db_session, crud.get_monnaie(db_session, dollar), False)
+
+    assert soldes.get_soldes_comptes(db_session) == avant

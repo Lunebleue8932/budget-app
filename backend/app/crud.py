@@ -63,6 +63,23 @@ def create_monnaie(db: Session, nom: str, symbole: str) -> models.Monnaie:
     return monnaie
 
 
+def set_monnaie_active(db: Session, monnaie: models.Monnaie, active: bool) -> models.Monnaie:
+    """Allume ou éteint une monnaie (cf. models.Monnaie.active).
+
+    UNE FONCTION À PART de `update_monnaie`, comme pour un compte ou une
+    catégorie : celle-là traite `None` comme « ne change pas » sur chacun de ses
+    champs, convention qui ne laisse aucune place à un booléen — « éteins-la »
+    et « ne touche pas à son état » s'y écriraient pareil.
+
+    LA GARDE N'EST PAS ICI mais sur la route (cf. l'extension « Monnaies ») :
+    elle a besoin des soldes de tous les comptes et de la valorisation des
+    titres, que ce module ne calcule pas."""
+    monnaie.active = active
+    db.commit()
+    db.refresh(monnaie)
+    return monnaie
+
+
 def update_monnaie(
     db: Session,
     monnaie: models.Monnaie,
