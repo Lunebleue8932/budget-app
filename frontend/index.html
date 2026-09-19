@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=118" />
+  <link rel="stylesheet" href="style.css?v=119" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -101,17 +101,42 @@
        (cf. backend/app/database.py::configuration_requise), jamais autrement. -->
   <div id="modale-bdd" class="modale-fond" style="display:none" role="presentation">
     <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-bdd-titre">
-      <h2 id="modale-bdd-titre">Où ranger tes données ?</h2>
-      <p class="modale-texte">
-        Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant
-        <strong>dans le dossier de l'application</strong> — l'endroit qu'une mise à jour
-        remplace. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.
-      </p>
-      <label class="full-width">Emplacement du fichier
-        <input type="text" id="modale-bdd-chemin" />
-      </label>
-      <p class="hint" id="modale-bdd-explication"></p>
-      <div id="modale-bdd-erreur" class="import-avertissements" style="display:none"></div>
+      <!-- « DEUX POINTS », ET LE TITRE LE DIT. Un écran de bienvenue qui
+           n'annonce pas sa longueur se lit en diagonale : on cherche le bouton
+           qui le fait disparaître. En annonçant qu'il n'y a que deux choses, on
+           obtient qu'elles soient lues — et la seconde, la notice, est
+           justement celle qui fait gagner le plus de temps par la suite. -->
+      <h2 id="modale-bdd-titre">Deux points importants avant de commencer</h2>
+
+      <div class="modale-point">
+        <h3><span class="modale-point-numero">1</span>Où ranger tes données</h3>
+        <p class="modale-texte">
+          Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant
+          <strong>dans le dossier de l'application</strong> — l'endroit qu'une mise à jour
+          remplace. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.
+        </p>
+        <label class="full-width">Emplacement du fichier
+          <input type="text" id="modale-bdd-chemin" />
+        </label>
+        <p class="hint" id="modale-bdd-explication"></p>
+        <div id="modale-bdd-erreur" class="import-avertissements" style="display:none"></div>
+      </div>
+
+      <!-- LE SECOND POINT NE DEMANDE RIEN, et n'a donc pas de bouton à lui :
+           cette fenêtre est bloquante jusqu'à ce que la base soit rangée, et un
+           bouton qui emmènerait ailleurs avant cela laisserait le premier point
+           en plan. Il dit où trouver la notice — une phrase qu'on retrouve
+           ensuite dans Paramètres, pas une étape de plus à franchir. -->
+      <div class="modale-point">
+        <h3><span class="modale-point-numero">2</span>Une notice t'attend</h3>
+        <p class="modale-texte">
+          L'application explique tout ce qu'elle fait, depuis l'intérieur :
+          <strong>Paramètres → Paramètres généraux → Ouvrir la notice</strong>. On y trouve le
+          sens de chaque chiffre du dashboard, les types d'opération, et un tutoriel guidé pour
+          importer un premier relevé — avec un fichier d'exemple à télécharger.
+        </p>
+      </div>
+
       <div class="modale-actions">
         <!-- MASQUÉ PAR DÉFAUT : le sélecteur du système n'existe que dans
              l'application de bureau (window.pywebview.api, cf. ApiBureau dans
@@ -1308,6 +1333,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" id="btn-touche-gel-aucune">Désactiver</button>
           </div>
         </div>
+
+        <!-- LA PORTE DE LA NOTICE. Elle est ici et pas dans la barre du haut :
+             on ne va pas lire un mode d'emploi comme on va au dashboard, on y
+             va quand on bute sur quelque chose — et cet onglet est déjà celui
+             où vit tout ce qui règle la FAÇON de se servir de l'application.
+             Ce n'est pas un réglage, d'où la classe à part. -->
+        <div class="reglage-bloc reglage-bloc-action">
+          <label>Notice d'utilisation<i class="info-bulle" tabindex="0" data-info-cle="noyau.notice">i</i></label>
+          <button type="button" class="primary" id="btn-ouvrir-notice">Ouvrir la notice</button>
+        </div>
       </div>
 
       <!-- COMPTES -->
@@ -1927,6 +1962,281 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
       </div>
     </section>
+    <!-- LA NOTICE D'UTILISATION — un écran, et non une page d'aide en ligne.
+         Elle vit DANS l'application parce que l'application est hors ligne :
+         une documentation qu'il faut aller chercher ailleurs n'est pas
+         consultée par celui qui en a besoin, et elle se périme au premier
+         écran qui change sans elle.
+
+         PAS DE BOUTON DANS LA BARRE DU HAUT. On n'y va pas comme on va au
+         dashboard : on y va quand on bute sur quelque chose. Sa porte est donc
+         dans Paramètres → Paramètres généraux, là où vit tout ce qui règle la
+         FAÇON de se servir de l'application, et elle s'en retourne par le
+         bouton de son propre en-tête (`ongletActif: "parametres"`, sans quoi
+         aucun onglet ne resterait allumé). Même procédé que « Suivi des
+         remboursements » et « D'où vient l'écart ? ».
+
+         SES EXPLICATIONS SONT CELLES DES ÉCRANS, littéralement : les blocs
+         `data-texte-cle` qu'on lit ici portent les MÊMES clés que les pastilles
+         « i » des pages qu'ils décrivent (cf. frontend/textes.js). Réécrire une
+         phrase la corrige aux deux endroits, et la notice ne peut pas se mettre
+         à décrire une application qui n'existe plus.
+
+         LES MAQUETTES SONT FAITES AVEC LES CLASSES RÉELLES de la feuille de
+         style (`.kpi-card`, `.flux-carte`, `.histogramme-cadre`) plutôt qu'avec
+         des captures d'écran : elles suivent le thème clair comme le sombre,
+         elles ne pèsent rien, et elles vieillissent avec l'application au lieu
+         de vieillir contre elle. -->
+    <section id="section-notice">
+      <h2>Notice d'utilisation
+        <span class="notice-titre-actions">
+          <button type="button" id="btn-notice-retour">← Retour aux paramètres</button>
+        </span>
+      </h2>
+
+      <div class="sous-onglets" id="notice-sous-nav">
+        <button type="button" data-notice-chapitre="demarrer" class="active">Pour commencer</button>
+        <button type="button" data-notice-chapitre="dashboard">Le dashboard</button>
+        <button type="button" data-notice-chapitre="types">Les types d'opération</button>
+        <button type="button" data-notice-chapitre="import">Importer un relevé</button>
+        <button type="button" data-notice-chapitre="extensions">Les extensions</button>
+      </div>
+
+      <!-- ---------- POUR COMMENCER ---------- -->
+      <div class="notice-chapitre active" data-notice-chapitre="demarrer">
+        <p class="notice-intro" data-texte-cle="noyau.notice-intro"></p>
+
+        <h3>Les quatre mots de l'application</h3>
+        <dl class="notice-liste">
+          <dt>Un compte</dt>
+          <dd data-texte-cle="noyau.notice-mot-compte"></dd>
+          <dt>Une opération</dt>
+          <dd data-texte-cle="noyau.notice-mot-operation"></dd>
+          <dt>Une catégorie</dt>
+          <dd data-texte-cle="noyau.notice-mot-categorie"></dd>
+          <dt>Une monnaie</dt>
+          <dd data-texte-cle="noyau.notice-mot-monnaie"></dd>
+        </dl>
+
+        <h3>Par où commencer</h3>
+        <ol class="notice-etapes">
+          <li data-texte-cle="noyau.notice-demarrer-1"></li>
+          <li data-texte-cle="noyau.notice-demarrer-2"></li>
+          <li data-texte-cle="noyau.notice-demarrer-3"></li>
+          <li data-texte-cle="noyau.notice-demarrer-4"></li>
+        </ol>
+
+        <h3>Où vivent tes données</h3>
+        <p data-texte-cle="noyau.notice-donnees"></p>
+      </div>
+
+      <!-- ---------- LE DASHBOARD ---------- -->
+      <div class="notice-chapitre" data-notice-chapitre="dashboard">
+        <p class="notice-intro" data-texte-cle="noyau.notice-dashboard-intro"></p>
+
+        <h3>La rangée du haut : ce que tu as, aujourd'hui</h3>
+        <div class="notice-preview">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">Solde total</div>
+              <div class="kpi-valeur-ligne">
+                <span class="kpi-valeur">4 820,00 €</span>
+                <span class="kpi-valeur-annexe">
+                  <span class="kpi-valeur-annexe-label">prévisionnel</span>
+                  <span class="kpi-valeur-annexe-valeur">4 040,00 €</span>
+                </span>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Reste à rembourser</div>
+              <div class="kpi-valeur">340,00 €</div>
+              <div class="flux-detail hint">on te doit 340,00 € · tu dois 0,00 €</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Total des avoirs</div>
+              <div class="kpi-valeur">18 250,00 €</div>
+            </div>
+          </div>
+        </div>
+        <dl class="notice-liste">
+          <dt>Solde total</dt>
+          <dd data-texte-cle="noyau.notice-kpi-solde-total"></dd>
+          <dt>Reste à rembourser</dt>
+          <dd data-texte-cle="noyau.reste-a-rembourser"></dd>
+          <dt>Total des avoirs</dt>
+          <dd data-texte-cle="noyau.notice-kpi-avoirs"></dd>
+        </dl>
+
+        <h3>La rangée du bas : ce que la période a fait</h3>
+        <div class="notice-preview">
+          <div class="flux-periode">
+            <div class="flux-carte">
+              <div class="flux-label">Total Entrées</div>
+              <div class="flux-valeur positif">2 150,00 €</div>
+            </div>
+            <div class="flux-carte">
+              <div class="flux-label">Total Dépenses</div>
+              <div class="flux-valeur negatif">1 249,10 €</div>
+            </div>
+            <div class="flux-carte">
+              <div class="flux-label">Variation attribuée au mois</div>
+              <div class="flux-valeur positif">900,90 €</div>
+            </div>
+            <div class="flux-carte">
+              <div class="flux-label">Variation sur le mois brute</div>
+              <div class="flux-valeur flux-valeur-brute">1 180,40 €</div>
+            </div>
+          </div>
+        </div>
+        <dl class="notice-liste">
+          <dt>Total Entrées</dt>
+          <dd data-texte-cle="noyau.total-entrees"></dd>
+          <dt>Total Dépenses</dt>
+          <dd data-texte-cle="noyau.total-depenses"></dd>
+          <dt>Variation attribuée au mois</dt>
+          <dd data-texte-cle="noyau.variation-attribuee-au-mois"></dd>
+          <dt>Variation sur le mois brute</dt>
+          <dd data-texte-cle="noyau.variation-sur-le-mois-brute"></dd>
+        </dl>
+        <p class="hint" data-texte-cle="noyau.notice-dashboard-ecart"></p>
+
+        <h3>Les deux graphes, et la période qu'ils regardent</h3>
+        <p data-texte-cle="noyau.notice-graphes"></p>
+        <ul class="notice-liste-simple">
+          <li data-texte-cle="noyau.notice-graphes-histogramme"></li>
+          <li data-texte-cle="noyau.notice-graphes-camembert"></li>
+          <li data-texte-cle="noyau.notice-graphes-legende"></li>
+          <li data-texte-cle="noyau.notice-graphes-semaines"></li>
+        </ul>
+      </div>
+
+      <!-- ---------- LES TYPES D'OPÉRATION ----------
+           DEUX TYPES SEULEMENT DANS L'APPLICATION NUE, et les autres ne sont
+           décrits QUE si l'extension qui les ouvre tourne : `data-extension`
+           est le même mécanisme que celui des onglets de la page Opérations
+           (cf. extensions.js, majVisibiliteNavigation), et `data-extension-
+           onglet` couvre ici des blocs qui ne sont pas des boutons. Décrire un
+           type qu'on ne peut pas choisir apprendrait surtout qu'il manque
+           quelque chose. -->
+      <div class="notice-chapitre" data-notice-chapitre="types">
+        <p class="notice-intro" data-texte-cle="noyau.notice-types-intro"></p>
+
+        <div class="notice-type">
+          <h3>Opération classique</h3>
+          <p data-texte-cle="noyau.notice-type-classique"></p>
+        </div>
+
+        <div class="notice-type">
+          <h3>Virement interne</h3>
+          <p data-texte-cle="noyau.notice-type-virement"></p>
+        </div>
+
+        <div class="notice-type" data-extension-onglet="suivi-remboursements" style="display:none">
+          <h3>Dépense remboursable · Remboursement reçu</h3>
+          <p data-texte-cle="noyau.notice-type-remboursable"></p>
+        </div>
+
+        <div class="notice-type" data-extension-onglet="prets" style="display:none">
+          <h3>Prêt reçu · Remboursement de prêt</h3>
+          <p data-texte-cle="noyau.notice-type-pret"></p>
+        </div>
+
+        <div class="notice-type" data-extension-onglet="placements" style="display:none">
+          <h3>Achat et vente de titres</h3>
+          <p data-texte-cle="noyau.notice-type-action"></p>
+        </div>
+
+        <p class="hint" id="notice-types-extensions" data-texte-cle="noyau.notice-types-extensions"></p>
+
+        <h3>Trois choses qu'une opération peut porter en plus</h3>
+        <dl class="notice-liste">
+          <dt>Un statut : réel ou prévisionnel</dt>
+          <dd data-texte-cle="noyau.notice-statut"></dd>
+          <dt>Une découpe entre plusieurs catégories</dt>
+          <dd data-texte-cle="noyau.decouper-entre-plusieurs-categories"></dd>
+          <dt>Un amortissement sur plusieurs mois</dt>
+          <dd data-texte-cle="noyau.amortie-sur-plusieurs-mois"></dd>
+        </dl>
+      </div>
+
+      <!-- ---------- IMPORTER UN RELEVÉ ---------- -->
+      <div class="notice-chapitre" data-notice-chapitre="import">
+        <p class="notice-intro" data-texte-cle="noyau.notice-import-intro"></p>
+
+        <div class="notice-tutoriel-encart">
+          <h3>Essayer sans risque</h3>
+          <p data-texte-cle="noyau.notice-tutoriel-encart"></p>
+          <div class="actions">
+            <button type="button" class="primary" id="btn-notice-tutoriel">Lancer le tutoriel guidé</button>
+            <a class="bouton-lien" id="lien-notice-exemple"
+               href="/exemples/releve-exemple.csv" download="releve-exemple.csv">
+              Télécharger le relevé d'exemple
+            </a>
+          </div>
+          <!-- LA RÉPONSE DE L'EXERCICE, et il faut qu'elle y soit : sans elle,
+               on ne sait pas si l'aperçu qu'on obtient est celui qu'on devait
+               obtenir — et on apprend alors à cliquer, pas à régler. -->
+          <p class="hint" data-texte-cle="noyau.notice-exemple-colonnes"></p>
+        </div>
+
+        <h3>Les cinq étapes d'un import</h3>
+        <ol class="notice-etapes">
+          <li data-texte-cle="noyau.notice-import-etape-1"></li>
+          <li data-texte-cle="noyau.notice-import-etape-2"></li>
+          <li data-texte-cle="noyau.notice-import-etape-3"></li>
+          <li data-texte-cle="noyau.notice-import-etape-4"></li>
+          <li data-texte-cle="noyau.notice-import-etape-5"></li>
+        </ol>
+
+        <h3>Régler la lecture d'un fichier</h3>
+        <dl class="notice-liste">
+          <dt>Le preset</dt>
+          <dd data-texte-cle="noyau.preset"></dd>
+          <dt>Les colonnes lues</dt>
+          <dd data-texte-cle="noyau.colonnes-lues"></dd>
+          <dt>Les lignes de tête</dt>
+          <dd data-texte-cle="noyau.lignes-entete"></dd>
+          <dt>Le tableau « Le fichier tel qu'il est »</dt>
+          <dd data-texte-cle="noyau.le-fichier-tel-qu-il-est"></dd>
+          <dt>Les réglages de lecture</dt>
+          <dd data-texte-cle="noyau.reglages-de-lecture"></dd>
+          <dt>La configuration avancée</dt>
+          <dd data-texte-cle="noyau.configuration-avancee"></dd>
+          <dt>La comparaison des doublons</dt>
+          <dd data-texte-cle="noyau.comparaison-des-doublons"></dd>
+        </dl>
+
+        <h3>Ce que l'aperçu te demande avant de confirmer</h3>
+        <dl class="notice-liste">
+          <dt>Les catégories bancaires à confirmer</dt>
+          <dd data-texte-cle="noyau.categories-bancaires-a-confirmer"></dd>
+          <dt>Les doublons détectés</dt>
+          <dd data-texte-cle="noyau.doublons-detectes"></dd>
+          <dt>Les ressemblances</dt>
+          <dd data-texte-cle="noyau.ressemblances"></dd>
+          <dt>L'aperçu ligne par ligne</dt>
+          <dd data-texte-cle="noyau.apercu-import"></dd>
+        </dl>
+
+        <h3>Si l'import ne donne pas ce que tu attendais</h3>
+        <p data-texte-cle="noyau.notice-import-annuler"></p>
+      </div>
+
+      <!-- ---------- LES EXTENSIONS ---------- -->
+      <div class="notice-chapitre" data-notice-chapitre="extensions">
+        <p class="notice-intro" data-texte-cle="noyau.notice-extensions-intro"></p>
+        <p data-texte-cle="noyau.extensions"></p>
+
+        <h3>Ce qui est allumé chez toi</h3>
+        <!-- Rempli par notice.js : la liste réelle, pas une liste écrite à
+             l'avance — c'est justement la question qu'on se pose ici. -->
+        <div id="notice-extensions-liste" class="notice-extensions-liste"></div>
+
+        <h3>Éteindre n'efface jamais rien</h3>
+        <p data-texte-cle="noyau.notice-extensions-eteindre"></p>
+      </div>
+    </section>
+
   </main>
 
   <!-- i18n AVANT app.js : app.js appelle `t()` dès son évaluation (libellés de
@@ -1939,9 +2249,15 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=17"></script>
-  <script src="i18n.js?v=68"></script>
+  <script src="textes.js?v=19"></script>
+  <script src="i18n.js?v=70"></script>
   <script src="extensions.js?v=22"></script>
   <script src="app.js?v=148"></script>
+  <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
+       clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
+       que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
+       le comportement de l'application mais un écran qui la DÉCRIT, plus la
+       bulle du tutoriel, que rien d'autre n'emploie. -->
+  <script src="notice.js?v=1"></script>
 </body>
 </html>

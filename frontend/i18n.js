@@ -731,6 +731,252 @@ const TRADUCTIONS = {
     "Ce que tu t'es fixé, mesuré sur la période affichée ci-dessus et dans la monnaie de l'onglet. Le grand chiffre est ramené à la cadence de l'objectif ; la ligne du dessous dit ce qui a servi à le calculer. Rien ici n'influe sur tes soldes ni sur tes graphes : un objectif regarde, il ne change aucun montant. Ils se créent et se modifient dans Budget → Objectifs.":
       "What you set yourself, measured over the period shown above and in the tab's currency. The large figure is brought back to the goal's cadence; the line below says what was used to compute it. Nothing here affects your balances or your charts: a goal observes, it changes no amount. They are created and edited in Budget → Goals.",
 
+    /* ===== La notice d'utilisation et le tutoriel guidé ===== */
+    "Le réglage juste, si tu veux vérifier le tien : 2 lignes de tête, Date en colonne 1, Nature en 3, Montant en 5, Catégorie bancaire en 7. Les colonnes 2, 4 et 6 — référence, type de carte, solde après opération — ne sont lues par rien : une colonne qu'on n'importe pas n'a pas à être supprimée du fichier.":
+      "The correct setup, if you want to check yours: 2 header rows, Date in column 1, Label in 3, Amount in 5, Bank category in 7. Columns 2, 4 and 6 — reference, card type, balance after transaction — are read by nothing: a column you do not import does not have to be removed from the file.",
+    "on te doit 340,00 € · tu dois 0,00 €":
+      "you are owed 340.00 € · you owe 0.00 €",
+    "Deux points importants avant de commencer":
+      "Two important things before you start",
+    "Où ranger tes données":
+      "Where to keep your data",
+    "Une notice t'attend":
+      "A user guide is waiting for you",
+    "L'application explique tout ce qu'elle fait, depuis l'intérieur :":
+      "The application explains everything it does, from the inside:",
+    "Paramètres → Paramètres généraux → Ouvrir la notice":
+      "Settings → General settings → Open the user guide",
+    ". On y trouve le sens de chaque chiffre du dashboard, les types d'opération, et un tutoriel guidé pour importer un premier relevé — avec un fichier d'exemple à télécharger.":
+      ". You will find there the meaning of every dashboard figure, the transaction types, and a guided tutorial for importing a first statement — with a sample file to download.",
+    "Notice d'utilisation":
+      "User guide",
+    "Ouvrir la notice":
+      "Open the user guide",
+    "← Retour aux paramètres":
+      "← Back to settings",
+    "Pour commencer":
+      "Getting started",
+    "Le dashboard":
+      "The dashboard",
+    "Les types d'opération":
+      "Transaction types",
+    "Importer un relevé":
+      "Importing a statement",
+    "Les extensions":
+      "Extensions",
+    "Les quatre mots de l'application":
+      "The application's four words",
+    "Un compte":
+      "An account",
+    "Une opération":
+      "A transaction",
+    "Une catégorie":
+      "A category",
+    "Une monnaie":
+      "A currency",
+    "Par où commencer":
+      "Where to begin",
+    "Où vivent tes données":
+      "Where your data lives",
+    "La rangée du haut : ce que tu as, aujourd'hui":
+      "The top row: what you have, today",
+    "La rangée du bas : ce que la période a fait":
+      "The bottom row: what the period did",
+    "Les deux graphes, et la période qu'ils regardent":
+      "The two charts, and the period they look at",
+    "Dépense remboursable · Remboursement reçu":
+      "Reimbursable expense · Reimbursement received",
+    "Prêt reçu · Remboursement de prêt":
+      "Loan received · Loan repayment",
+    "Achat et vente de titres":
+      "Buying and selling securities",
+    "Trois choses qu'une opération peut porter en plus":
+      "Three things a transaction can also carry",
+    "Un statut : réel ou prévisionnel":
+      "A status: actual or planned",
+    "Une découpe entre plusieurs catégories":
+      "A split across several categories",
+    "Un amortissement sur plusieurs mois":
+      "Spreading over several months",
+    "Essayer sans risque":
+      "Try it safely",
+    "Lancer le tutoriel guidé":
+      "Start the guided tutorial",
+    "Télécharger le relevé d'exemple":
+      "Download the sample statement",
+    "Les cinq étapes d'un import":
+      "The five steps of an import",
+    "Régler la lecture d'un fichier":
+      "Setting up how a file is read",
+    "Le preset":
+      "The preset",
+    "Les colonnes lues":
+      "The columns read",
+    "Les lignes de tête":
+      "The header rows",
+    "Le tableau « Le fichier tel qu'il est »":
+      "The « file as it is » table",
+    "Les réglages de lecture":
+      "Reading settings",
+    "La configuration avancée":
+      "Advanced configuration",
+    "La comparaison des doublons":
+      "Duplicate comparison",
+    "Ce que l'aperçu te demande avant de confirmer":
+      "What the preview asks before you confirm",
+    "Les catégories bancaires à confirmer":
+      "Bank categories to confirm",
+    "Les doublons détectés":
+      "Duplicates detected",
+    "Les ressemblances":
+      "Near matches",
+    "L'aperçu ligne par ligne":
+      "The row-by-row preview",
+    "Si l'import ne donne pas ce que tu attendais":
+      "If the import is not what you expected",
+    "Ce qui est allumé chez toi":
+      "What is enabled on your machine",
+    "Éteindre n'efface jamais rien":
+      "Disabling never deletes anything",
+    "Aucune extension n'est installée : l'application fonctionne telle quelle. Les extensions se déposent dans le dossier « extensions », à côté de l'application.":
+      "No extension is installed: the application works as it is. Extensions are dropped into the « extensions » folder, next to the application.",
+    "allumée":
+      "on",
+    "non installée":
+      "not installed",
+    "éteinte":
+      "off",
+    "Quitter le tutoriel":
+      "Leave the tutorial",
+    "Précédent":
+      "Previous",
+    "Suivant":
+      "Next",
+    "Terminer":
+      "Finish",
+    "L'import vit dans les Paramètres":
+      "Importing lives in Settings",
+    "Tout se passe ici, dans l'onglet « Import ». On vient d'y aller pour toi. Garde cette bulle ouverte : elle suit les étapes pendant que tu regardes l'écran.":
+      "Everything happens here, in the « Import » tab. We have just taken you there. Keep this bubble open: it follows the steps while you look at the screen.",
+    "1. Le preset":
+      "1. The preset",
+    "Un preset retient la FORME d'un fichier : quelles colonnes lire, et où. Tu en crées un par banque et par type d'export, puis tu ne le règles plus jamais. Le bouton « + Nouveau preset » en crée un ; celui qui est allumé ici est celui qu'on utilise.":
+      "A preset remembers a file's SHAPE: which columns to read, and where. You create one per bank and per export type, then never set it up again. The « + Nouveau preset » button creates one; the one highlighted here is the one in use.",
+    "2. Le compte de ce preset":
+      "2. This preset's account",
+    "Si le relevé ne décrit qu'un seul compte — le cas ordinaire — dis-le ici : chaque ligne importée ira sur ce compte, et le fichier n'aura pas à le nommer.":
+      "If the statement describes a single account — the usual case — say so here: every imported row will go to that account, and the file will not have to name it.",
+    "3. Le fichier":
+      "3. The file",
+    "Dépose ton relevé ici, ou clique pour le choisir. Pour t'entraîner, prends le relevé d'exemple téléchargé depuis la notice : c'est un vrai CSV, avec une ligne de titre parasite et trois colonnes dont l'application n'a rien à faire — exactement ce qu'une banque exporte.":
+      "Drop your statement here, or click to pick it. To practise, use the sample statement downloaded from the user guide: it is a real CSV, with a stray title row and three columns the application has no use for — exactly what a bank exports.",
+    "4. Le fichier tel qu'il est":
+      "4. The file as it is",
+    "Ce tableau montre ce que l'application LIT, colonne par colonne. C'est ici qu'on corrige : fais glisser un en-tête sur un autre pour échanger deux colonnes, jusqu'à ce que chaque propriété tombe en face de la bonne. Les colonnes hachurées sont celles que le réglage attend et que le fichier n'a pas.":
+      "This table shows what the application READS, column by column. This is where you fix it: drag one header onto another to swap two columns, until each property lands opposite the right one. Hatched columns are those the settings expect and the file does not have.",
+    "Ce tableau apparaît dès qu'un fichier est déposé : reviens à cette étape à ce moment-là.":
+      "This table appears as soon as a file is dropped: come back to this step then.",
+    "5. Les réglages qui restent":
+      "5. The remaining settings",
+    "« Lignes de tête » dit combien de lignes du haut ne sont pas des données — le relevé d'exemple en a deux, son titre et la ligne des intitulés. « Colonnes lues » dit la même chose que le glisser-déposer, en numéros. Les réglages de lecture (séparateur, décimale) servent quand les montants ou les colonnes sortent de travers.":
+      "« Header rows » says how many rows at the top are not data — the sample statement has two, its title and the column-name row. « Columns read » says the same thing as dragging, in numbers. The reading settings (separator, decimal mark) matter when amounts or columns come out wrong.",
+    "6. Enregistrer la configuration":
+      "6. Save the configuration",
+    "Ce bouton garde tes réglages DANS le preset : c'est ce qui fait qu'au prochain relevé de la même banque, il n'y aura plus rien à régler. Le bouton de relecture, lui, enregistre aussi — mais relit le fichier dans la foulée pour te montrer le résultat.":
+      "This button keeps your settings IN the preset: that is what makes the next statement from the same bank need no setting up at all. The re-read button also saves — but re-reads the file straight away to show you the result.",
+    "7. Ce que l'application te demande":
+      "7. What the application asks you",
+    "Les catégories écrites par ta banque ne sont pas les tiennes : tu dis une fois à quoi chacune correspond, et l'application s'en souvient pour tous les imports suivants. Les doublons et les ressemblances se décident au même endroit — un doublon est décoché d'office, une ressemblance te laisse juge.":
+      "The categories your bank writes are not yours: you say once what each one maps to, and the application remembers it for every later import. Duplicates and near matches are decided in the same place — a duplicate is unticked by default, a near match leaves the call to you.",
+    "Ce bloc n'apparaît que si le fichier apporte des catégories, des comptes ou des devises inconnus.":
+      "This block only appears if the file brings unknown categories, accounts or currencies.",
+    "8. L'aperçu, ligne par ligne":
+      "8. The preview, row by row",
+    "Rien n'est écrit en base avant ton accord. Chaque ligne se modifie ici : sa catégorie, son type, son compte — et se supprime si elle n'a rien à faire là. Les lignes sont rangées par type d'opération, pour que tu voies d'un coup ce que l'application a compris.":
+      "Nothing is written to the database before you agree. Every row can be changed here: its category, its type, its account — and deleted if it does not belong. Rows are grouped by transaction type, so you can see at a glance what the application understood.",
+    "L'aperçu apparaît une fois le fichier lu.":
+      "The preview appears once the file has been read.",
+    "9. Confirmer":
+      "9. Confirm",
+    "C'est le seul geste qui écrit. Et s'il s'avère que le résultat ne te convient pas, l'historique des importations, plus bas, annule un import entier — les opérations qu'il a créées disparaissent, et les dépenses prévues qu'il avait remplacées reviennent telles qu'elles étaient.":
+      "This is the only action that writes. And if the result does not suit you, the import history further down undoes a whole import — the transactions it created disappear, and the planned expenses it replaced come back exactly as they were.",
+    "Le mode d'emploi de l'application, à l'intérieur de l'application. Ce que veut dire chaque chiffre du dashboard, ce que fait chaque type d'opération, et comment régler un import de bout en bout — avec un tutoriel guidé et un relevé d'exemple pour s'entraîner sans risque.":
+      "The application's manual, inside the application. What every dashboard figure means, what each transaction type does, and how to set up an import from end to end — with a guided tutorial and a sample statement to practise safely.",
+    "Cette application tient tes comptes hors ligne : rien ne sort de ta machine, aucun service n'est interrogé, aucune banque n'est connectée. Tu saisis ou tu importes tes opérations, elle calcule. Cette notice explique ce qu'elle fait, dans l'ordre où on en a besoin.":
+      "This application keeps your accounts offline: nothing leaves your machine, no service is queried, no bank is connected. You enter or import your transactions, it does the arithmetic. This guide explains what it does, in the order you need it.",
+    "Un endroit où l'argent se trouve : un compte courant, un livret, un compte-titres. Chaque compte porte une ou plusieurs monnaies, et son solde se déduit de son solde initial plus tout ce qui y est passé.":
+      "A place where money sits: a current account, a savings account, a securities account. Each account carries one or more currencies, and its balance follows from its opening balance plus everything that went through it.",
+    "Une ligne : une date, un libellé, un montant, un compte. C'est la brique de tout le reste — les soldes, les graphes et les totaux ne sont que des façons de les additionner.":
+      "A row: a date, a label, an amount, an account. It is the building block of everything else — balances, charts and totals are only ways of adding them up.",
+    "Ce à quoi une dépense sert : alimentation, transports, loisirs. C'est par elles que l'histogramme et le camembert répartissent ce que tu dépenses. Tu les renommes, tu les ranges, tu en ajoutes — les quatre livrées ne sont qu'un point de départ.":
+      "What an expense is for: groceries, transport, leisure. They are how the histogram and the pie chart break down what you spend. You rename them, reorder them, add your own — the four shipped are only a starting point.",
+    "L'application ne mélange JAMAIS deux devises dans un même total : chaque écran qui affiche des montants a ses onglets ou sa liste de monnaie. Sans l'extension « Monnaies », il n'y en a qu'une et la question ne se pose pas.":
+      "The application NEVER mixes two currencies in one total: every screen showing amounts has its currency tabs or dropdown. Without the « Monnaies » extension there is only one, and the question does not arise.",
+    "Crée tes comptes, dans Paramètres → Comptes, avec leur solde de départ. C'est la seule chose qu'on ne peut pas deviner : tout le reste s'en déduit.":
+      "Create your accounts, in Settings → Accounts, with their opening balance. It is the only thing that cannot be guessed: everything else follows from it.",
+    "Range tes catégories, dans Paramètres → Catégories. Quatre sont livrées pour ne pas partir de rien ; renomme-les, supprime celles qui ne te servent pas, ajoute les tiennes.":
+      "Sort out your categories, in Settings → Categories. Four are shipped so you do not start from nothing; rename them, delete the ones you do not use, add your own.",
+    "Fais entrer tes opérations, à la main depuis la page Opérations, ou par un import de relevé — c'est le chapitre « Importer un relevé » de cette notice.":
+      "Bring your transactions in, by hand from the Transactions page, or by importing a statement — that is the « Importing a statement » chapter of this guide.",
+    "Regarde le dashboard. À partir de là, tout est lecture : les chiffres du haut disent où tu en es, ceux du bas ce que le mois a fait.":
+      "Look at the dashboard. From there on, everything is reading: the figures at the top say where you stand, those at the bottom what the month did.",
+    "Toutes tes données tiennent dans UN fichier, dont tu choisis l'emplacement au premier lancement et que tu peux déplacer ensuite depuis Paramètres → Base de données. Sauvegarde ce fichier comme tu sauvegardes une photo : le copier suffit, et le rouvrir depuis le même panneau te rend tout. L'application ne garde aucune copie ailleurs, et rien n'est envoyé nulle part.":
+      "All your data fits in ONE file, whose location you choose at first launch and can move later from Settings → Database. Back that file up the way you back up a photo: copying it is enough, and reopening it from the same panel gives you everything back. The application keeps no copy elsewhere, and nothing is sent anywhere.",
+    "Le dashboard répond à deux questions différentes, et c'est pour ça qu'il a deux rangées de cartes. En haut, ce que tu AS aujourd'hui — ces chiffres ne bougent pas quand tu changes de mois. En bas, sous le sélecteur de période, ce que la période a FAIT.":
+      "The dashboard answers two different questions, which is why it has two rows of cards. At the top, what you HAVE today — those figures do not move when you change month. At the bottom, under the period selector, what the period DID.",
+    "Ce que portent tes comptes courants, aujourd'hui. Le chiffre plus petit à côté est le PRÉVISIONNEL : le même solde une fois passées les opérations que tu as écrites d'avance.":
+      "What your current accounts hold, today. The smaller figure beside it is the PLANNED balance: the same balance once the transactions you wrote in advance have gone through.",
+    "Tout ce que tu possèdes : comptes courants, épargne, et la valeur de tes titres si l'extension « Placements financiers » tourne. C'est le chiffre à regarder pour « est-ce que mon patrimoine monte ».":
+      "Everything you own: current accounts, savings, and the value of your securities if the « Placements financiers » extension is running. This is the figure to watch for « is my net worth going up ».",
+    "Les deux variations ne tombent jamais d'accord, et c'est normal : l'une dit ce que le mois COÛTE, l'autre ce qui est PASSÉ sur le compte. Quand elles diffèrent, un bouton apparaît dans la carte jaune et ouvre le détail, ligne par ligne, de ce qui explique l'écart.":
+      "The two variations never agree, and that is normal: one says what the month COSTS, the other what actually WENT THROUGH the account. When they differ, a button appears in the yellow card and opens the row-by-row detail of what explains the gap.",
+    "Les deux graphes montrent les mêmes catégories dans les mêmes couleurs, sur la période du sélecteur, et se pilotent avec le même filtre — le bouton « Catégories » dans leur titre. Survoler une barre, une tranche ou une ligne de légende éclaire les deux autres et ouvre une infobulle : elle porte le total, la part, et les trois plus grosses dépenses de la catégorie.":
+      "Both charts show the same categories in the same colours, over the selector's period, and are driven by the same filter — the « Catégories » button in their title. Hovering a bar, a slice or a legend line lights up the other two and opens a tooltip: it carries the total, the share, and the category's three largest expenses.",
+    "L'histogramme porte des MONTANTS : une barre par catégorie, et le trait rouge est le budget que tu lui as donné pour ce mois-ci (extension « Budget »).":
+      "The histogram carries AMOUNTS: one bar per category, and the red line is the budget you gave it for this month (« Budget » extension).",
+    "Le camembert porte des PARTS. En vue « État actuel », chaque tranche est rapportée au total dépensé et les parts font 100 %. En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.":
+      "The pie chart carries SHARES. In « État actuel » view, each slice is relative to the total spent and the shares add up to 100 %. In « Budget » view they are relative to the month's budget: the ring stays open over what has not been spent.",
+    "La légende, sous les deux, ne porte que le nom et la part : c'est le point d'entrée le plus complet — son infobulle dit tout, et « Voir toutes les dépenses » t'emmène à la liste des opérations de cette catégorie.":
+      "The legend, below both, carries only the name and the share: it is the most complete entry point — its tooltip says everything, and « Voir toutes les dépenses » takes you to that category's list of transactions.",
+    "La petite flèche sous la rangée des mois déplie les SEMAINES : l'histogramme devient celui de la semaine choisie, et « Moyenne » répond à « est-ce que cette semaine-là était ordinaire ? ». Les cartes, elles, restent sur le mois.":
+      "The small arrow under the row of months unfolds the WEEKS: the histogram becomes that of the chosen week, and « Moyenne » answers « was that week an ordinary one? ». The cards stay on the month.",
+    "Le type d'une opération dit ce qu'elle EST, et décide de la façon dont elle compte. L'application nue en connaît deux ; les autres s'ouvrent avec l'extension qui les explique, et ne sont décrits ici que si elle tourne chez toi.":
+      "A transaction's type says what it IS, and decides how it counts. The bare application knows two; the others open up with the extension that explains them, and are described here only if it is running on your machine.",
+    "Une dépense ou une entrée ordinaire : des courses, un salaire, une facture. C'est le type par défaut, le seul qui se découpe entre plusieurs catégories, et celui de la quasi-totalité de tes lignes.":
+      "An ordinary expense or income: groceries, a salary, a bill. It is the default type, the only one that can be split across several categories, and the type of nearly all your rows.",
+    "De l'argent qui passe d'un de tes comptes à un autre. Ce n'est ni une dépense ni une entrée : ton patrimoine ne bouge pas, et c'est pour ça qu'un virement est écarté de tous les totaux de période. Une seule saisie écrit les deux côtés, et un virement entre deux monnaies porte les deux montants.":
+      "Money moving from one of your accounts to another. It is neither an expense nor income: your net worth does not change, which is why a transfer is excluded from every period total. A single entry writes both sides, and a transfer between two currencies carries both amounts.",
+    "Une dépense que tu avances pour quelqu'un d'autre : tu paies 60 €, on t'en rendra 50. Elle ne pèse sur ton mois que pour ce qui reste à ta charge, et ce qu'on te doit encore s'affiche dans « Reste à rembourser ». Le remboursement reçu, quand il arrive, fait décroître cette dette tout seul.":
+      "An expense you front for someone else: you pay 60 €, 50 will come back. It weighs on your month only for what stays at your charge, and what is still owed to you shows in « Reste à rembourser ». The reimbursement, when it arrives, shrinks that debt on its own.",
+    "De l'argent qu'on t'a prêté : il arrive sur ton compte, mais il faudra le rendre — il n'entre donc pas dans tes entrées. Ce que tu rendras EN PLUS de ce que tu as reçu est l'intérêt : c'est lui, et lui seul, qui pèse sur tes dépenses, dans sa propre barre d'histogramme.":
+      "Money lent to you: it lands in your account, but it will have to be given back — so it does not count as income. What you will return ON TOP of what you received is the interest: that, and only that, weighs on your spending, in its own histogram bar.",
+    "L'achat ou la vente d'un titre. Tu ne le saisis jamais depuis la page Opérations : il naît avec sa ligne dans l'écran des placements, et le mouvement d'espèces sur le compte-titres en découle.":
+      "Buying or selling a security. You never enter it from the Transactions page: it is born with its row in the investments screen, and the cash movement on the securities account follows from it.",
+    "D'autres types existent et n'apparaissent qu'avec l'extension qui les ouvre : dépenses remboursables, prêts reçus, opérations sur titres. Va voir Paramètres → Extensions pour savoir ce que tu as sous la main.":
+      "Other types exist and only appear with the extension that opens them: reimbursable expenses, loans received, securities transactions. Look at Settings → Extensions to see what you have at hand.",
+    "Une opération RÉELLE a eu lieu ; une PRÉVISIONNELLE est écrite d'avance et ne pèse que sur le solde projeté. Quand la vraie ligne arrive par un import, l'application reconnaît la prévision et la remplace, plutôt que de compter la dépense deux fois.":
+      "An ACTUAL transaction has happened; a PLANNED one is written in advance and weighs only on the projected balance. When the real row arrives through an import, the application recognises the plan and replaces it, rather than counting the expense twice.",
+    "Importer, c'est expliquer une fois à l'application comment ta banque écrit ses fichiers — puis ne plus jamais y revenir. Ce réglage s'appelle un PRESET : un par banque, gardé d'un import à l'autre. Rien n'est écrit dans tes comptes avant que tu aies vu, ligne par ligne, ce qui va entrer.":
+      "Importing means explaining once to the application how your bank writes its files — then never coming back to it. That setup is called a PRESET: one per bank, kept from one import to the next. Nothing is written to your accounts before you have seen, row by row, what is about to come in.",
+    "Le tutoriel ouvre l'écran d'import et te montre où regarder, étape par étape, sans rien écrire dans tes comptes. Le relevé d'exemple est un vrai fichier CSV — avec une ligne de titre parasite et trois colonnes inutiles, comme un export de banque : de quoi s'exercer à régler un import pour de bon.":
+      "The tutorial opens the import screen and shows you where to look, step by step, without writing anything to your accounts. The sample statement is a real CSV file — with a stray title row and three useless columns, like a bank export: enough to practise setting up an import for real.",
+    "Choisis ou crée le PRESET qui correspond à ce fichier, et dis-lui sur quel compte il importe.":
+      "Pick or create the PRESET matching this file, and tell it which account it imports into.",
+    "Dépose le fichier. L'application le relit aussitôt et montre, dans « Le fichier tel qu'il est », ce qu'elle a compris de chaque colonne.":
+      "Drop the file. The application reads it straight away and shows, in « Le fichier tel qu'il est », what it understood of each column.",
+    "Corrige la lecture si besoin : glisse les en-têtes pour remettre chaque propriété en face de la bonne colonne, dis combien de lignes de tête sauter, puis enregistre la configuration dans le preset.":
+      "Fix the reading if needed: drag the headers to put each property opposite the right column, say how many header rows to skip, then save the configuration into the preset.",
+    "Réponds à ce que l'aperçu te demande : à quelles catégories à toi correspondent celles de ta banque, quoi faire des doublons, et ce qu'il faut corriger ligne par ligne.":
+      "Answer what the preview asks: which of your categories your bank's ones map to, what to do with duplicates, and what to fix row by row.",
+    "Confirme. C'est le seul geste qui écrit quelque chose dans tes comptes.":
+      "Confirm. It is the only action that writes anything into your accounts.",
+    "L'historique des importations, en bas de l'écran d'import, ANNULE un import entier : les opérations qu'il a créées disparaissent, et les dépenses prévues qu'il avait remplacées reviennent exactement comme elles étaient. Rien n'est irréversible — c'est ce qui permet d'essayer un réglage plutôt que de le deviner.":
+      "The import history, at the bottom of the import screen, UNDOES a whole import: the transactions it created disappear, and the planned expenses it replaced come back exactly as they were. Nothing is irreversible — that is what lets you try a setting rather than guess it.",
+    "L'application nue tient un budget complet. Les extensions ajoutent ce dont tout le monde n'a pas besoin : plusieurs devises, un portefeuille de titres, des prêts, des objectifs chiffrés. Elles se déposent dans le dossier « extensions » à côté de l'application, et rien ne se charge avant que tu l'aies allumée toi-même.":
+      "The bare application keeps a complete budget. Extensions add what not everyone needs: several currencies, a securities portfolio, loans, numeric goals. They are dropped into the « extensions » folder next to the application, and nothing loads before you have switched it on yourself.",
+    "Éteindre une extension ne supprime AUCUNE donnée : son écran disparaît, ses lignes dorment en base, et tout revient intact quand tu la rallumes. C'est pour ça qu'on peut en essayer une sans rien risquer.":
+      "Switching an extension off deletes NO data: its screen disappears, its rows sleep in the database, and everything comes back intact when you switch it on again. That is why you can try one without risking anything.",
+
     /* ===== Reprise de traduction, lot 2 : les libellés courts et les
        fragments de phrase coupés par un <strong> ou un <em>. ===== */
     "&larr; Retour au tableau de bord":

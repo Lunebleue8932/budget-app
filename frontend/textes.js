@@ -84,6 +84,91 @@ const TEXTES = {
     "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
   "noyau.amortie-sur-plusieurs-mois":
     "La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut du dashboard ne bougent pas. Seuls l'histogramme et les totaux de la période répartissent son montant sur les mois choisis.",
+  /* ----- La notice d'utilisation -----
+     CES PHRASES SONT AUSSI CELLES DES ÉCRANS. La notice n'en écrit de
+     nouvelles que pour ce qu'aucune pastille « i » ne dit déjà : partout
+     ailleurs elle emploie les MÊMES clés que la page qu'elle décrit (cf. les
+     `data-texte-cle` de la section #section-notice). C'est ce qui l'empêche de
+     décrire une application qui n'existe plus. */
+  "noyau.notice":
+    "Le mode d'emploi de l'application, à l'intérieur de l'application. Ce que veut dire chaque chiffre du dashboard, ce que fait chaque type d'opération, et comment régler un import de bout en bout — avec un tutoriel guidé et un relevé d'exemple pour s'entraîner sans risque.",
+  "noyau.notice-intro":
+    "Cette application tient tes comptes hors ligne : rien ne sort de ta machine, aucun service n'est interrogé, aucune banque n'est connectée. Tu saisis ou tu importes tes opérations, elle calcule. Cette notice explique ce qu'elle fait, dans l'ordre où on en a besoin.",
+  "noyau.notice-mot-compte":
+    "Un endroit où l'argent se trouve : un compte courant, un livret, un compte-titres. Chaque compte porte une ou plusieurs monnaies, et son solde se déduit de son solde initial plus tout ce qui y est passé.",
+  "noyau.notice-mot-operation":
+    "Une ligne : une date, un libellé, un montant, un compte. C'est la brique de tout le reste — les soldes, les graphes et les totaux ne sont que des façons de les additionner.",
+  "noyau.notice-mot-categorie":
+    "Ce à quoi une dépense sert : alimentation, transports, loisirs. C'est par elles que l'histogramme et le camembert répartissent ce que tu dépenses. Tu les renommes, tu les ranges, tu en ajoutes — les quatre livrées ne sont qu'un point de départ.",
+  "noyau.notice-mot-monnaie":
+    "L'application ne mélange JAMAIS deux devises dans un même total : chaque écran qui affiche des montants a ses onglets ou sa liste de monnaie. Sans l'extension « Monnaies », il n'y en a qu'une et la question ne se pose pas.",
+  "noyau.notice-demarrer-1":
+    "Crée tes comptes, dans Paramètres → Comptes, avec leur solde de départ. C'est la seule chose qu'on ne peut pas deviner : tout le reste s'en déduit.",
+  "noyau.notice-demarrer-2":
+    "Range tes catégories, dans Paramètres → Catégories. Quatre sont livrées pour ne pas partir de rien ; renomme-les, supprime celles qui ne te servent pas, ajoute les tiennes.",
+  "noyau.notice-demarrer-3":
+    "Fais entrer tes opérations, à la main depuis la page Opérations, ou par un import de relevé — c'est le chapitre « Importer un relevé » de cette notice.",
+  "noyau.notice-demarrer-4":
+    "Regarde le dashboard. À partir de là, tout est lecture : les chiffres du haut disent où tu en es, ceux du bas ce que le mois a fait.",
+  "noyau.notice-donnees":
+    "Toutes tes données tiennent dans UN fichier, dont tu choisis l'emplacement au premier lancement et que tu peux déplacer ensuite depuis Paramètres → Base de données. Sauvegarde ce fichier comme tu sauvegardes une photo : le copier suffit, et le rouvrir depuis le même panneau te rend tout. L'application ne garde aucune copie ailleurs, et rien n'est envoyé nulle part.",
+  "noyau.notice-dashboard-intro":
+    "Le dashboard répond à deux questions différentes, et c'est pour ça qu'il a deux rangées de cartes. En haut, ce que tu AS aujourd'hui — ces chiffres ne bougent pas quand tu changes de mois. En bas, sous le sélecteur de période, ce que la période a FAIT.",
+  "noyau.notice-kpi-solde-total":
+    "Ce que portent tes comptes courants, aujourd'hui. Le chiffre plus petit à côté est le PRÉVISIONNEL : le même solde une fois passées les opérations que tu as écrites d'avance.",
+  "noyau.notice-kpi-avoirs":
+    "Tout ce que tu possèdes : comptes courants, épargne, et la valeur de tes titres si l'extension « Placements financiers » tourne. C'est le chiffre à regarder pour « est-ce que mon patrimoine monte ».",
+  "noyau.notice-dashboard-ecart":
+    "Les deux variations ne tombent jamais d'accord, et c'est normal : l'une dit ce que le mois COÛTE, l'autre ce qui est PASSÉ sur le compte. Quand elles diffèrent, un bouton apparaît dans la carte jaune et ouvre le détail, ligne par ligne, de ce qui explique l'écart.",
+  "noyau.notice-graphes":
+    "Les deux graphes montrent les mêmes catégories dans les mêmes couleurs, sur la période du sélecteur, et se pilotent avec le même filtre — le bouton « Catégories » dans leur titre. Survoler une barre, une tranche ou une ligne de légende éclaire les deux autres et ouvre une infobulle : elle porte le total, la part, et les trois plus grosses dépenses de la catégorie.",
+  "noyau.notice-graphes-histogramme":
+    "L'histogramme porte des MONTANTS : une barre par catégorie, et le trait rouge est le budget que tu lui as donné pour ce mois-ci (extension « Budget »).",
+  "noyau.notice-graphes-camembert":
+    "Le camembert porte des PARTS. En vue « État actuel », chaque tranche est rapportée au total dépensé et les parts font 100 %. En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.",
+  "noyau.notice-graphes-legende":
+    "La légende, sous les deux, ne porte que le nom et la part : c'est le point d'entrée le plus complet — son infobulle dit tout, et « Voir toutes les dépenses » t'emmène à la liste des opérations de cette catégorie.",
+  "noyau.notice-graphes-semaines":
+    "La petite flèche sous la rangée des mois déplie les SEMAINES : l'histogramme devient celui de la semaine choisie, et « Moyenne » répond à « est-ce que cette semaine-là était ordinaire ? ». Les cartes, elles, restent sur le mois.",
+  "noyau.notice-types-intro":
+    "Le type d'une opération dit ce qu'elle EST, et décide de la façon dont elle compte. L'application nue en connaît deux ; les autres s'ouvrent avec l'extension qui les explique, et ne sont décrits ici que si elle tourne chez toi.",
+  "noyau.notice-type-classique":
+    "Une dépense ou une entrée ordinaire : des courses, un salaire, une facture. C'est le type par défaut, le seul qui se découpe entre plusieurs catégories, et celui de la quasi-totalité de tes lignes.",
+  "noyau.notice-type-virement":
+    "De l'argent qui passe d'un de tes comptes à un autre. Ce n'est ni une dépense ni une entrée : ton patrimoine ne bouge pas, et c'est pour ça qu'un virement est écarté de tous les totaux de période. Une seule saisie écrit les deux côtés, et un virement entre deux monnaies porte les deux montants.",
+  "noyau.notice-type-remboursable":
+    "Une dépense que tu avances pour quelqu'un d'autre : tu paies 60 €, on t'en rendra 50. Elle ne pèse sur ton mois que pour ce qui reste à ta charge, et ce qu'on te doit encore s'affiche dans « Reste à rembourser ». Le remboursement reçu, quand il arrive, fait décroître cette dette tout seul.",
+  "noyau.notice-type-pret":
+    "De l'argent qu'on t'a prêté : il arrive sur ton compte, mais il faudra le rendre — il n'entre donc pas dans tes entrées. Ce que tu rendras EN PLUS de ce que tu as reçu est l'intérêt : c'est lui, et lui seul, qui pèse sur tes dépenses, dans sa propre barre d'histogramme.",
+  "noyau.notice-type-action":
+    "L'achat ou la vente d'un titre. Tu ne le saisis jamais depuis la page Opérations : il naît avec sa ligne dans l'écran des placements, et le mouvement d'espèces sur le compte-titres en découle.",
+  "noyau.notice-types-extensions":
+    "D'autres types existent et n'apparaissent qu'avec l'extension qui les ouvre : dépenses remboursables, prêts reçus, opérations sur titres. Va voir Paramètres → Extensions pour savoir ce que tu as sous la main.",
+  "noyau.notice-statut":
+    "Une opération RÉELLE a eu lieu ; une PRÉVISIONNELLE est écrite d'avance et ne pèse que sur le solde projeté. Quand la vraie ligne arrive par un import, l'application reconnaît la prévision et la remplace, plutôt que de compter la dépense deux fois.",
+  "noyau.notice-import-intro":
+    "Importer, c'est expliquer une fois à l'application comment ta banque écrit ses fichiers — puis ne plus jamais y revenir. Ce réglage s'appelle un PRESET : un par banque, gardé d'un import à l'autre. Rien n'est écrit dans tes comptes avant que tu aies vu, ligne par ligne, ce qui va entrer.",
+  "noyau.notice-tutoriel-encart":
+    "Le tutoriel ouvre l'écran d'import et te montre où regarder, étape par étape, sans rien écrire dans tes comptes. Le relevé d'exemple est un vrai fichier CSV — avec une ligne de titre parasite et trois colonnes inutiles, comme un export de banque : de quoi s'exercer à régler un import pour de bon.",
+  "noyau.notice-exemple-colonnes":
+    "Le réglage juste, si tu veux vérifier le tien : 2 lignes de tête, Date en colonne 1, Nature en 3, Montant en 5, Catégorie bancaire en 7. Les colonnes 2, 4 et 6 — référence, type de carte, solde après opération — ne sont lues par rien : une colonne qu'on n'importe pas n'a pas à être supprimée du fichier.",
+  "noyau.notice-import-etape-1":
+    "Choisis ou crée le PRESET qui correspond à ce fichier, et dis-lui sur quel compte il importe.",
+  "noyau.notice-import-etape-2":
+    "Dépose le fichier. L'application le relit aussitôt et montre, dans « Le fichier tel qu'il est », ce qu'elle a compris de chaque colonne.",
+  "noyau.notice-import-etape-3":
+    "Corrige la lecture si besoin : glisse les en-têtes pour remettre chaque propriété en face de la bonne colonne, dis combien de lignes de tête sauter, puis enregistre la configuration dans le preset.",
+  "noyau.notice-import-etape-4":
+    "Réponds à ce que l'aperçu te demande : à quelles catégories à toi correspondent celles de ta banque, quoi faire des doublons, et ce qu'il faut corriger ligne par ligne.",
+  "noyau.notice-import-etape-5":
+    "Confirme. C'est le seul geste qui écrit quelque chose dans tes comptes.",
+  "noyau.notice-import-annuler":
+    "L'historique des importations, en bas de l'écran d'import, ANNULE un import entier : les opérations qu'il a créées disparaissent, et les dépenses prévues qu'il avait remplacées reviennent exactement comme elles étaient. Rien n'est irréversible — c'est ce qui permet d'essayer un réglage plutôt que de le deviner.",
+  "noyau.notice-extensions-intro":
+    "L'application nue tient un budget complet. Les extensions ajoutent ce dont tout le monde n'a pas besoin : plusieurs devises, un portefeuille de titres, des prêts, des objectifs chiffrés. Elles se déposent dans le dossier « extensions » à côté de l'application, et rien ne se charge avant que tu l'aies allumée toi-même.",
+  "noyau.notice-extensions-eteindre":
+    "Éteindre une extension ne supprime AUCUNE donnée : son écran disparaît, ses lignes dorment en base, et tout revient intact quand tu la rallumes. C'est pour ça qu'on peut en essayer une sans rien risquer.",
+
   /* ----- Extension « Budget » -----
      L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */

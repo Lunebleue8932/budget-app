@@ -5167,3 +5167,279 @@ td.apercu-col-hors-fichier {
     animation: none;
   }
 }
+
+/* ==========================================================================
+   LA NOTICE D'UTILISATION ET LE TUTORIEL GUIDÉ
+   ==========================================================================
+
+   AUCUNE COULEUR EN DUR, comme partout ailleurs : ces blocs suivent le thème
+   clair comme le sombre parce qu'ils ne nomment que des variables. Les
+   MAQUETTES de la notice, elles, n'ont aucun style à elles — elles réemploient
+   `.kpi-grid`, `.kpi-card`, `.flux-periode` et `.flux-carte`, les classes des
+   vrais écrans, et changent donc en même temps qu'eux. C'est ce qui remplace
+   des captures d'écran, qui auraient vieilli contre l'application. */
+
+.reglage-bloc-action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.reglage-bloc-action > label {
+  margin-bottom: 0;
+}
+
+.notice-titre-actions {
+  margin-left: auto;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+/* UN CHAPITRE À LA FOIS. La notice est longue par nature — c'est une notice —
+   et tout dérouler d'un coup rend introuvable ce qu'on cherche. La barre
+   d'onglets est celle du reste de l'application (`.sous-onglets`). */
+.notice-chapitre {
+  display: none;
+  max-width: 58rem;
+}
+
+.notice-chapitre.active {
+  display: block;
+}
+
+/* La phrase qui ouvre un chapitre : plus grande que le corps, parce qu'elle
+   dit de quoi il s'agit et que le reste en dépend. */
+.notice-intro {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1.4rem;
+}
+
+.notice-chapitre h3 {
+  margin-top: 1.8rem;
+}
+
+.notice-chapitre p {
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* Un terme et son explication : le terme en clair et en gras, l'explication en
+   retrait. La forme d'un glossaire, parce que c'en est un. */
+.notice-liste {
+  margin: 0.6rem 0 1rem;
+}
+
+.notice-liste dt {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 0.9rem;
+}
+
+.notice-liste dd {
+  margin: 0.2rem 0 0 0;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--border-soft);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.notice-etapes,
+.notice-liste-simple {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding-left: 1.4rem;
+}
+
+.notice-etapes li,
+.notice-liste-simple li {
+  margin-bottom: 0.6rem;
+}
+
+/* LA MAQUETTE EST POSÉE DANS UN CADRE, un peu en retrait : on doit voir du
+   premier coup d'œil que c'est une illustration et non l'écran lui-même —
+   sans quoi on cliquerait dessus. */
+.notice-preview {
+  background: var(--bg-surface-alt);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  margin: 0.8rem 0 1rem;
+  pointer-events: none;
+}
+
+.notice-type {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.9rem;
+  margin-bottom: 1.2rem;
+}
+
+.notice-type h3 {
+  margin-top: 1.2rem;
+  margin-bottom: 0.3rem;
+}
+
+.notice-tutoriel-encart {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.4rem;
+}
+
+.notice-tutoriel-encart h3 {
+  margin-top: 0;
+}
+
+/* Le lien de téléchargement se porte comme un bouton : il fait la même chose
+   qu'eux du point de vue de celui qui lit — il DONNE quelque chose — et une
+   ligne soulignée au milieu d'une rangée de boutons se lit comme un détail. */
+.bouton-lien {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.bouton-lien:hover {
+  background: var(--bg-surface-hover);
+}
+
+.notice-extensions-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.7rem;
+}
+
+.notice-extension {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+}
+
+.notice-extension-active {
+  border-left-color: var(--positif);
+}
+
+.notice-extension-nom {
+  font-weight: 600;
+}
+
+.notice-extension-etat {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ---------- Les deux points du premier lancement ---------- */
+
+.modale-point {
+  margin-bottom: 1.2rem;
+}
+
+.modale-point h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.4rem;
+}
+
+.modale-point-numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ---------- Le tutoriel guidé ----------
+ *
+ * PAS DE VOILE SUR L'APPLICATION, et c'est le choix qui décide de toute cette
+ * mise en forme : l'écran reste utilisable pendant le tutoriel, les gestes se
+ * font pour de vrai. D'où un halo sur l'élément désigné plutôt qu'un trou
+ * découpé dans un calque, et une bulle qui se pose à côté plutôt qu'au centre
+ * d'un écran assombri. */
+
+.tutoriel-cible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.18);
+  /* Le halo doit rester visible par-dessus les fonds de carte des écrans, qui
+     portent leur propre empilement. */
+  position: relative;
+  z-index: 5;
+}
+
+.tutoriel-bulle {
+  position: fixed;
+  z-index: 1200;
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-flottant);
+  padding: 0.9rem 1rem;
+}
+
+.tutoriel-bulle-centree {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tutoriel-entete {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.tutoriel-compteur {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.tutoriel-fermer {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+
+.tutoriel-bulle h4 {
+  margin: 0 0 0.4rem;
+}
+
+.tutoriel-bulle p {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.tutoriel-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
