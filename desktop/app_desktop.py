@@ -209,6 +209,32 @@ class ApiBureau:
             file_types=("Base de données (*.db;*.sqlite;*.sqlite3)", "Tous les fichiers (*.*)"),
         )
 
+    def enregistrer_texte(self, nom_propose: str, contenu: str) -> str | None:
+        """Écrit un fichier TEXTE à l'endroit que l'utilisateur désigne.
+
+        POURQUOI CETTE MÉTHODE EXISTE : un lien `download` ne télécharge RIEN
+        dans la fenêtre de bureau. Le navigateur embarqué n'a ni barre de
+        téléchargements, ni dossier « Téléchargements » à lui — le clic ne
+        produit donc aucun effet visible, ce qui se lit comme une panne. C'était
+        le cas du relevé d'exemple de la notice, dont le lien ne faisait rien.
+
+        LE CONTENU VIENT DE LA PAGE, pas d'un chemin : ce qu'on enregistre est
+        déjà servi par l'application (`/exemples/…`), et le JS l'a lu avant
+        d'appeler. Passer un chemin de fichier aurait demandé à cette classe de
+        savoir où le bundle range ses ressources — une connaissance qu'elle n'a
+        pas et n'a pas à avoir.
+
+        Rend le chemin écrit, ou None si l'utilisateur annule ou si l'écriture
+        échoue — l'écran le dit alors plutôt que de laisser croire au succès."""
+        chemin = self._dialogue("enregistrer", nom_propose)
+        if not chemin:
+            return None
+        try:
+            Path(chemin).write_text(contenu, encoding="utf-8")
+        except OSError:
+            return None
+        return chemin
+
     def _dialogue(self, mode: str, chemin_propose: str, file_types=()) -> str | None:
         # Importé ICI et pas en tête de module : `webview` tire les
         # bibliothèques graphiques du système, et tout ce qui précède

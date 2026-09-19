@@ -10,24 +10,12 @@
  * ajustement.
  */
 
-/* Les trois listes de la période, sur une ligne — la même forme que la barre de
-   contexte de la page Budget, dont cet onglet est voisin : deux écrans de la
-   même page qui demandent la même chose doivent le demander pareil. */
-.obj-contexte {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-end;
-  margin-bottom: 1rem;
-}
-
-.obj-contexte label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
+/* LA BARRE DE PÉRIODE EST CELLE DU NOYAU (`.selecteur-contexte`, cf.
+   frontend/style.css), comme celle de la page Budget dont cet onglet est
+   voisin : deux écrans de la même page qui demandent la même chose doivent le
+   demander pareil, et deux copies du même style divergent au premier
+   ajustement. `.obj-contexte` reste comme prise pour ce qui serait propre à cet
+   onglet — aujourd'hui rien. */
 
 /* ---------- Les cartes ----------
  *

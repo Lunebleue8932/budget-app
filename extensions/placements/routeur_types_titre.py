@@ -37,7 +37,6 @@ def _read(type_titre, nb_titres: int = 0) -> schemas.TypeTitreRead:
         id=type_titre.id,
         nom=type_titre.nom,
         axe=type_titre.axe,
-        ordre=type_titre.ordre,
         nb_titres=nb_titres,
     )
 
@@ -88,7 +87,7 @@ def create_type_titre(payload: schemas.TypeTitreCreate, db: Session = Depends(ge
 def update_type_titre(
     type_titre_id: int, payload: schemas.TypeTitreUpdate, db: Session = Depends(get_db)
 ):
-    """Renommer, ou déplacer dans la liste.
+    """Renommer, et rien d'autre.
 
     UN RENOMMAGE SUFFIT À RETYPER TOUT LE PORTEFEUILLE : les titres pointent sur
     la ligne, pas sur son libellé. C'est précisément ce qu'une colonne texte sur
@@ -107,7 +106,7 @@ def update_type_titre(
     # emporterait avec elle les titres qui la portent — dans la colonne de
     # l'autre axe, où plus rien ne les y attend. Se tromper d'axe se répare en
     # créant l'étiquette du bon côté, ce qui coûte un clic.
-    crud.update_type_titre(db, type_titre, nom=nom, ordre=payload.ordre)
+    crud.update_type_titre(db, type_titre, nom=nom)
     comptes = crud.compter_titres_par_type(db, type_titre.axe)
     return _read(type_titre, comptes.get(type_titre.id, 0))
 

@@ -1891,7 +1891,9 @@ def get_types_titre(db: Session, axe: str = AxeTitre.enveloppe.value) -> list[mo
     return (
         db.query(models.TypeTitre)
         .filter(models.TypeTitre.axe == axe)
-        .order_by(models.TypeTitre.ordre, models.TypeTitre.nom)
+        # PAR IDENTIFIANT, c'est-à-dire par ordre de création (cf. migration
+        # 0067) : ce que l'ancienne colonne `ordre` disait déjà.
+        .order_by(models.TypeTitre.id)
         .all()
     )
 
@@ -1939,15 +1941,9 @@ def compter_titres_par_type(
 def create_type_titre(
     db: Session, nom: str, axe: str = AxeTitre.enveloppe.value
 ) -> models.TypeTitre:
-    # En fin de liste : une étiquette qu'on vient de créer ne doit pas s'insérer
-    # au milieu de l'ordre que l'utilisateur a posé. L'ordre est PROPRE À L'AXE —
-    # ajouter une classe d'actif ne doit pas décaler les enveloppes.
-    dernier = (
-        db.query(func.max(models.TypeTitre.ordre))
-        .filter(models.TypeTitre.axe == axe)
-        .scalar()
-    )
-    type_titre = models.TypeTitre(nom=nom, axe=axe, ordre=(dernier or 0) + 1)
+    # En fin de liste sans rien calculer : l'identifiant suffit à ranger une
+    # étiquette neuve après les autres (cf. migration 0067).
+    type_titre = models.TypeTitre(nom=nom, axe=axe)
     db.add(type_titre)
     db.commit()
     db.refresh(type_titre)
@@ -1959,12 +1955,9 @@ def update_type_titre(
     type_titre: models.TypeTitre,
     *,
     nom: Optional[str] = None,
-    ordre: Optional[int] = None,
 ) -> models.TypeTitre:
     if nom is not None:
         type_titre.nom = nom
-    if ordre is not None:
-        type_titre.ordre = ordre
     db.commit()
     db.refresh(type_titre)
     return type_titre

@@ -732,6 +732,8 @@ const TRADUCTIONS = {
       "What you set yourself, measured over the period shown above and in the tab's currency. The large figure is brought back to the goal's cadence; the line below says what was used to compute it. Nothing here affects your balances or your charts: a goal observes, it changes no amount. They are created and edited in Budget → Goals.",
 
     /* ===== La notice d'utilisation et le tutoriel guidé ===== */
+    "Relevé d'exemple enregistré :":
+      "Sample statement saved:",
     "Le réglage juste, si tu veux vérifier le tien : 2 lignes de tête, Date en colonne 1, Nature en 3, Montant en 5, Catégorie bancaire en 7. Les colonnes 2, 4 et 6 — référence, type de carte, solde après opération — ne sont lues par rien : une colonne qu'on n'importe pas n'a pas à être supprimée du fichier.":
       "The correct setup, if you want to check yours: 2 header rows, Date in column 1, Label in 3, Amount in 5, Bank category in 7. Columns 2, 4 and 6 — reference, card type, balance after transaction — are read by nothing: a column you do not import does not have to be removed from the file.",
     "on te doit 340,00 € · tu dois 0,00 €":

@@ -42,7 +42,7 @@
 
   <div id="sous-section-budget-budget" class="sous-section active">
 
-    <div class="ab-contexte">
+    <div class="selecteur-contexte ab-contexte">
       <label for="ab-monnaie">Monnaie
         <select id="ab-monnaie"></select>
       </label>
@@ -62,7 +62,7 @@
          que dans un formulaire), et l'envelopper ferait recharger la page à la
          moindre touche Entrée. C'est la forme qu'il avait déjà sur le camembert,
          reprise telle quelle — elle n'était pas le problème, sa PLACE l'était. -->
-    <div class="ab-budget-total-reglage">
+    <div class="reglage-ligne ab-budget-total-reglage">
       <label for="ab-budget-total">Montant du budget</label>
       <input type="number" id="ab-budget-total" step="0.01" min="0" />
       <!-- UN BUDGET QUE PERSONNE N'A ÉCRIT SUR CE MOIS-CI LE DIT (cf.
@@ -98,7 +98,7 @@
 
     <!-- Même forme que le réglage du budget du mois, et pour la même raison : un
          input hors <form> ne reçoit aucun style de l'application. -->
-    <div class="ab-matelas-reglage">
+    <div class="reglage-ligne ab-matelas-reglage">
       <label for="ab-matelas-montant">Montant minimum à garder disponible</label>
       <input type="number" id="ab-matelas-montant" step="0.01" min="0" />
       <button type="button" class="primary" id="btn-ab-matelas">Enregistrer</button>

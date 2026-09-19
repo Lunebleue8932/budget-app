@@ -321,3 +321,34 @@ document.getElementById("notice-sous-nav")?.addEventListener("click", (e) => {
 });
 
 document.getElementById("btn-notice-tutoriel")?.addEventListener("click", demarrerTutoriel);
+
+/**
+ * LE TÉLÉCHARGEMENT DU RELEVÉ D'EXEMPLE, et pourquoi ce n'est pas un simple lien.
+ *
+ * UN LIEN `download` NE TÉLÉCHARGE RIEN dans la fenêtre de bureau : le
+ * navigateur embarqué n'a ni barre de téléchargements ni dossier à lui, et le
+ * clic ne produit donc aucun effet visible — ce qui se lit comme une panne, et
+ * c'est exactement ce qui se passait.
+ *
+ * ON PASSE DONC PAR LE SÉLECTEUR DU SYSTÈME quand il existe
+ * (`window.pywebview.api.enregistrer_texte`, cf. desktop/app_desktop.py) : la
+ * page lit le fichier qu'elle sert déjà, et l'API l'écrit où l'utilisateur
+ * désigne. L'attribut `download` reste dans le HTML et fait le travail dans un
+ * navigateur ordinaire — c'est le comportement de repli, pas un doublon.
+ */
+document.getElementById("lien-notice-exemple")?.addEventListener("click", async (e) => {
+  if (!selecteurNatifDisponible()) return; // navigateur : le lien suffit
+  e.preventDefault();
+  try {
+    const reponse = await fetch(e.currentTarget.getAttribute("href"));
+    if (!reponse.ok) throw new Error(`Erreur ${reponse.status}`);
+    const chemin = await window.pywebview.api.enregistrer_texte(
+      "releve-exemple.csv",
+      await reponse.text()
+    );
+    // Annulé : rien à dire. L'utilisateur vient de fermer le sélecteur, il sait.
+    if (chemin) showMessage(`${t("Relevé d'exemple enregistré :")} ${chemin}`, "success");
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+});

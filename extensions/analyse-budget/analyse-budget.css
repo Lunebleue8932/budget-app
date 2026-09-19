@@ -81,33 +81,12 @@
    raison : hors d'un <form>, un <input> ne reçoit aucun style de
    l'application. Les valeurs sont reprises de la rangée des filtres, seul
    endroit du noyau qui avait déjà résolu la question. */
-.ab-matelas-reglage {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.8rem;
-}
-
-.ab-matelas-reglage label {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
+/* LA RANGÉE EST CELLE DU NOYAU (`.reglage-ligne`, cf. frontend/style.css) :
+   seule la largeur du champ et son alignement à droite sont propres à un
+   MONTANT, et c'est tout ce qui reste ici. */
 .ab-matelas-reglage input {
   width: 9rem;
   text-align: right;
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.35rem 0.5rem;
-  transition: border-color 0.15s;
-}
-
-.ab-matelas-reglage input:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 .ab-matelas-carte {
@@ -180,79 +159,25 @@
  * filtres d'Opérations, seul endroit du noyau qui avait déjà résolu la
  * question.
  */
-.ab-contexte {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  margin-bottom: 1.4rem;
-}
-
-.ab-contexte label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.ab-contexte select {
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.35rem 0.5rem;
-  font-size: 0.88rem;
-  min-width: 8rem;
-  transition: border-color 0.15s;
-}
-
-.ab-contexte select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* UNE SEULE MONNAIE : la liste reste en place, éteinte. Un champ qui apparaît
-   le jour où l'on crée une seconde devise se cherche ; un champ toujours là ne
-   surprend jamais. */
-.ab-contexte select:disabled {
-  color: var(--text-muted);
-  cursor: not-allowed;
-}
+/* LA BARRE DE CONTEXTE EST CELLE DU NOYAU (`.selecteur-contexte`, cf.
+   frontend/style.css). Elle était redéclarée ici, avec ses propres paddings et
+   sa propre taille de police : deux écrans voisins qui posent la même rangée de
+   menus doivent se ressembler, et une copie diverge au premier ajustement.
+   `.ab-contexte` reste sur l'élément comme prise pour ce qui serait propre à
+   cette page — aujourd'hui rien. */
 
 /* ---------- Le budget du mois ----------
  *
  * MÊME FORME QUE LE RÉGLAGE DU MATELAS, à la classe près : deux montants qu'on
- * pose, posés de la même façon. Hors d'un <form>, un <input> ne reçoit aucun
- * style de l'application — c'est cette rangée-là qui le lui donne.
+ * pose, posés de la même façon. La rangée est ici ; le CHAMP, lui, prend le
+ * style commun du noyau (`.reglage-ligne input`, cf. frontend/style.css) —
+ * c'est le même champ que partout ailleurs.
  */
-.ab-budget-total-reglage {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.2rem;
-}
-
-.ab-budget-total-reglage label {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
+/* Seule la largeur et l'alignement sont propres à ce champ : c'est un montant,
+   il se lit aligné à droite. Le reste vient du style commun. */
 .ab-budget-total-reglage input {
   width: 9rem;
   text-align: right;
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  padding: 0.35rem 0.5rem;
-  transition: border-color 0.15s;
-}
-
-.ab-budget-total-reglage input:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 /* ---------- Les budgets par catégorie ----------

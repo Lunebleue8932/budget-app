@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=119" />
+  <link rel="stylesheet" href="style.css?v=120" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -216,7 +216,23 @@
             </span>
           </div>
         </div>
-        <div class="kpi-card">
+        <!-- CETTE CARTE N'EXISTE QUE SI UNE EXTENSION LA REMPLIT. « Reste à
+             rembourser » somme ce qu'on me doit (extension « Suivi des
+             remboursements ») et ce que je dois (extension « Prêts ») ; sans
+             ni l'une ni l'autre, les deux côtés valent zéro par construction
+             (cf. soldes.get_reste_a_rembourser) et la carte annonce un 0,00 €
+             qui ne veut rien dire. `renderKpisDashboard` l'ouvre dès que l'une
+             des deux tourne — deux extensions, donc du JS plutôt qu'un
+             `data-extension-onglet`, qui n'en nomme qu'une.
+
+             `display:none` dans le HTML, comme partout ailleurs : rien
+             n'appelle le rendu avant le premier chargement du dashboard, et
+             c'est l'extension qui ouvre, jamais le noyau qui ferme.
+
+             LA GRILLE S'OCCUPE DU RESTE : `auto-fit` répartit les cartes
+             restantes sur toute la largeur, sans qu'aucune règle n'ait à
+             connaître leur nombre. -->
+        <div class="kpi-card" id="kpi-carte-remboursements" style="display:none">
           <div class="kpi-label">Reste à rembourser<i class="info-bulle" tabindex="0" data-info-cle="noyau.reste-a-rembourser">i</i></div>
           <div class="kpi-valeur" id="kpi-reste-rembourser">-</div>
           <!-- Le détail des deux composantes : un net à zéro peut cacher 500 €
@@ -2250,14 +2266,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
   <script src="textes.js?v=20"></script>
-  <script src="i18n.js?v=71"></script>
+  <script src="i18n.js?v=72"></script>
   <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=148"></script>
+  <script src="app.js?v=149"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
        le comportement de l'application mais un écran qui la DÉCRIT, plus la
        bulle du tutoriel, que rien d'autre n'emploie. -->
-  <script src="notice.js?v=1"></script>
+  <script src="notice.js?v=2"></script>
 </body>
 </html>

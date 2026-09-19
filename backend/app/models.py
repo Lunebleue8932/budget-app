@@ -866,9 +866,11 @@ class TypeTitre(Base):
     # l'enveloppe : c'est ce que portait la table avant la 0066, et tout type
     # existant le garde.
     axe = Column(String, nullable=False, default=AxeTitre.enveloppe.value)
-    # Ordre d'affichage dans les menus et les légendes : l'ordre de création par
-    # défaut, réordonnable ensuite comme les comptes et les catégories.
-    ordre = Column(Integer, nullable=False, default=0)
+    # PAS DE COLONNE D'ORDRE (retirée par la 0067) : elle valait le rang de
+    # création et rien ne l'a jamais changée — aucun écran ne réordonne les
+    # étiquettes de titre. Le tri se fait sur `id`, qui dit la même chose sans
+    # qu'on ait à le maintenir. `Categorie.ordre` reste, elle : celle-là se
+    # réordonne vraiment, à la poignée.
 
     # L'UNICITÉ PORTE SUR LE COUPLE, et plus sur le seul nom : « Actions » est
     # une classe d'actif parfaitement légitime alors qu'« Action en direct » est

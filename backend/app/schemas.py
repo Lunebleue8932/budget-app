@@ -915,8 +915,10 @@ class TypeTitreCreate(BaseModel):
 
 
 class TypeTitreUpdate(BaseModel):
+    # Le nom, et c'est tout : une étiquette de titre ne se réordonne pas (cf.
+    # migration 0067), et son axe ne change jamais — se tromper d'axe se répare
+    # en créant l'étiquette du bon côté.
     nom: Optional[str] = Field(default=None, min_length=1)
-    ordre: Optional[int] = None
 
 
 class TypeTitreRead(BaseModel):
@@ -928,7 +930,6 @@ class TypeTitreRead(BaseModel):
     # expose) — cf. constants.AxeTitre. Voyage parce que l'écran range les deux
     # listes côte à côte et doit savoir laquelle il remplit.
     axe: str = AxeTitre.enveloppe.value
-    ordre: int = 0
     # Combien de titres le portent, archivés compris. Sert à l'écran de gestion :
     # supprimer un type qui typait douze titres ne se fait pas à l'aveugle.
     nb_titres: int = 0

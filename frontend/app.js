@@ -1818,6 +1818,23 @@ let dashboardDepensesDuMois = [];
 let dashboardBudgetTotalDuMois = 0;
 
 function renderKpisDashboard(kpis) {
+  // LA CARTE « RESTE À REMBOURSER » N'EXISTE QUE SI QUELQU'UN LA REMPLIT. Ses
+  // deux côtés sont gardés par une extension chacun — ce qu'on me doit par
+  // « Suivi des remboursements », ce que je dois par « Prêts » (cf.
+  // soldes.get_reste_a_rembourser) : sans ni l'une ni l'autre, elle annonce un
+  // 0,00 € qui ne veut rien dire et qui prend le tiers de la rangée.
+  //
+  // ICI ET PAS PAR `data-extension-onglet` : cet attribut ne nomme qu'UNE
+  // extension, et la carte en sert deux. Posé à chaque rendu, donc rattrapé au
+  // retour sur le dashboard quand on allume l'une d'elles — allumer une
+  // extension ne recharge pas cet écran, comme pour la vue budget du camembert.
+  const carteRemboursements = document.getElementById("kpi-carte-remboursements");
+  if (carteRemboursements) {
+    const utile =
+      BudgetApp.extensions.estActive("suivi-remboursements") ||
+      BudgetApp.extensions.estActive("prets");
+    carteRemboursements.style.display = utile ? "" : "none";
+  }
   if (!kpis) {
     // Aucun compte, donc aucune monnaie en jeu : rien à agréger.
     [
@@ -13433,8 +13450,20 @@ function renderExtensions(extensions) {
     bloc.innerHTML = `<span class="hint">${t("Aucune extension installée.")}</span>`;
     return;
   }
-  const installees = extensions.filter((e) => e.installee);
-  const nonInstallees = extensions.filter((e) => !e.installee);
+  // PAR NUMÉRO, et non dans l'ordre où le serveur les rend (l'alphabet des
+  // DOSSIERS, qui ne veut rien dire à l'écran puisque le dossier ne s'affiche
+  // nulle part). Le numéro est la seule désignation stable d'une extension d'une
+  // langue à l'autre — c'est pour ça qu'il existe (cf. extensions/README.md) —
+  // et c'est donc lui qui doit ranger la liste.
+  //
+  // ZÉRO VEUT DIRE « PAS DE NUMÉRO » (extension tierce) : ces cartes vont à la
+  // fin, et non en tête comme un tri numérique nu les y aurait mises.
+  const parNumero = (a, b) => {
+    const rang = (e) => (e.numero ? e.numero : Number.MAX_SAFE_INTEGER);
+    return rang(a) - rang(b) || String(a.nom).localeCompare(String(b.nom));
+  };
+  const installees = extensions.filter((e) => e.installee).sort(parNumero);
+  const nonInstallees = extensions.filter((e) => !e.installee).sort(parNumero);
 
   const sectionInstallees = installees.map(carteExtensionHtml).join("");
   const sectionNonInstallees =
