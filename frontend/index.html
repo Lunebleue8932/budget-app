@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=120" />
+  <link rel="stylesheet" href="style.css?v=123" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -1785,7 +1785,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
         <div id="import-apercu-section-classique">
           <h4>Opérations classiques — <span id="import-apercu-nombre-classique"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1794,12 +1795,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-classique"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-remboursable">
           <h4>Dépenses remboursables — <span id="import-apercu-nombre-remboursable"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1808,12 +1811,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-remboursable"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-remboursements">
           <h4>Remboursements reçus — <span id="import-apercu-nombre-remboursements"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1822,12 +1827,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-remboursements"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-virement">
           <h4>Virements internes — <span id="import-apercu-nombre-virement"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1836,12 +1843,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-virement"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-pret">
           <h4>Prêts reçus — <span id="import-apercu-nombre-pret"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1850,12 +1859,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-pret"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-remboursement_pret">
           <h4>Remboursements de prêts — <span id="import-apercu-nombre-remboursement_pret"></span> ligne(s)</h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1864,7 +1875,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-remboursement_pret"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <!-- Deux sections distinctes, et dans cet ordre. Une RESSEMBLANCE est
@@ -1887,7 +1899,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
                autres sections : ici toute ligne est un virement, et comparer un
                virement à un autre sans voir d'où à où va l'argent ne veut rien
                dire. -->
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1896,12 +1909,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-ressemblances"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div id="import-apercu-section-doublons">
           <h4>Doublons détectés — <span id="import-apercu-nombre-doublons"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.doublons-detectes">i</i></h4>
-          <table>
+          <div class="table-scroll">
+            <table>
             <thead>
               <tr>
                 <th>Ligne</th><th>Date</th><th>Nature</th><th>Montant</th>
@@ -1910,7 +1925,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               </tr>
             </thead>
             <tbody id="import-apercu-liste-doublons"></tbody>
-          </table>
+            </table>
+          </div>
         </div>
 
         <div class="actions">

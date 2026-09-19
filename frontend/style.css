@@ -283,6 +283,12 @@ header h1::before {
    ensemble à gauche (cf. header h1 / .outils-globaux). */
 nav {
   display: flex;
+  /* ELLE SE REPLIE PLUTÔT QUE DE POUSSER LA PAGE. Sur une fenêtre étroite, les
+     cinq onglets dépassaient et faisaient défiler l'écran entier
+     horizontalement — pour lire une case à cocher tout en bas, on emportait la
+     barre du haut avec. `wrap` ne change rien tant qu'ils tiennent. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.25rem;
   margin-left: auto;
   background: var(--bg-surface);
@@ -5514,4 +5520,52 @@ td.apercu-col-hors-fichier {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+/* ---------- L'APERÇU D'IMPORT NE DÉBORDE PLUS DE LA PAGE ----------
+ *
+ * ONZE COLONNES POUR UNE LIGNE D'OPÉRATION — numéro, date, nature, montant, les
+ * deux libellés de la banque, les deux classements de l'app, statut, actions,
+ * sélection. Sur un écran étroit, la table poussait la PAGE entière en largeur :
+ * on faisait défiler tout l'écran pour atteindre une case à cocher, et la barre
+ * de navigation partait avec.
+ *
+ * LE CADRE DÉFILE, PAS LA PAGE (`.table-scroll` autour de chaque table, dans
+ * index.html) : c'est le mécanisme du noyau, déjà employé ailleurs. La page
+ * garde sa largeur quoi qu'il arrive, et le titre de la sous-section reste en
+ * place pendant qu'on fait défiler les colonnes.
+ *
+ * ET LA TABLE GARDE UNE LARGEUR LISIBLE plutôt que de s'écraser. Sans ce
+ * minimum, le navigateur fait tenir onze colonnes dans la largeur disponible en
+ * coupant les mots : « 02 Septembre 2026 » sur trois lignes, une ligne
+ * d'opération haute de quatre — illisible, et pire que le défilement qu'on
+ * cherchait à éviter.
+ *
+ * PAS DE `display: flex` SUR UN `td`, essayé et retiré : une cellule en flex
+ * sort du modèle de tableau, et deux d'entre elles se retrouvaient au même bord
+ * gauche, par-dessus leur voisine. Ce qui doit se replier se replie par
+ * `white-space: normal` — les boutons et les badges sont déjà en ligne, ils
+ * passent d'eux-mêmes à la sous-ligne suivante quand la colonne est étroite.
+ */
+#import-apercu-bloc .table-scroll table {
+  /* Onze colonnes lisibles. En `ch` plutôt qu'en pixels : la mesure suit la
+     taille de police, et c'est bien le TEXTE qui doit tenir. */
+  min-width: 78ch;
+}
+
+/* Ce qui porte plusieurs éléments les empile quand la colonne est étroite :
+   les deux boutons d'action, un badge d'avertissement à côté d'un menu. C'est
+   ce qui coûtait le plus de largeur, et ça se lit aussi bien en pile. */
+#import-apercu-bloc td,
+#import-apercu-bloc th {
+  white-space: normal;
+  vertical-align: top;
+}
+
+/* UN LIBELLÉ DE RELEVÉ PEUT ÊTRE LONG SANS UN ESPACE (« VIR SEPA INST
+   RECU/DE M DUPONT/REF… ») : on le coupe plutôt que de le laisser décider à lui
+   seul de la largeur du tableau. Seulement lui — couper une date ou un montant
+   les rendrait illisibles. */
+#import-apercu-bloc td:nth-child(3) {
+  overflow-wrap: anywhere;
 }
