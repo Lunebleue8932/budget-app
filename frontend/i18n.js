@@ -977,6 +977,60 @@ const TRADUCTIONS = {
     "Éteindre une extension ne supprime AUCUNE donnée : son écran disparaît, ses lignes dorment en base, et tout revient intact quand tu la rallumes. C'est pour ça qu'on peut en essayer une sans rien risquer.":
       "Switching an extension off deletes NO data: its screen disappears, its rows sleep in the database, and everything comes back intact when you switch it on again. That is why you can try one without risking anything.",
 
+    /* ===== Les deux axes d'une étiquette de titre (0066) ===== */
+    "Sans enveloppe":
+      "No wrapper",
+    "COMMENT tes titres sont détenus : ETF, action en direct, fonds, SCPI. Tes propres étiquettes, que tu nommes comme tu veux. À ne pas confondre avec la classe d'actif juste en dessous, qui dit à QUOI ils exposent — un ETF obligataire est un ETF et de l'obligataire. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.":
+      "HOW your securities are held: ETF, direct holding, fund, REIT. Your own labels, named as you like. Not to be confused with the asset class just below, which says WHAT they expose to — a bond ETF is both an ETF and bonds. Purely descriptive: no balance and no valuation depends on it.",
+    "COMMENT ton portefeuille est détenu : la part qui passe par des ETF, celle que tu as choisie titre par titre, celle qui est en SCPI. À la valeur d'aujourd'hui, tous comptes confondus. Survole une part pour voir les titres qui la composent.":
+      "HOW your portfolio is held: the share going through ETFs, the one you picked security by security, the one in REITs. At today's value, all accounts together. Hover a slice to see the securities making it up.",
+    "À QUOI ton portefeuille expose, quelle que soit la façon dont tu le détiens : actions, obligations, immobilier, monétaire. C'est la question à laquelle le graphe du dessus ne peut pas répondre — un ETF obligataire y compte comme un ETF, pas comme de l'obligataire. Ce disque n'apparaît que si tu as classé au moins un titre.":
+      "WHAT your portfolio exposes you to, whatever the way you hold it: equities, bonds, real estate, cash. This is the question the chart above cannot answer — a bond ETF counts there as an ETF, not as bonds. This ring only appears once you have classified at least one security.",
+    "Comment ce titre est détenu : un ETF, une action que tu as choisie toi-même, une SCPI. Facultatif, et modifiable à tout moment.":
+      "How this security is held: an ETF, a share you picked yourself, a REIT. Optional, and changeable at any time.",
+    "À quoi ce titre expose : actions, obligations, immobilier… C'est l'autre question, et elle ne se déduit pas de la première — un ETF obligataire est un ETF (enveloppe) et de l'obligataire (classe). Facultatif.":
+      "What this security exposes you to: equities, bonds, real estate… That is the other question, and it does not follow from the first — a bond ETF is an ETF (wrapper) and bonds (class). Optional.",
+    "À QUOI tes titres exposent, quelle que soit la façon dont tu les détiens. Cinq classes sont livrées parce que ce vocabulaire est le même pour tout le monde, contrairement aux enveloppes que chacun nomme à sa façon ; renomme-les et supprime-les librement. Purement descriptif, comme tout le reste ici.":
+      "WHAT your securities expose you to, whatever the way you hold them. Five classes are shipped because this vocabulary is the same for everyone, unlike wrappers which everyone names their own way; rename and delete them freely. Purely descriptive, like everything else here.",
+    "Comment c'est détenu":
+      "How it is held",
+    "À quoi c'est exposé":
+      "What it exposes to",
+    "Enveloppes":
+      "Wrappers",
+    "Classes d'actif":
+      "Asset classes",
+    "Classe d'actif":
+      "Asset class",
+    "Enveloppe":
+      "Wrapper",
+    "Ajouter l'enveloppe":
+      "Add wrapper",
+    "Ajouter la classe":
+      "Add class",
+    "ex. Matières premières":
+      "e.g. Commodities",
+    "Étiquette ajoutée":
+      "Label added",
+    "Aucune enveloppe. Ajoutes-en une ci-dessous si tu veux regrouper tes titres.":
+      "No wrapper yet. Add one below if you want to group your securities.",
+    "Aucune classe d'actif. Ajoutes-en une ci-dessous pour voir à quoi ton portefeuille expose.":
+      "No asset class yet. Add one below to see what your portfolio exposes you to.",
+    "Enveloppe : comment le titre est détenu — purement descriptif":
+      "Wrapper: how the security is held — purely descriptive",
+    "Classe d'actif : à quoi le titre expose — purement descriptif":
+      "Asset class: what the security exposes to — purely descriptive",
+    "Sans classe":
+      "No class",
+    "Obligations":
+      "Bonds",
+    "Immobilier":
+      "Real estate",
+    "Matières premières":
+      "Commodities",
+    "Monétaire":
+      "Cash",
+
     /* ===== Reprise de traduction, lot 2 : les libellés courts et les
        fragments de phrase coupés par un <strong> ou un <em>. ===== */
     "&larr; Retour au tableau de bord":

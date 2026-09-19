@@ -141,7 +141,7 @@ def test_un_type_se_cree_et_se_lit(db_session):
     cree = routeur_types.create_type_titre(schemas.TypeTitreCreate(nom="ETF"), db_session)
     assert cree.nom == "ETF"
     assert cree.nb_titres == 0
-    assert [t.nom for t in routeur_types.list_types_titre(db_session)] == ["ETF"]
+    assert [t.nom for t in routeur_types.list_types_titre(db=db_session)] == ["ETF"]
 
 
 def test_deux_types_ne_peuvent_pas_porter_le_meme_nom(db_session):
@@ -160,7 +160,7 @@ def test_la_liste_compte_les_titres_de_chaque_type(db_session):
     crud.create_action(db_session, "S&P 500", _monnaie_id(db_session), 50.0, None, etf.id)
     crud.create_action(db_session, "Air Liquide", _monnaie_id(db_session))
 
-    par_nom = {t.nom: t.nb_titres for t in routeur_types.list_types_titre(db_session)}
+    par_nom = {t.nom: t.nb_titres for t in routeur_types.list_types_titre(db=db_session)}
     assert par_nom == {"ETF": 2, "Obligation": 0}
 
 

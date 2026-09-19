@@ -862,3 +862,42 @@ class SensObjectif(str, enum.Enum):
 
     max = "max"
     min = "min"
+
+# ---------- Les deux axes d'une étiquette de titre ----------
+#
+# UNE SEULE TABLE POUR LES DEUX, scopée par cet axe — même patron que
+# `ImportPreset.domaine` (bancaire / placement), et pour la même raison : tout
+# ce qui entoure ces étiquettes est identique. Un nom, un ordre, une unicité,
+# une suppression qui détype sans rien emporter, et aucun calcul qui les lise.
+# Deux tables auraient dupliqué ce CRUD, ce routeur et cet écran — et avec eux
+# chaque correction future.
+#
+# CE QUE LES DEUX AXES SÉPARENT, et c'est toute la raison de cette migration :
+#
+#   - L'ENVELOPPE dit COMMENT le titre est détenu — « ETF », « Action en
+#     direct », « Fonds », « SCPI ». C'est ce que portait `TypeTitre` depuis
+#     l'origine, et ce que tout titre existant garde.
+#   - LA CLASSE D'ACTIF dit À QUOI il expose — « Actions », « Obligations »,
+#     « Immobilier », « Monétaire ».
+#
+# Un ETF obligataire est les DEUX : un ETF, et de l'obligataire. Tant qu'une
+# seule colonne portait la question, il fallait choisir — et le camembert
+# répondait alors à l'une ou à l'autre, jamais aux deux. « ETF 60 % / Actions
+# 40 % » est un graphe de CONTENANTS, qui ne dit rien de l'exposition réelle.
+class AxeTitre(str, enum.Enum):
+    enveloppe = "enveloppe"
+    classe = "classe"
+
+
+# Les classes d'actif posées par la migration 0066. CONTRAIREMENT AUX CATÉGORIES
+# DE DÉPENSE, celles-ci ne décrivent le budget de personne : c'est un vocabulaire
+# normalisé, le même pour tout le monde, et le seed est donc SANS CONDITION —
+# l'axe étant neuf, aucune classe n'existe nulle part et il n'y a rien à
+# écraser. Elles se renomment et se suppriment comme n'importe quelle étiquette.
+CLASSES_ACTIF_INITIALES = [
+    "Actions",
+    "Obligations",
+    "Immobilier",
+    "Matières premières",
+    "Monétaire",
+]

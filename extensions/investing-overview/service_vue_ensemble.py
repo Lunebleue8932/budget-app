@@ -1,4 +1,19 @@
-"""Ce que le portefeuille contient, vu par type de titre.
+"""Ce que le portefeuille contient, vu sur DEUX AXES.
+
+DEUX QUESTIONS, ET ELLES NE SE RÉPONDENT PAS L'UNE L'AUTRE (migration 0066) :
+
+  - COMMENT C'EST DÉTENU — l'ENVELOPPE : du stock-picking, des ETF, des SCPI.
+    C'est ce que cet écran montrait depuis l'origine.
+  - À QUOI C'EST EXPOSÉ — la CLASSE D'ACTIF : actions, obligations, immobilier.
+
+Un ETF obligataire est les deux à la fois : « ETF 60 % / Actions 40 % » est un
+graphe de CONTENANTS, qui ne dit rien de l'exposition réelle. Tant qu'une seule
+colonne portait la question, il fallait choisir laquelle des deux on voulait
+lire — et la réponse était fausse une fois sur deux.
+
+LE CALCUL EST LE MÊME POUR LES DEUX, à la colonne près : une seule fonction
+paramétrée par l'axe, et non deux qui se ressembleraient jusqu'au jour où l'une
+serait corrigée sans l'autre.
 
 PAR MONNAIE, ET JAMAIS AUTREMENT. C'est la règle centrale de l'application : rien
 ne permet d'additionner des euros et des dollars, et un camembert qui les
@@ -19,6 +34,7 @@ la réponse : il dit ce que la part a coûté, et l'écart entre les deux est la
 plus-value latente.
 """
 from app import crud
+from app.constants import AxeTitre
 from app.services import placements
 
 # Ce qu'un titre sans étiquette porte comme identifiant de type. `None` plutôt
@@ -32,8 +48,8 @@ TYPE_NON_RENSEIGNE = None
 TAILLE_DU_TOP = 3
 
 
-def exposition_par_type(db) -> list[dict]:
-    """La répartition du portefeuille par type de titre, une entrée par monnaie.
+def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
+    """La répartition du portefeuille sur un axe, une entrée par monnaie.
 
     Chaque entrée porte ses parts triées de la plus lourde à la plus légère, et
     chaque part le détail des titres qui la composent — c'est ce détail que
@@ -48,11 +64,19 @@ def exposition_par_type(db) -> list[dict]:
     cases: dict = {}
     monnaies: dict = {}
 
+    classe = axe == AxeTitre.classe.value
     for compte in placements.get_comptes_placement(db):
         for ligne in placements.detentions(db, compte.id):
             action = crud.get_action(db, ligne["action_id"])
-            type_id = action.type_titre_id if action else TYPE_NON_RENSEIGNE
-            type_nom = action.type_titre.nom if action and action.type_titre else None
+            # LE SEUL ENDROIT OÙ LES DEUX AXES DIFFÈRENT : la colonne lue. Tout
+            # le reste du calcul — le repli par monnaie, la somme des
+            # détentions, le top des titres, la part — est identique, et c'est
+            # pour ça qu'il n'est pas écrit deux fois.
+            etiquette = None
+            if action is not None:
+                etiquette = action.classe_actif if classe else action.type_titre
+            type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
+            type_nom = etiquette.nom if etiquette else None
 
             monnaies.setdefault(
                 ligne["monnaie_id"],

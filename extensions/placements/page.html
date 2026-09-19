@@ -142,10 +142,16 @@
           <label>Cours actuel
             <input type="number" step="0.01" min="0" id="action-valeur" value="0" />
           </label>
-          <!-- Facultatif, et le menu le dit : « — » est sélectionné par défaut.
-               Le type ne sert qu'à regrouper, rien ne le réclame. -->
-          <label>Type
+          <!-- DEUX AXES, DEUX MENUS, tous deux facultatifs (« — » par défaut) :
+               l'ENVELOPPE dit comment le titre est détenu, la CLASSE D'ACTIF à
+               quoi il expose. Un ETF obligataire est les deux à la fois — les
+               fondre en un seul menu obligeait à choisir, et le camembert
+               d'exposition répondait alors à une question sur deux. -->
+          <label>Enveloppe<i class="info-bulle" tabindex="0" data-info-cle="placements.enveloppe">i</i>
             <select id="action-type-titre"></select>
+          </label>
+          <label>Classe d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classe-actif">i</i>
+            <select id="action-classe-actif"></select>
           </label>
           <div class="actions">
             <button type="submit" class="primary">Ajouter le titre</button>
@@ -157,14 +163,29 @@
              titre, et repartir dans un autre écran pour ça ferait perdre le fil.
              Même forme que les correspondances d'import (.import-mappings) :
              une ligne par étiquette, un formulaire d'ajout en dessous. -->
-        <h3>Types de titre<i class="info-bulle" tabindex="0" data-info-cle="placements.types-de-titre">i</i></h3>
+        <h3>Enveloppes<i class="info-bulle" tabindex="0" data-info-cle="placements.types-de-titre">i</i></h3>
         <div id="placements-types-titre-liste" class="import-mappings"></div>
         <form id="form-type-titre">
           <label>Nom
             <input type="text" id="type-titre-nom" placeholder="ex. ETF" required />
           </label>
           <div class="actions">
-            <button type="submit" class="primary">Ajouter le type</button>
+            <button type="submit" class="primary">Ajouter l'enveloppe</button>
+          </div>
+        </form>
+
+        <!-- LE SECOND AXE, rangé juste dessous et de la même façon : c'est le
+             même objet, sur l'autre question. Cinq classes sont livrées par la
+             migration 0066 — un vocabulaire normalisé, le même pour tout le
+             monde, contrairement aux enveloppes que chacun nomme à sa façon. -->
+        <h3>Classes d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classes-actif">i</i></h3>
+        <div id="placements-classes-actif-liste" class="import-mappings"></div>
+        <form id="form-classe-actif">
+          <label>Nom
+            <input type="text" id="classe-actif-nom" placeholder="ex. Matières premières" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Ajouter la classe</button>
           </div>
         </form>
       </div>

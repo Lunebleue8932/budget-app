@@ -26,10 +26,27 @@
       <div id="io-contenu" style="display:none">
         <div class="io-kpis" id="io-kpis"></div>
 
-        <h3>Répartition par type de titre<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-type-de-titre">i</i></h3>
-        <div class="io-camembert-bloc">
-          <div id="io-camembert"></div>
-          <div id="io-legende" class="io-legende"></div>
+        <!-- DEUX CAMEMBERTS, DEUX QUESTIONS, et elles ne se répondent pas
+             l'une l'autre (migration 0066). Le premier dit COMMENT le
+             portefeuille est détenu — du stock-picking, des ETF, des SCPI ; le
+             second À QUOI il expose — actions, obligations, immobilier. Un ETF
+             obligataire est les deux à la fois, et tant qu'une seule étiquette
+             portait la question, « ETF 60 % / Actions 40 % » mélangeait des
+             contenants et des contenus dans le même disque.
+
+             LES MÊMES KPI POUR LES DEUX, en haut et une seule fois : ce sont
+             les mêmes détentions, donc la même valeur et la même plus-value.
+             Seul le découpage change. -->
+        <h3>Comment c'est détenu<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-type-de-titre">i</i></h3>
+        <div class="io-camembert-bloc" data-io-axe="enveloppe">
+          <div id="io-camembert-enveloppe"></div>
+          <div id="io-legende-enveloppe" class="io-legende"></div>
+        </div>
+
+        <h3>À quoi c'est exposé<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-classe">i</i></h3>
+        <div class="io-camembert-bloc" data-io-axe="classe">
+          <div id="io-camembert-classe"></div>
+          <div id="io-legende-classe" class="io-legende"></div>
         </div>
       </div>
     </section>

@@ -293,8 +293,10 @@ const TEXTES = {
     "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants S'AJOUTENT AU SOLDE du compte, sans être écrits en opération : ils n'apparaissent donc pas dans la page Opérations et ne pèsent sur aucun flux du mois. ATTENTION SI TON RELEVÉ LES PORTE AUSSI : importer la ligne d'intérêts après l'avoir saisie ici compterait la somme deux fois — saisis-la ici, ou importe-la, pas les deux.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
+  "investing-overview.repartition-par-classe":
+    "À QUOI ton portefeuille expose, quelle que soit la façon dont tu le détiens : actions, obligations, immobilier, monétaire. C'est la question à laquelle le graphe du dessus ne peut pas répondre — un ETF obligataire y compte comme un ETF, pas comme de l'obligataire. Ce disque n'apparaît que si tu as classé au moins un titre.",
   "investing-overview.repartition-par-type-de-titre":
-    "La part de ton portefeuille en ETF, en obligations, en actions — à la valeur d'aujourd'hui, tous comptes confondus. Survole une part pour voir les titres qui la composent.",
+    "COMMENT ton portefeuille est détenu : la part qui passe par des ETF, celle que tu as choisie titre par titre, celle qui est en SCPI. À la valeur d'aujourd'hui, tous comptes confondus. Survole une part pour voir les titres qui la composent.",
 
   /* ----- Extension « Monnaies » ----- */
   "monnaies.monnaies":
@@ -307,8 +309,14 @@ const TEXTES = {
     "Tes titres, communs à tous tes comptes : le même ETF peut être détenu sur deux comptes. Le cours se saisit à la main, ou se relit en ligne avec l'extension Lecture de cours. Il ne sert qu'à la valorisation, jamais à un solde.",
   "placements.afficher-les-titres-archives":
     "Archiver, c'est ranger, pas effacer : le titre quitte les listes, son historique reste. C'est ici qu'on le remet en service.",
+  "placements.enveloppe":
+    "Comment ce titre est détenu : un ETF, une action que tu as choisie toi-même, une SCPI. Facultatif, et modifiable à tout moment.",
+  "placements.classe-actif":
+    "À quoi ce titre expose : actions, obligations, immobilier… C'est l'autre question, et elle ne se déduit pas de la première — un ETF obligataire est un ETF (enveloppe) et de l'obligataire (classe). Facultatif.",
   "placements.types-de-titre":
-    "Tes propres étiquettes — ETF, action en direct, obligation, SCPI — pour regrouper les titres. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.",
+    "COMMENT tes titres sont détenus : ETF, action en direct, fonds, SCPI. Tes propres étiquettes, que tu nommes comme tu veux. À ne pas confondre avec la classe d'actif juste en dessous, qui dit à QUOI ils exposent — un ETF obligataire est un ETF et de l'obligataire. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.",
+  "placements.classes-actif":
+    "À QUOI tes titres exposent, quelle que soit la façon dont tu les détiens. Cinq classes sont livrées parce que ce vocabulaire est le même pour tout le monde, contrairement aux enveloppes que chacun nomme à sa façon ; renomme-les et supprime-les librement. Purement descriptif, comme tout le reste ici.",
 
   /* ----- Extension « Objectifs » ----- */
   "objectifs.objectifs":

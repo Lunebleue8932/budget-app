@@ -22,6 +22,7 @@ from .database import Base
 from .constants import (
     TYPES_REMBOURSABLES,
     TYPE_COMPTE_PLACEMENT,
+    AxeTitre,
     CadenceObjectif,
     DomaineImport,
     Frequence,
@@ -843,15 +844,42 @@ class TypeTitre(Base):
     Une table plutôt qu'une colonne texte sur le titre : un libellé libre saisi
     ligne par ligne donnerait « ETF », « etf » et « E.T.F. » dans le même
     portefeuille, et un camembert en ferait trois parts.
+
+    DEUX AXES DEPUIS LA MIGRATION 0066, et une seule table pour les deux (cf.
+    constants.AxeTitre) : l'ENVELOPPE dit comment le titre est détenu (« ETF »,
+    « Action en direct »), la CLASSE D'ACTIF dit à quoi il expose (« Actions »,
+    « Obligations »). Un ETF obligataire est les deux à la fois — tant qu'une
+    seule colonne portait la question, il fallait choisir, et le camembert
+    répondait à l'une ou à l'autre, jamais aux deux.
+
+    UNE TABLE ET NON DEUX, même patron que `ImportPreset.domaine` : tout ce qui
+    entoure ces étiquettes est identique — un nom, un ordre, une unicité, une
+    suppression qui détype sans rien emporter. Dupliquer la table aurait dupliqué
+    son CRUD, son routeur, son écran, et chaque correction future.
     """
 
     __tablename__ = "type_titre"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nom = Column(String, nullable=False, unique=True)
+    nom = Column(String, nullable=False)
+    # « enveloppe » ou « classe » (cf. constants.AxeTitre). Défaut sur
+    # l'enveloppe : c'est ce que portait la table avant la 0066, et tout type
+    # existant le garde.
+    axe = Column(String, nullable=False, default=AxeTitre.enveloppe.value)
     # Ordre d'affichage dans les menus et les légendes : l'ordre de création par
     # défaut, réordonnable ensuite comme les comptes et les catégories.
     ordre = Column(Integer, nullable=False, default=0)
+
+    # L'UNICITÉ PORTE SUR LE COUPLE, et plus sur le seul nom : « Actions » est
+    # une classe d'actif parfaitement légitime alors qu'« Action en direct » est
+    # une enveloppe, et rien ne justifie qu'un axe interdise un libellé à
+    # l'autre.
+    __table_args__ = (
+        UniqueConstraint("axe", "nom", name="uq_type_titre_axe_nom"),
+        CheckConstraint(
+            f"axe IN ({_sql_in_list(_enum_values(AxeTitre))})", name="ck_type_titre_axe"
+        ),
+    )
 
 
 class Action(Base):
@@ -908,6 +936,18 @@ class Action(Base):
     type_titre_id = Column(
         Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
     )
+    # LA CLASSE D'ACTIF (migration 0066), l'autre axe : à quoi ce titre EXPOSE,
+    # là où `type_titre_id` dit comment il est détenu. Même table, même nature,
+    # mêmes conséquences — facultative, SET NULL, et aucun calcul ne la lit.
+    #
+    # DEUX COLONNES ET NON UNE TABLE DE LIAISON : un titre a UNE enveloppe et UNE
+    # classe, pas plusieurs. Un fonds mixte — 60 % actions, 40 % obligations —
+    # n'entre dans aucune des deux, et c'est assumé : le décomposer demande une
+    # table de poids, qui est un autre sujet (l'exposition détaillée) et non une
+    # étiquette.
+    classe_actif_id = Column(
+        Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
+    )
     # RANGÉ, PAS EFFACÉ (migration 0040). Un titre entièrement vendu ne se
     # supprime pas — ses mouvements portent des opérations d'espèces réelles, et
     # les effacer réécrirait le solde du compte. L'archiver le retire des listes
@@ -936,7 +976,10 @@ class Action(Base):
     code_isin = Column(String, nullable=True)
 
     monnaie = relationship("Monnaie")
-    type_titre = relationship("TypeTitre")
+    # Deux relations vers la MÊME table : `foreign_keys` est obligatoire, sans
+    # quoi SQLAlchemy ne sait pas laquelle des deux colonnes chacune suit.
+    type_titre = relationship("TypeTitre", foreign_keys=[type_titre_id])
+    classe_actif = relationship("TypeTitre", foreign_keys=[classe_actif_id])
 
     __table_args__ = (
         CheckConstraint("valeur >= 0", name="ck_action_valeur_positive"),

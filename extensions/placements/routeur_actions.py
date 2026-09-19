@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
+from app.constants import AxeTitre
 from app.database import get_db
 from app.services import placements
 
@@ -26,6 +27,8 @@ def _action_read(action) -> schemas.ActionRead:
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
         type_titre_id=action.type_titre_id,
         type_titre_nom=action.type_titre.nom if action.type_titre else None,
+        classe_actif_id=action.classe_actif_id,
+        classe_actif_nom=action.classe_actif.nom if action.classe_actif else None,
     )
 
 
@@ -41,11 +44,26 @@ def _valider_monnaie(db: Session, monnaie_id) -> None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
 
 
-def _valider_type_titre(db: Session, type_titre_id) -> None:
+def _valider_etiquette(db: Session, etiquette_id, axe: str) -> None:
     """0 est LE DÉTYPAGE, pas un identifiant : le menu envoie « aucun » sous
-    cette forme, et il n'y a rien à aller chercher en base."""
-    if type_titre_id and crud.get_type_titre(db, type_titre_id) is None:
-        raise HTTPException(status_code=404, detail="Type de titre introuvable")
+    cette forme, et il n'y a rien à aller chercher en base.
+
+    L'AXE EST VÉRIFIÉ, et pas seulement l'existence : les deux vivent dans la
+    même table (migration 0066), et rien n'empêcherait autrement de poser une
+    classe d'actif dans la colonne de l'enveloppe. Le camembert des enveloppes
+    aurait alors une part « Obligations » qui n'y a rien à faire."""
+    if not etiquette_id:
+        return
+    etiquette = crud.get_type_titre(db, etiquette_id)
+    if etiquette is None or etiquette.axe != axe:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Classe d'actif introuvable"
+                if axe == AxeTitre.classe.value
+                else "Type de titre introuvable"
+            ),
+        )
 
 
 @router.get("", response_model=list[schemas.ActionRead])
@@ -64,7 +82,8 @@ def create_action(payload: schemas.ActionCreate, db: Session = Depends(get_db)):
     if crud.get_action_by_nom(db, payload.nom):
         raise HTTPException(status_code=409, detail="Un titre avec ce nom existe déjà")
     _valider_monnaie(db, payload.monnaie_id)
-    _valider_type_titre(db, payload.type_titre_id)
+    _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
+    _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
     # L'ISIN VOYAGEAIT SANS ÊTRE ÉCRIT : le schéma l'acceptait, la création ne le
     # posait pas. Un titre saisi ici perdait donc son code, et l'import suivant,
     # qui rapproche par l'ISIN avant le nom, en créait un second.
@@ -76,6 +95,7 @@ def create_action(payload: schemas.ActionCreate, db: Session = Depends(get_db)):
             payload.valeur,
             payload.code_isin,
             payload.type_titre_id,
+            payload.classe_actif_id,
         )
     )
 
@@ -103,7 +123,8 @@ def update_action(action_id: int, payload: schemas.ActionUpdate, db: Session = D
     ):
         raise HTTPException(status_code=409, detail="Un titre avec ce nom existe déjà")
     _valider_monnaie(db, payload.monnaie_id)
-    _valider_type_titre(db, payload.type_titre_id)
+    _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
+    _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
     # Changer la monnaie de cotation d'un titre déjà mouvementé réécrirait le
     # sens de mouvements passés (le prix payé était libellé dans l'ancienne) :
     # les écritures d'espèces existantes, elles, ne bougeraient pas.
@@ -144,6 +165,7 @@ def update_action(action_id: int, payload: schemas.ActionUpdate, db: Session = D
             monnaie_id=payload.monnaie_id,
             archivee=payload.archivee,
             type_titre_id=payload.type_titre_id,
+            classe_actif_id=payload.classe_actif_id,
         )
     )
 

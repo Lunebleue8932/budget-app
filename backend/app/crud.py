@@ -22,6 +22,7 @@ from .constants import (
     TYPES_REGLEMENT,
     TYPES_REMBOURSABLES,
     TYPES_SENS_ENTREE,
+    AxeTitre,
     DomaineImport,
     Frequence,
     ModeComparaison,
@@ -1860,53 +1861,93 @@ def delete_virement(db: Session, operations: list[models.Operation]) -> None:
 # (compte, titre) en sommant les mouvements — voir services/placements.py.
 
 
-# ---------- Types de titre ----------
+# ---------- Étiquettes de titre : enveloppes et classes d'actif ----------
 #
 # Des étiquettes, et rien de plus (cf. models.TypeTitre) : aucun calcul ne les
 # lit, aucune n'est protégée, et les supprimer ne fait que détyper les titres qui
 # les portaient.
+#
+# DEUX AXES, UNE SEULE TABLE (migration 0066) : l'ENVELOPPE dit comment un titre
+# est détenu, la CLASSE D'ACTIF à quoi il expose. Toutes les fonctions ci-dessous
+# prennent donc l'axe en paramètre, et il vaut « enveloppe » par défaut — c'est
+# ce que faisaient tous les appelants d'avant, et c'est ce qu'ils continuent de
+# faire sans rien changer.
 
 
-def get_types_titre(db: Session) -> list[models.TypeTitre]:
+def _colonne_axe(axe: str):
+    """La colonne d'`action` que cet axe renseigne.
+
+    UN SEUL ENDROIT décide, parce que trois fonctions en ont besoin (le compte
+    des titres, le détypage à la suppression, et l'écriture) : la faire deviner
+    à chacune, c'est se donner rendez-vous à la première divergence."""
+    return (
+        models.Action.classe_actif_id
+        if axe == AxeTitre.classe.value
+        else models.Action.type_titre_id
+    )
+
+
+def get_types_titre(db: Session, axe: str = AxeTitre.enveloppe.value) -> list[models.TypeTitre]:
     return (
         db.query(models.TypeTitre)
+        .filter(models.TypeTitre.axe == axe)
         .order_by(models.TypeTitre.ordre, models.TypeTitre.nom)
         .all()
     )
 
 
 def get_type_titre(db: Session, type_titre_id: int) -> Optional[models.TypeTitre]:
+    """Par identifiant, SANS l'axe : un identifiant désigne une ligne et une
+    seule, et le routeur qui vient de la lire sait de quel axe elle est."""
     return db.query(models.TypeTitre).filter(models.TypeTitre.id == type_titre_id).first()
 
 
-def get_type_titre_by_nom(db: Session, nom: str) -> Optional[models.TypeTitre]:
-    """Le type portant EXACTEMENT ce libellé.
+def get_type_titre_by_nom(
+    db: Session, nom: str, axe: str = AxeTitre.enveloppe.value
+) -> Optional[models.TypeTitre]:
+    """L'étiquette portant EXACTEMENT ce libellé, DANS CET AXE.
 
     Sert au routeur pour refuser un doublon, et à l'import pour retrouver un type
-    nommé dans un fichier plutôt que d'en créer un second à la casse près."""
-    return db.query(models.TypeTitre).filter(models.TypeTitre.nom == nom).first()
+    nommé dans un fichier plutôt que d'en créer un second à la casse près.
+    L'axe fait partie de la recherche depuis la 0066 : « Actions » peut exister
+    des deux côtés sans que l'un soit le doublon de l'autre."""
+    return (
+        db.query(models.TypeTitre)
+        .filter(models.TypeTitre.nom == nom, models.TypeTitre.axe == axe)
+        .first()
+    )
 
 
-def compter_titres_par_type(db: Session) -> dict[int, int]:
-    """Combien de titres portent chaque type, ARCHIVÉS COMPRIS.
+def compter_titres_par_type(
+    db: Session, axe: str = AxeTitre.enveloppe.value
+) -> dict[int, int]:
+    """Combien de titres portent chaque étiquette de cet axe, ARCHIVÉS COMPRIS.
 
     Une seule requête groupée plutôt qu'un compte par ligne : l'écran de gestion
-    en affiche autant qu'il y a de types, et un archivé pèse dans la décision de
-    supprimer un type autant qu'un titre en service."""
+    en affiche autant qu'il y a d'étiquettes, et un archivé pèse dans la décision
+    de supprimer une étiquette autant qu'un titre en service."""
+    colonne = _colonne_axe(axe)
     lignes = (
-        db.query(models.Action.type_titre_id, func.count(models.Action.id))
-        .filter(models.Action.type_titre_id.isnot(None))
-        .group_by(models.Action.type_titre_id)
+        db.query(colonne, func.count(models.Action.id))
+        .filter(colonne.isnot(None))
+        .group_by(colonne)
         .all()
     )
     return {type_id: nombre for type_id, nombre in lignes}
 
 
-def create_type_titre(db: Session, nom: str) -> models.TypeTitre:
-    # En fin de liste : un type qu'on vient de créer ne doit pas s'insérer au
-    # milieu de l'ordre que l'utilisateur a posé.
-    dernier = db.query(func.max(models.TypeTitre.ordre)).scalar()
-    type_titre = models.TypeTitre(nom=nom, ordre=(dernier or 0) + 1)
+def create_type_titre(
+    db: Session, nom: str, axe: str = AxeTitre.enveloppe.value
+) -> models.TypeTitre:
+    # En fin de liste : une étiquette qu'on vient de créer ne doit pas s'insérer
+    # au milieu de l'ordre que l'utilisateur a posé. L'ordre est PROPRE À L'AXE —
+    # ajouter une classe d'actif ne doit pas décaler les enveloppes.
+    dernier = (
+        db.query(func.max(models.TypeTitre.ordre))
+        .filter(models.TypeTitre.axe == axe)
+        .scalar()
+    )
+    type_titre = models.TypeTitre(nom=nom, axe=axe, ordre=(dernier or 0) + 1)
     db.add(type_titre)
     db.commit()
     db.refresh(type_titre)
@@ -1936,8 +1977,9 @@ def delete_type_titre(db: Session, type_titre: models.TypeTitre) -> None:
     déclaré sur la colonne : SQLite n'applique ses clés étrangères que si
     `PRAGMA foreign_keys` est allumé, et une session qui aurait déjà chargé ces
     titres garderait de toute façon l'ancien identifiant en mémoire."""
-    db.query(models.Action).filter(models.Action.type_titre_id == type_titre.id).update(
-        {models.Action.type_titre_id: None}, synchronize_session=False
+    colonne = _colonne_axe(type_titre.axe)
+    db.query(models.Action).filter(colonne == type_titre.id).update(
+        {colonne: None}, synchronize_session=False
     )
     db.query(models.RegleImportPlacement).filter(
         models.RegleImportPlacement.type_titre_id == type_titre.id
@@ -1992,6 +2034,7 @@ def create_action(
     valeur: float = 0.0,
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
+    classe_actif_id: Optional[int] = None,
 ) -> models.Action:
     action = models.Action(
         nom=nom,
@@ -2001,6 +2044,7 @@ def create_action(
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
         type_titre_id=type_titre_id or None,
+        classe_actif_id=classe_actif_id or None,
     )
     db.add(action)
     db.commit()
@@ -2019,6 +2063,7 @@ def update_action(
     archivee: Optional[bool] = None,
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
+    classe_actif_id: Optional[int] = None,
 ) -> models.Action:
     if nom is not None:
         action.nom = nom
@@ -2043,6 +2088,10 @@ def update_action(
     # sélectionne « aucun ».
     if type_titre_id is not None:
         action.type_titre_id = type_titre_id or None
+    # La classe d'actif suit exactement la même convention : c'est le même
+    # objet, sur l'autre axe.
+    if classe_actif_id is not None:
+        action.classe_actif_id = classe_actif_id or None
     db.commit()
     db.refresh(action)
     return action

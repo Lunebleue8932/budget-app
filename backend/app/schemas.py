@@ -12,6 +12,7 @@ from .constants import (
     OPERATEURS_NOMBRE,
     operateurs_admis,
     TypeOperation,
+    AxeTitre,
     ConnecteurRegle,
     DomaineImport,
     Frequence,
@@ -907,6 +908,10 @@ class TypeTitreCreate(BaseModel):
     les regarder."""
 
     nom: str = Field(min_length=1)
+    # L'axe auquel l'étiquette appartient. Par défaut l'enveloppe : c'est ce que
+    # la table portait avant la 0066, et tout appelant qui l'ignore obtient le
+    # comportement d'avant.
+    axe: AxeTitre = AxeTitre.enveloppe
 
 
 class TypeTitreUpdate(BaseModel):
@@ -919,6 +924,10 @@ class TypeTitreRead(BaseModel):
 
     id: int
     nom: str
+    # « enveloppe » (comment le titre est détenu) ou « classe » (à quoi il
+    # expose) — cf. constants.AxeTitre. Voyage parce que l'écran range les deux
+    # listes côte à côte et doit savoir laquelle il remplit.
+    axe: str = AxeTitre.enveloppe.value
     ordre: int = 0
     # Combien de titres le portent, archivés compris. Sert à l'écran de gestion :
     # supprimer un type qui typait douze titres ne se fait pas à l'aveugle.
@@ -938,8 +947,12 @@ class ActionCreate(BaseModel):
     # l'autre. Une chaîne vide vaut « aucun » (cf. models.Action.code_isin).
     code_isin: Optional[str] = None
     # Le type du titre (« ETF », « Obligation »…), facultatif : une étiquette
-    # pour regrouper, jamais une donnée de calcul (cf. models.TypeTitre).
+    # pour regrouper, jamais une donnée de calcul (cf. models.TypeTitre). C'est
+    # l'ENVELOPPE — comment le titre est détenu.
     type_titre_id: Optional[int] = None
+    # L'autre axe : à QUOI le titre expose (« Actions », « Obligations »…). Même
+    # table, même nature, même absence d'effet sur le moindre calcul.
+    classe_actif_id: Optional[int] = None
 
 
 class ActionUpdate(BaseModel):
@@ -959,6 +972,9 @@ class ActionUpdate(BaseModel):
     # c'est **0** qui DÉTYPE le titre — il faut bien un moyen de défaire un choix,
     # et `None` est déjà pris.
     type_titre_id: Optional[int] = None
+    # La classe d'actif, même convention exactement : `None` ne touche à rien,
+    # zéro la retire.
+    classe_actif_id: Optional[int] = None
 
 
 class ActionRead(BaseModel):
@@ -980,9 +996,13 @@ class ActionRead(BaseModel):
     archivee: bool = False
     code_isin: Optional[str] = None
     # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
-    # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs.
+    # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs. Et la
+    # classe d'actif de la même façon : les deux axes voyagent ensemble, l'écran
+    # les affiche côte à côte.
     type_titre_id: Optional[int] = None
     type_titre_nom: Optional[str] = None
+    classe_actif_id: Optional[int] = None
+    classe_actif_nom: Optional[str] = None
 
 
 class OperationActionCreate(BaseModel):

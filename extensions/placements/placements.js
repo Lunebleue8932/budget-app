@@ -47,6 +47,35 @@ function voirTitresArchives() {
 // La liste connue, tenue à jour par refreshTypesTitre. Vit ici plutôt que dans
 // `state` : le noyau ne la lit jamais, c'est une donnée de cette extension.
 let typesTitre = [];
+// L'autre axe (migration 0066) : à quoi le titre EXPOSE, là où `typesTitre` dit
+// comment il est détenu. Deux listes et non une seule filtrée : l'API les rend
+// déjà séparées, et chaque menu n'en propose jamais qu'une.
+let classesActif = [];
+
+// Ce qui distingue les deux axes, et RIEN D'AUTRE : tout le reste — le menu, le
+// rendu de la liste, le renommage, la suppression — est écrit une fois et
+// paramétré par cet objet. Deux copies se seraient mises à diverger au premier
+// ajustement, sur deux blocs affichés l'un sous l'autre.
+const AXES_ETIQUETTE = {
+  enveloppe: {
+    axe: "enveloppe",
+    liste: () => typesTitre,
+    poser: (valeurs) => (typesTitre = valeurs),
+    conteneur: "placements-types-titre-liste",
+    champ: "type_titre_id",
+    menu: "action-type-titre",
+    vide: "Aucune enveloppe. Ajoutes-en une ci-dessous si tu veux regrouper tes titres.",
+  },
+  classe: {
+    axe: "classe",
+    liste: () => classesActif,
+    poser: (valeurs) => (classesActif = valeurs),
+    conteneur: "placements-classes-actif-liste",
+    champ: "classe_actif_id",
+    menu: "action-classe-actif",
+    vide: "Aucune classe d'actif. Ajoutes-en une ci-dessous pour voir à quoi ton portefeuille expose.",
+  },
+};
 
 /**
  * Le menu « Type » d'un titre : une option vide en tête, puis les étiquettes.
@@ -56,11 +85,12 @@ let typesTitre = [];
  * Sa valeur est "" et non "0" — c'est le formulaire qui traduit, au moment
  * d'envoyer (cf. `valeurTypeTitreEnvoyee`).
  */
-function optionsTypesTitre(selectionne) {
+function optionsTypesTitre(selectionne, axe = "enveloppe") {
   const vide = `<option value="">${escapeHtml(t("— aucun —"))}</option>`;
   return (
     vide +
-    typesTitre
+    AXES_ETIQUETTE[axe]
+      .liste()
       .map(
         (type) =>
           `<option value="${type.id}"${
@@ -84,26 +114,32 @@ function valeurTypeTitreEnvoyee(valeurDuMenu) {
 }
 
 async function refreshTypesTitre() {
-  typesTitre = await apiFetch("/types-titre");
-  const menu = document.getElementById("action-type-titre");
-  if (menu) {
-    const avant = menu.value;
-    menu.innerHTML = optionsTypesTitre(avant);
-  }
-  renderTypesTitre();
+  // LES DEUX AXES ENSEMBLE : l'écran les montre l'un sous l'autre, et un seul
+  // aller-retour de plus évite d'avoir à se demander, à chaque appelant, lequel
+  // des deux vient de bouger.
+  await Promise.all(
+    Object.values(AXES_ETIQUETTE).map(async (config) => {
+      config.poser(await apiFetch(`/types-titre?axe=${config.axe}`));
+      const menu = document.getElementById(config.menu);
+      if (menu) {
+        const avant = menu.value;
+        menu.innerHTML = optionsTypesTitre(avant, config.axe);
+      }
+      renderEtiquettes(config);
+    })
+  );
 }
 
-function renderTypesTitre() {
-  const bloc = document.getElementById("placements-types-titre-liste");
+function renderEtiquettes(config) {
+  const bloc = document.getElementById(config.conteneur);
   if (!bloc) return;
+  const etiquettes = config.liste();
   bloc.innerHTML = "";
-  if (typesTitre.length === 0) {
-    bloc.innerHTML = `<span class="hint">${t(
-      "Aucun type. Ajoutes-en un ci-dessous si tu veux regrouper tes titres."
-    )}</span>`;
+  if (etiquettes.length === 0) {
+    bloc.innerHTML = `<span class="hint">${t(config.vide)}</span>`;
     return;
   }
-  typesTitre.forEach((type) => {
+  etiquettes.forEach((type) => {
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     // LE NOMBRE DE TITRES EST AFFICHÉ parce que la suppression, elle, ne
@@ -126,7 +162,7 @@ function renderTypesTitre() {
 
   bloc.querySelectorAll("button[data-type-titre-renommer]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const type = typesTitre.find((x) => x.id === Number(btn.dataset.typeTitreRenommer));
+      const type = etiquettes.find((x) => x.id === Number(btn.dataset.typeTitreRenommer));
       if (!type) return;
       const saisi = window.prompt(t("Nouveau nom pour « {nom} »", { nom: type.nom }), type.nom);
       if (saisi === null || saisi.trim() === type.nom) return;
@@ -149,7 +185,7 @@ function renderTypesTitre() {
 
   bloc.querySelectorAll("button[data-type-titre-supprimer]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const type = typesTitre.find((x) => x.id === Number(btn.dataset.typeTitreSupprimer));
+      const type = etiquettes.find((x) => x.id === Number(btn.dataset.typeTitreSupprimer));
       if (!type) return;
       const question =
         type.nb_titres > 0
@@ -226,9 +262,17 @@ function renderTitresSuivis() {
       </button>
       <input type="number" step="0.01" min="0" value="${Number(action.valeur).toFixed(2)}"
              data-action="cours" data-id="${action.id}" title="${t("Cours unitaire actuel")}" />
-      <select data-action="type-titre" data-id="${action.id}"
-              title="${t("Type du titre — purement descriptif")}">
-        ${optionsTypesTitre(action.type_titre_id)}
+      <!-- DEUX MENUS, UN PAR AXE : comment le titre est détenu, et à quoi il
+           expose. C'est data-axe qui dit lequel des deux l'écouteur écrit.
+           (Pas d'accent grave dans ce commentaire : il vit DANS une chaîne
+           gabarit, et un seul y refermerait la chaîne.) -->
+      <select data-action="type-titre" data-axe="enveloppe" data-id="${action.id}"
+              title="${t("Enveloppe : comment le titre est détenu — purement descriptif")}">
+        ${optionsTypesTitre(action.type_titre_id, "enveloppe")}
+      </select>
+      <select data-action="type-titre" data-axe="classe" data-id="${action.id}"
+              title="${t("Classe d'actif : à quoi le titre expose — purement descriptif")}">
+        ${optionsTypesTitre(action.classe_actif_id, "classe")}
       </select>
       <button type="button" data-action="${action.archivee ? "reactiver-titre" : "archiver-titre"}"
               data-id="${action.id}"
@@ -271,14 +315,19 @@ function renderTitresSuivis() {
   // position dans une longue liste de titres.
   bloc.querySelectorAll("select[data-action='type-titre']").forEach((menu) => {
     menu.addEventListener("change", async () => {
+      // Le menu porte son axe : le même écouteur sert les deux colonnes, et
+      // c'est `data-axe` qui dit laquelle on écrit.
+      const config = AXES_ETIQUETTE[menu.dataset.axe || "enveloppe"];
       try {
         await apiFetch(`/actions/${menu.dataset.id}`, {
           method: "PUT",
-          body: JSON.stringify({ type_titre_id: valeurTypeTitreEnvoyee(menu.value) }),
+          body: JSON.stringify({
+            [config.champ]: valeurTypeTitreEnvoyee(menu.value),
+          }),
         });
         const action = state.actions.find((a) => a.id === Number(menu.dataset.id));
         if (action) {
-          action.type_titre_id = menu.value ? Number(menu.value) : null;
+          action[config.champ] = menu.value ? Number(menu.value) : null;
         }
         // Le compte affiché à côté de chaque étiquette vient de bouger.
         await refreshTypesTitre();
@@ -829,13 +878,17 @@ document.getElementById("form-action").addEventListener("submit", async (e) => {
         type_titre_id: valeurTypeTitreEnvoyee(
           document.getElementById("action-type-titre").value
         ),
+        classe_actif_id: valeurTypeTitreEnvoyee(
+          document.getElementById("action-classe-actif").value
+        ),
       }),
     });
     showMessage(t("Titre ajouté"), "success");
     nomInput.value = "";
     valeurInput.value = "0";
-    // Le TYPE, lui, n'est pas remis à zéro : on saisit ses ETF à la suite, et
-    // reposer le menu à chaque fois ferait recliquer la même valeur.
+    // LES DEUX ÉTIQUETTES, elles, ne sont pas remises à zéro : on saisit ses
+    // ETF à la suite, et reposer les menus à chaque fois ferait recliquer les
+    // mêmes valeurs.
     await refreshTypesTitre();
     await refreshActionsTitres();
     majResumeOperationAction();
@@ -844,23 +897,30 @@ document.getElementById("form-action").addEventListener("submit", async (e) => {
   }
 });
 
-document.getElementById("form-type-titre").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const champ = document.getElementById("type-titre-nom");
-  try {
-    await apiFetch("/types-titre", {
-      method: "POST",
-      body: JSON.stringify({ nom: champ.value }),
-    });
-    showMessage(t("Type ajouté"), "success");
-    champ.value = "";
-    await refreshTypesTitre();
-    // Les menus des lignes de « Titres suivis » sont dessinés avec la liste :
-    // sans ce second passage, le type qu'on vient de créer n'y serait pas.
-    await refreshActionsTitres();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
+// UN SEUL GESTIONNAIRE POUR LES DEUX FORMULAIRES : ils font le même geste sur
+// le même endpoint, à l'axe près.
+[
+  ["form-type-titre", "type-titre-nom", AXES_ETIQUETTE.enveloppe],
+  ["form-classe-actif", "classe-actif-nom", AXES_ETIQUETTE.classe],
+].forEach(([formulaire, champId, config]) => {
+  document.getElementById(formulaire)?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const champ = document.getElementById(champId);
+    try {
+      await apiFetch("/types-titre", {
+        method: "POST",
+        body: JSON.stringify({ nom: champ.value, axe: config.axe }),
+      });
+      showMessage(t("Étiquette ajoutée"), "success");
+      champ.value = "";
+      await refreshTypesTitre();
+      // Les menus des lignes de « Titres suivis » sont dessinés avec la liste :
+      // sans ce second passage, l'étiquette qu'on vient de créer n'y serait pas.
+      await refreshActionsTitres();
+    } catch (err) {
+      showMessage(err.message, "error");
+    }
+  });
 });
 
 // La case « Afficher les titres archivés » ne fait que rappeler la liste : c'est
