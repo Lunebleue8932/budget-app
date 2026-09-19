@@ -22,11 +22,14 @@ from .database import Base
 from .constants import (
     TYPES_REMBOURSABLES,
     TYPE_COMPTE_PLACEMENT,
+    CadenceObjectif,
     DomaineImport,
     Frequence,
+    MesureObjectif,
     ModeComparaison,
     Sens,
     SensAction,
+    SensObjectif,
     Statut,
     TypeOperation,
 )
@@ -1680,4 +1683,94 @@ class ProfilRemboursement(Base):
         # Comme la liste des opérations de l'app : les plus récentes d'abord,
         # l'id départageant deux opérations du même jour.
         order_by="desc(Operation.date), desc(Operation.id)",
+    )
+
+
+class ObjectifKpi(Base):
+    """UN CHIFFRE QU'ON SE FIXE, et ce qu'il faut pour le mesurer (migration
+    0065). Lu par la seule extension « Objectifs ».
+
+    LE SCHÉMA RESTE AU NOYAU, comme tout ce qu'une extension écrit (cf.
+    extensions/README.md) : éteindre « Objectifs » fait disparaître l'écran, pas
+    les objectifs qu'on y a posés — ils dorment en base et reviennent intacts.
+
+    CE QU'IL AJOUTE AUX DEUX GRANDEURS DU BUDGET, et pourquoi il ne les répète
+    pas. L'enveloppe d'une catégorie (`CategorieBudgetMensuel`) dit « combien
+    puis-je encore dépenser là », l'objectif de répartition
+    (`Categorie.objectif_pourcentage`) dit « quelle part doit y aller ». Ni l'un
+    ni l'autre ne sait dire « pas plus de quatre sorties par semaine », ni
+    « mes courses ne devraient pas dépasser 40 € en moyenne » : un budget
+    compte des euros dépensés, jamais des FOIS ni des MOYENNES, et c'est
+    pourtant sous cette forme-là qu'on se donne la plupart de ses règles.
+
+    AUCUN CALCUL DE L'APPLICATION NE LE LIT. Un objectif ne change aucun solde,
+    aucun KPI, aucune barre : il REGARDE ce qui existe et le compare à un
+    nombre. C'est ce qui permet d'en créer autant qu'on veut, de les supprimer
+    sans conséquence, et de laisser l'application donner rigoureusement les
+    mêmes chiffres que l'extension tourne ou non.
+
+    IL NE REFUSE RIEN NON PLUS — pas de blocage, pas de saisie empêchée, comme
+    le matelas de sécurité et pour la même raison : une garde qui interdirait
+    une cinquième sortie au motif qu'on s'était promis quatre se ferait
+    contourner le soir même, et aurait appris à ne plus être lue."""
+
+    __tablename__ = "objectif_kpi"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # Ce que l'objectif s'appelle À L'ÉCRAN, écrit à la main : « Sorties resto »,
+    # « Budget voyages ». Ni la mesure ni la catégorie ne sauraient le dire —
+    # « Montant total · Loisirs » décrit la formule, jamais l'intention.
+    nom = Column(String, nullable=False)
+    mesure = Column(String, nullable=False)
+    cadence = Column(String, nullable=False, default=CadenceObjectif.mois.value)
+    sens = Column(String, nullable=False, default=SensObjectif.max.value)
+    cible = Column(Float, nullable=False, default=0.0)
+    # LA CATÉGORIE EST FACULTATIVE, et NULL veut dire « toutes les dépenses ».
+    # « Pas plus de 30 achats par mois, tous postes confondus » est un objectif
+    # aussi légitime que « pas plus de 4 sorties » — et le rendre impossible
+    # aurait obligé à inventer une catégorie fourre-tout pour l'exprimer.
+    #
+    # SET NULL À LA SUPPRESSION : supprimer une catégorie élargit l'objectif à
+    # toutes les dépenses au lieu de l'emporter. Le contraire aurait fait
+    # disparaître en silence un objectif qu'on avait écrit, pour un geste fait
+    # ailleurs et sans rapport.
+    categorie_id = Column(
+        Integer, ForeignKey("categorie.id", ondelete="SET NULL"), nullable=True
+    )
+    # LA MONNAIE EST OBLIGATOIRE, y compris pour un simple COMPTE d'opérations.
+    # « 3 000 » ne veut rien dire sans savoir en quelle devise — c'est la règle
+    # de toute l'application — et « 4 sorties » n'en dit pas plus si les lignes
+    # comptées viennent de deux relevés qui ne se comparent pas.
+    monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
+    # CE QUI PARAÎT AU DASHBOARD. Un objectif qu'on suit de loin — « et si je
+    # regardais ce que coûtent vraiment mes voyages » — n'a pas à prendre la
+    # place de ceux qu'on s'est fixés pour de bon. Il reste sur sa page, où on
+    # va le lire quand on y pense.
+    visible_dashboard = Column(Boolean, nullable=False, default=True)
+    # L'ordre d'affichage, choisi par l'utilisateur, comme pour les catégories
+    # et les profils de remboursement.
+    ordre = Column(Integer, nullable=False, default=0)
+
+    categorie = relationship("Categorie")
+    monnaie = relationship("Monnaie")
+
+    __table_args__ = (
+        CheckConstraint(
+            f"mesure IN ({_sql_in_list(_enum_values(MesureObjectif))})",
+            name="ck_objectif_kpi_mesure",
+        ),
+        CheckConstraint(
+            f"cadence IN ({_sql_in_list(_enum_values(CadenceObjectif))})",
+            name="ck_objectif_kpi_cadence",
+        ),
+        CheckConstraint(
+            f"sens IN ({_sql_in_list(_enum_values(SensObjectif))})",
+            name="ck_objectif_kpi_sens",
+        ),
+        # Une cible négative ne veut rien dire : ni un nombre de dépenses, ni un
+        # montant dépensé, ni une part ne descendent sous zéro. Zéro, lui, est
+        # un objectif parfaitement sensé — « aucune sortie ce mois-ci ».
+        CheckConstraint("cible >= 0", name="ck_objectif_kpi_cible"),
+        Index("ix_objectif_kpi_categorie", "categorie_id"),
+        Index("ix_objectif_kpi_monnaie", "monnaie_id"),
     )

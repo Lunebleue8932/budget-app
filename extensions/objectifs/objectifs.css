@@ -1,0 +1,185 @@
+/* ---------- Extension « Objectifs » ----------
+ *
+ * Tout est préfixé `obj-` et tout descend d'un élément que cette extension a
+ * elle-même posé : une feuille d'extension est chargée pour TOUTE
+ * l'application, pas seulement pour son écran (cf. frontend/extensions.js), et
+ * un sélecteur trop large repeindrait des pages qui ne la concernent pas.
+ *
+ * Aucune couleur en dur : les variables du noyau portent déjà le thème (mode
+ * clair compris), et une valeur recopiée ici cesserait de le suivre au premier
+ * ajustement.
+ */
+
+/* Les trois listes de la période, sur une ligne — la même forme que la barre de
+   contexte de la page Budget, dont cet onglet est voisin : deux écrans de la
+   même page qui demandent la même chose doivent le demander pareil. */
+.obj-contexte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.obj-contexte label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ---------- Les cartes ----------
+ *
+ * UNE GRILLE QUI SE REPLIE, et non une colonne : trois objectifs tiennent sur
+ * une ligne, et dix restent lisibles. La largeur minimale est celle qu'il faut
+ * pour que la ligne « valeur · unité · cible » ne se coupe pas — c'est elle
+ * qu'on lit, et une cible renvoyée à la ligne se rattache mal à son chiffre.
+ */
+.obj-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.8rem;
+}
+
+.obj-carte {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 0.8rem 1rem;
+}
+
+/* LE LISERÉ DE GAUCHE DIT L'ÉTAT AVANT QU'ON AIT LU QUOI QUE CE SOIT. La carte
+   elle-même reste neutre : peindre tout le fond en rouge devant quatre
+   objectifs manqués transforme un tableau de bord en tableau d'alarmes, et on
+   cesse de le regarder. */
+.obj-carte.obj-tenu {
+  border-left-color: var(--positif);
+}
+
+.obj-carte.obj-manque {
+  border-left-color: var(--negatif);
+}
+
+.obj-carte-tete {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.obj-nom {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.obj-etat {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+}
+
+.obj-tenu .obj-etat {
+  background: var(--badge-ok-bg);
+  color: var(--badge-ok-text);
+}
+
+.obj-manque .obj-etat {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+/* Les deux boutons d'édition, poussés au bout de la ligne de titre : ils
+   n'existent que sur la page des objectifs, jamais sur le dashboard, où on
+   vient LIRE. */
+.obj-carte-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.obj-chiffres {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
+/* LE CHIFFRE QUI RÉPOND, en grand, et son unité juste après en petit : « 3,8 »
+   se lit d'un coup d'œil, « par semaine » une seule fois. */
+.obj-valeur {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.obj-unite {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.obj-cible {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.obj-barre {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-surface-alt);
+  overflow: hidden;
+}
+
+/* La barre est peinte du côté de l'état, pas du côté de la mesure : c'est
+   l'information qu'on cherche en la regardant. */
+.obj-barre-remplissage {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.obj-barre-tenue {
+  background: var(--positif);
+}
+
+.obj-barre-manquee {
+  background: var(--negatif);
+}
+
+.obj-detail {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+/* ---------- Le bloc du dashboard ----------
+ *
+ * IL EST SOUS LA LÉGENDE, donc sous les deux graphes qu'il commente : un
+ * objectif répond à « est-ce que je tiens ma règle », question qu'on se pose
+ * APRÈS avoir vu ce qui s'est passé. Le poser au-dessus aurait repoussé les
+ * chiffres du mois hors de l'écran pour une lecture qui en dépend.
+ */
+#dashboard-objectifs {
+  margin-top: 1rem;
+}
+
+#dashboard-objectifs h3 {
+  margin-bottom: 0.6rem;
+}
+
+/* Les cartes du dashboard sont un peu plus serrées : elles n'ont pas de boutons
+   et viennent après deux graphes qui ont déjà pris la hauteur de l'écran. */
+.obj-liste-dashboard .obj-carte {
+  padding: 0.6rem 0.8rem;
+}
+
+.obj-liste-dashboard .obj-valeur {
+  font-size: 1.35rem;
+}

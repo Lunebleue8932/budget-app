@@ -1,0 +1,23 @@
+{
+  "numero": 12,
+  "nom": "Objectifs",
+  "description": "Les règles qu'on se donne et que le budget ne sait pas écrire. Une enveloppe dit « combien puis-je encore dépenser là », un objectif de répartition « quelle part doit y aller » : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine », « mes courses ne devraient pas dépasser 40 € en moyenne » ou « les voyages, c'est 10 % du budget ». On crée ici autant d'indicateurs qu'on veut — un nombre de dépenses, un montant total, un montant moyen ou une part des dépenses — chacun avec sa cadence (par semaine ou par mois), son sens (un plafond à ne pas dépasser ou un plancher à atteindre) et sa cible. Chacun se suit sur la page, et ceux qu'on choisit s'affichent directement sous les graphes du dashboard, sur la période qu'on y regarde. L'extension ne crée, ne modifie et ne supprime AUCUNE opération et ne refuse jamais rien : elle constate. Nécessite « Budget », dont elle est la page voisine — les objectifs sont du même ordre que ce qu'on y décide d'avance.",
+  "version": "1.0.0",
+  "requiert_une_de": ["analyse-budget"],
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": [
+      "objectifs.css"
+    ],
+    "js": [
+      "objectifs.js"
+    ]
+  },
+  "navigation": {
+    "type": "onglet",
+    "hote_section": "budget",
+    "sous_section": "objectifs",
+    "libelle": "Objectifs"
+  }
+}

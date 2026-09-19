@@ -784,3 +784,81 @@ LIBELLES_TYPE_PLACEMENT_DEFAUT = {
 # Jamais bloquant : c'est le montant qui fait l'écriture, et le relevé a
 # toujours raison sur ce qui a réellement quitté le compte.
 ECART_COURS_TOLERE = 0.01
+
+
+# ---------- Objectifs (extension « Objectifs ») ----------
+#
+# CE QU'UN OBJECTIF MESURE (`ObjectifKpi.mesure`). Quatre mesures, et elles se
+# rangent en DEUX FAMILLES qui ne se calculent pas sur le même périmètre — c'est
+# le seul point de cette fonctionnalité qui demande à être su :
+#
+#   - « COMBIEN ÇA PÈSE » (`montant_total`, `part_depenses`) se lit EXACTEMENT
+#     comme l'histogramme et le camembert du dashboard (cf.
+#     soldes.get_depenses_par_categorie) : une dépense amortie n'y compte que
+#     pour la part du mois, une remboursable pour son reste à charge, et les
+#     parts d'une opération découpée vont chacune à leur catégorie. Un objectif
+#     qui annoncerait un autre chiffre que la barre posée juste au-dessus de lui
+#     serait un objectif qu'on cesse de croire.
+#
+#   - « COMBIEN DE FOIS, ET DE COMBIEN » (`nombre`, `montant_moyen`) compte des
+#     LIGNES DE RELEVÉ : une opération, à sa date, pour son montant. Ni
+#     étalement ni déduction, parce qu'un COMPTE ne s'étale pas — une facture
+#     amortie sur douze mois reste UNE dépense, faite une fois — et parce que
+#     « mes sorties au restaurant coûtent 32 € en moyenne » doit valoir ce qu'on
+#     lit sur son relevé.
+class MesureObjectif(str, enum.Enum):
+    nombre = "nombre"
+    montant_total = "montant_total"
+    montant_moyen = "montant_moyen"
+    part_depenses = "part_depenses"
+
+
+# Les mesures qui CUMULENT sur la durée, et sont donc les seules à proratiser :
+# deux fois plus de temps, deux fois plus de dépenses. Un montant MOYEN et une
+# PART sont des rapports — ils ne grandissent pas avec la période, et leur
+# appliquer un prorata rendrait une cible absurde (« 15 % sur une demi-période
+# vaut 7,5 % »).
+MESURES_OBJECTIF_CUMULATIVES = {
+    MesureObjectif.nombre.value,
+    MesureObjectif.montant_total.value,
+}
+
+# Les mesures qui portent un MONTANT, et qui demandent donc une monnaie où le
+# lire. Un nombre de dépenses et une part en pourcentage n'en demandent pas
+# moins : ils se comptent sur les opérations d'UNE monnaie, faute de quoi
+# « 4 sorties » mélangerait deux relevés qui ne se comparent pas.
+MESURES_OBJECTIF_MONETAIRES = {
+    MesureObjectif.montant_total.value,
+    MesureObjectif.montant_moyen.value,
+}
+
+
+class CadenceObjectif(str, enum.Enum):
+    """La fenêtre naturelle de l'objectif : « par semaine » ou « par mois ».
+
+    ELLE NE DÉCIDE PAS DE CE QU'ON REGARDE, seulement de l'unité dans laquelle
+    la cible est écrite. Le dashboard mesure toujours la période que le
+    sélecteur affiche, et rapporte le constat à la cadence : un objectif
+    hebdomadaire lu sur un mois se lit « 3,8 par semaine », jamais « 17 »."""
+
+    semaine = "semaine"
+    mois = "mois"
+
+
+# Combien de jours vaut une unité de cadence. Le mois n'a pas de valeur fixe :
+# il vaut le nombre de jours du mois regardé (cf. service_objectifs.unites_de
+# _cadence), et cette table ne sert donc qu'à la semaine.
+JOURS_SEMAINE = 7
+
+
+class SensObjectif(str, enum.Enum):
+    """De quel côté de la cible on veut être.
+
+    LES DEUX EXISTENT parce que les deux se rencontrent : « pas plus de 4
+    sorties par semaine » est un PLAFOND, « au moins 500 € d'épargne par mois »
+    est un PLANCHER. Sans le sens, un objectif tenu et un objectif manqué
+    s'afficheraient de la même façon — et la couleur de la barre, qui est tout
+    ce qu'on lit d'un coup d'œil, dirait n'importe quoi une fois sur deux."""
+
+    max = "max"
+    min = "min"

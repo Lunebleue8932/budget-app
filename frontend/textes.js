@@ -225,6 +225,18 @@ const TEXTES = {
   "placements.types-de-titre":
     "Tes propres étiquettes — ETF, action en direct, obligation, SCPI — pour regrouper les titres. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.",
 
+  /* ----- Extension « Objectifs » ----- */
+  "objectifs.objectifs":
+    "Les règles que tu te donnes et que le budget ne sait pas écrire. Une enveloppe compte des euros dépensés, un objectif de répartition une part du total : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine » ni « mes courses ne devraient pas dépasser 40 € en moyenne ». Un objectif mesure ce que tu veux suivre, le compare à une cible, et ne refuse jamais rien — il constate. Les périodes ci-dessus disent seulement sur quoi tu regardes : un objectif n'a pas de mois, il a une cadence.",
+  "objectifs.mesure":
+    "Quatre mesures, et elles ne se calculent pas sur le même périmètre. MONTANT TOTAL et PART DES DÉPENSES se lisent exactement comme l'histogramme et le camembert du dashboard : une dépense amortie n'y compte que pour la part du mois, une remboursable pour ce qui te reste à charge. NOMBRE DE DÉPENSES et MONTANT MOYEN comptent des lignes de relevé : une dépense, à sa date, pour son montant — un compte ne s'étale pas, et une moyenne doit valoir ce que tu lis sur ton relevé.",
+  "objectifs.cadence":
+    "L'unité dans laquelle ta cible est écrite, et rien d'autre : elle ne décide pas de ce que tu regardes. Quand la période affichée tient dans une cadence — un objectif mensuel lu sur un mois — tu lis ton CUMUL face à ta cible : « 196 € sur 250 € » le 19 du mois, et rien n'est prédit de ce que tu dépenseras d'ici au 30. Quand elle en contient plusieurs — un objectif hebdomadaire lu sur un mois — c'est une MOYENNE sur le temps déjà écoulé : « 3,8 par semaine », et c'est ce chiffre-là qui se compare à ta cible.",
+  "objectifs.visible-dashboard":
+    "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.",
+  "objectifs.dashboard":
+    "Ce que tu t'es fixé, mesuré sur la période affichée ci-dessus et dans la monnaie de l'onglet. Le grand chiffre est ramené à la cadence de l'objectif ; la ligne du dessous dit ce qui a servi à le calculer. Rien ici n'influe sur tes soldes ni sur tes graphes : un objectif regarde, il ne change aucun montant. Ils se créent et se modifient dans Budget → Objectifs.",
+
   /* ----- Extension « Projets » ----- */
   "projets.projets":
     "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.",

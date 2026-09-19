@@ -1,0 +1,116 @@
+<!-- Écran de l'extension « Objectifs ».
+
+     UN ONGLET DE LA PAGE BUDGET (cf. le manifeste : navigation.type =
+     "onglet", hote_section = "budget"), à côté du budget du mois et des
+     projets. Les trois répondent à la même question — qu'est-ce que je décide
+     À L'AVANCE — là où le dashboard ne fait que constater.
+
+     CE QUE LE BUDGET NE SAIT PAS DIRE, et qui justifie cet onglet de plus : une
+     enveloppe compte des euros dépensés, un objectif de répartition une part du
+     total. Ni l'un ni l'autre ne sait écrire « pas plus de quatre sorties par
+     semaine » ni « mes courses ne devraient pas dépasser 40 € en moyenne » —
+     un NOMBRE de fois et une MOYENNE ne sont pas des montants, et c'est
+     pourtant sous cette forme-là qu'on se donne la plupart de ses règles.
+
+     D'où la dépendance déclarée (`requiert_une_de`) : sans l'extension
+     « Budget », cette page n'existe pas et un onglet n'a pas d'hôte. Le noyau
+     grise la case, refuse l'allumage et éteint l'extension avec sa dépendance.
+
+     C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la
+     montre et la cache, exactement comme un onglet du noyau. -->
+<div id="sous-section-budget-objectifs" class="sous-section">
+  <h3>Objectifs<i class="info-bulle" tabindex="0" data-info-cle="objectifs.objectifs">i</i></h3>
+
+  <!-- LA PÉRIODE EST CELLE DE LA LECTURE, jamais celle de l'objectif : un
+       objectif n'a pas de mois, il a une CADENCE (par semaine, par mois). Ces
+       deux listes disent seulement sur quoi on regarde ce qu'il vaut — et la
+       monnaie, comme partout dans l'application, qu'on n'additionne jamais. -->
+  <div class="obj-contexte">
+    <label for="obj-monnaie">Monnaie
+      <select id="obj-monnaie"></select>
+    </label>
+    <label for="obj-annee">Année
+      <select id="obj-annee"></select>
+    </label>
+    <label for="obj-mois">Mois
+      <select id="obj-mois"></select>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="primary" id="btn-objectif-nouveau">+ Nouvel objectif</button>
+  </div>
+
+  <!-- Le formulaire de création / modification. Replié tant qu'on ne l'ouvre
+       pas : la liste est ce qu'on vient lire. -->
+  <div id="objectif-editeur" class="regle-editeur" style="display:none">
+    <h4 id="objectif-editeur-titre">Nouvel objectif</h4>
+    <input type="hidden" id="objectif-id" />
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-nom">Nom</label>
+      <input type="text" id="objectif-nom" placeholder="ex. Sorties restaurant" />
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-mesure">Ce qu'on mesure<i class="info-bulle" tabindex="0" data-info-cle="objectifs.mesure">i</i></label>
+      <select id="objectif-mesure">
+        <option value="nombre">Nombre de dépenses</option>
+        <option value="montant_total">Montant total</option>
+        <option value="montant_moyen">Montant moyen d'une dépense</option>
+        <option value="part_depenses">Part des dépenses</option>
+      </select>
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-categorie">Sur</label>
+      <select id="objectif-categorie">
+        <option value="">Toutes les dépenses</option>
+      </select>
+    </div>
+
+    <!-- LA CADENCE NE PARAÎT QUE POUR LES MESURES QUI CUMULENT. Un montant
+         MOYEN et une PART sont des rapports : ils ne grandissent pas avec la
+         durée, et « par semaine » n'y voudrait rien dire. Masquer le champ est
+         plus honnête que le laisser sans effet (cf. objectifs.js,
+         majChampsObjectif). -->
+    <div class="regle-champ-ligne" id="objectif-ligne-cadence">
+      <label for="objectif-cadence">Par<i class="info-bulle" tabindex="0" data-info-cle="objectifs.cadence">i</i></label>
+      <select id="objectif-cadence">
+        <option value="semaine">Semaine</option>
+        <option value="mois" selected>Mois</option>
+      </select>
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-sens">Objectif</label>
+      <select id="objectif-sens">
+        <option value="max">Ne pas dépasser</option>
+        <option value="min">Atteindre au moins</option>
+      </select>
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-cible">Cible</label>
+      <input type="number" id="objectif-cible" step="0.01" min="0" />
+      <span class="hint" id="objectif-cible-unite"></span>
+    </div>
+
+    <div class="regle-champ-ligne" id="objectif-ligne-monnaie">
+      <label for="objectif-monnaie-champ">Monnaie</label>
+      <select id="objectif-monnaie-champ"></select>
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-visible">Afficher au dashboard<i class="info-bulle" tabindex="0" data-info-cle="objectifs.visible-dashboard">i</i></label>
+      <input type="checkbox" id="objectif-visible" checked />
+    </div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-objectif-enregistrer">Enregistrer</button>
+      <button type="button" id="btn-objectif-annuler">Annuler</button>
+    </div>
+  </div>
+
+  <div id="objectifs-liste" class="obj-liste"></div>
+</div>

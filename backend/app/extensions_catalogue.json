@@ -88,6 +88,14 @@
       "description": "La page qui rassemble tout ce qui se décide à l'avance, et que le dashboard se contentait jusque-là de constater. LE BUDGET DU MOIS, qui se saisissait sur le camembert du dashboard — un champ posé au milieu des graphes, à remplir pour que l'un d'eux change de dénominateur. LES BUDGETS PAR CATÉGORIE, en montant comme en part du total, qui se réglaient ligne par ligne dans un formulaire de la page Catégories : ils se posent ici aux curseurs, toutes catégories sous les yeux, là où l'on voit ce qu'on répartit. ET TROIS LECTURES que les autres écrans ne donnent pas : CE QU'ON A MIS DE CÔTÉ sur une période — le solde d'un compte d'épargne dit ce qu'il Y A, jamais ce qu'on y a versé ce mois-ci, et le calcul se lit dans les virements internes entre un compte courant et un compte d'épargne ou de placements ; CE QU'ON VEUT GARDER DISPONIBLE — un matelas de sécurité par monnaie, avec un avertissement posé là où l'on regarde ses comptes d'épargne quand on passe dessous, l'application constatant sans jamais rien refuser ; ET CE QUI N'ÉTAIT PAS PRÉVISIBLE — une case « imprévue » sur une dépense, et le total qu'elle permet, mois par mois. L'extension n'écrit que des budgets, une étiquette et un seuil : elle ne crée, ne modifie et ne supprime aucune opération, et tous les soldes de l'application sont exactement les mêmes qu'elle tourne ou non.",
       "version": "2.0.0",
       "type": "standard"
+    },
+    {
+      "id": "objectifs",
+      "numero": 12,
+      "nom": "Objectifs",
+      "description": "Les règles qu'on se donne et que le budget ne sait pas écrire. Une enveloppe dit « combien puis-je encore dépenser là », un objectif de répartition « quelle part doit y aller » : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine », « mes courses ne devraient pas dépasser 40 € en moyenne » ou « les voyages, c'est 10 % du budget ». On crée ici autant d'indicateurs qu'on veut — un nombre de dépenses, un montant total, un montant moyen ou une part des dépenses — chacun avec sa cadence (par semaine ou par mois), son sens (un plafond à ne pas dépasser ou un plancher à atteindre) et sa cible. Chacun se suit sur la page, et ceux qu'on choisit s'affichent directement sous les graphes du dashboard, sur la période qu'on y regarde. L'extension ne crée, ne modifie et ne supprime AUCUNE opération et ne refuse jamais rien : elle constate. Nécessite « Budget », dont elle est la page voisine — les objectifs sont du même ordre que ce qu'on y décide d'avance.",
+      "version": "1.0.0",
+      "type": "standard"
     }
   ]
 }

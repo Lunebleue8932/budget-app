@@ -390,6 +390,18 @@
            la barre et la tranche correspondantes. -->
       <div id="dashboard-legende" class="histogramme-cadre legende-cadre"></div>
 
+      <!-- LA PLACE DES OBJECTIFS, réservée par le noyau et remplie par
+           l'extension du même nom — même procédé que
+           `#flux-remboursements-actions` dans la carte « Reste à rembourser ».
+           Une extension qui fabriquerait son propre bloc devrait décider où
+           l'insérer, et se tromperait le jour où cette page change.
+
+           SOUS LA LÉGENDE, donc sous les deux graphes qu'elle commente : « est-ce
+           que je tiens ma règle ? » est une question qu'on se pose APRÈS avoir vu
+           ce qui s'est passé. Vide et sans hauteur tant qu'aucune extension n'y
+           met rien, et tant qu'aucun objectif n'a été coché pour le dashboard. -->
+      <div id="dashboard-objectifs" style="display:none"></div>
+
       <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
            Ouverte APRÈS une saisie, jamais au chargement : c'est une réaction à
            ce qu'on vient d'écrire, pas un reproche permanent affiché à
@@ -1927,8 +1939,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=16"></script>
-  <script src="i18n.js?v=67"></script>
+  <script src="textes.js?v=17"></script>
+  <script src="i18n.js?v=68"></script>
   <script src="extensions.js?v=22"></script>
   <script src="app.js?v=148"></script>
 </body>

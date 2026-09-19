@@ -651,6 +651,86 @@ const TRADUCTIONS = {
     "Répond à « qui me doit combien, et à qui est-ce que je dois ». Sans cette extension, les deux onglets « Dépenses remboursables » et « Remboursements reçus » de la page Opérations restent fermés et aucune dépense remboursable ne pèse sur tes totaux (flux du mois, histogramme, « Reste à rembourser ») — exactement comme les prêts sans l'extension « Prêts ». Une fois activée, tu peux en plus créer des profils — une personne, une entreprise, la colocation — et y rattacher tes dépenses remboursables, tes prêts reçus et leurs règlements. L'écran donne alors, par monnaie, le solde net de chaque profil, ce qu'il te doit face à ce que tu lui dois, et le détail des lignes encore ouvertes. Un profil est une étiquette et rien de plus : le supprimer détache simplement ses opérations. L'écran s'ouvre depuis la carte « Reste à rembourser » du dashboard.":
       "Answers « who owes me how much, and whom do I owe ». Without this extension, the two tabs « Dépenses remboursables » and « Remboursements reçus » on the Transactions page stay closed and no reimbursable expense weighs on your totals (month flows, histogram, « Reste à rembourser ») — exactly like loans without the « Prêts » extension. Once enabled, you can also create profiles — a person, a company, the flat share — and attach your reimbursable expenses, your loans received and their settlements to them. The screen then gives, per currency, each profile's net balance, what it owes you against what you owe it, and the detail of the lines still open. A profile is a label and nothing more: deleting it simply detaches its transactions. The screen opens from the dashboard's « Reste à rembourser » card.",
 
+    /* ===== Extension « Objectifs » ===== */
+    "Objectifs":
+      "Goals",
+    "+ Nouvel objectif":
+      "+ New goal",
+    "Nouvel objectif":
+      "New goal",
+    "Modifier l'objectif":
+      "Edit goal",
+    "Supprimer l'objectif":
+      "Delete goal",
+    "Objectif enregistré":
+      "Goal saved",
+    "Donne un nom à cet objectif.":
+      "Give this goal a name.",
+    "Ce qu'on mesure":
+      "What is measured",
+    "Nombre de dépenses":
+      "Number of expenses",
+    "Montant total":
+      "Total amount",
+    "Montant moyen d'une dépense":
+      "Average amount per expense",
+    "Part des dépenses":
+      "Share of expenses",
+    "Toutes les dépenses":
+      "All expenses",
+    "Ne pas dépasser":
+      "Stay under",
+    "Atteindre au moins":
+      "Reach at least",
+    "Cible":
+      "Target",
+    "Afficher au dashboard":
+      "Show on the dashboard",
+    "Semaine":
+      "Week",
+    "Sur":
+      "On",
+    "Par":
+      "Per",
+    "ex. Sorties restaurant":
+      "e.g. Eating out",
+    "Aucun objectif pour cette monnaie. Le bouton ci-dessus en crée un.":
+      "No goal for this currency. The button above creates one.",
+    "par semaine":
+      "per week",
+    "par mois":
+      "per month",
+    "par dépense":
+      "per expense",
+    "des dépenses de la période":
+      "of the period's expenses",
+    "dépenses sur la période":
+      "expenses over the period",
+    "sur la période":
+      "over the period",
+    "semaines écoulées":
+      "weeks elapsed",
+    "mois écoulés":
+      "months elapsed",
+    "tenu":
+      "met",
+    "manqué":
+      "missed",
+    "cible":
+      "target",
+    "dépenses":
+      "expenses",
+    "Les règles que tu te donnes et que le budget ne sait pas écrire. Une enveloppe compte des euros dépensés, un objectif de répartition une part du total : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine » ni « mes courses ne devraient pas dépasser 40 € en moyenne ». Un objectif mesure ce que tu veux suivre, le compare à une cible, et ne refuse jamais rien — il constate. Les périodes ci-dessus disent seulement sur quoi tu regardes : un objectif n'a pas de mois, il a une cadence.":
+      "The rules you set yourself that a budget cannot express. An envelope counts euros spent, a share goal a portion of the total: neither can say « no more than four nights out a week » nor « my groceries should not exceed 40 € on average ». A goal measures what you want to track, compares it to a target, and never refuses anything — it observes. The periods above only say what you are looking at: a goal has no month, it has a cadence.",
+    "Quatre mesures, et elles ne se calculent pas sur le même périmètre. MONTANT TOTAL et PART DES DÉPENSES se lisent exactement comme l'histogramme et le camembert du dashboard : une dépense amortie n'y compte que pour la part du mois, une remboursable pour ce qui te reste à charge. NOMBRE DE DÉPENSES et MONTANT MOYEN comptent des lignes de relevé : une dépense, à sa date, pour son montant — un compte ne s'étale pas, et une moyenne doit valoir ce que tu lis sur ton relevé.":
+      "Four measures, and they are not computed over the same scope. TOTAL AMOUNT and SHARE OF EXPENSES read exactly like the dashboard histogram and pie chart: a spread expense counts there only for the month's share, a reimbursable one for what is left at your charge. NUMBER OF EXPENSES and AVERAGE AMOUNT count statement rows: one expense, at its date, for its amount — a count does not spread, and an average must match what you read on your statement.",
+    "L'unité dans laquelle ta cible est écrite, et rien d'autre : elle ne décide pas de ce que tu regardes. Quand la période affichée tient dans une cadence — un objectif mensuel lu sur un mois — tu lis ton CUMUL face à ta cible : « 196 € sur 250 € » le 19 du mois, et rien n'est prédit de ce que tu dépenseras d'ici au 30. Quand elle en contient plusieurs — un objectif hebdomadaire lu sur un mois — c'est une MOYENNE sur le temps déjà écoulé : « 3,8 par semaine », et c'est ce chiffre-là qui se compare à ta cible.":
+      "The unit your target is written in, and nothing else: it does not decide what you are looking at. When the displayed period fits within one cadence — a monthly goal read over a month — you read your CUMULATIVE figure against your target: « 196 € out of 250 € » on the 19th, and nothing is predicted about what you will spend before the 30th. When it contains several — a weekly goal read over a month — it is an AVERAGE over the time already elapsed: « 3.8 per week », and that is the figure compared to your target.",
+    "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.":
+      "Ticked goals appear under the dashboard charts, for the period and currency you are looking at there. The others stay here. It is in front of the month's expenses that one wonders whether a rule is being kept — but a block that grows without end would eventually push the charts off screen.",
+    "Ce que tu t'es fixé, mesuré sur la période affichée ci-dessus et dans la monnaie de l'onglet. Le grand chiffre est ramené à la cadence de l'objectif ; la ligne du dessous dit ce qui a servi à le calculer. Rien ici n'influe sur tes soldes ni sur tes graphes : un objectif regarde, il ne change aucun montant. Ils se créent et se modifient dans Budget → Objectifs.":
+      "What you set yourself, measured over the period shown above and in the tab's currency. The large figure is brought back to the goal's cadence; the line below says what was used to compute it. Nothing here affects your balances or your charts: a goal observes, it changes no amount. They are created and edited in Budget → Goals.",
+
     /* ===== Reprise de traduction, lot 2 : les libellés courts et les
        fragments de phrase coupés par un <strong> ou un <em>. ===== */
     "&larr; Retour au tableau de bord":
