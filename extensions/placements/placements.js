@@ -958,10 +958,40 @@ async function ajouterTotauxPlacementsSurCartes() {
           `.compte-solde-groupe[data-monnaie-id="${bloc.monnaie_id}"]`
         );
         if (!groupe) return;
-        const ligne = document.createElement("div");
-        ligne.className = "compte-total-placement";
-        ligne.textContent = `${t("Total")} : ${formatMontant(bloc.total, bloc.monnaie_id)}`;
-        groupe.appendChild(ligne);
+
+        // LE GROS CHIFFRE EST CE QUE LE COMPTE VAUT, pas ce qu'il reste en
+        // espèces — et les deux étaient à l'envers.
+        //
+        // Sur un compte courant, le solde EST la réponse à « combien j'ai ».
+        // Sur un compte-titres, non : les espèces y sont le fond de tiroir
+        // entre deux ordres, souvent quelques euros, parfois zéro, pendant que
+        // les titres portent tout le reste. La carte annonçait donc « 12,40 € »
+        // en gros et « Total : 18 430,00 € » en petit, sous le gros — soit la
+        // seule information qu'on vient chercher, écrite en note de bas de
+        // page. On les échange : le total prend la place du solde, les espèces
+        // descendent à la ligne des montants secondaires.
+        //
+        // LE CHIFFRE ÉCHANGÉ GARDE SON CODE COULEUR : `classeMontant` décide du
+        // gris d'un zéro, et un total qui ne passerait pas par elle afficherait
+        // « 0,00 € » de la même encre qu'un portefeuille bien rempli.
+        const principal = groupe.querySelector(".compte-solde");
+        if (principal) {
+          principal.className = `compte-solde ${classeMontant(
+            bloc.total,
+            bloc.total < 0 ? "negatif" : ""
+          )}`;
+          principal.textContent = formatMontant(bloc.total, bloc.monnaie_id);
+        }
+
+        // Les espèces AVANT le projeté : les deux parlent du même argent
+        // liquide, et le projeté commente celui-ci, pas le total au-dessus.
+        const especes = document.createElement("div");
+        especes.className = "compte-total-placement";
+        especes.textContent = `${t("Espèces")} : ${formatMontant(
+          bloc.solde_espece,
+          bloc.monnaie_id
+        )}`;
+        groupe.insertBefore(especes, groupe.querySelector(".compte-projete"));
       });
 
       // DRILL-THROUGH : un seul lien par carte (pas un par monnaie, la page

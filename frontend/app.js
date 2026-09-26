@@ -24,6 +24,17 @@ appliquerTextes(document.body);
  */
 traduireDomStatique(document.body);
 
+/**
+ * Les puces des blocs d'aide, EN TROISIÈME et jamais avant.
+ *
+ * `appliquerTextes` pose la phrase française, `traduireDomStatique` la remplace
+ * par l'anglais — les deux travaillent sur UN nœud de texte, et c'est ce qui
+ * permet au dictionnaire de connaître la phrase entière. Ce n'est qu'ensuite
+ * qu'on peut la découper en liste sans avoir à inventer une clé par puce (cf.
+ * textes.js, `appliquerPuces`).
+ */
+appliquerPuces(document.body);
+
 // Deux boutons-drapeaux à bascule (pas de <select> : un <option> ne peut pas
 // dessiner un vrai drapeau, cf. index.html). `aria-pressed` porte à la fois
 // l'état visuel (cf. .langue-drapeau[aria-pressed="true"]) et l'état
@@ -36,6 +47,31 @@ traduireDomStatique(document.body);
     btn.addEventListener("click", () => changerLangue(btn.dataset.langue));
   });
 })();
+
+/* ---------- LE LIEN « FEEDBACK » DE LA BARRE LATÉRALE ----------
+ *
+ * L'ADRESSE EST DANS `index.html`, dans le `href` de `#lien-feedback`, et nulle
+ * part ailleurs : c'est le seul endroit à changer. Ce code-ci ne fait que la
+ * relire.
+ *
+ * POURQUOI UN ÉCOUTEUR PLUTÔT QUE LE SEUL `target="_blank"`. Dans le navigateur,
+ * l'attribut suffit et rien de ceci ne s'exécute. Dans la FENÊTRE DE BUREAU, il
+ * ne veut rien dire — un navigateur embarqué n'a ni onglet ni fenêtre à ouvrir :
+ * selon la plateforme le clic ne fait rien (ce qui se lit comme une panne) ou
+ * remplace l'application par la page, sans barre d'adresse pour en revenir. On
+ * passe donc par le pont de la fenêtre, qui la donne au navigateur du système
+ * (cf. desktop/app_desktop.py, ApiBureau.ouvrir_lien_externe).
+ *
+ * `window.pywebview` EST ABSENT DANS UN NAVIGATEUR : c'est ce qui distingue les
+ * deux cas, et c'est déjà ainsi que l'écran de premier démarrage choisit entre
+ * le sélecteur du système et la saisie à la main.
+ */
+document.getElementById("lien-feedback")?.addEventListener("click", (e) => {
+  const pont = window.pywebview?.api?.ouvrir_lien_externe;
+  if (!pont) return; // Navigateur : `target="_blank"` fait le travail.
+  e.preventDefault();
+  pont(e.currentTarget.href);
+});
 
 const state = {
   meta: null,
@@ -198,6 +234,30 @@ function capitalizeFirst(text) {
 // valeur d'énumération, pas une donnée saisie — elle se traduit.
 function statutLabel(value) {
   return capitalizeFirst(t(value));
+}
+
+/* ---------- Le statut d'une opération, côté formulaire ----------
+ *
+ * UNE CASE, ET NON PLUS UN MENU À DEUX ENTRÉES. `Statut` n'a jamais eu que deux
+ * valeurs — « réel » et « prévisionnel » — et un menu déroulant demandait deux
+ * clics et une lecture pour répondre à une question binaire, en dehors de la
+ * rangée où toutes les autres questions binaires du formulaire sont posées.
+ *
+ * RIEN NE CHANGE CÔTÉ SERVEUR : ces deux fonctions sont le seul endroit où la
+ * case se traduit en statut, et l'unique raison de les écrire plutôt que de
+ * lire `.checked` partout. Le jour où un troisième statut existerait, c'est ici
+ * — et seulement ici — que le menu reviendrait.
+ *
+ * DÉCOCHÉE VAUT « RÉEL », le cas ordinaire : on saisit presque toujours ce qui
+ * vient de se passer, prévoir est le geste particulier. */
+function statutOperationSaisi() {
+  return document.getElementById("operation-previsionnelle").checked
+    ? STATUT_PREVISIONNEL
+    : STATUT_REEL;
+}
+
+function poserStatutOperation(statut) {
+  document.getElementById("operation-previsionnelle").checked = statut === STATUT_PREVISIONNEL;
 }
 
 /**
@@ -681,6 +741,80 @@ async function apiFetch(path, options = {}) {
     throw new Error(message);
   }
   return data;
+}
+
+/* ---------- Les rangements d'écran (PreferenceInterface, migration 0069) ----------
+ *
+ * LA RÈGLE, ET ELLE VAUT POUR TOUT CE QUI VIENDRA APRÈS : ce qui désigne des
+ * IDENTIFIANTS de la base vit DANS la base ; ce qui décrit le POSTE reste dans
+ * le `localStorage`.
+ *
+ * Les dossiers de la galerie des règles rangent des règles PAR LEUR ID, l'ordre
+ * des colonnes de correspondances range des catégories par leur id, le preset
+ * d'import mémorisé EST un id. Aucun des trois ne veut dire quoi que ce soit
+ * hors de la base qui porte ces lignes : le même rangement appliqué à une autre
+ * base désigne d'autres règles, ou aucune, et une base emportée sur un second
+ * poste arrive sans son rangement alors qu'elle porte les lignes rangées. Le
+ * thème, la langue, la touche qui fige l'infobulle et la progression d'un
+ * tutoriel, eux, décrivent une habitude de poste et restent là où ils sont.
+ *
+ * DEUX ROUTES ET RIEN DE PLUS, parce que le serveur ne lit jamais ce qu'il
+ * range : l'écran lit tout d'un coup et réécrit tout d'un coup.
+ *
+ * JAMAIS DE LEVÉE. Un rangement d'écran qui échoue ne doit pas emporter la page
+ * qui l'appelle : `lirePreference` rend `null` (indistinguable, pour l'appelant,
+ * d'une clé jamais écrite) et `ecrirePreference` rend `false`. Perdre un
+ * rangement est un désagrément ; perdre l'écran qui le portait en est un autre.
+ */
+async function lirePreference(cle) {
+  try {
+    const reponse = await apiFetch(`/preferences/${encodeURIComponent(cle)}`);
+    return reponse ? reponse.valeur : null;
+  } catch (err) {
+    console.warn(`Rangement « ${cle} » illisible :`, err);
+    return null;
+  }
+}
+
+async function ecrirePreference(cle, valeur) {
+  try {
+    await apiFetch(`/preferences/${encodeURIComponent(cle)}`, {
+      method: "PUT",
+      body: JSON.stringify({ valeur }),
+    });
+    return true;
+  } catch (err) {
+    console.warn(`Rangement « ${cle} » non enregistré :`, err);
+    return false;
+  }
+}
+
+/**
+ * Le contenu d'une ancienne clé de `localStorage`, à reprendre UNE FOIS puis à
+ * effacer.
+ *
+ * CE QUI SE PASSE À LA PREMIÈRE OUVERTURE APRÈS LA MIGRATION. Le rangement
+ * existe encore sur le poste et pas encore en base : le reprendre évite de
+ * demander à l'utilisateur de refaire des dossiers qu'il avait déjà faits. On
+ * l'efface dans la foulée, sinon il reviendrait écraser, à chaque ouverture, le
+ * rangement qu'on aurait modifié depuis.
+ *
+ * SEULEMENT SI LA BASE N'A RIEN — « rien rangé » (`null`) et « rangé, puis
+ * vidé » (un objet vide) ne sont pas la même chose, faute de quoi vider ses
+ * dossiers les ferait réapparaître au chargement suivant.
+ */
+function reprendreDuLocalStorage(cleLocale) {
+  try {
+    const brut = localStorage.getItem(cleLocale);
+    if (brut === null) return null;
+    localStorage.removeItem(cleLocale);
+    return JSON.parse(brut);
+  } catch (err) {
+    // Contenu illisible, ou stockage indisponible : il n'y a rien à reprendre,
+    // et surtout rien à casser pour si peu.
+    console.warn(`Ancien rangement « ${cleLocale} » illisible :`, err);
+    return null;
+  }
 }
 
 // Variante multipart (upload de fichier) : pas de Content-Type manuel, le
@@ -1405,6 +1539,10 @@ function majAffichageToucheGel() {
 function loadParametresGeneraux() {
   majAffichageTheme();
   majAffichageToucheGel();
+  // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
+  // parcoursDisponibles) : on les relit à chaque passage ici.
+  if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();
+
 }
 
 document.getElementById("reglage-touche-gel")?.addEventListener("keydown", (e) => {
@@ -1456,10 +1594,6 @@ async function loadMeta() {
   state.meta = await apiFetch("/meta");
   await refreshTypesComptes();
   await refreshTypesOperation();
-  fillSelect(document.getElementById("operation-statut"), state.meta.statuts, {
-    labels: statutLabel,
-  });
-
   // Un `<select class="filtre-select-statut">` par onglet de la page
   // Opérations qui filtre sur le statut (cf. index.html) : chacun garde son
   // option "Tous" en tête, comme avant le passage au filtrage par onglet.
@@ -1965,6 +2099,9 @@ function renderFluxPeriode(kpis, monnaieId) {
   //
   // `sorties` est un montant POSITIF (un total dépensé s'écrit en positif, cf.
   // ci-dessus) : on le retranche, on ne l'ajoute pas.
+  // Le détail des deux cartes qu'on vient d'écrire (cf. attacherInfobulleFlux).
+  attacherInfobulleFlux(kpis, monnaieId);
+
   const attribuee = entrees - sorties;
   const attribueeEl = document.getElementById("kpi-variation-attribuee");
   attribueeEl.textContent = `${
@@ -2475,6 +2612,36 @@ function partsCategoriesDashboard(depenses, visibles, options = {}) {
  * dépenses fondues. Il apparaissait en plus avec le délai du navigateur
  * (~1 s), là où une infobulle maison suit le curseur immédiatement.
  */
+/**
+ * Le top des plus grosses lignes, tel qu'il s'affiche dans une infobulle.
+ *
+ * ÉCRIT UNE FOIS POUR DEUX APPELANTS : l'infobulle d'une catégorie (barre,
+ * tranche, ligne de légende) et celle des deux cartes de flux. Les deux
+ * répondent à la même question — « d'où vient ce chiffre ? » — et deux copies
+ * de cette liste auraient fini par ne plus se ressembler au premier ajustement.
+ */
+function listeTopHtml(top, monnaieId) {
+  const lignes = (top || [])
+    .map((d) => {
+      // Une dépense fondue à partir de plusieurs opérations le dit ; une seule
+      // reste nue (cf. DepenseTopRead.nombre). Le nombre entre parenthèses ne
+      // s'affiche QU'À PARTIR DE DEUX : « (1) » n'apprendrait rien et mettrait
+      // une parenthèse au bout de presque chaque ligne, exactement là où l'œil
+      // cherche le libellé.
+      const compte =
+        d.nombre > 1 ? ` <i class="histo-bulle-compte">(${d.nombre})</i>` : "";
+      const nature = d.nature ? escapeHtml(d.nature) : `<span class="hint">${t("Sans libellé")}</span>`;
+      return `<li>
+        <span class="histo-bulle-nature">${nature}${compte}</span>
+        <span class="histo-bulle-montant">${formatMontant(d.montant, monnaieId)}</span>
+      </li>`;
+    })
+    .join("");
+  return lignes
+    ? `<ul class="histo-bulle-liste">${lignes}</ul>`
+    : `<div class="histo-bulle-vide">${t("Aucune opération sur la période.")}</div>`;
+}
+
 function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
   const {
     total = null,
@@ -2482,6 +2649,12 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
     partLibelle = null,
     budget = null,
     objectif = null,
+    // LA PÉRIODE COMPARÉE (page Budget) : son libellé, et le chiffre du même
+    // genre que celui qu'on montre pour la période courante — un total pour
+    // l'histogramme, une part pour le camembert.
+    compareLibelle = null,
+    compareTotal = null,
+    comparePart = null,
   } = chiffres;
 
   // Les chiffres, en colonnes : c'est tout l'intérêt de les poser l'un sous
@@ -2508,6 +2681,12 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
   if (objectif != null && objectif > 0) {
     lignesChiffres.push([t("Objectif"), formatPourcentage(objectif)]);
   }
+  if (compareLibelle && compareTotal != null) {
+    lignesChiffres.push([compareLibelle, formatMontant(compareTotal, monnaieId)]);
+  }
+  if (compareLibelle && comparePart != null) {
+    lignesChiffres.push([compareLibelle, formatPourcentage(comparePart)]);
+  }
 
   const chiffresHtml = lignesChiffres.length
     ? `<ul class="histo-bulle-chiffres">${lignesChiffres
@@ -2520,27 +2699,7 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
         .join("")}</ul>`
     : "";
 
-  const top = depense.top_depenses || [];
-  const lignesTop = top
-    .map((d) => {
-      // Une dépense fondue à partir de plusieurs opérations le dit ; une seule
-      // reste nue (cf. DepenseTopRead.nombre). Le nombre entre parenthèses ne
-      // s'affiche QU'À PARTIR DE DEUX : « (1) » n'apprendrait rien et mettrait
-      // une parenthèse au bout de presque chaque ligne, exactement là où l'œil
-      // cherche le libellé.
-      const compte =
-        d.nombre > 1 ? ` <i class="histo-bulle-compte">(${d.nombre})</i>` : "";
-      const nature = d.nature ? escapeHtml(d.nature) : `<span class="hint">${t("Sans libellé")}</span>`;
-      return `<li>
-        <span class="histo-bulle-nature">${nature}${compte}</span>
-        <span class="histo-bulle-montant">${formatMontant(d.montant, monnaieId)}</span>
-      </li>`;
-    })
-    .join("");
-
-  const corps = top.length
-    ? `<ul class="histo-bulle-liste">${lignesTop}</ul>`
-    : `<div class="histo-bulle-vide">${t("Aucune opération sur la période.")}</div>`;
+  const corps = listeTopHtml(depense.top_depenses, monnaieId);
 
   return `<div class="histo-bulle-titre">${escapeHtml(
     libelleCategorie(depense.categorie)
@@ -2775,6 +2934,72 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
 }
 
 /**
+ * D'OÙ VIENT CE TOTAL : les trois plus grosses lignes, au survol des cartes
+ * « Total Entrées » et « Total Dépenses ».
+ *
+ * UN TOTAL NE DIT JAMAIS D'OÙ IL VIENT, et c'est la première question qu'on se
+ * pose devant un mois qui sort de l'ordinaire. Il fallait jusqu'ici ouvrir la
+ * page Opérations, trier par montant et refaire le tri de tête — pour trois
+ * lignes que le serveur a déjà sous la main en calculant la carte.
+ *
+ * MÊME PÉRIMÈTRE QUE LA CARTE (cf. services/soldes.get_top_flux_periode) : les
+ * lignes additionnent bien une part du chiffre affiché juste au-dessus. C'est
+ * la seule chose qui rende ce détail utile — un détail dont la somme ne vaut
+ * pas le chiffre qu'il détaille est pire que pas de détail du tout.
+ *
+ * PAS DE GEL, PAS DE DRILL-THROUGH, contrairement aux infobulles des graphes :
+ * celles-là portent un bouton et un choix, celle-ci ne porte que trois lignes à
+ * lire. Elle n'a donc pas à recevoir la souris, et `.histo-bulle` seule (sans
+ * `histo-bulle-interactive`) la laisse traverser.
+ *
+ * ELLE EST RECÂBLÉE À CHAQUE RENDU, comme les cartes qu'elle décrit : les
+ * écouteurs partent avec les anciens nœuds, et `data-infobulle-flux` garde le
+ * conteneur de se voir poser deux bulles.
+ */
+function attacherInfobulleFlux(kpis, monnaieId) {
+  const rangee = document.querySelector("#section-dashboard .flux-periode");
+  if (!rangee) return;
+  let bulle = rangee.querySelector(".histo-bulle");
+  if (!bulle) {
+    bulle = document.createElement("div");
+    bulle.className = "histo-bulle";
+    bulle.setAttribute("role", "tooltip");
+    rangee.appendChild(bulle);
+  }
+
+  const cartes = [
+    ["kpi-total-entrees", "Total Entrées", kpis.top_entrees],
+    ["kpi-total-sorties", "Total Dépenses", kpis.top_sorties],
+  ];
+
+  cartes.forEach(([idValeur, titre, top]) => {
+    const carte = document.getElementById(idValeur)?.closest(".flux-carte");
+    if (!carte) return;
+    // Un seul jeu d'écouteurs par carte : `renderFluxPeriode` est rappelé à
+    // chaque changement de période, et les empiler referait le même travail N
+    // fois. Le contenu, lui, est relu à chaque survol — il vient de la
+    // fermeture la plus récente.
+    const contenu = () =>
+      `<div class="histo-bulle-titre">${escapeHtml(t(titre))}</div>${listeTopHtml(
+        top,
+        monnaieId
+      )}`;
+    carte.dataset.infobulleFlux = "";
+    carte.onmouseenter = (e) => {
+      if (infobulleGelee) return;
+      bulle.innerHTML = contenu();
+      bulle.classList.add("visible");
+      placerInfobulleHistogramme(bulle, rangee, e);
+    };
+    carte.onmousemove = (e) => {
+      if (infobulleGelee) return;
+      placerInfobulleHistogramme(bulle, rangee, e);
+    };
+    carte.onmouseleave = () => bulle.classList.remove("visible");
+  });
+}
+
+/**
  * L'histogramme des dépenses par catégorie.
  *
  * `container` PLUTÔT QU'UN IDENTIFIANT CÂBLÉ : ce graphe n'est plus le seul du
@@ -2794,7 +3019,41 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
  * Le conteneur doit être positionné en relatif : l'infobulle s'y place en
  * absolu (cf. .histo-bulle et placerInfobulleHistogramme).
  */
-function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
+/* ---------- LA PÉRIODE COMPARÉE, HACHURÉE ET GRISÉE ----------
+ *
+ * La page Budget compare deux périodes sur les MÊMES graphes plutôt que sur
+ * deux graphes côte à côte : deux histogrammes voisins obligent l'œil à faire
+ * l'aller-retour barre par barre, alors que superposés, l'écart se lit sur
+ * place. La période comparée est donc dessinée PAR-DESSUS, hachurée (les
+ * rayures laissent voir la barre pleine en dessous) et grisée (elle est la
+ * référence, pas le sujet). LA PLUS HAUTE DES DEUX VALEURS NE REMPLIT QUE CE
+ * QUI DÉPASSE DE L'AUTRE. Sur le camembert, deux anneaux : la période comparée
+ * DEHORS, en grand (des hachures se lisent mal en petit), la courante dedans.
+
+ *
+ * UN MOTIF PAR COULEUR ET PAR GRAPHE : les identifiants de `<pattern>` sont
+ * globaux au document, et deux graphes visibles en même temps (dashboard et
+ * page Budget) ne doivent pas se prendre leurs motifs.
+ */
+let compteurMotifsHachure = 0;
+
+function motifHachure(couleur, prefixe) {
+  const id = `${prefixe}-${compteurMotifsHachure++}`;
+  return {
+    id,
+    def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="${couleur}" opacity="0.18" />
+        <rect width="2.6" height="6" fill="${couleur}" />
+      </pattern>`,
+  };
+}
+
+function renderHistogrammeDepenses(depenses, monnaieId, container = null, options = {}) {
+  // `options.comparaison` : les dépenses d'une SECONDE période, superposées
+  // hachurées (cf. « LA PÉRIODE COMPARÉE »). `options.libelleCompare` la nomme
+  // dans l'infobulle.
+  const comparaison = options.comparaison || null;
+  const compareParNom = new Map((comparaison || []).map((d) => [d.categorie, d]));
   container = container || document.getElementById("dashboard-histogramme");
   if (!container) return;
   container.innerHTML = "";
@@ -2812,8 +3071,16 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
 
   const valeurMax = Math.max(
     1,
-    ...depenses.map((d) => Math.max(d.total_reel, d.total_previsionnel, d.budget_alloue))
+    ...depenses.map((d) =>
+      Math.max(
+        d.total_reel,
+        d.total_previsionnel,
+        d.budget_alloue,
+        compareParNom.get(d.categorie)?.total_previsionnel || 0
+      )
+    )
   );
+  const motifs = [];
   const echelle = zoneHauteur / (valeurMax * 1.1);
 
   const largeurBande = (largeur - margeCote * 2) / depenses.length;
@@ -2847,6 +3114,32 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
         tickBudget = `<rect class="histo-repere" x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="var(--budget-line)" />`;
       }
 
+      // LA MÊME CATÉGORIE SUR LA PÉRIODE COMPARÉE. LA PLUS HAUTE DES DEUX
+      // VALEURS NE REMPLIT QUE CE QUI DÉPASSE DE L'AUTRE : la plus basse se lit
+      // entière dans son propre remplissage, et l'écart se lit à part, dans
+      // celui de la plus haute.
+      //   - comparée AU-DESSUS : la barre pleine reste telle quelle, les
+      //     hachures ne couvrent que le morceau qui la dépasse ;
+      //   - comparée EN DESSOUS : elle est hachurée en entier, et la barre
+      //     pleine ne se voit plus qu'au-dessus d'elle — un fond masque la
+      //     partie pleine qu'elle recouvre.
+      let barreComparee = "";
+      const comparee = compareParNom.get(d.categorie);
+      if (comparee && comparee.total_previsionnel > 0) {
+        const motif = motifHachure(couleur, "hachure-histo");
+        motifs.push(motif.def);
+        const hCompare = comparee.total_previsionnel * echelle;
+        const hCourante = d.total_previsionnel * echelle;
+        const base = hauteur - margeBas;
+        if (hCompare > hCourante) {
+          barreComparee = `<rect class="histo-fut histo-comparaison" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare - hCourante}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
+        } else {
+          barreComparee = `<rect class="histo-fut" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare}" fill="var(--bg-surface)" />
+          <rect class="histo-fut histo-comparaison" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
+        }
+      }
+
+
       const nom = libelleCategorie(d.categorie);
       const label = nom.length > 12 ? nom.slice(0, 11) + "…" : nom;
 
@@ -2866,6 +3159,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
           ${zoneSurvol}
           <rect class="histo-fut" x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
           ${barrePrevisionnel}
+          ${barreComparee}
           ${tickBudget}
           <text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${label}</text>
           <text class="histo-valeur" x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${d.total_previsionnel.toFixed(0)}</text>
@@ -2878,6 +3172,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
 
   container.innerHTML = `
     <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="${hauteur}" xmlns="http://www.w3.org/2000/svg">
+      <defs>${motifs.join("")}</defs>
       ${ligneBase}
       ${barres}
     </svg>
@@ -2897,6 +3192,10 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
         html: contenuInfobulleCategorie(depense, monnaieId, {
           total: depense.total_previsionnel,
           budget: depense.budget_alloue,
+          compareLibelle: comparaison ? options.libelleCompare || t("Comparée") : null,
+          compareTotal: comparaison
+            ? compareParNom.get(depense.categorie)?.total_previsionnel || 0
+            : null,
         }),
       };
     }
@@ -2911,6 +3210,12 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null) {
  * ils auraient été illisibles sur tout ce qui pèse moins de quelques pour cent
  * — c'est-à-dire précisément ce qu'on vient vérifier.
  */
+// Miroir de `constants.Statut` : les deux seules valeurs que le serveur
+// connaisse. Écrites une fois, pour que la case du formulaire et les filtres
+// parlent du même vocabulaire que lui.
+const STATUT_REEL = "réel";
+const STATUT_PREVISIONNEL = "prévisionnel";
+
 const PIE_CENTRE_X = 190;
 const PIE_CENTRE_Y = 110;
 const PIE_RAYON = 80; // rayon MOYEN de l'anneau (le trait est centré dessus)
@@ -2936,6 +3241,31 @@ const PIE_HORIZONTALE = 7;
 // pieEcarterEtiquettes) : en dessous, deux parts contiguës écrivent l'une sur
 // l'autre.
 const PIE_ECART_MIN = 13;
+
+/* LA MARGE AU-DESSUS DU DESSIN, et pourquoi il en faut une.
+ *
+ * L'étiquette la plus haute se pose à `PIE_CENTRE_Y - (PIE_BORD + PIE_OBLIQUE)`,
+ * soit y = 2 — et un texte de 10 en `dominant-baseline: middle` déborde de cinq
+ * unités au-dessus de son y. La tranche de midi écrivait donc son pourcentage à
+ * cheval sur le bord du viewBox, coupé en deux, juste sous la rangée d'onglets
+ * « État actuel / Budget » : de loin, cela se lit comme un nombre caché par
+ * l'onglet.
+ *
+ * PAS DE CALCUL DYNAMIQUE : il manque une dizaine d'unités, toujours les mêmes,
+ * et elles ne dépendent de rien. Le viewBox commence donc au-dessus de zéro
+ * (`0 -PIE_MARGE_HAUTE`) plutôt que de translater tout le dessin : les
+ * coordonnées de l'anneau et des crochets ne bougent pas d'un pouce, et
+ * `pieEcarterEtiquettes` continue de raisonner sur la même hauteur.
+ *
+ * LA PLACE VIENT DE LA RANGÉE D'ONGLETS, qui portait une marge basse d'un `rem`
+ * héritée de `.sous-onglets` alors qu'elle vit dans un en-tête qui a déjà la
+ * sienne (cf. `.camembert-vues` dans style.css). Le bloc garde donc exactement
+ * la même hauteur qu'avant — on ne fait que la répartir autrement. */
+const PIE_MARGE_HAUTE = 12;
+// La hauteur RENDUE du graphe, en pixels. Elle suit la marge : sans cela, le
+// viewBox plus haut serait ramené dans la même boîte, et le disque rapetissé de
+// ce qu'on vient de lui donner.
+const PIE_HAUTEUR_RENDU = 250 + PIE_MARGE_HAUTE;
 
 /**
  * Écarte verticalement les étiquettes d'un même côté du disque.
@@ -2983,7 +3313,18 @@ function pieEcarterEtiquettes(etiquettes, hauteur) {
  * avoir une par graphe revenait à écrire deux fois la même liste de couleurs,
  * l'une sous des barres et l'autre sous un anneau.
  */
-function renderPieChartDepenses(depenses, monnaieId, container, parts) {
+// LE PETIT ANNEAU, quand on compare : celui de la période COURANTE, en aplat —
+// les hachures de la période comparée prennent le grand, où elles se lisent.
+// Assez loin du centre pour y laisser le total.
+const PIE_RAYON_COMPARE = 50;
+const PIE_EPAISSEUR_COMPARE = 16;
+
+function renderPieChartDepenses(depenses, monnaieId, container, parts, options = {}) {
+  // `options.comparaison` : les PARTS (cf. partsCategoriesDashboard) d'une
+  // seconde période, dessinées en anneau EXTÉRIEUR, hachuré et grisé ; la
+  // période courante passe alors dans le petit anneau. Chaque anneau garde SA
+  // référence : les deux peuvent être ouverts.
+  const partsCompare = options.comparaison || null;
   container = container || document.getElementById("dashboard-camembert");
   if (!container) return;
   container.innerHTML = "";
@@ -3000,7 +3341,15 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
 
   const largeur = PIE_CENTRE_X * 2;
   const hauteur = PIE_CENTRE_Y * 2;
-  const circonference = 2 * Math.PI * PIE_RAYON;
+  // AVEC UNE COMPARAISON, LES DEUX ANNEAUX ÉCHANGENT LEUR PLACE : la période
+  // comparée (hachurée) passe DEHORS, en grand, la période courante (pleine)
+  // dedans. Des hachures se lisent moins bien qu'un aplat ; les dessiner dans
+  // le petit anneau les rendait illisibles.
+  const rayonPrincipal = partsCompare ? PIE_RAYON_COMPARE : PIE_RAYON;
+  const epaisseurPrincipale = partsCompare ? PIE_EPAISSEUR_COMPARE : PIE_EPAISSEUR;
+  const rayonCompare = PIE_RAYON;
+  const epaisseurCompare = PIE_EPAISSEUR;
+  const circonference = 2 * Math.PI * rayonPrincipal;
 
   // CE QUE REPRÉSENTE UN TOUR COMPLET. En vue « état actuel », le total
   // dépensé : l'anneau est plein par construction. En vue « budget », le budget
@@ -3029,8 +3378,8 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
   // lirait comme un graphe à moitié dessiné plutôt que comme un budget à moitié
   // consommé.
   const piste = vueBudget
-    ? `<circle class="camembert-piste" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
-        fill="none" stroke-width="${PIE_EPAISSEUR}" />`
+    ? `<circle class="camembert-piste" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${rayonPrincipal}"
+        fill="none" stroke-width="${epaisseurPrincipale}" />`
     : "";
 
   const segments = tranches
@@ -3043,8 +3392,8 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
       // qu'ont mis les tranches précédentes. Les deux valeurs voyagent en
       // variables CSS parce que c'est la seule façon d'écrire une keyframe
       // commune à des tranches qui n'ont pas la même longueur.
-      const segment = `<circle class="camembert-part" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${PIE_RAYON}"
-        fill="none" stroke="${couleur}" stroke-width="${PIE_EPAISSEUR}"
+      const segment = `<circle class="camembert-part" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${rayonPrincipal}"
+        fill="none" stroke="${couleur}" stroke-width="${epaisseurPrincipale}"
         stroke-dasharray="${longueur} ${circonference - longueur}"
         stroke-dashoffset="${-angleCumule * circonference}"
         style="--tour:${circonference};--part:${longueur};--reste:${circonference - longueur};--retard:${(angleCumule * PIE_ANIMATION_MS).toFixed(0)}ms;--duree:${Math.max(fraction * PIE_ANIMATION_MS, 60).toFixed(0)}ms" />`;
@@ -3075,7 +3424,10 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
   // Chaque côté s'écarte séparément : une étiquette de gauche ne gêne jamais
   // une étiquette de droite, et les mêler aurait poussé les deux colonnes vers
   // le bas pour rien.
-  const rappels = [
+  // SANS ÉTIQUETTES QUAND ON COMPARE : elles se posent au bord de l'anneau
+  // extérieur, qui est alors celui de l'AUTRE période — elles auraient désigné
+  // la mauvaise tranche. Les parts restent dans l'infobulle et la légende.
+  const rappels = partsCompare ? "" : [
     ...pieEcarterEtiquettes(etiquettes.filter((e) => e.droite), hauteur),
     ...pieEcarterEtiquettes(etiquettes.filter((e) => !e.droite), hauteur),
   ]
@@ -3093,6 +3445,40 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
         </g>`;
     })
     .join("");
+
+  // L'ANNEAU DE LA PÉRIODE COMPARÉE (dehors) : même calcul que l'autre, sur
+  // les parts comparées.
+  const motifs = [];
+  let segmentsCompare = "";
+  if (partsCompare && partsCompare.total > 0) {
+    const circCompare = 2 * Math.PI * rayonCompare;
+    const depasseCompare =
+      partsCompare.vueBudget && partsCompare.total > partsCompare.budgetTotal;
+    const refCompare =
+      partsCompare.vueBudget && !depasseCompare ? partsCompare.budgetTotal : partsCompare.total;
+    let cumul = 0;
+    const pisteCompare = partsCompare.vueBudget
+      ? `<circle class="camembert-piste" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${rayonCompare}"
+          fill="none" stroke-width="${epaisseurCompare}" />`
+      : "";
+    segmentsCompare =
+      pisteCompare +
+      partsCompare.tranches
+        .map((d, i) => {
+          const fraction = d.total_previsionnel / refCompare;
+          const longueur = fraction * circCompare;
+          const motif = motifHachure(couleurCategorie(d.couleur_index ?? i), "hachure-pie");
+          motifs.push(motif.def);
+          const cercle = `<circle class="camembert-part camembert-comparaison" data-index-compare="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${rayonCompare}"
+            fill="none" stroke="url(#${motif.id})" stroke-width="${epaisseurCompare}"
+            stroke-dasharray="${longueur} ${circCompare - longueur}"
+            stroke-dashoffset="${-cumul * circCompare}"
+            style="--tour:${circCompare};--part:${longueur};--reste:${circCompare - longueur};--retard:${(cumul * PIE_ANIMATION_MS).toFixed(0)}ms;--duree:${Math.max(fraction * PIE_ANIMATION_MS, 60).toFixed(0)}ms" />`;
+          cumul += fraction;
+          return cercle;
+        })
+        .join("");
+  }
 
   // AU CENTRE, CE À QUOI LES PARTS SE RAPPORTENT. En vue « état actuel », le
   // total dépensé — le dénominateur lui-même. En vue budget, les DEUX chiffres :
@@ -3116,14 +3502,16 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
              )}</text>`;
 
   container.innerHTML = `
-    <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="250"
+    <svg viewBox="0 ${-PIE_MARGE_HAUTE} ${largeur} ${hauteur + PIE_MARGE_HAUTE}"
+         width="100%" height="${PIE_HAUTEUR_RENDU}"
          xmlns="http://www.w3.org/2000/svg" class="camembert-svg">
+      <defs>${motifs.join("")}</defs>
       <!-- Part à midi, sens horaire : -90° ramène le début du premier tracé
            (3 heures, l'origine d'un cercle SVG) à midi. Seul l'anneau tourne —
            les traits de rappel et leurs textes sont déjà calculés en
            coordonnées d'écran, les faire tourner avec lui écrirait les
            pourcentages couchés. -->
-      <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${piste}${segments}</g>
+      <g transform="rotate(-90 ${PIE_CENTRE_X} ${PIE_CENTRE_Y})">${piste}${segments}${segmentsCompare}</g>
       ${rappels}
       ${centre}
     </svg>
@@ -3136,16 +3524,32 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts) {
     container,
     [...container.querySelectorAll("circle.camembert-part")],
     (cercle) => {
+      // L'ANNEAU INTÉRIEUR a sa propre liste de tranches : c'est la même
+      // infobulle, vue depuis la période comparée.
+      if (cercle.dataset.indexCompare !== undefined) {
+        const depense = partsCompare.tranches[Number(cercle.dataset.indexCompare)];
+        return {
+          depense,
+          html: contenuInfobulleCategorie(depense, monnaieId, {
+            part: partsCompare.part(depense),
+            partLibelle: options.libelleCompare || t("Comparée"),
+          }),
+        };
+      }
       const depense = tranches[Number(cercle.dataset.index)];
+      const comparee = partsCompare?.retenues.find((d) => d.categorie === depense.categorie);
       return {
         depense,
         html: contenuInfobulleCategorie(depense, monnaieId, {
           part: parts.part(depense),
           partLibelle: vueBudget ? t("Part du budget") : t("Part"),
           objectif: parts.objectif(depense),
+          compareLibelle: partsCompare ? options.libelleCompare || t("Comparée") : null,
+          comparePart: partsCompare ? (comparee ? partsCompare.part(comparee) : 0) : null,
         }),
       };
     }
+
   );
 }
 
@@ -3332,6 +3736,9 @@ async function drillThroughCategorie(depense) {
   panneau.querySelector('[data-filtre="categorieId"]').value = categorie.id;
   panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
   panneau.querySelector('[data-filtre="dateFin"]').value = fin;
+  // TROIS FILTRES POSÉS SANS QU'ON LES AIT TAPÉS : la section s'ouvre, sinon on
+  // arrive sur un tableau restreint dont rien à l'écran ne dit qu'il l'est.
+  ouvrirFiltresOnglet("classique");
   // LA PÉRIODE SUIT LES DATES QU'ON VIENT DE POSER, et c'est ce qui répare le
   // défaut de ce bouton : la page Opérations s'ouvrait sur SA période à elle —
   // le mois courant — pendant que le filtre bornait le mois de la barre
@@ -5244,9 +5651,9 @@ function rapprochementEstProposable() {
   if (type === "virement" || type === "remboursements" || type === "remboursement_pret") {
     return false;
   }
-  const statut = document.getElementById("operation-statut").value;
+  const statut = statutOperationSaisi();
   const recurrente = document.getElementById("operation-recurrente").checked;
-  return statut === "prévisionnel" || recurrente;
+  return statut === STATUT_PREVISIONNEL || recurrente;
 }
 
 function majBlocRapprochement() {
@@ -5254,11 +5661,17 @@ function majBlocRapprochement() {
   if (!bloc) return;
   assurerEditeurRapprochement();
   const proposable = rapprochementEstProposable();
-  bloc.style.display = proposable ? "" : "none";
+  // LA CASE RESTE DANS LA RANGÉE, éteinte quand il n'y a rien à reconnaître —
+  // une opération réelle et ponctuelle n'attend plus rien. Elle y était
+  // auparavant absente puis présente selon le statut : une cinquième case qui
+  // surgit sous les quatre autres décale tout ce qui l'entoure, au moment
+  // précis où l'on vient de cocher « Prévisionnelle » et où l'on regarde
+  // ailleurs.
+  eteindreCaseOperation("operation-rapprochement-case", "operation-rapprochement-actif", !proposable);
   const actif = document.getElementById("operation-rapprochement-actif");
-  // Décochée dès qu'elle cesse d'être proposée : une case cochée mais invisible
-  // continuerait d'envoyer une fenêtre sur une opération qui n'attend plus rien.
-  if (!proposable) actif.checked = false;
+  // Le bloc de champs, lui, paraît bien en dessous et seulement s'il a quelque
+  // chose à montrer.
+  bloc.style.display = proposable && actif.checked ? "" : "none";
   document.getElementById("operation-rapprochement-champs").style.display =
     proposable && actif.checked ? "" : "none";
 }
@@ -5353,7 +5766,26 @@ function assurerEditeurRapprochement() {
     .addEventListener("change", majBlocRapprochement);
   // La visibilité du bloc dépend du STATUT et de la RÉCURRENCE : les deux
   // peuvent changer sans passer par updateOperationTypeFields.
-  document.getElementById("operation-statut").addEventListener("change", majBlocRapprochement);
+  document.getElementById("operation-previsionnelle").addEventListener("change", majBlocRapprochement);
+}
+
+/**
+ * Éteint une case de la rangée SANS la retirer de l'écran.
+ *
+ * LA RÈGLE DE CETTE RANGÉE : une case ne bouge jamais. Elles disparaissaient
+ * l'une après l'autre au gré du type et des autres cases — cocher « Amortie »
+ * faisait sauter « Récurrente », changer de type faisait sauter « Découpée » —
+ * et les voisines se décalaient sous le curseur, si bien qu'on cochait la
+ * mauvaise en visant la bonne. Éteinte sur place, une case dit deux choses à la
+ * fois : qu'elle existe, et que la question ne se pose pas ici.
+ *
+ * ELLE EST AUSSI DÉCOCHÉE, toujours : une case cochée mais inerte continuerait
+ * d'envoyer sa valeur au serveur, lequel refuserait une combinaison que l'écran
+ * ne propose plus (récurrente ET amortie, par exemple).
+ */
+function eteindreCaseOperation(idBloc, idCase, eteinte) {
+  document.getElementById(idBloc).classList.toggle("champ-hors-sujet", eteinte);
+  if (eteinte && idCase) document.getElementById(idCase).checked = false;
 }
 
 function updateOperationTypeFields() {
@@ -5375,14 +5807,18 @@ function updateOperationTypeFields() {
   const estDecoupable = type === TYPE_DECOUPABLE;
   // Décochée dès qu'elle cesse d'être proposée : une case cochée mais invisible
   // continuerait d'envoyer des parts que le serveur refuserait pour ce type.
-  if (!estDecoupable) document.getElementById("operation-decoupee").checked = false;
+  eteindreCaseOperation("operation-decoupee-bloc", "operation-decoupee", !estDecoupable);
   const decoupee = decoupeEstActive();
-  document.getElementById("operation-decoupee-bloc").style.display = estDecoupable ? "" : "none";
   document.getElementById("operation-decoupe-bloc").style.display = decoupee ? "" : "none";
   document.getElementById("operation-categorie-bloc").style.display =
     TYPES_CATEGORIE_LIBRE.has(type) && !decoupee ? "" : "none";
-  document.getElementById("operation-statut-bloc").style.display =
-    estReglement || estPret ? "none" : "";
+  // Un règlement et un prêt reçu sont toujours réels : ils décrivent de l'argent
+  // qui a bougé. La case s'éteint (et se décoche) plutôt que de disparaître.
+  eteindreCaseOperation(
+    "operation-statut-bloc",
+    "operation-previsionnelle",
+    estReglement || estPret
+  );
 
   // Récurrence : pas de sens pour un virement (paire d'écritures liées, CRUD
   // séparé) ni pour un règlement (solde une dette précise, pas périodique).
@@ -5394,21 +5830,18 @@ function updateOperationTypeFields() {
   const recurrenteBloc = document.getElementById("operation-recurrente-bloc");
   const recurrenceChampsBloc = document.getElementById("operation-recurrence-champs-bloc");
   const recurrenceInfo = document.getElementById("operation-recurrence-info");
-  if (!estRecurrenceEligible) {
-    recurrenteBloc.style.display = "none";
-    recurrenceChampsBloc.style.display = "none";
-    recurrenceInfo.style.display = "none";
-  } else if (operationEditionEstOccurrenceGeneree) {
-    recurrenteBloc.style.display = "none";
-    recurrenceChampsBloc.style.display = "none";
-    recurrenceInfo.style.display = "";
-  } else {
-    // Masquée tant que l'opération est amortie : les deux s'excluent (cf.
-    // le bloc d'amortissement juste en dessous).
-    recurrenteBloc.style.display = estAmortie ? "none" : "";
-    recurrenceInfo.style.display = "none";
-    recurrenceChampsBloc.style.display = estRecurrente ? "" : "none";
-  }
+  // LES DEUX S'EXCLUENT, ET AUCUNE NE DISPARAÎT POUR AUTANT. Le serveur refuse
+  // la combinaison (cf. schemas.OperationBase) : une récurrence recopierait les
+  // mêmes mois de destination sur chacune de ses occurrences. Mais escamoter
+  // l'une quand on coche l'autre laissait croire qu'elle n'existe pas sur ce
+  // type d'opération, alors qu'il suffit de décocher sa voisine — et la rangée
+  // se décalait sous le curseur au passage. Éteinte, elle dit « pas les deux ».
+  const recurrenceEteinte =
+    !estRecurrenceEligible || operationEditionEstOccurrenceGeneree || estAmortie;
+  eteindreCaseOperation("operation-recurrente-bloc", "operation-recurrente", recurrenceEteinte);
+  recurrenceInfo.style.display =
+    estRecurrenceEligible && operationEditionEstOccurrenceGeneree ? "" : "none";
+  recurrenceChampsBloc.style.display = !recurrenceEteinte && estRecurrente ? "" : "none";
 
   // Amortissement : même éligibilité que la récurrence -- un virement ne pèse
   // sur aucun total de période (il déplace de l'argent entre mes comptes), et
@@ -5418,15 +5851,12 @@ function updateOperationTypeFields() {
   // deux cases ne s'affichent donc jamais cochables en même temps.
   const estAmortissementEligible =
     estRecurrenceEligible && !operationEditionEstOccurrenceGeneree && !estRecurrente;
-  // Décochée dès qu'elle cesse d'être proposée : une case cochée mais invisible
-  // continuerait d'être envoyée au serveur, qui refuserait une combinaison que
-  // l'écran ne montre plus (récurrente ET amortie, par exemple).
-  if (!estAmortissementEligible) document.getElementById("operation-amorti").checked = false;
-  document.getElementById("operation-amorti-bloc").style.display = estAmortissementEligible
-    ? ""
-    : "none";
+  eteindreCaseOperation("operation-amorti-bloc", "operation-amorti", !estAmortissementEligible);
+  // RELU APRÈS l'extinction : la case vient peut-être d'être décochée, et le
+  // bloc des mois aurait survécu un rendu de plus à la case qui le commande.
+  const amortieRetenue = document.getElementById("operation-amorti").checked;
   document.getElementById("operation-amortissement-champs-bloc").style.display =
-    estAmortissementEligible && estAmortie ? "" : "none";
+    amortieRetenue ? "" : "none";
 
   // LES DEUX TYPES REMBOURSABLES portent ces deux champs, et non plus la seule
   // dépense remboursable : un prêt qui se rend avec des intérêts a lui aussi un
@@ -6350,7 +6780,7 @@ async function fillOperationForm(op) {
   document.getElementById("operation-montant").value = op.montant;
   // Après le montant : le compteur du garde-fou compare les parts à LUI.
   majTotalDecoupe();
-  document.getElementById("operation-statut").value = op.statut;
+  poserStatutOperation(op.statut);
   document.getElementById("operation-imprevue").checked = !!op.imprevue;
   // APRÈS le statut et la récurrence : le bloc n'est visible que si l'un des
   // deux le demande.
@@ -6638,7 +7068,7 @@ async function editerVirementEnLigne(virementId, sortante, entrante, tr) {
 
   document.getElementById("operation-date").value = sortante.date;
   document.getElementById("operation-nature").value = sortante.nature;
-  document.getElementById("operation-statut").value = sortante.statut;
+  poserStatutOperation(sortante.statut);
   document.getElementById("operation-compte1").value = sortante.compte_id;
   document.getElementById("operation-compte2").value = entrante.compte_id;
   // Après les comptes : les monnaies proposées sont celles de CES comptes, plus
@@ -7500,6 +7930,42 @@ function correspondDate(dateDebut, dateFin, dateReelle) {
   return true;
 }
 
+/**
+ * CE QUI EST ACTIF, ÉCRIT SUR LE BANDEAU DU REPLI.
+ *
+ * Les filtres sont repliés par défaut (quatorze champs pour six onglets, qui
+ * repoussaient le tableau sous un écran de champs vides). Un repli muet aurait
+ * créé le piège que ce bandeau existe pour éviter : un filtre posé puis caché
+ * est l'explication la plus probable d'un tableau vide, et la plus difficile à
+ * trouver — on relit trois fois ses opérations avant de penser à déplier une
+ * section qu'on avait oubliée.
+ *
+ * ON COMPTE LES CHAMPS REMPLIS, pas les lignes écartées : c'est ce que
+ * l'utilisateur peut défaire, et « 3 filtres actifs » se rapporte à des champs
+ * qu'il va retrouver en ouvrant. Rien de rempli, rien d'écrit — un « 0 filtre »
+ * permanent serait du bruit sur les six onglets à la fois.
+ */
+function majResumeFiltres(onglet) {
+  const resume = document.getElementById(`filtres-resume-${onglet}`);
+  if (!resume) return;
+  const actifs = Object.values(lireFiltresOnglet(onglet)).filter((v) => v !== "").length;
+  resume.textContent = actifs === 0 ? "" : t("· {n} actif(s)", { n: actifs });
+}
+
+/**
+ * Déplie le panneau et met son bandeau à jour.
+ *
+ * APPELÉ QUAND UN FILTRE ARRIVE D'AILLEURS, et c'est le seul cas où l'écran
+ * ouvre la section tout seul : le drill-through « Voir toutes les dépenses »
+ * pose une catégorie et deux dates, et arriver sur un tableau filtré dont les
+ * filtres sont cachés est exactement ce qu'on ne veut pas.
+ */
+function ouvrirFiltresOnglet(onglet) {
+  const repli = document.getElementById(`filtres-repli-${onglet}`);
+  if (repli) repli.open = true;
+  majResumeFiltres(onglet);
+}
+
 // Lit tous les champs [data-filtre] du panneau de l'onglet — un seul endroit
 // à mettre à jour si un champ change de nom, plutôt qu'un getElementById par
 // propriété et par onglet.
@@ -8033,7 +8499,7 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
           monnaieFrais ||
           (frais ? (operationFrais.cote === "recu" ? monnaieDestination : monnaieSource) : null),
         nature: document.getElementById("operation-nature").value || null,
-        statut: document.getElementById("operation-statut").value,
+        statut: statutOperationSaisi(),
         ...champNotes,
       };
       // Les deux écritures se modifient ensemble : d'où un PUT sur la paire
@@ -8156,7 +8622,7 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         montant: simple.montant,
         frais: simple.frais,
         monnaie_frais_id: simple.monnaie_frais_id,
-        statut: document.getElementById("operation-statut").value,
+        statut: statutOperationSaisi(),
         ...champNotes,
         ...recurrencePayload(),
         // EN DERNIER : sur une découpe, il écrase `categorie_id` par null —
@@ -8290,6 +8756,7 @@ function gererChangementFiltreOperations(e) {
   // Le faire à chaque champ aurait renvoyé au mois courant dès qu'on tape trois
   // lettres dans « Nature », en défaisant l'onglet choisi à la main juste avant.
   const champDate = ["dateDebut", "dateFin"].includes(e.target.dataset.filtre);
+  majResumeFiltres(onglet);
   if (champDate && synchroniserPeriodeAvecFiltres(onglet)) return; // a tout réaffiché
   trierEtRerender(onglet);
 }
@@ -8304,6 +8771,7 @@ document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
       .forEach((champ) => {
         champ.value = "";
       });
+    majResumeFiltres(onglet);
     trierEtRerender(onglet);
   });
 });
@@ -8325,7 +8793,7 @@ let importReglageDelimiteur = null;
 let importReglageSeparateurDecimal = null;
 // Trace du dernier import confirmé (ImportHistorique.id), le temps d'y
 // rattacher les règlements liés — seules opérations d'un import à naître
-// APRÈS lui, une par une (cf. enregistrerLigneBruteImportee). Sans ce
+// APRÈS lui, une par une (cf. le stock anti-doublons du serveur). Sans ce
 // rattachement, elles seules survivraient à l'annulation de leur import.
 let importDernierHistoriqueId = null;
 const importMappingCategories = {}; // nom banque -> clé de cible ("cat:3" / "type:5")
@@ -8486,40 +8954,6 @@ function importUrl(chemin) {
   return `/import/presets/${importPresetId}${chemin}`;
 }
 
-/**
- * Déclare au serveur qu'une ligne du fichier en cours a créé une opération,
- * pour que le prochain import du même relevé la voie comme un doublon.
- *
- * N'a lieu d'être que pour les règlements liés, créés un par un via
- * POST /operations : tout le reste passe par `confirmer`, qui alimente le stock
- * lui-même (cf. services.import_bancaire.enregistrer_ligne_brute).
- *
- * Ne fait jamais échouer l'appelant : l'opération est déjà créée et liée quand
- * on arrive ici. Une trace anti-doublon manquante se paie d'un doublon à
- * signaler en moins au prochain import — remonter l'erreur ferait croire que la
- * création a raté, ce qui est faux, et pousserait à la refaire.
- */
-async function enregistrerLigneBruteImportee(numeroLigne, operationId) {
-  if (!importFichierActuel || importPresetId == null || operationId == null) return;
-  const formData = new FormData();
-  formData.append("fichier", importFichierActuel);
-  formData.append("ligne", numeroLigne);
-  formData.append("operation_id", operationId);
-  // Même délimiteur qu'à l'aperçu : sinon la ligne relue ici ne tombe plus en
-  // face du bon numéro (cf. services/import_bancaire.enregistrer_ligne_brute).
-  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
-  // Rattache le règlement à l'import dont il sort : sans ça, lui seul
-  // survivrait à l'annulation de son propre import (cf. annulerImport).
-  if (importDernierHistoriqueId != null) {
-    formData.append("import_historique_id", importDernierHistoriqueId);
-  }
-  try {
-    await apiFetchForm(importUrl("/lignes-brutes"), formData);
-  } catch (err) {
-    console.warn("Ligne non enregistrée au stock anti-doublons :", err.message);
-  }
-}
-
 function presetActuel() {
   return importPresets.find((p) => p.id === importPresetId) || null;
 }
@@ -8543,16 +8977,29 @@ function renderImportPresetChips() {
   });
 }
 
-// Le preset sélectionné est mémorisé localement : sans ça, l'app repartait à
-// chaque rechargement sur le premier preset par ordre alphabétique, donnant
+// Le preset sélectionné est mémorisé : sans ça, l'app repartait à chaque
+// rechargement sur le premier preset par ordre alphabétique, donnant
 // l'impression que les correspondances mémorisées et l'historique avaient
 // disparu alors qu'ils appartenaient simplement à un autre preset.
-const CLE_PRESET_MEMORISE = "budget-app.import.preset";
+//
+// EN BASE (`PreferenceInterface`, migration 0069) et non sur le poste : ce qui
+// est mémorisé EST un identifiant de preset, et un preset n'existe que dans une
+// base. Mémorisé ailleurs, il désignait un autre preset — ou rien — dès qu'on
+// changeait de base, ce qui est exactement le symptôme qu'il existe pour
+// éviter.
+const CLE_PRESET_MEMORISE = "noyau.import-preset";
+// L'ancienne clé de localStorage, reprise UNE FOIS puis effacée.
+const CLE_PRESET_MEMORISE_LOCALE = "budget-app.import.preset";
 
 async function loadImportPresets() {
   importPresets = await apiFetch("/import/presets");
   if (!importPresets.some((p) => p.id === importPresetId)) {
-    const memorise = Number(localStorage.getItem(CLE_PRESET_MEMORISE));
+    let range = await lirePreference(CLE_PRESET_MEMORISE);
+    if (range === null || range === undefined) {
+      range = reprendreDuLocalStorage(CLE_PRESET_MEMORISE_LOCALE);
+      if (range !== null) await ecrirePreference(CLE_PRESET_MEMORISE, range);
+    }
+    const memorise = Number(range);
     importPresetId = importPresets.some((p) => p.id === memorise)
       ? memorise
       : presetParDefaut();
@@ -8572,8 +9019,9 @@ function presetParDefaut() {
 }
 
 function memoriserPresetActuel() {
-  if (importPresetId != null) localStorage.setItem(CLE_PRESET_MEMORISE, String(importPresetId));
-  else localStorage.removeItem(CLE_PRESET_MEMORISE);
+  // Sans `await` : mémoriser un choix ne doit pas retarder l'écran qui vient de
+  // le prendre (cf. ecrirePreference, qui ne lève jamais).
+  ecrirePreference(CLE_PRESET_MEMORISE, importPresetId != null ? importPresetId : null);
 }
 
 document.getElementById("btn-import-preset-creer").addEventListener("click", async () => {
@@ -8710,6 +9158,9 @@ function reinitialiserImport() {
   // garder ferait refuser, sur le fichier suivant, des lignes qui portent le
   // même numéro sans rien avoir de commun.
   importRapprochementsRefuses.clear();
+  // Les liaisons aussi : elles désignent des lignes par leur NUMÉRO, lequel ne
+  // veut plus rien dire dans le fichier suivant.
+  Object.keys(importLignesLiees).forEach((k) => delete importLignesLiees[k]);
   ligneApercuEnEdition = null;
   document.getElementById("import-fichier").value = "";
   document.getElementById("import-fichier-nom").textContent = "";
@@ -8719,8 +9170,12 @@ function reinitialiserImport() {
   document.getElementById("import-avertissements").style.display = "none";
   document.getElementById("import-monnaies-resolues-bloc").style.display = "none";
   document.getElementById("import-previsionnelles-bloc").style.display = "none";
+  importDetection = null;
+  document.getElementById("import-detection").style.display = "none";
+  document.getElementById("import-detection-suggestion").style.display = "none";
   reinitialiserReglagesLecture();
   importDernierHistoriqueId = null;
+
   // La veille repart de zéro : sans ça, la signature du fichier précédent
   // ferait passer le suivant pour « déjà comparé ».
   veilleDoublonsSignature = null;
@@ -8820,6 +9275,12 @@ function renderImportReglagesLecture() {
   resume.textContent = resumeMorceaux.length ? `— ${resumeMorceaux.join(", ")}` : "";
 
   if (detecterProblemeLecture(lignes)) {
+    // LA SECTION PARENTE AUSSI. Les réglages de lecture vivent désormais au
+    // fond de « Configuration du fichier », elle-même repliée en temps
+    // ordinaire : n'ouvrir que le sous-bloc revenait à déplier quelque chose
+    // que personne ne voit, et l'avertissement qui explique un fichier
+    // entièrement illisible restait invisible.
+    document.getElementById("import-config-fichier").open = true;
     details.open = true;
     alerte.textContent = t(
       "La plupart des lignes sont illisibles : le fichier n'utilise sans doute pas le délimiteur ou le séparateur décimal détectés automatiquement. Précise-les ci-dessous, puis relis le fichier."
@@ -8929,6 +9390,7 @@ async function loadImportConfiguration() {
   importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
   document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
+  updateResumeLignesEntete();
   renderImportVocabulaires(config);
   renderImportConfig();
   renderImportPresetCompte(config.compte_id);
@@ -9195,6 +9657,120 @@ document.addEventListener("click", (e) => {
     if (!menu.contains(e.target)) menu.open = false;
   });
 });
+
+/* ---------- LE CHAMP « COLONNES » DE LA COMPARAISON DES DOUBLONS ----------
+ *
+ * MÉCANISME DU NOYAU, ET NON UN BLOC RECOPIÉ, pour la même raison que
+ * `creerEditeurMotsCles` juste au-dessus et que `creerMenuCases` : la question
+ * « sur quelles colonnes compare-t-on deux lignes ? » se pose à l'identique
+ * dans les DEUX imports — celui des relevés bancaires et celui des placements
+ * — et doit se reconnaître de l'un à l'autre.
+ *
+ * CE QUI ÉTAIT RECOPIÉ, ET QUI NE L'EST PLUS. Les deux écrans écrivaient à la
+ * main les huit balises de l'éditeur de mots-clés, puis la même conversion des
+ * jetons en nombres, puis les mêmes quatre phrases d'état. Trois occasions de
+ * diverger pour un contrôle dont l'identité EST la fonction : de fait, l'un
+ * portait déjà une pastille « i » que l'autre n'avait pas.
+ *
+ * DES NOMBRES, PAS DES MOTS : le champ est un `type="number"`, ce qui suffit à
+ * ce qu'aucune valeur non numérique n'arrive dans la liste (un navigateur rend
+ * une chaîne vide pour une saisie invalide, et l'éditeur n'ajoute rien de
+ * vide). C'est la seule différence avec un vocabulaire ordinaire.
+ *
+ * LA PHRASE D'ÉTAT EST LA MOITIÉ DU CONTRÔLE, parce qu'une liste de nombres ne
+ * dit pas ce qu'elle fait : les mêmes « 3, 7 » veulent dire « compare celles-ci
+ * et rien d'autre » ou « compare tout sauf celles-ci » selon le mode d'à côté.
+ * Et une liste VIDE ne dit pas la même chose des deux côtés — en exclusion elle
+ * est parfaitement valide (tout est comparé), en sélection elle ne comparerait
+ * rien, donc chaque ligne serait le doublon de la première déjà importée. Le
+ * serveur refuse ce second cas ; l'écran le dit avant qu'on y arrive.
+ */
+
+// id de groupe -> { etat, mode, onChange, numeros }
+const champsColonnes = new Map();
+
+/**
+ * Pose le champ « Colonnes » dans `conteneur` et le câble.
+ *
+ * `etat` est l'élément (ou son id) où s'écrit la phrase qui dit ce que la liste
+ * veut dire ; `mode()` rend « selection » ou « exclusion » ; `onChange(numeros)`
+ * reçoit les numéros de colonne, déjà triés en entiers positifs.
+ */
+function creerChampColonnes(idGroupe, { conteneur, etat, mode, onChange } = {}) {
+  const element =
+    typeof conteneur === "string" ? document.getElementById(conteneur) : conteneur;
+  if (!element) return;
+  const idSaisie = `${element.id || idGroupe}-saisie`;
+  element.innerHTML = `
+    <div class="import-vocabulaire-champ" data-vocabulaire="colonnes">
+      <div class="import-vocabulaire-entete">
+        <label for="${idSaisie}">${t("Colonnes")}</label>
+        <div class="import-vocabulaire-saisie">
+          <input type="number" id="${idSaisie}" min="1" step="1" placeholder="${t(
+            "n°"
+          )}" />
+          <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                  title="${t("Ajouter cette colonne")}"
+                  aria-label="${t("Ajouter cette colonne")}">+</button>
+        </div>
+        <details class="import-vocabulaire-actualisation">
+          <summary>${t("Actualisation")}</summary>
+          <div class="import-vocabulaire-menu" data-role="menu"></div>
+        </details>
+      </div>
+      <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+    </div>`;
+
+  champsColonnes.set(idGroupe, {
+    etat: typeof etat === "string" ? document.getElementById(etat) : etat,
+    mode,
+    onChange,
+    numeros: [],
+  });
+
+  creerEditeurMotsCles(idGroupe, {
+    conteneur: element,
+    libelles: { colonnes: t("Colonnes") },
+    vide: "Aucune colonne désignée.",
+    onChange: (_cle, valeurs) => {
+      const champ = champsColonnes.get(idGroupe);
+      champ.numeros = valeurs
+        .map((valeur) => parseInt(valeur, 10))
+        .filter((numero) => Number.isInteger(numero) && numero > 0);
+      majEtatChampColonnes(idGroupe);
+      champ.onChange(champ.numeros);
+    },
+  });
+}
+
+/** Réécrit les jetons d'après une liste de numéros, sans passer par onChange :
+ *  c'est le chargement d'un preset, pas une saisie. */
+function chargerChampColonnes(idGroupe, numeros) {
+  const champ = champsColonnes.get(idGroupe);
+  if (!champ) return;
+  champ.numeros = [...(numeros || [])];
+  chargerMotsCles(idGroupe, { colonnes: champ.numeros.map(String) });
+  majEtatChampColonnes(idGroupe);
+}
+
+/** Ce que la liste VEUT DIRE, sous les jetons. Publique : changer le mode d'à
+ *  côté retourne le sens de la phrase sans toucher à la liste. */
+function majEtatChampColonnes(idGroupe) {
+  const champ = champsColonnes.get(idGroupe);
+  if (!champ || !champ.etat) return;
+  const selection = champ.mode() === "selection";
+  const vide = champ.numeros.length === 0;
+  champ.etat.className = vide && selection ? "hint erreur-hint" : "hint";
+  champ.etat.textContent = vide
+    ? selection
+      ? t(
+          "Aucune colonne choisie : ajoute-en au moins une, sinon plus rien ne distingue deux lignes."
+        )
+      : t("Aucune colonne exclue : toutes les colonnes du fichier sont comparées.")
+    : selection
+      ? t("Seules ces colonnes distinguent deux lignes.")
+      : t("Toutes les colonnes sont comparées, sauf celles-ci.");
+}
 
 /* ----- Vocabulaires (colonnes « Sens » et « État ») ----- */
 
@@ -9473,15 +10049,41 @@ function renderImportConfig() {
  */
 function updateResumeConfigFichier() {
   const nbColonnes = importConfigColonnes.length;
-  const nbComparaison = importConfigColonnesComparaison.length;
-  const doublons =
-    modeComparaisonChoisi() === "selection"
-      ? t("doublons : {n} colonne(s) comparée(s)", { n: nbComparaison })
-      : nbComparaison === 0
-        ? t("doublons : toutes les colonnes")
-        : t("doublons : toutes sauf {n}", { n: nbComparaison });
   document.getElementById("import-config-fichier-resume").textContent =
-    `${t("{n} colonne(s) lue(s)", { n: nbColonnes })} · ${doublons}`;
+    `${t("{n} colonne(s) lue(s)", { n: nbColonnes })} · ${resumeDoublons()}`;
+}
+
+/**
+ * « toutes les colonnes », « toutes sauf 3 », « uniquement 2 colonnes ».
+ *
+ * ÉCRIT UNE FOIS POUR DEUX BANDEAUX : celui de « Configuration du fichier »,
+ * qui doit répondre sans rien ouvrir, et celui de la section « Comparaison des
+ * doublons » elle-même. Deux formulations pour la même règle auraient fini par
+ * se contredire à l'arrondi près — et c'est justement la règle qu'on soupçonne
+ * en premier quand une ligne déjà importée ressort comme neuve.
+ */
+function resumeDoublons() {
+  const n = importConfigColonnesComparaison.length;
+  if (modeComparaisonChoisi() === "selection") {
+    return t("doublons : {n} colonne(s) comparée(s)", { n });
+  }
+  return n === 0
+    ? t("doublons : toutes les colonnes")
+    : t("doublons : toutes sauf {n}", { n });
+}
+
+function updateResumeConfigDoublons() {
+  document.getElementById("import-config-doublons-resume").textContent = resumeDoublons();
+}
+
+// Le bandeau de « Lignes à ne pas importer » : replié, c'est la seule façon de
+// savoir que trois lignes du haut sont écartées. Zéro est le cas ordinaire, et
+// il se dit — « rien n'est ignoré » plutôt qu'un bandeau vide, qui se lirait
+// comme un réglage qu'on n'a pas encore regardé.
+function updateResumeLignesEntete() {
+  const n = lignesEnteteSaisies();
+  document.getElementById("import-lignes-entete-resume").textContent =
+    n === 0 ? t("aucune ligne ignorée") : t("{n} ligne(s) ignorée(s)", { n });
 }
 
 /* ----- Configuration avancée ----- */
@@ -9500,60 +10102,36 @@ function modeComparaisonChoisi() {
 }
 
 /**
- * La liste des colonnes de la comparaison, et surtout ce que veut dire une
- * liste VIDE — qui n'est pas la même chose des deux côtés :
+ * LES COLONNES DE LA COMPARAISON — le champ du noyau, celui-là même que
+ * l'import de placements emploie (cf. `creerChampColonnes`).
  *
- * - en exclusion, elle est parfaitement valide : tout est comparé ;
- * - en sélection, elle ne comparerait rien, donc chaque ligne serait le
- *   doublon de la première déjà importée. Le serveur refuse d'enregistrer ça
- *   (cf. _valider_configuration) ; on le dit ici avant d'y arriver.
+ * Chaque colonne avait sa rangée : un champ « Colonne n° », un bouton
+ * « Supprimer », et une ligne de plus à chaque ajout. Six colonnes exclues —
+ * le cas ordinaire d'un relevé bavard — faisaient six rangées, soit plus de
+ * place que tout le reste de la configuration, pour une réponse qui tient en
+ * une liste de nombres. Le champ pose la même question sur UNE ligne : une
+ * saisie, un « + », les valeurs en jetons, et le menu de droite pour retirer.
  */
-function renderImportConfigColonnesComparaison() {
-  const bloc = document.getElementById("import-config-colonnes-exclues");
-  const selection = modeComparaisonChoisi() === "selection";
-  updateResumeConfigFichier();
-  bloc.innerHTML = "";
-  if (importConfigColonnesComparaison.length === 0) {
-    bloc.innerHTML = selection
-      ? '<p class="hint erreur-hint">Aucune colonne choisie : ajoute-en au moins une, sinon plus rien ne distingue deux lignes.</p>'
-      : `<p class="hint">${t("Aucune colonne exclue : toutes les colonnes du fichier sont comparées.")}</p>`;
-    return;
-  }
-  importConfigColonnesComparaison.forEach((index, i) => {
-    const row = document.createElement("div");
-    row.className = "import-mapping-row";
-    row.innerHTML = `
-      <label class="import-config-index">Colonne n°
-        <input type="number" min="1" value="${index}" />
-      </label>
-      <button type="button" class="danger" data-action="supprimer-exclusion">${t("Supprimer")}</button>
-    `;
-    row.querySelector("input").addEventListener("input", (e) => {
-      importConfigColonnesComparaison[i] = Number(e.target.value) || 0;
-    });
-    row.querySelector("button[data-action='supprimer-exclusion']").addEventListener("click", () => {
-      importConfigColonnesComparaison.splice(i, 1);
-      renderImportConfigColonnesComparaison();
-    });
-    bloc.appendChild(row);
-  });
-}
+const GROUPE_COLONNES_COMPARAISON = "import-comparaison";
 
-document.getElementById("btn-import-config-exclusion-ajouter").addEventListener("click", () => {
-  // En sélection, la première colonne proposée est celle de la date : c'est le
-  // point de départ naturel (date + libellé + montant identifient une ligne).
-  // En exclusion, ce sont au contraire les colonnes NON lues qui posent
-  // problème — d'où la première non utilisée.
-  const indexMax = importConfigColonnes.reduce((max, c) => Math.max(max, c.index), 0);
-  const premiereLue = importConfigColonnes.reduce(
-    (min, c) => Math.min(min, c.index),
-    Number.MAX_SAFE_INTEGER
-  );
-  importConfigColonnesComparaison.push(
-    modeComparaisonChoisi() === "selection" ? premiereLue : indexMax + 1
-  );
-  renderImportConfigColonnesComparaison();
+creerChampColonnes(GROUPE_COLONNES_COMPARAISON, {
+  conteneur: "import-comparaison-colonnes",
+  etat: "import-comparaison-etat",
+  mode: modeComparaisonChoisi,
+  onChange: (numeros) => {
+    importConfigColonnesComparaison = numeros;
+    // Les deux bandeaux de repli suivent la saisie, pas seulement
+    // l'enregistrement : replier après avoir tapé « 3 » doit le montrer.
+    updateResumeConfigFichier();
+    updateResumeConfigDoublons();
+  },
 });
+
+function renderImportConfigColonnesComparaison() {
+  chargerChampColonnes(GROUPE_COLONNES_COMPARAISON, importConfigColonnesComparaison);
+  updateResumeConfigFichier();
+  updateResumeConfigDoublons();
+}
 
 // Changer de mode retourne le sens de la liste déjà saisie : la vider évite
 // qu'un « sauf la colonne 12 » devienne en un clic un « uniquement la colonne
@@ -9562,6 +10140,10 @@ document.getElementById("import-mode-comparaison").addEventListener("change", ()
   importConfigColonnesComparaison = [];
   renderImportConfigColonnesComparaison();
 });
+
+// Le bandeau de la section suit le champ, pas seulement l'enregistrement :
+// replier après avoir tapé « 3 » doit montrer « 3 ligne(s) ignorée(s) ».
+document.getElementById("import-lignes-entete").addEventListener("input", updateResumeLignesEntete);
 
 /**
  * Enregistre la configuration du preset, puis relit le fichier si l'aperçu
@@ -9817,6 +10399,10 @@ async function executerPrevisualisation() {
     renderImportReglagesLecture();
     renderImportMappings();
     renderImportApercu();
+    // Une détection ouverte décrivait le fichier d'AVANT la relecture.
+    importDetection = null;
+    renderImportDetection();
+    majSuggestionDetection();
     document.getElementById("import-resultat").style.display = "none";
   } catch (err) {
     showMessage(err.message, "error");
@@ -10070,6 +10656,172 @@ function majBoutonRelireApercu() {
   bouton.setAttribute("aria-label", bouton.title);
   document.getElementById("import-apercu-fichier-alerte").style.display =
     importApercuAReloire ? "" : "none";
+}
+
+/* ---------- DEVINER LES COLONNES ----------
+ *
+ * L'application lit le fichier et propose, colonne par colonne, ce qu'elle
+ * croit y voir (cf. services/detection_colonnes). DEUX SORTES DE RÉPONSES :
+ * une colonne SÛRE reçoit une proposition unique — l'intitulé et la forme des
+ * cellules disent la même chose ; une colonne INCERTAINE en reçoit plusieurs,
+ * classées, entre lesquelles on choisit ici.
+ *
+ * APPLIQUER NE FAIT QUE CHANGER L'ÉCRAN, comme glisser un en-tête : les
+ * colonnes affichées et le nombre de lignes de tête. Le bouton de relecture
+ * s'allume, et c'est « Enregistrer la configuration » qui écrit — en
+ * REMPLAÇANT les colonnes enregistrées à la main dans le preset, ce que le
+ * panneau dit avant qu'on clique.
+ */
+let importDetection = null;
+
+function libelleProprieteImport(propriete) {
+  if (!propriete) return t("Ne pas importer");
+  const trouve = [...PROPRIETES_IMPORT, ...PROPRIETES_IMPORT_AVANCEES].find(
+    ([cle]) => cle === propriete
+  );
+  return t(trouve ? trouve[1] : propriete);
+}
+
+async function detecterColonnesImport() {
+  if (!importFichierActuel) {
+    showMessage(t("Aucun fichier chargé à relire."), "error");
+    return;
+  }
+  const formData = new FormData();
+  formData.append("fichier", importFichierActuel);
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importReglageSeparateurDecimal)
+    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  try {
+    importDetection = await apiFetchForm(importUrl("/detecter-colonnes"), formData);
+    renderImportDetection();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+function renderImportDetection() {
+  const panneau = document.getElementById("import-detection");
+  if (!importDetection) {
+    panneau.style.display = "none";
+    panneau.innerHTML = "";
+    return;
+  }
+  document.getElementById("import-detection-suggestion").style.display = "none";
+  const lignes = importDetection.colonnes
+    .filter((c) => c.exemples.length || c.entete)
+    .map((colonne) => {
+      const exemples = colonne.exemples.map((e) => escapeHtml(e)).join(" · ");
+      const choix = colonne.certaine
+        ? `<span class="import-detection-sure">${escapeHtml(
+            libelleProprieteImport(colonne.propositions[0]?.propriete)
+          )}<span class="badge">${t("sûr")}</span></span>`
+        : colonne.propositions
+            .map(
+              (p, i) => `
+              <label class="import-detection-choix">
+                <input type="radio" name="detection-${colonne.index}" value="${escapeHtml(p.propriete || "")}"
+                       ${i === 0 ? "checked" : ""} />
+                ${escapeHtml(libelleProprieteImport(p.propriete))}
+              </label>`
+            )
+            .join("");
+      return `
+        <div class="import-detection-ligne" data-index="${colonne.index}">
+          <div class="import-detection-colonne">
+            <span class="import-detection-numero">${t("Colonne n°")} ${colonne.index}</span>
+            ${colonne.entete ? `<strong>${escapeHtml(colonne.entete)}</strong>` : ""}
+            <span class="hint">${exemples}</span>
+          </div>
+          <div class="import-detection-propositions">${choix}</div>
+        </div>`;
+    })
+    .join("");
+
+  panneau.innerHTML = `
+    <div class="import-detection-titre">${t("Ce que l'application devine")}<i class="info-bulle" tabindex="0" data-info="${escapeHtml(
+      t(texteAide("noyau.detection-colonnes"))
+    )}">i</i></div>
+    <p class="hint">${escapeHtml(
+      t("Lignes de tête : {n}", { n: importDetection.lignes_entete })
+    )}</p>
+    ${lignes}
+    <p class="hint import-detection-avertissement">${escapeHtml(
+      t(texteAide("noyau.detection-colonnes-enregistrer"))
+    )}</p>
+    <div class="actions">
+      <button type="button" class="primary" data-detection="appliquer">${t("Appliquer ces colonnes")}</button>
+      <button type="button" data-detection="fermer">${t("Fermer")}</button>
+    </div>`;
+  panneau.style.display = "";
+}
+
+function appliquerDetectionImport() {
+  const panneau = document.getElementById("import-detection");
+  const colonnes = [];
+  importDetection.colonnes.forEach((colonne) => {
+    let propriete;
+    if (colonne.certaine) {
+      propriete = colonne.propositions[0]?.propriete || null;
+    } else {
+      const coche = panneau.querySelector(`input[name="detection-${colonne.index}"]:checked`);
+      propriete = coche ? coche.value || null : null;
+    }
+    if (propriete) colonnes.push({ index: colonne.index, propriete });
+  });
+  // UNE PROPRIÉTÉ, UNE COLONNE : le serveur refuserait la lecture, autant le
+  // dire ici avec le nom de la propriété.
+  const vues = new Set();
+  for (const c of colonnes) {
+    if (vues.has(c.propriete)) {
+      showMessage(
+        t("« {propriete} » est choisie pour deux colonnes : garde-la sur une seule.", {
+          propriete: libelleProprieteImport(c.propriete),
+        }),
+        "error"
+      );
+      return;
+    }
+    vues.add(c.propriete);
+  }
+  importConfigColonnes = colonnes;
+  document.getElementById("import-lignes-entete").value = importDetection.lignes_entete;
+  updateResumeLignesEntete();
+  importApercuAReloire = true;
+  importDetection = null;
+  renderImportDetection();
+  renderImportConfig();
+  renderApercuFichier();
+  majBoutonRelireApercu();
+  showMessage(
+    t("Colonnes appliquées à l'écran : relis le fichier pour voir le résultat, puis enregistre la configuration pour les garder."),
+    "success"
+  );
+}
+
+document.getElementById("btn-import-detecter").addEventListener("click", detecterColonnesImport);
+document.getElementById("import-detection").addEventListener("click", (e) => {
+  const bouton = e.target.closest("[data-detection]");
+  if (!bouton) return;
+  if (bouton.dataset.detection === "appliquer") appliquerDetectionImport();
+  if (bouton.dataset.detection === "fermer") {
+    importDetection = null;
+    renderImportDetection();
+  }
+});
+
+/**
+ * LA DÉTECTION SE PROPOSE D'ELLE-MÊME quand la lecture actuelle ne donne
+ * presque rien : plus de la moitié des lignes en erreur, c'est le signe d'un
+ * preset qui n'a jamais vu ce format — et le moment où deviner rend service.
+ */
+function majSuggestionDetection() {
+  const suggestion = document.getElementById("import-detection-suggestion");
+  const lignes = (importApercu && importApercu.lignes) || [];
+  const enErreur = lignes.filter((l) => l.erreur).length;
+  const proposer = lignes.length > 0 && enErreur / lignes.length > 0.5 && !importDetection;
+  suggestion.style.display = proposer ? "" : "none";
+  document.getElementById("btn-import-detecter").classList.toggle("a-relire", proposer);
 }
 
 document.getElementById("btn-import-apercu-relire").innerHTML = ICONE_RELIRE;
@@ -10467,13 +11219,29 @@ function calculerMontantsLigne({
   return { montant: valeur, montantEnvoye: null, monnaieOperationId: monnaieId, erreur };
 }
 
+/**
+ * La monnaie d'une ligne d'aperçu QUAND LE RELEVÉ N'EN LIT AUCUNE : la
+ * principale de son compte — exactement celle que l'import écrira (cf.
+ * import_bancaire.confirmer, qui retombe sur `monnaie_principale_id`).
+ *
+ * SANS CE REPLI, la ligne arrivait sans monnaie et `formatMontant` prenait la
+ * PREMIÈRE monnaie de l'application : un relevé en euros s'affichait en
+ * dollars dès que le dollar était la première monnaie créée, alors que
+ * l'import, lui, écrivait bien des euros.
+ */
+function monnaieParDefautLigne(ligne) {
+  const monnaies = ligne.compte_id != null ? monnaiesDuCompte(ligne.compte_id) : [];
+  return monnaies.length ? monnaies[0].monnaie_id : null;
+}
+
 // Contenu de la colonne "Montant" : ce qui part quand le relevé le dit, puis ce
 // qui arrive, sa devise, et le sens quand le fichier le déclare à part.
 function montantLigneApercuHtml(ligne) {
+  const monnaieDefaut = monnaieParDefautLigne(ligne);
   // `monnaie_operation_id` et non `monnaie_id` : sur une sortie à un seul
   // compte, c'est le montant ENVOYÉ qui fait l'opération, dans sa monnaie.
-  const monnaieOperation = ligne.monnaie_operation_id ?? ligne.monnaie_id;
-  const monnaieEnvoyeeLigne = ligne.monnaie_envoyee_id ?? ligne.monnaie_id;
+  const monnaieOperation = ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieDefaut;
+  const monnaieEnvoyeeLigne = ligne.monnaie_envoyee_id ?? ligne.monnaie_id ?? monnaieDefaut;
   // Un virement sortant lu sans colonne de devise ne porte QUE ce qui part :
   // ce qui arrive reste inconnu tant que l'utilisateur ne l'a pas dit (l'app
   // ne convertit rien). La colonne montre alors le seul montant connu.
@@ -10545,7 +11313,7 @@ function montantLigneApercuHtml(ligne) {
   // les rappeler ici est le seul moyen de vérifier qu'ils n'ont pas été
   // comptés deux fois par le relevé.
   if (ligne.frais) {
-    const monnaieFrais = ligne.monnaie_frais_id ?? ligne.monnaie_id;
+    const monnaieFrais = ligne.monnaie_frais_id ?? ligne.monnaie_id ?? monnaieDefaut;
     html += `<span class="apercu-frais">dont frais ${escapeHtml(
       formatMontant(ligne.frais, monnaieFrais)
     )}</span>`;
@@ -10697,6 +11465,19 @@ function renderImportApercu() {
  */
 const importRapprochementsRefuses = new Set();
 
+/* LES LIGNES DE RÈGLEMENT QU'ON A LIÉES, et à quoi : { numéro de ligne: [liens] }.
+ *
+ * POURQUOI UN ÉTAT À PART plutôt qu'un champ de la ligne. `ImportLigne` décrit
+ * ce que le FICHIER dit ; ce que la ligne SOLDE est un choix fait à l'écran, et
+ * il vit donc à côté — comme les refus de rapprochement juste au-dessus, et
+ * pour la même raison : `importApercu` est REMPLACÉ à chaque relecture du
+ * fichier, et le choix serait parti avec.
+ *
+ * CE QU'IL SERT : le marqueur « liée » de l'aperçu, et la décision d'inclure ou
+ * non la ligne dans la confirmation groupée (cf. confirmerImport). Les liens
+ * eux-mêmes voyagent dans l'override, comme tout ce qu'on corrige à la main. */
+const importLignesLiees = {};
+
 function renderImportPrevisionnelles() {
   const bloc = document.getElementById("import-previsionnelles-bloc");
   const corps = document.getElementById("import-previsionnelles-liste");
@@ -10729,7 +11510,7 @@ function renderImportPrevisionnelles() {
       ligne.date
     )} · ${escapeHtml(ligne.nature || "")} · ${formatMontant(
       ligne.montant,
-      ligne.monnaie_operation_id || ligne.monnaie_id
+      ligne.monnaie_operation_id || ligne.monnaie_id || monnaieParDefautLigne(ligne)
     )}`;
     tr.appendChild(cellLigne);
 
@@ -11119,6 +11900,9 @@ function supprimerLigneApercu(ligne) {
   importApercu.lignes = importApercu.lignes.filter((l) => l.ligne !== ligne.ligne);
   importLignesSelectionnees.delete(ligne.ligne);
   delete importLigneOverrides[ligne.ligne];
+  // La liaison part avec la ligne : la garder ferait rouvrir « liée à 2 » sur
+  // une ligne que l'utilisateur vient de retirer de l'import.
+  delete importLignesLiees[ligne.ligne];
 }
 
 /**
@@ -11249,10 +12033,19 @@ function creerLigneApercuAffichage(ligne, infoType, { lectureSeule = false } = {
     : `<button type="button" data-action="modifier-ligne">${t("Modifier")}</button>
        <button type="button" data-action="supprimer-ligne" class="danger">${t("Supprimer")}</button>`;
 
+  // LA LIGNE DIT QU'ELLE EST LIÉE, et à combien d'opérations. Sans ce marqueur,
+  // une ligne de règlement qu'on vient de lier ressemble exactement à une ligne
+  // qu'on n'a pas encore touchée : le geste qu'on vient de faire n'a laissé
+  // aucune trace à l'écran, et on le refait.
+  const liens = importLignesLiees[ligne.ligne];
+  const marqueurLien = liens && liens.length
+    ? ` <span class="badge-remboursable">${t("liée à {n}", { n: liens.length })}</span>`
+    : "";
+
   tr.innerHTML = `
     <td>${lectureSeule ? "Existant" : ligne.ligne}</td>
     <td>${ligne.date ? formatDate(ligne.date) : "-"}</td>
-    <td>${ligne.nature || "-"}</td>
+    <td>${ligne.nature || "-"}${marqueurLien}</td>
     <td>${montantLigneApercuHtml(ligne)}</td>
     <td>${ligne.nom_banque_categorie || "-"}</td>
     <td>${ligne.nom_banque_compte || "-"}</td>
@@ -11587,9 +12380,12 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   function majEtatReglement() {
     const total = totalCoche();
     if (montantAffiche) {
-      montantAffiche.textContent = `${formatMontant(ligne.montant || 0)} (affecté : ${formatMontant(total)})`;
+      montantAffiche.textContent = `${formatMontant(ligne.montant || 0, (ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieParDefautLigne(ligne)))} (affecté : ${formatMontant(total, (ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieParDefautLigne(ligne)))})`;
     }
-    btnEnregistrer.textContent = infoChoisi().reglement && total > 0 ? "Créer l'opération liée" : "Enregistrer";
+    // « Lier » et non « Créer l'opération liée » : rien n'est créé avant la
+    // confirmation de l'import, et un bouton qui annonce une création alors
+    // qu'il mémorise un choix fait chercher longtemps l'opération promise.
+    btnEnregistrer.textContent = infoChoisi().reglement && total > 0 ? t("Lier") : t("Enregistrer");
     return total;
   }
 
@@ -11654,7 +12450,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
               montantInput.value = max.toFixed(2);
               showMessage(
                 `Montant limité à ${formatMontant(max)} : le total affecté ne peut pas dépasser ` +
-                  `le montant du remboursement (${formatMontant(ligne.montant || 0)}).`,
+                  `le montant du remboursement (${formatMontant(ligne.montant || 0, (ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieParDefautLigne(ligne)))}).`,
                 "error"
               );
             } else {
@@ -11675,7 +12471,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
             showMessage(
               limiteParRemboursement
                 ? `Montant limité à ${formatMontant(max)} : le total affecté ne peut pas dépasser ` +
-                    `le montant du remboursement (${formatMontant(ligne.montant || 0)}).`
+                    `le montant du remboursement (${formatMontant(ligne.montant || 0, (ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieParDefautLigne(ligne)))}).`
                 : `Montant limité à ${formatMontant(max)} : le reste dû de l'opération.`,
               "error"
             );
@@ -11751,6 +12547,24 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     if (info.reglement) return;
 
     if (!info.virement) {
+      // LES FRAIS D'UNE LIGNE ORDINAIRE SE VOIENT ET SE CORRIGENT AUSSI. Le
+      // champ « Montant » vaut HORS FRAIS dès que la ligne en porte (cf.
+      // ligneAvecFrais) : sans ce second champ, le formulaire montrait un
+      // nombre qui ne correspondait à rien du relevé, et rien ne disait
+      // pourquoi. Le champ n'existait que dans le formulaire d'un virement —
+      // c'est-à-dire nulle part sur une dépense par carte à l'étranger, qui est
+      // pourtant le cas le plus ordinaire de frais.
+      if (ligneAvecFrais) {
+        const labelFraisSimple = document.createElement("label");
+        labelFraisSimple.textContent = t("Frais");
+        inputFrais = document.createElement("input");
+        inputFrais.type = "number";
+        inputFrais.step = "0.01";
+        inputFrais.min = "0";
+        inputFrais.value = ligne.frais != null ? ligne.frais : "";
+        labelFraisSimple.appendChild(inputFrais);
+        monnaieWrap.appendChild(labelFraisSimple);
+      }
       const compteId = compteChamp && compteChamp.estConfirme() ? Number(compteChamp.select.value) : null;
       if (compteId && monnaiesDuCompte(compteId).length <= 1) return;
       const label = document.createElement("label");
@@ -11816,7 +12630,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     // aucun des deux montants, et c'est précisément ce que le serveur refuse
     // (cf. _appliquer_frais / frais_incoherents).
     const labelFrais = document.createElement("label");
-    labelFrais.textContent = "Frais";
+    labelFrais.textContent = t("Frais");
     inputFrais = document.createElement("input");
     inputFrais.type = "number";
     inputFrais.step = "0.01";
@@ -12105,14 +12919,19 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   const btnAnnuler = document.createElement("button");
   btnAnnuler.type = "button";
   btnAnnuler.textContent = "Annuler";
+  // DEUX COLONNES POUR LES BOUTONS, et plus une chacun. La ligne en édition
+  // reprenait la colonne « Sélection » du tableau pour n'y écrire qu'un « - » :
+  // une case entière consacrée à dire qu'il n'y a rien à dire, pendant que les
+  // deux seuls boutons du formulaire se serraient dans la case d'à côté. Les
+  // boutons prennent donc les deux, et la ligne occupe exactement la même
+  // largeur qu'avant — on ne fait que répartir autrement.
   const tdActions = document.createElement("td");
+  tdActions.className = "ligne-edition-actions";
+  tdActions.colSpan = 2;
   tdActions.appendChild(btnEnregistrer);
   tdActions.appendChild(btnAnnuler);
 
-  const tdVerifiee = document.createElement("td");
-  tdVerifiee.textContent = "-";
-
-  tr.append(tdLigne, tdFormulaire, tdActions, tdVerifiee);
+  tr.append(tdLigne, tdFormulaire, tdActions);
 
   rerenderChampsSelonType();
   selectType.addEventListener("change", rerenderChampsSelonType);
@@ -12143,7 +12962,22 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
 
   // Création immédiate d'une opération de règlement liée (checklist cochée) :
   // hors du confirm groupé, via l'endpoint /operations habituel.
-  async function creerOperationReglementLiee(info, compteId) {
+  /**
+   * MÉMORISE LES LIENS SUR LA LIGNE, SANS RIEN CRÉER.
+   *
+   * CE QUI A CHANGÉ, ET POURQUOI. Cette fonction faisait un POST /operations
+   * immédiat : l'opération existait en base, la ligne quittait l'aperçu, et
+   * tout cela AVANT que l'import soit confirmé. Trois conséquences, toutes
+   * mauvaises — on ne pouvait plus se raviser, un aperçu abandonné laissait
+   * derrière lui des opérations que personne n'avait validées, et la moitié
+   * d'un même relevé entrait en base à un moment, l'autre moitié à un autre.
+   *
+   * La ligne reste donc à l'écran, marquée « liée », et ses liens voyagent
+   * avec son override jusqu'à la confirmation, qui les pose après avoir créé
+   * l'opération (cf. services/import_bancaire.confirmer). « Confirmer
+   * l'import » redevient ce qu'il annonce : le seul geste qui écrit.
+   */
+  function memoriserReglementLie(info, compteId) {
     const operationsRemboursees = Object.entries(montantsParOperationId)
       .filter(([, montant]) => montant > 0)
       .map(([operationId, montant]) => ({ operation_id: Number(operationId), montant }));
@@ -12164,47 +12998,35 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       showMessage(t("Ce compte ne porte aucune monnaie : impossible de créer l'opération."), "error");
       return;
     }
-    try {
-      const creee = await apiFetch("/operations", {
-        method: "POST",
-        body: JSON.stringify({
-          date: inputDate.value,
-          compte_id: compteId,
-          monnaie_id: monnaieId,
-          type_id: idTypeOperation(info.cle),
-          nature: inputNature.value.trim(),
-          // Le montant de l'opération est celui du relevé bancaire, pas la
-          // somme des liens : un remboursement peut rester partiellement
-          // affecté (le backend valide que les liens ne le dépassent pas).
-          montant: ligne.montant || 0,
-          statut: "réel",
-          operations_remboursees: operationsRemboursees,
-          notes: inputNotes.value.trim() || null,
-        }),
-      });
-      // CETTE LIGNE-LÀ EST LA SEULE DE L'IMPORT À NE PAS PASSER PAR `confirmer`,
-      // qui alimente lui-même le stock anti-doublons. Sans cet appel, le même
-      // relevé réimporté ne reconnaissait pas un règlement déjà importé — alors
-      // qu'il signalait bien remboursables, prêts et virements.
-      //
-      // Après la création, et sans la remettre en cause si elle échoue :
-      // l'opération existe, l'oublier au stock ne fait courir qu'un doublon à
-      // signaler en moins, tandis que revenir en arrière défairait une liaison
-      // que l'utilisateur vient d'établir.
-      await enregistrerLigneBruteImportee(ligne.ligne, creee.id);
-      showMessage(`"${inputNature.value.trim()}" créée et liée.`, "success");
-      // Créée individuellement : un éventuel confirm groupé ultérieur du même
-      // fichier ne doit surtout pas la recréer.
-      supprimerLigneApercu(ligne);
-      ligneApercuEnEdition = null;
-      if (importApercu.lignes.length === 0) {
-        await finaliserImportComplet();
-      } else {
-        renderImportApercu();
-      }
-    } catch (err) {
-      showMessage(err.message, "error");
-    }
+    // MÊME FORME QUE L'OVERRIDE ORDINAIRE, plus les liens : la confirmation
+    // relit le fichier et applique ces champs par-dessus la ligne qu'elle en
+    // tire (cf. schemas.ImportLigneOverride). Le montant reste celui du RELEVÉ
+    // et non la somme des liens — un remboursement peut rester partiellement
+    // affecté, et c'est bien ce qui est passé en banque qui fait l'opération.
+    const override = {
+      date: inputDate.value,
+      nature: inputNature.value.trim(),
+      montant: ligne.montant || 0,
+      type_code: info.cle,
+      compte_id: compteId,
+      monnaie_id: monnaieId,
+      notes: inputNotes.value.trim() || null,
+      operations_remboursees: operationsRemboursees,
+    };
+    importLigneOverrides[ligne.ligne] = override;
+    Object.assign(ligne, override);
+    // Gardé À PART de la ligne : `ImportLigne` n'a pas de champ pour les liens,
+    // et l'écran en a pourtant besoin pour écrire « liée à 2 opérations ».
+    importLignesLiees[ligne.ligne] = operationsRemboursees;
+    ligneApercuEnEdition = null;
+    showMessage(
+      t("« {nature} » sera liée à {n} opération(s) à la confirmation.", {
+        nature: override.nature,
+        n: operationsRemboursees.length,
+      }),
+      "success"
+    );
+    renderImportApercu();
   }
 
   btnEnregistrer.addEventListener("click", async () => {
@@ -12258,7 +13080,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     }
 
     if (info.reglement && totalCoche() > 0) {
-      await creerOperationReglementLiee(info, compteId);
+      memoriserReglementLie(info, compteId);
       return;
     }
 
@@ -12348,8 +13170,14 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     // serveur les impute alors à la jambe que leur devise désigne — ajoutés à
     // l'émetteur, retranchés au récepteur (cf. _reimputer_frais).
     if (ligneAvecFrais) {
-      const fraisSaisis = parseFloat(inputFrais ? inputFrais.value : "");
-      override.frais = isNaN(fraisSaisis) ? 0 : fraisSaisis;
+      // AUCUN CHAMP NE LES PORTE ? ON LES GARDE TELS QUELS. Le formulaire n'en
+      // montre pas sur un règlement (il n'a ni montant libre ni monnaie), et
+      // n'en montrait pas non plus, avant, sur une ligne ordinaire. Un champ
+      // absent était lu comme un champ vide, donc comme « zéro frais » : la
+      // ligne perdait sa commission au seul motif qu'on venait de changer sa
+      // catégorie, et le montant importé retombait sous celui du relevé.
+      const fraisSaisis = inputFrais ? parseFloat(inputFrais.value) : NaN;
+      override.frais = inputFrais ? (isNaN(fraisSaisis) ? 0 : fraisSaisis) : ligne.frais;
       override.monnaie_frais_id = selectMonnaieFrais
         ? Number(selectMonnaieFrais.value) || null
         : ligne.monnaie_frais_id ?? null;
@@ -12417,13 +13245,6 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   });
 
   return tr;
-}
-
-async function finaliserImportComplet() {
-  showMessage(t("Import terminé : toutes les lignes ont été traitées."), "success");
-  reinitialiserImport();
-  await loadImportMappingsOverview();
-  await loadImportHistorique();
 }
 
 function updateBtnImportSupprimerSelectionEtat() {
@@ -12631,13 +13452,19 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
   Object.entries(importMappingMonnaies).forEach(([nom, id]) => {
     if (id) monnaies[nom] = id;
   });
-  // Les lignes de règlement ne font jamais partie de ce confirm : on les
-  // ajoute aux lignes supprimées le temps de cet envoi précis, sans les
-  // retirer de l'aperçu — elles restent à traiter individuellement ensuite
-  // (cf. creerLigneApercuEdition, mode règlement), une fois que le reste (et
-  // donc les dépenses/prêts qu'elles règlent potentiellement) est bien en base.
+  // UNE LIGNE DE RÈGLEMENT NE PART AVEC CE CONFIRM QUE SI ELLE EST LIÉE.
+  //
+  // LIÉE, elle sait déjà ce qu'elle solde : ses cibles sont en base depuis
+  // l'aperçu, et la confirmation crée l'opération puis pose les liens (cf.
+  // services/import_bancaire.confirmer). Elle n'a donc aucune raison d'attendre
+  // un second geste.
+  //
+  // NON LIÉE, elle attend comme avant : le cas typique est celui où la dépense
+  // qu'elle règle fait partie du MÊME fichier et n'existera en base qu'après ce
+  // confirm — impossible de la désigner avant. On l'ajoute aux lignes
+  // supprimées le temps de cet envoi précis, sans la retirer de l'aperçu.
   const lignesReglementNumeros = importApercu.lignes
-    .filter((l) => infoTypeOperationLigne(l).reglement)
+    .filter((l) => infoTypeOperationLigne(l).reglement && !importLignesLiees[l.ligne])
     .map((l) => l.ligne);
   const lignesSupprimeesPourCeConfirm = [...new Set([...importLignesSupprimees, ...lignesReglementNumeros])];
 
@@ -12673,7 +13500,9 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       "success"
     );
 
-    const lignesRestantes = importApercu.lignes.filter((l) => infoTypeOperationLigne(l).reglement);
+    const lignesRestantes = importApercu.lignes.filter(
+      (l) => infoTypeOperationLigne(l).reglement && !importLignesLiees[l.ligne]
+    );
     if (lignesRestantes.length === 0) {
       reinitialiserImport();
     } else {
@@ -12706,6 +13535,11 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
 // Tous presets confondus, et donc sans importUrl : la sous-page
 // « Correspondances » s'affiche même sans preset sélectionné.
 async function loadImportMappingsOverview() {
+  // LE RANGEMENT AVANT LE RENDU, et à chaque fois : il vit dans la base, qui
+  // peut changer sous l'application (panneau « Base de données »). Le lire une
+  // seule fois au démarrage aurait montré, après une bascule, l'ordre de la
+  // base précédente.
+  await chargerOrdreColonnesMappings();
   renderImportMappingsOverview(await apiFetch("/import/mappings"));
 }
 
@@ -12826,38 +13660,64 @@ function surveillerHauteursGalerie(bloc) {
  * repousser au bout celles qui ne reçoivent jamais rien. On attrape donc une
  * colonne PAR SON EN-TÊTE et on la pose ailleurs.
  *
- * STOCKÉ SUR LE POSTE (localStorage), comme les dossiers de règles et pour la
- * même raison : c'est un confort de lecture, pas une donnée du budget. Et
- * surtout, l'écrire en base voudrait dire réécrire `Categorie.ordre` — l'ordre
- * du budget serait alors bousculé par un rangement fait ici, sur un écran qui
- * ne parle pas de budget.
+ * STOCKÉ EN BASE (`PreferenceInterface`, clé « noyau.correspondances-ordre »,
+ * migration 0069), et non plus dans le `localStorage` : ce qui est rangé ici est
+ * une liste d'IDENTIFIANTS DE CATÉGORIE, qui n'existent que dans une base
+ * précise. Le même rangement appliqué à une autre base range d'autres colonnes.
+ *
+ * CE N'EST PAS `Categorie.ordre` POUR AUTANT, et il ne faut surtout pas les
+ * confondre : celui-là suit le budget et commande la page Catégories, l'écran
+ * des flux, l'histogramme. Le bousculer depuis un écran qui ne parle pas de
+ * budget aurait réordonné le budget lui-même. Deux rangements différents, deux
+ * endroits différents — l'un est une colonne de la table, l'autre une clé de
+ * rangement d'écran.
  *
  * L'ordre mémorisé ne fait pas autorité sur la LISTE : une catégorie créée
  * depuis le dernier rangement n'y figure pas, et se range à la fin ; une
  * catégorie supprimée y reste sans conséquence (plus rien ne la réclame).
  */
-const CLE_ORDRE_COLONNES_MAPPINGS = "budget-app.correspondances.ordre-colonnes";
+const CLE_ORDRE_COLONNES_MAPPINGS = "noyau.correspondances-ordre";
+// L'ancienne clé de localStorage, reprise UNE FOIS puis effacée.
+const CLE_ORDRE_COLONNES_MAPPINGS_LOCALE = "budget-app.correspondances.ordre-colonnes";
 
-function chargerOrdreColonnesMappings() {
-  try {
-    const brut = JSON.parse(localStorage.getItem(CLE_ORDRE_COLONNES_MAPPINGS) || "null");
-    if (Array.isArray(brut)) return brut.map(Number).filter(Number.isFinite);
-  } catch (err) {
-    // Contenu illisible : on repart de l'ordre des catégories plutôt que de
-    // casser l'écran. Aucune correspondance n'est perdue — seul le rangement
-    // l'est.
-    console.warn("Ordre des colonnes illisible, remis à zéro :", err);
-  }
-  return [];
+/**
+ * L'ordre RETENU, tenu en mémoire entre deux rendus.
+ *
+ * `ordonnerCiblesMappings` est appelée depuis le rendu, qui est synchrone :
+ * aller chercher le rangement à ce moment-là aurait demandé de rendre tout le
+ * chemin d'affichage asynchrone pour une liste de nombres. Il est donc chargé
+ * une fois par `loadImportMappingsOverview`, seul chemin par lequel cet écran
+ * se dessine.
+ */
+let ordreColonnesMappings = [];
+
+function normaliserOrdreColonnes(brut) {
+  return Array.isArray(brut) ? brut.map(Number).filter(Number.isFinite) : [];
 }
 
+async function chargerOrdreColonnesMappings() {
+  let brut = await lirePreference(CLE_ORDRE_COLONNES_MAPPINGS);
+  if (brut === null || brut === undefined) {
+    const local = reprendreDuLocalStorage(CLE_ORDRE_COLONNES_MAPPINGS_LOCALE);
+    if (Array.isArray(local)) {
+      brut = local;
+      await ecrirePreference(CLE_ORDRE_COLONNES_MAPPINGS, local);
+    }
+  }
+  ordreColonnesMappings = normaliserOrdreColonnes(brut);
+}
+
+// Sans `await` : les colonnes sont déjà à leur place à l'écran quand la requête
+// part, et attendre l'aller-retour pour redessiner ferait clignoter la galerie
+// à chaque dépôt.
 function enregistrerOrdreColonnesMappings(ids) {
-  localStorage.setItem(CLE_ORDRE_COLONNES_MAPPINGS, JSON.stringify(ids));
+  ordreColonnesMappings = normaliserOrdreColonnes(ids);
+  ecrirePreference(CLE_ORDRE_COLONNES_MAPPINGS, ordreColonnesMappings);
 }
 
 /** Les cibles dans l'ordre retenu ; les inconnues à la fin, dans leur ordre. */
 function ordonnerCiblesMappings(cibles) {
-  const rangs = new Map(chargerOrdreColonnesMappings().map((id, rang) => [id, rang]));
+  const rangs = new Map(ordreColonnesMappings.map((id, rang) => [id, rang]));
   return [...cibles].sort((a, b) => {
     const rangA = rangs.has(a.id) ? rangs.get(a.id) : Number.MAX_SAFE_INTEGER;
     const rangB = rangs.has(b.id) ? rangs.get(b.id) : Number.MAX_SAFE_INTEGER;
@@ -13401,7 +14261,7 @@ function carteExtensionHtml(e) {
   // chose qu'on vient chercher ici — l'état de chacune.
   const explication = basculeDetailHtml(
     `extension-explication-${e.id}`,
-    `<p class="extension-description">${escapeHtml(t(e.description))}</p>`,
+    `<p class="extension-description">${escapeHtml(t(descriptionExtension(e)))}</p>`,
     { libelle: t("Afficher ce que fait cette extension") }
   );
   // CE QUI L'EMPÊCHE DE CHANGER D'ÉTAT : replié aussi, mais signalé à part.
@@ -13606,7 +14466,12 @@ function afficherInfobulle(pastille) {
   if (!texte) return;
 
   const bulle = infobulle();
-  bulle.textContent = texte;
+  // LES PUCES SONT DÉCOUPÉES ICI, À L'OUVERTURE, et non au moment où la phrase
+  // est posée dans `data-info` : l'attribut voyage entier jusqu'au dictionnaire
+  // i18n, qui traduit donc une phrase et non six morceaux (cf. textes.js,
+  // « LES PUCES D'UNE PHRASE D'AIDE »). Une bulle sans marqueur « -- » est
+  // écrite comme avant, en texte simple.
+  ecrireTexteAide(bulle, texte);
   // Les bulles à plusieurs paragraphes gardent leurs sauts de ligne et un peu
   // plus de largeur : la variante voyage avec la pastille, comme avant.
   // Les bulles de blocage sont écrites en plusieurs lignes, comme celles de la

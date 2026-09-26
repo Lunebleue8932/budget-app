@@ -155,7 +155,7 @@ def test_les_soldes_de_deux_monnaies_sont_additionnes(db_session):
     creer_compte(db_session, "Courant USD", monnaies=[(dollar.id, 500.0)])
     _taux(db_session, dollar, euro, 0.9)
 
-    payload, manquantes = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, manquantes, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     assert manquantes == []
     (kpi,) = payload.kpis
     assert kpi.monnaie_id == euro.id
@@ -169,7 +169,7 @@ def test_une_monnaie_sans_taux_est_ecartee_du_total_et_signalee(db_session):
     creer_compte(db_session, "Courant EUR", solde_initial=1000.0)
     creer_compte(db_session, "Courant JPY", monnaies=[(yen.id, 100000.0)])
 
-    payload, manquantes = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, manquantes, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     (kpi,) = payload.kpis
     assert kpi.solde_total_courant == 1000.0
     assert [m.id for m in manquantes] == [yen.id]
@@ -185,7 +185,7 @@ def test_la_variation_vaut_toujours_entrees_moins_sorties(db_session):
     _depense(db_session, compte_eur, euro.id, 100.0)
     _depense(db_session, compte_usd, dollar.id, 50.0)
 
-    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     (kpi,) = payload.kpis
     assert kpi.variation_previsionnelle == pytest.approx(
         kpi.total_entrees - kpi.total_sorties
@@ -229,7 +229,7 @@ def test_le_reste_a_rembourser_est_converti_comme_le_reste(db_session):
     _remboursable(compte_eur, euro.id, 100.0)
     _remboursable(compte_usd, dollar.id, 50.0)
 
-    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     (kpi,) = payload.kpis
     assert kpi.reste_a_recevoir == pytest.approx(100.0 + 50.0 * 0.9)
     # Le net n'est pas converti à part : il vaut ses deux composantes, sans quoi
@@ -237,6 +237,62 @@ def test_le_reste_a_rembourser_est_converti_comme_le_reste(db_session):
     assert kpi.reste_a_rembourser == pytest.approx(
         kpi.reste_a_recevoir - kpi.reste_a_rendre
     )
+
+
+def test_le_detail_des_deux_cartes_suit_leur_total(db_session):
+    """CE QU'IL PROTÈGE. Les cartes « Total Entrées » et « Total Dépenses »
+    portent une infobulle qui dit d'où vient leur total — les trois plus grosses
+    lignes. Le KPI agrégé ne la remplissait pas : elle annonçait donc « Aucune
+    opération sur la période » À CHAQUE FOIS que la case « Tout convertir »
+    était cochée, juste sous le total qu'on venait de lire.
+
+    LE LIBELLÉ EST LA CLÉ, comme partout où l'application fond des lignes : un
+    « Courses » payé en euros et un « Courses » payé en dollars sont la même
+    dépense, et c'est justement ce que la conversion permet de dire."""
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    compte_eur = creer_compte(db_session, "Courant EUR", solde_initial=1000.0)
+    compte_usd = creer_compte(db_session, "Courant USD", monnaies=[(dollar.id, 500.0)])
+    _taux(db_session, dollar, euro, 0.9)
+    _depense(db_session, compte_eur, euro.id, 100.0)
+    _depense(db_session, compte_usd, dollar.id, 50.0)
+
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    (kpi,) = payload.kpis
+    (ligne,) = kpi.top_sorties
+    assert ligne.montant == pytest.approx(100.0 + 50.0 * 0.9)
+    # Deux lignes fondues en une : le compte le dit.
+    assert ligne.nombre == 2
+    # La somme du détail vaut bien la carte qu'il détaille : c'est la seule
+    # chose qui rende ce détail utile.
+    assert ligne.montant == pytest.approx(kpi.total_sorties)
+
+
+def test_la_composition_du_budget_agrege_est_rendue(db_session):
+    """D'OÙ VIENT CE BUDGET. Le dénominateur de la vue « Budget » du camembert
+    porte deux multiplications qu'aucun écran ne montre : douze mois en vue
+    année, puis un taux de change par monnaie. Le chiffre est juste ; sans sa
+    composition, rien ne permet de le reconnaître pour tel."""
+    from app import crud as crud_noyau
+
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    creer_compte(db_session, "Courant EUR", solde_initial=1000.0)
+    creer_compte(db_session, "Courant USD", monnaies=[(dollar.id, 500.0)])
+    _taux(db_session, dollar, euro, 0.9)
+    crud_noyau.set_budget_total(db_session, 2026, 3, euro.id, 1000.0)
+    crud_noyau.set_budget_total(db_session, 2026, 3, dollar.id, 500.0)
+
+    _, _, composition = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    par_monnaie = {ligne["monnaie_nom"]: ligne for ligne in composition}
+    assert par_monnaie["Euro"]["converti"] == pytest.approx(1000.0)
+    assert par_monnaie["Dollar"]["montant"] == pytest.approx(500.0)
+    assert par_monnaie["Dollar"]["converti"] == pytest.approx(450.0)
+
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    (kpi,) = payload.kpis
+    # La composition totalise EXACTEMENT le chiffre qu'elle explique.
+    assert sum(l["converti"] for l in composition) == pytest.approx(kpi.budget_total)
 
 
 def test_une_categorie_de_deux_monnaies_devient_une_seule_barre(db_session):
@@ -250,7 +306,7 @@ def test_une_categorie_de_deux_monnaies_devient_une_seule_barre(db_session):
     _depense(db_session, compte_eur, euro.id, 100.0)
     _depense(db_session, compte_usd, dollar.id, 50.0)
 
-    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     (kpi,) = payload.kpis
     courses = [d for d in kpi.depenses_par_categorie if d.total_reel > 0]
     assert len(courses) == 1
@@ -265,7 +321,7 @@ def test_chaque_compte_ne_rend_plus_quun_seul_solde(db_session):
     )
     _taux(db_session, dollar, euro, 0.9)
 
-    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", euro.id)
     (compte,) = payload.comptes
     (solde,) = compte.soldes
     assert solde.monnaie_id == euro.id
@@ -277,7 +333,7 @@ def test_une_monnaie_portee_par_aucun_compte_ne_rend_rien(db_session):
     de recevoir un dashboard vide qui aurait l'air normal."""
     creer_compte(db_session, "Courant", solde_initial=1000.0)
     yen = creer_monnaie(db_session, "Yen", "¥")
-    payload, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", yen.id)
+    payload, _, _ = agrege.dashboard_agrege(db_session, 2026, 3, "mois", yen.id)
     assert payload is None
 
 

@@ -1,6 +1,6 @@
 import json
 from datetime import date as date_type, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -782,6 +782,14 @@ class KpisMonnaieRead(BaseModel):
     # s'accordent pas.
     total_entrees: float = 0.0
     total_sorties: float = 0.0
+    # LES TROIS PLUS GROSSES LIGNES DE CHAQUE CÔTÉ, au survol des deux cartes.
+    # Un total ne dit jamais D'OÙ il vient, et c'est la première question qu'on
+    # se pose devant un mois qui sort de l'ordinaire. Même périmètre que le
+    # total qu'elles détaillent (cf. services/soldes.get_top_flux_periode) : un
+    # détail dont la somme ne vaut pas le chiffre qu'il détaille est pire que
+    # pas de détail du tout.
+    top_entrees: list[DepenseTopRead] = Field(default_factory=list)
+    top_sorties: list[DepenseTopRead] = Field(default_factory=list)
     # LA TROISIÈME CARTE POSÉE SOUS LE SÉLECTEUR DE PÉRIODE, et le seul chiffre
     # de ce bloc qui NE DÉPEND PAS de la période : un stock de créances et de
     # dettes, pas un flux (cf. services/soldes.get_reste_a_rembourser). Une
@@ -1380,6 +1388,9 @@ class ImportLigne(BaseModel):
     amorti: bool = False
     amortissement_debut: Optional[date_type] = None
     amortissement_fin: Optional[date_type] = None
+    # L'étiquette « dépense imprévue » (cf. models.Operation.imprevue), posée
+    # par une règle (migration 0071) ou dans l'aperçu.
+    imprevue: bool = False
     erreur: Optional[str] = None
     # Id de la LigneImportBrute déjà en base suspectée d'être la même
     # transaction (voir services.import_bancaire.detecter_doublon), None si
@@ -1435,7 +1446,36 @@ class PrevisionnelleRapprochee(BaseModel):
     recurrente: bool = False
 
 
+class PropositionColonne(BaseModel):
+    """Une propriété qu'une colonne pourrait porter. `propriete` None = « ne
+    pas importer cette colonne »."""
+
+    propriete: Optional[str] = None
+    confiance: float = 0.0
+
+
+class ColonneDetectee(BaseModel):
+    index: int
+    entete: str = ""
+    exemples: list[str] = Field(default_factory=list)
+    # CLASSÉES, la première étant celle que retient `configuration`. Une seule
+    # quand `certaine` : les indices convergent, il n'y a rien à choisir.
+    propositions: list[PropositionColonne] = Field(default_factory=list)
+    certaine: bool = False
+
+
+class DetectionColonnesRead(BaseModel):
+    """Ce que l'application devine d'un fichier (cf. services/detection_colonnes).
+    Rien n'est enregistré : c'est l'écran qui décide, et « Enregistrer la
+    configuration » qui écrit."""
+
+    lignes_entete: int = 0
+    colonnes: list[ColonneDetectee] = Field(default_factory=list)
+    configuration: list[dict] = Field(default_factory=list)
+
+
 class ApercuFichier(BaseModel):
+
     """Le fichier tel qu'il est, avant toute interprétation : sert à vérifier
     d'un coup d'œil que la configuration des colonnes tombe bien en face des
     bonnes données (une colonne décalée est sinon très difficile à repérer)."""
@@ -1509,10 +1549,12 @@ class ImportLigneOverride(BaseModel):
     monnaie_envoyee_id: Optional[int] = None
     # Frais corrigés à la main. Leur présence change la lecture des deux
     # montants ci-dessus : ils valent alors HORS FRAIS, et le serveur réimpute
-    # (cf. services/import_bancaire._reimputer_frais). Le formulaire ne les
-    # envoie que là où il les affiche — un virement entre deux devises qui
-    # porte des frais — donc partout ailleurs les montants restent ceux qui ont
-    # réellement bougé, exactement comme avant.
+    # (cf. services/import_bancaire._reimputer_frais). Le formulaire les envoie
+    # dès que la LIGNE en porte, et pas seulement là où il ouvre un champ pour
+    # les corriger : les taire revenait à annoncer zéro frais, donc à effacer la
+    # commission d'une ligne dont on n'avait fait que changer la catégorie. Une
+    # ligne sans frais n'envoie rien, et ses montants restent ceux qui ont
+    # réellement bougé.
     frais: Optional[float] = None
     monnaie_frais_id: Optional[int] = None
     # Note libre et étalement, saisis au moment où l'on classe la ligne (cf.
@@ -1524,6 +1566,26 @@ class ImportLigneOverride(BaseModel):
     amorti: bool = False
     amortissement_debut: Optional[date_type] = None
     amortissement_fin: Optional[date_type] = None
+    # None = ne touche pas à ce qu'une règle a posé ; le formulaire de l'aperçu
+    # n'ouvre pas cette case, et un booléen plein l'aurait effacée à chaque
+    # retouche.
+    imprevue: Optional[bool] = None
+    # LES DÉPENSES (OU PRÊTS) QUE CETTE LIGNE SOLDE, choisies dans l'aperçu.
+    #
+    # POURQUOI ELLES VOYAGENT AVEC L'OVERRIDE. Un règlement lié se créait
+    # AUSSITÔT, un par un, hors de la confirmation groupée : lier demande
+    # `operations_remboursees`, que seul POST /operations savait traiter. La
+    # ligne quittait donc l'aperçu et l'opération existait en base avant que
+    # l'import soit confirmé — impossible de se raviser, et une session
+    # abandonnée laissait derrière elle des opérations que personne n'avait
+    # validées. Les liens attendent désormais `confirmer` comme tout le reste :
+    # la ligne reste à l'écran, marquée « liée », et rien n'est écrit avant.
+    #
+    # `None` ET `[]` NE DISENT PAS LA MÊME CHOSE, même convention que
+    # `OperationUpdate` : `None` veut dire « cette ligne n'a rien à lier »
+    # (elle reste alors hors de la confirmation groupée, comme avant), `[]`
+    # qu'on a retiré les liens qu'on avait posés.
+    operations_remboursees: Optional[list[OperationRembourseeInput]] = None
 
 
 class ImportMappingOverrides(BaseModel):
@@ -2125,6 +2187,26 @@ class RegleDecoupeInput(BaseModel):
         return self
 
 
+class SortieRegle(BaseModel):
+    """Une SORTIE CONDITIONNELLE d'une règle (migration 0072) : des conditions
+    au même format que celles de la règle, et les actions qui remplacent les
+    siennes quand elles correspondent. Chaque action est facultative : None =
+    « garde celle de la règle »."""
+
+    conditions: ConditionsRegle
+    type_id: Optional[int] = None
+    # Recopié par le routeur à l'écriture, jamais saisi : c'est ce que lit
+    # l'évaluation, qui ne consulte pas la base.
+    type_code: Optional[str] = None
+    categorie_id: Optional[int] = None
+    compte_autre_id: Optional[int] = None
+    compte_id: Optional[int] = None
+    nature_remplacement: Optional[str] = None
+    notes: Optional[str] = None
+    imprevue: Optional[bool] = None
+    amortissement_mois: Optional[int] = Field(default=None, ge=2, le=120)
+
+
 class RegleCategorisationBase(BaseModel):
     nom: str = Field(min_length=1)
     # Note libre sur la règle (migration 0050) : POURQUOI elle existe, ce que
@@ -2136,7 +2218,10 @@ class RegleCategorisationBase(BaseModel):
     # -- cette dernière n'ayant de sens que pour les types à catégorie libre.
     # La cohérence des deux est vérifiée côté routeur, qui seul peut résoudre
     # le code du type depuis son id.
-    type_id: int
+    #
+    # FACULTATIF (migration 0071) : une règle qui ne fait que renommer ne pose
+    # pas de type, et laisse les suivantes le faire.
+    type_id: Optional[int] = None
     categorie_id: Optional[int] = None
     # DÉCOUPE imposée par la règle. Vide = la règle pose une catégorie unique
     # (`categorie_id`), comme avant. Les deux s'excluent : le routeur neutralise
@@ -2149,6 +2234,15 @@ class RegleCategorisationBase(BaseModel):
     # arrive incomplète dans l'aperçu. Neutralisé côté routeur pour tout autre
     # type, comme categorie_id l'est déjà.
     compte_autre_id: Optional[int] = None
+    # LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071, cf.
+    # models.RegleCategorisation) : None = la règle n'en dit rien. Tout sauf
+    # les montants et la date.
+    nature_remplacement: Optional[str] = None
+    compte_id: Optional[int] = None
+    notes: Optional[str] = None
+    imprevue: Optional[bool] = None
+    amortissement_mois: Optional[int] = Field(default=None, ge=2, le=120)
+    sorties: list[SortieRegle] = Field(default_factory=list)
     actif: bool = True
     # Faut-il cesser d'évaluer les règles quand celle-ci correspond ? True par
     # défaut : c'est le comportement historique, et celui qu'on veut sur une
@@ -2213,13 +2307,20 @@ class RegleCategorisationRead(BaseModel):
     ordre: int
     actif: bool
     arreter_apres: bool
-    type_id: int
+    type_id: Optional[int] = None
     # Code technique du type, pour que le frontend n'ait pas à recroiser la
-    # table des types.
-    type_code: str
+    # table des types. None pour une règle qui ne pose pas de type.
+    type_code: Optional[str] = None
     categorie_id: Optional[int] = None
     compte_autre_id: Optional[int] = None
+    nature_remplacement: Optional[str] = None
+    compte_id: Optional[int] = None
+    notes: Optional[str] = None
+    imprevue: Optional[bool] = None
+    amortissement_mois: Optional[int] = None
+    sorties: list[SortieRegle] = Field(default_factory=list)
     conditions: ConditionsRegle
+
     decoupes: list[RegleDecoupeRead] = Field(default_factory=list)
 
 
@@ -2390,3 +2491,20 @@ class ExtensionsAnnonceesUpdate(BaseModel):
     moitié de la liste non acquittée si l'un d'eux échouait."""
 
     ids: list[str]
+
+
+class PreferenceInterfaceRead(BaseModel):
+    """Un rangement d'écran (cf. models.PreferenceInterface).
+
+    `valeur` à None veut dire « rien n'a jamais été rangé sous cette clé », ce
+    qui n'est pas la même chose qu'un objet vide (cf. crud.get_preference_interface)."""
+
+    cle: str
+    valeur: Any = None
+
+
+class PreferenceInterfaceEcriture(BaseModel):
+    """Ce que l'écran range. Aucune forme imposée : le serveur ne lit jamais ce
+    contenu, il le range et le rend."""
+
+    valeur: Any

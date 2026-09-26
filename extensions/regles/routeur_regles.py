@@ -17,7 +17,7 @@ def _get_regle_ou_404(db: Session, regle_id: int):
     return regle
 
 
-def _valider_action(db: Session, type_id: int, categorie_id, compte_autre_id, decoupes=None):
+def _valider_action(db: Session, type_id, categorie_id, compte_autre_id, decoupes=None):
     """(catégorie, découpe, compte en face) retenus pour ce type d'action.
 
     La structure des conditions est déjà validée par les schémas Pydantic
@@ -35,7 +35,22 @@ def _valider_action(db: Session, type_id: int, categorie_id, compte_autre_id, de
     ligne tombe-t-elle — et une règle qui prétendrait y répondre deux fois
     laisserait le moteur d'import choisir à sa place. C'est une neutralisation,
     pas un refus, pour la même raison que ci-dessus : un formulaire qui bascule
-    d'un mode à l'autre laisse traîner le champ qu'il vient de quitter."""
+    d'un mode à l'autre laisse traîner le champ qu'il vient de quitter.
+
+    SANS TYPE (migration 0071), la règle ne dit pas ce qu'est la ligne : sa
+    catégorie ou sa découpe sont gardées telles quelles — elles ne vaudront, à
+    l'import, que si le type finalement retenu en admet une (cf.
+    regles_categorisation._completer) — et le compte en face aussi, qui ne
+    vaudra que pour un virement."""
+    if type_id is None:
+        for part in decoupes or []:
+            if crud.get_categorie(db, part.categorie_id) is None:
+                raise HTTPException(status_code=404, detail="Catégorie de découpe introuvable")
+        if decoupes:
+            return None, list(decoupes), None
+        if categorie_id is not None and crud.get_categorie(db, categorie_id) is None:
+            raise HTTPException(status_code=404, detail="Catégorie introuvable")
+        return categorie_id, [], None
     type_operation = crud.get_type_operation(db, type_id)
     if type_operation is None:
         raise HTTPException(status_code=404, detail="Type d'opération introuvable")
@@ -82,6 +97,59 @@ def _valider_action(db: Session, type_id: int, categorie_id, compte_autre_id, de
     return categorie_id, [], compte_retenu
 
 
+def _autres_actions(db: Session, payload) -> dict:
+    """Les actions ajoutées par la migration 0071, nettoyées.
+
+    UN TEXTE VIDE NE DIT RIEN : un champ « Renommer en » laissé blanc veut dire
+    « ne renomme pas », jamais « efface le libellé » — une opération sans nature
+    serait refusée à l'import. Même règle pour la note."""
+    if payload.compte_id is not None and crud.get_compte(db, payload.compte_id) is None:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    nature = (payload.nature_remplacement or "").strip() or None
+    notes = (payload.notes or "").strip() or None
+    return dict(
+        nature_remplacement=nature,
+        compte_id=payload.compte_id,
+        notes=notes,
+        imprevue=payload.imprevue,
+        amortissement_mois=payload.amortissement_mois,
+        sorties=[_sortie_validee(db, sortie) for sortie in payload.sorties],
+    )
+
+
+def _sortie_validee(db: Session, sortie) -> dict:
+    """Une sortie conditionnelle, vérifiée et prête à ranger (migration 0072).
+
+    MÊMES CONTRÔLES QUE LA RÈGLE, pour ce qu'elle renseigne : un type qui
+    existe et qui peut se poser par règle, une catégorie et des comptes qui
+    existent. Le code du type est recopié : l'évaluation ne consulte pas la
+    base. Rien n'est neutralisé ici selon le type — la sortie peut ne changer
+    que le compte en face et laisser le type à la règle ; c'est à l'import que
+    chaque champ ne vaut que si le type finalement retenu l'admet."""
+    type_code = None
+    if sortie.type_id is not None:
+        type_operation = crud.get_type_operation(db, sortie.type_id)
+        if type_operation is None:
+            raise HTTPException(status_code=404, detail="Type d'opération introuvable")
+        if TypeOperation(type_operation.code) in TYPES_INTERNES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Le type « {type_operation.nom} » ne peut pas être posé par une règle.",
+            )
+        type_code = type_operation.code
+    if sortie.categorie_id is not None and crud.get_categorie(db, sortie.categorie_id) is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    for compte_id in (sortie.compte_autre_id, sortie.compte_id):
+        if compte_id is not None and crud.get_compte(db, compte_id) is None:
+            raise HTTPException(status_code=404, detail="Compte introuvable")
+    donnees = sortie.model_dump(mode="json")
+    donnees["type_code"] = type_code
+    donnees["nature_remplacement"] = (sortie.nature_remplacement or "").strip() or None
+    donnees["notes"] = (sortie.notes or "").strip() or None
+    return donnees
+
+
+
 @router.get("", response_model=list[schemas.RegleCategorisationRead])
 def list_regles(db: Session = Depends(get_db)):
     return crud.list_regles_categorisation(db)
@@ -107,6 +175,7 @@ def create_regle(payload: schemas.RegleCategorisationCreate, db: Session = Depen
         compte_autre_id=compte_autre_id,
         actif=payload.actif,
         arreter_apres=payload.arreter_apres,
+        **_autres_actions(db, payload),
     )
 
 
@@ -146,6 +215,7 @@ def update_regle(
         compte_autre_id=compte_autre_id,
         actif=payload.actif,
         arreter_apres=payload.arreter_apres,
+        **_autres_actions(db, payload),
     )
 
 

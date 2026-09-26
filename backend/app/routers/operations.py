@@ -127,15 +127,6 @@ def _refuser_eteint(
             raise HTTPException(status_code=400, detail=erreur)
 
 
-def _cible_valide_pour_reglement(depense: models.Operation, code_reglement: str) -> bool:
-    """Un règlement ne peut viser qu'un seul type de cible : un remboursement
-    reçu solde une dépense remboursable, un remboursement de prêt solde un prêt
-    reçu. Le type remplace à lui seul l'ancien triple test
-    (remboursable + sens + nom de catégorie)."""
-    cible = CIBLE_PAR_TYPE_REGLEMENT.get(TypeOperation(code_reglement))
-    return cible is not None and TypeOperation(depense.type_code) == cible
-
-
 def _valider_operations_remboursees(
     db: Session,
     items: list[schemas.OperationRembourseeInput],
@@ -144,64 +135,30 @@ def _valider_operations_remboursees(
     monnaie_reglement: int,
     operation_remboursement_id: Optional[int] = None,
 ) -> None:
-    # Le montant de l'opération de règlement est une donnée fixe (celui reçu
-    # ou payé en banque) : les liens répartissent ce montant sur les cibles,
-    # jamais l'inverse. Leur somme ne peut donc pas le dépasser — elle peut en
-    # revanche lui être inférieure (remboursement partiellement affecté).
-    # Validation commune à la création et à la modification, donc aux deux
-    # écrans qui lient des règlements (page Opérations et import bancaire).
-    total_liens = sum(item.montant for item in items)
-    if total_liens > montant_reglement + 1e-9:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Le total réglé ({total_liens:.2f}) dépasse le montant de "
-                f"l'opération de règlement ({montant_reglement:.2f})"
-            ),
-        )
+    """La règle vit dans `crud.erreur_operations_remboursees`, partagée avec
+    l'import bancaire qui pose ses liens à la confirmation (cf.
+    services/import_bancaire.confirmer) ; ce qui reste ici est la traduction en
+    réponse HTTP.
+
+    UNE CIBLE INTROUVABLE GARDE SON 404 : c'est une ressource nommée qui
+    n'existe pas, pas une règle métier violée — et le contrôle est refait avant
+    de déléguer plutôt que déduit du message, qu'on ne veut pas voir devenir
+    une valeur de retour déguisée."""
     for item in items:
-        depense = crud.get_operation(db, item.operation_id)
-        if depense is None:
+        if crud.get_operation(db, item.operation_id) is None:
             raise HTTPException(
                 status_code=404, detail=f"Opération {item.operation_id} introuvable"
             )
-        if not _cible_valide_pour_reglement(depense, code_reglement):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"L'opération {item.operation_id} ne peut pas être réglée par "
-                    f"une opération de type '{code_reglement}'"
-                ),
-            )
-        # Le montant du lien est comparé au montant dû de la dette : les deux
-        # doivent être libellés dans la même monnaie, sinon on rembourserait
-        # « 40 » d'une dette de « 40 » sans qu'il s'agisse du même argent.
-        if depense.monnaie_id != monnaie_reglement:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"L'opération {item.operation_id} n'est pas dans la même monnaie "
-                    "que ce règlement : l'app ne convertit rien, règle-la depuis une "
-                    "opération de sa monnaie."
-                ),
-            )
-        # Somme des autres règlements déjà liés à cette opération (hors celui
-        # qu'on est en train de définir, dont on remplace le montant).
-        autres_liens_total = sum(
-            montant
-            for remboursement, montant in crud.get_remboursements_lies_detail(
-                db, item.operation_id
-            )
-            if remboursement.id != operation_remboursement_id
-        )
-        if autres_liens_total + item.montant > depense.montant_du + 1e-9:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Le montant réglé pour l'opération {item.operation_id} "
-                    f"dépasse le montant dû ({depense.montant_du:.2f})"
-                ),
-            )
+    erreur = crud.erreur_operations_remboursees(
+        db,
+        items,
+        code_reglement,
+        montant_reglement,
+        monnaie_reglement,
+        operation_remboursement_id,
+    )
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
 
 
 def _valider_decoupes(db: Session, code: str, montant: float, decoupes) -> None:

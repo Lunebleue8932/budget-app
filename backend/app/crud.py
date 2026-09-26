@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from .constants import (
     CATEGORIE_AUTRES,
+    CIBLE_PAR_TYPE_REGLEMENT,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
     COLONNES_IMPORT_POSITION_PAR_DEFAUT,
@@ -1634,6 +1635,81 @@ def get_remboursements_lies_detail(
     return resultat
 
 
+def cible_valide_pour_reglement(depense, code_reglement: str) -> bool:
+    """Un règlement ne peut viser qu'un seul type de cible : un remboursement
+    reçu solde une dépense remboursable, un remboursement de prêt solde un prêt
+    reçu. Le type remplace à lui seul l'ancien triple test
+    (remboursable + sens + nom de catégorie)."""
+    cible = CIBLE_PAR_TYPE_REGLEMENT.get(TypeOperation(code_reglement))
+    return cible is not None and TypeOperation(depense.type_code) == cible
+
+
+def erreur_operations_remboursees(
+    db: Session,
+    items,
+    code_reglement: str,
+    montant_reglement: float,
+    monnaie_reglement: int,
+    operation_remboursement_id: Optional[int] = None,
+) -> Optional[str]:
+    """Le message d'erreur si ces liens ne tiennent pas, None sinon.
+
+    DEUX APPELANTS, UNE SEULE RÈGLE : la page Opérations (POST/PUT, qui en fait
+    un 400) et l'import bancaire, qui pose ses liens à la CONFIRMATION et range
+    la ligne parmi les ignorées. Écrire la règle deux fois aurait laissé l'un
+    des deux écrans accepter ce que l'autre refuse.
+
+    CE QU'ELLE VÉRIFIE, dans cet ordre :
+
+      - la somme des liens ne dépasse pas le montant du règlement. Ce montant
+        est une donnée FIXE (ce qui est passé en banque) : les liens le
+        répartissent, jamais l'inverse. Elle peut lui être inférieure — un
+        remboursement partiellement affecté est légitime ;
+      - chaque cible existe, et peut être réglée par ce type-là ;
+      - chaque cible est dans la MÊME MONNAIE que le règlement : sans quoi on
+        solderait « 40 » d'une dette de « 40 » sans qu'il s'agisse du même
+        argent, et l'app ne convertit rien ;
+      - ce qu'on lui affecte, ajouté à ce que d'AUTRES règlements lui affectent
+        déjà, ne dépasse pas ce qu'elle doit encore.
+    """
+    total_liens = sum(item.montant for item in items)
+    if total_liens > montant_reglement + 1e-9:
+        return (
+            f"Le total réglé ({total_liens:.2f}) dépasse le montant de "
+            f"l'opération de règlement ({montant_reglement:.2f})"
+        )
+    for item in items:
+        depense = get_operation(db, item.operation_id)
+        if depense is None:
+            return f"Opération {item.operation_id} introuvable"
+        if not cible_valide_pour_reglement(depense, code_reglement):
+            return (
+                f"L'opération {item.operation_id} ne peut pas être réglée par "
+                f"une opération de type '{code_reglement}'"
+            )
+        if depense.monnaie_id != monnaie_reglement:
+            return (
+                f"L'opération {item.operation_id} n'est pas dans la même monnaie "
+                "que ce règlement : l'app ne convertit rien, règle-la depuis une "
+                "opération de sa monnaie."
+            )
+        # Somme des autres règlements déjà liés à cette opération (hors celui
+        # qu'on est en train de définir, dont on remplace le montant).
+        autres_liens_total = sum(
+            montant
+            for remboursement, montant in get_remboursements_lies_detail(
+                db, item.operation_id
+            )
+            if remboursement.id != operation_remboursement_id
+        )
+        if autres_liens_total + item.montant > depense.montant_du + 1e-9:
+            return (
+                f"Le montant réglé pour l'opération {item.operation_id} "
+                f"dépasse le montant dû ({depense.montant_du:.2f})"
+            )
+    return None
+
+
 def set_operations_remboursees(
     db: Session, operation_remboursement: models.Operation, montants_par_depense: dict[int, float]
 ) -> None:
@@ -3033,13 +3109,19 @@ def create_regle_categorisation(
     nom: str,
     description: str = "",
     conditions: dict,
-    type_id: int,
+    type_id: Optional[int] = None,
     categorie_id: Optional[int] = None,
     compte_autre_id: Optional[int] = None,
     decoupes=None,
     actif: bool = True,
     arreter_apres: bool = True,
     ordre: Optional[int] = None,
+    nature_remplacement: Optional[str] = None,
+    compte_id: Optional[int] = None,
+    notes: Optional[str] = None,
+    imprevue: Optional[bool] = None,
+    amortissement_mois: Optional[int] = None,
+    sorties: Optional[list] = None,
 ) -> models.RegleCategorisation:
     if ordre is None:
         # En bout de liste : une nouvelle règle ne doit jamais court-circuiter
@@ -3056,6 +3138,12 @@ def create_regle_categorisation(
         actif=actif,
         arreter_apres=arreter_apres,
         ordre=ordre,
+        nature_remplacement=nature_remplacement,
+        compte_id=compte_id,
+        notes=notes,
+        imprevue=imprevue,
+        amortissement_mois=amortissement_mois,
+        sorties=sorties or [],
     )
     _appliquer_decoupes_regle(regle, decoupes)
     db.add(regle)
@@ -3085,7 +3173,14 @@ def update_regle_categorisation(
         "actif",
         "arreter_apres",
         "ordre",
+        "nature_remplacement",
+        "compte_id",
+        "notes",
+        "imprevue",
+        "amortissement_mois",
+        "sorties",
     ):
+
         if nom_champ in champs:
             setattr(regle, nom_champ, champs[nom_champ])
     db.commit()
@@ -3461,3 +3556,43 @@ def set_note_dashboard(db: Session, contenu: str) -> models.NoteDashboard:
     db.commit()
     db.refresh(note)
     return note
+
+
+# ---------- Rangements d'écran (PreferenceInterface, migration 0069) ----------
+
+
+def get_preference_interface(db: Session, cle: str):
+    """Ce qu'un écran avait rangé sous cette clé, ou None.
+
+    NONE ET « VIDE » NE SONT PAS LA MÊME CHOSE, et l'appelant en a besoin : une
+    clé absente veut dire « cet écran n'a jamais rien rangé », un objet vide
+    veut dire « il a rangé, puis tout retiré ». Côté dossiers de règles, le
+    premier autorise la reprise de ce qui traîne encore dans le localStorage,
+    le second l'interdit — sans quoi vider ses dossiers les ferait réapparaître
+    au rechargement suivant."""
+    ligne = (
+        db.query(models.PreferenceInterface)
+        .filter(models.PreferenceInterface.cle == cle)
+        .first()
+    )
+    return ligne.valeur if ligne is not None else None
+
+
+def set_preference_interface(db: Session, cle: str, valeur):
+    """Range (ou remplace) ce que l'écran rend.
+
+    UN REMPLACEMENT, JAMAIS UNE FUSION : l'écran lit tout d'un coup et réécrit
+    tout d'un coup. Fusionner aurait rendu impossible de RETIRER quelque chose —
+    un dossier supprimé serait revenu à chaque enregistrement."""
+    ligne = (
+        db.query(models.PreferenceInterface)
+        .filter(models.PreferenceInterface.cle == cle)
+        .first()
+    )
+    if ligne is None:
+        ligne = models.PreferenceInterface(cle=cle, valeur=valeur)
+        db.add(ligne)
+    else:
+        ligne.valeur = valeur
+    db.commit()
+    return ligne.valeur

@@ -201,6 +201,9 @@ async function injecterHtml(id, fichier, navigation) {
   // l'extension.
   appliquerTextes(pose);
   traduireDomStatique(pose);
+  // La troisième passe, dans le même ordre qu'au démarrage : les blocs d'aide
+  // d'une extension portent des puces comme ceux du noyau (cf. textes.js).
+  appliquerPuces(pose);
 }
 
 /**
@@ -570,8 +573,8 @@ function afficherModaleExtensions(extensions) {
       // ensemble. Le détail est à un clic, pas plus loin.
       const explication = basculeDetailHtml(
         `modale-explication-${e.id}`,
-        e.description
-          ? `<p class="modale-extension-description">${escapeHtml(e.description)}</p>`
+        descriptionExtension(e)
+          ? `<p class="modale-extension-description">${escapeHtml(t(descriptionExtension(e)))}</p>`
           : "",
         { libelle: t("Afficher ce que fait cette extension") }
       );

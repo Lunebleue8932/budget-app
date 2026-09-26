@@ -101,15 +101,62 @@ def _appliquer_migrations() -> Path | None:
     return None
 
 
+# LE PORT EST FIXE, ET C'EST CE QUI FAIT TENIR LES RÉGLAGES DU POSTE D'UN
+# LANCEMENT À L'AUTRE.
+#
+# Le thème, la langue, la touche qui fige l'infobulle, le preset d'import
+# mémorisé, l'ordre des colonnes de correspondances et les dossiers de la
+# galerie des règles vivent tous dans le `localStorage` de la fenêtre. Or ce
+# stockage est rangé PAR ORIGINE — schéma, hôte ET PORT. Un port tiré au sort à
+# chaque démarrage donnait donc une origine neuve à chaque fois :
+# `http://127.0.0.1:52431` puis `http://127.0.0.1:61208` sont, pour le
+# navigateur embarqué, deux sites différents qui n'ont rien à se dire.
+# L'application s'ouvrait sur un stockage VIDE, et tout ce qui s'y règle
+# semblait ne jamais se retenir — sans que rien à l'écran puisse le laisser
+# deviner.
+#
+# CE N'EST PAS UN RECUL DE CONFIDENTIALITÉ : le port n'a jamais été un secret
+# (il s'obtient par un balayage de la boucle locale en quelques millisecondes),
+# et la frontière reste la même — le serveur n'écoute que sur 127.0.0.1, et tout
+# ce qui tourne sous la même session peut l'atteindre, port fixe ou non.
+#
+# Hors de la plage éphémère de Windows (49152-65535), sans quoi le système
+# pourrait l'avoir déjà attribué à autre chose.
+PORT_PREFERE = 38291
+
+
 def _socket_local() -> tuple[socket.socket, int]:
-    """Réserve un port libre en le faisant choisir par le système. Le socket
-    déjà lié est ensuite passé tel quel à uvicorn : aucune fenêtre entre la
-    réservation et l'écoute, donc aucun risque que le port soit pris entre
-    les deux."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", 0))
-    return sock, sock.getsockname()[1]
+    """Réserve le port de l'application, ou un port libre quelconque à défaut.
+
+    Le socket déjà lié est ensuite passé tel quel à uvicorn : aucune fenêtre
+    entre la réservation et l'écoute, donc aucun risque que le port soit pris
+    entre les deux.
+
+    LE REPLI EXISTE PARCE QU'UN PORT FIXE PEUT ÊTRE OCCUPÉ — une seconde copie
+    de l'application déjà ouverte, ou un autre programme. Refuser de démarrer
+    pour cette raison serait une panne ; démarrer ailleurs ne coûte que les
+    réglages d'affichage du poste, le temps de cette session, et la base ne
+    dépend de rien de tout cela.
+
+    SO_REUSEADDR, ET SEULEMENT HORS WINDOWS. Ailleurs il ne fait que permettre
+    de reprendre un port qu'une connexion en TIME_WAIT retient encore — ce dont
+    un port fixe a justement besoin pour se relancer aussitôt. Sous Windows, il
+    autorise à se lier à un port DÉJÀ ÉCOUTÉ : deux copies de l'application s'y
+    seraient liées au même port, et le repli ci-dessous n'aurait jamais joué.
+    """
+    for port in (PORT_PREFERE, 0):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if sys.platform != "win32":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            sock.close()
+            continue
+        return sock, sock.getsockname()[1]
+    # Le port 0 n'échoue que si la machine n'a plus aucun port libre : rien à
+    # rattraper ici, l'appelant signale l'échec comme n'importe quel autre.
+    raise OSError("Aucun port local disponible pour le serveur de l'application.")
 
 
 def _demarrer_serveur(sock: socket.socket) -> list[str]:
@@ -208,6 +255,32 @@ class ApiBureau:
             chemin_propose,
             file_types=("Base de données (*.db;*.sqlite;*.sqlite3)", "Tous les fichiers (*.*)"),
         )
+
+    def ouvrir_lien_externe(self, url: str) -> bool:
+        """Ouvre une adresse dans le NAVIGATEUR DU SYSTÈME, hors de la fenêtre.
+
+        POURQUOI ÇA EXISTE. `target="_blank"` ne veut rien dire dans un
+        navigateur embarqué : il n'a ni onglet ni fenêtre à ouvrir. Selon la
+        plateforme le clic ne fait rien du tout — ce qui se lit comme une panne
+        — ou, pire, remplace l'application par la page demandée, sans barre
+        d'adresse ni bouton « retour » pour en revenir.
+
+        CE QUI SORT EST L'ADRESSE, ET RIEN D'AUTRE. Cette méthode n'ouvre
+        aucune connexion : elle passe une URL au système, qui la donne au
+        navigateur de l'utilisateur. L'application, elle, continue de ne parler
+        qu'à sa propre boucle locale (cf. tests/test_confidentialite_reseau.py).
+
+        HTTP ET HTTPS SEULEMENT. `webbrowser.open` accepte n'importe quel
+        schéma, `file://` compris : une adresse qui viendrait d'ailleurs que de
+        la page pourrait ouvrir un fichier local. Le seul appelant est un lien
+        écrit en dur dans index.html, mais la garde coûte deux lignes."""
+        if not url.startswith(("http://", "https://")):
+            return False
+        # Importé ICI, comme `webview` plus bas : rien de ce qui précède
+        # l'ouverture de la fenêtre n'a besoin de cette dépendance.
+        import webbrowser
+
+        return bool(webbrowser.open(url))
 
     def enregistrer_texte(self, nom_propose: str, contenu: str) -> str | None:
         """Écrit un fichier TEXTE à l'endroit que l'utilisateur désigne.

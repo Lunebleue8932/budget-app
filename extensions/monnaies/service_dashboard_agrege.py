@@ -24,6 +24,47 @@ from app.routers import dashboard as dashboard_noyau
 import service_conversion
 
 
+# Combien de lignes garde l'infobulle d'un total, de chaque côté. Repris du
+# noyau (soldes.NB_TOP_DEPENSES) : la bulle convertie et la bulle d'une monnaie
+# doivent montrer le même nombre de lignes.
+NB_TOP = 3
+
+
+def _fondre_top(accumulateur: dict, lignes, coefficient: float) -> None:
+    """Fond les plus grosses lignes d'une monnaie dans celles déjà rencontrées.
+
+    LA CLÉ EST LE LIBELLÉ, comme partout où l'application fond des lignes (cf.
+    soldes._fondre_par_libelle) : un « Loyer » payé en euros et un « Loyer »
+    payé en francs sont le même loyer, et c'est justement ce que la conversion
+    permet enfin de dire.
+
+    CE QUE CELA CORRIGE. Les deux cartes « Total Entrées » et « Total Dépenses »
+    portent une infobulle qui dit d'où vient leur total ; le KPI agrégé ne la
+    remplissait pas, et elle annonçait donc « Aucune opération sur la période »
+    À CHAQUE FOIS que la case « Tout convertir » était cochée — sur un mois où
+    l'on venait justement de lire le total juste au-dessus."""
+    for ligne in lignes:
+        libelle = (ligne.nature or "").strip()
+        entree = accumulateur.setdefault(libelle, {"montant": 0.0, "nombre": 0})
+        entree["montant"] += ligne.montant * coefficient
+        entree["nombre"] += ligne.nombre
+
+
+def _classer_top(accumulateur: dict) -> list:
+    """Les plus grosses, du plus lourd au plus léger — le libellé départageant
+    deux montants égaux, pour que deux lectures donnent le même ordre.
+
+    ON RECLASSE, ON NE CONCATÈNE PAS : deux listes déjà triées mises bout à bout
+    ne le sont plus, et les trois premières d'une liste de six seraient alors
+    les trois premières d'UNE monnaie."""
+    return [
+        schemas.DepenseTopRead(nature=libelle, montant=valeurs["montant"], nombre=valeurs["nombre"])
+        for libelle, valeurs in sorted(
+            accumulateur.items(), key=lambda paire: (-paire[1]["montant"], paire[0])
+        )
+    ][:NB_TOP]
+
+
 def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
     """Fond une ligne de catégorie dans son homologue déjà rencontrée.
 
@@ -67,9 +108,19 @@ def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
 def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     """Le dashboard converti dans `vers_monnaie_id`.
 
-    Rend (payload, monnaies non converties). La seconde valeur n'est pas un
-    détail : une monnaie sans taux est ÉCARTÉE du total, et un total amputé sans
-    le dire vaudrait moins qu'un refus.
+    Rend (payload, monnaies non converties, composition du budget). La seconde
+    valeur n'est pas un détail : une monnaie sans taux est ÉCARTÉE du total, et
+    un total amputé sans le dire vaudrait moins qu'un refus.
+
+    LA TROISIÈME DIT D'OÙ VIENT LE BUDGET, et elle existe parce que ce
+    chiffre-là est le plus facile à ne pas reconnaître. Il subit DEUX
+    multiplications invisibles : la vue année somme douze mois (cf.
+    soldes.get_budget_total_periode) et l'agrégation convertit puis additionne
+    les monnaies. Un budget de 500 $ posé une fois, jamais retouché, hérité par
+    tous les mois de toutes les années (cf. crud._budget_herite) pèse ainsi
+    5 400 € de plus sur un budget annuel dont l'utilisateur ne compte que les
+    euros. Le chiffre est juste ; sans sa composition, rien ne permet de le
+    reconnaître pour tel.
     """
     brut = dashboard_noyau.get_dashboard(annee=annee, mois=mois, vue=vue, db=db)
     coefficients, manquantes = service_conversion.table_de_conversion(db, vers_monnaie_id)
@@ -79,7 +130,7 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         # La monnaie visée n'est portée par aucun compte : il n'y a rien à
         # convertir VERS elle, et l'appelant doit le savoir plutôt que de
         # recevoir un dashboard vide qui aurait l'air normal.
-        return None, manquantes
+        return None, manquantes, []
 
     # ---------- Les KPI, additionnés une fois de plus ----------
     agrege = schemas.KpisMonnaieRead(
@@ -91,16 +142,34 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         total_avoirs=0.0,
     )
     categories: dict = {}
+    budget_detail: list[dict] = []
+    top_entrees: dict = {}
+    top_sorties: dict = {}
     for kpi in brut.kpis:
         coefficient = coefficients.get(kpi.monnaie_id)
         if coefficient is None:
             continue  # monnaie sans taux : écartée, et nommée dans `manquantes`
+        # SEULES LES MONNAIES QUI APPORTENT QUELQUE CHOSE sont nommées : une
+        # ligne à 0,00 € par devise inutilisée ferait de la composition un
+        # tableau à lire plutôt qu'une réponse à lire.
+        if kpi.budget_total:
+            budget_detail.append(
+                {
+                    "monnaie_nom": kpi.monnaie_nom,
+                    "montant": kpi.budget_total,
+                    "converti": kpi.budget_total * coefficient,
+                }
+            )
         agrege.solde_total_courant += kpi.solde_total_courant * coefficient
         agrege.solde_projete_courant += kpi.solde_projete_courant * coefficient
         agrege.total_avoirs += kpi.total_avoirs * coefficient
         agrege.valorisation_placements += kpi.valorisation_placements * coefficient
         agrege.total_entrees += kpi.total_entrees * coefficient
         agrege.total_sorties += kpi.total_sorties * coefficient
+        # LE DÉTAIL SUIT SON TOTAL, sans quoi les deux cartes se retrouvent avec
+        # un chiffre et une infobulle qui annonce qu'il ne s'est rien passé.
+        _fondre_top(top_entrees, kpi.top_entrees, coefficient)
+        _fondre_top(top_sorties, kpi.top_sorties, coefficient)
         # La variation brute s'additionne comme les autres totaux : c'est une
         # somme de montants, pas une différence recalculée.
         agrege.variation_brute += kpi.variation_brute * coefficient
@@ -136,6 +205,8 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     # moins ce que je dois, et le convertir à part le ferait diverger de ses
     # deux composantes à l'arrondi.
     agrege.reste_a_rembourser = agrege.reste_a_recevoir - agrege.reste_a_rendre
+    agrege.top_entrees = _classer_top(top_entrees)
+    agrege.top_sorties = _classer_top(top_sorties)
 
     for ligne in categories.values():
         # Les plus grosses dépenses de la catégorie, tous pays confondus, du
@@ -182,4 +253,5 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     return (
         schemas.DashboardRead(comptes=comptes, monnaies=[cible], kpis=[agrege]),
         manquantes,
+        budget_detail,
     )

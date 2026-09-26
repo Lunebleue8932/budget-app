@@ -197,3 +197,31 @@
 .regle-condition:has(.regle-condition-mots) > .danger {
   margin-top: 0.1rem;
 }
+
+/* ---------- Les sorties conditionnelles (migration 0072) ---------- */
+.regle-sortie {
+  border-left: 3px solid var(--accent);
+}
+
+.regle-sortie-etiquette {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0.3rem;
+}
+
+/* Les actions d'une sortie : une grille de champs, chacun sous son libellé,
+   comme la barre de choix d'un écran. */
+.regle-sortie-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.5rem 0.9rem;
+}
+
+.regle-sortie-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}

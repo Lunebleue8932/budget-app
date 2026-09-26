@@ -28,6 +28,8 @@ naturellement doit malgré tout correspondre.
 """
 import unicodedata
 from dataclasses import dataclass
+from types import SimpleNamespace
+
 from typing import NamedTuple, Optional
 
 from ..constants import (
@@ -52,7 +54,10 @@ class ResultatRegle:
     repris à la main dans l'aperçu avant de pouvoir être importé."""
 
     nom_regle: str
-    type_code: str
+    #: None tant qu'aucune règle rencontrée n'a posé de type (migration 0071 :
+    #: une règle peut ne faire que renommer). L'appelant retombe alors sur
+    #: « classique », le défaut de toute ligne importée.
+    type_code: Optional[str] = None
     categorie_id: Optional[int] = None
     compte_autre_id: Optional[int] = None
     #: La DÉCOUPE que la règle impose, en couples (catégorie, formule) — pas
@@ -62,6 +67,14 @@ class ResultatRegle:
     #: C'est donc l'appelant qui la résout, quand il tient le bon montant
     #: (cf. resoudre_decoupes). None = la règle ne découpe pas.
     decoupes: Optional[list[tuple[int, str]]] = None
+    #: LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071) — None = personne
+    #: n'en a rien dit. Même priorité que tout le reste : la plus haute des
+    #: règles qui en parlent l'emporte.
+    nature: Optional[str] = None
+    compte_id: Optional[int] = None
+    notes: Optional[str] = None
+    imprevue: Optional[bool] = None
+    amortissement_mois: Optional[int] = None
 
     @property
     def classe(self) -> bool:
@@ -250,25 +263,82 @@ def appliquer_regles(regles, brute: dict) -> Optional[ResultatRegle]:
             continue
 
         if resultat is None:
-            type_operation = TypeOperation(regle.type_operation.code)
-            resultat = ResultatRegle(nom_regle=regle.nom, type_code=type_operation.value)
+            resultat = ResultatRegle(nom_regle=regle.nom)
+        actions, code_type = _actions_effectives(regle, brute)
+        # LE TYPE EST POSÉ PAR LA PREMIÈRE RÈGLE QUI EN DONNE UN, et ne change
+        # plus ensuite. Une règle sans type (qui ne fait que renommer, par
+        # exemple) le laisse ouvert aux suivantes.
+        pose_type = False
+        if resultat.type_code is None and code_type is not None:
+            resultat.type_code = TypeOperation(code_type).value
+            pose_type = True
+        if _completer(resultat, actions) or pose_type:
             noms.append(regle.nom)
-            _completer(resultat, regle, type_operation)
-        else:
-            type_operation = TypeOperation(resultat.type_code)
-            if _completer(resultat, regle, type_operation):
-                noms.append(regle.nom)
 
         if regle.arreter_apres:
             break
 
-    if resultat is None:
+    # Des règles ont correspondu sans rien poser : rien n'a été décidé.
+    if resultat is None or not noms:
         return None
     resultat.nom_regle = " + ".join(noms)
     return resultat
 
 
-def _completer(resultat: ResultatRegle, regle, type_operation: TypeOperation) -> bool:
+_CHAMPS_SORTIE = (
+    "categorie_id",
+    "compte_autre_id",
+    "compte_id",
+    "nature_remplacement",
+    "notes",
+    "imprevue",
+    "amortissement_mois",
+)
+
+
+def _actions_effectives(regle, brute: dict):
+    """(actions, code du type) d'une règle qui vient de correspondre, SORTIES
+    CONDITIONNELLES comprises (migration 0072).
+
+    Les sorties sont lues dans l'ordre ; la PREMIÈRE dont les conditions
+    correspondent remplace, champ par champ, ce qu'elle renseigne — le reste
+    vient de la règle. Aucune ne correspond : la règle telle quelle. C'est ce
+    qui permet à UNE règle « virement interne » de désigner le livret pour une
+    ligne et le PEA pour une autre, là où il en fallait une par compte en face.
+
+    UNE SORTIE QUI POSE UNE CATÉGORIE ANNULE LA DÉCOUPE de la règle : les deux
+    répondent à la même question (cf. ResultatRegle.classe)."""
+    code_type = regle.type_operation.code if regle.type_operation is not None else None
+    sortie = next(
+        (
+            s
+            for s in (getattr(regle, "sorties", None) or [])
+            if evaluer_regle(s.get("conditions") or {}, brute)
+        ),
+        None,
+    )
+    actions = SimpleNamespace(
+        decoupes=list(regle.decoupes or []),
+        **{champ: getattr(regle, champ, None) for champ in _CHAMPS_SORTIE},
+    )
+    if sortie is not None:
+        if sortie.get("type_code"):
+            code_type = sortie["type_code"]
+        for champ in _CHAMPS_SORTIE:
+            if sortie.get(champ) is not None:
+                setattr(actions, champ, sortie[champ])
+        if sortie.get("categorie_id") is not None:
+            actions.decoupes = []
+    return actions, code_type
+
+
+def _type_provisoire(resultat: ResultatRegle) -> TypeOperation:
+    """Le type retenu, ou « classique » tant qu'aucune règle n'en a posé :
+    c'est celui que l'import donnera à la ligne si rien ne change d'ici là."""
+    return TypeOperation(resultat.type_code or TypeOperation.classique.value)
+
+
+def _completer(resultat: ResultatRegle, regle) -> bool:
     """Verse dans `resultat` ce que `regle` apporte et qui manque encore.
 
     `type_operation` est celui DÉJÀ RETENU, pas celui de `regle` : une règle de
@@ -277,9 +347,14 @@ def _completer(resultat: ResultatRegle, regle, type_operation: TypeOperation) ->
     catégorie posée par une règle sur un type à catégorie imposée serait une
     incohérence en base, exactement celle que le routeur refuse à l'écriture.
 
+    Tant qu'aucun type n'est retenu, on raisonne sur « classique », le défaut
+    d'une ligne importée : une catégorie posée maintenant sera de toute façon
+    ignorée à l'import si une règle plus basse fait de la ligne un virement.
+
     Renvoie True si quelque chose a été posé, pour que l'appelant sache si
     cette règle a compté.
     """
+    type_operation = _type_provisoire(resultat)
     pose = False
     # LA CATÉGORIE ET LA DÉCOUPE OCCUPENT LA MÊME CASE (cf. ResultatRegle.classe).
     # Une règle propose l'une ou l'autre — jamais les deux, le routeur les rend
@@ -300,6 +375,20 @@ def _completer(resultat: ResultatRegle, regle, type_operation: TypeOperation) ->
     ):
         resultat.compte_autre_id = regle.compte_autre_id
         pose = True
+    # LES AUTRES PROPRIÉTÉS, chacune remplie par la première règle qui en parle.
+    # `getattr` : les règles de placement passent aussi par ici dans les tests,
+    # et n'ont pas ces colonnes.
+    for champ_regle, champ_resultat in (
+        ("nature_remplacement", "nature"),
+        ("compte_id", "compte_id"),
+        ("notes", "notes"),
+        ("imprevue", "imprevue"),
+        ("amortissement_mois", "amortissement_mois"),
+    ):
+        valeur = getattr(regle, champ_regle, None)
+        if valeur is not None and getattr(resultat, champ_resultat) is None:
+            setattr(resultat, champ_resultat, valeur)
+            pose = True
     return pose
 
 

@@ -317,3 +317,153 @@ def test_enregistrer_une_ligne_absente_du_fichier_ne_stocke_rien(db_session):
 
     assert not import_bancaire.enregistrer_ligne_brute(db_session, preset.id, contenu, 99, 1)
     assert db_session.query(models.LigneImportBrute).count() == 0
+
+# ---------- Un règlement LIÉ passe par la confirmation, comme le reste ----------
+
+
+def _depense_remboursable(db, compte, montant=250.0, nature="Avance Léa"):
+    """Une dépense remboursable déjà en base : la cible que l'aperçu propose."""
+    return crud.create_operation(
+        db,
+        schemas.OperationCreate(
+            date=date(2026, 6, 1),
+            compte_id=compte.id,
+            monnaie_id=get_monnaie_id(db),
+            type_id=get_type_id(db, "remboursable"),
+            categorie_id=get_categorie_id(db, "Alimentaire"),
+            nature=nature,
+            montant=montant,
+            montant_du=montant,
+            statut=Statut.reel,
+        ),
+    )
+
+
+def test_un_reglement_lie_est_cree_et_lie_par_la_confirmation(db_session):
+    """CE QUI A CHANGÉ, ET POURQUOI. Lier un remboursement à la dépense qu'il
+    solde demande `operations_remboursees` : seul POST /operations savait le
+    faire, et le frontend créait donc ces lignes-là UNE PAR UNE, aussitôt, hors
+    de la confirmation groupée. L'opération existait avant que l'import soit
+    confirmé — impossible de se raviser, et un aperçu abandonné laissait
+    derrière lui des opérations que personne n'avait validées.
+
+    Les liens voyagent maintenant avec l'override, et `confirmer` les pose
+    après avoir créé l'opération : « Confirmer l'import » redevient le seul
+    geste qui écrit."""
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _make_preset(db_session)
+    avance = _depense_remboursable(db_session, compte)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        _fichier_une_depense(montant=250.0, nature="Virement Léa"),
+        _overrides(
+            compte,
+            type_code="remboursements",
+            montant=250.0,
+            operations_remboursees=[
+                schemas.OperationRembourseeInput(operation_id=avance.id, montant=250.0)
+            ],
+        ),
+    )
+
+    assert resultat.operations_creees == 1
+    reglement = (
+        db_session.query(models.Operation)
+        .filter(models.Operation.nature == "Virement Léa")
+        .one()
+    )
+    # Le lien existe, et la dépense qu'il solde ne doit plus rien.
+    lies = crud.get_operations_remboursees(db_session, reglement.id)
+    assert [o.id for o in lies] == [avance.id]
+    db_session.refresh(avance)
+    assert avance.montant_a_rembourser == pytest.approx(0.0)
+
+
+def test_un_reglement_lie_entre_au_stock_anti_doublons_avec_le_reste(db_session):
+    """LE BÉNÉFICE COLLATÉRAL, et il compte : en passant par `confirmer`, ces
+    lignes-là sont stockées comme toutes les autres. Il fallait jusqu'ici une
+    route à part (`enregistrer_ligne_brute`) pour qu'un relevé réimporté les
+    reconnaisse, et l'oublier laissait le doublon repasser comme neuf."""
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _make_preset(db_session)
+    avance = _depense_remboursable(db_session, compte)
+    contenu = _fichier_une_depense(montant=250.0, nature="Virement Léa")
+
+    import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        contenu,
+        _overrides(
+            compte,
+            type_code="remboursements",
+            montant=250.0,
+            operations_remboursees=[
+                schemas.OperationRembourseeInput(operation_id=avance.id, montant=250.0)
+            ],
+        ),
+    )
+
+    apercu = import_bancaire.previsualiser(db_session, preset.id, contenu)
+    assert apercu.lignes[0].doublon_de is not None
+
+
+def test_un_lien_devenu_impossible_range_la_ligne_parmi_les_ignorees(db_session):
+    """ENTRE L'APERÇU ET LA CONFIRMATION, LA CIBLE A PU ÊTRE SOLDÉE AILLEURS.
+    La ligne rejoint alors les ignorées avec sa raison, et l'opération qu'on
+    venait de créer repart : un règlement qui ne règle rien n'est pas ce qu'on
+    a demandé, et le laisser en base aurait fait croire que la liaison a eu
+    lieu."""
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _make_preset(db_session)
+    avance = _depense_remboursable(db_session, compte, montant=250.0)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        _fichier_une_depense(montant=250.0, nature="Virement Léa"),
+        _overrides(
+            compte,
+            type_code="remboursements",
+            montant=250.0,
+            # Plus que ce que la dépense doit encore : refusé.
+            operations_remboursees=[
+                schemas.OperationRembourseeInput(operation_id=avance.id, montant=400.0)
+            ],
+        ),
+    )
+
+    assert resultat.operations_creees == 0
+    assert len(resultat.lignes_ignorees) == 1
+    assert "dépasse" in resultat.lignes_ignorees[0].erreur
+    # Rien n'est resté en base : ni le règlement, ni un lien partiel.
+    assert (
+        db_session.query(models.Operation)
+        .filter(models.Operation.nature == "Virement Léa")
+        .count()
+        == 0
+    )
+    db_session.refresh(avance)
+    assert avance.montant_a_rembourser == pytest.approx(250.0)
+
+
+def test_un_reglement_sans_lien_reste_une_operation_ordinaire(db_session):
+    """Le cas où la dépense réglée fait partie du MÊME fichier : on ne peut pas
+    la désigner avant qu'elle existe. La ligne n'est alors pas liée, et l'écran
+    la garde hors de la confirmation groupée (cf. app.js, confirmerImport) —
+    mais rien n'empêche le service de la créer si elle lui arrive, et elle est
+    alors une opération de règlement sans lien, exactement ce qu'elle est."""
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _make_preset(db_session)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        _fichier_une_depense(montant=250.0, nature="Virement Léa"),
+        _overrides(compte, type_code="remboursements", montant=250.0),
+    )
+
+    assert resultat.operations_creees == 1
+    reglement = db_session.query(models.Operation).one()
+    assert crud.get_operations_remboursees(db_session, reglement.id) == []

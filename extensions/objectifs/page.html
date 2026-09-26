@@ -17,25 +17,20 @@
      grise la case, refuse l'allumage et éteint l'extension avec sa dépendance.
 
      C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la
-     montre et la cache, exactement comme un onglet du noyau. -->
+     montre et la cache, exactement comme un onglet du noyau.
+
+     PAS DE SÉLECTEUR DE MONNAIE, D'ANNÉE NI DE MOIS, et c'est un retrait
+     réfléchi. Cette page-ci n'est pas un écran de lecture : on y vient POSER
+     des règles, et les relire. La lecture, elle, se fait au dashboard, qui a
+     déjà ses onglets de monnaie et son sélecteur de période — c'est là qu'un
+     objectif sert, devant les dépenses du mois. Trois listes déroulantes
+     posaient ici la même question une seconde fois, pour un chiffre qu'on ne
+     vient pas y chercher ; pire, l'onglet de monnaie CACHAIT la moitié de la
+     liste à qui tient deux devises, sans que rien ne le dise. Les objectifs
+     sont donc tous montrés, chacun mesuré dans sa propre monnaie sur le MOIS
+     EN COURS — la période la plus probable, et celle qu'on ne choisit pas. -->
 <div id="sous-section-budget-objectifs" class="sous-section">
   <h3>Objectifs<i class="info-bulle" tabindex="0" data-info-cle="objectifs.objectifs">i</i></h3>
-
-  <!-- LA PÉRIODE EST CELLE DE LA LECTURE, jamais celle de l'objectif : un
-       objectif n'a pas de mois, il a une CADENCE (par semaine, par mois). Ces
-       deux listes disent seulement sur quoi on regarde ce qu'il vaut — et la
-       monnaie, comme partout dans l'application, qu'on n'additionne jamais. -->
-  <div class="selecteur-contexte obj-contexte">
-    <label for="obj-monnaie">Monnaie
-      <select id="obj-monnaie"></select>
-    </label>
-    <label for="obj-annee">Année
-      <select id="obj-annee"></select>
-    </label>
-    <label for="obj-mois">Mois
-      <select id="obj-mois"></select>
-    </label>
-  </div>
 
   <div class="actions">
     <button type="button" class="primary" id="btn-objectif-nouveau">+ Nouvel objectif</button>
@@ -62,9 +57,15 @@
       </select>
     </div>
 
+    <!-- LE PÉRIMÈTRE, EN UNE SEULE LISTE : toutes les dépenses, une CATÉGORIE
+         ou un PROJET. Les options sont posées par le JS, en deux groupes —
+         une catégorie classe par NATURE, un projet regroupe par ÉVÉNEMENT, et
+         les deux se croisent (l'hôtel d'un voyage est dans « Loisirs » ET dans
+         « Italie »). D'où une liste et non deux : on choisit un axe, jamais les
+         deux à la fois, et le serveur le refuse (cf. models.ObjectifKpi). -->
     <div class="regle-champ-ligne">
-      <label for="objectif-categorie">Sur</label>
-      <select id="objectif-categorie">
+      <label for="objectif-perimetre">Sur<i class="info-bulle" tabindex="0" data-info-cle="objectifs.perimetre">i</i></label>
+      <select id="objectif-perimetre">
         <option value="">Toutes les dépenses</option>
       </select>
     </div>
@@ -82,7 +83,17 @@
       </select>
     </div>
 
+    <!-- SE FIXER UNE CIBLE EST FACULTATIF (migration 0070). Un projet qu'on
+         commence à suivre est le cas ordinaire : on veut voir ce qu'il coûte,
+         mois après mois, bien avant de savoir ce qu'on s'autorise. Sans cette
+         case, il fallait inventer un nombre — et l'objectif annonçait aussitôt
+         « tenu » ou « manqué » sur une règle que personne ne s'était donnée. -->
     <div class="regle-champ-ligne">
+      <label for="objectif-avec-cible">Se fixer une cible<i class="info-bulle" tabindex="0" data-info-cle="objectifs.avec-cible">i</i></label>
+      <input type="checkbox" id="objectif-avec-cible" checked />
+    </div>
+
+    <div class="regle-champ-ligne" id="objectif-ligne-sens">
       <label for="objectif-sens">Objectif</label>
       <select id="objectif-sens">
         <option value="max">Ne pas dépasser</option>
@@ -90,7 +101,7 @@
       </select>
     </div>
 
-    <div class="regle-champ-ligne">
+    <div class="regle-champ-ligne" id="objectif-ligne-cible">
       <label for="objectif-cible">Cible</label>
       <input type="number" id="objectif-cible" step="0.01" min="0" />
       <span class="hint" id="objectif-cible-unite"></span>

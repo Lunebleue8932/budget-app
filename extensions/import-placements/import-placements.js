@@ -137,7 +137,20 @@ const IMPL_LIBELLES_TYPE = {
   transfert: "Transfert interne",
 };
 
-const IMPL_CLE_PRESET_MEMORISE = "budget-app.import-placements.preset";
+// LE PRESET RETENU VIT EN BASE (`PreferenceInterface`, migration 0069), comme
+// celui de l'import bancaire et pour la même raison : ce qui est mémorisé EST un
+// identifiant de preset, et un preset n'existe que dans une base. Mémorisé sur
+// le poste, il désignait un autre preset — ou rien — dès qu'on changeait de
+// base, c'est-à-dire exactement le symptôme qu'il existe pour éviter.
+const IMPL_CLE_PRESET_MEMORISE = "import-placements.preset";
+// L'ancienne clé de localStorage, reprise UNE FOIS puis effacée.
+const IMPL_CLE_PRESET_MEMORISE_LOCALE = "budget-app.import-placements.preset";
+
+// Sans `await` : mémoriser un choix ne doit pas retarder l'écran qui vient de le
+// prendre (cf. ecrirePreference, qui ne lève jamais).
+function memoriserPresetImpl() {
+  ecrirePreference(IMPL_CLE_PRESET_MEMORISE, implPresetId != null ? implPresetId : null);
+}
 
 /* ---------- État de l'écran ---------- */
 
@@ -215,7 +228,7 @@ function renderImplPresetChips() {
     btn.addEventListener("click", async () => {
       if (p.id === implPresetId) return;
       implPresetId = p.id;
-      localStorage.setItem(IMPL_CLE_PRESET_MEMORISE, String(implPresetId));
+      memoriserPresetImpl();
       renderImplPresetChips();
       await chargerPresetImpl();
     });
@@ -226,12 +239,17 @@ function renderImplPresetChips() {
 async function loadImplPresets() {
   implPresets = await apiFetch(`${IMPL_BASE}/presets`);
   if (!implPresets.some((p) => p.id === implPresetId)) {
-    const memorise = Number(localStorage.getItem(IMPL_CLE_PRESET_MEMORISE));
+    let range = await lirePreference(IMPL_CLE_PRESET_MEMORISE);
+    if (range === null || range === undefined) {
+      range = reprendreDuLocalStorage(IMPL_CLE_PRESET_MEMORISE_LOCALE);
+      if (range !== null) await ecrirePreference(IMPL_CLE_PRESET_MEMORISE, range);
+    }
+    const memorise = Number(range);
     implPresetId = implPresets.some((p) => p.id === memorise)
       ? memorise
       : implPresetParDefaut();
   }
-  if (implPresetId) localStorage.setItem(IMPL_CLE_PRESET_MEMORISE, String(implPresetId));
+  if (implPresetId) memoriserPresetImpl();
   renderImplPresetChips();
 }
 
@@ -367,49 +385,57 @@ function implModeComparaison() {
 }
 
 /**
- * Les colonnes de la comparaison de doublons, et surtout ce que veut dire une
- * liste VIDE — qui n'est pas la même chose des deux côtés : en exclusion tout
- * est comparé, en sélection plus rien ne le serait (chaque ligne deviendrait
- * le doublon de la première). Le serveur refuse le second cas ; on le dit ici
- * avant d'y arriver.
+ * LES COLONNES DE LA COMPARAISON — le champ du NOYAU (`creerChampColonnes`),
+ * celui-là même que la page d'import des relevés bancaires emploie.
+ *
+ * POURQUOI PAS UNE COPIE. Les deux écrans posaient la même question, et en
+ * posaient chacun leur version : les huit balises de l'éditeur écrites à la
+ * main, la même conversion des jetons en nombres, les mêmes quatre phrases
+ * d'état. Trois occasions de diverger pour un contrôle dont l'identité EST la
+ * fonction — de fait, l'un portait déjà une pastille « i » que l'autre n'avait
+ * pas. Ne reste ici que ce qui est PROPRE à cet écran : ses deux bandeaux de
+ * repli.
  */
+const IMPL_GROUPE_COLONNES_COMPARAISON = "impl-comparaison";
+
+creerChampColonnes(IMPL_GROUPE_COLONNES_COMPARAISON, {
+  conteneur: "impl-config-colonnes-comparaison",
+  etat: "impl-comparaison-etat",
+  mode: implModeComparaison,
+  onChange: (numeros) => {
+    implConfigColonnesComparaison = numeros;
+    majResumesComparaisonImpl();
+  },
+});
+
 function renderImplConfigComparaison() {
-  const bloc = document.getElementById("impl-config-colonnes-comparaison");
+  chargerChampColonnes(IMPL_GROUPE_COLONNES_COMPARAISON, implConfigColonnesComparaison);
+  majResumesComparaisonImpl();
+}
+
+/**
+ * LES DEUX BANDEAUX DE REPLI, et eux seuls : ce que la liste veut dire est
+ * écrit par le champ du noyau, sous les jetons.
+ */
+function majResumesComparaisonImpl() {
   const selection = implModeComparaison() === "selection";
   const nb = implConfigColonnesComparaison.length;
+  const resume = selection
+    ? t("doublons : {n} colonne(s) comparée(s)").replace("{n}", nb)
+    : nb === 0
+      ? t("doublons : toutes les colonnes")
+      : t("doublons : toutes sauf {n}").replace("{n}", nb);
   document.getElementById("impl-config-fichier-resume").textContent =
-    `${implConfigColonnes.length} ${t("colonne(s) lue(s)")} · ` +
-    (selection
-      ? `${t("doublons : {n} colonne(s) comparée(s)").replace("{n}", nb)}`
-      : nb === 0
-        ? t("doublons : toutes les colonnes")
-        : `${t("doublons : toutes sauf {n}").replace("{n}", nb)}`);
+    `${implConfigColonnes.length} ${t("colonne(s) lue(s)")} · ${resume}`;
+  document.getElementById("impl-config-doublons-resume").textContent = resume;
+}
 
-  bloc.innerHTML = "";
-  if (nb === 0) {
-    bloc.innerHTML = selection
-      ? `<p class="hint erreur-hint">${t("Aucune colonne choisie : ajoute-en au moins une, sinon plus rien ne distingue deux lignes.")}</p>`
-      : `<p class="hint">${t("Aucune colonne exclue : toutes les colonnes du fichier sont comparées.")}</p>`;
-    return;
-  }
-  implConfigColonnesComparaison.forEach((index, i) => {
-    const row = document.createElement("div");
-    row.className = "import-mapping-row";
-    row.innerHTML = `
-      <label class="import-config-index">${t("Colonne n°")}
-        <input type="number" min="1" value="${index}" />
-      </label>
-      <button type="button" class="danger" data-action="supprimer">${t("Supprimer")}</button>
-    `;
-    row.querySelector("input").addEventListener("input", (e) => {
-      implConfigColonnesComparaison[i] = Number(e.target.value) || 0;
-    });
-    row.querySelector("button[data-action='supprimer']").addEventListener("click", () => {
-      implConfigColonnesComparaison.splice(i, 1);
-      renderImplConfigComparaison();
-    });
-    bloc.appendChild(row);
-  });
+// Le bandeau de « Lignes à ne pas importer » : replié, c'est la seule façon de
+// savoir que trois lignes du haut sont écartées.
+function majResumeLignesEnteteImpl() {
+  const n = implLignesEnteteSaisies();
+  document.getElementById("impl-lignes-entete-resume").textContent =
+    n === 0 ? t("aucune ligne ignorée") : t("{n} ligne(s) ignorée(s)").replace("{n}", n);
 }
 
 /* ---------- Vocabulaire des trois types (mots-clés) ---------- */
@@ -494,6 +520,7 @@ async function loadImplConfiguration() {
   implConfigColonnesComparaison = [...(preset.colonnes_comparaison || [])];
   document.getElementById("impl-mode-comparaison").value = preset.mode_comparaison;
   document.getElementById("impl-lignes-entete").value = implLignesEntete(preset);
+  majResumeLignesEnteteImpl();
   document.getElementById("impl-preset-compte").value = preset.compte_id || "";
   // AVANT `renderImplConfig` : c'est le mode qui décide des colonnes proposées.
   document.getElementById("impl-mode-lecture").value =
@@ -670,6 +697,9 @@ function proposerReglagesLectureImpl() {
   alerte.textContent = t(
     "La plupart des lignes sont illisibles : le délimiteur ou le séparateur décimal ne convient probablement pas à ce fichier."
   );
+  // LA SECTION PARENTE AUSSI : les réglages de lecture vivent désormais au fond
+  // de « Configuration du fichier », elle-même repliée en temps ordinaire.
+  document.getElementById("impl-config-fichier").open = true;
   document.getElementById("impl-reglages-lecture").open = true;
 }
 
@@ -2151,7 +2181,7 @@ document.getElementById("btn-impl-preset-creer").addEventListener("click", async
       }),
     });
     implPresetId = preset.id;
-    localStorage.setItem(IMPL_CLE_PRESET_MEMORISE, String(implPresetId));
+    memoriserPresetImpl();
     await loadImplPresets();
     remplirSelectComptesPlacement(
       document.getElementById("impl-preset-compte"),
@@ -2214,14 +2244,15 @@ document
   .getElementById("btn-impl-config-enregistrer")
   .addEventListener("click", enregistrerImplConfiguration);
 
+// Changer de mode retourne le sens de la liste déjà saisie : la vider évite
+// qu'un « sauf la colonne 12 » devienne en un clic un « uniquement la colonne
+// 12 », qui dit exactement le contraire. Même règle que la page du noyau.
 document.getElementById("impl-mode-comparaison").addEventListener("change", () => {
+  implConfigColonnesComparaison = [];
   renderImplConfigComparaison();
 });
 
-document.getElementById("btn-impl-comparaison-ajouter").addEventListener("click", () => {
-  implConfigColonnesComparaison.push(implConfigColonnesComparaison.length + 1);
-  renderImplConfigComparaison();
-});
+document.getElementById("impl-lignes-entete").addEventListener("input", majResumeLignesEnteteImpl);
 
 document.getElementById("impl-preset-compte").addEventListener("change", () => {
   // La visibilité du sélecteur « compte pour ce fichier » suit immédiatement,

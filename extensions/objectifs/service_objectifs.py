@@ -13,10 +13,14 @@ DEUX PÉRIMÈTRES, ET C'EST LE SEUL POINT À SAVOIR (cf. constants.MesureObjecti
     croire — d'où l'emprunt du calcul plutôt que sa recopie.
 
   - « COMBIEN DE FOIS, ET DE COMBIEN » (`nombre`, `montant_moyen`) compte des
-    LIGNES DE RELEVÉ : une opération, à sa date, pour son montant. Ni étalement
-    ni déduction — une facture amortie sur douze mois reste UNE dépense faite
-    une fois, et « mes sorties coûtent 32 € en moyenne » doit valoir ce qu'on
-    lit sur son relevé, pas un reste à charge que la banque ignore.
+    LIGNES DE RELEVÉ : une opération, à sa date, pour ce qu'elle COÛTE. Pas
+    d'étalement — une facture amortie sur douze mois reste UNE dépense faite une
+    fois, au mois où on l'a faite — mais bien le RESTE À CHARGE d'une dépense
+    remboursable : les 60 € d'un repas dont on récupère 45 ne pèsent pas 60 € au
+    budget, et une moyenne qui les compterait entiers dirait ce qu'on a AVANCÉ,
+    pas ce qu'on a dépensé. C'est la même règle que l'histogramme (cf.
+    `soldes._base_imposable`), et les deux périmètres ne diffèrent donc plus que
+    sur l'étalement — le seul point où ils doivent différer.
 
 LA CADENCE EST UNE UNITÉ, PAS UNE PÉRIODE. Le dashboard mesure toujours ce que
 son sélecteur affiche ; la cadence dit seulement dans quelle unité la cible est
@@ -43,6 +47,7 @@ from app.constants import (
     Statut,
     TypeOperation,
 )
+from app.models import operation_sous_filtre
 from app.services import soldes
 
 
@@ -126,12 +131,33 @@ def unites_de_cadence(
 # ---------- Le périmètre « lignes de relevé » ----------
 
 
+def _retenu(operation, code: str, montant: float) -> float:
+    """Ce qu'une dépense COÛTE, à partir de ce qu'elle a fait sortir.
+
+    UN SEUL ENDROIT POUR LA RÈGLE DU REMBOURSABLE, et c'est celui du noyau :
+    `soldes._base_imposable` est ce que l'histogramme, le camembert et le total
+    des sorties appliquent déjà. Un objectif qui compterait les 60 € d'un repas
+    dont on récupère 45 annoncerait un montant moyen que rien d'autre à l'écran
+    ne donne — et le réécrire ici aurait fait deux versions d'une règle qui
+    s'éteint déjà avec son extension.
+
+    LA PART D'UNE DÉCOUPE SE RAMÈNE AU PRORATA : la découpe répartit le montant
+    BRUT de l'opération, et une opération découpée ET remboursable doit rendre
+    la fraction du reste à charge qui revient à cette part. Le rapport de la
+    part au brut est ce qui les relie — il vaut 1 quand rien n'est découpé."""
+    base = soldes._base_imposable(operation.montant, operation.montant_du, code)
+    if montant == operation.montant or not operation.montant:
+        return base
+    return base * (montant / operation.montant)
+
+
 def _lignes_depenses(
     db: Session,
     annee: int,
     mois: Optional[int],
     monnaie_id: int,
     categorie_id: Optional[int],
+    sous_filtre_id: Optional[int] = None,
 ) -> list[float]:
     """Le montant retenu de chaque dépense de la période, une valeur par LIGNE.
 
@@ -142,12 +168,21 @@ def _lignes_depenses(
     étalée sur douze mois reste une ligne du relevé, faite une fois, au mois où
     on l'a faite.
 
+    LE MONTANT RETENU EST LE RESTE À CHARGE (cf. `_retenu`) : ce qu'une ligne
+    coûte, et non ce qu'elle a fait sortir du compte.
+
     UNE OPÉRATION DÉCOUPÉE COMPTE POUR UNE LIGNE, et pour le montant de sa part
     quand l'objectif vise une catégorie : c'est UN passage en caisse, et le
     compter deux fois parce qu'on en a rangé 30 € ailleurs ferait mentir
-    « combien de fois »."""
-    operations = (
-        db.query(models.Operation)
+    « combien de fois ». Un objectif de PROJET, lui, la compte ENTIÈRE : on verse
+    une opération dans un projet, jamais une de ses parts.
+
+    UNE LIGNE À ZÉRO EST ÉCARTÉE — une dépense remboursable intégralement due, ou
+    n'importe laquelle quand l'extension « Suivi des remboursements » est
+    éteinte. Elle ne coûte rien, et la compter tirerait toute moyenne vers le bas
+    au nom d'une dépense qui n'en est pas une."""
+    requete = (
+        db.query(models.Operation, models.TypeOperationDB.code)
         .join(
             models.TypeOperationDB,
             models.Operation.type_id == models.TypeOperationDB.id,
@@ -161,26 +196,33 @@ def _lignes_depenses(
                 [TypeOperation.classique.value, TypeOperation.remboursable.value]
             ),
         )
-        .all()
     )
+    if sous_filtre_id is not None:
+        # LE PROJET SE JOINT, il ne se filtre pas en mémoire : un projet compte
+        # quelques dizaines d'opérations, mais la période en compte des
+        # milliers, et c'est elle qu'on lirait entière.
+        requete = requete.join(
+            operation_sous_filtre,
+            operation_sous_filtre.c.operation_id == models.Operation.id,
+        ).filter(operation_sous_filtre.c.sous_filtre_id == sous_filtre_id)
 
     montants: list[float] = []
-    for operation in operations:
-        if categorie_id is None:
-            montants.append(operation.montant)
-            continue
-        if operation.categorie_id == categorie_id:
-            montants.append(operation.montant)
-            continue
-        # Découpée : elle n'a plus de catégorie propre, ce sont ses parts qui la
-        # classent (cf. models.OperationDecoupe).
-        part = sum(
-            part.montant
-            for part in operation.decoupes
-            if part.categorie_id == categorie_id
-        )
-        if part:
-            montants.append(part)
+    for operation, code in requete.all():
+        if categorie_id is None or operation.categorie_id == categorie_id:
+            retenu = _retenu(operation, code, operation.montant)
+        else:
+            # Découpée : elle n'a plus de catégorie propre, ce sont ses parts
+            # qui la classent (cf. models.OperationDecoupe).
+            part = sum(
+                part.montant
+                for part in operation.decoupes
+                if part.categorie_id == categorie_id
+            )
+            if not part:
+                continue
+            retenu = _retenu(operation, code, part)
+        if retenu:
+            montants.append(retenu)
     return montants
 
 
@@ -240,22 +282,49 @@ def mesurer(
         objectif.cadence, annee, mois, aujourdhui, ecoulees=False
     )
     echantillon = 0
+    # UN OBJECTIF DE PROJET COMPTE DES LIGNES, ses quatre mesures comprises, et
+    # c'est la seule façon de rester d'accord avec l'écran qui le détaille.
+    # `get_depenses_par_categorie` ne sait pas ce qu'est un projet : lui
+    # apprendre aurait demandé de recopier l'amortissement étalé dans un second
+    # calcul, pour un total que la page des projets — la seule qui le détaille
+    # — ne donne pas ainsi. Un projet est un paquet de LIGNES qu'on a versées
+    # dedans, et son total est leur somme.
+    #
+    # CE QUI DIFFÈRE DONC D'UN OBJECTIF DE CATÉGORIE : l'étalement, et lui seul.
+    # Une facture annuelle payée en janvier pèse entièrement sur janvier dans un
+    # projet, et un douzième par mois dans une catégorie. Le reste — reste à
+    # charge des remboursables, parts des découpes — est le même des deux
+    # côtés (cf. `_retenu`).
+    sur_projet = objectif.sous_filtre_id is not None
 
-    if objectif.mesure in (
+    if sur_projet or objectif.mesure in (
         MesureObjectif.nombre.value,
         MesureObjectif.montant_moyen.value,
     ):
         montants = _lignes_depenses(
-            db, annee, mois, objectif.monnaie_id, objectif.categorie_id
+            db,
+            annee,
+            mois,
+            objectif.monnaie_id,
+            objectif.categorie_id,
+            objectif.sous_filtre_id,
         )
         echantillon = len(montants)
         if objectif.mesure == MesureObjectif.nombre.value:
             valeur = float(echantillon)
-        else:
+        elif objectif.mesure == MesureObjectif.montant_total.value:
+            valeur = sum(montants)
+        elif objectif.mesure == MesureObjectif.montant_moyen.value:
             # Pas de dépense, pas de moyenne : zéro plutôt qu'une division par
             # zéro, et l'écran dit « aucune dépense » plutôt que « 0 € en
             # moyenne », qui se lirait comme un objectif parfaitement tenu.
             valeur = (sum(montants) / echantillon) if echantillon else 0.0
+        else:
+            # LA PART D'UN PROJET SE RAPPORTE AUX LIGNES, PAS AU DASHBOARD : le
+            # dénominateur doit se compter comme le numérateur, sans quoi un
+            # projet pourrait peser 110 % d'un total étalé plus petit que lui.
+            base = sum(_lignes_depenses(db, annee, mois, objectif.monnaie_id, None))
+            valeur = (sum(montants) / base * 100.0) if base else 0.0
     else:
         total, par_categorie = _depenses_du_dashboard(
             db, annee, mois, objectif.monnaie_id
@@ -284,19 +353,29 @@ def mesurer(
     else:
         valeur_cadence = valeur
 
-    marge = _tolerance(objectif.cible)
-    if objectif.sens == SensObjectif.max.value:
-        atteint = valeur_cadence <= objectif.cible + marge
+    # SANS CIBLE, RIEN N'EST NI TENU NI MANQUÉ (migration 0070). L'objectif ne
+    # sert alors qu'à poser un chiffre sous les graphes — ce que coûte un projet
+    # en cours, par exemple — et prononcer un jugement sur une règle que
+    # personne ne s'est donnée serait pire que se taire. `atteint` reste vrai
+    # pour que l'écran ne peigne rien en rouge ; c'est `cible is None` qui lui
+    # dit de ne dessiner ni barre ni état.
+    if objectif.cible is None:
+        atteint = True
+        avancement = 0.0
     else:
-        atteint = valeur_cadence >= objectif.cible - marge
+        marge = _tolerance(objectif.cible)
+        if objectif.sens == SensObjectif.max.value:
+            atteint = valeur_cadence <= objectif.cible + marge
+        else:
+            atteint = valeur_cadence >= objectif.cible - marge
 
-    if objectif.cible:
-        avancement = valeur_cadence / objectif.cible * 100.0
-    else:
-        # Cible à zéro : « aucune sortie ce mois-ci ». La barre est vide tant
-        # qu'on n'a rien fait, pleine dès la première ligne — il n'y a pas de
-        # demi-mesure à afficher.
-        avancement = 0.0 if not valeur_cadence else 100.0
+        if objectif.cible:
+            avancement = valeur_cadence / objectif.cible * 100.0
+        else:
+            # Cible à zéro : « aucune sortie ce mois-ci ». La barre est vide tant
+            # qu'on n'a rien fait, pleine dès la première ligne — il n'y a pas de
+            # demi-mesure à afficher.
+            avancement = 0.0 if not valeur_cadence else 100.0
 
     return {
         "objectif_id": objectif.id,
@@ -307,6 +386,8 @@ def mesurer(
         "cible": objectif.cible,
         "categorie_id": objectif.categorie_id,
         "categorie": objectif.categorie.nom if objectif.categorie else None,
+        "sous_filtre_id": objectif.sous_filtre_id,
+        "projet": objectif.sous_filtre.nom if objectif.sous_filtre else None,
         "monnaie_id": objectif.monnaie_id,
         "visible_dashboard": objectif.visible_dashboard,
         "valeur": valeur,
@@ -328,20 +409,26 @@ def mesurer_tous(
     db: Session,
     annee: int,
     mois: Optional[int],
-    monnaie_id: int,
+    monnaie_id: Optional[int] = None,
     dashboard_seulement: bool = False,
     aujourdhui: Optional[date_type] = None,
 ) -> list[dict]:
-    """Tous les objectifs d'une monnaie, mesurés sur la même période.
+    """Les objectifs, mesurés sur la même période — ceux d'une monnaie, ou tous.
 
-    UNE MONNAIE À LA FOIS, jamais de total entre elles — la règle de toute
-    l'application. Le dashboard n'affiche donc que les objectifs de l'onglet de
-    monnaie qu'on regarde : les autres ne sont pas cachés, ils sont ailleurs."""
-    requete = (
-        db.query(models.ObjectifKpi)
-        .filter(models.ObjectifKpi.monnaie_id == monnaie_id)
-        .order_by(models.ObjectifKpi.ordre, models.ObjectifKpi.id)
+    UNE MONNAIE À LA FOIS AU DASHBOARD, jamais de total entre elles — la règle
+    de toute l'application. Il n'y affiche donc que les objectifs de l'onglet de
+    monnaie qu'on regarde : les autres ne sont pas cachés, ils sont ailleurs.
+
+    `monnaie_id = None` LES REND TOUS, chacun mesuré dans SA monnaie, et rien
+    n'est additionné pour autant — ce sont des cartes, pas un total. C'est ce
+    que demande la page des objectifs : on y vient voir ce qu'on s'est fixé, et
+    un onglet de monnaie y cachait la moitié de la liste à celui qui a deux
+    devises, sans que rien ne le dise."""
+    requete = db.query(models.ObjectifKpi).order_by(
+        models.ObjectifKpi.ordre, models.ObjectifKpi.id
     )
+    if monnaie_id is not None:
+        requete = requete.filter(models.ObjectifKpi.monnaie_id == monnaie_id)
     if dashboard_seulement:
         requete = requete.filter(models.ObjectifKpi.visible_dashboard.is_(True))
     return [

@@ -244,10 +244,15 @@ def test_une_depense_amortie_compte_pour_une_ligne_entiere(db_session, compte):
     assert mai["valeur"] == pytest.approx(0.0)
 
 
-def test_le_montant_moyen_est_celui_du_releve(db_session, compte):
-    """PAS DE DÉDUCTION DANS LA MOYENNE. « Mes sorties coûtent 32 € en moyenne »
-    doit valoir ce qu'on lit sur son relevé : une dépense remboursable y compte
-    pour ce qui est sorti du compte, pas pour son reste à charge."""
+def test_le_montant_moyen_compte_le_reste_a_charge(db_session, compte):
+    """UNE DÉPENSE REMBOURSABLE COMPTE POUR CE QU'ELLE COÛTE, pas pour ce qui est
+    sorti du compte. Les 60 € d'un repas dont on récupère 50 pèsent 10 € au
+    budget : une moyenne qui les compterait entiers dirait ce qu'on a AVANCÉ, et
+    non ce qu'on a dépensé — deux chiffres que rien à l'écran ne distingue.
+
+    C'EST LA RÈGLE DE L'HISTOGRAMME (cf. soldes._base_imposable), et les deux
+    périmètres ne diffèrent donc plus que sur l'étalement — le seul point où ils
+    doivent différer (une facture amortie reste UNE ligne du relevé)."""
     _depense(db_session, compte, 40.0, date(2026, 5, 3))
     _depense(
         db_session,
@@ -261,12 +266,34 @@ def test_le_montant_moyen_est_celui_du_releve(db_session, compte):
     objectif = _objectif(db_session, mesure="montant_moyen", cadence="mois", cible=45.0)
     mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
 
+    # Deux LIGNES — le compte ne change pas, c'est ce que chacune pèse qui change.
     assert mesure["echantillon"] == 2
-    assert mesure["valeur"] == pytest.approx(50.0)
+    assert mesure["valeur"] == pytest.approx(25.0)
     # Une moyenne ne se convertit pas : elle se compare à sa cible telle quelle.
     assert mesure["mode"] == "cumul"
-    assert mesure["valeur_cadence"] == pytest.approx(50.0)
-    assert mesure["atteint"] is False
+    assert mesure["valeur_cadence"] == pytest.approx(25.0)
+    assert mesure["atteint"] is True
+
+
+def test_une_remboursable_integralement_due_ne_compte_pas(db_session, compte):
+    """ELLE NE COÛTE RIEN, elle ne doit donc tirer aucune moyenne vers le bas.
+    Une ligne à zéro n'est pas une dépense à 0 € : c'est une avance, dont on
+    récupérera tout."""
+    _depense(db_session, compte, 40.0, date(2026, 5, 3))
+    _depense(
+        db_session,
+        compte,
+        200.0,
+        date(2026, 5, 12),
+        type=TypeOperation.remboursable,
+        montant_du=200.0,
+    )
+
+    objectif = _objectif(db_session, mesure="montant_moyen", cadence="mois", cible=45.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
+
+    assert mesure["echantillon"] == 1
+    assert mesure["valeur"] == pytest.approx(40.0)
 
 
 def test_sans_depense_la_moyenne_vaut_zero_et_ne_divise_rien(db_session, compte):
@@ -516,3 +543,208 @@ def test_un_objectif_neuf_va_en_fin_de_liste(db_session):
             db=db_session,
         )
     assert [o.nom for o in routeur.lister_objectifs(db=db_session)] == noms
+
+
+# ---------- Le troisième périmètre : un PROJET (migration 0070) ----------
+
+
+def _projet(db_session, nom, operations):
+    """Un projet, et les opérations qu'on y verse.
+
+    PAS UNE CATÉGORIE : le lien est MULTIPLE (table `operation_sous_filtre`) et
+    aucun calcul du noyau ne le lit — le total d'un projet est une somme
+    affichée (cf. models.SousFiltre)."""
+    projet = models.SousFiltre(nom=nom)
+    projet.operations.extend(operations)
+    db_session.add(projet)
+    db_session.commit()
+    db_session.refresh(projet)
+    return projet
+
+
+def test_un_objectif_peut_porter_sur_un_projet(db_session, compte):
+    """CE QU'UN PROJET APPORTE ET QU'UNE CATÉGORIE NE SAIT PAS DIRE : un voyage
+    traverse les catégories (le train, l'hôtel, les courses) et n'existe qu'en
+    tant qu'ÉVÉNEMENT. Son total se lisait sur la page des projets, c'est-à-dire
+    partout sauf là où l'on se demande où l'on en est."""
+    train = _depense(db_session, compte, 120.0, date(2026, 5, 4), categorie="Alimentaire")
+    hotel = _depense(db_session, compte, 380.0, date(2026, 5, 6))
+    _depense(db_session, compte, 90.0, date(2026, 5, 9))  # hors projet
+    projet = _projet(db_session, "Italie", [train, hotel])
+
+    objectif = _objectif(
+        db_session,
+        mesure="montant_total",
+        cadence="mois",
+        cible=600.0,
+        sous_filtre_id=projet.id,
+    )
+    mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
+
+    assert mesure["projet"] == "Italie"
+    assert mesure["valeur"] == pytest.approx(500.0)
+    assert mesure["atteint"] is True
+
+
+def test_la_part_dun_projet_se_rapporte_aux_memes_lignes_que_lui(db_session, compte):
+    """LE DÉNOMINATEUR SE COMPTE COMME LE NUMÉRATEUR. Rapporter un total de
+    LIGNES à un total ÉTALÉ aurait permis à un projet de peser plus de 100 % du
+    mois, ce qu'aucun des deux chiffres ne dit."""
+    hotel = _depense(db_session, compte, 300.0, date(2026, 5, 6))
+    _depense(db_session, compte, 100.0, date(2026, 5, 9))
+    projet = _projet(db_session, "Italie", [hotel])
+
+    objectif = _objectif(
+        db_session,
+        mesure="part_depenses",
+        cible=50.0,
+        sous_filtre_id=projet.id,
+    )
+    mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
+
+    assert mesure["valeur"] == pytest.approx(75.0)
+    assert mesure["atteint"] is False
+
+
+def test_une_operation_hors_periode_ne_compte_pas_dans_le_projet(db_session, compte):
+    """UN PROJET N'A PAS DE DATES : ce sont celles de ses opérations, et la
+    période affichée les filtre comme elle filtre tout le reste. Un voyage à
+    cheval sur deux mois se lit donc mois par mois au dashboard, et en entier
+    sur sa page."""
+    mai = _depense(db_session, compte, 200.0, date(2026, 5, 20))
+    juin = _depense(db_session, compte, 150.0, date(2026, 6, 2))
+    projet = _projet(db_session, "Italie", [mai, juin])
+
+    objectif = _objectif(
+        db_session, mesure="montant_total", sous_filtre_id=projet.id, cible=1000.0
+    )
+    assert service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))[
+        "valeur"
+    ] == pytest.approx(200.0)
+    assert service.mesurer(db_session, objectif, 2026, None, date(2026, 12, 31))[
+        "valeur"
+    ] == pytest.approx(350.0)
+
+
+def test_un_objectif_ne_porte_pas_les_deux_perimetres(db_session, compte):
+    """UNE CATÉGORIE OU UN PROJET, JAMAIS LES DEUX. Les deux axes se croisent —
+    l'hôtel d'un voyage est dans « Loisirs » ET dans « Italie » — et porter les
+    deux poserait une question dont aucune réponse ne s'impose : l'intersection,
+    ou l'union ?"""
+    projet = _projet(db_session, "Italie", [])
+    with pytest.raises(HTTPException) as erreur:
+        routeur.creer_objectif(
+            schemas_obj.ObjectifCreate(
+                nom="Les deux",
+                mesure="montant_total",
+                cible=100.0,
+                categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+                sous_filtre_id=projet.id,
+                monnaie_id=get_monnaie_id(db_session),
+            ),
+            db=db_session,
+        )
+    assert erreur.value.status_code == 400
+
+
+def test_ecrire_un_perimetre_efface_lautre(db_session, compte):
+    """L'EXCLUSION EST UNE RÈGLE, PAS UN PIÈGE. Demander à l'écran d'envoyer le
+    zéro de l'un en même temps que l'autre aurait fait échouer, en 400, le geste
+    le plus ordinaire : changer d'avis sur ce qu'on regarde."""
+    projet = _projet(db_session, "Italie", [])
+    objectif = routeur.creer_objectif(
+        schemas_obj.ObjectifCreate(
+            nom="Loisirs",
+            mesure="montant_total",
+            cible=100.0,
+            categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+            monnaie_id=get_monnaie_id(db_session),
+        ),
+        db=db_session,
+    )
+    modifie = routeur.modifier_objectif(
+        objectif.id,
+        schemas_obj.ObjectifUpdate(sous_filtre_id=projet.id),
+        db=db_session,
+    )
+    assert modifie.sous_filtre_id == projet.id
+    assert modifie.categorie_id is None
+
+
+# ---------- Un objectif sans cible (migration 0070) ----------
+
+
+def test_sans_cible_rien_nest_tenu_ni_manque(db_session, compte):
+    """SUIVRE SANS SE FIXER DE RÈGLE. C'est l'état ordinaire d'un projet qu'on
+    commence : on veut voir ce qu'il coûte bien avant de savoir ce qu'on
+    s'autorise. Prononcer « tenu » ou « manqué » sur une règle que personne ne
+    s'est donnée aurait été un jugement inventé."""
+    _depense(db_session, compte, 420.0, date(2026, 5, 6))
+    objectif = _objectif(db_session, mesure="montant_total", cible=None)
+    mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
+
+    assert mesure["cible"] is None
+    assert mesure["valeur"] == pytest.approx(420.0)
+    # La barre ne se remplit pas : il n'y a pas de bout à atteindre.
+    assert mesure["avancement"] == 0.0
+    # `atteint` reste vrai pour que rien ne se peigne en rouge — c'est
+    # `cible is None` qui dit à l'écran de ne rien dessiner du tout.
+    assert mesure["atteint"] is True
+
+
+def test_zero_reste_une_cible_a_part_entiere(db_session, compte):
+    """ZÉRO N'EST PAS « PAS DE CIBLE ». « Aucune sortie ce mois-ci » est une
+    règle, et une règle sévère : la première ligne la fait manquer."""
+    _depense(db_session, compte, 12.0, date(2026, 5, 6))
+    objectif = _objectif(db_session, mesure="montant_total", cible=0.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
+
+    assert mesure["cible"] == 0.0
+    assert mesure["atteint"] is False
+    assert mesure["avancement"] == 100.0
+
+
+def test_la_cible_ne_se_retire_que_par_cible_effacee(db_session):
+    """`None` VEUT DÉJÀ DIRE « NE CHANGE PAS » sur tous les champs, et zéro est
+    une cible : il fallait donc une troisième façon de dire « je ne me fixe plus
+    rien »."""
+    objectif = routeur.creer_objectif(
+        schemas_obj.ObjectifCreate(
+            nom="Voyage",
+            mesure="montant_total",
+            cible=2000.0,
+            monnaie_id=get_monnaie_id(db_session),
+        ),
+        db=db_session,
+    )
+    inchange = routeur.modifier_objectif(
+        objectif.id, schemas_obj.ObjectifUpdate(nom="Voyage 2026"), db=db_session
+    )
+    assert inchange.cible == pytest.approx(2000.0)
+
+    efface = routeur.modifier_objectif(
+        objectif.id, schemas_obj.ObjectifUpdate(cible_effacee=True), db=db_session
+    )
+    assert efface.cible is None
+
+
+def test_sans_monnaie_les_mesures_les_rendent_tous(db_session, compte):
+    """LA PAGE DES OBJECTIFS LES MONTRE TOUS, chacun mesuré dans SA monnaie, et
+    n'additionne rien pour autant — ce sont des cartes, pas un total. Un onglet
+    de monnaie y cachait la moitié de la liste à qui tient deux devises, sans
+    que rien ne le dise."""
+    euro = get_monnaie_id(db_session)
+    dollar = models.Monnaie(nom="Dollar", symbole="$")
+    db_session.add(dollar)
+    db_session.commit()
+
+    _objectif(db_session, nom="En euros", monnaie_id=euro)
+    _objectif(db_session, nom="En dollars", monnaie_id=dollar.id)
+
+    tous = service.mesurer_tous(db_session, 2026, 5, None, aujourdhui=date(2026, 12, 31))
+    assert sorted(m["nom"] for m in tous) == ["En dollars", "En euros"]
+
+    euros_seuls = service.mesurer_tous(
+        db_session, 2026, 5, euro, aujourdhui=date(2026, 12, 31)
+    )
+    assert [m["nom"] for m in euros_seuls] == ["En euros"]

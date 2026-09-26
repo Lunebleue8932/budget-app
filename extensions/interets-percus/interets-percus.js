@@ -291,6 +291,24 @@ function epargneRemplacerCompte(compte) {
   const index = epargneComptes.findIndex((c) => c.id === compte.id);
   if (index >= 0) epargneComptes[index] = compte;
   epargneRender();
+  epargneRafraichirPageDerriere();
+}
+
+/**
+ * LA PAGE DERRIÈRE LA FENÊTRE SUIT CE QU'ON SAISIT. Les intérêts entrent dans
+ * le solde du compte (cf. soldes._interets_percus_par_compte_monnaie), et la
+ * page des comptes reste visible sous la fenêtre : sans ce rappel, la carte du
+ * livret gardait son ancien solde jusqu'au prochain changement d'écran — un
+ * versement bien enregistré qui semblait ne s'être ajouté nulle part.
+ *
+ * `window.loadComptesGlobale` et non le nom nu : d'autres extensions
+ * l'enveloppent (matelas de sécurité, placements), et c'est la version
+ * enveloppée qui doit tourner.
+ */
+function epargneRafraichirPageDerriere() {
+  if (document.getElementById("section-comptes-globale")?.classList.contains("active")) {
+    window.loadComptesGlobale();
+  }
 }
 
 /* ---------- La fenêtre ---------- */

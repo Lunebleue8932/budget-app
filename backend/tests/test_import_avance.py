@@ -1284,3 +1284,55 @@ def test_preset_ordinaire_reste_insensible_a_la_configuration_avancee(db_session
     )
 
     assert db_session.query(models.Operation).one().monnaie_id == euro
+
+
+def test_retoucher_une_ligne_a_frais_ne_les_efface_pas(db_session):
+    """LE DÉFAUT : changer la catégorie d'une ligne effaçait ses frais.
+
+    Le formulaire de l'aperçu montre le montant HORS FRAIS dès qu'une ligne en
+    porte, et renvoie les frais avec lui — c'est leur présence qui dit au
+    serveur comment relire ce montant. Mais le champ « Frais » n'existait que
+    dans le formulaire d'un virement entre deux devises : partout ailleurs
+    (une dépense par carte à l'étranger, le cas le plus ordinaire), un champ
+    absent était lu comme un champ vide, donc comme « zéro frais ».
+
+    Le geste le plus banal — reclasser la ligne — faisait alors retomber le
+    montant importé à celui d'avant commission, et l'opération ne portait plus
+    rien qui dise de quoi ce montant était fait."""
+    euro = get_monnaie_id(db_session)
+    compte = creer_compte(db_session, "Wise", monnaies=[(euro, 1000.0)])
+    preset = _preset_wise(db_session, colonnes=_COLONNES_SIMPLES)
+    contenu = _fichier_wise(
+        [[date(2026, 7, 1), "Hôtel Lisbonne", -100.0, "Euro", 1.5, "Euro", None, None, "Wise"]]
+    )
+
+    ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
+    # La sortie porte 101,50 € : les frais s'ajoutent à ce qui part.
+    assert (ligne.montant, ligne.frais, ligne.montant_hors_frais) == (101.5, 1.5, 100.0)
+
+    import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        contenu,
+        schemas.ImportMappingOverrides(
+            lignes={
+                # Exactement ce que le formulaire envoie quand on ne touche QUE
+                # la catégorie : le montant hors frais, et les frais avec lui.
+                ligne.ligne: schemas.ImportLigneOverride(
+                    date=date(2026, 7, 1),
+                    nature="Hôtel Lisbonne",
+                    montant=100.0,
+                    type_code="classique",
+                    categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+                    compte_id=compte.id,
+                    frais=1.5,
+                    monnaie_frais_id=euro,
+                )
+            }
+        ),
+    )
+
+    operation = db_session.query(models.Operation).one()
+    assert operation.montant == 101.5
+    assert operation.frais == 1.5
+    assert operation.categorie_id == get_categorie_id(db_session, "Loisirs & sorties")

@@ -36,8 +36,17 @@
 <section id="section-budget">
   <h2>Budget</h2>
 
-  <div class="sous-onglets" id="budget-sous-nav" style="display:none">
+  <!-- DEUX ONGLETS DU NOYAU DE CETTE PAGE, et « Projets » vient s'y ranger en
+       troisième. La répartition par catégorie a sa page à elle parce qu'elle ne
+       se lit pas comme le reste : c'est un TABLEAU qu'on parcourt ligne à ligne
+       en poussant des curseurs, souvent longuement, et il poussait à lui seul
+       l'épargne, le matelas et les imprévues hors de l'écran. Les trois
+       lectures du bas répondent à « qu'est-ce qui s'est passé » ; ce tableau-là
+       demande « qu'est-ce que je décide », et les deux gestes n'ont pas la même
+       durée. -->
+  <div class="sous-onglets" id="budget-sous-nav">
     <button type="button" data-sous-section="budget-budget" class="active">Budget</button>
+    <button type="button" data-sous-section="budget-categories">Budgets par catégorie</button>
   </div>
 
   <div id="sous-section-budget-budget" class="sous-section active">
@@ -73,10 +82,53 @@
       <button type="button" class="primary" id="btn-ab-budget-total">Enregistrer</button>
     </div>
 
-    <!-- ---------- LES BUDGETS PAR CATÉGORIE ---------- -->
-    <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
+    <!-- ---------- LES DEUX GRAPHES DU DASHBOARD, FACE AU BUDGET ----------
+         Les mêmes que ceux du dashboard, rendus par les mêmes fonctions du
+         noyau — mais seulement ceux qui parlent de budget : l'histogramme (et
+         ses traits rouges, l'enveloppe de chaque catégorie) et le camembert en
+         vue « Budget ». La vue « État actuel » n'a rien à faire ici.
 
-    <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
+         UNE COMPARAISON, ET SUR LES MÊMES GRAPHES : deux mois, deux années ou
+         deux semaines. La période comparée est dessinée PAR-DESSUS, hachurée
+         et grisée — barres superposées, anneau dans l'anneau (cf. app.js,
+         « LA PÉRIODE COMPARÉE »). La période principale est celle de la barre
+         du haut de page ; seule la comparée a ses propres listes. -->
+    <h3>Tes dépenses face au budget<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.graphes">i</i></h3>
+    <div class="selecteur-contexte ab-contexte ab-graphes-periode">
+      <label for="ab-graphes-vue">Période
+        <select id="ab-graphes-vue">
+          <option value="mois">Mois</option>
+          <option value="annee">Année</option>
+          <option value="semaine">Semaine</option>
+        </select>
+      </label>
+      <label for="ab-graphes-semaine" id="ab-graphes-semaine-bloc" style="display:none">Semaine
+        <select id="ab-graphes-semaine"></select>
+      </label>
+      <label class="ab-comparer" for="ab-comparer">
+        <input type="checkbox" id="ab-comparer" />
+        Comparer avec
+      </label>
+      <label for="ab-cmp-annee" id="ab-cmp-annee-bloc" style="display:none">Année
+        <select id="ab-cmp-annee"></select>
+      </label>
+      <label for="ab-cmp-mois" id="ab-cmp-mois-bloc" style="display:none">Mois
+        <select id="ab-cmp-mois"></select>
+      </label>
+      <label for="ab-cmp-semaine" id="ab-cmp-semaine-bloc" style="display:none">Semaine
+        <select id="ab-cmp-semaine"></select>
+      </label>
+    </div>
+    <!-- CE QUI EST PLEIN ET CE QUI EST HACHURÉ, en toutes lettres : sans cette
+         ligne, rien ne dit laquelle des deux périodes est laquelle. -->
+    <p class="hint ab-graphes-legende" id="ab-graphes-legende"></p>
+    <div class="dashboard-graphes ab-graphes">
+      <div id="ab-histogramme" class="histogramme-cadre"></div>
+      <div class="histogramme-cadre camembert-cadre">
+        <div id="ab-camembert" class="camembert-zone"></div>
+      </div>
+    </div>
+    <div id="ab-legende" class="histogramme-cadre legende-cadre"></div>
 
     <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
     <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
@@ -85,13 +137,17 @@
          2 300 € de côté cette année » — et les deux composantes disent ce qu'elle
          recouvre : un net à zéro peut vouloir dire « rien bougé » ou « 2 000
          versés et 2 000 repris ». La seconde information est nécessaire pour ne
-         pas se tromper sur la première, sans mériter la même place. -->
-    <div class="ab-carte-net" id="ab-epargne-total"></div>
+         pas se tromper sur la première, sans mériter la même place.
 
-    <!-- Les douze mois : c'est la forme qui répond à « est-ce que je tiens un
-         rythme ? », que le total seul ne dit pas. Douze barres toujours, y compris
-         à zéro — un mois absent se lirait comme un mois non atteint. -->
-    <div class="histogramme-cadre" id="ab-epargne-mois"></div>
+         LES DOUZE MOIS SONT REPLIÉS DANS LA CARTE (bouton « Mois par mois ») :
+         c'est la forme qui répond à « est-ce que je tiens un rythme ? », une
+         question qu'on ne pose pas à chaque passage — dépliés d'office, les deux
+         histogrammes de la page repoussaient tout le reste sous l'écran. -->
+    <div class="ab-carte-net" id="ab-epargne-carte">
+      <div id="ab-epargne-total"></div>
+      <button type="button" class="ab-deplier" data-deplier="ab-epargne-mois" aria-expanded="false">Mois par mois</button>
+      <div class="ab-carte-detail" id="ab-epargne-mois" hidden></div>
+    </div>
 
     <!-- ---------- LE MATELAS DE SÉCURITÉ ---------- -->
     <h3>Matelas de sécurité<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.matelas">i</i></h3>
@@ -109,8 +165,12 @@
     <!-- ---------- CE QUI N'ÉTAIT PAS PRÉVISIBLE ---------- -->
     <h3>Dépenses imprévues<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevues">i</i></h3>
 
-    <div class="ab-carte-net" id="ab-imprevues-total"></div>
-    <div class="histogramme-cadre" id="ab-imprevues-mois"></div>
+    <div class="ab-carte-net" id="ab-imprevues-carte">
+      <div id="ab-imprevues-total"></div>
+      <button type="button" class="ab-deplier" data-deplier="ab-imprevues-mois" aria-expanded="false">Mois par mois</button>
+      <div class="ab-carte-detail" id="ab-imprevues-mois" hidden></div>
+    </div>
+
 
     <h4>Les lignes de l'année</h4>
     <table>
@@ -119,5 +179,43 @@
       </thead>
       <tbody id="ab-imprevues-lignes"></tbody>
     </table>
+  </div>
+
+  <!-- ---------- LES BUDGETS PAR CATÉGORIE, SUR LEUR PROPRE PAGE ----------
+
+       POURQUOI ILS ONT DÉMÉNAGÉ. C'est un TABLEAU qu'on parcourt ligne à ligne
+       en poussant des curseurs, souvent longuement — et il poussait à lui seul
+       l'épargne, le matelas et les imprévues hors de l'écran. Les trois
+       lectures du bas répondent à « qu'est-ce qui s'est passé » ; ce tableau-ci
+       demande « qu'est-ce que je décide », et les deux gestes n'ont ni la même
+       durée ni la même fréquence.
+
+       SA BARRE DE CONTEXTE EST LA SIENNE, avec ses propres identifiants, et
+       elle pilote le MÊME état que celle de l'onglet voisin (cf.
+       analyse-budget.js, `AB_CONTEXTES`) : une enveloppe de catégorie est
+       propre à un mois ET à une monnaie, exactement comme le budget du mois, et
+       un onglet qui ne dirait pas lesquels laisserait régler vingt curseurs
+       sans savoir sur quoi.
+
+       DEUX BARRES PLUTÔT QU'UNE SEULE POSÉE AU-DESSUS DES ONGLETS : la
+       troisième page de cette barre — « Projets » — n'a ni mois ni monnaie, et
+       une barre commune y aurait posé trois listes sans effet. -->
+  <div id="sous-section-budget-categories" class="sous-section">
+
+    <div class="selecteur-contexte ab-contexte">
+      <label for="ab-cat-monnaie">Monnaie
+        <select id="ab-cat-monnaie"></select>
+      </label>
+      <label for="ab-cat-annee">Année
+        <select id="ab-cat-annee"></select>
+      </label>
+      <label for="ab-cat-mois">Mois
+        <select id="ab-cat-mois"></select>
+      </label>
+    </div>
+
+    <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
+
+    <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
   </div>
 </section>

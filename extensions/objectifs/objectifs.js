@@ -31,9 +31,14 @@ const OBJECTIFS_BASE = "/objectifs";
 
 let objObjectifs = [];
 let objMesures = [];
-let objMonnaieId = null;
-let objPeriode = { annee: null, mois: null };
-let objPeriodesConnues = null;
+let objProjets = [];
+// LA MONNAIE DU FORMULAIRE, et rien de plus : la LISTE, elle, les montre tous,
+// chacun dans la sienne. C'est le défaut proposé à la création d'un objectif —
+// la première monnaie de l'application, celle qu'on a en tête.
+let objMonnaieParDefaut = null;
+// LA PÉRIODE DE LECTURE DE CETTE PAGE, et elle ne se choisit pas : le mois en
+// cours. On vient ici POSER des règles ; on les LIT au dashboard, qui a déjà
+// son sélecteur de période (cf. page.html).
 
 /* ---------- Dire un chiffre dans l'unité de sa mesure ---------- */
 
@@ -104,8 +109,20 @@ function objDetailMesure(mesure) {
   // d'une division que rien d'autre ne montre : sans « 17 dépenses sur 4,4
   // semaines », le chiffre affiché est à croire sur parole.
   const morceaux = [];
-  if (mesure.categorie) morceaux.push(escapeHtml(mesure.categorie));
+  // LE PÉRIMÈTRE EN PREMIER, et il y en a trois : un projet, une catégorie, ou
+  // rien — c'est-à-dire toutes les dépenses.
+  if (mesure.projet) morceaux.push(escapeHtml(mesure.projet));
+  else if (mesure.categorie) morceaux.push(escapeHtml(mesure.categorie));
   else morceaux.push(t("Toutes les dépenses"));
+  // LA MONNAIE NE SE DIT QUE S'IL Y EN A PLUSIEURS. La page les montre tous,
+  // toutes devises confondues (cf. page.html) : sans ce rappel, deux cartes
+  // voisines afficheraient « 250 » et « 250 » sans qu'on sache qu'elles ne
+  // parlent pas de la même chose. Avec une seule monnaie, l'écrire à chaque
+  // carte n'apprendrait rien.
+  if ((state.monnaies || []).length > 1) {
+    const monnaie = (state.monnaies || []).find((m) => m.id === mesure.monnaie_id);
+    if (monnaie) morceaux.push(escapeHtml(monnaie.nom));
+  }
 
   if (mesure.mesure === "nombre") {
     morceaux.push(`${mesure.valeur} ${t("dépenses sur la période")}`);
@@ -130,8 +147,13 @@ function objDetailMesure(mesure) {
 }
 
 function objCarteHtml(mesure, options = {}) {
+  // SANS CIBLE, LA CARTE NE JUGE RIEN : ni « tenu », ni « manqué », ni barre.
+  // Elle ne porte plus qu'un chiffre et ce qui a servi à le calculer — c'est
+  // exactement ce qu'on lui demande quand on suit un projet en cours. Peindre
+  // en vert un objectif dont personne n'a fixé le bout aurait été un jugement
+  // inventé (cf. migration 0070).
+  const sansCible = mesure.cible == null;
   const comparateur = mesure.sens === "max" ? "≤" : "≥";
-  const etat = mesure.atteint ? t("tenu") : t("manqué");
   const actions = options.editable
     ? `<span class="obj-carte-actions">
          <button type="button" class="lien" data-objectif-modifier="${mesure.objectif_id}">${t(
@@ -142,13 +164,25 @@ function objCarteHtml(mesure, options = {}) {
          }">${t("Supprimer")}</button>
        </span>`
     : "";
+  const etat = sansCible
+    ? `<span class="obj-etat obj-etat-suivi">${t("suivi")}</span>`
+    : `<span class="obj-etat">${mesure.atteint ? t("tenu") : t("manqué")}</span>`;
+  const cible = sansCible
+    ? ""
+    : `<span class="obj-cible">${t("cible")} ${comparateur} ${objFormatValeur(
+        mesure.cible,
+        mesure.mesure,
+        mesure.monnaie_id
+      )}</span>`;
 
   return `
-    <div class="obj-carte ${mesure.atteint ? "obj-tenu" : "obj-manque"}"
+    <div class="obj-carte ${
+      sansCible ? "obj-sans-cible" : mesure.atteint ? "obj-tenu" : "obj-manque"
+    }"
          data-objectif-id="${mesure.objectif_id}">
       <div class="obj-carte-tete">
         <span class="obj-nom">${escapeHtml(mesure.nom)}</span>
-        <span class="obj-etat">${etat}</span>
+        ${etat}
         ${actions}
       </div>
       <div class="obj-chiffres">
@@ -160,76 +194,115 @@ function objCarteHtml(mesure, options = {}) {
         <span class="obj-unite">${escapeHtml(
           objUniteCible(mesure.mesure, mesure.cadence, mesure.mode)
         )}</span>
-        <span class="obj-cible">${t("cible")} ${comparateur} ${objFormatValeur(
-          mesure.cible,
-          mesure.mesure,
-          mesure.monnaie_id
-        )}</span>
+        ${cible}
       </div>
-      ${objBarre(mesure.avancement, mesure.atteint)}
+      ${sansCible ? "" : objBarre(mesure.avancement, mesure.atteint)}
       <div class="obj-detail hint">${objDetailMesure(mesure)}</div>
     </div>`;
 }
 
 /* ---------- L'onglet de la page Budget ---------- */
 
-function objAnneesProposees() {
-  const courante = new Date().getFullYear();
-  const annees = new Set([courante - 1, courante, courante + 1, objPeriode.annee]);
-  (objPeriodesConnues || []).forEach((p) => annees.add(p.annee));
-  return [...annees].filter(Boolean).sort((a, b) => b - a);
+/**
+ * La période sur laquelle cette page mesure : LE MOIS EN COURS, et il ne se
+ * choisit pas.
+ *
+ * POURQUOI RIEN À CHOISIR ICI. On vient sur cet écran POSER des règles et les
+ * relire ; on les LIT au dashboard, qui porte déjà ses onglets de monnaie et
+ * son sélecteur de période — et c'est là qu'un objectif sert, devant les
+ * dépenses du mois. Trois listes déroulantes reposaient ici la même question
+ * pour un chiffre qu'on ne vient pas y chercher, et celle des monnaies faisait
+ * pire que d'encombrer : elle CACHAIT la moitié de la liste à qui tient deux
+ * devises, sans que rien ne le dise.
+ */
+function objPeriodeCourante() {
+  const aujourdhui = new Date();
+  return { annee: aujourdhui.getFullYear(), mois: aujourdhui.getMonth() + 1 };
 }
 
-function objRemplirContexte() {
-  const monnaie = document.getElementById("obj-monnaie");
-  fillSelect(
-    monnaie,
-    state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
-  );
-  monnaie.value = String(objMonnaieId);
-  monnaie.disabled = state.monnaies.length <= 1;
-
-  const annee = document.getElementById("obj-annee");
-  fillSelect(
-    annee,
-    objAnneesProposees().map((a) => ({ value: a, label: String(a) }))
-  );
-  annee.value = String(objPeriode.annee);
-
-  const mois = document.getElementById("obj-mois");
-  fillSelect(
-    mois,
-    MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
-  );
-  mois.value = String(objPeriode.mois);
-}
-
-function objRemplirCategories() {
-  const select = document.getElementById("objectif-categorie");
+/**
+ * Le menu du PÉRIMÈTRE : toutes les dépenses, une catégorie, ou un projet.
+ *
+ * UNE SEULE LISTE, EN DEUX GROUPES, et non deux menus. Une catégorie classe une
+ * dépense par NATURE, un projet la regroupe par ÉVÉNEMENT — les deux axes se
+ * croisent (l'hôtel d'un voyage est dans « Loisirs » ET dans « Italie »), et un
+ * objectif qui porterait les deux poserait une question dont aucune réponse ne
+ * s'impose : l'intersection, ou l'union ? Le serveur les refuse ensemble (cf.
+ * models.ObjectifKpi) ; un menu unique fait que la question ne se pose pas.
+ *
+ * LA VALEUR PORTE SON AXE (« cat:12 », « projet:3 ») : c'est ce qui permet au
+ * même menu de rendre deux champs différents sans table de correspondance.
+ *
+ * CONSTRUIT À LA MAIN plutôt que par `fillSelect` : celui-ci ne sait pas poser
+ * d'<optgroup>, et sans les deux en-têtes on lirait une liste où « Italie »
+ * voisine « Loisirs » sans qu'on sache lequel est quoi.
+ */
+function objRemplirPerimetre() {
+  const select = document.getElementById("objectif-perimetre");
   const choisi = select.value;
-  // LES CATÉGORIES D'ENTRÉE N'Y SONT PAS : un objectif compte des DÉPENSES, et
-  // une catégorie de salaire n'en porte aucune — sa barre serait à zéro quoi
-  // qu'on y range, exactement comme sur l'histogramme du dashboard.
-  const options = (state.categories || [])
-    .filter((c) => !c.est_entree)
-    .map((c) => ({ value: c.id, label: c.nom }));
-  // UNE PART EXIGE UNE CATÉGORIE (le serveur refuse en 400) : sans elle, elle
+  // UNE PART EXIGE UN PÉRIMÈTRE (le serveur refuse en 400) : sans lui, elle
   // rapporte toutes les dépenses au total des dépenses et vaut 100 % tous les
   // mois. Retirer le choix vaut mieux que le laisser mener à un refus.
   const partSeule =
     document.getElementById("objectif-mesure").value === "part_depenses";
-  fillSelect(
-    select,
-    partSeule ? options : [{ value: "", label: t("Toutes les dépenses") }, ...options]
-  );
-  select.value = choisi;
-  if (partSeule && !select.value) select.selectedIndex = 0;
 
+  select.innerHTML = "";
+  if (!partSeule) {
+    const toutes = document.createElement("option");
+    toutes.value = "";
+    toutes.textContent = t("Toutes les dépenses");
+    select.appendChild(toutes);
+  }
+
+  const groupe = (libelle, lignes, prefixe) => {
+    if (!lignes.length) return;
+    const bloc = document.createElement("optgroup");
+    bloc.label = libelle;
+    lignes.forEach((ligne) => {
+      const option = document.createElement("option");
+      option.value = `${prefixe}:${ligne.id}`;
+      option.textContent = ligne.nom;
+      bloc.appendChild(option);
+    });
+    select.appendChild(bloc);
+  };
+
+  // LES CATÉGORIES D'ENTRÉE N'Y SONT PAS : un objectif compte des DÉPENSES, et
+  // une catégorie de salaire n'en porte aucune — sa barre serait à zéro quoi
+  // qu'on y range, exactement comme sur l'histogramme du dashboard.
+  groupe(
+    t("Catégories"),
+    (state.categories || []).filter((c) => !c.est_entree),
+    "cat"
+  );
+  // LES PROJETS NE PARAISSENT QU'AVEC LEUR EXTENSION. Un objectif déjà posé sur
+  // un projet continue de se mesurer sans elle (la colonne est au noyau) ; ce
+  // qui disparaît est la possibilité d'en choisir un de plus, faute de savoir
+  // les lister.
+  groupe(t("Projets"), objProjets, "projet");
+
+  select.value = choisi;
+  if (!select.value) select.selectedIndex = 0;
+}
+
+/** Le menu des monnaies du formulaire, reconstruit SANS perdre le choix fait.
+ *
+ *  LE BOGUE QU'IL CORRIGE, et il valait cette fonction à lui seul : ce menu
+ *  était rempli par la fonction qui remplit le périmètre, laquelle est
+ *  rappelée à chaque changement de champ — y compris au changement de MONNAIE,
+ *  qui réécrit l'unité de la cible. `fillSelect` vide et reconstruit le
+ *  <select>, donc la valeur retombait sur la première option : choisir une
+ *  autre devise la faisait revenir à la première dans le même geste, et la
+ *  monnaie d'un objectif était en pratique impossible à changer.
+ */
+function objRemplirMonnaies() {
   const monnaie = document.getElementById("objectif-monnaie-champ");
+  const choisie = monnaie.value;
   fillSelect(
     monnaie,
     state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
   );
+  if (choisie) monnaie.value = choisie;
   // UNE SEULE MONNAIE : le champ n'a rien à demander et disparaît. Il revient
   // le jour où une seconde devise existe — c'est alors une vraie question.
   document.getElementById("objectif-ligne-monnaie").style.display =
@@ -237,22 +310,27 @@ function objRemplirCategories() {
 }
 
 /**
- * Ce que le formulaire montre dépend de ce qu'il mesure.
+ * Ce que le formulaire montre dépend de ce qu'il mesure, et de ce qu'on se fixe.
  *
- * DEUX CHAMPS SUIVENT LA MESURE : la CADENCE, qui ne veut rien dire pour un
- * rapport (un montant moyen ne double pas quand la période double), et l'UNITÉ
- * de la cible, qui dit en quoi le nombre qu'on tape est libellé. Laisser les
- * deux fixes obligeait à deviner si « 40 » voulait dire 40 €, 40 % ou 40 fois.
+ * TROIS CHAMPS SUIVENT LE RESTE : la CADENCE, qui ne veut rien dire pour un
+ * rapport (un montant moyen ne double pas quand la période double) ; l'UNITÉ de
+ * la cible, qui dit en quoi le nombre qu'on tape est libellé — sans elle il
+ * fallait deviner si « 40 » voulait dire 40 €, 40 % ou 40 fois ; et la PAIRE
+ * sens + cible, qui n'a rien à demander tant qu'on ne s'est fixé aucune règle.
  */
 function majChampsObjectif() {
   const mesure = document.getElementById("objectif-mesure").value;
   const cadence = document.getElementById("objectif-cadence").value;
-  objRemplirCategories();
+  objRemplirPerimetre();
   document.getElementById("objectif-ligne-cadence").style.display = objMesureCumule(
     mesure
   )
     ? ""
     : "none";
+
+  const avecCible = document.getElementById("objectif-avec-cible").checked;
+  document.getElementById("objectif-ligne-sens").style.display = avecCible ? "" : "none";
+  document.getElementById("objectif-ligne-cible").style.display = avecCible ? "" : "none";
 
   const monnaieId = Number(document.getElementById("objectif-monnaie-champ").value);
   let unite;
@@ -265,6 +343,15 @@ function majChampsObjectif() {
   document.getElementById("objectif-cible-unite").textContent = `${unite}${suffixe}`;
 }
 
+/** La valeur du menu de périmètre pour un objectif : « cat:12 », « projet:3 »
+ *  ou la chaîne vide (toutes les dépenses). */
+function objValeurPerimetre(objectif) {
+  if (!objectif) return "";
+  if (objectif.sous_filtre_id) return `projet:${objectif.sous_filtre_id}`;
+  if (objectif.categorie_id) return `cat:${objectif.categorie_id}`;
+  return "";
+}
+
 function objOuvrirEditeur(objectif) {
   document.getElementById("objectif-editeur-titre").textContent = objectif
     ? t("Modifier l'objectif")
@@ -274,19 +361,24 @@ function objOuvrirEditeur(objectif) {
   document.getElementById("objectif-mesure").value = objectif ? objectif.mesure : "nombre";
   document.getElementById("objectif-cadence").value = objectif ? objectif.cadence : "mois";
   document.getElementById("objectif-sens").value = objectif ? objectif.sens : "max";
-  document.getElementById("objectif-cible").value = objectif ? objectif.cible : "";
+  // PAS DE CIBLE EST UN ÉTAT, et il ne se confond pas avec zéro : la case
+  // décoché masque les deux champs et l'objectif se contente de constater.
+  const avecCible = objectif ? objectif.cible != null : true;
+  document.getElementById("objectif-avec-cible").checked = avecCible;
+  document.getElementById("objectif-cible").value = avecCible && objectif ? objectif.cible : "";
+  // LES MONNAIES AVANT TOUT LE RESTE : l'unité de la cible lit le symbole de
+  // celle qui est choisie, et `objRemplirMonnaies` garde la valeur en place.
+  objRemplirMonnaies();
   document.getElementById("objectif-monnaie-champ").value = String(
-    objectif ? objectif.monnaie_id : objMonnaieId
+    objectif ? objectif.monnaie_id : objMonnaieParDefaut
   );
   document.getElementById("objectif-visible").checked = objectif
     ? objectif.visible_dashboard
     : true;
-  // APRÈS la liste des monnaies (le suffixe de la cible lit son symbole) et
-  // AVANT la catégorie : `majChampsObjectif` reconstruit la liste des
-  // catégories, et la poser plus tôt la ferait effacer.
+  // APRÈS la monnaie et AVANT le périmètre : `majChampsObjectif` reconstruit la
+  // liste du périmètre, et le poser plus tôt le ferait effacer.
   majChampsObjectif();
-  document.getElementById("objectif-categorie").value =
-    objectif && objectif.categorie_id ? String(objectif.categorie_id) : "";
+  document.getElementById("objectif-perimetre").value = objValeurPerimetre(objectif);
   document.getElementById("objectif-editeur").style.display = "";
   document.getElementById("objectif-nom").focus();
 }
@@ -300,7 +392,7 @@ function objRenderListe() {
   if (!liste) return;
   if (!objMesures.length) {
     liste.innerHTML = `<p class="hint">${t(
-      "Aucun objectif pour cette monnaie. Le bouton ci-dessus en crée un."
+      "Aucun objectif. Le bouton ci-dessus en crée un."
     )}</p>`;
     return;
   }
@@ -309,32 +401,40 @@ function objRenderListe() {
     .join("");
 }
 
+/** Les projets, pour le menu du périmètre — et seulement si leur extension
+ *  tourne. Un échec ne dit rien ici : on retombe sur une liste sans projets,
+ *  et le reste de l'écran fonctionne. */
+async function objChargerProjets() {
+  if (!BudgetApp.extensions.estActive("projets")) {
+    objProjets = [];
+    return;
+  }
+  try {
+    objProjets = await apiFetch("/projets");
+  } catch (err) {
+    objProjets = [];
+  }
+}
+
 async function loadObjectifs() {
   try {
     if (!state.monnaies.length) await refreshMonnaies();
     await refreshCategories();
-    if (objMonnaieId == null || !state.monnaies.some((m) => m.id === objMonnaieId)) {
-      objMonnaieId = state.monnaies[0] ? state.monnaies[0].id : null;
+    await objChargerProjets();
+    if (
+      objMonnaieParDefaut == null ||
+      !state.monnaies.some((m) => m.id === objMonnaieParDefaut)
+    ) {
+      objMonnaieParDefaut = state.monnaies[0] ? state.monnaies[0].id : null;
     }
-    if (!objPeriode.annee) {
-      const aujourdhui = new Date();
-      objPeriode.annee = aujourdhui.getFullYear();
-      objPeriode.mois = aujourdhui.getMonth() + 1;
-    }
-    if (objPeriodesConnues === null) {
-      try {
-        objPeriodesConnues = await apiFetch("/meta/periodes");
-      } catch (err) {
-        objPeriodesConnues = [];
-      }
-    }
-    objRemplirContexte();
-    if (objMonnaieId == null) return;
 
-    const requete = `monnaie_id=${objMonnaieId}&annee=${objPeriode.annee}&mois=${objPeriode.mois}`;
+    // TOUS LES OBJECTIFS, TOUTES MONNAIES, sur le mois en cours : la requête ne
+    // porte plus de `monnaie_id`, et le serveur mesure alors chacun dans la
+    // sienne (cf. routeur_objectifs.mesurer_objectifs).
+    const { annee, mois } = objPeriodeCourante();
     const [liste, mesures] = await Promise.all([
-      apiFetch(`${OBJECTIFS_BASE}?monnaie_id=${objMonnaieId}`),
-      apiFetch(`${OBJECTIFS_BASE}/mesures?${requete}`),
+      apiFetch(OBJECTIFS_BASE),
+      apiFetch(`${OBJECTIFS_BASE}/mesures?annee=${annee}&mois=${mois}`),
     ]);
     objObjectifs = liste;
     objMesures = mesures.objectifs;
@@ -351,19 +451,32 @@ async function objEnregistrer() {
     showMessage(t("Donne un nom à cet objectif."), "error");
     return;
   }
-  const categorie = document.getElementById("objectif-categorie").value;
+  // LE PÉRIMÈTRE PORTE SON AXE dans sa valeur (« cat:12 », « projet:3 ») : on
+  // le relit ici pour en tirer l'un OU l'autre des deux champs, jamais les deux
+  // (cf. objRemplirPerimetre).
+  const [axe, reference] = document.getElementById("objectif-perimetre").value.split(":");
+  const categorieId = axe === "cat" ? Number(reference) : null;
+  const projetId = axe === "projet" ? Number(reference) : null;
+  const avecCible = document.getElementById("objectif-avec-cible").checked;
   const corps = {
     nom,
     mesure: document.getElementById("objectif-mesure").value,
     cadence: document.getElementById("objectif-cadence").value,
     sens: document.getElementById("objectif-sens").value,
-    cible: Number(document.getElementById("objectif-cible").value) || 0,
+    // PAS DE CIBLE, PAS DE NOMBRE : `null` et zéro ne disent pas la même chose
+    // — zéro est une règle (« rien du tout ce mois-ci »), `null` est l'absence
+    // de règle (cf. migration 0070). Sur une MODIFICATION, `null` voudrait
+    // seulement dire « ne change pas » : c'est `cible_effacee` qui la retire.
+    cible: avecCible ? Number(document.getElementById("objectif-cible").value) || 0 : null,
+    cible_effacee: !avecCible,
     // ZÉRO ÉLARGIT À TOUTES LES DÉPENSES sur une modification (cf.
     // schemas_objectifs.ObjectifUpdate) ; à la création, `null` dit la même
-    // chose — `None` y veut bien dire « aucune catégorie ».
-    categorie_id: categorie ? Number(categorie) : id ? 0 : null,
+    // chose — `None` y veut bien dire « aucun périmètre ».
+    categorie_id: categorieId || (id ? 0 : null),
+    sous_filtre_id: projetId || (id ? 0 : null),
     monnaie_id:
-      Number(document.getElementById("objectif-monnaie-champ").value) || objMonnaieId,
+      Number(document.getElementById("objectif-monnaie-champ").value) ||
+      objMonnaieParDefaut,
     visible_dashboard: document.getElementById("objectif-visible").checked,
   };
   try {
@@ -402,21 +515,10 @@ document.getElementById("btn-objectif-nouveau")?.addEventListener("click", () =>
 );
 document.getElementById("btn-objectif-annuler")?.addEventListener("click", objFermerEditeur);
 document.getElementById("btn-objectif-enregistrer")?.addEventListener("click", objEnregistrer);
-document.getElementById("objectif-mesure")?.addEventListener("change", majChampsObjectif);
-document.getElementById("objectif-cadence")?.addEventListener("change", majChampsObjectif);
-document
-  .getElementById("objectif-monnaie-champ")
-  ?.addEventListener("change", majChampsObjectif);
-
-["obj-monnaie", "obj-annee", "obj-mois"].forEach((id) => {
-  document.getElementById(id)?.addEventListener("change", (e) => {
-    const valeur = Number(e.target.value);
-    if (id === "obj-monnaie") objMonnaieId = valeur;
-    if (id === "obj-annee") objPeriode.annee = valeur;
-    if (id === "obj-mois") objPeriode.mois = valeur;
-    loadObjectifs();
-  });
-});
+["objectif-mesure", "objectif-cadence", "objectif-monnaie-champ", "objectif-avec-cible"]
+  .forEach((id) =>
+    document.getElementById(id)?.addEventListener("change", majChampsObjectif)
+  );
 
 // UN SEUL ÉCOUTEUR DÉLÉGUÉ sur la liste, posé une fois : elle est réécrite à
 // chaque rendu, et recâbler chaque bouton y laisserait un écouteur de plus à
@@ -491,6 +593,7 @@ async function objRendreDashboard(annee, mois) {
     // d'écrire porte une clé, pas une phrase (cf. frontend/textes.js).
     appliquerTextes(bloc);
     traduireDomStatique(bloc);
+    appliquerPuces(bloc);
   } catch (err) {
     // UN OBJECTIF QUI NE SE LIT PAS NE DOIT PAS EMPORTER LE DASHBOARD : le bloc
     // se tait, les chiffres du mois restent affichés.

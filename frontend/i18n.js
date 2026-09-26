@@ -255,6 +255,16 @@ const TRADUCTIONS = {
        camembert. ===== */
     "État actuel":
       "Current state",
+    "Lier":
+      "Link",
+    "liée à {n}":
+      "linked to {n}",
+    "« {nature} » sera liée à {n} opération(s) à la confirmation.":
+      "« {nature} » will be linked to {n} transaction(s) on confirmation.",
+    "Budgets par catégorie":
+      "Category budgets",
+    "Une valeur par catégorie, lue de deux façons. -- LE CURSEUR répartit ; les deux cases à sa droite montrent la même enveloppe en monnaie et en part du budget du mois. Bouger le curseur met les deux à jour. -- ÉCRIRE DANS L'UNE recalcule l'autre et replace le curseur. Ctrl+Entrée, ou un clic ailleurs, enregistre. -- L'ENVELOPPE répond à « combien puis-je encore dépenser là » : c'est elle que trace le trait rouge de l'histogramme du dashboard. La PART répond à « quelle portion de mon budget y va » : c'est elle que le camembert affiche en vue Budget. -- La somme des parts ne peut pas dépasser 100 %, donc la somme des enveloppes ne peut pas dépasser le budget du mois. Au-delà, la saisie est refusée et le message dit le plafond utilisable. -- Sans budget du mois posé, la case des parts n'a pas de dénominateur : elle reste éteinte, et seule l'enveloppe s'enregistre.":
+      "One value per category, read two ways. -- THE SLIDER allocates; the two boxes to its right show the same envelope in currency and as a share of the month's budget. Moving the slider updates both. -- TYPING IN ONE recomputes the other and moves the slider. Ctrl+Enter, or a click elsewhere, saves. -- The ENVELOPE answers « how much can I still spend there »: it is what the red line on the dashboard histogram draws. The SHARE answers « what portion of my budget goes there »: it is what the pie chart shows in Budget view. -- The sum of shares cannot exceed 100 %, so the sum of envelopes cannot exceed the month's budget. Beyond that the entry is refused, and the message names the usable ceiling. -- With no month budget set, the share box has no denominator: it stays disabled, and only the envelope is saved.",
     "Budget du mois":
       "Month budget",
     "Budget de la catégorie":
@@ -720,12 +730,24 @@ const TRADUCTIONS = {
       "target",
     "dépenses":
       "expenses",
-    "Les règles que tu te donnes et que le budget ne sait pas écrire. Une enveloppe compte des euros dépensés, un objectif de répartition une part du total : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine » ni « mes courses ne devraient pas dépasser 40 € en moyenne ». Un objectif mesure ce que tu veux suivre, le compare à une cible, et ne refuse jamais rien — il constate. Les périodes ci-dessus disent seulement sur quoi tu regardes : un objectif n'a pas de mois, il a une cadence.":
-      "The rules you set yourself that a budget cannot express. An envelope counts euros spent, a share goal a portion of the total: neither can say « no more than four nights out a week » nor « my groceries should not exceed 40 € on average ». A goal measures what you want to track, compares it to a target, and never refuses anything — it observes. The periods above only say what you are looking at: a goal has no month, it has a cadence.",
-    "Quatre mesures, et elles ne se calculent pas sur le même périmètre. MONTANT TOTAL et PART DES DÉPENSES se lisent exactement comme l'histogramme et le camembert du dashboard : une dépense amortie n'y compte que pour la part du mois, une remboursable pour ce qui te reste à charge. NOMBRE DE DÉPENSES et MONTANT MOYEN comptent des lignes de relevé : une dépense, à sa date, pour son montant — un compte ne s'étale pas, et une moyenne doit valoir ce que tu lis sur ton relevé.":
-      "Four measures, and they are not computed over the same scope. TOTAL AMOUNT and SHARE OF EXPENSES read exactly like the dashboard histogram and pie chart: a spread expense counts there only for the month's share, a reimbursable one for what is left at your charge. NUMBER OF EXPENSES and AVERAGE AMOUNT count statement rows: one expense, at its date, for its amount — a count does not spread, and an average must match what you read on your statement.",
-    "L'unité dans laquelle ta cible est écrite, et rien d'autre : elle ne décide pas de ce que tu regardes. Quand la période affichée tient dans une cadence — un objectif mensuel lu sur un mois — tu lis ton CUMUL face à ta cible : « 196 € sur 250 € » le 19 du mois, et rien n'est prédit de ce que tu dépenseras d'ici au 30. Quand elle en contient plusieurs — un objectif hebdomadaire lu sur un mois — c'est une MOYENNE sur le temps déjà écoulé : « 3,8 par semaine », et c'est ce chiffre-là qui se compare à ta cible.":
-      "The unit your target is written in, and nothing else: it does not decide what you are looking at. When the displayed period fits within one cadence — a monthly goal read over a month — you read your CUMULATIVE figure against your target: « 196 € out of 250 € » on the 19th, and nothing is predicted about what you will spend before the 30th. When it contains several — a weekly goal read over a month — it is an AVERAGE over the time already elapsed: « 3.8 per week », and that is the figure compared to your target.",
+    "Les objectifs te permettent de te fixer des cibles et les visualiser concrètement.":
+      "Goals let you set yourself targets and see concretely where you stand.",
+    "Quatre objectifs, deux manières de calculer. Montant total et part des dépenses fonctionnent comme les graphiques. Nombre de dépenses et montant moyen font abstraction des règles comme l'amortissement.":
+      "Four goals, two ways of counting. Total amount and share of expenses work like the charts. Number of expenses and average amount ignore rules such as spreading.",
+    "Te permet de régler la plage temporelle que couvre l'objectif. -- Si tu indiques mois et que le dashboard est sur la vue mois, tu vois le total. -- Si tu indiques mois et que le dashboard est en vue année, tu verras la moyenne sur tous les mois existants.":
+      "Sets the span of time the goal covers. -- If you pick month and the dashboard is on the month view, you see the total. -- If you pick month and the dashboard is on the year view, you see the average over every month on record.",
+    "Sur quoi porte l'objectif. -- Toutes les dépenses : tout ce qui sort, tous postes confondus. -- Une catégorie : elle classe une dépense par nature, et une dépense n'en a qu'une. -- Un projet : il regroupe par événement (un voyage, des travaux), à travers les catégories et les comptes. Une dépense peut appartenir à plusieurs projets. -- Une catégorie ou un projet, jamais les deux : les deux axes se croisent, et l'hôtel d'un voyage est à la fois dans « Loisirs » et dans « Italie ».":
+      "What the goal is about. -- All expenses: everything that goes out, across the board. -- A category: it sorts an expense by nature, and an expense has only one. -- A project: it groups by event (a trip, building work), across categories and accounts. One expense can belong to several projects. -- A category or a project, never both: the two axes cross, and a trip's hotel is at once in « Loisirs » and in « Italie ».",
+    "Un objectif peut n'avoir aucune cible : il se contente alors d'afficher son chiffre sous les graphes du dashboard, sans dire s'il est tenu ou manqué. -- C'est le cas ordinaire d'un projet en cours : on veut voir ce qu'il coûte bien avant de savoir ce qu'on s'autorise. -- Attention, une cible à zéro n'est pas « pas de cible » : c'est une règle, et une règle sévère (« rien du tout ce mois-ci »).":
+      "A goal may have no target at all: it then simply shows its figure under the dashboard charts, without saying whether it is met or missed. -- That is the ordinary case of a project under way: you want to see what it costs long before you know what you will allow yourself. -- Careful, a target of zero is not « no target »: it is a rule, and a strict one (« nothing at all this month »).",
+    "Se fixer une cible":
+      "Set a target",
+    "Catégories":
+      "Categories",
+    "suivi":
+      "tracked",
+    "Aucun objectif. Le bouton ci-dessus en crée un.":
+      "No goal yet. The button above creates one.",
     "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.":
       "Ticked goals appear under the dashboard charts, for the period and currency you are looking at there. The others stay here. It is in front of the month's expenses that one wonders whether a rule is being kept — but a block that grows without end would eventually push the charts off screen.",
     "Ce que tu t'es fixé, mesuré sur la période affichée ci-dessus et dans la monnaie de l'onglet. Le grand chiffre est ramené à la cadence de l'objectif ; la ligne du dessous dit ce qui a servi à le calculer. Rien ici n'influe sur tes soldes ni sur tes graphes : un objectif regarde, il ne change aucun montant. Ils se créent et se modifient dans Budget → Objectifs.":
@@ -734,6 +756,121 @@ const TRADUCTIONS = {
     /* ===== La notice d'utilisation et le tutoriel guidé ===== */
     "Relevé d'exemple enregistré :":
       "Sample statement saved:",
+    "Écran introuvable :":
+      "Screen not found:",
+    "Le budget du mois est de {total} : cette catégorie ne peut pas dépasser {plafond}, sans quoi la somme des budgets par catégorie le dépasserait.":
+      "The month's budget is {total}: this category cannot exceed {plafond}, otherwise the sum of category budgets would go over it.",
+
+    /* ===== Règles : sorties conditionnelles et tutoriel ===== */
+    "La règle détecte une fois, et peut agir de plusieurs façons selon la ligne. Chaque sortie a ses propres conditions : la première qui correspond remplace les actions de la règle qu'elle renseigne, les champs laissés vides gardent celles de la règle. Aucune ne correspond : la règle agit telle quelle. Exemple : une règle « Virement interne » avec une sortie « contient LIVRET → compte en face Livret A » et une autre « contient PEA → compte en face PEA ».":
+      "The rule detects once, and can act in several ways depending on the row. Each output has its own conditions: the first one that matches replaces the rule's actions it fills in, fields left empty keep the rule's. None matches: the rule acts as is. Example: an “Internal transfer” rule with one output “contains LIVRET → other account Livret A” and another “contains PEA → other account PEA”.",
+    "Sorties conditionnelles": "Conditional outputs",
+    "+ Ajouter une sortie conditionnelle": "+ Add a conditional output",
+    "Aucune : la règle fait toujours la même chose.": "None: the rule always does the same thing.",
+    "Sortie": "Output",
+    "Combiner les groupes": "Combine groups",
+    "Supprimer la sortie": "Delete output",
+    "Si la ligne…": "If the row…",
+    "…alors, à la place de la règle :": "…then, instead of the rule:",
+    "— celui de la règle —": "— the rule's —",
+    "— celle de la règle —": "— the rule's —",
+    "Chaque condition d'une sortie doit porter sur un champ et avoir une valeur.":
+      "Each condition of an output must target a field and have a value.",
+    "Une sortie conditionnelle doit changer au moins une chose.":
+      "A conditional output must change at least one thing.",
+    "{n} sortie(s) conditionnelle(s)": "{n} conditional output(s)",
+    "Créer une règle": "Create a rule",
+    "Écrire une règle de bout en bout : ce qu'elle détecte, ce qu'elle change, ses sorties conditionnelles, et l'ordre dans lequel les règles se lisent.":
+      "Write a rule end to end: what it detects, what it changes, its conditional outputs, and the order in which rules are read.",
+    "Les règles s'appliquent à chaque ligne importée, avant que tu ne la voies dans l'aperçu. Elles vivent ici, au-dessus des correspondances.":
+      "Rules apply to every imported row, before you see it in the preview. They live here, above the mappings.",
+    "Ce bouton ouvre l'éditeur d'une règle vide. On vient de l'ouvrir pour toi : rien n'est enregistré tant que tu ne cliques pas sur « Enregistrer ».":
+      "This button opens the editor of an empty rule. We just opened it for you: nothing is saved until you click “Save”.",
+    "Un nom qui dit ce que la règle fait, et une note qui dit pourquoi elle existe — dans six mois, c'est la seule chose qui manquera.":
+      "A name that says what the rule does, and a note that says why it exists — in six months, that is the only thing you will be missing.",
+    "Ce que la règle doit reconnaître. Une condition porte sur un champ de la ligne (libellé, catégorie bancaire, compte, montant) ; ses mots-clés se combinent en ET. Les groupes permettent d'écrire « (A ou B) et C ». Majuscules et accents sont ignorés.":
+      "What the rule must recognise. A condition targets a field of the row (label, bank category, account, amount); its keywords combine with AND. Groups let you write “(A or B) and C”. Case and accents are ignored.",
+    "Ce que la règle fait de la ligne reconnue : son type, puis sa catégorie (ou une découpe entre plusieurs). « — ne pas changer — » laisse le type aux règles suivantes.":
+      "What the rule does with the recognised row: its type, then its category (or a split across several). “— leave unchanged —” leaves the type to the following rules.",
+    "Tout le reste de la ligne peut changer aussi, sauf ses montants et sa date : son nom, son compte, une note, un amortissement. Un champ vide ne change rien.":
+      "Everything else on the row can change too, except its amounts and date: its name, its account, a note, a spread. An empty field changes nothing.",
+    "Quand ce que la règle doit faire dépend d'un détail de la ligne, inutile de la recopier : ajoute des sorties. Chacune a ses conditions et ses actions, et la première qui correspond l'emporte. Typiquement : une seule règle « Virement interne », une sortie par compte en face.":
+      "When what the rule must do depends on a detail of the row, no need to copy it: add outputs. Each has its conditions and actions, and the first that matches wins. Typically: a single “Internal transfer” rule, one output per other account.",
+    "Les règles se lisent de haut en bas. Coché, ce réglage arrête la lecture quand la règle correspond ; décoché, les suivantes peuvent compléter ce qu'elle a laissé ouvert. La plus haute l'emporte toujours.":
+      "Rules are read top to bottom. Ticked, this setting stops reading when the rule matches; unticked, the following ones can complete what it left open. The highest always wins.",
+    "L'ordre se change en glissant les règles dans la liste. La vue galerie les range par dossiers pour s'y retrouver, sans jamais changer cet ordre. Pour voir le résultat, importe un relevé : l'aperçu dit, ligne par ligne, quelle règle a agi.":
+      "The order changes by dragging rules in the list. The gallery view sorts them into folders to find your way, without ever changing that order. To see the result, import a statement: the preview says, row by row, which rule acted.",
+    "Les règles": "Rules",
+    "Une nouvelle règle": "A new rule",
+    "Son nom, et pourquoi elle existe": "Its name, and why it exists",
+    "Ce qu'elle détecte": "What it detects",
+    "Ce qu'elle fait": "What it does",
+    "Et le reste de la ligne": "And the rest of the row",
+    "Les sorties conditionnelles": "Conditional outputs",
+    "S'arrêter, ou laisser compléter": "Stop, or let others complete",
+    "L'ordre des règles": "The order of rules",
+
+
+    /* ===== Import : deviner les colonnes ===== */
+    "L'application lit le fichier et devine ce que dit chaque colonne, d'après son intitulé et la forme de ses cellules. Une colonne dont elle est sûre reçoit une seule proposition ; pour les autres, elle en propose plusieurs, et c'est toi qui choisis. Rien n'est enregistré tant que tu ne le demandes pas.":
+      "The app reads the file and guesses what each column holds, from its heading and the shape of its cells. A column it is sure about gets a single suggestion; for the others it offers several, and you choose. Nothing is saved until you ask.",
+    "Appliquer met ces colonnes à l'écran, sans rien enregistrer. Cliquer ensuite sur « Enregistrer la configuration » supprimera les colonnes enregistrées à la main dans ce preset, et les remplacera par ce que l'application a deviné.":
+      "Applying puts these columns on screen, without saving anything. Clicking “Save configuration” afterwards will delete the columns saved by hand in this preset, and replace them with what the app guessed.",
+    "La plupart des lignes sortent en erreur : les colonnes de ce preset ne semblent pas correspondre à ce fichier. « Deviner les colonnes » propose une configuration à partir du fichier lui-même.":
+      "Most rows come out in error: this preset's columns do not seem to match this file. “Guess the columns” suggests a configuration from the file itself.",
+    "Deviner les colonnes": "Guess the columns",
+    "Ne pas importer": "Do not import",
+    "sûr": "sure",
+    "Ce que l'application devine": "What the app guesses",
+    "Lignes de tête : {n}": "Header rows: {n}",
+    "Appliquer ces colonnes": "Apply these columns",
+    "« {propriete} » est choisie pour deux colonnes : garde-la sur une seule.":
+      "“{propriete}” is chosen for two columns: keep it on one only.",
+    "Colonnes appliquées à l'écran : relis le fichier pour voir le résultat, puis enregistre la configuration pour les garder.":
+      "Columns applied on screen: re-read the file to see the result, then save the configuration to keep them.",
+
+    "Un CSV écrit à l'anglo-saxonne": "A CSV written the English-speaking way",
+    "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
+      "The tutorial will show a sample file instead of the one you loaded (nothing has been imported). Continue?",
+    "Ce fichier d'exemple est chargé dans l'écran d'import, comme si tu l'avais déposé : fais défiler « Le fichier tel qu'il est » pour voir toutes ses colonnes. Rien n'est importé.":
+      "This sample file is loaded in the import screen, as if you had dropped it: scroll “The file as it is” to see all its columns. Nothing is imported.",
+    "Le fichier d'exemple n'a pas été chargé : ton propre fichier est resté à l'écran.":
+      "The sample file was not loaded: your own file stayed on screen.",
+
+
+    /* ===== Page Budget : les graphes et leur comparaison ===== */
+    "Les deux graphes du dashboard, face à ton budget : les barres portent le trait rouge de l'enveloppe de chaque catégorie, le camembert rapporte chaque catégorie au budget de la période. « Comparer avec » superpose une seconde période de même durée — deux mois, deux années ou deux semaines — hachurée et grisée : par-dessus les barres, et en anneau dans le camembert.":
+      "The two dashboard charts, against your budget: the bars carry the red line of each category's envelope, the pie relates each category to the period's budget. “Compare with” overlays a second period of the same length — two months, two years or two weeks — hatched and greyed: over the bars, and as a ring inside the pie.",
+    "Tes dépenses face au budget": "Your spending against the budget",
+    "Période": "Period",
+    "Comparer avec": "Compare with",
+    "Comparée": "Compared",
+    "Plein : {courante} · Hachuré : {comparee}": "Solid: {courante} · Hatched: {comparee}",
+    "Aucun budget posé sur cette période : le camembert rapporte chaque catégorie au total dépensé.":
+      "No budget set for this period: the pie relates each category to the total spent.",
+
+
+    /* ===== Règles : les autres propriétés d'une ligne (migration 0071) ===== */
+    "Tout ce qu'une règle peut changer d'autre sur la ligne, sauf ses montants et sa date. Chaque champ est facultatif : laissé vide, la règle n'en dit rien. Le nouveau nom ne change pas ce que les règles comparent — elles lisent toutes le libellé du relevé.":
+      "Everything else a rule can change on the row, except its amounts and its date. Each field is optional: left empty, the rule says nothing about it. The new name does not change what rules compare — they all read the statement's label.",
+    "— ne pas changer —": "— leave unchanged —",
+    "Et aussi": "And also",
+    "Renommer en": "Rename to",
+    "Sur le compte": "On the account",
+    "Avec la note": "With the note",
+    "Amortir sur (mois)": "Spread over (months)",
+    "Marquer comme dépense imprévue": "Mark as unexpected expense",
+    "— aucune —": "— none —",
+    "— non —": "— no —",
+    "renommée « {nom} »": "renamed “{nom}”",
+    "sur « {compte} »": "on “{compte}”",
+    "note « {note} »": "note “{note}”",
+    "amortie sur {n} mois": "spread over {n} months",
+    "imprévue": "unexpected",
+    "catégorie « {nom} »": "category “{nom}”",
+    "Un amortissement s'étale sur 2 à 120 mois.": "A spread covers 2 to 120 months.",
+    "Cette règle ne changerait rien : choisis au moins une action.":
+      "This rule would change nothing: pick at least one action.",
     "Le réglage juste, si tu veux vérifier le tien : 2 lignes de tête, Date en colonne 1, Nature en 3, Montant en 5, Catégorie bancaire en 7. Les colonnes 2, 4 et 6 — référence, type de carte, solde après opération — ne sont lues par rien : une colonne qu'on n'importe pas n'a pas à être supprimée du fichier.":
       "The correct setup, if you want to check yours: 2 header rows, Date in column 1, Label in 3, Amount in 5, Bank category in 7. Columns 2, 4 and 6 — reference, card type, balance after transaction — are read by nothing: a column you do not import does not have to be removed from the file.",
     "on te doit 340,00 € · tu dois 0,00 €":
@@ -848,6 +985,48 @@ const TRADUCTIONS = {
       "not installed",
     "éteinte":
       "off",
+    // Les cartes de tutoriel de Paramètres généraux, et la mémoire de
+    // progression qu'elles montrent (cf. tutoriel.js). Les TEXTES DES ÉTAPES
+    // sont plus bas : ceux-ci sont l'habillage, qui ne change pas quand une
+    // étape est réécrite.
+    "Tutoriels guidés":
+      "Guided tutorials",
+    "Prendre l'application en main":
+      "Getting to grips with the app",
+    "Le tour des quatre écrans, et les quelques idées qui ne se devinent pas : les deux rangées de cartes, la période, l'extinction plutôt que la suppression, les extensions.":
+      "A tour of the four screens, and the few ideas you cannot guess: the two rows of cards, the period, disabling rather than deleting, extensions.",
+    "Régler un preset de bout en bout, colonnes secondaires comprises — avec, à chaque colonne, l'extrait de relevé qui la rend nécessaire.":
+      "Setting up a preset from end to end, secondary columns included — each one shown with the statement excerpt that makes it necessary.",
+    "Terminé":
+      "Completed",
+    "Étape":
+      "Step",
+    "Pas encore commencé":
+      "Not started yet",
+    "étapes":
+      "steps",
+    "Revoir":
+      "Review",
+    "Reprendre":
+      "Resume",
+    "Commencer":
+      "Start",
+    "Recommencer":
+      "Start over",
+    "Tutoriel terminé :":
+      "Tutorial completed:",
+    // Le repli des filtres de la page Opérations et son bandeau.
+    "Filtres": "Filters",
+    // La carte d'un compte de placements : le total prend la place du solde,
+    // les espèces descendent d'un cran (cf. extensions/placements).
+    "Espèces": "Cash",
+    // L'infobulle des deux cartes de flux : leur titre est celui de la carte.
+    "Total Entrées": "Total In",
+    "Total Dépenses": "Total Out",
+    // La case qui a remplacé le menu « Statut » du formulaire d'opération.
+    "Prévisionnelle": "Planned",
+    "Reconnaître à l'import": "Match on import",
+    "· {n} actif(s)": "· {n} active",
     "Quitter le tutoriel":
       "Leave the tutorial",
     "Précédent":
@@ -1285,6 +1464,10 @@ const TRADUCTIONS = {
       "Convert everything",
     "Tout convertir en {monnaie}":
       "Convert everything to {monnaie}",
+    "Ce budget additionne les douze mois de l'année ET les monnaies converties :":
+      "This budget adds up the twelve months of the year AND the converted currencies:",
+    "Ce budget additionne les monnaies converties :":
+      "This budget adds up the converted currencies:",
     "Pas de taux pour {monnaies} : ces montants ne sont pas comptés. Saisis leur taux dans Paramètres → Monnaies.":
       "No rate for {monnaies}: these amounts are left out. Enter their rate in Settings → Currencies.",
     "Aucune catégorie sélectionnée.":
@@ -1549,6 +1732,20 @@ const TRADUCTIONS = {
     "doublons : toutes les colonnes": "duplicates: every column",
     "doublons : toutes sauf {n}": "duplicates: all but {n}",
     "doublons : {n} colonne(s) comparée(s)": "duplicates: {n} column(s) compared",
+    // Les trois sections repliées en fin de « Configuration du fichier », et la
+    // partie secondaire des colonnes lues (cf. index.html, § Import).
+    "Colonnes secondaires": "Secondary columns",
+    "Lignes à ne pas importer": "Rows not to import",
+    "Réglages de lecture (délimiteur, séparateur décimal)":
+      "Reading settings (delimiter, decimal separator)",
+    "aucune ligne ignorée": "no row skipped",
+    "{n} ligne(s) ignorée(s)": "{n} row(s) skipped",
+    "Aucune colonne désignée.": "No column named.",
+    "Seules ces colonnes distinguent deux lignes.":
+      "Only these columns tell two rows apart.",
+    "Toutes les colonnes sont comparées, sauf celles-ci.":
+      "Every column is compared, except these.",
+    "Ajouter cette colonne": "Add this column",
     "Amortie sur plusieurs mois": "Spread over several months",
     // Découpe d'une opération entre plusieurs catégories.
     "Découper entre plusieurs catégories": "Split across several categories",

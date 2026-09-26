@@ -18,6 +18,9 @@
   --positif: #4ade80;
   --depense: #fb923c;
   --budget-line: #ef4444;
+  /* L'interrupteur allumé (cf. « LES CASES SONT DES INTERRUPTEURS »). */
+  --interrupteur-on: #30d158;
+  --interrupteur-off: #3a4050;
   --success-bg: rgba(74, 222, 128, 0.15);
   --success-text: #4ade80;
   --error-bg: rgba(248, 113, 113, 0.15);
@@ -36,6 +39,12 @@
   --compte-courant: var(--accent);
   --compte-epargne: #7c3aed;
   --compte-placements: #14b8a6;
+  /* LA LARGEUR DE LA BARRE LATÉRALE, en variable parce que trois règles la
+     lisent et qu'un nombre recopié trois fois finit par ne plus être le même.
+     Assez large pour « Vue globale des comptes » sur une ligne — c'est le plus
+     long des onglets livrés, et un libellé qui se coupe en deux se lit mal dans
+     une liste qu'on parcourt du regard. */
+  --barre-laterale: 15rem;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
@@ -91,6 +100,8 @@
   --positif: #15803d;
   --depense: #c2410c;
   --budget-line: #dc2626;
+  --interrupteur-on: #34c759;
+  --interrupteur-off: #c9ced8;
   --success-bg: rgba(21, 128, 61, 0.12);
   --success-text: #146c34;
   --error-bg: rgba(220, 38, 38, 0.1);
@@ -180,10 +191,18 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 
+/* LA PAGE EST EN DEUX COLONNES : la barre latérale, puis tout le reste.
+ *
+ * `align-items: stretch` (le défaut) plutôt qu'une hauteur posée sur la barre :
+ * c'est ce qui lui donne toute la hauteur de la page sans qu'elle ait à la
+ * connaître. Les fenêtres modales et les messages sont en `position: fixed` :
+ * ils sortent du flux et ne voient donc rien de ce partage. */
 body {
   font-family: system-ui, sans-serif;
   margin: 0;
   padding: 0;
+  display: flex;
+  min-height: 100vh;
   background: var(--bg-page);
   color: var(--text-primary);
   /* Léger dégradé radial en tête de page, façon dashboards fintech. */
@@ -191,17 +210,28 @@ body {
   background-repeat: no-repeat;
 }
 
+/* LA BARRE LATÉRALE (cf. index.html pour le pourquoi du déménagement).
+ *
+ * `position: sticky` AVEC `align-self: flex-start` ET une hauteur de fenêtre :
+ * les trois vont ensemble. Sans `flex-start`, l'élément est étiré par le flex
+ * et n'a plus rien à faire coller ; sans la hauteur, une barre plus haute que
+ * l'écran ne se défilerait jamais jusqu'à son dernier onglet. */
 header {
+  flex: 0 0 var(--barre-laterale);
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
   background: var(--bg-header);
   backdrop-filter: blur(12px);
   color: var(--text-primary);
-  padding: 0.75rem 1.25rem;
+  padding: 1rem 0.85rem;
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  border-bottom: 1px solid var(--border-soft);
-  position: sticky;
-  top: 0;
+  flex-direction: column;
+  gap: 1.1rem;
+  border-right: 1px solid var(--border-soft);
   z-index: 50;
 }
 
@@ -209,15 +239,59 @@ header h1 {
   font-size: 1.05rem;
   margin: 0;
   letter-spacing: 0.01em;
+  /* Le titre ne se coupe pas en deux lignes dans une colonne étroite : c'est
+     un nom, pas une phrase. */
+  white-space: nowrap;
 }
 
-/* Langue et recherche : les deux outils qui portent sur l'app entière, collés
-   au titre — c'est `nav` (cf. plus bas) qui porte `margin-left: auto` et va
-   se placer seule à l'autre bout du header. */
+/* Langue et recherche : les deux outils qui portent sur l'app entière, AU-DESSUS
+   de la navigation et en colonne comme elle — la recherche sous les drapeaux.
+   Au-dessus, et non entre deux onglets : la liste des pages reste ainsi d'un
+   seul tenant, et c'est elle qu'on parcourt du regard. */
 .outils-globaux {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  /* Le filet qui les sépare des onglets : sans lui, les drapeaux se lisent
+     comme une première entrée de la liste. */
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* FAIRE UN RETOUR — tout en bas, et c'est `margin-top: auto` qui l'y pousse :
+   l'espace libre de la colonne se range entre les onglets et lui. Ce n'est pas
+   une page de plus, c'est une sortie ; le poser dans la liste l'aurait fait
+   cliquer à la place de l'onglet d'en dessous.
+
+   IL NE RESSEMBLE PAS À UN ONGLET, délibérément : pas de fond au repos, un
+   texte discret et une flèche qui dit qu'on quitte l'application. */
+.barre-feedback {
+  margin-top: auto;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.barre-feedback::after {
+  /* La flèche du lien sortant, posée par le style : elle décrit le
+     COMPORTEMENT du lien, pas son libellé — et n'a donc rien à faire dans le
+     texte que la traduction lirait. */
+  content: "↗";
+  font-size: 0.9em;
+}
+
+.barre-feedback:hover,
+.barre-feedback:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  outline: none;
 }
 
 /* Deux drapeaux carrés aux coins arrondis, comme deux boutons-icônes ordinaires
@@ -281,20 +355,16 @@ header h1::before {
 /* `margin-left: auto` : nav est le seul bloc à s'écarter du titre, jusqu'à
    l'autre bout du header. Titre et outils globaux, eux, restent groupés
    ensemble à gauche (cf. header h1 / .outils-globaux). */
+/* UNE COLONNE D'ONGLETS, ET DE LA PLACE POUR AUTANT QU'ON EN ALLUME. En rangée,
+   chaque onglet apporté par une extension serrait tous les autres ; en colonne,
+   il coûte une ligne dans un espace vertical dont personne ne manque.
+   Le cadre arrondi en pilule a disparu avec la rangée : il enfermait quatre
+   boutons côte à côte, il aurait encadré une liste. */
 nav {
   display: flex;
-  /* ELLE SE REPLIE PLUTÔT QUE DE POUSSER LA PAGE. Sur une fenêtre étroite, les
-     cinq onglets dépassaient et faisaient défiler l'écran entier
-     horizontalement — pour lire une case à cocher tout en bas, on emportait la
-     barre du haut avec. `wrap` ne change rien tant qu'ils tiennent. */
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.25rem;
-  margin-left: auto;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 0.25rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
 }
 
 nav button {
@@ -303,13 +373,20 @@ nav button {
   color: var(--text-secondary);
   font-size: 0.88rem;
   cursor: pointer;
-  padding: 0.35rem 0.9rem;
-  border-radius: 999px;
+  /* Aligné à gauche, comme toute liste qu'on parcourt du regard : des libellés
+     centrés de longueurs différentes n'ont pas de bord commun à suivre. */
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
   transition: color 0.15s, background 0.15s;
 }
 
 nav button:hover {
   color: var(--text-primary);
+  background: var(--bg-surface);
 }
 
 nav button.active {
@@ -319,10 +396,61 @@ nav button.active {
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
+/* LA COLONNE DE CONTENU prend ce qui reste, et son contenu y reste centré et
+   borné : `min-width: 0` est ce qui empêche un tableau large de pousser la
+   barre latérale hors de l'écran — un item de flex refuse par défaut de
+   rétrécir sous la largeur de son contenu. */
 main {
+  flex: 1;
+  min-width: 0;
   max-width: 1200px;
   margin: 1.5rem auto;
   padding: 0 1.25rem;
+  box-sizing: border-box;
+}
+
+/* SUR UN ÉCRAN ÉTROIT, LA BARRE REDEVIENT UNE RANGÉE EN HAUT. Une colonne de
+   15rem sur une fenêtre de 700px, c'est un cinquième de la largeur pris à ce
+   qu'on vient lire ; et les tableaux de l'application n'en ont pas de trop. */
+@media (max-width: 860px) {
+  body {
+    flex-direction: column;
+  }
+
+  header {
+    flex: 0 0 auto;
+    align-self: stretch;
+    height: auto;
+    overflow: visible;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .outils-globaux {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  /* En rangée, « tout en bas » ne veut plus rien dire : le lien reprend
+     simplement sa place au bout de la ligne. */
+  .barre-feedback {
+    margin-top: 0;
+    margin-left: auto;
+  }
 }
 
 section {
@@ -459,6 +587,12 @@ h4 {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.6rem;
   margin: 0.9rem 0 1.1rem;
+  /* Ancre de l'infobulle des deux cartes de flux, qui s'y place en absolu —
+     même mécanisme que `.histogramme-cadre` pour les barres (cf.
+     placerInfobulleHistogramme). La rangée entière plutôt que chaque carte :
+     une bulle par carte aurait été bornée à la largeur d'une carte, c'est-à-dire
+     à moins que ce qu'elle a à écrire. */
+  position: relative;
 }
 
 @media (max-width: 700px) {
@@ -788,6 +922,24 @@ form label {
   color: var(--text-secondary);
 }
 
+/* LA PASTILLE « i » RESTE SUR LA LIGNE DU NOM QU'ELLE EXPLIQUE.
+ *
+ * Un <label> de formulaire est une COLONNE (le libellé, puis le champ) : un
+ * « i » posé directement dedans y devient un item de plus, et tombe donc sur sa
+ * propre ligne, entre le nom et le champ. Il y avait pourtant toute la place à
+ * droite du mot, et la pastille séparée de son libellé cesse de dire à quoi
+ * elle se rapporte — sur un formulaire qui empile dix champs, elle se lit aussi
+ * bien comme l'explication du champ d'AU-DESSUS.
+ *
+ * D'où cette enveloppe, à poser autour du libellé ET de sa pastille chaque fois
+ * qu'un <label> porte les deux : `<span class="champ-titre">Frais<i …>i</i></span>`.
+ * Une ligne dans la colonne, et le reste du formulaire ne bouge pas. */
+.champ-titre {
+  display: flex;
+  align-items: center;
+  /* Rien à écrire ici : `.info-bulle` porte déjà sa marge gauche. */
+}
+
 /* UN SEUL STYLE DE CHAMP, DANS UN FORMULAIRE OU NON.
  *
  * Cette déclaration était réservée aux descendants de <form>, et chaque écran
@@ -1007,16 +1159,12 @@ form .operation-cases label {
   color: var(--text-primary);
 }
 
-/* La case elle-même : taille et teinte communes, et surtout AUCUNE marge —
-   celle que le navigateur pose par défaut décalait chaque case de son voisin
-   d'une valeur qui n'est pas la nôtre. `accent-color` peint la coche avec la
-   couleur d'accent de l'application plutôt qu'avec celle du système. */
+/* La case elle-même : AUCUNE marge — celle que le navigateur pose par défaut
+   décalait chaque case de son voisin d'une valeur qui n'est pas la nôtre. Son
+   dessin (un interrupteur) vient de la règle commune, en fin de feuille. */
 form .operation-cases input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
   margin: 0;
   flex: none;
-  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -1418,6 +1566,17 @@ form .operation-cases input[type="checkbox"] {
 .camembert-zone {
   position: relative;
   flex: 1;
+}
+
+/* LA RANGÉE D'ONGLETS EST RESSERRÉE, ET NON DÉPLACÉE. Elle héritait de
+   `.sous-onglets` une marge basse d'un `rem` — utile quand une barre d'onglets
+   commande toute une page, inutile ici : elle vit dans un en-tête qui porte
+   déjà la sienne, et cette marge-là poussait le disque de seize pixels vers le
+   bas sans rien séparer. Ce sont ces pixels que le camembert reprend pour
+   écrire ses pourcentages du haut (cf. PIE_MARGE_HAUTE, app.js) : le bloc garde
+   la même hauteur, les onglets la même place. */
+.camembert-vues {
+  margin-bottom: 0;
 }
 
 .camembert-vues button {
@@ -2158,6 +2317,65 @@ button.danger:hover {
   gap: 0.6rem;
 }
 
+/* ---------- LE REPLI DES FILTRES (page Opérations) ----------
+ *
+ * Le panneau garde sa propre boîte : c'est lui qui porte le fond, la bordure et
+ * l'ombre, et le repli ne fait que l'ouvrir ou le fermer. Le bandeau, lui, n'est
+ * qu'un titre cliquable — lui donner une boîte à son tour aurait fait deux
+ * cadres emboîtés pour une seule section. */
+.filtres-repli {
+  margin-bottom: 1rem;
+}
+
+/* Le panneau porte déjà la marge basse de la section quand il est déplié : la
+   lui laisser ici en ferait deux. */
+.filtres-repli > .filtres {
+  margin-bottom: 0;
+}
+
+.filtres-repli > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  list-style: none;
+}
+
+.filtres-repli > summary:hover {
+  color: var(--text-primary);
+}
+
+/* Le triangle natif de <summary> : dessiné à la main pour qu'il suive le thème
+   et tourne avec l'ouverture, comme celui des autres replis de l'application. */
+.filtres-repli > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filtres-repli > summary::before {
+  content: "▸";
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--text-muted);
+}
+
+.filtres-repli[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* CE QUI EST ACTIF, DIT SUR LE BANDEAU. Un filtre posé puis replié est
+   l'explication la plus probable d'un tableau vide, et la plus difficile à
+   trouver : le compte doit se voir sans ouvrir. En accent, parce qu'il annonce
+   que l'écran ne montre pas tout. */
+.filtres-resume {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--accent-light);
+}
+
 /* Les deux bornes de montant : un nombre court, qui n'a pas à occuper la même
    largeur qu'une date ou qu'un nom de compte. */
 .filtres input[type="number"] {
@@ -2410,12 +2628,22 @@ button.danger:hover {
 
 /* Barre d'actions de l'aperçu : "Tout sélectionner" à gauche, l'action
    destructrice repoussée à l'autre bord pour éviter le clic réflexe. */
+/* LA RANGÉE QUI PORTE SUR L'APERÇU ENTIER : confirmer, tout sélectionner,
+   supprimer la sélection. `space-between` répartissait deux boutons aux deux
+   bords ; ils sont trois depuis que le bouton d'import est remonté en tête, et
+   la marge automatique dit mieux ce qu'on veut — la confirmation à gauche, où
+   commence la lecture, et les deux gestes de sélection groupés à l'autre bout.
+   Elle se replie sur une fenêtre étroite plutôt que de déborder. */
 .actions.barre-selection {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.actions.barre-selection #btn-import-tout-selectionner {
+  margin-left: auto;
 }
 
 .import-dropzone {
@@ -3357,6 +3585,26 @@ tr.ligne-apercu-edition td:has(> button) {
   white-space: nowrap;
 }
 
+/* LES DEUX BOUTONS L'UN SOUS L'AUTRE, sur toute la largeur des deux colonnes
+   qu'ils occupent désormais (cf. creerLigneApercuEdition). Côte à côte dans une
+   seule colonne, ils se réduisaient à deux pastilles serrées contre le bord du
+   tableau, alors que le formulaire de gauche occupe huit colonnes et plusieurs
+   rangées : ce sont pourtant les deux seuls gestes qui terminent l'édition.
+   Alignés en haut, ils restent à hauteur des premiers champs — c'est là qu'on
+   les cherche en revenant de la dernière ligne du formulaire. */
+tr.ligne-apercu-edition td.ligne-edition-actions {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-width: 9rem;
+}
+
+tr.ligne-apercu-edition td.ligne-edition-actions button {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+}
+
 /* Sélecteur de compte avec option "- À choisir -" (cf. creerChampCompteAvecIndice). */
 .champ-compte-indice {
   display: flex;
@@ -4025,6 +4273,55 @@ tr.ligne-apercu-edition td:has(> button) {
    propriété EST de ce qu'elle change, et c'est ce qui rend ces textes longs
    lisibles d'un coup d'œil au lieu d'un pavé. Un peu plus large et un peu plus
    aéré, pour la même raison. */
+/* LES PUCES D'UNE PHRASE D'AIDE (cf. textes.js, marqueur « -- »). Elles
+   servent la bulle flottante comme les blocs d'aide du HTML : c'est la même
+   phrase, écrite au même endroit, et deux mises en forme différentes selon le
+   support auraient fait douter que ce soit la même. */
+.texte-aide-intro {
+  margin: 0 0 0.4rem;
+}
+
+/* Un paragraphe après une liste (marqueur « // ») : le même souffle qu'entre
+   l'introduction et ses puces. */
+.texte-aide-puces + .texte-aide-intro {
+  margin-top: 0.5rem;
+}
+
+/* LE LIEN D'UNE PHRASE D'AIDE (marqueur « /Chemin », cf. textes.js). Bleu et
+   sans soulignement au repos : il se lit comme le reste de la phrase, et la
+   couleur suffit à dire qu'il mène quelque part. */
+a.lien-chemin {
+  color: var(--accent-light);
+  text-decoration: none;
+  cursor: pointer;
+}
+a.lien-chemin:hover {
+  text-decoration: underline;
+}
+
+.texte-aide-puces {
+  /* Le retrait juste nécessaire au marqueur : une liste dans une bulle de
+     22rem ne peut pas s'offrir le retrait par défaut du navigateur (40px), qui
+     lui mangeait un cinquième de sa largeur. */
+  margin: 0;
+  padding-left: 1.05rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.texte-aide-puces li {
+  /* Une puce reste une phrase : on la lit sur plusieurs lignes, et c'est le
+     retrait ci-dessus qui la rattache à son marqueur. */
+  padding-left: 0.1rem;
+}
+
+/* Une bulle à puces s'élargit un peu : une liste dont chaque ligne se replie
+   trois fois ne se lit pas mieux que le pavé qu'elle remplace. */
+.info-bulle-flottante:has(.texte-aide-puces) {
+  max-width: 26rem;
+}
+
 .info-bulle-flottante.info-bulle-texte {
   white-space: pre-line;
   max-width: 26rem;
@@ -4041,9 +4338,14 @@ tr.ligne-apercu-edition td:has(> button) {
    l'application entière, avant la navigation entre pages. Dépliée, le champ
    pousse la navigation vers la droite — rien ne saute, la barre étant déjà en
    flex. */
+/* DANS LA COLONNE, LA BARRE SE REPLIE : la loupe, le champ, le compte de
+   correspondances et les deux chevrons ne tiennent pas sur 13rem de large, et
+   un `nowrap` les aurait fait déborder de la barre latérale. `wrap` ne change
+   rien à la rangée du haut des écrans étroits, où la place ne manque pas. */
 .recherche {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
@@ -4105,9 +4407,16 @@ tr.ligne-apercu-edition td:has(> button) {
   outline: none;
 }
 
+/* OUVERT, LE CHAMP PREND CE QUI RESTE DE LA LIGNE plutôt qu'une largeur fixe :
+   dans la barre latérale il s'arrête au bord de la colonne, et sur la rangée du
+   haut des écrans étroits il garde la largeur qu'il avait. `min-width` est ce
+   qui l'empêche de se réduire à rien quand les chevrons apparaissent. */
 .recherche.recherche-ouverte input,
 .recherche input:focus {
-  width: 15rem;
+  flex: 1 1 8rem;
+  width: auto;
+  min-width: 7rem;
+  max-width: 15rem;
   padding: 0.35rem 0.55rem;
   border-color: var(--border);
 }
@@ -5516,10 +5825,119 @@ td.apercu-col-hors-fichier {
   color: var(--text-secondary);
 }
 
+.tutoriel-parcours {
+  margin-left: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tutoriel-actions {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+/* ---------- L'EXEMPLE D'UNE ÉTAPE ----------
+ *
+ * LE FICHIER N'EST PLUS DESSINÉ ICI : il est chargé dans l'écran d'import, et
+ * c'est « Le fichier tel qu'il est » qui le montre, défilement compris (cf.
+ * tutoriel.js, « Les exemples de fichier »). La bulle n'en garde que le titre et
+ * ce qu'on doit y voir. */
+
+.tutoriel-exemple {
+  margin: 0 0 0.7rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+}
+
+.tutoriel-exemple-titre {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.3rem;
+}
+
+.tutoriel-exemple .hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+/* ---------- LES CARTES DE TUTORIEL (Paramètres généraux) ----------
+ *
+ * UNE JAUGE ET UN ÉTAT, AVANT D'ENTRER. C'est toute la raison d'être de la
+ * mémoire de progression : savoir où l'on en est sans avoir à relancer le
+ * tutoriel pour le découvrir, puis recliquer vingt fois « Suivant » pour
+ * retrouver sa place. */
+
+.reglage-bloc-tutoriels > label {
+  margin-bottom: 0.5rem;
+}
+
+.tutoriels-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tutoriel-carte {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface-alt);
+}
+
+/* Le texte prend la place qui reste, les boutons la leur : sans ce `flex: 1`,
+   deux parcours aux noms de longueurs différentes alignaient leurs boutons à
+   deux endroits, et la colonne d'actions cessait d'en être une. */
+.tutoriel-carte-texte {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.tutoriel-carte-nom {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.tutoriel-carte-texte .hint {
+  margin: 0 0 0.45rem;
+  line-height: 1.45;
+}
+
+.tutoriel-jauge {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.tutoriel-jauge > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.tutoriel-carte-etat {
+  display: block;
+}
+
+.tutoriel-carte-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
 
 /* ---------- L'APERÇU D'IMPORT NE DÉBORDE PLUS DE LA PAGE ----------
@@ -5568,4 +5986,158 @@ td.apercu-col-hors-fichier {
    les rendrait illisibles. */
 #import-apercu-bloc td:nth-child(3) {
   overflow-wrap: anywhere;
+}
+
+/* ---------- LES CASES SONT DES INTERRUPTEURS ----------
+ *
+ * TOUTES LES CASES À COCHER de l'application, extensions comprises, sont
+ * dessinées en interrupteur glissant : une piste, un bouton rond qui passe à
+ * droite et une piste qui passe au vert quand c'est allumé. Le contrôle reste
+ * un vrai `<input type="checkbox">` — mêmes événements, même `checked`, même
+ * clavier — seul son dessin change, et c'est ce qui permet de le faire ici en
+ * une règle plutôt que dans chacun des cinquante endroits qui en posent.
+ *
+ * `body input` ET NON `input` SEUL : `form input:read-only` (une case est
+ * toujours « read-only » pour le navigateur) et `form input` posent un fond,
+ * une bordure et un padding de champ de saisie, de même poids ; venue plus
+ * tard dans la feuille, cette règle l'emporte sur eux sans `!important`.
+ *
+ * L'ÉTAT INDÉTERMINÉ (« Tout sélectionner » quand une partie seulement l'est)
+ * pose le bouton au MILIEU, sur une piste à demi teintée : ni allumé ni
+ * éteint, et ça se voit.
+ */
+body input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 2rem;
+  min-width: 2rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--interrupteur-off);
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+body input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease;
+}
+body input[type="checkbox"]:checked {
+  background: var(--interrupteur-on);
+}
+body input[type="checkbox"]:checked::before {
+  transform: translateX(0.85rem);
+}
+body input[type="checkbox"]:indeterminate {
+  background: linear-gradient(90deg, var(--interrupteur-on) 50%, var(--interrupteur-off) 50%);
+}
+body input[type="checkbox"]:indeterminate::before {
+  transform: translateX(0.425rem);
+}
+body input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+body input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* LA PÉRIODE COMPARÉE (page Budget, cf. app.js) : grisée, pour qu'elle se lise
+   comme la référence et non comme le sujet. Les hachures sont dans le motif
+   SVG lui-même ; ici, seulement la désaturation. */
+.histo-comparaison,
+.camembert-comparaison {
+  filter: saturate(0.35) brightness(0.92);
+  opacity: 0.85;
+}
+
+/* ---------- DEVINER LES COLONNES (écran d'import) ---------- */
+#btn-import-detecter.a-relire {
+  color: var(--accent-light);
+  border-color: var(--accent-light);
+}
+
+.import-detection-suggestion {
+  color: var(--depense);
+}
+
+.import-detection {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 0.8rem 1rem;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.import-detection-titre {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.import-detection-ligne {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) 2fr;
+  gap: 0.8rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--border-soft);
+  align-items: center;
+}
+
+.import-detection-colonne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.import-detection-colonne .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-detection-numero {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.import-detection-propositions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+}
+
+.import-detection-choix {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.import-detection-sure {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.import-detection-avertissement {
+  margin-top: 0.6rem;
+  color: var(--depense);
 }

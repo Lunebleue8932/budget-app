@@ -1342,10 +1342,43 @@ class RegleCategorisation(Base):
     # seulement pour les types à catégorie libre -- la catégorie. FK vers
     # type_operation depuis 0019, pour ne pas garder deux vocabulaires (une
     # chaîne ici, une table là) pour la même notion.
-    type_id = Column(Integer, ForeignKey("type_operation.id", ondelete="CASCADE"), nullable=False)
+    #
+    # FACULTATIF depuis 0071 : une règle qui ne fait que renommer une ligne ne
+    # doit pas décider au passage de son type — c'est alors la première règle
+    # SUIVANTE qui en pose un qui le fixe (cf. regles_categorisation).
+    type_id = Column(Integer, ForeignKey("type_operation.id", ondelete="CASCADE"), nullable=True)
     categorie_id = Column(
         Integer, ForeignKey("categorie.id", ondelete="CASCADE"), nullable=True
     )
+    # LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071), toutes facultatives —
+    # NULL veut dire « la règle n'en dit rien ». Tout sauf les montants et la
+    # date, qui sont ce que le relevé AFFIRME.
+    #
+    # Le libellé que prendra la ligne. Les conditions restent évaluées sur le
+    # libellé LU : une règle qui renomme doit continuer de reconnaître ce
+    # qu'elle renomme.
+    nature_remplacement = Column(String, nullable=True)
+    # Le compte de la ligne, quand le relevé le nomme mal ou pas du tout.
+    compte_id = Column(
+        Integer,
+        ForeignKey("compte.id", name="fk_regle_categorisation_compte_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    # Une note posée sur l'OPÉRATION créée — à ne pas confondre avec
+    # `description`, la note de la RÈGLE, qui ne sort jamais d'ici.
+    notes = Column(String, nullable=True)
+    # L'étiquette « dépense imprévue » (cf. Operation.imprevue).
+    imprevue = Column(Boolean, nullable=True)
+    # Amortir sur N mois, à partir du mois de la ligne.
+    amortissement_mois = Column(Integer, nullable=True)
+    # LES SORTIES CONDITIONNELLES (migration 0072) : [{conditions, type_id,
+    # type_code, categorie_id, compte_autre_id, compte_id, nature_remplacement,
+    # notes, imprevue, amortissement_mois}]. La première dont les conditions
+    # correspondent remplace les actions de la règle qu'elle renseigne (cf.
+    # regles_categorisation._actions_effectives). `type_code` y est recopié à
+    # l'écriture : l'évaluation ne consulte pas la base.
+    sorties = Column(JSON, nullable=False, default=list)
+
     # Le compte EN FACE, uniquement pour le type « virement interne » : un
     # virement décrit deux comptes, et le relevé n'en nomme qu'un. Sans lui, la
     # ligne arrive incomplète dans l'aperçu et bloque l'import jusqu'à une
@@ -1363,7 +1396,8 @@ class RegleCategorisation(Base):
 
     categorie = relationship("Categorie")
     type_operation = relationship("TypeOperationDB")
-    compte_autre = relationship("Compte")
+    compte_autre = relationship("Compte", foreign_keys=[compte_autre_id])
+    compte = relationship("Compte", foreign_keys=[compte_id])
     # La DÉCOUPE que la règle impose (migration 0049). Vide = la règle pose une
     # catégorie unique, comme avant. Non vide, elle remplace `categorie_id` :
     # les deux ne peuvent pas coexister, le routeur neutralise l'un dès que
@@ -1378,8 +1412,9 @@ class RegleCategorisation(Base):
     @property
     def type_code(self) -> str:
         """Exposé tel quel par RegleCategorisationRead : évite au frontend de
-        recroiser la table des types pour un simple affichage."""
-        return self.type_operation.code
+        recroiser la table des types pour un simple affichage. None pour une
+        règle qui ne pose pas de type (cf. `type_id`)."""
+        return self.type_operation.code if self.type_operation is not None else None
 
     __table_args__ = (
         Index("ix_regle_categorisation_ordre", "ordre"),
@@ -1779,7 +1814,13 @@ class ObjectifKpi(Base):
     mesure = Column(String, nullable=False)
     cadence = Column(String, nullable=False, default=CadenceObjectif.mois.value)
     sens = Column(String, nullable=False, default=SensObjectif.max.value)
-    cible = Column(Float, nullable=False, default=0.0)
+    # LA CIBLE EST FACULTATIVE (migration 0070), et NULL ne se confond pas avec
+    # zéro : NULL dit « je regarde, je ne me suis rien promis », zéro dit « rien
+    # du tout, ce mois-ci » — une règle, et sévère. Sans ce troisième état, un
+    # projet qu'on commence à suivre obligeait à inventer un nombre, et
+    # l'objectif annonçait aussitôt « tenu » ou « manqué » sur une cible à
+    # laquelle personne n'avait réfléchi.
+    cible = Column(Float, nullable=True)
     # LA CATÉGORIE EST FACULTATIVE, et NULL veut dire « toutes les dépenses ».
     # « Pas plus de 30 achats par mois, tous postes confondus » est un objectif
     # aussi légitime que « pas plus de 4 sorties » — et le rendre impossible
@@ -1791,6 +1832,23 @@ class ObjectifKpi(Base):
     # ailleurs et sans rapport.
     categorie_id = Column(
         Integer, ForeignKey("categorie.id", ondelete="SET NULL"), nullable=True
+    )
+    # LE TROISIÈME PÉRIMÈTRE : un PROJET (migration 0070). Une catégorie classe
+    # par NATURE, un projet regroupe par ÉVÉNEMENT — et c'est sur l'événement
+    # qu'on veut le plus souvent une règle chiffrée (« ce voyage ne doit pas
+    # dépasser 2 000 € »). Le total d'un projet se lisait sur sa page, donc
+    # partout sauf là où l'on se demande où l'on en est : devant les dépenses du
+    # mois. Un objectif est le seul objet de l'application qui sache poser un
+    # chiffre sous les graphes du dashboard.
+    #
+    # EXCLUSIF DE LA CATÉGORIE, et la contrainte le dit : les deux découpent les
+    # mêmes dépenses selon deux axes qui se croisent (l'hôtel d'un voyage est
+    # dans « Loisirs » ET dans « Italie »), et porter les deux poserait une
+    # question — l'intersection ou l'union ? — dont aucune réponse ne s'impose.
+    #
+    # SET NULL À LA SUPPRESSION, comme la catégorie et pour la même raison.
+    sous_filtre_id = Column(
+        Integer, ForeignKey("sous_filtre.id", ondelete="SET NULL"), nullable=True
     )
     # LA MONNAIE EST OBLIGATOIRE, y compris pour un simple COMPTE d'opérations.
     # « 3 000 » ne veut rien dire sans savoir en quelle devise — c'est la règle
@@ -1807,6 +1865,7 @@ class ObjectifKpi(Base):
     ordre = Column(Integer, nullable=False, default=0)
 
     categorie = relationship("Categorie")
+    sous_filtre = relationship("SousFiltre")
     monnaie = relationship("Monnaie")
 
     __table_args__ = (
@@ -1826,6 +1885,42 @@ class ObjectifKpi(Base):
         # montant dépensé, ni une part ne descendent sous zéro. Zéro, lui, est
         # un objectif parfaitement sensé — « aucune sortie ce mois-ci ».
         CheckConstraint("cible >= 0", name="ck_objectif_kpi_cible"),
+        # UN SEUL PÉRIMÈTRE À LA FOIS : une catégorie OU un projet, jamais les
+        # deux (cf. `sous_filtre_id`). « Aucun des deux » reste permis — c'est
+        # « toutes les dépenses ».
+        CheckConstraint(
+            "categorie_id IS NULL OR sous_filtre_id IS NULL",
+            name="ck_objectif_kpi_perimetre",
+        ),
         Index("ix_objectif_kpi_categorie", "categorie_id"),
+        Index("ix_objectif_kpi_sous_filtre", "sous_filtre_id"),
         Index("ix_objectif_kpi_monnaie", "monnaie_id"),
     )
+
+
+class PreferenceInterface(Base):
+    """Un rangement d'écran qui désigne des lignes de la base (migration 0069).
+
+    LA RÈGLE QUI DÉCIDE DE CE QUI ENTRE ICI : ce qui désigne des IDENTIFIANTS de
+    la base vit dans la base ; ce qui décrit le POSTE reste dans le
+    `localStorage` du navigateur. Les dossiers de la galerie des règles rangent
+    des règles PAR LEUR ID — le même rangement appliqué à une autre base désigne
+    d'autres règles, ou aucune — donc ils sont ici. Le thème, la langue, la
+    touche qui fige l'infobulle et la progression d'un tutoriel décrivent une
+    habitude de poste : ils restent là-bas.
+
+    LE SERVEUR NE LIT JAMAIS `valeur`. Il range et il rend. Aucune requête ne
+    filtre sur ce contenu, aucun calcul n'en dépend : lui imposer une forme
+    reviendrait à décider ici de ce qu'un écran a le droit de se rappeler, et à
+    demander une migration à chaque idée d'affichage.
+
+    LA CLÉ PORTE UN ESPACE DE NOMMAGE, comme frontend/textes.js : « noyau.… »
+    ou l'identifiant de l'extension (« regles.dossiers »). C'est ce qui permet à
+    une extension de s'en servir sans emporter de schéma — la table est au
+    noyau, et éteindre l'extension ne perd rien (cf. extensions/README.md).
+    """
+
+    __tablename__ = "preference_interface"
+
+    cle = Column(String, primary_key=True)
+    valeur = Column(JSON, nullable=False)

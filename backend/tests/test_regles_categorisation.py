@@ -265,12 +265,15 @@ def test_aucune_regle_ne_matche_renvoie_none(db_session):
 # ---------- Validation ----------
 
 
-def test_type_operation_est_obligatoire(db_session):
-    with pytest.raises(ValidationError):
-        schemas.RegleCategorisationCreate(
-            nom="Sans type",
-            conditions=_conditions(_condition("nature", "contient", "PRET")),
-        )
+def test_type_operation_est_facultatif(db_session):
+    """Depuis la migration 0071 : une règle qui ne fait que renommer ne pose
+    pas de type — elle laisse les suivantes le faire."""
+    regle = schemas.RegleCategorisationCreate(
+        nom="Sans type",
+        conditions=_conditions(_condition("nature", "contient", "PRET")),
+        nature_remplacement="Prêt",
+    )
+    assert regle.type_id is None
 
 
 def test_champ_inconnu_est_refuse(db_session):
@@ -919,3 +922,173 @@ def test_limport_nappelle_plus_les_regles_quand_lextension_est_eteinte(
     ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
     assert ligne.regle_appliquee == "Prêts reçus"
     assert ligne.type_code == "pret"
+
+
+# ---------- Les autres propriétés d'une ligne (migration 0071) ----------
+
+
+def test_une_regle_renomme_la_ligne_sans_poser_de_type(db_session):
+    """Le cas qui a motivé la migration : « PRLV SEPA EDF … » devient « EDF »,
+    et la règle ne décide pas au passage du type — une règle plus basse peut
+    encore en faire un virement."""
+    compte = _make_compte(db_session)
+    livret = creer_compte(db_session, "Livret")
+    preset = crud.create_import_preset(db_session, "Défaut", COLONNES_IMPORT_PAR_DEFAUT)
+    _make_regle(
+        db_session,
+        nom="Renommer",
+        conditions=_conditions(_condition("nature", "contient", "VIR")),
+        type_id=None,
+        nature_remplacement="Virement épargne",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Virements",
+        conditions=_conditions(_condition("nature", "contient", "VIR LIVRET")),
+        type_id=get_type_id(db_session, "virement"),
+        compte_autre_id=livret.id,
+    )
+    contenu = _construire_fichier(
+        [{"date": date(2026, 7, 1), "nature": "VIR LIVRET A 0042", "montant": -100.0, "compte": "CC Perso"}]
+    )
+    crud.set_mapping_compte(db_session, preset.id, "CC Perso", compte.id)
+
+    ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
+
+    assert ligne.nature == "Virement épargne"
+    assert ligne.type_code == "virement"
+    assert ligne.compte_id_autre == livret.id
+    assert ligne.regle_appliquee == "Renommer + Virements"
+
+
+def test_une_regle_pose_compte_note_imprevue_et_amortissement(db_session):
+    compte = _make_compte(db_session)
+    autre = creer_compte(db_session, "Carte pro")
+    preset = crud.create_import_preset(db_session, "Défaut", COLONNES_IMPORT_PAR_DEFAUT)
+    _make_regle(
+        db_session,
+        nom="Garage",
+        conditions=_conditions(_condition("nature", "contient", "GARAGE")),
+        compte_id=autre.id,
+        notes="Révision annuelle",
+        imprevue=True,
+        amortissement_mois=12,
+    )
+    contenu = _construire_fichier(
+        [{"date": date(2026, 11, 14), "nature": "GARAGE DU PORT", "montant": -600.0, "compte": "CC Perso"}]
+    )
+    crud.set_mapping_compte(db_session, preset.id, "CC Perso", compte.id)
+
+    ligne = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes[0]
+
+    assert ligne.compte_id == autre.id
+    assert ligne.notes == "Révision annuelle"
+    assert ligne.imprevue is True
+    assert ligne.amorti is True
+    assert ligne.amortissement_debut == date(2026, 11, 1)
+    # Douze mois À PARTIR de novembre : jusqu'en octobre de l'année suivante.
+    assert ligne.amortissement_fin == date(2027, 10, 1)
+
+    resultat = import_bancaire.confirmer(db_session, preset.id, contenu, schemas.ImportMappingOverrides())
+    assert resultat.operations_creees == 1
+    operation = db_session.query(models.Operation).filter_by(nature="GARAGE DU PORT").one()
+    assert operation.imprevue is True
+    assert operation.compte_id == autre.id
+
+
+def test_la_premiere_regle_qui_parle_d_une_propriete_l_emporte(db_session):
+    _make_regle(
+        db_session,
+        nom="Haut",
+        conditions=_conditions(_condition("nature", "contient", "EDF")),
+        type_id=None,
+        nature_remplacement="EDF",
+        arreter_apres=False,
+    )
+    _make_regle(
+        db_session,
+        nom="Bas",
+        conditions=_conditions(_condition("nature", "contient", "EDF")),
+        nature_remplacement="Électricité",
+        notes="Contrat maison",
+    )
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), {"nature": "PRLV EDF"}
+    )
+    assert resultat.nature == "EDF"
+    assert resultat.notes == "Contrat maison"
+    assert resultat.type_code == "classique"
+
+
+
+# ---------- Les sorties conditionnelles (migration 0072) ----------
+
+
+def test_une_regle_choisit_sa_sortie_selon_la_ligne(db_session):
+    """UNE règle « virement interne », deux comptes en face : la sortie dont
+    les conditions correspondent décide, et la règle telle quelle sinon."""
+    livret = creer_compte(db_session, "Livret A")
+    pea = creer_compte(db_session, "PEA")
+    _make_regle(
+        db_session,
+        nom="Virements internes",
+        conditions=_conditions(_condition("nature", "contient", "VIR")),
+        type_id=get_type_id(db_session, "virement"),
+        sorties=[
+            {"conditions": _conditions(_condition("nature", "contient", "LIVRET")),
+             "compte_autre_id": livret.id},
+            {"conditions": _conditions(_condition("nature", "contient", "PEA")),
+             "compte_autre_id": pea.id, "nature_remplacement": "Versement PEA"},
+        ],
+    )
+    regles = crud.list_regles_categorisation(db_session)
+
+    vers_livret = regles_categorisation.appliquer_regles(regles, {"nature": "VIR LIVRET A"})
+    assert vers_livret.type_code == "virement"
+    assert vers_livret.compte_autre_id == livret.id
+
+    vers_pea = regles_categorisation.appliquer_regles(regles, {"nature": "VIR PEA 42"})
+    assert vers_pea.compte_autre_id == pea.id
+    assert vers_pea.nature == "Versement PEA"
+
+    ailleurs = regles_categorisation.appliquer_regles(regles, {"nature": "VIR MAMAN"})
+    assert ailleurs.type_code == "virement"
+    assert ailleurs.compte_autre_id is None
+
+
+def test_une_sortie_peut_changer_le_type(db_session):
+    _make_regle(
+        db_session,
+        nom="Remboursements",
+        conditions=_conditions(_condition("nature", "contient", "REMB")),
+        type_id=get_type_id(db_session, "classique"),
+        sorties=[
+            {"conditions": _conditions(_condition("nature", "contient", "PRET")),
+             "type_code": "pret"},
+        ],
+    )
+    regles = crud.list_regles_categorisation(db_session)
+    assert regles_categorisation.appliquer_regles(regles, {"nature": "REMB PRET"}).type_code == "pret"
+    assert regles_categorisation.appliquer_regles(regles, {"nature": "REMB SECU"}).type_code == "classique"
+
+
+def test_le_routeur_recopie_le_code_du_type_des_sorties(db_session):
+    livret = creer_compte(db_session, "Livret A")
+    payload = schemas.RegleCategorisationCreate(
+        nom="Virements",
+        conditions=_conditions(_condition("nature", "contient", "VIR")),
+        type_id=get_type_id(db_session, "classique"),
+        sorties=[
+            {"conditions": _conditions(_condition("nature", "contient", "LIVRET")),
+             "type_id": get_type_id(db_session, "virement"),
+             "compte_autre_id": livret.id},
+        ],
+    )
+    regle = create_regle(payload, db_session)
+    assert regle.sorties[0]["type_code"] == "virement"
+    resultat = regles_categorisation.appliquer_regles(
+        crud.list_regles_categorisation(db_session), {"nature": "VIR LIVRET"}
+    )
+    assert resultat.type_code == "virement"
+    assert resultat.compte_autre_id == livret.id

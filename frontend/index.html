@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=123" />
+  <link rel="stylesheet" href="style.css?v=131" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -24,12 +24,35 @@
   </script>
 </head>
 <body>
-  <!-- Le titre ET les outils globaux (langue, recherche) restent COLLÉS
-       ensemble à gauche : ce sont eux qui identifient l'app et la pilotent
-       dans son ensemble. La navigation entre pages, elle, est poussée à
-       l'autre bout — c'est `margin-left: auto` sur `nav` qui fait ce travail
-       (et non plus `margin-right: auto` sur le titre, qui aurait aussi
-       entraîné les outils globaux vers la droite avec elle). -->
+  <!-- LA BARRE LATÉRALE : où l'on est, où l'on va, et les deux outils qui
+       portent sur l'application entière.
+
+       POURQUOI À GAUCHE ET EN COLONNE. La rangée horizontale du haut partageait
+       sa ligne avec le titre, la langue et la recherche, et chaque onglet
+       apporté par une extension la serrait davantage — à huit onglets elle se
+       repliait sur deux lignes, et la page tout entière descendait d'un cran.
+       Une colonne, elle, a de la place pour autant d'onglets qu'on en allume :
+       un onglet de plus y coûte une ligne dans un espace vertical dont personne
+       ne manque, là où il coûtait de la largeur à tous les autres.
+
+       ET SURTOUT, L'ÉCRAN EST LARGE. Le contenu est borné à 1200px et centré :
+       la place prise par la colonne était, sur presque tous les postes, de la
+       marge vide.
+
+       LES DEUX OUTILS GLOBAUX L'ONT SUIVIE, et la recherche est sous les
+       drapeaux. Ils ne décrivent aucun écran en particulier — ils valent pour
+       toute l'application — et c'est ce qui les rattache à la navigation
+       plutôt qu'au contenu. La recherche y gagne en plus la largeur d'une
+       colonne : son champ s'ouvrait jusque-là en poussant les onglets.
+
+       ILS SONT AU-DESSUS DES ONGLETS, et les onglets forment donc un bloc
+       ininterrompu du haut de la colonne jusqu'au bas. Glissés entre le titre
+       et la liste des pages, la langue et la loupe ne coupent plus rien : ce
+       qu'on parcourt du regard — « où est-ce que je vais ? » — reste d'un seul
+       tenant, et les deux outils restent au même endroit d'un écran à l'autre.
+
+       LE RETOUR EST TOUT EN BAS (cf. `.barre-feedback`), séparé par l'espace
+       que `margin-top: auto` laisse : ce n'est pas une page de plus. -->
   <header>
     <h1>Budget App</h1>
 
@@ -87,6 +110,27 @@
       <button data-section="operations">Opérations</button>
       <button data-section="parametres">Paramètres</button>
     </nav>
+
+    <!-- FAIRE UN RETOUR, TOUT EN BAS ET SÉPARÉ DU RESTE.
+         `margin-top: auto` le colle au pied de la colonne : ce n'est pas une
+         page de plus, c'est une sortie — on n'y va pas en naviguant, on y va
+         quand on a quelque chose à dire. Le poser entre deux onglets l'aurait
+         fait cliquer par erreur à la place de celui d'en dessous.
+
+         EN ANGLAIS, ET SEUL DE TOUTE L'APPLICATION À L'ÊTRE : ce n'est pas un
+         écran de l'app mais un lien vers l'extérieur, là où l'auteur lit les
+         retours.
+
+         L'ADRESSE EST ÉCRITE ICI, dans le `href` ci-dessous, et nulle part
+         ailleurs : c'est le seul endroit à changer le jour où le formulaire
+         existe.
+
+         `rel="noopener noreferrer"` avec `target="_blank"` : sans `noopener`,
+         la page ouverte garde une poignée sur celle-ci (`window.opener`). -->
+    <a class="barre-feedback" id="lien-feedback"
+       href="https://docs.google.com/forms/d/e/1FAIpQLScDDqoiMnph6BAxwCHNVW3xXvHN6xkUmb5T6VWSEStdLimmMA/viewform?usp=header"
+       target="_blank" rel="noopener noreferrer">Feedback</a>
+
   </header>
 
   <div id="toast-container"></div>
@@ -461,7 +505,6 @@
             <button type="button" id="btn-coherence-fermer" class="epargne-fermer"
                     title="Fermer" aria-label="Fermer">&times;</button>
           </div>
-          <p class="hint" data-texte-cle="noyau.accord-des-budgets"></p>
           <div id="coherence-lignes"></div>
           <div class="actions">
             <button type="button" id="btn-coherence-laisser">Laisser tel quel</button>
@@ -600,7 +643,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
 
         <div id="globale-bloc-placements" style="display:none">
-          <h3>Comptes de placements<i class="info-bulle" tabindex="0" data-info-cle="noyau.comptes-de-placements">i</i></h3>
+          <h3>Comptes de placements</h3>
           <div class="comptes-grid" id="globale-comptes-placements"></div>
         </div>
       </div>
@@ -643,6 +686,19 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-classique"></div>
           </div>
         </div>
+        <!-- LES FILTRES SONT REPLIÉS PAR DÉFAUT. Quatorze champs pour six
+             onglets : dépliés en permanence, ils repoussaient le tableau — la
+             seule chose qu'on vient voir — sous un écran de champs vides, à
+             chaque ouverture de la page.
+
+             LE BANDEAU DIT CE QUI EST ACTIF, et c'est ce qui rend le repli
+             sûr : un filtre posé puis caché est l'explication la plus probable
+             d'un tableau vide, et la plus difficile à trouver. « Filtres » seul
+             aurait fait exactement ce piège (cf. majResumeFiltres, app.js).
+             Le repli s'ouvre aussi tout seul quand un filtre arrive d'ailleurs —
+             le drill-through « Voir toutes les dépenses » en pose trois. -->
+        <details class="filtres-repli" id="filtres-repli-classique">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-classique"></span></summary>
         <div class="filtres" id="filtres-classique">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
@@ -684,6 +740,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="classique">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="classique" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -711,11 +768,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursable"></div>
           </div>
         </div>
+        <details class="filtres-repli" id="filtres-repli-remboursable">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursable"></span></summary>
         <div class="filtres" id="filtres-remboursable">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
           </label>
-          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min-2">i</i></span>
+          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min">i</i></span>
             <input type="number" step="0.01" min="0" data-filtre="montantMin" placeholder="ex. 50" />
           </label>
           <label>Montant max
@@ -761,6 +820,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="remboursable">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="remboursable" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -788,11 +848,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursements"></div>
           </div>
         </div>
+        <details class="filtres-repli" id="filtres-repli-remboursements">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursements"></span></summary>
         <div class="filtres" id="filtres-remboursements">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
           </label>
-          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min-2">i</i></span>
+          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min">i</i></span>
             <input type="number" step="0.01" min="0" data-filtre="montantMin" placeholder="ex. 50" />
           </label>
           <label>Montant max
@@ -817,6 +879,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="remboursements">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="remboursements" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -844,6 +907,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-virements"></div>
           </div>
         </div>
+        <details class="filtres-repli" id="filtres-repli-virements">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-virements"></span></summary>
         <div class="filtres" id="filtres-virements">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
@@ -888,6 +953,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="virements">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="virements" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -915,11 +981,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-prets"></div>
           </div>
         </div>
+        <details class="filtres-repli" id="filtres-repli-prets">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-prets"></span></summary>
         <div class="filtres" id="filtres-prets">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
           </label>
-          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min-2">i</i></span>
+          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min">i</i></span>
             <input type="number" step="0.01" min="0" data-filtre="montantMin" placeholder="ex. 50" />
           </label>
           <label>Montant max
@@ -959,6 +1027,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="prets">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -986,11 +1055,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursement-prets"></div>
           </div>
         </div>
+        <details class="filtres-repli" id="filtres-repli-remboursement-prets">
+          <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursement-prets"></span></summary>
         <div class="filtres" id="filtres-remboursement-prets">
           <label>Nature
             <input type="text" data-filtre="nature" placeholder="contient…" />
           </label>
-          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min-2">i</i></span>
+          <label><span>Montant min<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-min">i</i></span>
             <input type="number" step="0.01" min="0" data-filtre="montantMin" placeholder="ex. 50" />
           </label>
           <label>Montant max
@@ -1012,6 +1083,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="remboursement-prets">Réinitialiser</button>
           </div>
         </div>
+        </details>
         <div class="ajouter-operation" data-onglet="remboursement-prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1073,11 +1145,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              au-dessus passe alors HORS FRAIS, et les deux se recomposent à
              l'enregistrement (cf. app.js, § « Frais d'une opération »). -->
         <label id="operation-frais-bloc" style="display:none">
-          <span>Frais</span><i class="info-bulle" tabindex="0" data-info-cle="noyau.frais">i</i>
+          <span class="champ-titre">Frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.frais">i</i></span>
           <input type="number" step="0.01" min="0" id="operation-frais" />
         </label>
         <label id="operation-monnaie-frais-bloc" style="display:none">
-          <span>Monnaie des frais</span><i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-des-frais">i</i>
+          <span class="champ-titre">Monnaie des frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-des-frais">i</i></span>
           <select id="operation-monnaie-frais"></select>
         </label>
         <label>Date
@@ -1097,10 +1169,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
         <label id="operation-categorie-bloc">Catégorie
           <select id="operation-categorie"></select>
-        </label>
-
-        <label id="operation-statut-bloc">Statut
-          <select id="operation-statut" required></select>
         </label>
 
         <!-- LES QUATRE CASES, CÔTE À CÔTE ET SUR UNE SEULE RANGÉE.
@@ -1134,6 +1202,21 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <input type="checkbox" id="operation-decoupee" /> <span>Découpée<i class="info-bulle" tabindex="0" data-info-cle="noyau.decouper-entre-plusieurs-categories">i</i></span>
           </label>
 
+          <!-- LE STATUT EST UNE CASE, et non plus un menu à deux entrées.
+               « Réel » ou « prévisionnel » : un menu déroulant demandait deux
+               clics et une lecture pour répondre à une question binaire, et il
+               était le seul contrôle de ce formulaire à poser une question de
+               cette nature ailleurs que dans la rangée de cases. Rien ne change
+               côté serveur — `Statut` a toujours exactement ces deux valeurs, et
+               c'est app.js qui traduit la case en l'une ou l'autre.
+
+               DÉCOCHÉE VAUT « RÉEL », qui est le cas ordinaire : on saisit
+               presque toujours ce qui vient de se passer, et c'est prévoir qui
+               est le geste particulier. -->
+          <label id="operation-statut-bloc">
+            <input type="checkbox" id="operation-previsionnelle" /> <span>Prévisionnelle<i class="info-bulle" tabindex="0" data-info-cle="noyau.statut-previsionnel">i</i></span>
+          </label>
+
           <label id="operation-recurrente-bloc">
             <input type="checkbox" id="operation-recurrente" /> <span>Récurrente</span>
           </label>
@@ -1160,6 +1243,22 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
           <label id="operation-amorti-bloc">
             <input type="checkbox" id="operation-amorti" /> <span>Amortie sur plusieurs mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.amortie-sur-plusieurs-mois">i</i></span>
+          </label>
+
+          <!-- LA CASE EST DANS LA RANGÉE, SES CHAMPS SONT EN DESSOUS. Elle
+               vivait dans son propre bloc, lequel apparaissait et disparaissait
+               selon le statut et la récurrence : une cinquième case surgissait
+               alors sous les quatre autres, à un endroit qui changeait avec le
+               type. C'est une question de même nature que ses voisines — « que
+               fait-on de cette opération ? » — et elle se lit avec elles.
+
+               RÈGLE GÉNÉRALE DE CETTE RANGÉE : une case ne bouge JAMAIS. Ce
+               qu'elle déplie paraît en dessous, sans déranger personne, et une
+               case hors sujet s'éteint sur place (`.champ-hors-sujet`) au lieu
+               de disparaître — sans quoi cocher l'une ferait sauter les
+               autres. -->
+          <label id="operation-rapprochement-case">
+            <input type="checkbox" id="operation-rapprochement-actif" /> <span>Reconnaître à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i></span>
           </label>
         </div>
 
@@ -1190,10 +1289,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              LA FENÊTRE EST FACULTATIVE : sans elle, la vraie dépense est
              attendue AU JOUR MÊME, ce qui est déjà le cas le plus courant. -->
         <div id="operation-rapprochement-bloc" class="full-width" style="display:none">
-          <label class="full-width">
-            <input type="checkbox" id="operation-rapprochement-actif" />
-            Reconnaître cette dépense à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i>
-          </label>
           <div id="operation-rapprochement-champs" class="full-width" style="display:none">
             <label>Attendue à partir du
               <input type="date" id="operation-rapprochement-debut" />
@@ -1201,7 +1296,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <label>Jusqu'au
               <input type="date" id="operation-rapprochement-fin" />
             </label>
-            <label class="full-width">Mots-clés du libellé<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement-mots-cles">i</i>
+            <label class="full-width"><span class="champ-titre">Mots-clés du libellé<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement-mots-cles">i</i></span>
               <span id="operation-rapprochement-mots-cles"></span>
             </label>
           </div>
@@ -1247,7 +1342,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </label>
         </div>
 
-        <label id="operation-montant-du-bloc" style="display:none">Montant à rembourser<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-a-rembourser">i</i>
+        <label id="operation-montant-du-bloc" style="display:none"><span class="champ-titre">Montant à rembourser<i class="info-bulle" tabindex="0" data-info-cle="noyau.montant-a-rembourser">i</i></span>
           <input type="number" step="0.01" min="0" id="operation-montant-du" value="0" />
         </label>
         <label id="operation-montant-a-rembourser-bloc" style="display:none">Reste à rembourser
@@ -1327,10 +1422,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
       <!-- PARAMÈTRES GÉNÉRAUX -->
       <div id="sous-section-parametres-generaux" class="sous-section">
-        <h3>Paramètres généraux<i class="info-bulle" tabindex="0" data-info-cle="noyau.parametres-generaux">i</i></h3>
+        <h3>Paramètres généraux</h3>
 
         <div class="reglage-bloc">
-          <label for="reglage-theme">Thème<i class="info-bulle" tabindex="0" data-info-cle="noyau.theme">i</i></label>
+          <label for="reglage-theme">Thème</label>
           <select id="reglage-theme">
             <option value="sombre">Sombre</option>
             <option value="clair">Clair</option>
@@ -1356,8 +1451,25 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              où vit tout ce qui règle la FAÇON de se servir de l'application.
              Ce n'est pas un réglage, d'où la classe à part. -->
         <div class="reglage-bloc reglage-bloc-action">
-          <label>Notice d'utilisation<i class="info-bulle" tabindex="0" data-info-cle="noyau.notice">i</i></label>
+          <label>Notice d'utilisation</label>
           <button type="button" class="primary" id="btn-ouvrir-notice">Ouvrir la notice</button>
+        </div>
+
+        <!-- LE TUTORIEL, SOUS LA NOTICE ET SÉPARÉ D'ELLE. Les deux décrivent
+             l'application mais ne répondent pas à la même question : la notice
+             à « qu'est-ce que c'est ? », qu'on lit à froid ; le tutoriel à « où
+             est-ce que je clique ? », qu'on suit devant l'écran. Lancer le
+             second depuis la première obligeait à ouvrir l'écran de texte qu'on
+             n'allait justement pas lire.
+
+             LA PROGRESSION SE VOIT AVANT D'ENTRER, et c'est toute la raison de
+             ces cartes : un bouton « Lancer le tutoriel » seul obligeait à le
+             relancer pour découvrir qu'on l'avait déjà suivi aux trois quarts,
+             puis à recliquer vingt fois « Suivant » pour retrouver sa place.
+             Rempli par tutoriel.js. -->
+        <div class="reglage-bloc reglage-bloc-tutoriels">
+          <label>Tutoriels guidés</label>
+          <div id="tutoriels-liste" class="tutoriels-liste"></div>
         </div>
       </div>
 
@@ -1500,33 +1612,31 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="config-avancee-resume" id="import-config-fichier-resume"></span>
         </summary>
 
+        <!-- L'ÉCRAN SUIT L'ORDRE DES QUESTIONS, et non l'ordre où les réglages
+             ont été écrits. On commence par CE QUE L'APPLICATION LIT — la seule
+             chose sans laquelle rien ne marche, et la seule qu'on règle à chaque
+             nouveau format. Tout le reste répond à des questions qu'on ne se
+             pose qu'en cas de problème : « pourquoi cette ligne ressort-elle
+             comme neuve ? », « pourquoi ces trois premières lignes arrivent-elles
+             comme des opérations ? », « pourquoi tout est-il illisible ? ». Les
+             trois sont donc repliés en fin de section, chacun dans son toggle,
+             et leur bandeau dit leur état sans qu'on ait à ouvrir. -->
+
         <h4>Colonnes lues<i class="info-bulle" tabindex="0" data-info-cle="noyau.colonnes-lues">i</i></h4>
         <div id="import-config-colonnes"></div>
-        <label class="import-option-ligne">
-          Lignes de tête à ne pas importer
-          <input type="number" id="import-lignes-entete" min="0" max="20" step="1" value="0" />
-          <i class="info-bulle" tabindex="0" data-info-cle="noyau.lignes-entete">i</i>
-        </label>
 
-        <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info-cle="noyau.comparaison-des-doublons">i</i></h4>
-        <div class="regle-champ-ligne">
-          <label for="import-mode-comparaison">Comparer</label>
-          <select id="import-mode-comparaison">
-            <option value="exclusion">toutes les colonnes, sauf celles-ci</option>
-            <option value="selection">uniquement ces colonnes</option>
-          </select>
-        </div>
-        <div id="import-config-colonnes-exclues"></div>
-        <div class="actions">
-          <button type="button" id="btn-import-config-exclusion-ajouter">+ Ajouter une colonne</button>
-        </div>
-
-        <details class="config-avancee" id="import-config-avancee">
-        <!-- Le détail de chaque propriété vit dans l'info-bulle de SA ligne
+        <!-- LA PARTIE SECONDAIRE DES COLONNES LUES, et non plus une
+             « configuration avancée » à part : ce sont les mêmes lignes, le même
+             geste, le même `preset.colonnes` — simplement des colonnes qu'un
+             relevé ordinaire n'a pas. Les replier garde à l'écran celles qui
+             servent toujours ; les nommer « secondaires » dit qu'on peut les
+             ignorer, là où « avancé » laissait croire à un autre sujet.
+             Le détail de chaque propriété vit dans l'info-bulle de SA ligne
              (cf. INFOS_PROPRIETES_IMPORT) : il s'y lit au moment où l'on règle
              la propriété, au lieu d'un pavé à retraverser du regard. -->
+        <details class="config-avancee" id="import-config-avancee">
         <summary>
-          Configuration avancée<i class="info-bulle" tabindex="0" data-info-cle="noyau.configuration-avancee">i</i>
+          Colonnes secondaires<i class="info-bulle" tabindex="0" data-info-cle="noyau.configuration-avancee">i</i>
           <span class="config-avancee-resume" id="import-config-avancee-resume"></span>
         </summary>
         <div id="import-config-colonnes-avancees"></div>
@@ -1628,6 +1738,95 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
         </details>
 
+        <!-- ---------- LES TROIS SECTIONS DE FIN ---------- -->
+
+        <!-- LES COLONNES DE COMPARAISON TIENNENT SUR UNE LIGNE, avec l'éditeur
+             de mots-clés du noyau (celui du vocabulaire « Sens » et « État », et
+             des conditions de règle) : un champ, un « + », et les valeurs posées
+             en jetons, dont on retire ce qu'on veut par le menu de droite.
+             Chaque colonne avait sa propre rangée, avec son champ et son bouton
+             « Supprimer » : à six colonnes exclues, la question « sur quoi
+             compare-t-on ? » demandait de lire un demi-écran. -->
+        <details class="config-avancee" id="import-config-doublons">
+          <summary>
+            Comparaison des doublons<i class="info-bulle" tabindex="0" data-info-cle="noyau.comparaison-des-doublons">i</i>
+            <span class="config-avancee-resume" id="import-config-doublons-resume"></span>
+          </summary>
+          <div class="regle-champ-ligne">
+            <label for="import-mode-comparaison">Comparer</label>
+            <select id="import-mode-comparaison">
+              <option value="exclusion">toutes les colonnes, sauf celles-ci</option>
+              <option value="selection">uniquement ces colonnes</option>
+            </select>
+          </div>
+          <!-- LE CHAMP EST POSÉ PAR LE NOYAU (`creerChampColonnes`, app.js),
+               pas écrit ici : l'import de placements pose EXACTEMENT le même,
+               et deux copies du même balisage divergent au premier ajustement.
+               Ce conteneur n'en est que l'emplacement. -->
+          <div id="import-comparaison-colonnes"></div>
+          <p class="hint" id="import-comparaison-etat"></p>
+        </details>
+
+        <!-- Un NOMBRE, et non une case « la première ligne est un en-tête » :
+             beaucoup de banques n'exportent pas une table mais une PAGE —
+             titulaire, numéro de compte, période, ligne vide, puis les intitulés
+             de colonnes. -->
+        <details class="config-avancee" id="import-config-lignes-ignorees">
+          <summary>
+            Lignes à ne pas importer<i class="info-bulle" tabindex="0" data-info-cle="noyau.lignes-entete">i</i>
+            <span class="config-avancee-resume" id="import-lignes-entete-resume"></span>
+          </summary>
+          <label class="import-option-ligne">
+            Lignes de tête à ne pas importer
+            <input type="number" id="import-lignes-entete" min="0" max="20" step="1" value="0" />
+          </label>
+        </details>
+
+        <!-- Réglages de LECTURE en dernier recours, JAMAIS MÉMORISÉS sur le
+             preset : proposés (et ouverts d'office, section parente comprise)
+             quand l'aperçu détecte une majorité de lignes en date/montant
+             illisible, mais toujours accessibles à la main pour les ajuster par
+             anticipation. Ils sont ici parce que c'est ici qu'on cherche
+             pourquoi un fichier se lit mal ; le bandeau rappelle qu'ils ne
+             partent pas dans le preset, sous un bouton qui, lui, enregistre. -->
+        <details class="config-avancee" id="import-reglages-lecture">
+          <summary>
+            Réglages de lecture (délimiteur, séparateur décimal)<i class="info-bulle" tabindex="0" data-info-cle="noyau.reglages-de-lecture">i</i>
+            <span class="config-avancee-resume" id="import-reglages-lecture-resume"></span>
+          </summary>
+          <p class="import-avertissement" id="import-reglages-lecture-alerte" style="display:none"></p>
+          <div class="import-reglage-champ">
+            <label for="import-reglage-delimiteur">Délimiteur de colonnes</label>
+            <select id="import-reglage-delimiteur">
+              <option value="">Détecter automatiquement</option>
+              <option value="PV">Point-virgule ( ; )</option>
+              <option value="VIRGULE">Virgule ( , )</option>
+              <option value="TAB">Tabulation</option>
+              <option value="AUTRE">Autre…</option>
+            </select>
+            <input
+              type="text"
+              id="import-reglage-delimiteur-autre"
+              maxlength="1"
+              placeholder="ex. |"
+              style="display:none"
+            />
+          </div>
+          <div class="import-reglage-champ">
+            <label for="import-reglage-separateur-decimal">Séparateur décimal</label>
+            <select id="import-reglage-separateur-decimal">
+              <option value="">Détecter automatiquement (virgule française)</option>
+              <option value=",">Virgule — 1234,56</option>
+              <option value=".">Point — 1234.56</option>
+            </select>
+          </div>
+          <div class="actions">
+            <button type="button" class="primary" id="btn-import-relire-reglages">
+              Relire le fichier avec ces réglages
+            </button>
+          </div>
+        </details>
+
         <div class="actions">
           <button type="button" class="primary" id="btn-import-config-enregistrer">Enregistrer la configuration</button>
         </div>
@@ -1647,48 +1846,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="import-dropzone-nom" id="import-fichier-nom"></p>
       </div>
 
-      <!-- Réglages de LECTURE en dernier recours, jamais mémorisés sur le
-           preset : proposés (et ouverts d'office) quand l'aperçu détecte une
-           majorité de lignes en date/montant illisible, mais toujours
-           accessibles à la main pour les ajuster par anticipation. -->
-      <details class="config-avancee" id="import-reglages-lecture">
-        <summary>
-          Réglages de lecture (délimiteur, séparateur décimal)<i class="info-bulle" tabindex="0" data-info-cle="noyau.reglages-de-lecture">i</i>
-          <span class="config-avancee-resume" id="import-reglages-lecture-resume"></span>
-        </summary>
-        <p class="import-avertissement" id="import-reglages-lecture-alerte" style="display:none"></p>
-        <div class="import-reglage-champ">
-          <label for="import-reglage-delimiteur">Délimiteur de colonnes</label>
-          <select id="import-reglage-delimiteur">
-            <option value="">Détecter automatiquement</option>
-            <option value="PV">Point-virgule ( ; )</option>
-            <option value="VIRGULE">Virgule ( , )</option>
-            <option value="TAB">Tabulation</option>
-            <option value="AUTRE">Autre…</option>
-          </select>
-          <input
-            type="text"
-            id="import-reglage-delimiteur-autre"
-            maxlength="1"
-            placeholder="ex. |"
-            style="display:none"
-          />
-        </div>
-        <div class="import-reglage-champ">
-          <label for="import-reglage-separateur-decimal">Séparateur décimal</label>
-          <select id="import-reglage-separateur-decimal">
-            <option value="">Détecter automatiquement (virgule française)</option>
-            <option value=",">Virgule — 1234,56</option>
-            <option value=".">Point — 1234.56</option>
-          </select>
-        </div>
-        <div class="actions">
-          <button type="button" class="primary" id="btn-import-relire-reglages">
-            Relire le fichier avec ces réglages
-          </button>
-        </div>
-      </details>
-
       <!-- Ce que la configuration laisse d'ambigu sans être faux (un montant
            initial ou des frais lus sans leur devise) : affiché au-dessus de
            l'aperçu, jamais bloquant. -->
@@ -1701,7 +1858,17 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <h3>Le fichier tel qu'il est<i class="info-bulle" tabindex="0" data-info-cle="noyau.le-fichier-tel-qu-il-est">i</i></h3>
           <button type="button" id="btn-import-apercu-relire"
                   title="Relire le fichier avec la configuration actuelle"></button>
+          <!-- LA DÉTECTION AUTOMATIQUE (cf. services/detection_colonnes) : une
+               action SUR ce tableau, comme la relecture, donc posée à côté. -->
+          <button type="button" id="btn-import-detecter">Deviner les colonnes</button>
         </div>
+        <!-- Proposé de lui-même quand la lecture actuelle ne donne presque rien
+             de lisible : c'est le cas d'un preset neuf devant un relevé qu'il
+             n'a jamais vu. -->
+        <p class="hint import-detection-suggestion" id="import-detection-suggestion" style="display:none"
+           data-texte-cle="noyau.detection-colonnes-suggestion"></p>
+        <div id="import-detection" class="import-detection" style="display:none"></div>
+
         <!-- Ce qui manque au tableau quand les en-têtes viennent de bouger : le
              fichier n'a pas encore été relu, les lignes résolues plus bas
              décrivent donc la lecture d'avant. -->
@@ -1776,7 +1943,26 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
       <div id="import-apercu-bloc" style="display:none">
         <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.apercu-import">i</i></h3>
+        <!-- LE BOUTON D'IMPORT EST EN TÊTE, au-dessus des lignes et non
+             sous elles. Un relevé annuel fait quelques centaines de lignes
+             réparties en six sous-sections : le bouton qui les valide se
+             trouvait alors à deux écrans de défilement du dernier tableau,
+             c'est-à-dire nulle part. On parcourt l'aperçu du regard, on
+             revient en haut, on confirme — et le geste est au même endroit
+             pour dix lignes comme pour cinq cents.
+
+             AVEC « Tout sélectionner » et « Supprimer la sélection », dans la
+             même rangée : les trois portent sur l'aperçu ENTIER, là où les
+             boutons des tableaux ne portent que sur leur ligne.
+
+             Un bouton `disabled` ne reçoit aucun événement souris : ni :hover,
+             ni infobulle native. La raison du blocage est donc portée par le
+             conteneur `.bulle-blocage`, qui reste survolable (cf.
+             updateBtnImportConfirmerEtat, qui y écrit data-info). -->
         <div class="actions barre-selection">
+          <span class="bulle-blocage" id="import-confirmer-bulle">
+            <button type="button" class="primary" id="btn-import-confirmer" disabled>Confirmer l'import</button>
+          </span>
           <button type="button" id="btn-import-tout-selectionner">Tout sélectionner</button>
           <button type="button" class="danger" id="btn-import-supprimer-selection" disabled>
             Supprimer la sélection (<span id="import-selection-nombre">0</span>)
@@ -1929,15 +2115,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
 
-        <div class="actions">
-          <!-- Un bouton `disabled` ne reçoit aucun événement souris : ni :hover,
-               ni tooltip natif. La raison du blocage est donc portée par ce
-               conteneur, qui reste survolable (cf. updateBtnImportConfirmerEtat,
-               qui y écrit data-info). -->
-          <span class="bulle-blocage" id="import-confirmer-bulle">
-            <button type="button" class="primary" id="btn-import-confirmer" disabled>Confirmer l'import</button>
-          </span>
-        </div>
       </div>
 
 
@@ -2206,11 +2383,15 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <div class="notice-chapitre" data-notice-chapitre="import">
         <p class="notice-intro" data-texte-cle="noyau.notice-import-intro"></p>
 
+        <!-- PLUS DE BOUTON DE TUTORIEL ICI : il a sa propre porte, dans
+             Paramètres → Paramètres généraux, avec sa progression (cf.
+             tutoriel.js). Ce qui reste est ce qui appartient vraiment à la
+             notice — le relevé d'exemple, à garder sous la main pour
+             s'entraîner. -->
         <div class="notice-tutoriel-encart">
           <h3>Essayer sans risque</h3>
           <p data-texte-cle="noyau.notice-tutoriel-encart"></p>
           <div class="actions">
-            <button type="button" class="primary" id="btn-notice-tutoriel">Lancer le tutoriel guidé</button>
             <a class="bouton-lien" id="lien-notice-exemple"
                href="/exemples/releve-exemple.csv" download="releve-exemple.csv">
               Télécharger le relevé d'exemple
@@ -2292,15 +2473,20 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=20"></script>
-  <script src="i18n.js?v=72"></script>
-  <script src="extensions.js?v=22"></script>
-  <script src="app.js?v=150"></script>
+  <script src="textes.js?v=31"></script>
+  <script src="i18n.js?v=81"></script>
+  <script src="extensions.js?v=24"></script>
+  <script src="app.js?v=161"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
        le comportement de l'application mais un écran qui la DÉCRIT, plus la
        bulle du tutoriel, que rien d'autre n'emploie. -->
-  <script src="notice.js?v=2"></script>
+  <script src="notice.js?v=5"></script>
+  <!-- APRÈS app.js, comme la notice, et pour les mêmes raisons : il appelle
+       `switchSection`, `escapeHtml`, `showMessage` et `t`. Un fichier à part
+       parce qu'il ne porte pas le comportement de l'application mais la bulle
+       qui la montre, plus la mémoire de ce qu'on en a déjà parcouru. -->
+  <script src="tutoriel.js?v=3"></script>
 </body>
 </html>

@@ -42,233 +42,230 @@
 
 const TEXTES = {
   /* ----- Paramètres généraux ----- */
-  "noyau.parametres-generaux":
-    "Ce qui règle ta façon de te servir de l'application, et non ton budget : ces réglages vivent sur CE poste, pas dans la base. Changer de machine ne les emporte pas, et effacer les données du navigateur les remet à leur valeur d'origine.",
-  "noyau.theme":
-    "Le mode clair ou le mode sombre. Le choix vit sur cette machine, comme la langue : il ne voyage pas avec tes données, et l'autre poste garde le sien.",
   "noyau.touche-gel-infobulle":
-    "Clique dans le champ, puis appuie sur la touche (ou la combinaison) que tu veux. Elle est enregistrée aussitôt. Elle n'agit jamais pendant que tu écris dans un champ de saisie, pour ne pas t'empêcher de taper la lettre elle-même. Figée, l'infobulle des graphes cesse d'être remplacée par le survol : tu récupères ton curseur pour lire son top 3 ou cliquer son bouton. La même touche, un clic à côté ou Échap la libèrent.",
+    "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches",
 
   /* ----- Le camembert et ses deux vues ----- */
   "noyau.camembert-vue-budget":
-    "Les parts sont rapportées au BUDGET DU MOIS et non au total dépensé : l'anneau reste donc ouvert sur ce qui n'a pas encore été dépensé. C'est la seule vue où l'objectif d'une catégorie veut dire quelque chose — rapportées au total dépensé, les parts somment 100 % par construction, et une catégorie ne peut tenir sa cible que si toutes les autres tiennent la leur. Ici, chacune est indépendante : « l'alimentaire devait peser 30 % de mon budget, il en pèse 22 % ».",
-  "noyau.accord-des-budgets":
-    "Le budget d'une catégorie devrait valoir le budget du mois multiplié par son objectif en pourcentage. Ces trois chiffres se saisissent séparément, et rien n'oblige à les poser tous — mais quand les trois existent et se contredisent, il faut choisir lequel a raison. Rien n'a été corrigé automatiquement : ta dernière saisie est enregistrée telle quelle, et tu peux très bien la laisser ainsi.",
+    "La répartition de tes dépenses rapportées à ton budget de la période.",
 
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":
-    "Ce qu'on te doit encore sur tes dépenses remboursables, moins ce que tu dois encore sur les prêts reçus. NE DÉPEND PAS DE LA PÉRIODE : c'est l'état de tes créances et de tes dettes aujourd'hui, pas un chiffre du mois. Seules les opérations réelles comptent.",
+    "Ce qu'on te doit - Ce que tu dois.",
   "noyau.total-entrees":
-    "Ce que la période rapporte, virements internes exclus. Un prêt reçu n'y entre pas : il faudra le rendre. Reste sur le mois entier, semaine dépliée ou non.",
+    "Les entrées d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui rentre sur ton compte durant la période). Les entrées amorties sont comptées au prorata, et les dépenses remboursables ne comptent que pour la part non-remboursable.",
   "noyau.total-depenses":
-    "Ce que la période coûte, et non ce qui sort du compte : une dépense amortie ne compte que pour sa part du mois, une remboursable pour le reste à charge. Virements internes exclus. Reste sur le mois entier, semaine dépliée ou non.",
+    "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser.",
   "noyau.variation-attribuee-au-mois":
-    "Ce que la période laisse, au sens de ce qu'elle COÛTE : « Total Entrées » moins « Total Dépenses », les deux cartes juste à gauche. Une dépense amortie n'y pèse que pour sa part du mois, une remboursable pour son reste à charge. Son écart avec la variation brute, à droite, est exactement le décalage entre le moment où l'argent sort et le mois auquel la dépense appartient.",
+    "La différence des deux KPIs différents.",
   "noyau.variation-sur-le-mois-brute":
-    "De combien les comptes courants ont RÉELLEMENT bougé sur la période — le chiffre du relevé. Tout compte à sa date et pour son montant : une dépense amortie en entier, une dépense remboursable sans déduire ce qu'on rendra. Virements internes exclus. En jaune parce qu'elle ne répond pas à la même question que ses voisines : elle ne dit pas si la période a été bonne, elle dit ce qui est passé.",
+    "La variation de ce que tu possèdes sur le mois : un calcul brut en fonction de la date et du montant.",
+  "noyau.statut-previsionnel":
+    "Pour les opérations à venir qui n'ont pas encore eu lieu. Elles comptent pour ton solde projeté et dans les graphiques du dashboard - de manière distincte.",
   "noyau.notes":
     "Un pense-bête, non lu par l'app. Ça s'enregistre tout seul.",
   "noyau.repartition-des-avoirs":
-    "La part du total des avoirs posée sur chaque type de compte, dans la monnaie choisie. Solde RÉEL, titres détenus compris — pas le prévisionnel.",
-  "noyau.comptes-de-placements":
-    "Le solde affiché représente les espèces disponibles. La valeur de tes titres se lit dans Placements financiers.",
+    "La répartition des avoirs en fonction du type de comptes - prends en compte la valorisation des titres possédés.",
   "noyau.montant-min":
-    "La valeur du montant sans son signe : « au moins 50 » attrape aussi bien une dépense de 80 € qu'une entrée de 80 €. Laisse une case vide pour ne pas borner de ce côté.",
-  "noyau.montant-min-2":
-    "La valeur du montant sans son signe. Laisse une case vide pour ne pas borner de ce côté.",
+    "Montant brut, sans le signe. Ne rien mettre n'impose pas de borne.",
   "noyau.frais":
-    "Les frais que la banque a prélevés, déjà compris dans le montant : ajoutés à ce qui sort, retranchés de ce qui entre. Le montant au-dessus est donc affiché hors frais, et les deux se recomposent à l'enregistrement.",
+    "Les frais sur ton opération. Ils apparaissent séparément pour pouvoir les distinguer, mais c'est bien le montant + les frais (ou - les frais) qui sont utilisés pour les calculs.",
   "noyau.monnaie-des-frais":
-    "La devise des frais dit à quel montant ils s'appliquent : sur un virement entre deux monnaies, des frais dans la monnaie envoyée grèvent ce qui part, dans la monnaie reçue ce qui arrive.",
+    "Utile pour les virements internes entre devises différentes. Elle permet à l'app de comprendre si elle doit soustraire ou additioner les frais - et où.",
   "noyau.decouper-entre-plusieurs-categories":
-    "Une seule opération, plusieurs catégories : un plein de courses dont une part de produits ménagers. Le total des parts doit valoir le montant de l'opération.",
+    "Pour répartir le montant d'une opération en plusieurs catégories.",
   "noyau.amortie-sur-plusieurs-mois":
-    "La dépense reste datée du jour où l'argent est sorti — les soldes et les KPI du haut du dashboard ne bougent pas. Seuls l'histogramme et les totaux de la période répartissent son montant sur les mois choisis.",
+    "Permet d'amortir la dépense sur plusieurs mois, pour avoir une meilleure vue de tes dépenses. N'affecte pas le solde de ton compte et ne change pas la date de l'opération.",
   /* ----- La notice d'utilisation -----
      CES PHRASES SONT AUSSI CELLES DES ÉCRANS. La notice n'en écrit de
      nouvelles que pour ce qu'aucune pastille « i » ne dit déjà : partout
      ailleurs elle emploie les MÊMES clés que la page qu'elle décrit (cf. les
      `data-texte-cle` de la section #section-notice). C'est ce qui l'empêche de
      décrire une application qui n'existe plus. */
-  "noyau.notice":
-    "Le mode d'emploi de l'application, à l'intérieur de l'application. Ce que veut dire chaque chiffre du dashboard, ce que fait chaque type d'opération, et comment régler un import de bout en bout — avec un tutoriel guidé et un relevé d'exemple pour s'entraîner sans risque.",
   "noyau.notice-intro":
-    "Cette application tient tes comptes hors ligne : rien ne sort de ta machine, aucun service n'est interrogé, aucune banque n'est connectée. Tu saisis ou tu importes tes opérations, elle calcule. Cette notice explique ce qu'elle fait, dans l'ordre où on en a besoin.",
+    "Le mode d'emploi de l'application. Il est assez dense, mais n'a pas vocation à être lu d'un coup. Il s'agit pluôt d'un guide à consulter si tu te poses des questions.",
   "noyau.notice-mot-compte":
-    "Un endroit où l'argent se trouve : un compte courant, un livret, un compte-titres. Chaque compte porte une ou plusieurs monnaies, et son solde se déduit de son solde initial plus tout ce qui y est passé.",
+    "C'est la première brique pour catégoriser tes opérations : affecter une opération à un compte impactera son solde, et pas celui des autres.",
   "noyau.notice-mot-operation":
-    "Une ligne : une date, un libellé, un montant, un compte. C'est la brique de tout le reste — les soldes, les graphes et les totaux ne sont que des façons de les additionner.",
+    "Une ligne : une date, un libellé, un montant, un compte. C'est la base sur laquelle repose le reste de l'application.",
   "noyau.notice-mot-categorie":
-    "Ce à quoi une dépense sert : alimentation, transports, loisirs. C'est par elles que l'histogramme et le camembert répartissent ce que tu dépenses. Tu les renommes, tu les ranges, tu en ajoutes — les quatre livrées ne sont qu'un point de départ.",
+    "C'est la seconde brique pour catégoriser une opération, qui vient avec des valeurs par défaut (modifiables et supprimables) : alimentation, transports, loisirs. C'est avec elles que les graphiques du dashboard se construisent.",
   "noyau.notice-mot-monnaie":
-    "L'application ne mélange JAMAIS deux devises dans un même total : chaque écran qui affiche des montants a ses onglets ou sa liste de monnaie. Sans l'extension « Monnaies », il n'y en a qu'une et la question ne se pose pas.",
+    "L'application permet de prendre en compte plusieurs devises avec l'extension « Monnaies », pour ne pas mélanger ce qui ne devrait pas l'être.",
   "noyau.notice-demarrer-1":
-    "Crée tes comptes, dans Paramètres → Comptes, avec leur solde de départ. C'est la seule chose qu'on ne peut pas deviner : tout le reste s'en déduit.",
+    "Crée ton ou tes comptes (dans Paramètres → Comptes /Paramètres/Comptes), en choissisant leur type (Courant, d'épargne ou de placements) et leur solde de départ.",
   "noyau.notice-demarrer-2":
-    "Range tes catégories, dans Paramètres → Catégories. Quatre sont livrées pour ne pas partir de rien ; renomme-les, supprime celles qui ne te servent pas, ajoute les tiennes.",
+    "Réorganise tes catégories, dans Paramètres → Catégories /Paramètres/Catégories. Tu peux librement en créer, supprimer et modifier, dont les 4 de base.",
   "noyau.notice-demarrer-3":
-    "Fais entrer tes opérations, à la main depuis la page Opérations, ou par un import de relevé — c'est le chapitre « Importer un relevé » de cette notice.",
+    "Créer tes opérations : à la main dans la page Opérations /Opérations, ou par un import de relevé (cf. Importer un relevé /Importer un relevé)",
   "noyau.notice-demarrer-4":
-    "Regarde le dashboard. À partir de là, tout est lecture : les chiffres du haut disent où tu en es, ceux du bas ce que le mois a fait.",
+    "Ensuite, direction le dashboard ! /- En haut, une vue globale de tes avoirs. /- Au milieu, des cartes qui décrivent l'évolution de ton compte sur le mois ou l'année. /- En bas, deux graphiques te permettant de comprendre ta répartition. // Et enfin, un champ libre de notes (qui s'enregistre automatiquement).",
   "noyau.notice-donnees":
-    "Toutes tes données tiennent dans UN fichier, dont tu choisis l'emplacement au premier lancement et que tu peux déplacer ensuite depuis Paramètres → Base de données. Sauvegarde ce fichier comme tu sauvegardes une photo : le copier suffit, et le rouvrir depuis le même panneau te rend tout. L'application ne garde aucune copie ailleurs, et rien n'est envoyé nulle part.",
+    "Toutes tes données vivent dans un fichier, dont tu dois choisir l'emplacement au premier lancement. Tu peux le déplacer via Paramètres → Base de données /Paramètres/Base de données. Aucune copie n'est faite et rien ne sort de ton PC : fais donc attention à ne pas le supprimer par erreur.",
   "noyau.notice-dashboard-intro":
-    "Le dashboard répond à deux questions différentes, et c'est pour ça qu'il a deux rangées de cartes. En haut, ce que tu AS aujourd'hui — ces chiffres ne bougent pas quand tu changes de mois. En bas, sous le sélecteur de période, ce que la période a FAIT.",
+    "Le dashboard répond à deux questions différentes : qu'est-ce que tu as aujourd'hui (cartes en haut) et comment ce que tu as a évolué (cartes en-dessous) sur la période choisie.",
   "noyau.notice-kpi-solde-total":
-    "Ce que portent tes comptes courants, aujourd'hui. Le chiffre plus petit à côté est le PRÉVISIONNEL : le même solde une fois passées les opérations que tu as écrites d'avance.",
+    "Le total de tes comptes courants. Le chiffre en plus est le prévisionnel, il prend en compte les opérations prévisionelles (cf. Les types d'opérations /Les types d'opérations).",
   "noyau.notice-kpi-avoirs":
-    "Tout ce que tu possèdes : comptes courants, épargne, et la valeur de tes titres si l'extension « Placements financiers » tourne. C'est le chiffre à regarder pour « est-ce que mon patrimoine monte ».",
+    "Ce KPI regroupe tout ce que tu possèdes : comptes courants, épargne, et la valeur de tes titres côtés si l'extension « Placements financiers » tourne.",
   "noyau.notice-dashboard-ecart":
-    "Les deux variations ne tombent jamais d'accord, et c'est normal : l'une dit ce que le mois COÛTE, l'autre ce qui est PASSÉ sur le compte. Quand elles diffèrent, un bouton apparaît dans la carte jaune et ouvre le détail, ligne par ligne, de ce qui explique l'écart.",
+    "Deux KPIs pour deux manières de calculer des variations sur le mois : l'une dit ce que le mois COÛTE - les dépenses que tu as attribuées à ce mois - et l'autre ce qui est PASSÉ sur ton compte sur ce mois. /- Par exemple, tu peux payer pour un abonnement annuel et vouloir le faire compter sur chaque mois au lieu d'un seul dans l'année (c'est la fonctionnalité d'amortissement /Les types d'opérations). /- Tu peux aussi avoir une dépense à faire rembourser (en partie ou en totalité) : le premier KPI prendra en compte ce que tu as dépense - ce qu'on te doît, l'autre fera abstraction de cette deuxième donnée. // Quand elles diffèrent, un bouton apparaît et te permet de voir plus en détails.",
   "noyau.notice-graphes":
-    "Les deux graphes montrent les mêmes catégories dans les mêmes couleurs, sur la période du sélecteur, et se pilotent avec le même filtre — le bouton « Catégories » dans leur titre. Survoler une barre, une tranche ou une ligne de légende éclaire les deux autres et ouvre une infobulle : elle porte le total, la part, et les trois plus grosses dépenses de la catégorie.",
+    "Les deux graphes montrent la répartition de tes dépenses en fonction de la catégorie. Tu pilotes l'affichage avec la période du sélecteur et avec le filtre « Catégories ». Survoler une barre, une tranche ou une ligne de légende ouvre une infobulle avec plus de détails : /- Le total de la catégorie /- Le poids en pourcentage de celle-ci /- Ton top 3 dépenses (agrégées selon le nom : si tu fais 5 fois des courses au même endroit, tu verras une ligne avec le total et un (5)). /- Enfin, tes objectifs de budget s'y affichent si tu as activé l'extension.",
   "noyau.notice-graphes-histogramme":
-    "L'histogramme porte des MONTANTS : une barre par catégorie, et le trait rouge est le budget que tu lui as donné pour ce mois-ci (extension « Budget »).",
+    "L'histogramme affiche le total par catégorie ! Si tu as l'extension « Budget », la barre rouge qui apparaît est le budget que tu t'es fixé.",
   "noyau.notice-graphes-camembert":
-    "Le camembert porte des PARTS. En vue « État actuel », chaque tranche est rapportée au total dépensé et les parts font 100 %. En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.",
+    "Le camembert montre la part de chaque catégorie. / -En vue « État actuel », chaque tranche est rapportée au total dépensé (le total fait donc 100%). /- En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.",
   "noyau.notice-graphes-legende":
-    "La légende, sous les deux, ne porte que le nom et la part : c'est le point d'entrée le plus complet — son infobulle dit tout, et « Voir toutes les dépenses » t'emmène à la liste des opérations de cette catégorie.",
+    "La légende sous les deux est commune aux deux graphiques : l'infobulle affiche le bouton « Voir toutes les dépenses » qui t'emmène à la liste des opérations de cette catégorie.",
   "noyau.notice-graphes-semaines":
-    "La petite flèche sous la rangée des mois déplie les SEMAINES : l'histogramme devient celui de la semaine choisie, et « Moyenne » répond à « est-ce que cette semaine-là était ordinaire ? ». Les cartes, elles, restent sur le mois.",
+    "La flèche sous la rangée des mois déplie les semaines : l'histogramme devient celui de la semaine choisie, et « Moyenne » te montre une vue moyennée sur le mois (au prorata en fonction du nombre de jours écoulés). Les cartes ne sont pas affectées.",
   "noyau.notice-types-intro":
-    "Le type d'une opération dit ce qu'elle EST, et décide de la façon dont elle compte. L'application nue en connaît deux ; les autres s'ouvrent avec l'extension qui les explique, et ne sont décrits ici que si elle tourne chez toi.",
+    "Le type d'une opération te permet de dicter comment elle agit. Deux types sont disponibles de base, les opérations classiques (entrées et sorties d'argent) et les virements internes (entre deux comptes que tu possèdes). Les autres sont activables et utilisables grâce à des extensions.",
   "noyau.notice-type-classique":
-    "Une dépense ou une entrée ordinaire : des courses, un salaire, une facture. C'est le type par défaut, le seul qui se découpe entre plusieurs catégories, et celui de la quasi-totalité de tes lignes.",
+    "Le type d'opération par défaut et le plus courant : des courses, un paiement, un salaire, etc... C'est le seul type que tu peux découper en plusieurs catégories (plus de détails en bas de page).",
   "noyau.notice-type-virement":
-    "De l'argent qui passe d'un de tes comptes à un autre. Ce n'est ni une dépense ni une entrée : ton patrimoine ne bouge pas, et c'est pour ça qu'un virement est écarté de tous les totaux de période. Une seule saisie écrit les deux côtés, et un virement entre deux monnaies porte les deux montants.",
+    "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs (à l'exception des virements internes entre deux monnaies différentes).",
   "noyau.notice-type-remboursable":
-    "Une dépense que tu avances pour quelqu'un d'autre : tu paies 60 €, on t'en rendra 50. Elle ne pèse sur ton mois que pour ce qui reste à ta charge, et ce qu'on te doit encore s'affiche dans « Reste à rembourser ». Le remboursement reçu, quand il arrive, fait décroître cette dette tout seul.",
+    "Si tu as avancé de l'argent ou qu'une de tes dépenses est remboursable, ce type est fait pour ton opération. Il te permet de /- ne compter que combien tu as réellement dépensé dans tes KPIs et les graphiques /- renseigner un montant dû /- suivre combien on te doit // Quand un remboursement est effectué (en partie ou totalement), le type Remboursement reçu te permet de relier l'opération de remboursement à la dépense remboursable.",
   "noyau.notice-type-pret":
-    "De l'argent qu'on t'a prêté : il arrive sur ton compte, mais il faudra le rendre — il n'entre donc pas dans tes entrées. Ce que tu rendras EN PLUS de ce que tu as reçu est l'intérêt : c'est lui, et lui seul, qui pèse sur tes dépenses, dans sa propre barre d'histogramme.",
+    "Ce type est similaire au précédent, mais dans la situation inverse. Ici, seul les intérêts du montant prêté (s'il y en a) rentrent dans le compte des dépenses.",
   "noyau.notice-type-action":
     "L'achat ou la vente d'un titre. Tu ne le saisis jamais depuis la page Opérations : il naît avec sa ligne dans l'écran des placements, et le mouvement d'espèces sur le compte-titres en découle.",
   "noyau.notice-types-extensions":
     "D'autres types existent et n'apparaissent qu'avec l'extension qui les ouvre : dépenses remboursables, prêts reçus, opérations sur titres. Va voir Paramètres → Extensions pour savoir ce que tu as sous la main.",
   "noyau.notice-statut":
-    "Une opération RÉELLE a eu lieu ; une PRÉVISIONNELLE est écrite d'avance et ne pèse que sur le solde projeté. Quand la vraie ligne arrive par un import, l'application reconnaît la prévision et la remplace, plutôt que de compter la dépense deux fois.",
+    "Deux possibilités pour une opération, réelle ou prévisionnelle :/- les dépenses réelles (la plupart des opérations) sont celles qui ont eu lieu /- les dépenses prévisionnelles sont celles que tu anticipes. A l'import de l'opération en question, l'app le détecte et te propose de remplacer l'opération prévisionnelle.",
   "noyau.notice-import-intro":
-    "Importer, c'est expliquer une fois à l'application comment ta banque écrit ses fichiers — puis ne plus jamais y revenir. Ce réglage s'appelle un PRESET : un par banque, gardé d'un import à l'autre. Rien n'est écrit dans tes comptes avant que tu aies vu, ligne par ligne, ce qui va entrer.",
+    "L'import, c'est la manière la plus simple de mettre l'app à jour sur ton budget. Tu peux créer des preset d'imports et des règles /Les extensions/Règles de catégorisation pour configurer une fois ton système d'importation. Les fois d'après, il ne suffira que de quelques clics pour importer.",
   "noyau.notice-tutoriel-encart":
-    "Le tutoriel ouvre l'écran d'import et te montre où regarder, étape par étape, sans rien écrire dans tes comptes. Le relevé d'exemple est un vrai fichier CSV — avec une ligne de titre parasite et trois colonnes inutiles, comme un export de banque : de quoi s'exercer à régler un import pour de bon.",
+    "Un relevé d'exemple au format CSV est disponible te permettre de visualiser. Il contient deux lignes de titre (à ne pas lire) trois colonnes inutiles pour l'app.",
   "noyau.notice-exemple-colonnes":
-    "Le réglage juste, si tu veux vérifier le tien : 2 lignes de tête, Date en colonne 1, Nature en 3, Montant en 5, Catégorie bancaire en 7. Les colonnes 2, 4 et 6 — référence, type de carte, solde après opération — ne sont lues par rien : une colonne qu'on n'importe pas n'a pas à être supprimée du fichier.",
+    "A SUPPRIMER",
   "noyau.notice-import-etape-1":
-    "Choisis ou crée le PRESET qui correspond à ce fichier, et dis-lui sur quel compte il importe.",
+    "Choisis ou crée le PRESET qui correspond à ton fichier, et sélectionne de quel compte il s'agit.",
   "noyau.notice-import-etape-2":
-    "Dépose le fichier. L'application le relit aussitôt et montre, dans « Le fichier tel qu'il est », ce qu'elle a compris de chaque colonne.",
+    "Dépose le fichier. L'application le lit et affiche comment elle le lit actuellement.",
   "noyau.notice-import-etape-3":
     "Corrige la lecture si besoin : glisse les en-têtes pour remettre chaque propriété en face de la bonne colonne, dis combien de lignes de tête sauter, puis enregistre la configuration dans le preset.",
   "noyau.notice-import-etape-4":
-    "Réponds à ce que l'aperçu te demande : à quelles catégories à toi correspondent celles de ta banque, quoi faire des doublons, et ce qu'il faut corriger ligne par ligne.",
+    "Remplis les correspondances entre catégories, monnaies ou banques de ton relevé et ceux de l'app. L'app les garde en mémoire pour que tu n'aies pas à les renseigner à nouveau.",
   "noyau.notice-import-etape-5":
-    "Confirme. C'est le seul geste qui écrit quelque chose dans tes comptes.",
+    "Confirmer te permet de finaliser ! Si tu souhaites revenir en arrière, tu peux annuler l'import : tout revient alors précisément à l'état précédent.",
   "noyau.notice-import-annuler":
-    "L'historique des importations, en bas de l'écran d'import, ANNULE un import entier : les opérations qu'il a créées disparaissent, et les dépenses prévues qu'il avait remplacées reviennent exactement comme elles étaient. Rien n'est irréversible — c'est ce qui permet d'essayer un réglage plutôt que de le deviner.",
+    "A SUPPRIMER",
   "noyau.notice-extensions-intro":
-    "L'application nue tient un budget complet. Les extensions ajoutent ce dont tout le monde n'a pas besoin : plusieurs devises, un portefeuille de titres, des prêts, des objectifs chiffrés. Elles se déposent dans le dossier « extensions » à côté de l'application, et rien ne se charge avant que tu l'aies allumée toi-même.",
+    "L'application est par défaut minimaliste. Une fois familiarisé, choisis les extensions qui t'intéressent et te sont utiles à ta guise.",
   "noyau.notice-extensions-eteindre":
-    "Éteindre une extension ne supprime AUCUNE donnée : son écran disparaît, ses lignes dorment en base, et tout revient intact quand tu la rallumes. C'est pour ça qu'on peut en essayer une sans rien risquer.",
+    "Éteindre une extension ne supprime AUCUNE donnée : seul l'affichage disparaît.",
 
   /* ----- Extension « Budget » -----
      L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
+  "analyse-budget.graphes":
+    "« Comparer avec » te permet de comparer deux périodes de même durée.",
   "analyse-budget.budget-total":
-    "Ce que tu te donnes à dépenser sur le mois, dans cette monnaie. C'est le dénominateur de tout le reste : la vue « Budget » du camembert du dashboard y rapporte chaque catégorie, et les objectifs en pourcentage ci-dessous sont des parts de LUI. Un mois que tu n'as pas rempli reprend le dernier montant écrit — avant comme après lui — et le dit. Zéro le retire.",
+
+    "Le budget de chaque mois, il reprend la valeur du dernier mois par défaut. Il relie les objectifs par catégorie en pourcentage et en valeur. ",
   "analyse-budget.budget-total-aide":
-    "Il se pose mois par mois et monnaie par monnaie : 15 000 ¥ ne se comparent à aucun euro, et un budget de janvier ne dit rien de celui de février. Change de mois dans la rangée ci-dessus pour en écrire un autre.",
+    "Mois par mois et monnaie par monnaie. Hérite par défaut des valeurs du mois précédent.",
   "analyse-budget.budgets-categories":
-    "Deux grandeurs par catégorie, et elles ne se déduisent pas l'une de l'autre. Le BUDGET est une enveloppe en valeur pour ce mois-ci : il répond à « combien puis-je encore dépenser », et c'est lui que dessine le trait rouge de l'histogramme du dashboard. L'OBJECTIF est une part du budget total, la même tous les mois et dans toutes les monnaies : il répond à « quelle part doit aller là », et c'est lui qu'affiche le camembert en vue Budget. Poser l'un n'oblige jamais à poser l'autre.",
-  "analyse-budget.budgets-categories-aide":
-    "Glisse pour répartir, écris dans le champ à côté pour poser une valeur exacte ; c'est en relâchant que ça s'enregistre. Les objectifs ne peuvent pas dépasser 100 % à eux tous — la course du curseur te dit ce qu'il reste à placer — mais rien ne t'oblige à les atteindre : n'en poser que sur trois catégories est le cas ordinaire. Quand le budget d'une catégorie et son objectif ne s'accordent plus avec le total du mois, la ligne le dit et propose les deux corrections chiffrées.",
+    "Une valeur par catégorie, lue de deux façons. -- LE CURSEUR répartit ; les deux cases à sa droite montrent la même enveloppe en monnaie et en part du budget du mois. Bouger le curseur met les deux à jour. -- ÉCRIRE DANS L'UNE recalcule l'autre et replace le curseur. Ctrl+Entrée, ou un clic ailleurs, enregistre. -- L'ENVELOPPE répond à « combien puis-je encore dépenser là » : c'est elle que trace le trait rouge de l'histogramme du dashboard. La PART répond à « quelle portion de mon budget y va » : c'est elle que le camembert affiche en vue Budget. -- La somme des parts ne peut pas dépasser 100 %, donc la somme des enveloppes ne peut pas dépasser le budget du mois. Au-delà, la saisie est refusée et le message dit le plafond utilisable. -- Sans budget du mois posé, la case des parts n'a pas de dénominateur : elle reste éteinte, et seule l'enveloppe s'enregistre.",
   "analyse-budget.epargne":
-    "Le solde d'un compte d'épargne dit ce qu'il Y A ; il ne dit pas ce que tu y as MIS ce mois-ci — et c'est pourtant la seule des deux qui résulte d'une décision. Le calcul se lit dans tes virements internes : tout ce qui part d'un compte courant vers un compte d'épargne ou de placements compte comme mis de côté, tout ce qui en revient compte en moins. Un virement d'épargne à épargne ne met rien de côté, il range autrement ce qui l'est déjà : il est ignoré.",
-  "analyse-budget.epargne-aide":
-    "Le grand chiffre est le NET — ce que tu as réellement mis de côté sur l'année. Survole-le pour voir ce qu'il recouvre : un net à zéro peut vouloir dire « je n'ai rien bougé » comme « j'ai versé 2 000 € et j'en ai repris 2 000 ». Seules les opérations RÉELLES comptent, une mise de côté prévue n'ayant pas encore eu lieu. Entre deux monnaies, c'est toujours le montant du côté de l'épargne qui compte : verser 100 € qui arrivent en 108 $ met bien 108 $ de côté.",
+    "La différence entre ce qui entre et ce qui sort de tes comptes d'épargne ou de placements. Un bon indicateur à suivre si tu veux mettre de l'argent de côté régulièrement.",
   "analyse-budget.matelas":
-    "Le minimum que tu veux garder disponible sur tes comptes d'épargne, dans cette monnaie. Il ne bloque RIEN : aucun virement n'est refusé, aucune saisie n'est empêchée. L'app constate et te le dit, là où tu regardes tes comptes d'épargne. Une garde qui t'interdirait de descendre sous ton propre seuil se ferait contourner au premier vrai besoin, et tu aurais appris à ne plus la lire.",
+    "Le matelas de sécurité que tu gardes sur tes comptes d'épargne - les comptes de placements ne rentrent pas dans ce scope.",
   "analyse-budget.matelas-aide":
     "Les comptes d'ÉPARGNE seulement, et leur solde réel. Un compte de placements porte des titres, qui ne sont disponibles qu'après une vente, à un cours qu'on ne connaît pas d'avance : les compter dans un matelas de sécurité reviendrait à se rassurer avec de l'argent qu'on n'a pas encore. Laisse à zéro pour ne pas poser de seuil du tout.",
   "analyse-budget.imprevues":
-    "Ce que tu n'avais pas vu venir : le plombier, la dent cassée, le pneu. Aucune catégorie ne répond à cette question — une dépense d'alimentation peut être imprévue, une réparation peut être parfaitement attendue — d'où une case à cocher sur la dépense elle-même. Le total te dit, mois par mois, quelle part de ce que tu dépenses n'était pas prévisible.",
+    "Les dépenses que tu n'avais prévues : une vue globale te permet de mieux comprendre comment elles pèsent dans ton budget.",
   "analyse-budget.imprevues-aide":
-    "Le périmètre est celui de l'histogramme des dépenses du dashboard : dépenses réelles, virements internes exclus. C'est ce qui rend la part comparable à ce que tu lis ailleurs.",
+    "Tooltip à SUPPRIMER",
   "analyse-budget.imprevue-champ":
-    "Coche si cette dépense n'était pas prévisible. À ne pas confondre avec le statut : une dépense peut être prévisionnelle et prévue (le loyer du mois prochain), réelle et imprévue (le plombier de mardi). Rien ne change à tes soldes ni à tes totaux — c'est une étiquette, que seule l'extension « Budget » regarde.",
+    "Une étiquette lue par l'extension budget. Elle te permet d'avoir une vue globale de tes dépenses liées à des imprévus.",
 
   /* ----- Rapprocher une prévisionnelle de la vraie ----- */
   "noyau.import-previsionnelles":
     "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence. Coché, le remplacement a lieu ; décoché, la ligne s'importe comme une autre et la dépense prévue reste telle quelle. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.",
   "noyau.rapprochement":
-    "Une dépense prévue sert à voir venir ; encore faut-il qu'elle disparaisse quand la vraie arrive. Coche cette case et l'import la reconnaîtra au relevé : il te proposera alors de la REMPLACER par la vraie ligne, au lieu d'ajouter une seconde opération à côté. Il te demande toujours avant de le faire, et rien n'est perdu si tu refuses. L'app la reconnaît à son COMPTE, son MONTANT (au centime près) et sa DATE ; les deux dates ci-dessous disent dans quel intervalle tu l'attends — utile quand tu connais le mois d'un prélèvement sans en connaître le jour. Elles doivent tomber dans le même mois, et se laissent vides si tu l'attends au jour dit.",
+    "Permet l'amélioration de la détection d'une dépense prévisionnelle renseignée dans l'app lors de son importation. L'import te proposera alors de valider la substitution.",
   "noyau.rapprochement-mots-cles":
-    "Facultatifs, et inutiles la plupart du temps : le compte, le montant et la date suffisent. Ils servent au cas inverse — deux prélèvements du même montant le même mois, que seul le libellé distingue. Tous doivent se retrouver dans le libellé de la ligne importée ; la casse et les accents n'ont pas d'importance.",
+    "Permet de ne pas confondre des dépenses de même montant, compte et date mais dont le libellé est différent.",
 
   "noyau.montant-a-rembourser":
-    "Sur une dépense remboursable, ce qu'on te rendra : au plus ce que tu as avancé. Sur un prêt reçu, ce que tu rendras : au moins ce qu'on t'a remis — l'écart est l'intérêt du prêt.",
+    "Combien on te doit sur une dépense remboursable, combien tu dois sur un prêt.",
   "noyau.notes-2":
     "Un commentaire non lu par l'app. Sur un virement, il vaut pour les deux comptes.",
   "noyau.comptes":
     "Double-clique une ligne pour modifier un compte, fais-la glisser d'une carte à l'autre pour changer son type.",
   "noyau.monnaies-du-compte":
-    "Chaque monnaie du compte garde son propre solde, jamais mélangé aux autres — d'où un solde initial par monnaie.",
+    "Chaque monnaie du compte garde son propre solde, non mélangé aux autres.",
   "noyau.categories-de-depenses":
-    "Les catégories dans lesquelles tes dépenses se rangent : leur nom, et l'ordre dans lequel tu les vois partout ailleurs. Ce qu'on LEUR ALLOUE — le budget d'un mois, la part qu'elles devraient peser — se règle sur la page Budget, où elles se voient toutes ensemble. « Autres » ne peut ni être renommée ni supprimée : c'est elle qui recueille les opérations d'une catégorie qu'on efface.",
+    "Les dépenses se rangent dans ces catégories. Les réordonner change l'ordre d'apparition sur le dashboard. Eteindre une catégorie agit comme si elle n'existait plus à partir de l'extinction, tout en la conservant comme la catégorie des dépenses à laquelle elle est attribuée.",
   "noyau.categorie-entree":
-    "Coche si les opérations que tu ranges ici sont de l'argent qui RENTRE : un salaire, des loyers perçus, une allocation. L'app leur donnera le sens « entrée », ne leur dessinera pas de barre dans l'histogramme des dépenses — elle y resterait à zéro — et ne te demandera pas de budget sur la page Budget. Les opérations DÉJÀ écrites ne bougent pas : leur sens a été posé à leur création, et le réécrire ferait bouger des soldes que tu as peut-être déjà rapprochés de ton relevé.",
+    "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
   "noyau.correspondances-memorisees":
-    "Tout ce que l'app a retenu de tes imports : un libellé rangé une fois dans une catégorie y repart tout seul les fois suivantes.",
+    "Les correspondances - catégories, comptes bancaires, monnaies - que l'app a mémorisé de tes imports",
   "noyau.categories-bancaires":
-    "Chaque libellé de tes relevés, sous la catégorie où il part. Fais-en glisser un dans une autre colonne pour le reclasser. Entre parenthèses, le compte d'où vient le relevé.",
+    "Le libellé de ton relevé, suivi du compte lié au preset d'importation. Glisse-le vers une autre catégorie pour modifier la correspondance.",
   "noyau.comptes-bancaires":
-    "Les noms de compte lus dans tes relevés, et le compte de l'app en face. Une entrée partagée par plusieurs presets les met tous à jour.",
+    "Les noms de compte lus dans tes relevés et le comptes de l'app en face.",
   "noyau.devises":
-    "Les libellés de devise de tes relevés (« EUR »), et la monnaie de l'app en face. Vide si aucun preset ne lit de colonne de devise.",
+    "Les libellés de devise de tes relevés (« EUR »), et la monnaie de l'app en face.",
   "noyau.preset":
-    "Tout ce qui est propre au format d'une banque : colonnes à lire, libellés déjà rangés, lignes déjà importées. Un preset par banque.",
+    "Comment l'app doit comprendre ton fichier d'opérations.",
   "noyau.compte-bancaire-de-ce-preset":
-    "Toutes les lignes du fichier iront sur ce compte. Laisse « aucun » si le fichier nomme lui-même le compte de chaque ligne.",
+    "Toutes les lignes du fichier iront sur ce compte. Laisse « aucun » si le fichier comporte une colonne comptes.",
   "noyau.configuration-du-fichier":
-    "Quelle colonne de ton fichier porte quelle information. Date, Nature et Montant sont obligatoires ; le reste est dans « Configuration avancée ».",
+    "Quelle colonne de ton fichier porte quelle information. Date, Nature et Montant sont obligatoires.",
   "noyau.colonnes-lues":
-    "Clique sur l'œil pour lire ou ignorer une colonne. Date, Nature et Montant sont obligatoires et ne s'éteignent pas.",
+    "Clique sur l'œil pour indiquer à l'app de lire ou d'ignorer une information.",
   "noyau.configuration-avancee":
-    "Pour ce que ton relevé dit en plus : le compte, le sens, les devises, les frais. Laisse vide si ton relevé tient dans une seule colonne de montant et une seule monnaie. Le « i » de chaque ligne dit à quoi elle sert.",
+    "Pour les fichiers nécessitant un paramétrage plus complexe.",
   "noyau.reglages-de-lecture":
     "À régler seulement si le fichier est mal lu : colonnes mélangées, montants illisibles. L'app devine seule dans la plupart des cas.",
+  "noyau.detection-colonnes":
+    "L'application lit le fichier et essaie d'attribuer chaque colonne à une ou plusieurs potentielles propriétés. Ensuite, à toi de trancher. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement ou d'actualisation.",
+  "noyau.detection-colonnes-enregistrer":
+    "Appliquer met à jour les colonnes, sans enregistrer le preset. Attention : si tu appuies sur Enregistrer le preset, ton ancien preset sera remplacé par la configuration actuelle.",
+  "noyau.detection-colonnes-suggestion":
+    "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.",
   "noyau.le-fichier-tel-qu-il-est":
-    "Les colonnes colorées sont celles que l'app va lire, les grises sont ignorées. Deux façons de corriger un décalage : glisser un en-tête sur un autre pour échanger les deux colonnes, ou saisir les numéros dans « Configuration du fichier » au-dessus.",
+    "Les colonnes lues sont colorées et portent l'information que l'app en tire en en-tête. Deux façons de modifier : glisser un en-tête sur un autre pour échanger les deux ou saisir les numéros dans « Configuration du fichier » au-dessus.",
   "noyau.categories-bancaires-a-confirmer":
-    "Un libellé que l'app ne connaît pas encore atterrit dans « Autres » : coche « Confirmer » pour le laisser là, ou choisis une autre catégorie. Rien ne presse — tu peux aller créer une catégorie ailleurs dans l'app et revenir, l'import t'attend.",
+    "Les nouveaux libellés apparaîtront ici, pour que tu renseignes vers quelle catégorie de l'app ils pointent. Une fois fait, confirme en cochant la case.",
   "noyau.apercu-import":
-    "Les doublons repérés sont déjà cochés. Tant qu'il en reste de cochés, l'import attend : supprime-les, ou décoche ceux que tu veux importer quand même. « Modifier » sert aussi à changer le type d'une ligne.",
+    "Les doublons repérés sont déjà cochés pour permettre une suppression rapide. Pour déverrouiller l'import, supprime-les ou décoche-les si tu veux tout de même les importer.",
   "noyau.ressemblances":
-    "Ce virement est peut-être déjà en base. Quand tu importes les relevés de tes deux banques, le même virement apparaît des deux côtés, écrit de deux façons différentes. L'app compare ici la transaction elle-même — le compte, les devises, le montant, une date proche — et te montre à quoi chaque ligne ressemble. Rien n'est bloqué ni coché d'avance : toi seul sais si tu as vraiment viré deux fois.",
+    "Une détection de doublons pour les virements internes : les opérations ici ne sont pas rejetés par défaut, mais l'app te les signale pour éviter d'importer des opérations en double.",
   "noyau.doublons-detectes":
-    "Ces lignes sont identiques à des lignes déjà importées : chacune est suivie de celle qu'elle recopie. Elles sont cochées pour être écartées d'un clic — décoches-en une pour l'importer quand même, deux achats identiques le même jour ça arrive.",
+    "Ces lignes sont identiques à des lignes déjà importées, sur la base des critères que tu as défini pour le preset. Tu peux les importer en les décochant.",
   "noyau.lignes-entete":
-    "Combien de lignes, en tête du fichier, ne sont pas des opérations : les intitulés de colonnes, mais aussi le nom du titulaire, le numéro de compte ou une ligne vide que certaines banques écrivent avant. Laisse 0 si le fichier commence directement par une opération.",
+    "Les lignes d'en-tête et d'informations qui ne sont pas des opérations. N'utilise pas ceci pour gérer des doublons, une fonctionnalité est présente pour ça.",
   "noyau.comparaison-des-doublons":
-    "Comment l'app reconnaît une ligne déjà importée. Soit toutes les colonnes moins celles qui bougent d'un export à l'autre (solde courant, référence), soit les seules qui identifient une ligne — souvent date + libellé + montant.",
+    "Quelles colonnes l'app doit lire ou non pour identifier un doublon.",
   "noyau.mots-cles-de-la-colonne-sens":
-    "Les mots que ta banque emploie pour dire qu'une ligne sort ou entre. Ajoute-les un par un avec « + » ou Entrée ; majuscules et accents sont ignorés. Retenus avec le preset. Laisse vide pour garder les mots-clés reconnus par défaut, rappelés sous chaque champ : dès que tu en ajoutes un, il remplace toute la liste par défaut de ce sens-là.",
+    "Les mots-clés indiquant si ligne sort ou entre. Ajoute-les un par un avec « + » ou Entrée ; insensible aux majuscules et accents.",
   "noyau.mots-cles-de-la-colonne-etat":
-    "Les mots que ta banque emploie pour dire où en est une opération, même fonctionnement qu'au-dessus. Un mot inconnu met la ligne en erreur plutôt que d'être deviné. Laisse vide pour garder les mots-clés reconnus par défaut : dès que tu en ajoutes un, il remplace toute la liste par défaut de cet état-là.",
+    "Les mots-clés indiquant l'état de l'opération : utile si ton fichier renseigne des status (ex : en attente, complété, annulé).",
   "noyau.devises-a-faire-correspondre":
-    "Ton relevé écrit « EUR », l'app connaît les monnaies que tu as nommées. Dis-le une fois, c'est retenu pour la suite.",
+    "Même fonctionnement que pour les catégories : enregistre la correspondance une fois pour toutes.",
   "noyau.devises-deja-rattachees":
-    "Ces libellés ont déjà leur correspondance : rien à faire, c'est là pour vérifier avant de confirmer.",
+    "Ces libellés ont déjà leur correspondance : simplement là pour vérifier avant de confirmer.",
   "noyau.historique-des-importations":
-    "Annuler un import retire les opérations qu'il avait créées, celles que tu as modifiées depuis comprises. Le fichier redevient importable.",
+    "Annuler un import retire les opérations qu'il avait créées, qu'elles aient été modifiées ou non.",
   "noyau.extensions":
     "Une extension ajoute une fonctionnalité. La désactiver fait disparaître son écran sans rien effacer — tout revient si tu la rallumes.",
   "noyau.base-de-donnees":
-    "L'application lit et écrit dans un seul fichier .db. Tu choisis où il vit ; l'emplacement est retenu d'un lancement à l'autre. « Basculer » exige un fichier existant ; « Créer / déplacer ici » accepte un chemin neuf, et y déplace la base ouverte si elle est encore dans le dossier de l'application. Une base restée à une version de schéma antérieure est mise à jour à la bascule, après copie horodatée à côté du fichier d'origine. Le bouton « Parcourir » ne pré-remplit que le NOM du fichier : un navigateur ne transmet jamais le chemin complet, complète le dossier à la main.",
+    "L'application lit et écrit dans un seul fichier .db. « Basculer » permet de lire un fichier différent. « Créer / déplacer ici » déplace la base actuelle dans le nouveau dossier.",
 
   /* ----- Extension « Import de placements » ----- */
   "import-placements.format-du-fichier":
     "Un preset par courtier : colonnes à lire et vocabulaire de ses relevés. Ceux des relevés bancaires vivent à part, sur la page Import.",
   "import-placements.compte-de-placements-de-ce-preset":
     "Un relevé de courtier ne dit jamais quel compte il décrit. Le lier ici évite de le choisir à chaque import ; laisse vide si plusieurs comptes ont le même format.",
+  "import-placements.colonnes-lues":
+    "Clique sur l'œil pour lire ou ignorer une colonne. Les colonnes proposées dépendent de ce que le fichier contient : une liste d'opérations lit une date et un type, une photographie lit une quantité détenue et un prix de revient.",
   "import-placements.le-fichier-contient":
     "Une liste d'opérations rejoue l'histoire du compte : une ligne par achat, vente ou transfert, chacune datée. Une photographie dit ce que tu détiens aujourd'hui : une ligne par titre, sa quantité, son prix de revient. La photographie évite de réimporter dix ans de mouvements.",
   "import-placements.mots-cles-de-la-colonne-type-d-operation":
@@ -290,41 +287,45 @@ const TEXTES = {
 
   /* ----- Extension « Intérêts perçus » ----- */
   "interets-percus.interets-percus":
-    "Saisis ce que la banque t'a réellement versé, tel que le relevé l'annonce. Rien n'est calculé à ta place : un taux annuel ne peut pas retrouver le bon chiffre quand il change en cours d'année. Seuls les comptes d'épargne sont ici. Ces montants S'AJOUTENT AU SOLDE du compte, sans être écrits en opération : ils n'apparaissent donc pas dans la page Opérations et ne pèsent sur aucun flux du mois. ATTENTION SI TON RELEVÉ LES PORTE AUSSI : importer la ligne d'intérêts après l'avoir saisie ici compterait la somme deux fois — saisis-la ici, ou importe-la, pas les deux.",
+    "Pour renseigner les intérêts perçus sur tes comptes de placements. Pense à les remettre à 0 si un import de relevé les importe.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
   "investing-overview.repartition-par-classe":
-    "À QUOI ton portefeuille expose, quelle que soit la façon dont tu le détiens : actions, obligations, immobilier, monétaire. C'est la question à laquelle le graphe du dessus ne peut pas répondre — un ETF obligataire y compte comme un ETF, pas comme de l'obligataire. Ce disque n'apparaît que si tu as classé au moins un titre.",
+    "À quoi ton portefeuille est exposé : actions, obligations, immobilier, monétaire ?",
   "investing-overview.repartition-par-type-de-titre":
-    "COMMENT ton portefeuille est détenu : la part qui passe par des ETF, celle que tu as choisie titre par titre, celle qui est en SCPI. À la valeur d'aujourd'hui, tous comptes confondus. Survole une part pour voir les titres qui la composent.",
+    "Comment ton portefeuille est détenu : quelles sont les enveloppes que tu utilises ?",
 
   /* ----- Extension « Monnaies » ----- */
   "monnaies.monnaies":
-    "Chaque monnaie garde ses propres soldes et budgets, jamais mélangés aux autres. Le symbole est ce qui s'affiche à côté des montants.",
+    "Tooltip à SUPPRIMER",
   "monnaies.taux-de-change":
-    "Ce que vaut une monnaie dans une autre. Sert uniquement à la case « tout convertir » du dashboard, et ne modifie aucun montant enregistré. Un seul sens par couple suffit, l'inverse se calcule.",
+    "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.",
 
   /* ----- Extension « Placements » ----- */
   "placements.titres-suivis":
-    "Tes titres, communs à tous tes comptes : le même ETF peut être détenu sur deux comptes. Le cours se saisit à la main, ou se relit en ligne avec l'extension Lecture de cours. Il ne sert qu'à la valorisation, jamais à un solde.",
+    "Les titres que tu utilises sur l'app. Le cours se saisit à la main ou se lit en ligne avec l'extension Lecture de cours.",
   "placements.afficher-les-titres-archives":
-    "Archiver, c'est ranger, pas effacer : le titre quitte les listes, son historique reste. C'est ici qu'on le remet en service.",
+    "Tooltip à SUPPRIMER",
   "placements.enveloppe":
-    "Comment ce titre est détenu : un ETF, une action que tu as choisie toi-même, une SCPI. Facultatif, et modifiable à tout moment.",
+    "Voir l'infobulle plus bas.",
   "placements.classe-actif":
-    "À quoi ce titre expose : actions, obligations, immobilier… C'est l'autre question, et elle ne se déduit pas de la première — un ETF obligataire est un ETF (enveloppe) et de l'obligataire (classe). Facultatif.",
+    "Voir l'infobulle plus bas.",
   "placements.types-de-titre":
-    "COMMENT tes titres sont détenus : ETF, action en direct, fonds, SCPI. Tes propres étiquettes, que tu nommes comme tu veux. À ne pas confondre avec la classe d'actif juste en dessous, qui dit à QUOI ils exposent — un ETF obligataire est un ETF et de l'obligataire. Purement descriptif : aucun solde ni aucune valorisation n'en dépend.",
+    "Sous quelle forme tes titres sont détenus : ETF, action en direct, fonds et SCPI sont livrés par défaut.",
   "placements.classes-actif":
-    "À QUOI tes titres exposent, quelle que soit la façon dont tu les détiens. Cinq classes sont livrées parce que ce vocabulaire est le même pour tout le monde, contrairement aux enveloppes que chacun nomme à sa façon ; renomme-les et supprime-les librement. Purement descriptif, comme tout le reste ici.",
+    "À quel type d'objet financier tes avoirs t'exposent-ils ?",
 
   /* ----- Extension « Objectifs » ----- */
   "objectifs.objectifs":
-    "Les règles que tu te donnes et que le budget ne sait pas écrire. Une enveloppe compte des euros dépensés, un objectif de répartition une part du total : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine » ni « mes courses ne devraient pas dépasser 40 € en moyenne ». Un objectif mesure ce que tu veux suivre, le compare à une cible, et ne refuse jamais rien — il constate. Les périodes ci-dessus disent seulement sur quoi tu regardes : un objectif n'a pas de mois, il a une cadence.",
+    "Les objectifs te permettent de te fixer des cibles et les visualiser concrètement.",
+  "objectifs.perimetre":
+    "Sur quoi porte l'objectif. -- Toutes les dépenses : tout ce qui sort, tous postes confondus. -- Une catégorie : elle classe une dépense par nature, et une dépense n'en a qu'une. -- Un projet : il regroupe par événement (un voyage, des travaux), à travers les catégories et les comptes. Une dépense peut appartenir à plusieurs projets. -- Une catégorie ou un projet, jamais les deux : les deux axes se croisent, et l'hôtel d'un voyage est à la fois dans « Loisirs » et dans « Italie ».",
+  "objectifs.avec-cible":
+    "Un objectif peut n'avoir aucune cible : il se contente alors d'afficher son chiffre sous les graphes du dashboard, sans dire s'il est tenu ou manqué. -- C'est le cas ordinaire d'un projet en cours : on veut voir ce qu'il coûte bien avant de savoir ce qu'on s'autorise. -- Attention, une cible à zéro n'est pas « pas de cible » : c'est une règle, et une règle sévère (« rien du tout ce mois-ci »).",
   "objectifs.mesure":
-    "Quatre mesures, et elles ne se calculent pas sur le même périmètre. MONTANT TOTAL et PART DES DÉPENSES se lisent exactement comme l'histogramme et le camembert du dashboard : une dépense amortie n'y compte que pour la part du mois, une remboursable pour ce qui te reste à charge. NOMBRE DE DÉPENSES et MONTANT MOYEN comptent des lignes de relevé : une dépense, à sa date, pour son montant — un compte ne s'étale pas, et une moyenne doit valoir ce que tu lis sur ton relevé.",
+    "Quatre objectifs, deux manières de calculer. Montant total et part des dépenses fonctionnent comme les graphiques. Nombre de dépenses et montant moyen font abstraction des règles comme l'amortissement.",
   "objectifs.cadence":
-    "L'unité dans laquelle ta cible est écrite, et rien d'autre : elle ne décide pas de ce que tu regardes. Quand la période affichée tient dans une cadence — un objectif mensuel lu sur un mois — tu lis ton CUMUL face à ta cible : « 196 € sur 250 € » le 19 du mois, et rien n'est prédit de ce que tu dépenseras d'ici au 30. Quand elle en contient plusieurs — un objectif hebdomadaire lu sur un mois — c'est une MOYENNE sur le temps déjà écoulé : « 3,8 par semaine », et c'est ce chiffre-là qui se compare à ta cible.",
+    "Te permet de régler la plage temporelle que couvre l'objectif. -- Si tu indiques mois et que le dashboard est sur la vue mois, tu vois le total. -- Si tu indiques mois et que le dashboard est en vue année, tu verras la moyenne sur tous les mois existants.",
   "objectifs.visible-dashboard":
     "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.",
   "objectifs.dashboard":
@@ -349,7 +350,32 @@ const TEXTES = {
     "L'autre compte du virement, celui que le relevé ne nomme pas. Le sens se déduit du signe du montant. Sans lui, la ligne est à compléter à la main dans l'aperçu.",
   "regles.arreter-la-lecture-des-regles-ici":
     "Coché, le réglage habituel : cette règle décide, on s'arrête là. Décoché, les règles suivantes peuvent compléter ce qu'elle laisse ouvert — la catégorie, le compte en face. Le type reste celui de la première règle qui a mordu.",
+  "regles.autres-proprietes":
+    "Tout ce qu'une règle peut changer d'autre sur la ligne, sauf ses montants et sa date. Chaque champ est facultatif : laissé vide, la règle n'en dit rien. Le nouveau nom ne change pas ce que les règles comparent — elles lisent toutes le libellé du relevé.",
+  "regles.sorties-conditionnelles":
+    "La règle détecte une fois, et peut agir de plusieurs façons selon la ligne. Chaque sortie a ses propres conditions : la première qui correspond remplace les actions de la règle qu'elle renseigne, les champs laissés vides gardent celles de la règle. Aucune ne correspond : la règle agit telle quelle. Exemple : une règle « Virement interne » avec une sortie « contient LIVRET → compte en face Livret A » et une autre « contient PEA → compte en face PEA ».",
+  "regles.tuto-resume":
+    "Écrire une règle de bout en bout : ce qu'elle détecte, ce qu'elle change, ses sorties conditionnelles, et l'ordre dans lequel les règles se lisent.",
+  "regles.tuto-page":
+    "Les règles s'appliquent à chaque ligne importée, avant que tu ne la voies dans l'aperçu. Elles vivent ici, au-dessus des correspondances.",
+  "regles.tuto-nouvelle":
+    "Ce bouton ouvre l'éditeur d'une règle vide. On vient de l'ouvrir pour toi : rien n'est enregistré tant que tu ne cliques pas sur « Enregistrer ».",
+  "regles.tuto-nom":
+    "Un nom qui dit ce que la règle fait, et une note qui dit pourquoi elle existe — dans six mois, c'est la seule chose qui manquera.",
+  "regles.tuto-detection":
+    "Ce que la règle doit reconnaître. Une condition porte sur un champ de la ligne (libellé, catégorie bancaire, compte, montant) ; ses mots-clés se combinent en ET. Les groupes permettent d'écrire « (A ou B) et C ». Majuscules et accents sont ignorés.",
+  "regles.tuto-action":
+    "Ce que la règle fait de la ligne reconnue : son type, puis sa catégorie (ou une découpe entre plusieurs). « — ne pas changer — » laisse le type aux règles suivantes.",
+  "regles.tuto-autres":
+    "Tout le reste de la ligne peut changer aussi, sauf ses montants et sa date : son nom, son compte, une note, un amortissement. Un champ vide ne change rien.",
+  "regles.tuto-sorties":
+    "Quand ce que la règle doit faire dépend d'un détail de la ligne, inutile de la recopier : ajoute des sorties. Chacune a ses conditions et ses actions, et la première qui correspond l'emporte. Typiquement : une seule règle « Virement interne », une sortie par compte en face.",
+  "regles.tuto-ordre":
+    "Les règles se lisent de haut en bas. Coché, ce réglage arrête la lecture quand la règle correspond ; décoché, les suivantes peuvent compléter ce qu'elle a laissé ouvert. La plus haute l'emporte toujours.",
+  "regles.tuto-liste":
+    "L'ordre se change en glissant les règles dans la liste. La vue galerie les range par dossiers pour s'y retrouver, sans jamais changer cet ordre. Pour voir le résultat, importe un relevé : l'aperçu dit, ligne par ligne, quelle règle a agi.",
   "regles.conditions":
+
     "Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se combinent selon leur propre connecteur. Deux niveaux suffisent à écrire « (A ou B) et C ».",
   "regles.action":
     "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.",
@@ -490,7 +516,268 @@ function appliquerTextes(racine) {
   });
 }
 
+/**
+ * La description d'une extension : celle de textes.js (`<id>.description`),
+ * et à défaut celle de son manifeste — le cas d'une extension tierce, que ce
+ * fichier ne connaît pas.
+ */
+function descriptionExtension(extension) {
+  const cle = `${extension.id}.description`;
+  return TEXTES[cle] !== undefined ? TEXTES[cle] : extension.description || "";
+}
+
 /** Le texte d'une clé, ou la clé elle-même si elle est inconnue. */
 function texteAide(cle) {
   return TEXTES[cle] !== undefined ? TEXTES[cle] : cle;
 }
+
+/* ---------- LA MISE EN FORME D'UNE PHRASE D'AIDE ----------
+ *
+ * POURQUOI. Certaines explications ÉNUMÈRENT des cas, d'autres renvoient à un
+ * écran (« dans Paramètres → Comptes »). Écrits à la suite, les cas forment un
+ * pavé qu'on relit trois fois pour trouver le sien ; un renvoi écrit en toutes
+ * lettres oblige à refaire le chemin à la main. Quatre marqueurs, écrits DANS
+ * la phrase, suffisent à dire les deux :
+ *
+ *   - « /- » (ou « -- », la forme d'origine) ouvre une PUCE. Ce qui précède le
+ *     premier marqueur est l'introduction.
+ *   - « // » est un SAUT DE LIGNE : ce qui suit forme un nouveau paragraphe,
+ *     avec ses propres puces éventuelles.
+ *   - « /bold(texte) » met en GRAS, « /italic(texte) » en ITALIQUE.
+ *   - « /Chemin/Vers/L'écran » est un LIEN. Le marqueur disparaît de
+ *     l'affichage, et c'est le texte qu'il décrit — le chemin écrit en toutes
+ *     lettres juste AVANT lui (« Paramètres → Comptes ») — qui devient bleu et
+ *     cliquable. Le chemin S'ARRÊTE À LA PONCTUATION (« ) , . ; : ! ? »), ou en
+ *     fin de phrase : « /Paramètres/Base de données. » désigne bien « Base de
+ *     données ».
+ *
+ * Pas de balise, pas de second champ, pas de clé à part — une phrase d'aide
+ * reste UNE chaîne, et c'est ce qui permet au dictionnaire i18n de continuer à
+ * la traduire d'un seul tenant (cf. le bloc d'en-tête de ce fichier).
+ *
+ * LE DÉCOUPAGE SE FAIT À L'AFFICHAGE, JAMAIS AU STOCKAGE, et c'est la
+ * condition de ce qui précède : `data-info` voyage avec ses marqueurs, sa
+ * traduction anglaise aussi, et la bulle découpe au moment de s'ouvrir.
+ * Découper plus tôt aurait exigé une entrée de dictionnaire par morceau.
+ *
+ * UN CHEMIN SE RÉSOUT AU CLIC, PAS À L'ÉCRITURE (cf. notice.js,
+ * `ouvrirCheminApplication`) : il désigne des onglets PAR LEUR NOM, dans la
+ * langue affichée, et les onglets d'une extension n'existent qu'une fois
+ * celle-ci chargée — c'est-à-dire bien après que la notice a été écrite.
+ */
+const PUCE_MARQUEUR = "--";
+const SAUT_MARQUEUR = "//";
+// « /- » et sa variante « / - », plus « -- » : la forme d'origine reste lue,
+// toutes les phrases écrites avant la nouvelle ne sont donc pas à reprendre.
+const PUCE_MOTIF = /\s*(?:--|\/\s?-)\s*/;
+// Ce qui arrête un chemin : la ponctuation, ou un autre marqueur.
+const CHEMIN_FIN = /[),.;:!?«»(\n]/;
+
+/** Vrai si la phrase porte au moins un marqueur (et demande donc un rendu). */
+function texteAMarqueurs(texte) {
+  const s = String(texte || "");
+  return s.includes(SAUT_MARQUEUR) || PUCE_MOTIF.test(s) || debutCheminDans(s, 0) !== -1;
+}
+
+/* L'indice du prochain « / » qui ouvre un chemin, ou -1. Un chemin commence
+ * EN DÉBUT DE PHRASE OU APRÈS UN BLANC, et son premier caractère est une
+ * lettre : « et/ou », « 1/12 » ou « // » ne sont pas des chemins. */
+function debutCheminDans(texte, depuis) {
+  for (let i = texte.indexOf("/", depuis); i !== -1; i = texte.indexOf("/", i + 1)) {
+    const avant = i === 0 ? " " : texte[i - 1];
+    if (/\s/.test(avant) && /\p{L}/u.test(texte[i + 1] || "")) return i;
+  }
+  return -1;
+}
+
+/**
+ * {intro, puces} — `puces` est vide quand la phrase n'en porte aucune.
+ * Conservé tel quel pour qui ne veut que le découpage en puces.
+ */
+function texteEnPuces(texte) {
+  const morceaux = String(texte || "").split(PUCE_MOTIF);
+  const intro = morceaux.shift().trim();
+  return {
+    intro,
+    // Une puce vide (deux marqueurs qui se suivent, un marqueur en fin de
+    // phrase) n'apprend rien et laisserait une ligne blanche dans la liste.
+    puces: morceaux.map((m) => m.trim()).filter(Boolean),
+  };
+}
+
+function echapperRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Le texte que décrit un chemin, pris à la fin de ce qui le précède.
+ *
+ * ON CHERCHE LE CHEMIN ÉCRIT EN TOUTES LETTRES, du plus long au plus court :
+ * « Paramètres → Comptes » pour /Paramètres/Comptes, puis « Comptes » seul.
+ * Entre deux étapes, n'importe quel séparateur usuel (→, >, /, espace).
+ *
+ * À DÉFAUT, LE DERNIER MOT : « la fonctionnalité d'amortissement /Les types
+ * d'opérations » n'écrit pas le chemin, et rien ne dit où commence ce que
+ * l'auteur voulait souligner. Un mot reste cliquable ; souligner la phrase
+ * entière aurait été deviner.
+ */
+function libelleDuChemin(avant, etapes) {
+  for (let k = etapes.length; k >= 1; k--) {
+    const motif = etapes
+      .slice(-k)
+      .map((e) => echapperRegExp(e.trim()) + "s?")
+      .join("\\s*(?:→|->|>|/|»)?\\s*");
+    const trouve = new RegExp(`(${motif})\\s*$`, "i").exec(avant);
+    if (trouve) return { avant: avant.slice(0, trouve.index), libelle: trouve[1] };
+  }
+  const mot = /(\S+)\s*$/.exec(avant);
+  if (mot) return { avant: avant.slice(0, mot.index), libelle: mot[1] };
+  // Rien avant le marqueur : le chemin se nomme lui-même.
+  return { avant, libelle: etapes.join(" → ") };
+}
+
+/* GRAS ET ITALIQUE : « /bold(texte) » et « /italic(texte) ». Lus AVANT les
+ * chemins — « /bold( » commence comme un chemin — et récursivement : le texte
+ * entre parenthèses peut porter un lien ou l'autre style. Les parenthèses
+ * s'équilibrent, un « ) » ouvert à l'intérieur ne ferme donc rien. Une
+ * parenthèse jamais refermée met en forme jusqu'à la fin du morceau. */
+const STYLE_MOTIF = /\/(bold|italic)\(/;
+
+/** Écrit un morceau de texte dans `parent` : styles, puis chemins en liens. */
+function ecrireMorceauAvecChemins(parent, texte) {
+  const trouve = STYLE_MOTIF.exec(texte);
+  if (!trouve) {
+    ecrireCheminsSeuls(parent, texte);
+    return;
+  }
+  ecrireCheminsSeuls(parent, texte.slice(0, trouve.index));
+  const debut = trouve.index + trouve[0].length;
+  let profondeur = 1;
+  let i = debut;
+  for (; i < texte.length && profondeur > 0; i++) {
+    if (texte[i] === "(") profondeur++;
+    else if (texte[i] === ")") profondeur--;
+  }
+  const ferme = profondeur === 0;
+  const fin = ferme ? i - 1 : texte.length;
+  const element = document.createElement(trouve[1] === "bold" ? "strong" : "em");
+  ecrireMorceauAvecChemins(element, texte.slice(debut, fin));
+  parent.appendChild(element);
+  if (ferme) ecrireMorceauAvecChemins(parent, texte.slice(fin + 1));
+}
+
+/** Écrit un morceau de texte dans `parent`, chemins changés en liens. */
+function ecrireCheminsSeuls(parent, texte) {
+  let reste = texte;
+  let i;
+  while ((i = debutCheminDans(reste, 0)) !== -1) {
+    let fin = i + 1;
+    while (fin < reste.length && !CHEMIN_FIN.test(reste[fin])) {
+      // Un autre marqueur de chemin arrête aussi celui-ci.
+      if (reste[fin] === "/" && /\s/.test(reste[fin - 1])) break;
+      fin++;
+    }
+    const brut = reste.slice(i + 1, fin).trim();
+    const etapes = brut.split("/").map((e) => e.trim()).filter(Boolean);
+    const { avant, libelle } = libelleDuChemin(reste.slice(0, i).replace(/\s+$/, ""), etapes);
+    if (avant) parent.appendChild(document.createTextNode(avant + (/\s$/.test(avant) ? "" : " ")));
+    const lien = document.createElement("a");
+    lien.className = "lien-chemin";
+    lien.href = "#";
+    lien.dataset.chemin = etapes.join("/");
+    lien.textContent = libelle;
+    parent.appendChild(lien);
+    reste = reste.slice(fin);
+  }
+  if (reste) parent.appendChild(document.createTextNode(reste));
+}
+
+/**
+ * Écrit un texte d'aide dans un élément : paragraphes, puces, liens.
+ *
+ * CONSTRUIT EN NŒUDS, JAMAIS EN `innerHTML` : ces phrases sont écrites à la
+ * main dans ce fichier, mais rien n'oblige la suivante à l'être — et une
+ * fonction qui accepte du HTML finit toujours par en recevoir d'ailleurs.
+ */
+function ecrireTexteAide(el, texte) {
+  el.textContent = "";
+  const blocs = String(texte || "")
+    .split(SAUT_MARQUEUR)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  // UN SEUL BLOC SANS PUCE s'écrit à plat, comme avant : une pastille « i »
+  // ordinaire ne doit pas gagner un paragraphe et sa marge.
+  const simple = blocs.length <= 1 && !texteEnPuces(blocs[0] || "").puces.length;
+  if (simple) {
+    ecrireMorceauAvecChemins(el, blocs[0] || "");
+    return;
+  }
+  blocs.forEach((bloc) => {
+    const { intro, puces } = texteEnPuces(bloc);
+    if (intro) {
+      const paragraphe = document.createElement("p");
+      paragraphe.className = "texte-aide-intro";
+      ecrireMorceauAvecChemins(paragraphe, intro);
+      el.appendChild(paragraphe);
+    }
+    if (!puces.length) return;
+    const liste = document.createElement("ul");
+    liste.className = "texte-aide-puces";
+    puces.forEach((puce) => {
+      const ligne = document.createElement("li");
+      ecrireMorceauAvecChemins(ligne, puce);
+      liste.appendChild(ligne);
+    });
+    el.appendChild(liste);
+  });
+}
+
+/**
+ * La passe de mise en forme des BLOCS d'aide (`data-texte-cle`), à lancer
+ * APRÈS `traduireDomStatique`.
+ *
+ * Ces blocs reçoivent leur phrase en un seul nœud de texte — c'est ce que le
+ * dictionnaire traduit — et ce n'est donc qu'une fois traduits qu'on peut les
+ * découper sans perdre l'anglais. Les pastilles « i », elles, n'ont pas besoin
+ * de cette passe : leur texte vit dans un ATTRIBUT et la bulle le découpe en
+ * s'ouvrant (cf. app.js, `afficherInfobulle`).
+ */
+function appliquerPuces(racine) {
+  racine.querySelectorAll("[data-texte-cle]").forEach((el) => {
+    if (texteAMarqueurs(el.textContent)) ecrireTexteAide(el, el.textContent);
+  });
+}
+
+Object.assign(TEXTES, {
+
+  /* ----- Les descriptions des extensions -----
+     Affichées dans Paramètres → Extensions, dans la notice (chapitre « Les
+     extensions ») et dans la fenêtre « Extensions détectées », que
+     l'extension soit allumée ou non. La clé est `<identifiant>.description`.
+     Une extension tierce, absente d'ici, garde la description de son
+     manifeste (cf. descriptionExtension, plus bas). */
+  "analyse-budget.description":
+    "C'est LA page pour pouvoir tenir ton budget. // Elle te permet de sélectionner un budget pour ton mois et de choisir des budgets par catégorie. // Tu peux l'utiliser pour comparer les graphiques du dashboard sur différentes périodes, et mieux comprendre comme tu gères ton argent avec plus de recul. // Elle te permet également d'avoir accès à trois nouveaux indicateurs : /- L'argent que tu as mis de côté sur la période (virements internes vers tes comptes d'épargne ou de placements) /- Un matelas de sécurité que tu définis, utile pour s'assurer que ce dernier se porte bien /- La classification de dépenses comme étant imprévues, et le montant de ces imprévus sur la période : cet indicateur te permet de mieux comprendre ce qu'on n'anticipe jamais et qu'on finit par souvent par définir comme impossible à prendre en compte dans le budget ",
+  "import-placements.description":
+    "C'est l'extension te permettant d'importer des relevés pour tes titres de placements (nécessite l'extension Placements). Le mécanisme d'import est le même que celui pour l'import d'informations, et l'information clé est l'ISIN d'un titre - un identifiant unique.",
+  "interets-percus.description":
+    "Un compte d'épargne te rapporte de l'argent passivement, à des fréquences différences (journalier, mensuel, annuel, ...). Néanmoins, une opération ne s'écrit pas pour autant dans tes relevés - l'app affichera donc un montant erroné pour ton compte de placements quand tes intérêts apparaîtront sur ton compte. // Cette extension - s'affichant dans la page Vue des avoirs /Vue des avoirs - te permet de renseigner à la main ces intérêts et les assigner à un compte de placements.",
+  "investing-overview.description":
+    "Cette extension te permet d'avoir une vue d'ensemble sur les actifs que tu possèdes (nécessite l'extension Placements), avec plusieurs classifications (type d'actifs, d'enveloppes) pour mieux comprendre ce que tu possèdes, comment et à quoi tes actifs t'exposent.",
+  "lecture-de-cours.description":
+    "IMPORTANT : cette extension est la seule à te permettre de relier ton app à internet. Elle te permet de fournir des liens de pages de cotation pour que l'app les utilise : elle nécessite l'extension Placements financiers (lecture de cours d'actifs) ou Monnaies (lecture de taux de change).",
+  "monnaies.description":
+    "Sans cette extension, l'application est mono-devise. L'activer te permet de créer de nouvelles monnaies, et donc de relier des dépenses ou des comptes à différentes monnaies pour ne pas mélanger ce qui ne se mélange.",
+  "objectifs.description":
+    "Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois).",
+  "placements.description":
+    "Grâce à cette extension, tu peux renseigner et comprendre les actifs que tu détiens (achat, vente, plus-value, valorisation). Une fois activée, tu retrouveras cette page en onglet de la page Vue des avoirs /Vue des avoirs.",
+  "prets.description":
+    "Te permet de classifier comme tel et suivre l'argent qu'on t'a prêté (intérêts compris). Le fonctionnement de ces types d'opérations est similaire aux opérations remboursables / remboursements.",
+  "projets.description":
+    "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories.",
+  "regles.description":
+    "L'une des extensions phares de l'application. Ta banque fournit un libellé conséquent pour des dépenses récurrentes, que tu dois renommer sans cesse ? Tu voudrais automatiser les modifications récurrentes que tu fais ? L'extension règle t'apporte la flexibilité de faire /bold(ce que tu veux).",
+  "suivi-remboursements.description":
+    "On te doit de l'argent à droite à gauche, et tu dois des dépenses, des montants, de combien on t'a remboursé et des personnes de tête ? // Active cette extension pour avoir accès à deux types d'opérations : /- les opérations remboursables : tu peux y sélectionner le montant à rembourser, le montant dû et l'extension te permet d'ajouter qui te doit l'argent via le menu Suivi des remboursements /- les remboursements reçus : comme une opération classique, que tu peux relier à l'opération remboursable - le montant dû se met alors automatiquement à jour // italic(La page Suivi des remboursements te permet de voir tous tes remboursements en attente et indiquer qui te doit quoi.)",
+});

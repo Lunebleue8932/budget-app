@@ -2669,3 +2669,66 @@ def test_un_reglement_lie_est_rattache_a_son_import(db_session):
 
     assert annulation.operations_supprimees == 3
     assert db_session.query(models.Operation).count() == 0
+
+
+@pytest.mark.parametrize(
+    "valeur",
+    [
+        "14 sept. 2026",
+        "14 sept 2026",
+        "14 septembre 2026",
+        "14 Sep 2026",
+        "14 September 2026",
+        "14-Sep-2026",
+        "Sep 14, 2026",
+        "2026-Sep-14",
+        "14 sept. 26",
+        "14 Sep 2026 09:32",
+    ],
+)
+def test_un_mois_ecrit_en_lettres_est_une_date(valeur):
+    """« 14 sept. 2026 » est une date, et aucun format numérique ne la lit.
+
+    Les exports anglo-saxons et les PDF convertis en tableur datent ainsi ; le
+    relevé entier tombait alors en « date illisible », c'est-à-dire aucune ligne
+    importable, sans que rien à l'écran ne dise pourquoi. Les trois ordres sont
+    lus, en français comme en anglais, parce que c'est la POSITION du seul mot
+    de la ligne qui décide du reste."""
+    assert import_bancaire.parser_date(valeur) == date(2026, 9, 14)
+
+
+@pytest.mark.parametrize(
+    "valeur",
+    [
+        "VIR SEPT 2024",  # un libellé d'opération, pas une date
+        "jui 15 2026",  # juin ou juillet : on ne tranche pas
+        "15 2026",  # deux nombres, aucun mois
+        "REF-001",
+        "15 sept. 2026 extra",
+    ],
+)
+def test_ce_qui_ressemble_a_une_date_en_lettres_sans_en_etre_une(valeur):
+    """La contrepartie de la lecture ci-dessus : les DEUX autres morceaux
+    doivent être des nombres, et le mot ne doit désigner qu'un seul mois.
+
+    Sans la première exigence, un libellé comme « VIR SEPT 2024 » deviendrait
+    une date et l'aperçu réécrirait une nature en « 01/09/2024 » ; sans la
+    seconde, « jui » daterait une opération d'un mois qu'elle n'a pas."""
+    assert import_bancaire.parser_date(valeur) is None
+
+
+@pytest.mark.parametrize(
+    ("valeur", "attendu"),
+    [
+        ("14/07/26", date(2026, 7, 14)),
+        ("14-07-26", date(2026, 7, 14)),
+        ("2026/07/14", date(2026, 7, 14)),
+        ("14/07/99", date(1999, 7, 14)),
+    ],
+)
+def test_annee_sur_deux_chiffres_et_ordre_iso_avec_barres(valeur, attendu):
+    """Trois formats numériques de plus, tous sans ambiguïté. L'année à deux
+    chiffres suit la convention de `%y` : 00-68 est le XXIe siècle, 69-99 le
+    XXe. Les variantes à quatre chiffres restent essayées d'abord, si bien
+    qu'aucune ne peut voler une date à l'autre."""
+    assert import_bancaire.parser_date(valeur) == attendu

@@ -10,12 +10,9 @@
  * ajustement.
  */
 
-/* LA BARRE DE PÉRIODE EST CELLE DU NOYAU (`.selecteur-contexte`, cf.
-   frontend/style.css), comme celle de la page Budget dont cet onglet est
-   voisin : deux écrans de la même page qui demandent la même chose doivent le
-   demander pareil, et deux copies du même style divergent au premier
-   ajustement. `.obj-contexte` reste comme prise pour ce qui serait propre à cet
-   onglet — aujourd'hui rien. */
+/* IL N'Y A PLUS DE BARRE DE PÉRIODE ICI, et c'est un retrait réfléchi : cet
+   écran sert à POSER des règles, pas à les lire — on les lit au dashboard, qui
+   a déjà ses onglets de monnaie et son sélecteur de période (cf. page.html). */
 
 /* ---------- Les cartes ----------
  *
@@ -79,6 +76,20 @@
 .obj-manque .obj-etat {
   background: var(--error-bg);
   color: var(--error-text);
+}
+
+/* UN OBJECTIF SANS CIBLE NE SE PEINT NI EN VERT NI EN ROUGE (migration 0070) :
+   il ne juge rien, il constate — « voilà ce que ce projet a coûté ce mois-ci ».
+   Son liseré reste celui de la carte ordinaire, et son état est un mot neutre
+   plutôt qu'un verdict. Colorer une carte dont personne n'a fixé le bout aurait
+   été un jugement inventé de toutes pièces. */
+.obj-carte.obj-sans-cible {
+  border-left-color: var(--border);
+}
+
+.obj-etat-suivi {
+  background: var(--bg-surface-alt);
+  color: var(--text-muted);
 }
 
 /* Les deux boutons d'édition, poussés au bout de la ligne de titre : ils

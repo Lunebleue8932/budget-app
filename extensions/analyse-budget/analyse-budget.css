@@ -201,11 +201,14 @@
   margin-bottom: 1.5rem;
 }
 
+/* DEUX COLONNES, ET PLUS TROIS : la part n'a plus la sienne depuis qu'elle est
+   une case de la première, à côté du montant qu'elle traduit (cf.
+   analyse-budget.js, « UN SEUL CURSEUR, DEUX CASES »). */
 .ab-budget-entete,
 .ab-budget-ligne,
 .ab-budget-somme {
   display: grid;
-  grid-template-columns: minmax(8rem, 14rem) 1fr 1fr;
+  grid-template-columns: minmax(8rem, 14rem) 1fr;
   align-items: center;
   gap: 0.6rem 1.2rem;
   padding: 0.45rem 0;
@@ -231,11 +234,14 @@
   color: var(--text-primary);
 }
 
-/* Le curseur prend la place, le nombre en garde juste assez pour son montant :
-   c'est le curseur qu'on manipule, le nombre qu'on vérifie. */
+/* Le curseur prend la place, les deux cases en gardent juste assez pour leur
+   nombre : c'est le curseur qu'on manipule, les cases qu'on vérifie — ou qu'on
+   remplit quand on veut une valeur exacte. Elles se replient sous le curseur
+   sur une fenêtre étroite plutôt que de l'écraser. */
 .ab-budget-curseur {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -265,32 +271,24 @@
   border-color: var(--accent);
 }
 
+/* La part tient sur quatre caractères (« 16,7 »), le montant sur sept
+   (« 1 234,56 ») : leur donner la même largeur aurait laissé la première à
+   moitié vide juste à côté de la seconde. */
+.ab-budget-curseur input[data-champ="objectif"] {
+  width: 4.2rem;
+}
+
+/* SANS BUDGET DU MOIS, PAS DE DÉNOMINATEUR : la case est éteinte, et son
+   placeholder « — » dit qu'il n'y a pas de valeur plutôt qu'une valeur nulle. */
+.ab-budget-curseur input[type="number"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .ab-budget-unite {
   font-size: 0.78rem;
   color: var(--text-muted);
   width: 1.2rem;
-}
-
-/* LE DÉSACCORD COURT SUR TOUTE LA LIGNE, sous les deux curseurs qui le
-   provoquent (cf. abLigneDesaccord). En jaune et non en rouge : rien n'est
-   refusé, rien n'est cassé — deux chiffres qu'on a écrits soi-même ne disent
-   simplement pas la même chose, et c'est une question, pas une erreur. */
-.ab-budget-desaccord {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  font-size: 0.78rem;
-  color: var(--badge-remboursable-text);
-  padding: 0.35rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--badge-remboursable-bg);
-}
-
-.ab-budget-desaccord button {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
 }
 
 /* LE PIED DIT CE QU'AUCUNE LIGNE NE PEUT DIRE : ce qui est réparti, et sur
@@ -360,4 +358,56 @@
   .ab-barre-negative {
     animation: none;
   }
+}
+
+/* ---------- LES DOUZE MOIS, DANS LEUR CARTE ----------
+   Repliée, la carte garde sa taille de chiffre ; dépliée, elle prend toute la
+   largeur pour que ses douze barres se lisent. */
+.ab-carte-net .ab-deplier {
+  display: block;
+  margin-top: 0.6rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ab-carte-net .ab-deplier::after {
+  content: " ▾";
+}
+
+.ab-carte-net .ab-deplier[aria-expanded="true"]::after {
+  content: " ▴";
+}
+
+.ab-carte-net.ab-carte-depliee {
+  display: block;
+  cursor: default;
+}
+
+.ab-carte-detail {
+  margin-top: 0.8rem;
+}
+
+/* ---------- Les deux graphes, face au budget ---------- */
+
+.ab-graphes-periode {
+  margin-bottom: 0.4rem;
+}
+
+/* La case « Comparer avec » se tient sur la ligne des listes, alignée sur
+   leur champ et non sur leur libellé. */
+.ab-graphes-periode .ab-comparer {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  align-self: flex-end;
+  padding-bottom: 0.45rem;
+}
+
+.ab-graphes-legende {
+  margin: 0 0 0.6rem;
+}
+
+.ab-graphes {
+  margin-bottom: 0.8rem;
 }

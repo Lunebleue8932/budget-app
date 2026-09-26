@@ -239,7 +239,125 @@ _CHAMP_LIBELLES_STATUT = {
 }
 
 
-_FORMATS_DATE = ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d.%m.%Y")
+_FORMATS_DATE = (
+    "%d/%m/%Y",
+    "%Y-%m-%d",
+    "%d-%m-%Y",
+    "%d.%m.%Y",
+    "%Y/%m/%d",
+    # Année sur deux chiffres, TOUJOURS après leur variante à quatre : « %y »
+    # refuse « 2026 », l'ordre ne peut donc pas voler une date à l'autre forme.
+    "%d/%m/%y",
+    "%d-%m-%y",
+    "%d.%m.%y",
+)
+
+# LES MOIS ÉCRITS EN LETTRES, français et anglais. « 15 sept. 2026 »,
+# « 3 Jan 2026 », « Sep 15, 2026 » : aucun format numérique ne les lit, et la
+# ligne entière tombait en « date illisible » — sur un relevé entier, cela
+# veut dire aucune ligne importable et rien qui dise pourquoi.
+_MOIS_EN_LETTRES = {
+    "janvier": 1,
+    "january": 1,
+    "fevrier": 2,
+    "february": 2,
+    "mars": 3,
+    "march": 3,
+    "avril": 4,
+    "april": 4,
+    "mai": 5,
+    "may": 5,
+    "juin": 6,
+    "june": 6,
+    "juillet": 7,
+    "july": 7,
+    "aout": 8,
+    "august": 8,
+    "septembre": 9,
+    "september": 9,
+    "octobre": 10,
+    "october": 10,
+    "novembre": 11,
+    "november": 11,
+    "decembre": 12,
+    "december": 12,
+}
+
+# Trois lettres au minimum : « ma » désigne aussi bien mars que mai.
+_MOIS_LETTRES_MINIMUM = 3
+
+# Ce qui sépare les trois morceaux d'une date écrite : l'espace, mais aussi le
+# tiret (« 15-Jan-2026 ») et la virgule (« Sep 15, 2026 »).
+_SEPARATEURS_DATE = re.compile(r"[\s,./\-]+")
+
+
+def _mois_depuis_lettres(jeton: str) -> Optional[int]:
+    """Le numéro du mois qu'un mot désigne, ou None si ce n'en est pas un.
+
+    PAR PRÉFIXE, et non par table d'abréviations : « sept », « sept. »,
+    « septembre » et « september » sont le même mois, et écrire les quatre
+    formes de douze mois dans deux langues aurait fait cinquante entrées à
+    tenir d'accord. Un préfixe qui désigne DEUX mois différents n'en désigne
+    aucun (« jui » — juin ou juillet) : deviner ici daterait une opération d'un
+    mois qu'elle n'a pas, et rien à l'écran ne le dirait."""
+    mot = normaliser_libelle(jeton).rstrip(".")
+    if len(mot) < _MOIS_LETTRES_MINIMUM:
+        return None
+    numeros = {num for nom, num in _MOIS_EN_LETTRES.items() if nom.startswith(mot)}
+    return numeros.pop() if len(numeros) == 1 else None
+
+
+def _parser_date_en_lettres(texte: str) -> Optional[date_type]:
+    """« 15 sept. 2026 », « Sep 15, 2026 », « 2026-Sep-15 ».
+
+    TROIS MORCEAUX, dont UN SEUL est un mois : la position du mot décide du
+    reste, et c'est ce qui permet de lire les trois ordres sans demander lequel
+    est employé. LES DEUX AUTRES SONT DES NOMBRES, sinon rien n'est lu — sans
+    cette exigence, un libellé d'opération comme « VIR SEPT 2024 » deviendrait
+    une date, et l'aperçu réécrirait une nature en « 01/09/2024 »."""
+    jetons = [j for j in _SEPARATEURS_DATE.split(texte.strip()) if j]
+    # L'heure, retirée comme partout ailleurs : une opération est du jour.
+    jetons = [j for j in jetons if ":" not in j and j.casefold() not in ("am", "pm")]
+    if len(jetons) != 3:
+        return None
+
+    mois = None
+    position = None
+    for index, jeton in enumerate(jetons):
+        numero = _mois_depuis_lettres(jeton)
+        if numero is None:
+            continue
+        if mois is not None:
+            return None  # deux mots de mois : on ne tranche pas
+        mois, position = numero, index
+    if mois is None:
+        return None
+
+    gauche, droite = [jetons[i] for i in range(3) if i != position]
+    if not (gauche.isdigit() and droite.isdigit()):
+        return None
+
+    # Quatre chiffres, c'est l'année ; à défaut, c'est le DERNIER des deux —
+    # « 15 Sep 26 » se lit comme « 15 Sep 2026 », jamais l'inverse.
+    if len(gauche) == 4 and len(droite) != 4:
+        annee_texte, jour_texte = gauche, droite
+    elif len(droite) == 4 and len(gauche) != 4:
+        annee_texte, jour_texte = droite, gauche
+    elif len(gauche) != 4 and len(droite) != 4:
+        annee_texte, jour_texte = droite, gauche
+    else:
+        return None
+    if len(annee_texte) not in (2, 4):
+        return None
+
+    annee = int(annee_texte)
+    if len(annee_texte) == 2:
+        # La convention de « %y » : 00-68 → 2000, 69-99 → 1900.
+        annee += 2000 if annee <= 68 else 1900
+    try:
+        return date_type(annee, mois, int(jour_texte))
+    except ValueError:
+        return None
 
 
 def parser_date(valeur) -> Optional[date_type]:
@@ -274,7 +392,11 @@ def parser_date(valeur) -> Optional[date_type]:
         # horodaté en ISO.
         return datetime.fromisoformat(texte).date()
     except ValueError:
-        return None
+        pass
+    # EN DERNIER, et jamais avant : les formats numériques ne se trompent pas,
+    # là où un mois en lettres demande de reconnaître un mot. Ce qu'aucun des
+    # deux ne lit n'est pas une date.
+    return _parser_date_en_lettres(texte)
 
 
 def parser_montant(valeur, separateur_decimal: Optional[str] = None) -> Optional[float]:
@@ -1647,7 +1769,11 @@ def _resoudre_ligne(
             "montant": abs(montant_op) if montant_op is not None else None,
         },
     )
-    type_code = resultat_regle.type_code if resultat_regle else TypeOperation.classique.value
+    type_code = (
+        resultat_regle.type_code
+        if resultat_regle is not None and resultat_regle.type_code
+        else TypeOperation.classique.value
+    )
 
     # LES FRAIS, MAINTENANT SEULEMENT : quel montant fait l'opération et ce que
     # les frais lui font dépendent du SENS et du TYPE, tous deux connus depuis
@@ -1786,10 +1912,39 @@ def _resoudre_ligne(
     # Jamais le même compte des deux côtés : ce serait une conversion de change,
     # qui n'a rien à faire ici (et qu'un virement à monnaie unique refuserait de
     # toute façon, cf. VirementCreate).
+    # LE COMPTE D'UNE RÈGLE PASSE DEVANT TOUT (migration 0071) : devant la
+    # colonne du fichier comme devant le compte lié au preset. C'est l'intention
+    # la plus précise qu'on ait — elle vise CES lignes-là, et pas le relevé.
+    if resultat_regle is not None and resultat_regle.compte_id is not None:
+        compte_id = resultat_regle.compte_id
+
     compte_id_autre = None
     if resultat_regle is not None and resultat_regle.compte_autre_id is not None:
         if resultat_regle.compte_autre_id != compte_id:
             compte_id_autre = resultat_regle.compte_autre_id
+
+    # LES AUTRES PROPRIÉTÉS D'UNE RÈGLE (migration 0071). Le libellé est
+    # remplacé APRÈS l'évaluation des règles, qui ont donc toutes vu le libellé
+    # LU : c'est lui que le relevé porte, et lui qu'on a sous les yeux en
+    # écrivant une condition.
+    notes_regle = None
+    imprevue_regle = False
+    amorti_regle = False
+    debut_regle = fin_regle = None
+    if resultat_regle is not None:
+        if resultat_regle.nature:
+            nature = resultat_regle.nature
+        notes_regle = resultat_regle.notes
+        imprevue_regle = bool(resultat_regle.imprevue)
+        # Un amortissement part du mois de la ligne ; sans date lisible, il n'y
+        # a pas de mois de départ, et la ligne part déjà en erreur.
+        if resultat_regle.amortissement_mois and date_op is not None:
+            amorti_regle = True
+            debut_regle = date_op.replace(day=1)
+            mois_fin = debut_regle.month - 1 + resultat_regle.amortissement_mois - 1
+            fin_regle = debut_regle.replace(
+                year=debut_regle.year + mois_fin // 12, month=mois_fin % 12 + 1
+            )
 
     return schemas.ImportLigne(
         ligne=brute["ligne"],
@@ -1837,6 +1992,11 @@ def _resoudre_ligne(
         frais_incoherents=resultat_frais.incoherents,
         nom_banque_statut=nom_statut_banque,
         statut_import=statut_import.value if statut_import is not None else None,
+        notes=notes_regle,
+        imprevue=imprevue_regle,
+        amorti=amorti_regle,
+        amortissement_debut=debut_regle,
+        amortissement_fin=fin_regle,
     )
 
 
@@ -2681,9 +2841,17 @@ def confirmer(
         # montant ») : _erreur_ligne reconstruit l'erreur à partir du seul état
         # de la ligne et ne saurait pas la retrouver, d'où ce report explicite.
         erreur_frais = None
+        # LES LIENS DE RÈGLEMENT NE SONT PAS UNE RETOUCHE DE LA LIGNE : ils ne
+        # décrivent pas ce que l'opération EST, mais ce qu'elle SOLDE, et
+        # `ImportLigne` n'a aucun champ pour les porter. Sortis des retouches
+        # avant la copie — `model_copy(update=…)` y aurait ajouté un attribut
+        # muet que plus rien ne relirait — et posés après création, seul moment
+        # où l'opération qui les porte existe.
+        liens_remboursement = None
         if override is not None:
             type_avant = ligne.type_code
             retouches = override.model_dump(exclude_none=True)
+            liens_remboursement = retouches.pop("operations_remboursees", None)
             # Un montant envoyé SAISI n'est plus déduit : l'utilisateur dit
             # lui-même ce qui est parti, et la ligne décrit dès lors ses deux
             # jambes comme le ferait un relevé qui porte la colonne.
@@ -2970,6 +3138,37 @@ def confirmer(
             operation = crud.create_operation_importee(
                 db, compte_id=ligne.compte_id, **champs_operation
             )
+        # L'ÉTIQUETTE « IMPRÉVUE » d'une règle (migration 0071). Posée après coup
+        # plutôt que dans les deux fonctions de création : c'est une étiquette,
+        # qu'aucun calcul ne lit (cf. models.Operation.imprevue).
+        if ligne.imprevue and not operation.imprevue:
+            operation.imprevue = True
+            db.commit()
+        # CE QUE CETTE LIGNE SOLDE, posé maintenant : l'opération vient d'exister,
+        # et c'est la première seconde où un lien peut la désigner. Les cibles,
+        # elles, sont en base depuis l'aperçu — la liste ne propose que des
+        # dépenses et des prêts déjà enregistrés (cf. app.js, chargerChecklist).
+        #
+        # VALIDÉ D'ABORD, AVEC LA RÈGLE DE LA PAGE OPÉRATIONS
+        # (`crud.erreur_operations_remboursees`) : entre le moment où l'on coche
+        # dans l'aperçu et celui où l'on confirme, la cible a pu être soldée
+        # depuis un autre écran. La ligne rejoint alors les IGNORÉES, avec la
+        # raison — et l'opération qu'on venait de créer repart, parce qu'un
+        # règlement qui ne règle rien n'est pas ce qu'on a demandé.
+        if liens_remboursement:
+            liens = [
+                schemas.OperationRembourseeInput(**item) for item in liens_remboursement
+            ]
+            erreur_liens = crud.erreur_operations_remboursees(
+                db, liens, ligne.type_code, operation.montant, operation.monnaie_id
+            )
+            if erreur_liens:
+                crud.delete_operation(db, operation)
+                lignes_ignorees.append(ligne.model_copy(update={"erreur": erreur_liens}))
+                continue
+            crud.set_operations_remboursees(
+                db, operation, {item.operation_id: item.montant for item in liens}
+            )
         # LE STOCK ANTI-DOUBLONS REÇOIT LA LIGNE DANS LES DEUX CAS : elle a bien
         # été importée, qu'elle ait créé une opération ou réécrit une prévision.
         # L'en priver aurait fait revenir la même ligne au prochain relevé,
@@ -3021,15 +3220,21 @@ def enregistrer_ligne_brute(
     """Ajoute au stock anti-doublons UNE ligne du fichier, celle qui a créé
     `operation_id`. Renvoie False si le fichier ne porte pas ce numéro.
 
-    POURQUOI CETTE PORTE À PART. `confirmer` alimente le stock lui-même, pour
-    toutes les lignes qu'il importe — mais les RÈGLEMENTS liés n'y passent
-    jamais : lier un remboursement à la dépense qu'il solde demande
-    `operations_remboursees`, que seul POST /operations sait traiter, et le
-    frontend les crée donc une par une hors du confirm groupé (cf.
-    creerOperationReglementLiee). Ces lignes-là entraient en base sans laisser
-    la moindre trace dans le stock : au relevé suivant, la même ligne de
-    fichier n'était reconnue par personne et repassait comme neuve, alors que
-    remboursables, prêts et virements, eux, étaient bien signalés.
+    POURQUOI CETTE PORTE EXISTE. `confirmer` alimente le stock lui-même, pour
+    toutes les lignes qu'il importe. Les RÈGLEMENTS LIÉS n'y passaient pas :
+    lier un remboursement à la dépense qu'il solde demande
+    `operations_remboursees`, que seul POST /operations savait traiter, et le
+    frontend les créait donc une par une hors du confirm groupé. Ces lignes-là
+    entraient en base sans laisser la moindre trace dans le stock : au relevé
+    suivant, la même ligne de fichier n'était reconnue par personne et
+    repassait comme neuve.
+
+    CE CHEMIN N'A PLUS D'APPELANT DANS L'APPLICATION : `confirmer` sait
+    désormais poser les liens (cf. `ImportLigneOverride.operations_remboursees`),
+    et un règlement lié est importé avec le reste du fichier — donc stocké avec
+    lui. La route reste : déclarer après coup qu'une ligne d'un fichier a
+    produit une opération est une opération légitime en soi, et c'est la seule
+    façon de rattraper un stock incomplet sans réimporter.
 
     Le fichier est relu ici plutôt que d'accepter les données brutes du client :
     c'est le fichier qui fait foi pour la comparaison, et une ligne recopiée en

@@ -506,11 +506,79 @@ async function appliquerAgregation(annee, mois) {
   agregationNonConverties = reponse.non_converties || [];
   if (!reponse.dashboard) return false;
 
+  majCompositionBudget(reponse.budget_detail || [], vue);
+
   // LES FONCTIONS D'AFFICHAGE DU NOYAU, telles quelles : la vue convertie et la
   // vue par monnaie doivent se ressembler jusqu'au pixel, et deux rendus
   // parallèles finiraient par ne plus le faire.
   renderKpisDashboard(reponse.dashboard.kpis[0]);
   return true;
+}
+
+/* ---------- D'OÙ VIENT LE BUDGET AGRÉGÉ ----------
+ *
+ * LE CHIFFRE LE PLUS FACILE À NE PAS RECONNAÎTRE. Le dénominateur de la vue
+ * « Budget » du camembert porte DEUX multiplications qu'aucun écran ne montre :
+ * la vue ANNÉE somme douze mois (cf. soldes.get_budget_total_periode), et
+ * l'agrégation CONVERTIT puis ADDITIONNE toutes les monnaies. Un budget de
+ * 500 $ posé une fois et jamais retouché — hérité par tous les mois de toutes
+ * les années (cf. crud._budget_herite) — pèse ainsi 5 400 € sur un budget
+ * annuel dont on ne compte, de tête, que les euros. Le chiffre est juste ; il
+ * est illisible.
+ *
+ * LA RÉPONSE EST POSÉE OÙ LA QUESTION SE POSE : dans la pastille « i » de
+ * l'onglet « Budget », à côté du nombre. Un écran de plus pour l'expliquer
+ * aurait demandé d'aller le chercher, c'est-à-dire de soupçonner d'abord qu'il
+ * y avait quelque chose à chercher.
+ *
+ * ELLE S'EFFACE AVEC L'AGRÉGATION : sans elle, le budget est celui d'une seule
+ * monnaie, et la pastille retrouve sa phrase d'origine. `data-info-base` la
+ * garde en mémoire — la relire dans `textes.js` aurait perdu sa traduction.
+ */
+function majCompositionBudget(detail, vue) {
+  const pastille = document.querySelector(
+    '[data-vue-pie="budget"] .info-bulle'
+  );
+  if (!pastille) return;
+  if (pastille.dataset.infoBase === undefined) {
+    pastille.dataset.infoBase = pastille.dataset.info || "";
+  }
+  const base = pastille.dataset.infoBase;
+  // UNE SEULE MONNAIE N'A RIEN À DÉCOMPOSER : la composition dirait alors le
+  // même nombre deux fois.
+  if (!agregationActive || detail.length < 2) {
+    pastille.dataset.info = base;
+    return;
+  }
+  const cible = state.monnaies.find((m) => m.id === state.dashboardMonnaieId);
+  // Les puces du noyau (marqueur « -- », cf. textes.js) : la bulle les découpe
+  // en s'ouvrant, et une composition est une liste, pas un paragraphe.
+  const lignes = detail.map(
+    (ligne) =>
+      ` -- ${ligne.monnaie_nom} : ${formatMontantMonnaie(
+        ligne.montant,
+        ligne.monnaie_nom
+      )} → ${formatMontant(ligne.converti, state.dashboardMonnaieId)}`
+  );
+  const total = detail.reduce((somme, ligne) => somme + ligne.converti, 0);
+  const entete = t(
+    vue === "annee"
+      ? "Ce budget additionne les douze mois de l'année ET les monnaies converties :"
+      : "Ce budget additionne les monnaies converties :"
+  );
+  pastille.dataset.info = `${base} ${entete}${lignes.join("")} -- ${t(
+    "Total"
+  )} : ${formatMontant(total, state.dashboardMonnaieId)}${
+    cible ? ` (${cible.nom})` : ""
+  }`;
+}
+
+/** Un montant dans une monnaie qu'on n'a que par son NOM (la composition du
+ *  budget vient du serveur, qui nomme la monnaie sans donner son identifiant :
+ *  c'est un libellé, pas une clé). */
+function formatMontantMonnaie(montant, monnaieNom) {
+  const monnaie = (state.monnaies || []).find((m) => m.nom === monnaieNom);
+  return monnaie ? formatMontant(montant, monnaie.id) : String(montant);
 }
 
 /* ---------- La même case, pour le camembert de la Vue globale des comptes ----------
@@ -637,6 +705,10 @@ window.loadDashboardData = async function (annee, mois) {
   if (!agregationActive || !agregationDisponible()) {
     agregationNonConverties = [];
     majAlerteAgregation();
+    // LA COMPOSITION DU BUDGET S'EFFACE AVEC L'AGRÉGATION, et il faut le dire
+    // ICI : décocher la case ne passe plus par `appliquerAgregation`, et la
+    // pastille aurait gardé la décomposition d'un total qui n'existe plus.
+    majCompositionBudget([], state.dashboardPeriode.vue);
     return;
   }
   try {

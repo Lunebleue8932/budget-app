@@ -251,6 +251,10 @@ def get_dashboard(
         # Un seul appel pour les trois flux : les recalculer séparément
         # ouvrirait la porte à une variation qui ne vaut pas entrées − sorties.
         flux = soldes.get_flux_periode(db, annee, mois, monnaie.id)
+        # Le détail des deux cartes, au MÊME périmètre que leur total : c'est
+        # ce qui garantit que les trois lignes de l'infobulle additionnent bien
+        # une part du chiffre qu'elles expliquent (cf. get_top_flux_periode).
+        top_flux = soldes.get_top_flux_periode(db, annee, mois, monnaie.id)
         kpis.append(
             schemas.KpisMonnaieRead(
                 monnaie_id=monnaie.id,
@@ -262,6 +266,8 @@ def get_dashboard(
                 valorisation_placements=totaux_monnaie.get("valorisation_placements", 0.0),
                 total_entrees=flux["entrees"],
                 total_sorties=flux["sorties"],
+                top_entrees=[schemas.DepenseTopRead(**d) for d in top_flux["entrees"]],
+                top_sorties=[schemas.DepenseTopRead(**d) for d in top_flux["sorties"]],
                 reste_a_recevoir=reste.get("a_recevoir", 0.0),
                 reste_a_rendre=reste.get("a_rendre", 0.0),
                 reste_a_rembourser=reste.get("net", 0.0),

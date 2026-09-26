@@ -74,6 +74,13 @@ function remplirSelecteurTypesRegle() {
     )
     .map((t) => `<option value="${t.code}">${t.nom}</option>`)
     .join("");
+  // LE TYPE EST FACULTATIF (migration 0071) : une règle qui ne fait que
+  // renommer ne décide pas de ce qu'est la ligne, et laisse les suivantes le
+  // faire. En tête de liste, comme partout où « ne pas changer » est proposé.
+  select.insertAdjacentHTML(
+    "afterbegin",
+    `<option value="">${escapeHtml(t("— ne pas changer —"))}</option>`
+  );
   if (precedent) select.value = precedent;
 }
 
@@ -105,6 +112,11 @@ async function loadRegles() {
     // depuis la dernière visite de cet écran.
     await refreshComptes();
     await refreshCategories();
+    // LE RANGEMENT AVANT LE RENDU, et à CHAQUE ouverture : il vit maintenant
+    // dans la base, laquelle peut changer sous l'application (panneau « Base de
+    // données »). Le lire une fois au chargement du script aurait affiché, après
+    // une bascule, les dossiers de la base précédente.
+    await chargerDossiersRegles();
     renderRegles();
   } catch (err) {
     showMessage(err.message, "error");
@@ -159,6 +171,41 @@ function resumeRegle(regle) {
 }
 
 function actionRegleHtml(regle) {
+  const principale = actionPrincipaleRegleHtml(regle);
+  const autres = autresActionsRegle(regle);
+  if (regle.sorties && regle.sorties.length) {
+    autres.push(t("{n} sortie(s) conditionnelle(s)", { n: regle.sorties.length }));
+  }
+
+  if (!autres.length) return principale;
+  return principale ? `${principale} · ${autres.join(" · ")}` : autres.join(" · ");
+}
+
+/* Les actions de la migration 0071, dans l'ordre de l'éditeur. */
+function autresActionsRegle(regle) {
+  const actions = [];
+  if (regle.nature_remplacement) {
+    actions.push(t("renommée « {nom} »", { nom: escapeHtml(regle.nature_remplacement) }));
+  }
+  if (regle.compte_id != null) {
+    actions.push(t("sur « {compte} »", { compte: escapeHtml(nomCompte(regle.compte_id)) }));
+  }
+  if (regle.notes) actions.push(t("note « {note} »", { note: escapeHtml(regle.notes) }));
+  if (regle.amortissement_mois) {
+    actions.push(t("amortie sur {n} mois", { n: regle.amortissement_mois }));
+  }
+  if (regle.imprevue) actions.push(t("imprévue"));
+  return actions;
+}
+
+function actionPrincipaleRegleHtml(regle) {
+  // SANS TYPE, la règle ne classe pas : elle ne dit que ce qu'elle change. Sa
+  // catégorie éventuelle vaudra si le type finalement retenu en admet une.
+  if (!regle.type_code) {
+    return regle.categorie_id != null
+      ? t("catégorie « {nom} »", { nom: escapeHtml(nomCategorie(regle.categorie_id)) })
+      : "";
+  }
   const libelleType = libelleTypeOperation(regle.type_code);
   if (regle.type_code === "virement") {
     // Le compte en face fait partie de l'action : sans lui la ligne reste
@@ -320,11 +367,19 @@ async function deposerRegle(depuis, cible) {
   }
 }
 
-function renderRegleGroupes() {
-  const bloc = document.getElementById("regle-groupes");
+/* LE MÊME ÉDITEUR POUR LA DÉTECTION ET POUR CHAQUE SORTIE CONDITIONNELLE :
+ * `bloc` est où l'écrire, `groupes` le brouillon qu'il modifie, et `prefixe`
+ * rend uniques les noms de ses boutons radio et de ses éditeurs de mots-clés —
+ * deux éditeurs dans le même formulaire se seraient sinon volé leurs cases. */
+function renderRegleGroupes(
+  bloc = document.getElementById("regle-groupes"),
+  groupes = regleBrouillonGroupes,
+  prefixe = ""
+) {
+  const rendre = () => renderRegleGroupes(bloc, groupes, prefixe);
   bloc.innerHTML = "";
 
-  regleBrouillonGroupes.forEach((groupe, iGroupe) => {
+  groupes.forEach((groupe, iGroupe) => {
     const carte = document.createElement("div");
     carte.className = "regle-groupe";
 
@@ -339,15 +394,15 @@ function renderRegleGroupes() {
         </select>
       </label>
       <button type="button" class="danger" data-role="supprimer-groupe" ${
-        regleBrouillonGroupes.length === 1 ? "disabled" : ""
+        groupes.length === 1 ? "disabled" : ""
       }>Supprimer le groupe</button>
     `;
     entete.querySelector("[data-role='connecteur']").addEventListener("change", (e) => {
       groupe.operateur = e.target.value;
     });
     entete.querySelector("[data-role='supprimer-groupe']").addEventListener("click", () => {
-      regleBrouillonGroupes.splice(iGroupe, 1);
-      renderRegleGroupes();
+      groupes.splice(iGroupe, 1);
+      rendre();
     });
     carte.appendChild(entete);
 
@@ -360,7 +415,7 @@ function renderRegleGroupes() {
       // Pour viser plusieurs champs, on ajoute des conditions dans un groupe OU.
       // `name` unique par condition, sinon toutes les lignes du formulaire
       // partageraient le même groupe radio.
-      const nomGroupeRadio = `regle-champ-${iGroupe}-${iCondition}`;
+      const nomGroupeRadio = `regle-champ-${prefixe}${iGroupe}-${iCondition}`;
       const champsHtml = CHAMPS_REGLE.map(
         ([valeur, label]) => `
           <label class="regle-champ-case">
@@ -391,7 +446,7 @@ function renderRegleGroupes() {
       //     contient MARKET » est UN test, et l'écrire en deux conditions
       //     n'ajoutait qu'une ligne de formulaire — à cinq mots-clés, le
       //     groupe devenait illisible.
-      const idJetons = `regle-mots-${iGroupe}-${iCondition}`;
+      const idJetons = `regle-mots-${prefixe}${iGroupe}-${iCondition}`;
       const saisieValeur = estNumerique
         ? `<input type="number" step="0.01" min="0" data-role="valeur"
                   placeholder="${t("ex. 50")}"
@@ -466,7 +521,7 @@ function renderRegleGroupes() {
             condition.operateur = operateursAdmis(radio.value)[0];
             condition.valeur = "";
             condition.valeurs = [];
-            renderRegleGroupes();
+            rendre();
           }
         });
       });
@@ -484,7 +539,7 @@ function renderRegleGroupes() {
       }
       ligne.querySelector("[data-role='supprimer-condition']").addEventListener("click", () => {
         groupe.conditions.splice(iCondition, 1);
-        renderRegleGroupes();
+        rendre();
       });
 
       carte.appendChild(ligne);
@@ -495,7 +550,7 @@ function renderRegleGroupes() {
     ajout.innerHTML = '<button type="button">+ Ajouter une condition</button>';
     ajout.querySelector("button").addEventListener("click", () => {
       groupe.conditions.push(conditionVide());
-      renderRegleGroupes();
+      rendre();
     });
     carte.appendChild(ajout);
 
@@ -526,7 +581,9 @@ function majVisibiliteCategorieRegle() {
   const select = document.getElementById("regle-categorie");
   // La découpe REMPLACE la catégorie unique : montrer les deux laisserait
   // croire qu'une règle peut classer deux fois la même ligne.
-  const libre = TYPES_CATEGORIE_LIBRE.has(type) && !regleDecoupeEstActive();
+  // Sans type (« ne pas changer »), la catégorie reste proposée : elle vaudra à
+  // l'import si le type finalement retenu en admet une.
+  const libre = (!type || TYPES_CATEGORIE_LIBRE.has(type)) && !regleDecoupeEstActive();
 
   if (libre) {
     bloc.style.display = "";
@@ -643,7 +700,7 @@ function ouvrirEditeurRegle(regle = null) {
   // sans y penser (« ma règle décide, point »).
   document.getElementById("regle-arreter-apres").checked = regle ? regle.arreter_apres : true;
   remplirSelecteurTypesRegle();
-  document.getElementById("regle-type").value = regle ? regle.type_code : "classique";
+  document.getElementById("regle-type").value = regle ? regle.type_code || "" : "classique";
 
   _refillPreservingSelection(document.getElementById("regle-categorie"), (el) =>
     fillCategoriesSelect(
@@ -661,6 +718,23 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-compte-autre").value =
     regle && regle.compte_autre_id != null ? String(regle.compte_autre_id) : "";
 
+  // LES AUTRES PROPRIÉTÉS (migration 0071) — vides = « la règle n'en dit rien ».
+  document.getElementById("regle-nature").value = (regle && regle.nature_remplacement) || "";
+  _refillPreservingSelection(document.getElementById("regle-compte"), (el) =>
+    fillComptesSelect(el, state.comptes, { keepFirst: true })
+  );
+  document.getElementById("regle-compte").value =
+    regle && regle.compte_id != null ? String(regle.compte_id) : "";
+  document.getElementById("regle-notes").value = (regle && regle.notes) || "";
+  document.getElementById("regle-amortissement").value =
+    (regle && regle.amortissement_mois) || "";
+  // L'étiquette « imprévue » appartient à l'extension « Budget » : sans elle,
+  // aucun écran ne la montre, et la proposer ici poserait une étiquette
+  // invisible.
+  document.getElementById("regle-imprevue-bloc").style.display =
+    BudgetApp.extensions.estActive("analyse-budget") ? "" : "none";
+  document.getElementById("regle-imprevue").checked = !!(regle && regle.imprevue);
+
   // AVANT majVisibiliteCategorieRegle, qui lit la case pour décider d'afficher
   // les parts ou la catégorie unique.
   const parts = regle && regle.decoupes ? regle.decoupes : [];
@@ -675,7 +749,136 @@ function ouvrirEditeurRegle(regle = null) {
     ? JSON.parse(JSON.stringify(regle.conditions.groupes))
     : [groupeVide()];
   renderRegleGroupes();
+  regleBrouillonSorties = regle && regle.sorties ? JSON.parse(JSON.stringify(regle.sorties)) : [];
+  renderRegleSorties();
   document.getElementById("regle-editeur").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* ---------- LES SORTIES CONDITIONNELLES ----------
+ *
+ * Une règle DÉTECTE une fois, et peut SORTIR de plusieurs façons : chaque
+ * sortie porte ses propres conditions (même éditeur que la détection) et les
+ * actions qui remplacent celles de la règle quand elles correspondent. La
+ * première qui correspond l'emporte ; aucune ne correspond, la règle agit telle
+ * quelle (cf. regles_categorisation._actions_effectives). Un champ laissé
+ * vide garde l'action de la règle.
+ */
+let regleBrouillonSorties = [];
+
+function sortieVide() {
+  return {
+    conditions: { operateur: "ET", groupes: [groupeVide()] },
+    type_code: null,
+    categorie_id: null,
+    compte_autre_id: null,
+    compte_id: null,
+    nature_remplacement: null,
+    notes: null,
+  };
+}
+
+function renderRegleSorties() {
+  const bloc = document.getElementById("regle-sorties");
+  bloc.innerHTML = "";
+  if (!regleBrouillonSorties.length) {
+    bloc.innerHTML = `<p class="hint">${escapeHtml(
+      t("Aucune : la règle fait toujours la même chose.")
+    )}</p>`;
+    return;
+  }
+  // Les types proposés : ceux du menu de la règle, qui a déjà écarté ceux
+  // qu'aucune extension ne rend accessibles.
+  const optionsTypes = [...document.getElementById("regle-type").options]
+    .filter((o) => o.value)
+    .map((o) => [o.value, o.textContent]);
+  const garder = escapeHtml(t("— celui de la règle —"));
+  const garderF = escapeHtml(t("— celle de la règle —"));
+
+  regleBrouillonSorties.forEach((sortie, i) => {
+    const carte = document.createElement("div");
+    carte.className = "regle-groupe regle-sortie";
+    carte.innerHTML = `
+      <div class="regle-groupe-entete">
+        <span class="regle-groupe-titre">${t("Sortie")} ${i + 1}</span>
+        <label>${t("Combiner les groupes")}
+          <select data-role="connecteur">
+            <option value="ET" ${sortie.conditions.operateur === "ET" ? "selected" : ""}>ET</option>
+            <option value="OU" ${sortie.conditions.operateur === "OU" ? "selected" : ""}>OU</option>
+          </select>
+        </label>
+        <button type="button" class="danger" data-role="supprimer-sortie">${t("Supprimer la sortie")}</button>
+      </div>
+      <div class="regle-sortie-etiquette">${t("Si la ligne…")}</div>
+      <div data-role="groupes"></div>
+      <div class="actions"><button type="button" data-role="ajouter-groupe">+ ${t("Ajouter un groupe")}</button></div>
+      <div class="regle-sortie-etiquette">${t("…alors, à la place de la règle :")}</div>
+      <div class="regle-sortie-actions">
+        <label>${t("Classer comme")}
+          <select data-champ="type_code">
+            <option value="">${garder}</option>
+            ${optionsTypes.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("")}
+          </select>
+        </label>
+        <label>${t("Dans la catégorie")}
+          <select data-champ="categorie_id"><option value="">${garderF}</option></select>
+        </label>
+        <label>${t("Avec le compte en face")}
+          <select data-champ="compte_autre_id"><option value="">${garder}</option></select>
+        </label>
+        <label>${t("Sur le compte")}
+          <select data-champ="compte_id"><option value="">${garder}</option></select>
+        </label>
+        <label>${t("Renommer en")}
+          <input type="text" data-champ="nature_remplacement" placeholder="${garder}" />
+        </label>
+        <label>${t("Avec la note")}
+          <input type="text" data-champ="notes" placeholder="${garderF}" />
+        </label>
+      </div>`;
+
+    fillCategoriesSelect(
+      carte.querySelector('[data-champ="categorie_id"]'),
+      categoriesProposables(sortie.categorie_id),
+      { keepFirst: true }
+    );
+    fillComptesSelect(carte.querySelector('[data-champ="compte_autre_id"]'), state.comptes, { keepFirst: true });
+    fillComptesSelect(carte.querySelector('[data-champ="compte_id"]'), state.comptes, { keepFirst: true });
+    carte.querySelectorAll("[data-champ]").forEach((champ) => {
+      const valeur = sortie[champ.dataset.champ];
+      champ.value = valeur == null ? "" : String(valeur);
+      champ.addEventListener("change", () => {
+        const brut = champ.value.trim();
+        const numerique = champ.dataset.champ.endsWith("_id");
+        sortie[champ.dataset.champ] = brut === "" ? null : numerique ? Number(brut) : brut;
+      });
+    });
+    carte.querySelector('[data-role="connecteur"]').addEventListener("change", (e) => {
+      sortie.conditions.operateur = e.target.value;
+    });
+    carte.querySelector('[data-role="supprimer-sortie"]').addEventListener("click", () => {
+      regleBrouillonSorties.splice(i, 1);
+      renderRegleSorties();
+    });
+    carte.querySelector('[data-role="ajouter-groupe"]').addEventListener("click", () => {
+      sortie.conditions.groupes.push(groupeVide());
+      renderRegleSorties();
+    });
+    bloc.appendChild(carte);
+    renderRegleGroupes(carte.querySelector('[data-role="groupes"]'), sortie.conditions.groupes, `s${i}-`);
+  });
+}
+
+document.getElementById("btn-regle-ajouter-sortie").addEventListener("click", () => {
+  regleBrouillonSorties.push(sortieVide());
+  renderRegleSorties();
+});
+
+/** Les sorties telles que le serveur les attend : le type en identifiant. */
+function sortiesPourServeur() {
+  return regleBrouillonSorties.map((sortie) => {
+    const { type_code, ...reste } = sortie;
+    return { ...reste, type_id: type_code ? idTypeOperation(type_code) : null };
+  });
 }
 
 function fermerEditeurRegle() {
@@ -694,7 +897,23 @@ document.getElementById("btn-regle-ajouter-groupe").addEventListener("click", ()
   renderRegleGroupes();
 });
 
+/* UN MOT-CLÉ TAPÉ SANS « + » EST UN MOT-CLÉ VOULU. L'éditeur à jetons n'ajoute
+ * qu'au « + » ou à Entrée : un mot laissé dans le champ au moment d'enregistrer
+ * n'était pas dans le brouillon, et la règle était refusée au motif qu'une
+ * condition n'avait « pas de valeur » — alors qu'on la voyait écrite. On valide
+ * donc tout ce qui est encore en saisie, détection et sorties comprises, avant
+ * de contrôler quoi que ce soit. */
+function validerMotsClesEnSaisie() {
+  document
+    .querySelectorAll("#regle-editeur .regle-condition-mots .import-vocabulaire-saisie")
+    .forEach((saisie) => {
+      const champ = saisie.querySelector("input");
+      if (champ && champ.value.trim()) saisie.querySelector(".import-vocabulaire-ajouter")?.click();
+    });
+}
+
 document.getElementById("btn-regle-enregistrer").addEventListener("click", async () => {
+  validerMotsClesEnSaisie();
   const nom = document.getElementById("regle-nom").value.trim();
   if (!nom) {
     showMessage(t("Donne un nom à la règle."), "error");
@@ -712,6 +931,24 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
         showMessage(t("Chaque condition doit avoir une valeur à comparer."), "error");
         return;
       }
+    }
+  }
+
+  // Les conditions des sorties : mêmes exigences que celles de la détection.
+  for (const sortie of regleBrouillonSorties) {
+    for (const groupe of sortie.conditions.groupes) {
+      for (const condition of groupe.conditions) {
+        if (!condition.champ || motsClesCondition(condition).length === 0) {
+          showMessage(t("Chaque condition d'une sortie doit porter sur un champ et avoir une valeur."), "error");
+          return;
+        }
+      }
+    }
+    const change = ["type_code", "categorie_id", "compte_autre_id", "compte_id", "nature_remplacement", "notes"]
+      .some((champ) => sortie[champ] != null && sortie[champ] !== "");
+    if (!change) {
+      showMessage(t("Une sortie conditionnelle doit changer au moins une chose."), "error");
+      return;
     }
   }
 
@@ -744,12 +981,34 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
   // type à catégorie imposée l'outrepasse, sans avoir à la vider à la main.
   // Une découpe la remplace, exactement comme le serveur la neutralise.
   const categorieVal =
-    TYPES_CATEGORIE_LIBRE.has(type) && decoupes.length === 0
+    (!type || TYPES_CATEGORIE_LIBRE.has(type)) && decoupes.length === 0
       ? document.getElementById("regle-categorie").value
       : "";
   // Même règle pour le compte en face : seul un virement en porte un.
   const compteAutreVal =
     type === "virement" ? document.getElementById("regle-compte-autre").value : "";
+  const compteVal = document.getElementById("regle-compte").value;
+  const amortissementBrut = document.getElementById("regle-amortissement").value.trim();
+  const amortissement = amortissementBrut ? Number(amortissementBrut) : 0;
+  if (amortissementBrut && (!Number.isInteger(amortissement) || amortissement < 2 || amortissement > 120)) {
+    showMessage(t("Un amortissement s'étale sur 2 à 120 mois."), "error");
+    return;
+  }
+  // UNE RÈGLE QUI NE CHANGE RIEN n'a pas de raison d'exister : elle
+  // correspondrait sans effet, et se lirait dans la liste comme une panne.
+  const neChangeRien =
+    !type &&
+    !regleBrouillonSorties.length &&
+    !categorieVal &&
+    !document.getElementById("regle-nature").value.trim() &&
+    !compteVal &&
+    !document.getElementById("regle-notes").value.trim() &&
+    !amortissement &&
+    !document.getElementById("regle-imprevue").checked;
+  if (neChangeRien) {
+    showMessage(t("Cette règle ne changerait rien : choisis au moins une action."), "error");
+    return;
+  }
 
   const payload = {
     nom,
@@ -758,10 +1017,18 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
       operateur: document.getElementById("regle-connecteur").value,
       groupes: regleBrouillonGroupes,
     },
-    type_id: idTypeOperation(type),
+    type_id: type ? idTypeOperation(type) : null,
     categorie_id: categorieVal ? Number(categorieVal) : null,
     decoupes,
     compte_autre_id: compteAutreVal ? Number(compteAutreVal) : null,
+    nature_remplacement: document.getElementById("regle-nature").value.trim() || null,
+    compte_id: compteVal ? Number(compteVal) : null,
+    notes: document.getElementById("regle-notes").value.trim() || null,
+    amortissement_mois: amortissement || null,
+    // Décochée = « n'en dit rien » (null), jamais « pas imprévue » : une règle
+    // n'a pas à retirer une étiquette que personne n'a posée.
+    imprevue: document.getElementById("regle-imprevue").checked ? true : null,
+    sorties: sortiesPourServeur(),
     actif: document.getElementById("regle-actif").checked,
     arreter_apres: document.getElementById("regle-arreter-apres").checked,
   };
@@ -794,13 +1061,28 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
  * réordonner depuis la galerie : ce qu'on y glisse, c'est l'appartenance à un
  * dossier, jamais la priorité.
  *
- * STOCKÉ SUR LE POSTE (localStorage), pas en base : un dossier n'est ni une
- * donnée du budget ni quelque chose dont l'import a besoin — c'est un confort
- * de lecture. Le mettre en base aurait obligé l'extension à emporter son
- * schéma, ce que le dépôt s'interdit (cf. extensions/README.md).
+ * STOCKÉ EN BASE (`PreferenceInterface`, clé « regles.dossiers », migration
+ * 0069) — et non plus dans le `localStorage`, où il a commencé. L'intention
+ * était juste : un dossier est un confort de lecture, pas une donnée du budget.
+ * La CHOSE, elle, ne l'était pas : ce qui est rangé ici est une table
+ * `{ "<id de règle>": "<nom de dossier>" }`, et un identifiant de règle
+ * n'existe que dans une base précise. Le même rangement appliqué à une autre
+ * base désigne d'autres règles, ou aucune ; une base emportée sur un second
+ * poste arrivait sans son rangement, alors qu'elle portait les règles rangées ;
+ * et le navigateur embarqué perdait tout dès que la fenêtre changeait
+ * d'origine. Ce qui désigne des identifiants de la base vit dans la base.
+ *
+ * L'EXTENSION N'EMPORTE TOUJOURS PAS DE SCHÉMA : la table est au NOYAU, comme
+ * toutes les tables, et ne sert qu'à ranger du JSON sous une clé (cf.
+ * extensions/README.md, et backend/app/routers/preferences.py). Éteindre
+ * « Règles » ne perd donc rien, comme avant.
  */
 
-const CLE_DOSSIERS_REGLES = "budget-app.regles.dossiers";
+const CLE_DOSSIERS_REGLES = "regles.dossiers";
+// L'ancienne clé de localStorage, reprise UNE FOIS au premier chargement d'après
+// la migration puis effacée : personne n'a à refaire des dossiers qu'il avait
+// déjà faits.
+const CLE_DOSSIERS_REGLES_LOCALE = "budget-app.regles.dossiers";
 // Le dossier d'accueil : il n'est pas stocké, il se déduit de ce qui n'est
 // rangé nulle part. Impossible à supprimer ou à renommer, donc, et une règle
 // nouvelle s'y trouve sans qu'on ait rien à faire.
@@ -810,24 +1092,42 @@ let vueRegles = "liste";
 // { dossiers: ["Courses", …], parRegle: { "<id de règle>": "Courses" } }
 let dossiersRegles = { dossiers: [], parRegle: {} };
 
-function chargerDossiersRegles() {
-  try {
-    const brut = JSON.parse(localStorage.getItem(CLE_DOSSIERS_REGLES) || "null");
-    if (brut && Array.isArray(brut.dossiers) && brut.parRegle) {
-      dossiersRegles = { dossiers: brut.dossiers, parRegle: brut.parRegle };
-      return;
-    }
-  } catch (err) {
-    // Contenu illisible (édité à la main, version antérieure) : on repart d'un
-    // rangement vide plutôt que de casser l'écran. Aucune règle n'est perdue,
-    // elles retombent toutes dans « Autres ».
-    console.warn("Dossiers de règles illisibles, remis à zéro :", err);
-  }
-  dossiersRegles = { dossiers: [], parRegle: {} };
+function rangementValide(brut) {
+  return !!(brut && Array.isArray(brut.dossiers) && brut.parRegle);
 }
 
+/**
+ * Lit le rangement en base, et reprend celui du poste s'il n'y en a pas encore.
+ *
+ * LA REPRISE N'A LIEU QUE SI LA BASE N'A RIEN — `null`, et non « un objet
+ * vide ». Les deux ne disent pas la même chose : « cette base n'a jamais rien
+ * rangé » autorise la reprise, « on a rangé puis tout retiré » l'interdit.
+ * Confondre les deux aurait fait revenir, au chargement suivant, les dossiers
+ * qu'on venait de supprimer.
+ */
+async function chargerDossiersRegles() {
+  let brut = await lirePreference(CLE_DOSSIERS_REGLES);
+  if (brut === null || brut === undefined) {
+    const local = reprendreDuLocalStorage(CLE_DOSSIERS_REGLES_LOCALE);
+    if (rangementValide(local)) {
+      brut = local;
+      await ecrirePreference(CLE_DOSSIERS_REGLES, local);
+    }
+  }
+  // Contenu illisible (version antérieure, base bricolée) : on repart d'un
+  // rangement vide plutôt que de casser l'écran. Aucune règle n'est perdue,
+  // elles retombent toutes dans « Autres ».
+  dossiersRegles = rangementValide(brut)
+    ? { dossiers: brut.dossiers, parRegle: brut.parRegle }
+    : { dossiers: [], parRegle: {} };
+}
+
+// Volontairement SANS `await` chez ses appelants : le rangement est déjà à
+// l'écran quand la requête part, et attendre l'aller-retour pour redessiner
+// ferait clignoter la galerie à chaque glisser-déposer. Un échec est consigné
+// par `ecrirePreference`, jamais jeté à la figure de l'écran.
 function enregistrerDossiersRegles() {
-  localStorage.setItem(CLE_DOSSIERS_REGLES, JSON.stringify(dossiersRegles));
+  ecrirePreference(CLE_DOSSIERS_REGLES, dossiersRegles);
 }
 
 function dossierDeLaRegle(regle) {
@@ -1004,8 +1304,7 @@ document.getElementById("btn-regle-dossier-nouveau").addEventListener("click", (
   renderReglesGalerie();
 });
 
-chargerDossiersRegles();
-
 // Le noyau rappelle ce chargeur à CHAQUE ouverture de la sous-page : les
-// catégories, les comptes et les règles ont pu changer entre deux visites.
+// catégories, les comptes et les règles ont pu changer entre deux visites — et
+// le rangement des dossiers avec elles, puisqu'il vit désormais dans la base.
 BudgetApp.extensions.enregistrer("regles", { chargeur: loadRegles });

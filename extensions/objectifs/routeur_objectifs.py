@@ -37,38 +37,66 @@ def _objectif_ou_404(db: Session, objectif_id: int) -> models.ObjectifKpi:
     return objectif
 
 
-def _valider_part(mesure: Optional[str], categorie_id: Optional[int]) -> None:
-    """UNE PART SE MESURE SUR UNE CATÉGORIE, et c'est le seul refus de ce
+def _valider_part(
+    mesure: Optional[str],
+    categorie_id: Optional[int],
+    sous_filtre_id: Optional[int] = None,
+) -> None:
+    """UNE PART SE MESURE SUR QUELQUE CHOSE, et c'est le seul refus de ce
     routeur.
 
-    Sans catégorie, `part_depenses` rapporte TOUTES les dépenses au total des
+    Sans périmètre, `part_depenses` rapporte TOUTES les dépenses au total des
     dépenses : elle vaut 100 % par construction, tous les mois, quoi qu'on
     dépense. Un objectif qui ne peut jamais bouger n'apprend rien et occupe une
     carte ; le refuser à la saisie coûte une phrase, le laisser passer coûte la
-    confiance qu'on met dans les trois autres."""
-    if mesure == MesureObjectif.part_depenses.value and not categorie_id:
+    confiance qu'on met dans les trois autres.
+
+    UN PROJET FAIT UN PÉRIMÈTRE AUSSI BIEN QU'UNE CATÉGORIE : « mes vacances
+    pèsent 12 % de ce que j'ai dépensé ce mois-ci » est exactement la question
+    qu'on se pose devant un projet en cours."""
+    if mesure == MesureObjectif.part_depenses.value and not (
+        categorie_id or sous_filtre_id
+    ):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Une part des dépenses se mesure sur une catégorie : sans elle, "
-                "elle vaudrait toujours 100 %."
+                "Une part des dépenses se mesure sur une catégorie ou un projet : "
+                "sans périmètre, elle vaudrait toujours 100 %."
             ),
         )
 
 
 def _valider_perimetre(
-    db: Session, monnaie_id: Optional[int], categorie_id: Optional[int]
+    db: Session,
+    monnaie_id: Optional[int],
+    categorie_id: Optional[int],
+    sous_filtre_id: Optional[int] = None,
 ) -> None:
     """Un objectif désigne toujours quelque chose qui existe.
 
     LA CATÉGORIE ÉTEINTE EST ADMISE, contrairement à une opération qu'on
     saisirait (cf. crud.erreur_categorie_eteinte) : un objectif ne CRÉE rien, il
     relit l'historique — et c'est justement sur une catégorie dont on ne se sert
-    plus qu'on peut vouloir vérifier qu'on a bien arrêté."""
+    plus qu'on peut vouloir vérifier qu'on a bien arrêté.
+
+    UN SEUL PÉRIMÈTRE À LA FOIS (cf. models.ObjectifKpi) : une catégorie classe
+    par nature, un projet regroupe par événement, et les deux se croisent —
+    l'hôtel d'un voyage est dans « Loisirs » ET dans « Italie ». Porter les deux
+    poserait une question dont aucune réponse ne s'impose."""
     if monnaie_id is not None and db.get(models.Monnaie, monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
     if categorie_id is not None and db.get(models.Categorie, categorie_id) is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    if sous_filtre_id is not None and db.get(models.SousFiltre, sous_filtre_id) is None:
+        raise HTTPException(status_code=404, detail="Projet introuvable")
+    if categorie_id and sous_filtre_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Un objectif vise une catégorie OU un projet, jamais les deux : "
+                "ils découpent les mêmes dépenses selon deux axes différents."
+            ),
+        )
 
 
 # ---------- Les objectifs eux-mêmes ----------
@@ -91,8 +119,10 @@ def lister_objectifs(
 
 @router.post("", response_model=schemas_obj.ObjectifRead, status_code=201)
 def creer_objectif(payload: schemas_obj.ObjectifCreate, db: Session = Depends(get_db)):
-    _valider_perimetre(db, payload.monnaie_id, payload.categorie_id)
-    _valider_part(payload.mesure.value, payload.categorie_id)
+    _valider_perimetre(
+        db, payload.monnaie_id, payload.categorie_id, payload.sous_filtre_id
+    )
+    _valider_part(payload.mesure.value, payload.categorie_id, payload.sous_filtre_id)
     # UN OBJECTIF NEUF VA EN FIN DE LISTE. Le défaut du schéma est zéro, qui
     # l'aurait glissé au MILIEU des objectifs déjà là : on le cherche alors dans
     # une liste où il n'est pas au bout, et le geste suivant — le relire pour
@@ -112,6 +142,7 @@ def creer_objectif(payload: schemas_obj.ObjectifCreate, db: Session = Depends(ge
         sens=payload.sens.value,
         cible=payload.cible,
         categorie_id=payload.categorie_id,
+        sous_filtre_id=payload.sous_filtre_id,
         monnaie_id=payload.monnaie_id,
         visible_dashboard=payload.visible_dashboard,
         ordre=ordre,
@@ -129,27 +160,51 @@ def modifier_objectif(
     db: Session = Depends(get_db),
 ):
     objectif = _objectif_ou_404(db, objectif_id)
-    _valider_perimetre(db, payload.monnaie_id, payload.categorie_id or None)
+    _valider_perimetre(
+        db,
+        payload.monnaie_id,
+        payload.categorie_id or None,
+        payload.sous_filtre_id or None,
+    )
     # La garde porte sur ce que l'objectif VAUDRA : changer la mesure sans
-    # toucher à la catégorie, ou retirer la catégorie sans toucher à la mesure,
+    # toucher au périmètre, ou retirer le périmètre sans toucher à la mesure,
     # mènent au même objectif impossible.
     _valider_part(
         payload.mesure.value if payload.mesure else objectif.mesure,
         objectif.categorie_id if payload.categorie_id is None else payload.categorie_id,
+        objectif.sous_filtre_id
+        if payload.sous_filtre_id is None
+        else payload.sous_filtre_id,
     )
 
     for champ in ("nom", "cible", "visible_dashboard", "ordre", "monnaie_id"):
         valeur = getattr(payload, champ)
         if valeur is not None:
             setattr(objectif, champ, valeur.strip() if champ == "nom" else valeur)
+    # RETIRER LA CIBLE EST UN GESTE À PART, et il fallait bien qu'il le soit :
+    # `None` veut déjà dire « ne change pas » sur tous les autres champs, et
+    # zéro est une cible à part entière (« aucune sortie ce mois-ci »).
+    if payload.cible_effacee:
+        objectif.cible = None
     for champ in ("mesure", "cadence", "sens"):
         valeur = getattr(payload, champ)
         if valeur is not None:
             setattr(objectif, champ, valeur.value)
     # ZÉRO ÉLARGIT À TOUTES LES DÉPENSES, `None` ne change rien : même
     # convention que le type d'un titre (cf. schemas_objectifs.ObjectifUpdate).
+    #
+    # ÉCRIRE UN PÉRIMÈTRE EFFACE L'AUTRE, et l'écran n'a donc rien à penser à
+    # retirer : les deux s'excluent (cf. `_valider_perimetre`), et exiger qu'on
+    # envoie le zéro de l'un en même temps que l'autre aurait fait de cette
+    # exclusion un piège plutôt qu'une règle.
     if payload.categorie_id is not None:
         objectif.categorie_id = payload.categorie_id or None
+        if objectif.categorie_id:
+            objectif.sous_filtre_id = None
+    if payload.sous_filtre_id is not None:
+        objectif.sous_filtre_id = payload.sous_filtre_id or None
+        if objectif.sous_filtre_id:
+            objectif.categorie_id = None
 
     db.commit()
     db.refresh(objectif)
@@ -169,13 +224,18 @@ def supprimer_objectif(objectif_id: int, db: Session = Depends(get_db)):
 
 @router.get("/mesures", response_model=schemas_obj.ObjectifsPeriodeRead)
 def mesurer_objectifs(
-    monnaie_id: int,
+    monnaie_id: Optional[int] = None,
     annee: Optional[int] = None,
     mois: Optional[int] = None,
     dashboard: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Les objectifs d'une monnaie, mesurés sur la période demandée.
+    """Les objectifs, mesurés sur la période demandée.
+
+    `monnaie_id` ABSENT LES REND TOUS, chacun mesuré dans SA monnaie : c'est ce
+    que demande la page des objectifs, qui les montre tous et n'additionne rien.
+    Le DASHBOARD le nomme toujours — il a un onglet de monnaie, et on n'y
+    additionne jamais deux devises.
 
     `mois` ABSENT VEUT DIRE L'ANNÉE ENTIÈRE, comme partout ailleurs (cf.
     soldes._filtre_periode) : c'est la vue annuelle du dashboard, et la cadence
@@ -183,7 +243,7 @@ def mesurer_objectifs(
 
     `dashboard=true` ne rend que ceux qu'on a choisi d'y afficher : la page des
     objectifs les montre tous, le dashboard ceux qu'on suit vraiment."""
-    if db.get(models.Monnaie, monnaie_id) is None:
+    if monnaie_id is not None and db.get(models.Monnaie, monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
     annee = annee if annee is not None else date_type.today().year
     return schemas_obj.ObjectifsPeriodeRead(

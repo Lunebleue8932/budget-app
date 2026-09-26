@@ -1393,6 +1393,120 @@ def get_flux_periode(
     return {"entrees": entrees, "sorties": sorties, "variation": entrees - sorties}
 
 
+def get_top_flux_periode(
+    db: Session, annee: int, mois: Optional[int], monnaie_id: int
+) -> dict:
+    """Les trois plus grosses lignes de chaque côté — ce que montrent les
+    infobulles des cartes « Total Entrées » et « Total Dépenses ».
+
+    LE MÊME PÉRIMÈTRE QUE `get_flux_periode`, ET C'EST TOUT L'ENJEU. Un détail
+    dont la somme ne vaut pas le chiffre qu'il détaille est pire que pas de
+    détail du tout : l'utilisateur additionne les trois lignes, ne retrouve pas
+    la carte, et cesse de faire confiance aux deux. Les trois règles de la carte
+    sont donc rejouées ici À L'IDENTIQUE — montant entier pour l'ordinaire, part
+    restant à charge pour une dépense remboursable, intérêts seuls et du côté
+    des SORTIES pour un prêt reçu — extensions comprises, puisque chacune de ces
+    règles s'éteint avec la sienne.
+
+    CE N'EST PAS LE TOP DE L'HISTOGRAMME (cf. `_top_depenses_par_categorie`), et
+    les deux ne peuvent pas être confondus : celui-là détaille UNE catégorie et
+    part d'une jointure sur `categorie` ; celui-ci détaille un TOTAL de période,
+    prêts compris — lesquels n'ont aucune catégorie — et écarte les comptes hors
+    courant et les règlements, que l'histogramme ne connaît pas non plus de la
+    même façon.
+
+    FONDU PAR LIBELLÉ, comme l'autre : trois passages « Courses » à 25 € font
+    une ligne de 75 €, et `nombre` vaut 3. C'est ce qui fait remonter une dépense
+    récurrente au-dessus d'un achat isolé plus gros — sans quoi le classement
+    dirait ce qu'on a payé le plus cher en une fois, pas ce qui pèse le plus
+    dans la période.
+
+    L'agrégation se fait en Python, pour la raison habituelle : la part amortie
+    ne se dit pas en SQL sans réécrire `part_amortie` en arithmétique de dates.
+    Le volume est celui d'une période pour une seule monnaie.
+    """
+    filtres_communs = [
+        models.Operation.monnaie_id == monnaie_id,
+        models.TypeCompte.nom.notin_(TYPES_COMPTE_HORS_COURANT),
+        models.Operation.sens.in_([Sens.entree, Sens.depense]),
+        models.TypeOperationDB.code.notin_(_CODES_HORS_FLUX),
+    ]
+
+    def _lignes(filtre_periode):
+        return (
+            db.query(models.Operation, models.TypeOperationDB.code)
+            .join(models.Compte, models.Operation.compte_id == models.Compte.id)
+            .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+            .join(
+                models.TypeOperationDB,
+                models.Operation.type_id == models.TypeOperationDB.id,
+            )
+            .filter(filtre_periode, *filtres_communs)
+            .all()
+        )
+
+    prets_actifs = extensions.est_active(EXTENSION_PRETS)
+
+    def _contribution(operation, code):
+        """(sens imputé, montant) — ou None quand la ligne ne compte pas.
+
+        LE PRÊT REÇU EST LE SEUL CAS OÙ LE SENS DE L'ÉCRITURE NE DÉCIDE PAS DE
+        LA COLONNE : l'opération porte `sens = entrée` (l'argent est arrivé),
+        mais ce qu'elle COÛTE est l'écart entre ce qu'on rendra et ce qu'on a
+        reçu, et cela va aux sorties. Même règle que la carte."""
+        if code == TypeOperation.pret.value:
+            if not prets_actifs:
+                return None
+            return Sens.depense, max(0.0, (operation.montant_du or 0.0) - operation.montant)
+        return operation.sens, _base_imposable(
+            operation.montant, operation.montant_du, code
+        )
+
+    cumuls: dict = {Sens.entree: {}, Sens.depense: {}}
+
+    def _ajouter(sens, nature, montant):
+        libelle = (nature or "").strip()
+        entree = cumuls[sens].setdefault(libelle, [0.0, 0])
+        entree[0] += montant
+        entree[1] += 1
+
+    for operation, code in _lignes(_filtre_periode(annee, mois)):
+        contribution = _contribution(operation, code)
+        if contribution is None:
+            continue
+        sens, montant = contribution
+        _ajouter(sens, operation.nature, montant)
+
+    # Les amorties, pour leur seule part de la période — comme partout ailleurs.
+    for operation, code in _lignes(_filtre_periode_amortie(annee, mois)):
+        contribution = _contribution(operation, code)
+        if contribution is None:
+            continue
+        sens, montant = contribution
+        _ajouter(sens, operation.nature, montant * part_amortie(operation, annee, mois))
+
+    def _classer(par_libelle):
+        return sorted(
+            (
+                {"nature": libelle, "montant": montant, "nombre": nombre}
+                for libelle, (montant, nombre) in par_libelle.items()
+                # Une ligne à zéro ne détaille rien (dépense remboursable
+                # intégralement due, prêt sans intérêts) et occuperait une des
+                # trois places.
+                if montant > 0
+            ),
+            # Le libellé départage deux montants égaux : sans lui, deux
+            # affichages successifs des mêmes données pourraient ne pas donner
+            # le même ordre.
+            key=lambda d: (-d["montant"], d["nature"]),
+        )[:NB_TOP_DEPENSES]
+
+    return {
+        "entrees": _classer(cumuls[Sens.entree]),
+        "sorties": _classer(cumuls[Sens.depense]),
+    }
+
+
 def get_variation_brute(
     db: Session, annee: int, mois: Optional[int], monnaie_id: int
 ) -> float:

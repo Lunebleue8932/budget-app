@@ -67,7 +67,6 @@ let abCategories = [];
 let abBudgets = {};
 let abBudgetTotal = 0;
 let abBudgetTotalExplicite = true;
-let abIncoherences = [];
 
 /* ---------- Un petit histogramme à douze barres ----------
  *
@@ -122,7 +121,7 @@ function abHistogramme(conteneur, valeurs, monnaieId, { libelle }) {
     .join("");
 
   conteneur.innerHTML = `
-    <div class="ab-histo-titre">${escapeHtml(libelle)}</div>
+    ${libelle ? `<div class="ab-histo-titre">${escapeHtml(libelle)}</div>` : ""}
     <svg viewBox="0 0 ${largeur} ${hauteur}" width="100%" height="${hauteur}"
          xmlns="http://www.w3.org/2000/svg" class="ab-histo">
       <line class="ab-axe-zero" x1="0" y1="${yZero}" x2="${largeur}" y2="${yZero}" />
@@ -156,13 +155,66 @@ function abRenderEpargne(donnees) {
     retire: formatMontant(donnees.total.retire, donnees.monnaie_id),
   });
 
-  abHistogramme(
-    document.getElementById("ab-epargne-mois"),
+  abHistogrammeDansCarte(
+    "ab-epargne-mois",
     donnees.mois.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.net })),
-    donnees.monnaie_id,
-    { libelle: t("Mois par mois") }
+    donnees.monnaie_id
   );
 }
+
+/* ---------- LES DOUZE MOIS, REPLIÉS DANS LEUR CARTE ----------
+ *
+ * « Ce que tu as mis de côté » et « Dépenses imprévues » restent des chiffres
+ * de PÉRIODE, en grand ; leur histogramme mois par mois se déplie depuis la
+ * carte (bouton « Mois par mois »). Dépliés d'office, les deux graphes
+ * repoussaient le matelas et la liste des imprévues sous l'écran, pour une
+ * question — « est-ce que je tiens un rythme ? » — qu'on ne pose pas à chaque
+ * passage.
+ *
+ * LE DESSIN ATTEND D'ÊTRE VU : un histogramme calculé dans un bloc replié n'a
+ * pas de largeur, et son SVG se serait étiré de travers une fois déplié. On
+ * garde donc ses données, et on dessine à l'ouverture. L'état déplié survit
+ * aux rechargements de la page (changement de mois, de monnaie) : le refermer
+ * à chaque fois obligerait à le rouvrir après chaque geste.
+ */
+const abHistosCartes = {};
+const abCartesDepliees = new Set();
+
+function abHistogrammeDansCarte(id, valeurs, monnaieId) {
+  abHistosCartes[id] = { valeurs, monnaieId };
+  if (abCartesDepliees.has(id)) abDessinerHistoCarte(id);
+}
+
+function abDessinerHistoCarte(id) {
+  const donnees = abHistosCartes[id];
+  if (!donnees) return;
+  // Sans titre : le bouton qui l'a déplié le porte déjà.
+  abHistogramme(document.getElementById(id), donnees.valeurs, donnees.monnaieId, {
+    libelle: "",
+  });
+
+}
+
+function abBasculerCarte(bouton) {
+  const id = bouton.dataset.deplier;
+  const detail = document.getElementById(id);
+  if (!detail) return;
+  const ouvrir = detail.hidden;
+  detail.hidden = !ouvrir;
+  bouton.setAttribute("aria-expanded", String(ouvrir));
+  bouton.closest(".ab-carte-net")?.classList.toggle("ab-carte-depliee", ouvrir);
+  if (ouvrir) {
+    abCartesDepliees.add(id);
+    abDessinerHistoCarte(id);
+  } else {
+    abCartesDepliees.delete(id);
+  }
+}
+
+document.getElementById("section-budget")?.addEventListener("click", (e) => {
+  const bouton = e.target.closest("button.ab-deplier");
+  if (bouton) abBasculerCarte(bouton);
+});
 
 /* ---------- Le matelas de sécurité ---------- */
 
@@ -256,11 +308,10 @@ function abRenderImprevues(donnees) {
     total: formatMontant(donnees.total.total, donnees.monnaie_id),
   });
 
-  abHistogramme(
-    document.getElementById("ab-imprevues-mois"),
+  abHistogrammeDansCarte(
+    "ab-imprevues-mois",
     donnees.mois.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.imprevu })),
-    donnees.monnaie_id,
-    { libelle: t("Mois par mois") }
+    donnees.monnaie_id
   );
 
   const corps = document.getElementById("ab-imprevues-lignes");
@@ -282,6 +333,248 @@ function abRenderImprevues(donnees) {
   });
 }
 
+
+/* ---------- LES DEUX GRAPHES DU DASHBOARD, FACE AU BUDGET ----------
+ *
+ * L'histogramme et le camembert du dashboard, rendus par les MÊMES fonctions du
+ * noyau (`renderHistogrammeDepenses`, `renderPieChartDepenses`,
+ * `renderLegendeCategories`) — mais seulement ce qui parle de budget : les
+ * traits rouges des enveloppes sur les barres, et le camembert en vue
+ * « Budget ». La vue « État actuel » reste au dashboard.
+ *
+ * TROIS GRANULARITÉS : le mois (celui de la barre du haut), son année, ou une
+ * de ses semaines — les mêmes que sait découper le serveur (`/dashboard`,
+ * `/dashboard?vue=annee`, `/dashboard/semaines`).
+ *
+ * UNE COMPARAISON FACULTATIVE, avec une période de la MÊME granularité : deux
+ * mois, deux années, deux semaines. La seconde est dessinée PAR-DESSUS,
+ * hachurée et grisée (cf. app.js, « LA PÉRIODE COMPARÉE »). Par défaut, la
+ * période précédente — c'est la comparaison qu'on fait neuf fois sur dix.
+ */
+const abGraphes = {
+  vue: "mois",
+  semaine: null,
+  comparer: false,
+  cmp: { annee: null, mois: null, semaine: null },
+};
+// Les semaines d'un mois, par « monnaie-année-mois » : la liste des semaines
+// d'un mois sert à la fois aux menus et aux barres, et ne change pas tant
+// qu'on ne recharge pas la page.
+let abSemainesCache = {};
+
+async function abSemainesDe(annee, mois) {
+  const cle = `${abMonnaieId}-${annee}-${mois}`;
+  if (!abSemainesCache[cle]) {
+    abSemainesCache[cle] = apiFetch(
+      `/dashboard/semaines?monnaie_id=${abMonnaieId}&annee=${annee}&mois=${mois}`
+    );
+  }
+  return abSemainesCache[cle];
+}
+
+function abLibelleSemaine(semaine) {
+  return `${semaine.jour_debut} → ${semaine.jour_fin}`;
+}
+
+function abLibellePeriode(p, semaine = null) {
+  if (p.vue === "annee") return String(p.annee);
+  const mois = `${MOIS_COURTS_FR[p.mois - 1]} ${p.annee}`;
+  if (p.vue === "semaine" && semaine) return `${mois}, ${abLibelleSemaine(semaine)}`;
+  return mois;
+}
+
+/** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page. */
+async function abDepensesDe(p) {
+  if (p.vue === "semaine") {
+    const donnees = await abSemainesDe(p.annee, p.mois);
+    const semaines = donnees.semaines || [];
+    // `semaine` null = la dernière du mois (défaut de « la semaine d'avant »
+    // quand on est en première semaine).
+    const semaine =
+      semaines.find((s) => s.numero === p.semaine) || semaines[semaines.length - 1] || null;
+    return {
+      depenses: semaine ? semaine.depenses : [],
+      budgetTotal: semaine ? semaine.budget_total || 0 : 0,
+      libelle: abLibellePeriode(p, semaine),
+    };
+  }
+  const url =
+    p.vue === "annee"
+      ? `/dashboard?annee=${p.annee}&vue=annee`
+      : `/dashboard?annee=${p.annee}&mois=${p.mois}`;
+  const data = await apiFetch(url);
+  const kpis = (data.kpis || []).find((k) => k.monnaie_id === abMonnaieId);
+  return {
+    depenses: kpis ? kpis.depenses_par_categorie || [] : [],
+    budgetTotal: kpis ? kpis.budget_total || 0 : 0,
+    libelle: abLibellePeriode(p),
+  };
+}
+
+/** La période principale : celle de la barre du haut, à la granularité choisie. */
+function abPeriodeGraphes() {
+  return {
+    vue: abGraphes.vue,
+    annee: abPeriode.annee,
+    mois: abPeriode.mois,
+    semaine: abGraphes.semaine,
+  };
+}
+
+/* LA PÉRIODE PRÉCÉDENTE, défaut de la comparaison. */
+function abComparaisonParDefaut() {
+  const p = abPeriodeGraphes();
+  if (p.vue === "annee") return { annee: p.annee - 1, mois: p.mois, semaine: null };
+  const precedent = p.mois === 1 ? { annee: p.annee - 1, mois: 12 } : { annee: p.annee, mois: p.mois - 1 };
+  if (p.vue === "semaine" && p.semaine > 1) {
+    return { annee: p.annee, mois: p.mois, semaine: p.semaine - 1 };
+  }
+  // En semaine 1, la précédente est la DERNIÈRE du mois d'avant (null, cf.
+  // abDepensesDe).
+  return { ...precedent, semaine: null };
+}
+
+function abAfficher(id, visible) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = visible ? "" : "none";
+}
+
+async function abRemplirControlesGraphes() {
+  const vue = abGraphes.vue;
+  document.getElementById("ab-graphes-vue").value = vue;
+  document.getElementById("ab-comparer").checked = abGraphes.comparer;
+
+  // La semaine principale : celles du mois de la barre du haut.
+  abAfficher("ab-graphes-semaine-bloc", vue === "semaine");
+  if (vue === "semaine") {
+    const semaines = (await abSemainesDe(abPeriode.annee, abPeriode.mois)).semaines || [];
+    if (!semaines.some((s) => s.numero === abGraphes.semaine)) {
+      // Par défaut la semaine d'aujourd'hui quand on regarde le mois en cours,
+      // la première sinon.
+      const aujourdhui = new Date();
+      const courante =
+        aujourdhui.getFullYear() === abPeriode.annee && aujourdhui.getMonth() + 1 === abPeriode.mois
+          ? semaines.find((s) => s.jour_debut <= aujourdhui.getDate() && aujourdhui.getDate() <= s.jour_fin)
+          : null;
+      abGraphes.semaine = (courante || semaines[0] || {}).numero ?? null;
+    }
+    fillSelect(
+      document.getElementById("ab-graphes-semaine"),
+      semaines.map((s) => ({ value: s.numero, label: abLibelleSemaine(s) }))
+    );
+    document.getElementById("ab-graphes-semaine").value = String(abGraphes.semaine);
+  }
+
+  // LE DÉFAUT DE LA COMPARAISON SE CALCULE ICI, une fois la semaine principale
+  // connue : « la semaine d'avant » n'a pas de sens avant.
+  if (abGraphes.comparer && abGraphes.cmp.annee == null) abGraphes.cmp = abComparaisonParDefaut();
+  // La période comparée : ses listes n'existent que si l'on compare.
+  const cmp = abGraphes.cmp;
+  abAfficher("ab-cmp-annee-bloc", abGraphes.comparer);
+  abAfficher("ab-cmp-mois-bloc", abGraphes.comparer && vue !== "annee");
+  abAfficher("ab-cmp-semaine-bloc", abGraphes.comparer && vue === "semaine");
+  if (!abGraphes.comparer) return;
+  fillSelect(
+    document.getElementById("ab-cmp-annee"),
+    abAnneesProposees().map((a) => ({ value: a, label: String(a) }))
+  );
+  document.getElementById("ab-cmp-annee").value = String(cmp.annee);
+  fillSelect(
+    document.getElementById("ab-cmp-mois"),
+    MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
+  );
+  document.getElementById("ab-cmp-mois").value = String(cmp.mois);
+  if (vue === "semaine") {
+    const semaines = (await abSemainesDe(cmp.annee, cmp.mois)).semaines || [];
+    if (!semaines.some((s) => s.numero === cmp.semaine)) {
+      cmp.semaine = (semaines[semaines.length - 1] || {}).numero ?? null;
+    }
+    fillSelect(
+      document.getElementById("ab-cmp-semaine"),
+      semaines.map((s) => ({ value: s.numero, label: abLibelleSemaine(s) }))
+    );
+    document.getElementById("ab-cmp-semaine").value = String(cmp.semaine);
+  }
+}
+
+async function abRenderGraphes() {
+  const histo = document.getElementById("ab-histogramme");
+  if (!histo || abMonnaieId == null) return;
+  try {
+    await abRemplirControlesGraphes();
+    const principale = await abDepensesDe(abPeriodeGraphes());
+    const comparee = abGraphes.comparer
+      ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp })
+      : null;
+
+    // TOUTES LES CATÉGORIES : il n'y a pas de filtre sur cette page, et une
+    // catégorie écartée ici n'aurait aucun moyen de revenir.
+    const partsDe = (d) =>
+      partsCategoriesDashboard(d.depenses, new Set(d.depenses.map((x) => x.categorie)), {
+        vue: VUE_PIE_BUDGET,
+        budgetTotal: d.budgetTotal,
+      });
+    const parts = partsDe(principale);
+    const partsCompare = comparee ? partsDe(comparee) : null;
+
+    renderHistogrammeDepenses(parts.retenues, abMonnaieId, histo, {
+      comparaison: comparee ? comparee.depenses : null,
+      libelleCompare: comparee ? comparee.libelle : null,
+    });
+    renderPieChartDepenses(principale.depenses, abMonnaieId, document.getElementById("ab-camembert"), parts, {
+      comparaison: partsCompare,
+      libelleCompare: comparee ? comparee.libelle : null,
+    });
+    renderLegendeCategories(abMonnaieId, parts, document.getElementById("ab-legende"));
+    cablerSurbrillanceCategories();
+
+    // CE QUI EST PLEIN, CE QUI EST HACHURÉ — et, sans budget posé, pourquoi
+    // l'anneau est plein : le camembert retombe alors sur le total dépensé.
+    const legende = [];
+    legende.push(
+      comparee
+        ? t("Plein : {courante} · Hachuré : {comparee}", {
+            courante: principale.libelle,
+            comparee: comparee.libelle,
+          })
+        : principale.libelle
+    );
+    if (!(principale.budgetTotal > 0)) {
+      legende.push(t("Aucun budget posé sur cette période : le camembert rapporte chaque catégorie au total dépensé."));
+    }
+    document.getElementById("ab-graphes-legende").textContent = legende.join(" — ");
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+document.getElementById("ab-graphes-vue")?.addEventListener("change", (e) => {
+  abGraphes.vue = e.target.value;
+  // Changer de granularité change la question : la comparaison repart de la
+  // période précédente, dans la nouvelle unité.
+  abGraphes.cmp = { annee: null, mois: null, semaine: null };
+  abRenderGraphes();
+});
+document.getElementById("ab-graphes-semaine")?.addEventListener("change", (e) => {
+  abGraphes.semaine = Number(e.target.value);
+  abRenderGraphes();
+});
+document.getElementById("ab-comparer")?.addEventListener("change", (e) => {
+  abGraphes.comparer = e.target.checked;
+  abRenderGraphes();
+});
+document.getElementById("ab-cmp-annee")?.addEventListener("change", (e) => {
+  abGraphes.cmp.annee = Number(e.target.value);
+  abRenderGraphes();
+});
+document.getElementById("ab-cmp-mois")?.addEventListener("change", (e) => {
+  abGraphes.cmp.mois = Number(e.target.value);
+  abRenderGraphes();
+});
+document.getElementById("ab-cmp-semaine")?.addEventListener("change", (e) => {
+  abGraphes.cmp.semaine = Number(e.target.value);
+  abRenderGraphes();
+});
 
 /* ---------- Le budget du mois ---------- */
 
@@ -309,16 +602,52 @@ function abRenderBudgetTotal() {
 }
 
 /**
- * Écrit le budget du mois affiché, puis demande l'accord des trois grandeurs.
+ * Les parts de toutes les catégories, recalculées depuis leurs enveloppes.
  *
- * C'EST LA SEULE ÉCRITURE DE CETTE PAGE QUI OUVRE LA FENÊTRE D'ACCORD, et la
- * raison tient en un mot : le total est le dénominateur commun. Le bouger
- * déplace d'un coup le montant attendu de CHAQUE catégorie, et c'est là qu'on a
- * besoin qu'on nous dise laquelle des trois grandeurs on voulait vraiment
- * changer. Une enveloppe de catégorie, elle, se règle au curseur : ouvrir une
- * fenêtre modale à chaque relâchement de souris aurait rendu le curseur
- * inutilisable — son désaccord se lit sur sa propre ligne (cf.
- * abLigneDesaccord).
+ * POURQUOI ÇA EXISTE. Le budget du mois est le DÉNOMINATEUR des parts : le
+ * bouger rend périmée la part de chaque catégorie, d'un coup, sans que
+ * personne n'ait touché à une seule ligne. Tant que les deux grandeurs étaient
+ * indépendantes, il fallait bien demander laquelle on voulait vraiment changer
+ * (c'était la fenêtre d'accord). Elles ne le sont plus : l'enveloppe est ce
+ * qu'on manipule, la part est ce qu'on en lit — alors on garde les enveloppes
+ * et on réécrit les parts. Il n'y a rien à arbitrer.
+ *
+ * UNE ÉCRITURE PAR CATÉGORIE, et il n'y a pas moyen de faire autrement : la
+ * part est une colonne de `categorie`, posée une ligne à la fois. C'est un
+ * geste manuel et rare, pas une boucle de rendu.
+ *
+ * ON S'ARRÊTE AU PREMIER REFUS, en le disant. Il n'en existe qu'un : la somme
+ * des parts dépasserait 100 %, c'est-à-dire que les enveloppes dépassent
+ * désormais le budget qu'on vient de poser. Le serveur nomme le plafond
+ * utilisable ; continuer aurait empilé le même message autant de fois qu'il
+ * reste de catégories.
+ */
+async function abResynchroniserParts() {
+  if (!(abBudgetTotal > 0)) return;
+  for (const categorie of abCategories) {
+    const montant = (abBudgets[categorie.id] || {}).montant || 0;
+    const part = abPourcentageDuMontant(montant);
+    // Inutile de réécrire ce qui n'a pas bougé : la tolérance du serveur est
+    // d'un millième, la même sert de seuil ici.
+    if (Math.abs((categorie.objectif_pourcentage || 0) - part) < 1e-3) continue;
+    try {
+      await abEcrireObjectifCategorie(categorie.id, part);
+    } catch (err) {
+      showMessage(traduireMessageServeur(err.message), "error");
+      return;
+    }
+  }
+}
+
+/**
+ * Écrit le budget du mois affiché, puis remet les parts d'accord avec lui.
+ *
+ * PLUS DE FENÊTRE D'ACCORD DEPUIS CETTE PAGE. Elle demandait laquelle des trois
+ * grandeurs on voulait vraiment changer — une vraie question tant que
+ * l'enveloppe et la part étaient indépendantes. Elles sont maintenant deux
+ * lectures du même nombre (cf. le bloc « UN SEUL CURSEUR, DEUX CASES ») : la
+ * seule réponse possible est « garde mes enveloppes, recalcule les parts », et
+ * poser une question dont on connaît la réponse fait cliquer sans lire.
  */
 async function abEnregistrerBudgetTotal() {
   const { annee, mois } = abPeriode;
@@ -339,33 +668,46 @@ async function abEnregistrerBudgetTotal() {
     return;
   }
   showMessage(t("Budget du mois enregistré."), "success");
+  // RELU AVANT DE RECALCULER : `abResynchroniserParts` divise par
+  // `abBudgetTotal`, qui vaut encore l'ancien total tant qu'on n'a pas relu.
   await abCharger();
-  await verifierAccordBudgets(annee, mois, abMonnaieId);
+  await abResynchroniserParts();
+  await abCharger();
 }
 
 /* ---------- Les budgets par catégorie ----------
  *
- * DEUX GRANDEURS PAR LIGNE, ET ELLES NE SE DÉDUISENT PAS L'UNE DE L'AUTRE : le
- * BUDGET en valeur (une enveloppe posée sur la catégorie pour ce mois-là, qui
- * répond à « combien puis-je encore dépenser ») et l'OBJECTIF en pourcentage
- * (la part du budget total qui devrait aller là). Poser l'un n'oblige jamais à
- * poser l'autre — c'est verrouillé par test_objectif_categorie.py — et c'est
- * précisément pour ça qu'ils sont sur la même ligne plutôt que sur deux écrans :
- * on les décide en pensant à la même catégorie.
+ * UN SEUL CURSEUR, DEUX CASES — ET LES DEUX CASES SONT LE MÊME NOMBRE.
  *
- * UN CURSEUR ET UN NOMBRE, PAS L'UN OU L'AUTRE. Le curseur sert à RÉPARTIR — on
- * pousse celui-ci, on voit ce qu'il reste — et c'est le geste qu'on fait devant
- * vingt catégories. Le nombre sert à POSER une valeur exacte (150 €, 12,5 %),
- * ce qu'aucun curseur ne fera jamais au pixel près. Les deux pilotent la même
- * valeur : glisser met le nombre à jour sans rien envoyer, et c'est le
- * RELÂCHEMENT (l'événement `change`) qui écrit.
+ * CE QU'IL Y AVAIT AVANT, ET POURQUOI ÇA NE TENAIT PAS. Chaque ligne portait
+ * DEUX curseurs : l'enveloppe en valeur et l'objectif en pourcentage, présentés
+ * comme deux grandeurs indépendantes. Elles ne le sont pas : dès qu'un budget
+ * du mois est posé, l'une VAUT l'autre (enveloppe = total × part). Deux
+ * curseurs pour une seule décision, ça veut dire deux gestes à accorder à la
+ * main, un signalement de désaccord sous la ligne quand on n'en bouge qu'un, et
+ * un écran qui demande d'arbitrer entre deux écritures de la même chose.
  *
- * LA BUTÉE DU CURSEUR DE POURCENTAGE EST CE QUI RESTE À RÉPARTIR : la somme des
- * objectifs ne peut pas dépasser 100 % (le serveur refuse en 400, cf.
- * crud.erreur_objectif_pourcentage), et un curseur qui laisse atteindre une
- * valeur refusée apprend à ne plus lui faire confiance. Ce n'est pas un
- * contrôle — c'est le serveur qui tranche, toujours — c'est la course du
- * curseur qui dit la place disponible.
+ * DÉSORMAIS : le curseur RÉPARTIT, et les deux cases de droite MONTRENT la même
+ * valeur dans les deux unités — des euros, et la part du budget du mois. Bouger
+ * le curseur les met à jour toutes les deux. Écrire dans l'une recalcule
+ * l'autre et replace le curseur. Il n'y a plus de désaccord possible entre
+ * elles, donc plus rien à signaler : c'est une valeur, lue de deux façons.
+ *
+ * RIEN NE S'ÉCRIT AVANT QU'ON AIT FINI. Glisser ne fait que bouger les nombres ;
+ * c'est le RELÂCHEMENT du curseur, la sortie d'une case (clic ailleurs) ou
+ * Ctrl+Entrée qui enregistrent. Une requête par pixel parcouru écrirait des
+ * dizaines de valeurs dont aucune n'est celle qu'on voulait.
+ *
+ * LE SERVEUR TRANCHE, TOUJOURS, et c'est lui qui porte la seule limite qui
+ * reste : la somme des parts ne peut pas dépasser 100 % (cf.
+ * crud.erreur_objectif_pourcentage). Comme la part se déduit maintenant du
+ * montant, cela revient à dire que la somme des enveloppes ne peut pas dépasser
+ * le budget du mois — et son refus est affiché tel quel, avec le plafond
+ * utilisable qu'il nomme.
+ *
+ * SANS BUDGET DU MOIS, LA CASE DES POURCENTAGES N'A PAS DE DÉNOMINATEUR : elle
+ * est éteinte et vide, et seule l'enveloppe s'écrit. Un « 0 % » affiché aurait
+ * été un chiffre faux plutôt qu'une absence.
  */
 
 // La butée du curseur des montants. Elle ne peut pas être le budget total seul :
@@ -380,6 +722,29 @@ function abButeeMontant() {
   return Math.ceil((plancher * 1.25) / 100) * 100;
 }
 
+/* ---------- LA PART EXACTE, ET CE QUE L'ÉCRAN EN MONTRE ----------
+ *
+ * L'OBJECTIF D'UNE CATÉGORIE EST UNE FRACTION : son enveloppe divisée par le
+ * budget du mois. Écrite à la décimale, cette fraction ment — et elle ment
+ * ASSEZ pour être refusée. Sept catégories à 100 € d'un budget de 700 € valent
+ * chacune 14,285714… % ; arrondies à 14,3 %, elles totalisent 100,1 %, et le
+ * serveur refuse la septième (cf. crud.erreur_objectif_pourcentage) pour une
+ * répartition qui tombe pourtant juste, au centime près. L'utilisateur voyait
+ * alors un montant parfaitement légitime rejeté sans rien pouvoir y faire :
+ * aucune des sept valeurs n'était fausse, c'est leur écriture qui l'était.
+ *
+ * D'OÙ LA SÉPARATION : la BASE garde la fraction telle quelle, l'ÉCRAN en
+ * montre un arrondi. Le serveur tolère déjà un millième sur la somme, ce qui
+ * absorbe l'arithmétique des flottants sans absorber une vraie erreur.
+ *
+ * UNE DÉCIMALE À L'ÉCRAN, comme partout ailleurs (cf. formatPourcentage) : le
+ * champ de saisie, le curseur et le pied de tableau lisent tous celle-ci. */
+const AB_DECIMALES_POURCENTAGE = 10;
+
+function abPourcentageAffiche(pourcentage) {
+  return Math.round((pourcentage || 0) * AB_DECIMALES_POURCENTAGE) / AB_DECIMALES_POURCENTAGE;
+}
+
 // Un pas qui donne au curseur une course utilisable : au centime, il faudrait
 // des milliers de crans pour traverser un budget de 3 000 €, et la valeur exacte
 // se pose de toute façon dans le champ nombre d'à côté.
@@ -388,6 +753,21 @@ function abPasMontant(butee) {
   if (butee > 5000) return 25;
   if (butee > 1000) return 10;
   return 5;
+}
+
+/** La part du budget du mois que représente une enveloppe, ou null quand
+ *  aucun budget n'est posé — il n'y a alors pas de dénominateur, et zéro serait
+ *  un chiffre faux plutôt qu'une absence. */
+function abPourcentageDuMontant(montant) {
+  if (!(abBudgetTotal > 0)) return null;
+  return ((montant || 0) / abBudgetTotal) * 100;
+}
+
+/** L'enveloppe que vaut une part du budget du mois, au CENTIME : l'argent n'a
+ *  pas de troisième décimale, une enveloppe de 333,333333 € ne veut rien dire. */
+function abMontantDuPourcentage(pourcentage) {
+  if (!(abBudgetTotal > 0)) return 0;
+  return Math.round(abBudgetTotal * ((pourcentage || 0) / 100) * 100) / 100;
 }
 
 function abRenderBudgetsCategories() {
@@ -399,24 +779,19 @@ function abRenderBudgetsCategories() {
   }
   const butee = abButeeMontant();
   const pas = abPasMontant(butee);
-  const sommeObjectifs = abCategories.reduce(
-    (total, c) => total + (c.objectif_pourcentage || 0),
-    0
-  );
-  const parCategorie = Object.fromEntries(abIncoherences.map((l) => [l.categorie_id, l]));
+  // SANS BUDGET DU MOIS, PAS DE DÉNOMINATEUR : la case des parts est éteinte
+  // plutôt qu'affichée à zéro, et son placeholder dit pourquoi.
+  const sansTotal = !(abBudgetTotal > 0);
 
   const lignes = abCategories
     .map((c) => {
       const budget = abBudgets[c.id] || { montant: 0, explicite: false };
-      const objectif = c.objectif_pourcentage || 0;
-      // Ce qui reste à répartir POUR CELLE-CI : le total moins les autres. On
-      // retranche la sienne parce qu'on la REMPLACE, on ne l'ajoute pas —
-      // sinon ramener 60 % à 50 % serait refusé (même règle que le serveur).
-      const plafond = Math.max(
-        objectif,
-        Math.round((100 - (sommeObjectifs - objectif)) * 10) / 10
-      );
-      const desaccord = parCategorie[c.id];
+      const montant = budget.montant || 0;
+      // LA CASE MONTRE UN ARRONDI, LA BASE GARDE L'EXACT (cf.
+      // AB_DECIMALES_POURCENTAGE) : « 14,3 % » se lit, « 14,285714285714286 % »
+      // ne se lit pas — et c'est pourtant ce que vaut un septième d'un budget.
+      const part = abPourcentageDuMontant(montant);
+      const partAffichee = part === null ? "" : abPourcentageAffiche(part) || "";
       return `
       <div class="ab-budget-ligne" data-id="${c.id}">
         <div class="ab-budget-nom">
@@ -429,21 +804,17 @@ function abRenderBudgetsCategories() {
         </div>
         <div class="ab-budget-curseur">
           <input type="range" data-champ="montant" min="0" max="${butee}" step="${pas}"
-                 value="${Math.min(budget.montant, butee)}"
+                 value="${Math.min(montant, butee)}"
                  aria-label="${t("Budget de la catégorie")}" />
           <input type="number" data-champ="montant" step="0.01" min="0"
-                 value="${budget.montant ? budget.montant.toFixed(2) : ""}"
-                 placeholder="0,00" />
+                 value="${montant ? montant.toFixed(2) : ""}"
+                 placeholder="0,00" aria-label="${t("Budget de la catégorie")}" />
           <span class="ab-budget-unite">${escapeHtml(symboleMonnaie(abMonnaieId) || "")}</span>
-        </div>
-        <div class="ab-budget-curseur">
-          <input type="range" data-champ="objectif" min="0" max="${plafond}"
-                 step="0.1" value="${objectif}" aria-label="${t("Objectif")}" />
-          <input type="number" data-champ="objectif" step="0.1" min="0" max="${plafond}"
-                 value="${objectif || ""}" placeholder="0" />
+          <input type="number" data-champ="objectif" step="0.1" min="0"
+                 value="${partAffichee}" placeholder="${sansTotal ? "—" : "0"}"
+                 aria-label="${t("Part du budget")}" ${sansTotal ? "disabled" : ""} />
           <span class="ab-budget-unite">%</span>
         </div>
-        ${desaccord ? abLigneDesaccord(desaccord) : ""}
       </div>`;
     })
     .join("");
@@ -452,7 +823,6 @@ function abRenderBudgetsCategories() {
     <div class="ab-budget-entete">
       <div class="ab-budget-nom">${t("Catégorie")}</div>
       <div>${t("Budget du mois")}</div>
-      <div>${t("Objectif de répartition")}</div>
     </div>
     ${lignes}
     <div class="ab-budget-somme" id="ab-budget-somme"></div>`;
@@ -460,44 +830,15 @@ function abRenderBudgetsCategories() {
   abRenderSomme();
 }
 
-/* LE DÉSACCORD SE LIT SUR LA LIGNE QUI LE PORTE, et non dans une fenêtre.
- *
- * Les trois grandeurs sont liées par une équation — l'enveloppe d'une catégorie
- * devrait valoir le budget total multiplié par son objectif — et rien n'oblige
- * à les poser toutes les trois. Mais dès que les trois existent, elles peuvent
- * se contredire, et la réponse n'appartient qu'à celui qui a écrit les chiffres :
- * a-t-il changé d'avis sur l'enveloppe, sur la part, ou sur le total ?
- *
- * D'OÙ UN SIGNALEMENT ET NON UN RECALCUL, comme avant. Ce qui change, c'est
- * l'endroit : au curseur, une fenêtre modale s'ouvrirait à chaque relâchement de
- * souris — puisque bouger l'un des deux nombres DÉFAIT l'équation par
- * construction — et on ne pourrait plus régler une ligne sans la refermer trois
- * fois. Posé sous la ligne, le signalement dit la même chose, reste visible tant
- * qu'on ne l'a pas traité, et n'interrompt rien.
- *
- * LES CHIFFRES SONT CEUX DU SERVEUR (`/dashboard/coherence-budgets`) et non
- * recalculés ici : un miroir qui dérive de son modèle proposerait un nombre qui
- * ne fait pas taire le signalement. */
-function abLigneDesaccord(ligne) {
-  return `
-    <div class="ab-budget-desaccord">
-      <span>${t("Ne s'accorde pas avec le budget du mois.")}</span>
-      <button type="button" data-accord="budget">${t("Mettre le budget à")} ${formatMontant(
-        ligne.budget_attendu,
-        abMonnaieId
-      )}</button>
-      <button type="button" data-accord="objectif">${t(
-        "Mettre l'objectif à"
-      )} ${formatPourcentage(ligne.pourcentage_attendu)}</button>
-    </div>`;
-}
-
-/* LA SOMME DES DEUX COLONNES, EN PIED DE TABLEAU. C'est la seule chose qu'aucune
+/* CE QUI RESTE À PLACER, EN PIED DE TABLEAU. C'est la seule chose qu'aucune
  * ligne ne peut dire et qu'on se demande pourtant à chaque réglage : « est-ce
- * que j'ai tout placé ? ». Les objectifs se comparent à 100 % (on n'est pas
- * obligé de l'atteindre, mais on ne peut pas le dépasser), les enveloppes au
- * budget total — qu'elles PEUVENT dépasser, rien ne l'interdit, et c'est
- * justement pour ça qu'il faut pouvoir le voir. */
+ * que j'ai tout placé ? ».
+ *
+ * LES DEUX UNITÉS SUR LA MÊME LIGNE, comme dans les cases qu'elles totalisent :
+ * ce sont les mêmes euros, lus deux fois. La part n'est plus la somme des
+ * `objectif_pourcentage` enregistrés mais celle des ENVELOPPES rapportée au
+ * budget du mois — le pied dit alors exactement ce que les lignes montrent,
+ * même si une part n'a pas encore été réécrite en base. */
 function abRenderSomme() {
   const pied = document.getElementById("ab-budget-somme");
   if (!pied) return;
@@ -505,17 +846,17 @@ function abRenderSomme() {
     (total, c) => total + ((abBudgets[c.id] || {}).montant || 0),
     0
   );
-  const sommeObjectifs = abCategories.reduce(
-    (total, c) => total + (c.objectif_pourcentage || 0),
-    0
-  );
   const depasse = abBudgetTotal > 0 && sommeMontants > abBudgetTotal + 0.005;
+  const part = abPourcentageDuMontant(sommeMontants);
   pied.innerHTML = `
     <div class="ab-budget-nom">${t("Total réparti")}</div>
     <div class="${depasse ? "negatif" : ""}">${formatMontant(sommeMontants, abMonnaieId)}${
-      abBudgetTotal > 0 ? ` / ${formatMontant(abBudgetTotal, abMonnaieId)}` : ""
-    }</div>
-    <div>${formatPourcentage(sommeObjectifs)} / ${formatPourcentage(100)}</div>`;
+      abBudgetTotal > 0
+        ? ` / ${formatMontant(abBudgetTotal, abMonnaieId)} · ${formatPourcentage(
+            part
+          )} / ${formatPourcentage(100)}`
+        : ""
+    }</div>`;
 }
 
 async function abEcrireBudgetCategorie(categorieId, montant) {
@@ -536,120 +877,153 @@ async function abEcrireObjectifCategorie(categorieId, pourcentage) {
 /* UN SEUL ÉCOUTEUR POUR TOUTE LA ZONE, posé une fois : la liste des lignes est
  * reconstruite à chaque lecture, et un écouteur par champ en laisserait un de
  * plus derrière lui à chaque fois (cf. le même piège dans creerMenuCases). */
+/** Les trois contrôles d'une ligne remis d'accord sur UNE valeur.
+ *
+ *  `sauf` est celui qu'on est en train de manipuler : on ne le réécrit pas,
+ *  sinon le curseur de saisie sauterait en fin de champ à chaque frappe et le
+ *  pouce quitterait le curseur qu'on pousse.
+ */
+function abSynchroniserLigne(ligne, montant, sauf) {
+  const curseur = ligne.querySelector('input[type="range"]');
+  const caseMontant = ligne.querySelector('input[type="number"][data-champ="montant"]');
+  const casePart = ligne.querySelector('input[type="number"][data-champ="objectif"]');
+  if (curseur && curseur !== sauf) {
+    // Le curseur ne va pas au-delà de sa butée : une enveloppe saisie plus
+    // grande le laisse simplement au bout de sa course (cf. abButeeMontant).
+    curseur.value = String(Math.min(montant, Number(curseur.max) || montant));
+  }
+  if (caseMontant && caseMontant !== sauf) {
+    caseMontant.value = montant ? montant.toFixed(2) : "";
+  }
+  if (casePart && casePart !== sauf) {
+    const part = abPourcentageDuMontant(montant);
+    casePart.value = part === null ? "" : String(abPourcentageAffiche(part) || "");
+  }
+}
+
+/** Le montant que ce contrôle décrit, quelle que soit son unité. */
+function abMontantSaisi(champ) {
+  const brut = String(champ.value).trim();
+  const valeur = brut === "" ? 0 : Number(brut.replace(",", "."));
+  if (!Number.isFinite(valeur) || valeur < 0) return null;
+  return champ.dataset.champ === "objectif" ? abMontantDuPourcentage(valeur) : valeur;
+}
+
+/**
+ * Enregistre la ligne : l'enveloppe, et la part qui en découle.
+ *
+ * LA PART D'ABORD, L'ENVELOPPE ENSUITE — et l'ordre est tout sauf un détail.
+ *
+ * La part est la seule des deux qui puisse être REFUSÉE : leur somme ne peut
+ * pas dépasser 100 %, ce qui revient à dire que la somme des enveloppes ne peut
+ * pas dépasser le budget du mois. L'enveloppe, elle, n'est jamais refusée.
+ *
+ * Écrire l'enveloppe en premier laissait donc passer le cas qui casse tout le
+ * modèle : enveloppe enregistrée, part rejetée, et les deux « lectures du même
+ * nombre » se retrouvaient à dire deux choses différentes — 200 € ici, 0 %
+ * là-bas, et le camembert affichant une part que l'écran du budget contredit.
+ * Dans cet ordre, un refus ne laisse RIEN derrière lui : la ligne se relit
+ * telle qu'elle était, et le message dit le plafond utilisable.
+ *
+ * SANS BUDGET DU MOIS, SEULE L'ENVELOPPE S'ÉCRIT : il n'y a pas de
+ * dénominateur, donc pas de part à en déduire — et donc rien à refuser.
+ */
+async function abEnregistrerLigneBudget(champ) {
+  const ligne = champ.closest(".ab-budget-ligne");
+  const categorieId = Number(ligne.dataset.id);
+  const montant = abMontantSaisi(champ);
+  if (montant === null) {
+    showMessage(t("Montant invalide."), "error");
+    await abCharger();
+    return;
+  }
+  // LE BLOCAGE PORTE SUR LES ENVELOPPES DU MOIS, telles que l'écran les montre
+  // (héritées comprises), et non sur les seules parts enregistrées. Le serveur
+  // refuse une somme de PARTS au-delà de 100 % — mais une part n'est écrite que
+  // lorsqu'un budget du mois existe : des enveloppes posées avant, ou héritées
+  // d'un autre mois, gardaient une part à zéro, et la somme des enveloppes
+  // dépassait le budget du mois sans qu'aucun refus ne tombe.
+  if (abBudgetTotal > 0) {
+    const autres = abCategories
+      .filter((c) => c.id !== categorieId)
+      .reduce((total, c) => total + ((abBudgets[c.id] || {}).montant || 0), 0);
+    if (autres + montant > abBudgetTotal + 0.005) {
+      showMessage(
+        t(
+          "Le budget du mois est de {total} : cette catégorie ne peut pas dépasser {plafond}, sans quoi la somme des budgets par catégorie le dépasserait.",
+          {
+            total: formatMontant(abBudgetTotal, abMonnaieId),
+            plafond: formatMontant(Math.max(0, abBudgetTotal - autres), abMonnaieId),
+          }
+        ),
+        "error"
+      );
+      await abCharger();
+      return;
+    }
+  }
+  try {
+    if (abBudgetTotal > 0) {
+      // LA PART N'EST PAS ARRONDIE (cf. « LA PART EXACTE ») : six enveloppes de
+      // 100 € sur 600 € valent 16,666… % chacune, et arrondies à 16,7 % elles
+      // totalisent 100,2 % — la sixième écriture serait refusée pour une
+      // répartition qui tombe pourtant juste au centime.
+      await abEcrireObjectifCategorie(categorieId, abPourcentageDuMontant(montant));
+    }
+    await abEcrireBudgetCategorie(categorieId, montant);
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+  await abCharger();
+}
+
+/* UN SEUL ÉCOUTEUR POUR TOUTE LA ZONE, posé une fois : la liste des lignes est
+ * reconstruite à chaque lecture, et un écouteur par champ en laisserait un de
+ * plus derrière lui à chaque fois (cf. le même piège dans creerMenuCases). */
 function abCablerBudgetsCategories() {
   const zone = document.getElementById("ab-budgets-categories");
   if (!zone || zone.dataset.pose) return;
   zone.dataset.pose = "1";
 
-  // GLISSER NE MET À JOUR QUE LE NOMBRE D'À CÔTÉ, et n'envoie rien : une
+  // BOUGER MET TOUT D'ACCORD, ET N'ENVOIE RIEN. Le curseur et les deux cases
+  // décrivent la même valeur : toucher l'un replace les deux autres. Une
   // requête par pixel parcouru écrirait des dizaines de valeurs dont aucune
   // n'est celle qu'on voulait.
   zone.addEventListener("input", (e) => {
     const champ = e.target.closest("input[data-champ]");
     if (!champ) return;
     const ligne = champ.closest(".ab-budget-ligne");
-    const jumeau = [...ligne.querySelectorAll(`input[data-champ="${champ.dataset.champ}"]`)].find(
-      (autre) => autre !== champ
-    );
-    if (jumeau) jumeau.value = champ.value;
-    // Le pied de tableau suit le curseur : c'est ce qu'on regarde en le
-    // poussant (« est-ce que j'ai tout placé ? »), et l'attendre au
-    // relâchement priverait le geste de sa réponse. Ce que l'on touche ici est
-    // le cache de l'écran, jamais la base — l'écriture attend `change`.
-    const valeur = Number(String(champ.value).replace(",", ".")) || 0;
-    if (champ.dataset.champ === "montant") {
-      abBudgets[Number(ligne.dataset.id)] = { montant: valeur, explicite: true };
-    } else {
-      const categorie = abCategories.find((c) => c.id === Number(ligne.dataset.id));
-      if (categorie) categorie.objectif_pourcentage = valeur;
-    }
+    const montant = abMontantSaisi(champ);
+    if (montant === null) return;
+    abSynchroniserLigne(ligne, montant, champ);
+    // Le pied de tableau suit le geste : c'est ce qu'on regarde en poussant le
+    // curseur (« est-ce que j'ai tout placé ? »), et l'attendre au relâchement
+    // priverait le geste de sa réponse. Ce qu'on touche ici est le cache de
+    // l'écran, jamais la base.
+    abBudgets[Number(ligne.dataset.id)] = { montant, explicite: true };
     abRenderSomme();
   });
 
-  // LE RELÂCHEMENT ÉCRIT, ET IL ÉCRIT LES DEUX. `change` est l'événement du
-  // geste terminé : sur un curseur il tombe quand on lâche la souris, sur un
-  // champ nombre quand on en sort ou qu'on valide.
-  //
-  // LES DEUX CURSEURS D'UNE LIGNE SONT LIÉS PAR LE BUDGET TOTAL : l'enveloppe
-  // devrait valoir le total multiplié par l'objectif (cf.
-  // crud.incoherences_budgets). Bouger l'un sans l'autre défaisait donc
-  // l'équation à chaque geste, et posait aussitôt sous la ligne le signalement
-  // de désaccord — à chaque relâchement de souris, pour un désaccord qu'on
-  // venait de créer soi-même et dont la correction était calculable. Porter
-  // l'autre chiffre est la seule chose à faire : c'est ce que l'utilisateur
-  // aurait cliqué dans la seconde qui suit.
-  //
-  // SEULEMENT SI LE TOTAL EST POSÉ : sans dénominateur, il n'y a pas d'équation
-  // et l'autre chiffre ne se déduit de rien. On écrit alors le seul qu'on a
-  // touché, exactement comme avant.
-  zone.addEventListener("change", async (e) => {
+  // CE QUI ENREGISTRE : le relâchement du curseur, la sortie d'une case (clic
+  // ailleurs), et Ctrl+Entrée. `change` est l'événement du geste terminé — sur
+  // un curseur il tombe quand on lâche la souris, sur une case quand on en sort
+  // ou qu'on valide.
+  zone.addEventListener("change", (e) => {
     const champ = e.target.closest("input[data-champ]");
-    if (!champ) return;
-    const ligne = champ.closest(".ab-budget-ligne");
-    const categorieId = Number(ligne.dataset.id);
-    const brut = String(champ.value).trim();
-    const valeur = brut === "" ? 0 : Number(brut.replace(",", "."));
-    if (!Number.isFinite(valeur) || valeur < 0) {
-      showMessage(t("Montant invalide."), "error");
-      await abCharger();
-      return;
-    }
-    const surLeMontant = champ.dataset.champ === "montant";
-    // Arrondis aux mêmes décimales que les champs de saisie : proposer
-    // 24,999999 % laisserait un écart que personne ne peut ni voir ni corriger.
-    const montant = surLeMontant
-      ? valeur
-      : Math.round(abBudgetTotal * (valeur / 100) * 100) / 100;
-    const objectif = surLeMontant
-      ? Math.round((valeur / abBudgetTotal) * 1000) / 10
-      : Math.round(valeur * 10) / 10;
-    try {
-      if (abBudgetTotal > 0) {
-        // LE MONTANT D'ABORD : c'est celui qui ne peut jamais être refusé. Un
-        // objectif qui ferait dépasser 100 % l'est, lui (400) — écrire dans cet
-        // ordre laisse au pire la ligne dans l'état d'avant pour sa part, et
-        // jamais l'inverse.
-        await abEcrireBudgetCategorie(categorieId, montant);
-        await abEcrireObjectifCategorie(categorieId, objectif);
-      } else if (surLeMontant) {
-        await abEcrireBudgetCategorie(categorieId, montant);
-      } else {
-        await abEcrireObjectifCategorie(categorieId, objectif);
-      }
-    } catch (err) {
-      // LE SERVEUR TRANCHE, TOUJOURS : un objectif qui ferait dépasser 100 %
-      // est refusé en 400, avec le plafond utilisable dans le message. On le
-      // dit et on relit — sans quoi l'écran garderait une valeur que la base
-      // n'a pas.
-      showMessage(traduireMessageServeur(err.message), "error");
-    }
-    await abCharger();
+    if (champ) abEnregistrerLigneBudget(champ);
   });
 
-  // LES DEUX CORRECTIONS PROPOSÉES SOUS UNE LIGNE EN DÉSACCORD. Les chiffres
-  // viennent du serveur ; ici on ne fait que les lui renvoyer.
-  zone.addEventListener("click", async (e) => {
-    const bouton = e.target.closest("button[data-accord]");
-    if (!bouton) return;
-    const categorieId = Number(bouton.closest(".ab-budget-ligne").dataset.id);
-    const ligne = abIncoherences.find((l) => l.categorie_id === categorieId);
-    if (!ligne) return;
-    try {
-      if (bouton.dataset.accord === "budget") {
-        await abEcrireBudgetCategorie(categorieId, ligne.budget_attendu);
-      } else {
-        // ARRONDI À LA DÉCIMALE, comme le champ de saisie : proposer
-        // 24,999999 % laisserait un écart que personne ne peut ni voir ni
-        // corriger — et que la tolérance du serveur absorbe de toute façon.
-        await abEcrireObjectifCategorie(
-          categorieId,
-          Math.round(ligne.pourcentage_attendu * 10) / 10
-        );
-      }
-    } catch (err) {
-      showMessage(traduireMessageServeur(err.message), "error");
-    }
-    await abCharger();
+  // ENTRÉE ET CTRL+ENTRÉE ENREGISTRENT SANS QU'ON AIT À QUITTER LA CASE : on
+  // règle vingt lignes à la suite, et devoir cliquer ailleurs entre chaque
+  // ferait chercher un endroit neutre où cliquer. `preventDefault` parce que
+  // ces cases ne sont pas dans un <form>, mais qu'une touche Entrée y cherche
+  // quand même quelque chose à soumettre.
+  zone.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const champ = e.target.closest('input[type="number"][data-champ]');
+    if (!champ) return;
+    e.preventDefault();
+    abEnregistrerLigneBudget(champ);
   });
 }
 
@@ -675,31 +1049,50 @@ function abAnneesProposees() {
   return [...annees].filter(Boolean).sort((a, b) => b - a);
 }
 
+/* DEUX BARRES, UN SEUL ÉTAT. La page porte deux onglets qui parlent tous deux
+ * d'un MOIS et d'une MONNAIE — le budget du mois et sa répartition par
+ * catégorie — et chacun doit dire lequel : un tableau de vingt curseurs sans
+ * son mois à l'écran se règle à l'aveugle. Les deux barres pilotent donc le
+ * même `abMonnaieId` / `abPeriode`, et chaque rendu les remplit toutes les
+ * deux : changer de mois d'un côté puis passer à l'autre onglet doit montrer
+ * le mois qu'on vient de choisir, pas celui d'avant.
+ *
+ * UNE SEULE BARRE POSÉE AU-DESSUS DES ONGLETS aurait été plus simple, et
+ * fausse : la troisième page — « Projets », apportée par son extension — n'a ni
+ * mois ni monnaie, et y aurait vu trois listes sans effet. */
+const AB_CONTEXTES = [
+  { monnaie: "ab-monnaie", annee: "ab-annee", mois: "ab-mois" },
+  { monnaie: "ab-cat-monnaie", annee: "ab-cat-annee", mois: "ab-cat-mois" },
+];
+
 function abRemplirContexte() {
-  const monnaie = document.getElementById("ab-monnaie");
-  fillSelect(
-    monnaie,
-    state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
-  );
-  monnaie.value = String(abMonnaieId);
-  // UNE SEULE MONNAIE : la liste n'a rien à demander. On la laisse en place
-  // plutôt que de la masquer — un champ qui apparaît le jour où l'on crée une
-  // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
-  monnaie.disabled = state.monnaies.length <= 1;
+  AB_CONTEXTES.forEach((ids) => {
+    const monnaie = document.getElementById(ids.monnaie);
+    if (!monnaie) return;
+    fillSelect(
+      monnaie,
+      state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
+    );
+    monnaie.value = String(abMonnaieId);
+    // UNE SEULE MONNAIE : la liste n'a rien à demander. On la laisse en place
+    // plutôt que de la masquer — un champ qui apparaît le jour où l'on crée une
+    // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
+    monnaie.disabled = state.monnaies.length <= 1;
 
-  const annee = document.getElementById("ab-annee");
-  fillSelect(
-    annee,
-    abAnneesProposees().map((a) => ({ value: a, label: String(a) }))
-  );
-  annee.value = String(abPeriode.annee);
+    const annee = document.getElementById(ids.annee);
+    fillSelect(
+      annee,
+      abAnneesProposees().map((a) => ({ value: a, label: String(a) }))
+    );
+    annee.value = String(abPeriode.annee);
 
-  const mois = document.getElementById("ab-mois");
-  fillSelect(
-    mois,
-    MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
-  );
-  mois.value = String(abPeriode.mois);
+    const mois = document.getElementById(ids.mois);
+    fillSelect(
+      mois,
+      MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
+    );
+    mois.value = String(abPeriode.mois);
+  });
 }
 
 async function abCharger() {
@@ -733,7 +1126,7 @@ async function abCharger() {
     // ne portent pas la même période, et un seul choix pour les deux.
     const requete = `monnaie_id=${abMonnaieId}&annee=${annee}`;
     const requeteMois = `${requete}&mois=${mois}`;
-    const [epargne, matelas, imprevues, categories, budgets, budgetTotal, coherence] =
+    const [epargne, matelas, imprevues, categories, budgets, budgetTotal] =
       await Promise.all([
         apiFetch(`/analyse-budget/epargne?${requete}`),
         apiFetch(`/analyse-budget/matelas?monnaie_id=${abMonnaieId}`),
@@ -741,7 +1134,6 @@ async function abCharger() {
         apiFetch("/categories"),
         apiFetch(`/categories/budgets?${requeteMois}`),
         apiFetch(`/dashboard/budget-total?${requeteMois}`),
-        apiFetch(`/dashboard/coherence-budgets?${requeteMois}`),
       ]);
     // LES CATÉGORIES D'ENTRÉE N'ONT RIEN À FAIRE ICI (`est_entree`, migration
     // 0060) : on ne se donne pas un budget de salaire, et leur ligne aurait
@@ -760,13 +1152,19 @@ async function abCharger() {
     );
     abBudgetTotal = budgetTotal.montant || 0;
     abBudgetTotalExplicite = budgetTotal.explicite !== false;
-    abIncoherences = coherence.lignes || [];
 
     abRenderBudgetTotal();
     abRenderBudgetsCategories();
     abRenderEpargne(epargne);
     abRenderMatelas(matelas);
     abRenderImprevues(imprevues);
+    // LES GRAPHES EN DERNIER : ils demandent leurs propres périodes, et ne
+    // doivent pas retarder les chiffres qu'on vient régler. Les semaines sont
+    // relues à chaque chargement — une opération a pu changer depuis.
+    abSemainesCache = {};
+    abRenderGraphes();
+
+
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -785,7 +1183,12 @@ async function abCharger() {
  * `chargerSousPageComptesGlobale` pour la page des comptes.
  */
 function abChargerSousPage(page) {
-  if (page === "budget-budget") return abCharger();
+  // LES DEUX ONGLETS DU NOYAU DE CETTE PAGE LISENT LA MÊME CHOSE : le budget du
+  // mois est le dénominateur des parts d'à côté, et les deux viennent du même
+  // aller-retour (cf. abCharger). Deux chargements séparés auraient laissé
+  // exister un instant où le tableau des catégories rapporte ses pourcentages
+  // à un total que l'autre onglet a déjà changé.
+  if (page === "budget-budget" || page === "budget-categories") return abCharger();
   // Onglet apporté par une autre extension : le noyau sait à qui le demander.
   return BudgetApp.extensions.ouvrirSousPage(page);
 }
@@ -800,12 +1203,17 @@ document.getElementById("budget-sous-nav")?.addEventListener("click", (e) => {
   if (btn) abChargerSousPage(btn.dataset.sousSection);
 });
 
-["ab-monnaie", "ab-annee", "ab-mois"].forEach((id) => {
-  document.getElementById(id)?.addEventListener("change", (e) => {
-    const valeur = Number(e.target.value);
-    if (id === "ab-monnaie") abMonnaieId = valeur;
-    if (id === "ab-annee") abPeriode.annee = valeur;
-    if (id === "ab-mois") abPeriode.mois = valeur;
+AB_CONTEXTES.forEach((ids) => {
+  document.getElementById(ids.monnaie)?.addEventListener("change", (e) => {
+    abMonnaieId = Number(e.target.value);
+    abCharger();
+  });
+  document.getElementById(ids.annee)?.addEventListener("change", (e) => {
+    abPeriode.annee = Number(e.target.value);
+    abCharger();
+  });
+  document.getElementById(ids.mois)?.addEventListener("change", (e) => {
+    abPeriode.mois = Number(e.target.value);
     abCharger();
   });
 });
@@ -823,22 +1231,18 @@ document.getElementById("ab-budget-total")?.addEventListener("keydown", (e) => {
 });
 abCablerBudgetsCategories();
 
-/* LA FENÊTRE D'ACCORD DES TROIS GRANDEURS REND LA MAIN À CETTE PAGE.
+/* LA FENÊTRE D'ACCORD DES TROIS GRANDEURS NE S'OUVRE PLUS D'ICI, et cette page
+ * n'a donc plus rien à y raccrocher.
  *
- * `appliquerAccordBudget` (app.js) recharge le dashboard après avoir corrigé
- * une grandeur — c'était le seul écran d'où elle pouvait s'ouvrir. Elle s'ouvre
- * maintenant aussi d'ici, et sans ce rappel la page Budget garderait à l'écran
- * les chiffres d'avant la correction qu'on vient d'accepter.
+ * Elle demandait laquelle des trois grandeurs on voulait vraiment changer quand
+ * elles se contredisaient. L'enveloppe et la part ne peuvent plus se
+ * contredire — ce sont deux lectures du même nombre (cf. le bloc « UN SEUL
+ * CURSEUR, DEUX CASES ») — et changer le budget du mois recalcule les parts au
+ * lieu de poser la question (cf. abResynchroniserParts).
  *
- * PAR ENVELOPPEMENT, le mécanisme des extensions (cf. extensions/README.md) :
- * on garde la fonction du noyau, on la rappelle, puis on relit. */
-const abAppliquerAccordAvant = window.appliquerAccordBudget;
-
-window.appliquerAccordBudget = async function abAppliquerAccordBudget(...args) {
-  const resultat = await abAppliquerAccordAvant.apply(this, args);
-  await abCharger();
-  return resultat;
-};
+ * CE QUI RESTE DANS LE NOYAU : `#modale-coherence-budgets`,
+ * `verifierAccordBudgets` et `crud.incoherences_budgets`. Plus rien ne les
+ * appelle. */
 
 /* ---------- L'AVERTISSEMENT LÀ OÙ ON REGARDE SES COMPTES D'ÉPARGNE ----------
  *

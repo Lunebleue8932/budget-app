@@ -103,8 +103,42 @@
       <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info-cle="regles.avec-le-compte-en-face">i</i></label>
       <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
     </div>
+    <!-- TOUTES LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071), sauf ses
+         montants et sa date — ce que le relevé AFFIRME. Chacune est
+         facultative : laissée vide, la règle n'en dit rien. -->
+    <h4>Et aussi<i class="info-bulle" tabindex="0" data-info-cle="regles.autres-proprietes">i</i></h4>
+    <div class="regle-champ-ligne">
+      <label for="regle-nature">Renommer en</label>
+      <input type="text" id="regle-nature" placeholder="— ne pas changer —" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="regle-compte">Sur le compte</label>
+      <select id="regle-compte"><option value="">— ne pas changer —</option></select>
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="regle-notes">Avec la note</label>
+      <input type="text" id="regle-notes" placeholder="— aucune —" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="regle-amortissement">Amortir sur (mois)</label>
+      <input type="number" id="regle-amortissement" min="2" max="120" step="1" placeholder="— non —" />
+    </div>
+    <label class="import-option-ligne" id="regle-imprevue-bloc" style="display:none">
+      <input type="checkbox" id="regle-imprevue" />
+      Marquer comme dépense imprévue
+    </label>
+    <!-- LES SORTIES CONDITIONNELLES (migration 0072) : la détection reste
+         celle de la règle, mais ce qu'elle fait peut dépendre de la ligne —
+         un virement interne dont le compte en face change d'une ligne à
+         l'autre, sans avoir à recopier la règle une fois par compte. -->
+    <h4>Sorties conditionnelles<i class="info-bulle" tabindex="0" data-info-cle="regles.sorties-conditionnelles">i</i></h4>
+    <div id="regle-sorties"></div>
+    <div class="actions">
+      <button type="button" id="btn-regle-ajouter-sortie">+ Ajouter une sortie conditionnelle</button>
+    </div>
     <label class="import-option-ligne">
       <input type="checkbox" id="regle-actif" checked />
+
       Règle active
     </label>
     <label class="import-option-ligne">

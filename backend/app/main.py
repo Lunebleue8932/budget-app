@@ -24,6 +24,7 @@ from .routers import (
     monnaies,
     operations,
     parametres_base,
+    preferences,
     types_comptes,
     types_operation,
     virements,
@@ -41,6 +42,11 @@ app.include_router(virements.router)
 app.include_router(dashboard.router)
 app.include_router(import_bancaire.router)
 app.include_router(extensions.router)
+# Les rangements d'écran qui désignent des lignes de la base (dossiers de la
+# galerie des règles, et ce qui viendra après). DU NOYAU, comme toutes les
+# tables : une extension n'emporte jamais son schéma, sans quoi l'éteindre
+# imposerait de choisir entre perdre ses données et refuser de l'éteindre.
+app.include_router(preferences.router)
 # Le panneau « Base de données » : DU NOYAU depuis que l'emplacement par défaut
 # est reconnu comme dangereux (il vit dans le dossier que la mise à jour
 # remplace). Choisir où ranger ses données n'est plus un outil de mise au point

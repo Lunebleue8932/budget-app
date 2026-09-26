@@ -60,14 +60,28 @@ class MonnaieNonConvertie(BaseModel):
     monnaie_symbole: str
 
 
-class DashboardAgregeRead(BaseModel):
-    """Le dashboard converti, et ce qui a dû en être écarté.
+class BudgetParMonnaie(BaseModel):
+    """Ce qu'une monnaie apporte au budget agrégé, avant et après conversion."""
 
-    LES DEUX ENSEMBLE, toujours. Un total amputé sans le dire vaudrait moins
-    qu'un refus : l'écran nomme les monnaies manquantes à côté du chiffre."""
+    monnaie_nom: str
+    montant: float
+    converti: float
+
+
+class DashboardAgregeRead(BaseModel):
+    """Le dashboard converti, ce qui a dû en être écarté, et d'où vient le budget.
+
+    LES DEUX PREMIERS ENSEMBLE, toujours. Un total amputé sans le dire vaudrait
+    moins qu'un refus : l'écran nomme les monnaies manquantes à côté du chiffre.
+
+    LE TROISIÈME répond à « d'où sort ce budget ? », la question que ce chiffre
+    pose plus que les autres : il porte DEUX multiplications qu'aucun écran ne
+    montre — douze mois en vue année, puis un taux de change par monnaie (cf.
+    service_dashboard_agrege.dashboard_agrege)."""
 
     dashboard: Optional[schemas.DashboardRead] = None
     non_converties: list[MonnaieNonConvertie] = []
+    budget_detail: list[BudgetParMonnaie] = []
 
 
 def _taux_read(couple: models.TauxChange) -> schemas.TauxChangeRead:
@@ -180,11 +194,14 @@ def get_dashboard_agrege(
     """
     if crud.get_monnaie(db, vers) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
-    payload, manquantes = service_dashboard_agrege.dashboard_agrege(db, annee, mois, vue, vers)
+    payload, manquantes, budget_detail = service_dashboard_agrege.dashboard_agrege(
+        db, annee, mois, vue, vers
+    )
     return DashboardAgregeRead(
         dashboard=payload,
         # La monnaie visée n'est jamais « manquante » pour elle-même.
         non_converties=[_non_convertie(m) for m in manquantes if m.id != vers],
+        budget_detail=[BudgetParMonnaie(**ligne) for ligne in budget_detail],
     )
 
 

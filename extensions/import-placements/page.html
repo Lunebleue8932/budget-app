@@ -84,11 +84,8 @@
               </select>
             </div>
 
+            <h4>Colonnes lues<i class="info-bulle" tabindex="0" data-info-cle="import-placements.colonnes-lues">i</i></h4>
             <div id="impl-config-colonnes"></div>
-            <label class="import-option-ligne">
-              Lignes de tête à ne pas importer
-              <input type="number" id="impl-lignes-entete" min="0" max="20" step="1" value="0" />
-            </label>
 
             <div id="impl-vocabulaire-section">
             <h4>Mots-clés de la colonne « Type d'opération »<i class="info-bulle" tabindex="0" data-info-cle="import-placements.mots-cles-de-la-colonne-type-d-operation">i</i></h4>
@@ -163,18 +160,75 @@
 
             </div>
 
-            <h4>Comparaison des doublons<i class="info-bulle" tabindex="0" data-info-cle="import-placements.comparaison-des-doublons">i</i></h4>
-            <div class="import-reglage-champ">
-              <label for="impl-mode-comparaison">Comparer</label>
-              <select id="impl-mode-comparaison">
-                <option value="exclusion">toutes les colonnes, sauf celles-ci</option>
-                <option value="selection">uniquement ces colonnes</option>
-              </select>
-            </div>
-            <div id="impl-config-colonnes-comparaison"></div>
-            <div class="actions">
-              <button type="button" id="btn-impl-comparaison-ajouter">+ Ajouter une colonne</button>
-            </div>
+            <!-- ---------- LES TROIS SECTIONS DE FIN ----------
+                 MÊME ORDRE ET MÊME FORME QUE LA PAGE D'IMPORT DU NOYAU (cf.
+                 frontend/index.html, § Import) : ce sont les mêmes questions,
+                 posées devant le même genre de fichier, et deux écrans qui les
+                 rangent autrement obligent à réapprendre l'un après l'autre.
+                 Les colonnes de comparaison passent par l'éditeur de mots-clés
+                 du noyau, comme le vocabulaire des trois types juste
+                 au-dessus. -->
+            <details class="config-avancee" id="impl-config-doublons">
+              <summary>
+                <!-- LA PASTILLE SUIT LE TITRE, LE BANDEAU VIENT APRÈS — même
+                     ordre que la même section sur la page d'import du noyau :
+                     le « i » explique le TITRE, pas le résumé qu'on vient de
+                     lire. -->
+                Comparaison des doublons<i class="info-bulle" tabindex="0" data-info-cle="import-placements.comparaison-des-doublons">i</i>
+                <span class="config-avancee-resume" id="impl-config-doublons-resume"></span></summary>
+              <div class="import-reglage-champ">
+                <label for="impl-mode-comparaison">Comparer</label>
+                <select id="impl-mode-comparaison">
+                  <option value="exclusion">toutes les colonnes, sauf celles-ci</option>
+                  <option value="selection">uniquement ces colonnes</option>
+                </select>
+              </div>
+              <!-- LE MÊME CHAMP QUE L'IMPORT DU NOYAU, et posé par lui
+                   (`creerChampColonnes`, app.js) : la question « sur quelles
+                   colonnes compare-t-on deux lignes ? » est la même des deux
+                   côtés, elle doit se reconnaître. -->
+              <div id="impl-config-colonnes-comparaison"></div>
+              <p class="hint" id="impl-comparaison-etat"></p>
+            </details>
+
+            <details class="config-avancee" id="impl-config-lignes-ignorees">
+              <summary>
+                Lignes à ne pas importer
+                <span class="config-avancee-resume" id="impl-lignes-entete-resume"></span></summary>
+              <label class="import-option-ligne">
+                Lignes de tête à ne pas importer
+                <input type="number" id="impl-lignes-entete" min="0" max="20" step="1" value="0" />
+              </label>
+            </details>
+
+            <details class="config-avancee" id="impl-reglages-lecture">
+              <summary>
+                Réglages de lecture (délimiteur, séparateur décimal)
+                <span class="config-avancee-resume" id="impl-reglages-lecture-resume"></span><i class="info-bulle" tabindex="0" data-info-cle="import-placements.reglages-de-lecture-delimiteur-separateur-decimal">i</i></summary>
+              <p class="import-avertissement" id="impl-reglages-lecture-alerte" style="display:none"></p>
+              <div class="import-reglage-champ">
+                <label for="impl-reglage-delimiteur">Délimiteur de colonnes</label>
+                <select id="impl-reglage-delimiteur">
+                  <option value="">Détecter automatiquement</option>
+                  <option value="PV">Point-virgule ( ; )</option>
+                  <option value="VIRGULE">Virgule ( , )</option>
+                  <option value="TAB">Tabulation</option>
+                </select>
+              </div>
+              <div class="import-reglage-champ">
+                <label for="impl-reglage-separateur-decimal">Séparateur décimal</label>
+                <select id="impl-reglage-separateur-decimal">
+                  <option value="">Détecter automatiquement (virgule française)</option>
+                  <option value=",">Virgule — 1234,56</option>
+                  <option value=".">Point — 1234.56</option>
+                </select>
+              </div>
+              <div class="actions">
+                <button type="button" class="primary" id="btn-impl-relire">
+                  Relire le fichier avec ces réglages
+                </button>
+              </div>
+            </details>
 
             <div class="actions">
               <button type="button" class="primary" id="btn-impl-config-enregistrer">Enregistrer la configuration</button>
@@ -207,35 +261,6 @@
             <p class="hint">ou glisse-dépose ton fichier ici — l'analyse démarre automatiquement</p>
             <p class="import-dropzone-nom" id="impl-fichier-nom"></p>
           </div>
-
-          <details class="config-avancee" id="impl-reglages-lecture">
-            <summary>
-              Réglages de lecture (délimiteur, séparateur décimal)
-              <span class="config-avancee-resume" id="impl-reglages-lecture-resume"></span><i class="info-bulle" tabindex="0" data-info-cle="import-placements.reglages-de-lecture-delimiteur-separateur-decimal">i</i></summary>
-            <p class="import-avertissement" id="impl-reglages-lecture-alerte" style="display:none"></p>
-            <div class="import-reglage-champ">
-              <label for="impl-reglage-delimiteur">Délimiteur de colonnes</label>
-              <select id="impl-reglage-delimiteur">
-                <option value="">Détecter automatiquement</option>
-                <option value="PV">Point-virgule ( ; )</option>
-                <option value="VIRGULE">Virgule ( , )</option>
-                <option value="TAB">Tabulation</option>
-              </select>
-            </div>
-            <div class="import-reglage-champ">
-              <label for="impl-reglage-separateur-decimal">Séparateur décimal</label>
-              <select id="impl-reglage-separateur-decimal">
-                <option value="">Détecter automatiquement (virgule française)</option>
-                <option value=",">Virgule — 1234,56</option>
-                <option value=".">Point — 1234.56</option>
-              </select>
-            </div>
-            <div class="actions">
-              <button type="button" class="primary" id="btn-impl-relire">
-                Relire le fichier avec ces réglages
-              </button>
-            </div>
-          </details>
 
           <div id="impl-avertissements" class="import-avertissements" style="display:none"></div>
 

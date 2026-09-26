@@ -12,7 +12,8 @@ from ..constants import (
     ModeComparaison,
 )
 from ..database import get_db
-from ..services import import_bancaire
+from ..services import detection_colonnes, import_bancaire
+
 
 router = APIRouter(prefix="/import", tags=["import"])
 
@@ -371,6 +372,31 @@ async def previsualiser(
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+
+
+@router.post(
+    "/presets/{preset_id}/detecter-colonnes", response_model=schemas.DetectionColonnesRead
+)
+async def detecter_colonnes(
+    preset_id: int,
+    fichier: UploadFile = File(...),
+    delimiteur: Optional[str] = Form(None),
+    separateur_decimal: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Ce que l'application devine des colonnes d'un fichier (cf.
+    services/detection_colonnes). Lecture seule : ni le preset ni rien
+    d'autre n'est écrit. Scopée au preset comme les autres routes de lecture,
+    pour que l'écran l'appelle comme elles."""
+    _get_preset_ou_404(db, preset_id)
+    delimiteur = _valider_delimiteur(delimiteur)
+    separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    contenu = await fichier.read()
+    try:
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    return detection_colonnes.detecter_colonnes(lignes, separateur_decimal)
 
 
 def _valider_colonnes_essai(colonnes: Optional[str]):
