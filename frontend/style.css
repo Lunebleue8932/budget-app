@@ -4092,6 +4092,17 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
   text-overflow: ellipsis;
 }
 
+/* Le numéro de ligne du fichier, tout à gauche : neutre, comme la marge d'un
+   tableur. */
+.apercu-fichier-defilement .apercu-num-ligne {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+  padding-right: 0.6rem;
+}
+
 /* LA RANGÉE DES NUMÉROS, ce que le FICHIER est : neutre, comme l'en-tête de
    colonne d'un tableur, pour qu'aucune couleur de l'app ne s'y mêle. */
 .apercu-fichier-defilement th.apercu-col-num {
@@ -4261,6 +4272,25 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 .apercu-ligne-ignoree td {
   text-decoration: line-through;
   opacity: 0.5;
+}
+
+/* LES ÉTIQUETTES DE L'APERÇU D'IMPORT PASSENT À LA LIGNE. Un nom de règle ou
+   une erreur un peu longs, tenus sur une seule ligne, élargissaient tout le
+   tableau et faisaient apparaître une barre de défilement horizontale. Les
+   coins s'arrondissent moins : une pilule sur trois lignes se lit mal. */
+#import-apercu-bloc [class*="badge"] {
+  white-space: normal;
+  /* `break-word` et non `anywhere` : ce dernier laisse la colonne se réduire
+     jusqu'à une lettre par ligne. Ici, on coupe entre les mots. */
+  overflow-wrap: break-word;
+  min-width: 8rem;
+  max-width: 100%;
+  border-radius: 0.6rem;
+}
+
+/* Le numéro, lui, reste lisible : c'est la ligne qui est ignorée, pas sa place. */
+.apercu-ligne-ignoree td.apercu-num-ligne {
+  text-decoration: none;
 }
 
 /* ---------- Édition en ligne des opérations ---------- */

@@ -10622,7 +10622,9 @@ function renderApercuFichier() {
       // sont bien exclues vaut mieux que de les faire disparaître
       // silencieusement.
       const estEnteteIgnoree = index < (apercu.lignes_entete || 0);
-      const cellules = [];
+      // Le numéro de ligne DU FICHIER, celui qu'Excel affiche : c'est lui que
+      // citent les erreurs de l'aperçu (« ligne 15 »).
+      const cellules = [`<td class="apercu-num-ligne">${index + 1}</td>`];
       for (let i = 1; i <= largeur; i++) {
         // Une colonne hors fichier n'a rien à montrer : cellule vide, et grise
         // quelle que soit la propriété qui la vise — il n'y a rien à lire là.
@@ -10637,8 +10639,8 @@ function renderApercuFichier() {
 
   const table = document.getElementById("import-apercu-fichier-table");
   table.innerHTML =
-    `<thead><tr class="apercu-rangee-cartes">${emplacements.join("")}</tr>` +
-    `<tr class="apercu-rangee-numeros">${numeros.join("")}</tr></thead><tbody>${corps}</tbody>`;
+    `<thead><tr class="apercu-rangee-cartes"><th class="apercu-num-ligne"></th>${emplacements.join("")}</tr>` +
+    `<tr class="apercu-rangee-numeros"><th class="apercu-num-ligne"></th>${numeros.join("")}</tr></thead><tbody>${corps}</tbody>`;
   cablerDeplacementEntetesApercu(table);
   majBoutonRelireApercu();
 
