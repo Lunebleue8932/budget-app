@@ -4050,11 +4050,56 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
    à chaque fois. La couleur de fond doit être OPAQUE (les lignes passent
    dessous) : les teintes de propriété sont donc posées par-dessus, en
    `background-image` — voir plus bas. */
-.apercu-fichier-defilement thead th {
+/* Les DEUX rangées d'en-tête (cartes et numéros) collent ensemble : c'est le
+   `thead` qui colle, pas chaque cellule, sans quoi les deux rangées se
+   superposeraient au même `top: 0`. */
+.apercu-fichier-defilement thead {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.apercu-fichier-defilement thead th {
   background-color: var(--bg-surface-alt);
+}
+
+/* LA RANGÉE DES CARTES, ce que l'app LIT. Chaque colonne a son emplacement,
+   bordé en pointillé quand il est vide : c'est là qu'une carte peut tomber. */
+.apercu-fichier-defilement th.apercu-emplacement {
+  padding: 0.3rem;
+  height: 2rem;
+  border-bottom: none;
+}
+
+.apercu-emplacement:empty::before {
+  content: "";
+  display: block;
+  height: 1.5rem;
+  border: 1px dashed var(--text-muted);
+  border-radius: 6px;
+  opacity: 0.5;
+}
+
+.apercu-carte {
+  display: block;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background-color: var(--bg-surface);
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* LA RANGÉE DES NUMÉROS, ce que le FICHIER est : neutre, comme l'en-tête de
+   colonne d'un tableur, pour qu'aucune couleur de l'app ne s'y mêle. */
+.apercu-fichier-defilement th.apercu-col-num {
+  display: table-cell;
+  text-align: center;
+  font-size: 0.7rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
 }
 
 .apercu-fichier-defilement th,
@@ -4083,13 +4128,13 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
    translucide, et l'en-tête étant collant (voir plus haut), il lui faut une
    `background-color` opaque en dessous — que le raccourci `background`
    écraserait. Les deux couches se superposent, le rendu est identique. */
-.apercu-fichier-defilement th.col-date,
+.apercu-fichier-defilement .apercu-carte.col-date,
 .apercu-fichier-defilement td.col-date {
   background-image: linear-gradient(rgba(91, 155, 251, 0.12), rgba(91, 155, 251, 0.12));
   color: var(--accent-light);
 }
 
-.apercu-fichier-defilement th.col-nature,
+.apercu-fichier-defilement .apercu-carte.col-nature,
 .apercu-fichier-defilement td.col-nature {
   background-image: linear-gradient(rgba(74, 222, 128, 0.1), rgba(74, 222, 128, 0.1));
   color: var(--positif);
@@ -4099,7 +4144,7 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
    faces de la même transaction. Le montant (ce qui arrive) est le plus appuyé,
    le montant envoyé plus clair, les frais discrets — ils ne sont qu'une part
    de l'un des deux. */
-.apercu-fichier-defilement th.col-montant,
+.apercu-fichier-defilement .apercu-carte.col-montant,
 .apercu-fichier-defilement td.col-montant {
   background-image: linear-gradient(rgba(251, 146, 60, 0.12), rgba(251, 146, 60, 0.12));
   color: var(--depense);
@@ -4108,36 +4153,36 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 
 /* Les deux moitiés d'un montant scindé sont le montant : même teinte pleine
    que « Montant », dont elles prennent la place. */
-.apercu-fichier-defilement th.col-montant_debit,
+.apercu-fichier-defilement .apercu-carte.col-montant_debit,
 .apercu-fichier-defilement td.col-montant_debit,
-.apercu-fichier-defilement th.col-montant_credit,
+.apercu-fichier-defilement .apercu-carte.col-montant_credit,
 .apercu-fichier-defilement td.col-montant_credit {
   background-image: linear-gradient(rgba(251, 146, 60, 0.12), rgba(251, 146, 60, 0.12));
   color: var(--depense);
   font-variant-numeric: tabular-nums;
 }
 
-.apercu-fichier-defilement th.col-montant_initial,
+.apercu-fichier-defilement .apercu-carte.col-montant_initial,
 .apercu-fichier-defilement td.col-montant_initial {
   background-image: linear-gradient(rgba(251, 146, 60, 0.08), rgba(251, 146, 60, 0.08));
   color: var(--depense);
   font-variant-numeric: tabular-nums;
 }
 
-.apercu-fichier-defilement th.col-frais,
+.apercu-fichier-defilement .apercu-carte.col-frais,
 .apercu-fichier-defilement td.col-frais {
   background-image: linear-gradient(rgba(251, 146, 60, 0.05), rgba(251, 146, 60, 0.05));
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
-.apercu-fichier-defilement th.col-categorie_banque,
+.apercu-fichier-defilement .apercu-carte.col-categorie_banque,
 .apercu-fichier-defilement td.col-categorie_banque {
   background-image: linear-gradient(rgba(234, 179, 8, 0.12), rgba(234, 179, 8, 0.12));
   color: var(--badge-remboursable-text);
 }
 
-.apercu-fichier-defilement th.col-compte_banque,
+.apercu-fichier-defilement .apercu-carte.col-compte_banque,
 .apercu-fichier-defilement td.col-compte_banque {
   background-image: linear-gradient(rgba(124, 58, 237, 0.14), rgba(124, 58, 237, 0.14));
   color: var(--col-compte-text);
@@ -4145,19 +4190,19 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 
 /* Les trois devises, dans une teinte distincte des montants qu'elles
    qualifient — et dégradée comme eux, dans le même ordre. */
-.apercu-fichier-defilement th.col-monnaie,
+.apercu-fichier-defilement .apercu-carte.col-monnaie,
 .apercu-fichier-defilement td.col-monnaie {
   background-image: linear-gradient(rgba(45, 212, 191, 0.12), rgba(45, 212, 191, 0.12));
   color: var(--col-monnaie-text);
 }
 
-.apercu-fichier-defilement th.col-monnaie_initiale,
+.apercu-fichier-defilement .apercu-carte.col-monnaie_initiale,
 .apercu-fichier-defilement td.col-monnaie_initiale {
   background-image: linear-gradient(rgba(45, 212, 191, 0.08), rgba(45, 212, 191, 0.08));
   color: var(--col-monnaie-text);
 }
 
-.apercu-fichier-defilement th.col-monnaie_frais,
+.apercu-fichier-defilement .apercu-carte.col-monnaie_frais,
 .apercu-fichier-defilement td.col-monnaie_frais {
   background-image: linear-gradient(rgba(45, 212, 191, 0.05), rgba(45, 212, 191, 0.05));
   color: var(--text-secondary);
@@ -4166,7 +4211,7 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 /* Le sens, juste à côté du montant dont il porte le signe : même famille
    chromatique que lui, en plus discret — c'est une précision sur le montant,
    pas une donnée de plus. */
-.apercu-fichier-defilement th.col-sens,
+.apercu-fichier-defilement .apercu-carte.col-sens,
 .apercu-fichier-defilement td.col-sens {
   background-image: linear-gradient(rgba(248, 113, 113, 0.08), rgba(248, 113, 113, 0.08));
   color: var(--text-secondary);

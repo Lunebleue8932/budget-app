@@ -10586,27 +10586,34 @@ function renderApercuFichier() {
     return propriete ? classeColonneApercu(propriete) : "col-ignoree";
   };
 
-  const entetes = [];
+  // DEUX RANGÉES D'EN-TÊTE, ET ELLES NE DISENT PAS LA MÊME CHOSE. En haut, les
+  // EMPLACEMENTS de l'application : une carte par propriété lue, posée
+  // au-dessus de la colonne où on la lit, et un emplacement vide ailleurs. En
+  // dessous, le numéro de colonne DU FICHIER. Le nom de la propriété écrit dans
+  // l'en-tête même se lisait comme un intitulé du relevé ; séparés, on voit
+  // d'un coup d'œil ce qui vient de la banque et ce que l'app en fait.
+  const emplacements = [];
+  const numeros = [];
   for (let i = 1; i <= largeur; i++) {
     const propriete = proprietes[String(i)];
-    const libelle = propriete
-      ? APERCU_PROPRIETES[propriete] || propriete
-      : "non importée";
-    // DÉPLAÇABLE, l'en-tête et lui seul : les cellules ne bougent pas — ce
-    // qu'on réorganise est la façon de LIRE le fichier, pas le fichier.
-    //
     // Une colonne HORS FICHIER porte une classe de plus : elle est bien là pour
     // qu'on puisse attraper sa propriété, mais elle ne décrit aucune donnée et
     // ne doit pas se lire comme une colonne qu'on aurait oublié de mapper.
     const horsFichier = i > largeurFichier ? " apercu-col-hors-fichier" : "";
+    // DÉPLAÇABLE, la carte et elle seule : les cellules ne bougent pas — ce
+    // qu'on réorganise est la façon de LIRE le fichier, pas le fichier.
     const titre = horsFichier
       ? t("Cette colonne n'existe pas dans le fichier : déplace son en-tête sur une colonne réelle.")
       : t("Glisse cet en-tête sur un autre pour échanger les deux colonnes");
-    entetes.push(
-      `<th class="${classeColonne(i)}${horsFichier} apercu-entete-deplacable" draggable="true"
-           data-colonne="${i}" title="${titre}"
-        ><span class="apercu-col-num">n°${i}</span>${escapeHtml(libelle)}</th>`
+    const carte = propriete
+      ? `<span class="apercu-carte ${classeColonneApercu(propriete)} apercu-entete-deplacable"
+               draggable="true" data-colonne="${i}" title="${titre}"
+          >${escapeHtml(APERCU_PROPRIETES[propriete] || propriete)}</span>`
+      : "";
+    emplacements.push(
+      `<th class="apercu-emplacement${horsFichier}" data-colonne="${i}">${carte}</th>`
     );
+    numeros.push(`<th class="apercu-col-num${horsFichier}">n°${i}</th>`);
   }
 
   const corps = apercu.lignes
@@ -10629,7 +10636,9 @@ function renderApercuFichier() {
     .join("");
 
   const table = document.getElementById("import-apercu-fichier-table");
-  table.innerHTML = `<thead><tr>${entetes.join("")}</tr></thead><tbody>${corps}</tbody>`;
+  table.innerHTML =
+    `<thead><tr class="apercu-rangee-cartes">${emplacements.join("")}</tr>` +
+    `<tr class="apercu-rangee-numeros">${numeros.join("")}</tr></thead><tbody>${corps}</tbody>`;
   cablerDeplacementEntetesApercu(table);
   majBoutonRelireApercu();
 
@@ -10662,22 +10671,26 @@ function renderApercuFichier() {
 function cablerDeplacementEntetesApercu(table) {
   let depuis = null;
 
-  table.querySelectorAll("th[data-colonne]").forEach((entete) => {
-    entete.addEventListener("dragstart", (e) => {
-      depuis = Number(entete.dataset.colonne);
-      entete.classList.add("apercu-entete-glissee");
+  // Ce qu'on attrape : une CARTE. Où on la pose : un EMPLACEMENT, vide ou non —
+  // vide, la carte s'y installe ; occupé, les deux cartes s'échangent.
+  table.querySelectorAll(".apercu-carte[data-colonne]").forEach((carte) => {
+    carte.addEventListener("dragstart", (e) => {
+      depuis = Number(carte.dataset.colonne);
+      carte.classList.add("apercu-entete-glissee");
       e.dataTransfer.effectAllowed = "move";
       // Firefox n'amorce pas le glisser sans données attachées.
       e.dataTransfer.setData("text/plain", String(depuis));
     });
 
-    entete.addEventListener("dragend", () => {
+    carte.addEventListener("dragend", () => {
       depuis = null;
       table
         .querySelectorAll(".apercu-entete-glissee, .apercu-entete-cible")
         .forEach((el) => el.classList.remove("apercu-entete-glissee", "apercu-entete-cible"));
     });
+  });
 
+  table.querySelectorAll("th.apercu-emplacement[data-colonne]").forEach((entete) => {
     entete.addEventListener("dragover", (e) => {
       if (depuis === null || Number(entete.dataset.colonne) === depuis) return;
       e.preventDefault();
