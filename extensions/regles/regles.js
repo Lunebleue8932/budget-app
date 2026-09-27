@@ -765,6 +765,33 @@ function ouvrirEditeurRegle(regle = null) {
  */
 let regleBrouillonSorties = [];
 
+/* CE QU'UNE SORTIE PEUT CHANGER, posé champ par champ par « + Ajouter un
+ * champ » (cf. app.js, creerMenuAjoutChamp). Les six listes s'affichaient
+ * toutes d'office, chacune sur « celle de la règle » : une sortie ne change en
+ * pratique qu'une ou deux choses, et les quatre autres lignes n'étaient qu'un
+ * inventaire à parcourir pour trouver celles qui comptent. Un champ posé puis
+ * retiré revient à « celle de la règle ». */
+const SORTIE_CHAMPS = [
+  { cle: "type_code", libelle: "Classer comme", saisie: "type" },
+  { cle: "categorie_id", libelle: "Dans la catégorie", saisie: "categorie" },
+  { cle: "compte_autre_id", libelle: "Avec le compte en face", saisie: "compte" },
+  { cle: "compte_id", libelle: "Sur le compte", saisie: "compte" },
+  { cle: "nature_remplacement", libelle: "Renommer en", saisie: "texte" },
+  { cle: "notes", libelle: "Avec la note", saisie: "texte" },
+];
+
+/** Les champs affichés d'une sortie : ceux qui portent une valeur, plus ceux
+ *  qu'on vient d'ajouter et pas encore remplis. Rangé sur la sortie sous une
+ *  clé qui ne part jamais au serveur (cf. sortiesPourServeur). */
+function champsAffichesSortie(sortie) {
+  if (!sortie._affiches) {
+    sortie._affiches = SORTIE_CHAMPS.map((c) => c.cle).filter(
+      (cle) => sortie[cle] != null && sortie[cle] !== ""
+    );
+  }
+  return sortie._affiches;
+}
+
 function sortieVide() {
   return {
     conditions: { operateur: "ET", groupes: [groupeVide()] },
@@ -812,37 +839,59 @@ function renderRegleSorties() {
       <div data-role="groupes"></div>
       <div class="actions"><button type="button" data-role="ajouter-groupe">+ ${t("Ajouter un groupe")}</button></div>
       <div class="regle-sortie-etiquette">${t("…alors, à la place de la règle :")}</div>
-      <div class="regle-sortie-actions">
-        <label>${t("Classer comme")}
-          <select data-champ="type_code">
-            <option value="">${garder}</option>
-            ${optionsTypes.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("")}
-          </select>
-        </label>
-        <label>${t("Dans la catégorie")}
-          <select data-champ="categorie_id"><option value="">${garderF}</option></select>
-        </label>
-        <label>${t("Avec le compte en face")}
-          <select data-champ="compte_autre_id"><option value="">${garder}</option></select>
-        </label>
-        <label>${t("Sur le compte")}
-          <select data-champ="compte_id"><option value="">${garder}</option></select>
-        </label>
-        <label>${t("Renommer en")}
-          <input type="text" data-champ="nature_remplacement" placeholder="${garder}" />
-        </label>
-        <label>${t("Avec la note")}
-          <input type="text" data-champ="notes" placeholder="${garderF}" />
-        </label>
-      </div>`;
+      <div class="regle-sortie-actions" data-role="actions"></div>
+      <div data-role="ajout-champ"></div>`;
 
-    fillCategoriesSelect(
-      carte.querySelector('[data-champ="categorie_id"]'),
-      categoriesProposables(sortie.categorie_id),
-      { keepFirst: true }
-    );
-    fillComptesSelect(carte.querySelector('[data-champ="compte_autre_id"]'), state.comptes, { keepFirst: true });
-    fillComptesSelect(carte.querySelector('[data-champ="compte_id"]'), state.comptes, { keepFirst: true });
+    // LES SEULS CHAMPS POSÉS, dans l'ordre de la liste de référence : une
+    // sortie relue s'affiche toujours pareil, quel que soit l'ordre dans lequel
+    // on avait ajouté ses champs.
+    const affiches = champsAffichesSortie(sortie);
+    const zone = carte.querySelector('[data-role="actions"]');
+    SORTIE_CHAMPS.filter((c) => affiches.includes(c.cle)).forEach((def) => {
+      const ligne = document.createElement("div");
+      ligne.className = "champ-ajoute";
+      let saisie;
+      if (def.saisie === "type") {
+        saisie = `<select data-champ="type_code"><option value="">${garder}</option>
+          ${optionsTypes.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("")}</select>`;
+      } else if (def.saisie === "texte") {
+        saisie = `<input type="text" data-champ="${def.cle}" />`;
+      } else {
+        saisie = `<select data-champ="${def.cle}"><option value="">${
+          def.saisie === "categorie" ? garderF : garder
+        }</option></select>`;
+      }
+      ligne.innerHTML = `
+        <span class="champ-ajoute-libelle">${escapeHtml(t(def.libelle))}</span>
+        ${saisie}
+        <button type="button" class="champ-ajoute-retirer" data-retirer="${def.cle}"
+                title="${escapeHtml(t("Retirer"))}" aria-label="${escapeHtml(t("Retirer"))}">×</button>`;
+      const champ = ligne.querySelector("[data-champ]");
+      if (def.saisie === "categorie") {
+        fillCategoriesSelect(champ, categoriesProposables(sortie.categorie_id), { keepFirst: true });
+      } else if (def.saisie === "compte") {
+        fillComptesSelect(champ, state.comptes, { keepFirst: true });
+      }
+      ligne.querySelector("[data-retirer]").addEventListener("click", () => {
+        sortie[def.cle] = null;
+        sortie._affiches = affiches.filter((cle) => cle !== def.cle);
+        renderRegleSorties();
+      });
+      zone.appendChild(ligne);
+    });
+    creerMenuAjoutChamp(carte.querySelector('[data-role="ajout-champ"]'), {
+      libelle: t("Ajouter un champ"),
+      options: SORTIE_CHAMPS.filter((c) => !affiches.includes(c.cle)).map((c) => ({
+        cle: c.cle,
+        libelle: t(c.libelle),
+      })),
+      onChoix: (cle) => {
+        affiches.push(cle);
+        renderRegleSorties();
+        document.querySelector(`#regle-sorties .regle-sortie:nth-child(${i + 1}) [data-champ="${cle}"]`)?.focus();
+      },
+    });
+
     carte.querySelectorAll("[data-champ]").forEach((champ) => {
       const valeur = sortie[champ.dataset.champ];
       champ.value = valeur == null ? "" : String(valeur);
@@ -876,7 +925,8 @@ document.getElementById("btn-regle-ajouter-sortie").addEventListener("click", ()
 /** Les sorties telles que le serveur les attend : le type en identifiant. */
 function sortiesPourServeur() {
   return regleBrouillonSorties.map((sortie) => {
-    const { type_code, ...reste } = sortie;
+    // `_affiches` ne sert qu'à l'écran (cf. champsAffichesSortie).
+    const { type_code, _affiches, ...reste } = sortie;
     return { ...reste, type_id: type_code ? idTypeOperation(type_code) : null };
   });
 }

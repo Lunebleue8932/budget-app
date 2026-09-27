@@ -4688,6 +4688,62 @@ function creerMenuCases(conteneur, { libelle, options, coches, onChange }) {
   conteneur.appendChild(panneau);
 }
 
+/* ---------- « + AJOUTER UN CHAMP », mécanisme transverse ----------
+ *
+ * UN FORMULAIRE QUI NE MONTRE QUE CE QU'ON A CHOISI D'Y METTRE. Les sorties
+ * conditionnelles d'une règle et les filtres d'un objectif alignaient toutes
+ * leurs possibilités d'un coup — six listes « celle de la règle » dont on ne
+ * change qu'une, cinq filtres dont on n'utilise qu'un. Le formulaire devenait
+ * un inventaire à parcourir pour trouver l'unique ligne qui compte.
+ *
+ * D'où ce bouton : il déplie la liste des champs ENCORE DISPONIBLES, et le
+ * choix d'un champ appelle `onChoix(cle)` — c'est l'appelant qui pose la ligne
+ * correspondante, avec son bouton pour la retirer. Un champ déjà posé ne se
+ * repropose pas ; quand tous le sont, le bouton disparaît.
+ *
+ * MÊMES CLASSES QUE LE MENU À COCHER (`.filtre-menu`, `-bouton`,
+ * `.filtre-categories-panneau`) : même bouton, même panneau, même fermeture au
+ * clic à côté (l'écouteur délégué ci-dessous les referme tous les deux).
+ */
+function creerMenuAjoutChamp(conteneur, { libelle, options, onChoix }) {
+  conteneur.innerHTML = "";
+  conteneur.classList.add("filtre-menu", "menu-ajout-champ");
+  conteneur.hidden = options.length === 0;
+  if (!options.length) return;
+
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "filtre-menu-bouton";
+  bouton.textContent = `+ ${libelle}`;
+  bouton.setAttribute("aria-haspopup", "true");
+  bouton.setAttribute("aria-expanded", "false");
+
+  const panneau = document.createElement("div");
+  panneau.className = "filtre-categories-panneau";
+  panneau.hidden = true;
+  options.forEach(({ cle, libelle: texte }) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "menu-ajout-option";
+    option.textContent = texte;
+    option.addEventListener("click", () => {
+      panneau.hidden = true;
+      bouton.setAttribute("aria-expanded", "false");
+      onChoix(cle);
+    });
+    panneau.appendChild(option);
+  });
+
+  bouton.addEventListener("click", () => {
+    const ouvrir = panneau.hidden;
+    panneau.hidden = !ouvrir;
+    bouton.setAttribute("aria-expanded", String(ouvrir));
+  });
+
+  conteneur.appendChild(bouton);
+  conteneur.appendChild(panneau);
+}
+
 // Clic hors du contrôle : referme, comme tout menu déroulant de l'app.
 //
 // UN SEUL ÉCOUTEUR POUR TOUS LES MENUS, posé une fois et délégué. Chaque appel

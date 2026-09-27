@@ -1863,6 +1863,12 @@ class ObjectifKpi(Base):
     # L'ordre d'affichage, choisi par l'utilisateur, comme pour les catégories
     # et les profils de remboursement.
     ordre = Column(Integer, nullable=False, default=0)
+    # LES FILTRES QUI RAFFINENT LE PÉRIMÈTRE (migration 0073) : une liste de
+    # {champ, valeur} (cf. constants.ChampFiltreObjectif), tous à passer. Vide
+    # dans le cas ordinaire. Écarter le café du matin d'un objectif « sorties
+    # restaurant », ou ne compter que le week-end, sans inventer une catégorie
+    # pour chaque règle qu'on se donne.
+    filtres = Column(JSON, nullable=False, default=list)
 
     categorie = relationship("Categorie")
     sous_filtre = relationship("SousFiltre")

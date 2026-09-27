@@ -748,3 +748,148 @@ def test_sans_monnaie_les_mesures_les_rendent_tous(db_session, compte):
         db_session, 2026, 5, euro, aujourdhui=date(2026, 12, 31)
     )
     assert [m["nom"] for m in euros_seuls] == ["En euros"]
+
+
+# ---------- Les filtres (migration 0073) ----------
+
+
+def test_les_filtres_ecartent_les_lignes_qui_ne_les_passent_pas(db_session, compte):
+    """UNE DÉPENSE N'EST COMPTÉE QUE SI ELLE PASSE TOUS LES FILTRES. Le café du
+    matin rangé avec les restaurants ne doit plus compter comme une sortie."""
+    # 2026-09-05 est un samedi, 2026-09-07 un lundi.
+    _depense(db_session, compte, 3.5, date(2026, 9, 7), nature="CAFÉ du coin")
+    _depense(db_session, compte, 42.0, date(2026, 9, 5), nature="Restaurant Le Midi")
+    _depense(db_session, compte, 38.0, date(2026, 9, 8), nature="Brasserie")
+    objectif = _objectif(
+        db_session,
+        cible=None,
+        filtres=[{"champ": "montant_min", "valeur": 5}],
+    )
+    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 12, 31))["valeur"] == 2
+
+    # Libellé, sans casse ni accents : « cafe » attrape « CAFÉ ».
+    objectif.filtres = [{"champ": "libelle_exclut", "valeur": "cafe"}]
+    db_session.commit()
+    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 12, 31))["valeur"] == 2
+
+    # Week-end seulement, puis les deux filtres ensemble (ET).
+    objectif.filtres = [{"champ": "jours", "valeur": "weekend"}]
+    db_session.commit()
+    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 12, 31))["valeur"] == 1
+    objectif.filtres = [
+        {"champ": "jours", "valeur": "semaine"},
+        {"champ": "libelle_contient", "valeur": "brasserie"},
+    ]
+    db_session.commit()
+    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 12, 31))["valeur"] == 1
+
+
+def test_une_part_filtree_se_rapporte_a_toutes_les_depenses(db_session, compte):
+    """SANS QUOI ELLE VAUDRAIT TOUJOURS 100 %. Le numérateur est filtré, le
+    dénominateur non : « le week-end pèse 70 % de ce que j'ai dépensé »."""
+    _depense(db_session, compte, 70.0, date(2026, 9, 5))   # samedi
+    _depense(db_session, compte, 30.0, date(2026, 9, 7))   # lundi
+    objectif = _objectif(
+        db_session,
+        mesure="part_depenses",
+        cible=None,
+        filtres=[{"champ": "jours", "valeur": "weekend"}],
+    )
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 12, 31))
+    assert mesure["valeur"] == pytest.approx(70.0)
+
+
+def test_une_part_filtree_sans_categorie_est_acceptee(db_session):
+    routeur.creer_objectif(
+        schemas_obj.ObjectifCreate(
+            nom="Part du week-end",
+            mesure="part_depenses",
+            monnaie_id=get_monnaie_id(db_session),
+            filtres=[{"champ": "jours", "valeur": "weekend"}],
+        ),
+        db=db_session,
+    )
+
+
+def test_les_filtres_s_enregistrent_et_se_remplacent(db_session):
+    objectif = routeur.creer_objectif(
+        schemas_obj.ObjectifCreate(
+            nom="Sorties",
+            mesure="nombre",
+            monnaie_id=get_monnaie_id(db_session),
+            filtres=[{"champ": "montant_min", "valeur": "15"}],
+        ),
+        db=db_session,
+    )
+    assert objectif.filtres == [{"champ": "montant_min", "valeur": 15.0}]
+
+    # `None` ne touche à rien, une liste remplace, une liste vide retire tout.
+    routeur.modifier_objectif(objectif.id, schemas_obj.ObjectifUpdate(nom="Sorties !"), db=db_session)
+    assert objectif.filtres == [{"champ": "montant_min", "valeur": 15.0}]
+    routeur.modifier_objectif(
+        objectif.id,
+        schemas_obj.ObjectifUpdate(filtres=[{"champ": "libelle_exclut", "valeur": "café"}]),
+        db=db_session,
+    )
+    assert objectif.filtres == [{"champ": "libelle_exclut", "valeur": "café"}]
+    routeur.modifier_objectif(objectif.id, schemas_obj.ObjectifUpdate(filtres=[]), db=db_session)
+    assert objectif.filtres == []
+
+
+@pytest.mark.parametrize(
+    "filtre",
+    [
+        {"champ": "montant_min", "valeur": -1},
+        {"champ": "montant_max", "valeur": "beaucoup"},
+        {"champ": "libelle_contient", "valeur": "   "},
+        {"champ": "jours", "valeur": "lundi"},
+        {"champ": "inconnu", "valeur": 1},
+    ],
+)
+def test_un_filtre_mal_forme_est_refuse(filtre):
+    with pytest.raises(ValueError):
+        schemas_obj.FiltreObjectif(**filtre)
+
+
+# ---------- La semaine en cours ----------
+
+
+def test_la_semaine_de_lecture(db_session):
+    """CELLE D'AUJOURD'HUI QUAND LE MOIS LA CONTIENT, et une vraie semaine, du
+    lundi au dimanche, qui peut déborder sur le mois voisin."""
+    # Le jeudi 24 septembre 2026 : du lundi 21 au dimanche 27.
+    assert service.semaine_de_lecture(2026, 9, date(2026, 9, 24)) == (
+        date(2026, 9, 21), date(2026, 9, 27)
+    )
+    # Un mois passé : sa dernière semaine, qui déborde sur octobre.
+    assert service.semaine_de_lecture(2026, 9, date(2026, 11, 2)) == (
+        date(2026, 9, 28), date(2026, 10, 4)
+    )
+    # Un mois à venir : sa première semaine, qui commence en août.
+    assert service.semaine_de_lecture(2026, 9, date(2026, 6, 1)) == (
+        date(2026, 8, 31), date(2026, 9, 6)
+    )
+
+
+def test_un_objectif_hebdomadaire_rend_aussi_la_semaine_en_cours(db_session, compte):
+    """DEUX LECTURES DU MÊME OBJECTIF : la moyenne du mois, et la semaine en
+    cours, jugée contre la même cible."""
+    for jour in (1, 2, 3, 22, 23, 24):
+        _depense(db_session, compte, 20.0, date(2026, 9, jour))
+    objectif = _objectif(db_session, cadence="semaine", cible=2.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+
+    assert mesure["mode"] == "moyenne"
+    semaine = mesure["semaine"]
+    assert (semaine["debut"], semaine["fin"]) == ("2026-09-21", "2026-09-27")
+    assert semaine["valeur"] == 3
+    assert semaine["atteint"] is False
+    assert semaine["avancement"] == pytest.approx(150.0)
+
+
+def test_un_objectif_mensuel_n_a_pas_de_lecture_hebdomadaire(db_session, compte):
+    objectif = _objectif(db_session, cadence="mois")
+    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))["semaine"] is None
+    hebdo = _objectif(db_session, cadence="semaine")
+    # En vue année, il n'y a pas de « semaine du mois » à proposer.
+    assert service.mesurer(db_session, hebdo, 2026, None, date(2026, 9, 24))["semaine"] is None

@@ -1957,6 +1957,71 @@ form .operation-cases input[type="checkbox"] {
   color: var(--text-primary);
 }
 
+/* « + Ajouter un champ » (cf. app.js, creerMenuAjoutChamp) : le même bouton que
+   le menu à cocher, posé en bas d'un formulaire plutôt que dans un titre. */
+.filtre-menu.menu-ajout-champ {
+  margin-left: 0;
+  margin-top: 0.4rem;
+}
+
+.menu-ajout-champ .filtre-menu-bouton {
+  font-size: 0.82rem;
+  padding: 0.35rem 0.75rem;
+}
+
+.menu-ajout-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.menu-ajout-option:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+/* Une ligne posée par « Ajouter un champ » : son libellé, sa saisie, et la
+   croix qui la retire. */
+.champ-ajoute {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.35rem 0;
+}
+
+.champ-ajoute > .champ-ajoute-libelle {
+  min-width: 12rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.champ-ajoute > input,
+.champ-ajoute > select {
+  flex: 1;
+  max-width: 22rem;
+}
+
+.champ-ajoute-retirer {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+
+.champ-ajoute-retirer:hover {
+  color: var(--danger);
+}
+
 .filtre-categories-tout {
   border-bottom: 1px solid var(--border-soft);
   margin-bottom: 0.3rem;

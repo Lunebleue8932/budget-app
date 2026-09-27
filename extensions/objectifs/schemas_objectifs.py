@@ -6,11 +6,46 @@ la valeur constatée, la valeur ramenée à sa cadence et la cible proratisée, 
 qu'aucun de ces trois chiffres seul ne se lit sans les autres (cf.
 service_objectifs.mesurer).
 """
-from typing import Optional
+from typing import Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.constants import CadenceObjectif, MesureObjectif, SensObjectif
+from app.constants import (
+    CadenceObjectif,
+    ChampFiltreObjectif,
+    JoursFiltreObjectif,
+    MesureObjectif,
+    SensObjectif,
+)
+
+
+class FiltreObjectif(BaseModel):
+    """Un filtre : un champ, et la valeur qu'il attend (cf.
+    constants.ChampFiltreObjectif). La valeur se VÉRIFIE selon le champ — un
+    montant est un nombre positif, un mot n'est pas vide, les jours sont
+    « semaine » ou « weekend » — pour qu'un filtre mal formé soit refusé à la
+    saisie plutôt qu'ignoré en silence au calcul."""
+
+    champ: ChampFiltreObjectif
+    valeur: Union[float, str]
+
+    @model_validator(mode="after")
+    def _valeur_selon_le_champ(self):
+        if self.champ in (ChampFiltreObjectif.montant_min, ChampFiltreObjectif.montant_max):
+            try:
+                self.valeur = float(self.valeur)
+            except (TypeError, ValueError):
+                raise ValueError("Un filtre de montant attend un nombre.")
+            if self.valeur < 0:
+                raise ValueError("Un filtre de montant attend un nombre positif.")
+        elif self.champ == ChampFiltreObjectif.jours:
+            if self.valeur not in {j.value for j in JoursFiltreObjectif}:
+                raise ValueError("Le filtre des jours attend « semaine » ou « weekend ».")
+        else:
+            self.valeur = str(self.valeur).strip()
+            if not self.valeur:
+                raise ValueError("Un filtre de libellé attend un mot.")
+        return self
 
 
 class ObjectifBase(BaseModel):
@@ -37,6 +72,8 @@ class ObjectifBase(BaseModel):
     monnaie_id: int
     visible_dashboard: bool = True
     ordre: int = 0
+    # Tous à passer ; vide = aucun filtre (cf. models.ObjectifKpi.filtres).
+    filtres: list[FiltreObjectif] = Field(default_factory=list)
 
 
 class ObjectifCreate(ObjectifBase):
@@ -71,12 +108,30 @@ class ObjectifUpdate(BaseModel):
     monnaie_id: Optional[int] = None
     visible_dashboard: Optional[bool] = None
     ordre: Optional[int] = None
+    # UNE LISTE REMPLACE LES FILTRES, `None` n'y touche pas — et une liste vide
+    # les retire tous.
+    filtres: Optional[list[FiltreObjectif]] = None
 
 
 class ObjectifRead(ObjectifBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+
+class MesureSemaineRead(BaseModel):
+    """L'objectif hebdomadaire lu sur UNE semaine : celle d'aujourd'hui quand la
+    période affichée la contient, sinon la dernière de la période (cf.
+    service_objectifs.semaine_de_lecture). C'est l'autre lecture que l'écran
+    propose à côté de la moyenne du mois — « où j'en suis cette semaine » plutôt
+    que « quel rythme j'ai tenu »."""
+
+    debut: str
+    fin: str
+    valeur: float = 0.0
+    echantillon: int = 0
+    atteint: bool = True
+    avancement: float = 0.0
 
 
 class ObjectifMesureRead(BaseModel):
@@ -125,6 +180,11 @@ class ObjectifMesureRead(BaseModel):
     # objectif dont personne n'a fixé le bout.
     atteint: bool = True
     avancement: float = 0.0
+    filtres: list[FiltreObjectif] = Field(default_factory=list)
+    # Présente pour un objectif HEBDOMADAIRE lu sur un mois seulement : c'est le
+    # seul cas où « la semaine en cours » et « la moyenne du mois » sont deux
+    # lectures différentes du même objectif.
+    semaine: Optional[MesureSemaineRead] = None
 
 
 class ObjectifsPeriodeRead(BaseModel):

@@ -29,7 +29,9 @@ de lire un objectif hebdomadaire sur un mois (« 3,8 par semaine ») sans avoir 
 changer d'écran ni à faire la division soi-même.
 """
 import calendar
+import unicodedata
 from datetime import date as date_type
+from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -38,6 +40,8 @@ from sqlalchemy.orm import Session
 # il est chargé par chemin de fichier (cf. extensions/README.md).
 from app import models
 from app.constants import (
+    ChampFiltreObjectif,
+    JoursFiltreObjectif,
     JOURS_SEMAINE,
     MESURES_OBJECTIF_CUMULATIVES,
     CadenceObjectif,
@@ -151,13 +155,58 @@ def _retenu(operation, code: str, montant: float) -> float:
     return base * (montant / operation.montant)
 
 
+# ---------- Les filtres (migration 0073) ----------
+
+
+def _normaliser(texte: Optional[str]) -> str:
+    """Minuscules et sans accents : « Café », « cafe » et « CAFÉ » sont le même
+    mot pour qui le cherche dans un libellé bancaire, dont la casse et les
+    accents dépendent de la banque bien plus que de ce qu'on a acheté."""
+    decompose = unicodedata.normalize("NFKD", texte or "")
+    return "".join(c for c in decompose if not unicodedata.combining(c)).lower()
+
+
+def passe_filtres(operation, filtres: Optional[list]) -> bool:
+    """Vrai si l'opération passe TOUS les filtres de l'objectif.
+
+    LES MONTANTS LISENT LA LIGNE ENTIÈRE, ce qu'on lit sur son relevé — et non
+    la part d'une découpe ni le reste à charge d'une remboursable : « écarter
+    les dépenses de moins de 5 € » parle du ticket de caisse, pas d'un calcul.
+    Un filtre dont le champ est inconnu est IGNORÉ plutôt que fatal : une base
+    écrite par une version plus récente ne doit pas faire tomber la mesure."""
+    for filtre in filtres or []:
+        champ, valeur = filtre.get("champ"), filtre.get("valeur")
+        if champ == ChampFiltreObjectif.montant_min.value:
+            if operation.montant < float(valeur):
+                return False
+        elif champ == ChampFiltreObjectif.montant_max.value:
+            if operation.montant > float(valeur):
+                return False
+        elif champ == ChampFiltreObjectif.libelle_contient.value:
+            if _normaliser(str(valeur)) not in _normaliser(operation.nature):
+                return False
+        elif champ == ChampFiltreObjectif.libelle_exclut.value:
+            if _normaliser(str(valeur)) in _normaliser(operation.nature):
+                return False
+        elif champ == ChampFiltreObjectif.jours.value:
+            weekend = operation.date.weekday() >= 5
+            if (valeur == JoursFiltreObjectif.weekend.value) != weekend:
+                return False
+    return True
+
+
+def bornes_periode(annee: int, mois: Optional[int]) -> tuple[date_type, date_type]:
+    return date_type(annee, mois or 1, 1), soldes.fin_de_periode(annee, mois)
+
+
 def _lignes_depenses(
     db: Session,
-    annee: int,
-    mois: Optional[int],
+    debut: date_type,
+    fin: date_type,
     monnaie_id: int,
     categorie_id: Optional[int],
     sous_filtre_id: Optional[int] = None,
+    filtres: Optional[list] = None,
 ) -> list[float]:
     """Le montant retenu de chaque dépense de la période, une valeur par LIGNE.
 
@@ -188,7 +237,11 @@ def _lignes_depenses(
             models.Operation.type_id == models.TypeOperationDB.id,
         )
         .filter(
-            soldes.filtre_date_periode(annee, mois),
+            # LES BORNES EN CLAIR plutôt que `filtre_date_periode` : la même
+            # requête sert au mois, à l'année ET à une semaine qui peut chevaucher
+            # deux mois (cf. `semaine_de_lecture`).
+            models.Operation.date >= debut,
+            models.Operation.date <= fin,
             models.Operation.monnaie_id == monnaie_id,
             models.Operation.statut == Statut.reel,
             models.Operation.sens == Sens.depense,
@@ -208,6 +261,8 @@ def _lignes_depenses(
 
     montants: list[float] = []
     for operation, code in requete.all():
+        if not passe_filtres(operation, filtres):
+            continue
         if categorie_id is None or operation.categorie_id == categorie_id:
             retenu = _retenu(operation, code, operation.montant)
         else:
@@ -248,6 +303,76 @@ def _depenses_du_dashboard(
 # ---------- La mesure ----------
 
 
+def semaine_de_lecture(
+    annee: int, mois: int, aujourdhui: Optional[date_type] = None
+) -> tuple[date_type, date_type]:
+    """LA SEMAINE (du lundi au dimanche) sur laquelle lire un objectif
+    hebdomadaire : celle d'aujourd'hui si le mois affiché la contient, sinon la
+    dernière semaine d'un mois passé, ou la première d'un mois à venir.
+
+    UNE VRAIE SEMAINE, qui peut déborder sur le mois voisin : « cette semaine »
+    ne s'arrête pas au 30 parce que le sélecteur affiche septembre."""
+    debut, fin = bornes_periode(annee, mois)
+    aujourdhui = aujourdhui or date_type.today()
+    reference = min(max(aujourdhui, debut), fin)
+    lundi = reference - timedelta(days=reference.weekday())
+    return lundi, lundi + timedelta(days=6)
+
+
+def _jugement(objectif: models.ObjectifKpi, valeur: float) -> tuple[bool, float]:
+    """Tenu ou non, et où en est la barre — pour une valeur DÉJÀ ramenée à ce
+    qui se compare à la cible.
+
+    SANS CIBLE, RIEN N'EST NI TENU NI MANQUÉ (migration 0070). L'objectif ne
+    sert alors qu'à poser un chiffre sous les graphes, et prononcer un jugement
+    sur une règle que personne ne s'est donnée serait pire que se taire.
+    `atteint` reste vrai pour que l'écran ne peigne rien en rouge ; c'est
+    `cible is None` qui lui dit de ne dessiner ni barre ni état."""
+    if objectif.cible is None:
+        return True, 0.0
+    marge = _tolerance(objectif.cible)
+    if objectif.sens == SensObjectif.max.value:
+        atteint = valeur <= objectif.cible + marge
+    else:
+        atteint = valeur >= objectif.cible - marge
+    if objectif.cible:
+        avancement = valeur / objectif.cible * 100.0
+    else:
+        # Cible à zéro : « aucune sortie ce mois-ci ». La barre est vide tant
+        # qu'on n'a rien fait, pleine dès la première ligne — il n'y a pas de
+        # demi-mesure à afficher.
+        avancement = 0.0 if not valeur else 100.0
+    return atteint, avancement
+
+
+def _mesure_sur_lignes(
+    db: Session, objectif: models.ObjectifKpi, debut: date_type, fin: date_type
+) -> tuple[float, int]:
+    """La mesure de l'objectif comptée sur des LIGNES de relevé entre deux
+    dates, ses filtres appliqués : la valeur, et le nombre de lignes retenues."""
+    montants = _lignes_depenses(
+        db, debut, fin, objectif.monnaie_id, objectif.categorie_id,
+        objectif.sous_filtre_id, objectif.filtres or [],
+    )
+    echantillon = len(montants)
+    if objectif.mesure == MesureObjectif.nombre.value:
+        return float(echantillon), echantillon
+    if objectif.mesure == MesureObjectif.montant_total.value:
+        return sum(montants), echantillon
+    if objectif.mesure == MesureObjectif.montant_moyen.value:
+        # Pas de dépense, pas de moyenne : zéro plutôt qu'une division par zéro,
+        # et l'écran dit « aucune dépense » plutôt que « 0 € en moyenne », qui
+        # se lirait comme un objectif parfaitement tenu.
+        return ((sum(montants) / echantillon) if echantillon else 0.0), echantillon
+    # LA PART SE RAPPORTE À TOUTES LES LIGNES DE LA FENÊTRE, sans filtre ni
+    # périmètre : « mes dépenses du week-end pèsent 40 % » divise par tout ce
+    # qu'on a dépensé, pas par ce que les filtres ont déjà retenu — sans quoi
+    # une part filtrée vaudrait toujours 100 %. C'est aussi ce que faisait déjà
+    # la part d'un projet : un dénominateur compté comme son numérateur.
+    base = sum(_lignes_depenses(db, debut, fin, objectif.monnaie_id, None))
+    return ((sum(montants) / base * 100.0) if base else 0.0), echantillon
+
+
 def mesurer(
     db: Session,
     objectif: models.ObjectifKpi,
@@ -274,6 +399,10 @@ def mesurer(
     LES MESURES DE RAPPORT (montant moyen, part) ne convertissent jamais : une
     moyenne ne double pas quand la période double.
 
+    UN OBJECTIF HEBDOMADAIRE LU SUR UN MOIS rend EN PLUS sa mesure sur la
+    semaine de lecture (cf. `semaine_de_lecture`) : l'écran propose les deux
+    lectures, « où j'en suis cette semaine » et « quel rythme j'ai tenu ».
+
     LA CIBLE NE BOUGE JAMAIS, dans les deux cas : elle est comparée telle qu'on
     l'a écrite. Une cible proratisée aurait donné la même inégalité au même
     moment, pour un chiffre de plus à comprendre à l'écran."""
@@ -282,49 +411,28 @@ def mesurer(
         objectif.cadence, annee, mois, aujourdhui, ecoulees=False
     )
     echantillon = 0
-    # UN OBJECTIF DE PROJET COMPTE DES LIGNES, ses quatre mesures comprises, et
-    # c'est la seule façon de rester d'accord avec l'écran qui le détaille.
-    # `get_depenses_par_categorie` ne sait pas ce qu'est un projet : lui
-    # apprendre aurait demandé de recopier l'amortissement étalé dans un second
-    # calcul, pour un total que la page des projets — la seule qui le détaille
-    # — ne donne pas ainsi. Un projet est un paquet de LIGNES qu'on a versées
-    # dedans, et son total est leur somme.
+    # DES LIGNES, ET NON LE CALCUL DU DASHBOARD, dans deux cas :
     #
-    # CE QUI DIFFÈRE DONC D'UN OBJECTIF DE CATÉGORIE : l'étalement, et lui seul.
-    # Une facture annuelle payée en janvier pèse entièrement sur janvier dans un
-    # projet, et un douzième par mois dans une catégorie. Le reste — reste à
-    # charge des remboursables, parts des découpes — est le même des deux
-    # côtés (cf. `_retenu`).
-    sur_projet = objectif.sous_filtre_id is not None
+    #  - UN OBJECTIF DE PROJET, ses quatre mesures comprises : c'est la seule
+    #    façon de rester d'accord avec l'écran qui le détaille.
+    #    `get_depenses_par_categorie` ne sait pas ce qu'est un projet, et un
+    #    projet est un paquet de LIGNES qu'on a versées dedans ;
+    #  - UN OBJECTIF FILTRÉ (migration 0073) : un filtre porte sur une ligne — son
+    #    libellé, son montant, son jour — et le calcul du dashboard ne connaît
+    #    que des sommes par catégorie.
+    #
+    # CE QUI DIFFÈRE ALORS D'UN OBJECTIF DE CATÉGORIE : l'étalement, et lui seul.
+    # Une facture annuelle payée en janvier pèse entièrement sur janvier. Le
+    # reste — reste à charge des remboursables, parts des découpes — est le même
+    # des deux côtés (cf. `_retenu`).
+    sur_lignes = objectif.sous_filtre_id is not None or bool(objectif.filtres)
+    debut, fin = bornes_periode(annee, mois)
 
-    if sur_projet or objectif.mesure in (
+    if sur_lignes or objectif.mesure in (
         MesureObjectif.nombre.value,
         MesureObjectif.montant_moyen.value,
     ):
-        montants = _lignes_depenses(
-            db,
-            annee,
-            mois,
-            objectif.monnaie_id,
-            objectif.categorie_id,
-            objectif.sous_filtre_id,
-        )
-        echantillon = len(montants)
-        if objectif.mesure == MesureObjectif.nombre.value:
-            valeur = float(echantillon)
-        elif objectif.mesure == MesureObjectif.montant_total.value:
-            valeur = sum(montants)
-        elif objectif.mesure == MesureObjectif.montant_moyen.value:
-            # Pas de dépense, pas de moyenne : zéro plutôt qu'une division par
-            # zéro, et l'écran dit « aucune dépense » plutôt que « 0 € en
-            # moyenne », qui se lirait comme un objectif parfaitement tenu.
-            valeur = (sum(montants) / echantillon) if echantillon else 0.0
-        else:
-            # LA PART D'UN PROJET SE RAPPORTE AUX LIGNES, PAS AU DASHBOARD : le
-            # dénominateur doit se compter comme le numérateur, sans quoi un
-            # projet pourrait peser 110 % d'un total étalé plus petit que lui.
-            base = sum(_lignes_depenses(db, annee, mois, objectif.monnaie_id, None))
-            valeur = (sum(montants) / base * 100.0) if base else 0.0
+        valeur, echantillon = _mesure_sur_lignes(db, objectif, debut, fin)
     else:
         total, par_categorie = _depenses_du_dashboard(
             db, annee, mois, objectif.monnaie_id
@@ -353,29 +461,23 @@ def mesurer(
     else:
         valeur_cadence = valeur
 
-    # SANS CIBLE, RIEN N'EST NI TENU NI MANQUÉ (migration 0070). L'objectif ne
-    # sert alors qu'à poser un chiffre sous les graphes — ce que coûte un projet
-    # en cours, par exemple — et prononcer un jugement sur une règle que
-    # personne ne s'est donnée serait pire que se taire. `atteint` reste vrai
-    # pour que l'écran ne peigne rien en rouge ; c'est `cible is None` qui lui
-    # dit de ne dessiner ni barre ni état.
-    if objectif.cible is None:
-        atteint = True
-        avancement = 0.0
-    else:
-        marge = _tolerance(objectif.cible)
-        if objectif.sens == SensObjectif.max.value:
-            atteint = valeur_cadence <= objectif.cible + marge
-        else:
-            atteint = valeur_cadence >= objectif.cible - marge
+    atteint, avancement = _jugement(objectif, valeur_cadence)
 
-        if objectif.cible:
-            avancement = valeur_cadence / objectif.cible * 100.0
-        else:
-            # Cible à zéro : « aucune sortie ce mois-ci ». La barre est vide tant
-            # qu'on n'a rien fait, pleine dès la première ligne — il n'y a pas de
-            # demi-mesure à afficher.
-            avancement = 0.0 if not valeur_cadence else 100.0
+    semaine = None
+    if objectif.cadence == CadenceObjectif.semaine.value and mois is not None:
+        lundi, dimanche = semaine_de_lecture(annee, mois, aujourdhui)
+        valeur_semaine, echantillon_semaine = _mesure_sur_lignes(
+            db, objectif, lundi, dimanche
+        )
+        atteint_semaine, avancement_semaine = _jugement(objectif, valeur_semaine)
+        semaine = {
+            "debut": lundi.isoformat(),
+            "fin": dimanche.isoformat(),
+            "valeur": valeur_semaine,
+            "echantillon": echantillon_semaine,
+            "atteint": atteint_semaine,
+            "avancement": avancement_semaine,
+        }
 
     return {
         "objectif_id": objectif.id,
@@ -402,6 +504,8 @@ def mesurer(
         "echantillon": echantillon,
         "atteint": atteint,
         "avancement": avancement,
+        "filtres": list(objectif.filtres or []),
+        "semaine": semaine,
     }
 
 

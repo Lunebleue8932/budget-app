@@ -41,6 +41,7 @@ def _valider_part(
     mesure: Optional[str],
     categorie_id: Optional[int],
     sous_filtre_id: Optional[int] = None,
+    filtres: Optional[list] = None,
 ) -> None:
     """UNE PART SE MESURE SUR QUELQUE CHOSE, et c'est le seul refus de ce
     routeur.
@@ -53,9 +54,13 @@ def _valider_part(
 
     UN PROJET FAIT UN PÉRIMÈTRE AUSSI BIEN QU'UNE CATÉGORIE : « mes vacances
     pèsent 12 % de ce que j'ai dépensé ce mois-ci » est exactement la question
-    qu'on se pose devant un projet en cours."""
+    qu'on se pose devant un projet en cours.
+
+    UN FILTRE AUSSI (migration 0073) : « mes dépenses du week-end pèsent 40 % »
+    se mesure sur toutes les catégories, et ne vaut pas 100 % par construction —
+    le dénominateur, lui, n'est pas filtré (cf. service_objectifs)."""
     if mesure == MesureObjectif.part_depenses.value and not (
-        categorie_id or sous_filtre_id
+        categorie_id or sous_filtre_id or filtres
     ):
         raise HTTPException(
             status_code=400,
@@ -122,7 +127,9 @@ def creer_objectif(payload: schemas_obj.ObjectifCreate, db: Session = Depends(ge
     _valider_perimetre(
         db, payload.monnaie_id, payload.categorie_id, payload.sous_filtre_id
     )
-    _valider_part(payload.mesure.value, payload.categorie_id, payload.sous_filtre_id)
+    _valider_part(
+        payload.mesure.value, payload.categorie_id, payload.sous_filtre_id, payload.filtres
+    )
     # UN OBJECTIF NEUF VA EN FIN DE LISTE. Le défaut du schéma est zéro, qui
     # l'aurait glissé au MILIEU des objectifs déjà là : on le cherche alors dans
     # une liste où il n'est pas au bout, et le geste suivant — le relire pour
@@ -146,6 +153,7 @@ def creer_objectif(payload: schemas_obj.ObjectifCreate, db: Session = Depends(ge
         monnaie_id=payload.monnaie_id,
         visible_dashboard=payload.visible_dashboard,
         ordre=ordre,
+        filtres=[filtre.model_dump(mode="json") for filtre in payload.filtres],
     )
     db.add(objectif)
     db.commit()
@@ -175,6 +183,7 @@ def modifier_objectif(
         objectif.sous_filtre_id
         if payload.sous_filtre_id is None
         else payload.sous_filtre_id,
+        objectif.filtres if payload.filtres is None else payload.filtres,
     )
 
     for champ in ("nom", "cible", "visible_dashboard", "ordre", "monnaie_id"):
@@ -205,6 +214,11 @@ def modifier_objectif(
         objectif.sous_filtre_id = payload.sous_filtre_id or None
         if objectif.sous_filtre_id:
             objectif.categorie_id = None
+    # UNE LISTE REMPLACE, `None` ne touche à rien ; une liste vide retire tout.
+    # Réassignée en entier plutôt que modifiée sur place : SQLAlchemy ne voit
+    # pas la mutation d'une liste JSON, seulement son remplacement.
+    if payload.filtres is not None:
+        objectif.filtres = [filtre.model_dump(mode="json") for filtre in payload.filtres]
 
     db.commit()
     db.refresh(objectif)

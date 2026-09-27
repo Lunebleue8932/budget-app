@@ -212,10 +212,11 @@
 
 /* Les actions d'une sortie : une grille de champs, chacun sous son libellé,
    comme la barre de choix d'un écran. */
+/* Les champs POSÉS d'une sortie, un par ligne (cf. regles.js, SORTIE_CHAMPS) :
+   la grille de six listes toutes affichées a laissé place à « + Ajouter un
+   champ », et une liste courte se lit mieux en colonne. */
 .regle-sortie-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: 0.5rem 0.9rem;
+  display: block;
 }
 
 .regle-sortie-actions label {

@@ -742,6 +742,44 @@ const TRADUCTIONS = {
       "A goal may have no target at all: it then simply shows its figure under the dashboard charts, without saying whether it is met or missed. -- That is the ordinary case of a project under way: you want to see what it costs long before you know what you will allow yourself. -- Careful, a target of zero is not « no target »: it is a rule, and a strict one (« nothing at all this month »).",
     "Se fixer une cible":
       "Set a target",
+    "Ajouter un filtre":
+      "Add a filter",
+    "Montant au moins":
+      "Amount at least",
+    "Montant au plus":
+      "Amount at most",
+    "Libellé contenant":
+      "Label containing",
+    "Libellé ne contenant pas":
+      "Label not containing",
+    "Jours":
+      "Days",
+    "En semaine":
+      "Weekdays",
+    "Le week-end":
+      "Weekends",
+    "Ajouter un champ":
+      "Add a field",
+    "ex. café":
+      "e.g. coffee",
+    "Chaque filtre doit avoir une valeur.":
+      "Each filter needs a value.",
+    "sans":
+      "without",
+    "en semaine":
+      "on weekdays",
+    "le week-end":
+      "at weekends",
+    "Semaine en cours":
+      "This week",
+    "Moyenne du mois":
+      "Month average",
+    "cette semaine":
+      "this week",
+    "dépenses cette semaine":
+      "expenses this week",
+    "Des conditions que chaque dépense doit remplir pour être comptée : un montant minimum ou maximum, un mot présent ou absent du libellé, les jours de semaine ou le week-end. -- Toutes s'appliquent ensemble. -- Un objectif filtré compte les dépenses ligne par ligne : une dépense amortie y pèse entièrement sur le mois où elle a été faite.":
+      "Conditions each expense must meet to be counted: a minimum or maximum amount, a word present in or absent from the label, weekdays or weekends. -- They all apply together. -- A filtered goal counts expenses line by line: a spread expense weighs entirely on the month it was made.",
     "Catégories":
       "Categories",
     "suivi":

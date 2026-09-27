@@ -40,6 +40,143 @@ let objMonnaieParDefaut = null;
 // cours. On vient ici POSER des règles ; on les LIT au dashboard, qui a déjà
 // son sélecteur de période (cf. page.html).
 
+/* ---------- Les filtres (migration 0073) ----------
+ *
+ * POSÉS UN PAR UN, par « + Ajouter un filtre » (cf. app.js,
+ * creerMenuAjoutChamp) : le formulaire ne montre que ceux qu'on a choisis. Les
+ * bornes de montant et les jours ne se posent qu'une fois ; un mot à chercher
+ * ou à écarter peut se poser plusieurs fois (« sans café », « sans boulangerie »).
+ */
+const OBJ_FILTRES = [
+  { cle: "montant_min", libelle: "Montant au moins", saisie: "montant", unique: true },
+  { cle: "montant_max", libelle: "Montant au plus", saisie: "montant", unique: true },
+  { cle: "libelle_contient", libelle: "Libellé contenant", saisie: "texte", unique: false },
+  { cle: "libelle_exclut", libelle: "Libellé ne contenant pas", saisie: "texte", unique: false },
+  { cle: "jours", libelle: "Jours", saisie: "jours", unique: true },
+];
+
+// Le brouillon des filtres de l'objectif en cours d'édition, copié à
+// l'ouverture : annuler ne doit rien laisser derrière.
+let objBrouillonFiltres = [];
+
+function objDefinitionFiltre(cle) {
+  return OBJ_FILTRES.find((f) => f.cle === cle);
+}
+
+function objRenderFiltres() {
+  const bloc = document.getElementById("objectif-filtres");
+  if (!bloc) return;
+  bloc.innerHTML = "";
+  objBrouillonFiltres.forEach((filtre, i) => {
+    const def = objDefinitionFiltre(filtre.champ);
+    if (!def) return;
+    const ligne = document.createElement("div");
+    ligne.className = "champ-ajoute";
+    let saisie;
+    if (def.saisie === "jours") {
+      saisie = `<select data-filtre="${i}">
+        <option value="semaine">${t("En semaine")}</option>
+        <option value="weekend">${t("Le week-end")}</option>
+      </select>`;
+    } else if (def.saisie === "montant") {
+      saisie = `<input type="number" step="0.01" min="0" data-filtre="${i}" />`;
+    } else {
+      saisie = `<input type="text" data-filtre="${i}" placeholder="${escapeHtml(t("ex. café"))}" />`;
+    }
+    ligne.innerHTML = `
+      <span class="champ-ajoute-libelle">${escapeHtml(t(def.libelle))}</span>
+      ${saisie}
+      <button type="button" class="champ-ajoute-retirer" data-retirer-filtre="${i}"
+              title="${escapeHtml(t("Retirer"))}" aria-label="${escapeHtml(t("Retirer"))}">×</button>`;
+    const champ = ligne.querySelector("[data-filtre]");
+    champ.value = filtre.valeur == null ? "" : String(filtre.valeur);
+    champ.addEventListener("input", () => {
+      filtre.valeur = champ.value;
+    });
+    ligne.querySelector("[data-retirer-filtre]").addEventListener("click", () => {
+      objBrouillonFiltres.splice(i, 1);
+      objRenderFiltres();
+    });
+    bloc.appendChild(ligne);
+  });
+
+  const poses = new Set(objBrouillonFiltres.map((f) => f.champ));
+  creerMenuAjoutChamp(document.getElementById("objectif-filtres-ajout"), {
+    libelle: t("Ajouter un filtre"),
+    options: OBJ_FILTRES.filter((f) => !f.unique || !poses.has(f.cle)).map((f) => ({
+      cle: f.cle,
+      libelle: t(f.libelle),
+    })),
+    onChoix: (cle) => {
+      objBrouillonFiltres.push({ champ: cle, valeur: cle === "jours" ? "weekend" : "" });
+      objRenderFiltres();
+      const champs = document.querySelectorAll("#objectif-filtres [data-filtre]");
+      champs[champs.length - 1]?.focus();
+    },
+  });
+}
+
+/** Les filtres d'un objectif, dits en quelques mots pour la carte :
+ *  « ≥ 15,00 € · sans « café » · le week-end ». */
+function objResumeFiltres(filtres, monnaieId) {
+  return (filtres || [])
+    .map((f) => {
+      if (f.champ === "montant_min") return `≥ ${formatMontant(Number(f.valeur), monnaieId)}`;
+      if (f.champ === "montant_max") return `≤ ${formatMontant(Number(f.valeur), monnaieId)}`;
+      if (f.champ === "libelle_contient") return `${t("avec")} « ${escapeHtml(f.valeur)} »`;
+      if (f.champ === "libelle_exclut") return `${t("sans")} « ${escapeHtml(f.valeur)} »`;
+      if (f.champ === "jours") return f.valeur === "weekend" ? t("le week-end") : t("en semaine");
+      return "";
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/* ---------- Semaine en cours / moyenne du mois ----------
+ *
+ * UN OBJECTIF HEBDOMADAIRE LU SUR UN MOIS a deux lectures, et le serveur rend
+ * les deux (cf. service_objectifs.mesurer, champ `semaine`) : où j'en suis
+ * CETTE semaine, et quel rythme j'ai tenu sur le mois. La bascule est posée sur
+ * la carte elle-même, et retenue par objectif dans ce navigateur — c'est un
+ * réglage de lecture, pas une donnée.
+ */
+const OBJ_CLE_VUES = "objectifs.vues-semaine";
+
+function objVuesSemaine() {
+  try {
+    return JSON.parse(localStorage.getItem(OBJ_CLE_VUES) || "{}") || {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function objVueSemaine(objectifId) {
+  return objVuesSemaine()[objectifId] || "semaine";
+}
+
+function objChoisirVueSemaine(objectifId, vue) {
+  const vues = objVuesSemaine();
+  vues[objectifId] = vue;
+  try {
+    localStorage.setItem(OBJ_CLE_VUES, JSON.stringify(vues));
+  } catch (err) {
+    // Stockage indisponible : la bascule vaut pour cette page seulement.
+  }
+}
+
+/** La mesure telle que la carte doit l'afficher : sur la semaine en cours
+ *  quand c'est la lecture choisie, sinon telle que le serveur l'a rendue. */
+function objMesureAffichee(mesure) {
+  if (!mesure.semaine || objVueSemaine(mesure.objectif_id) !== "semaine") return mesure;
+  return {
+    ...mesure,
+    valeur_cadence: mesure.semaine.valeur,
+    atteint: mesure.semaine.atteint,
+    avancement: mesure.semaine.avancement,
+    enSemaine: true,
+  };
+}
+
 /* ---------- Dire un chiffre dans l'unité de sa mesure ---------- */
 
 // Un nombre de dépenses n'a pas de centimes, mais une MOYENNE de dépenses en a
@@ -105,6 +242,7 @@ function objBarre(avancement, atteint) {
 }
 
 function objDetailMesure(mesure) {
+  if (mesure.enSemaine) return objDetailSemaine(mesure);
   // CE QUI A SERVI À CALCULER, en petit sous la barre. « 3,8 par semaine » sort
   // d'une division que rien d'autre ne montre : sans « 17 dépenses sur 4,4
   // semaines », le chiffre affiché est à croire sur parole.
@@ -143,10 +281,45 @@ function objDetailMesure(mesure) {
       mesure.cadence === "semaine" ? t("semaines écoulées") : t("mois écoulés");
     morceaux.push(`${OBJ_FORMAT_NOMBRE.format(mesure.unites)} ${unite}`);
   }
+  const filtres = objResumeFiltres(mesure.filtres, mesure.monnaie_id);
+  if (filtres) morceaux.push(filtres);
   return morceaux.join(" · ");
 }
 
-function objCarteHtml(mesure, options = {}) {
+/** Le détail d'une carte lue sur la semaine en cours : le périmètre, ce qui a
+ *  été compté, et les deux bornes de la semaine — elle peut déborder sur le
+ *  mois voisin, et le dire évite de chercher une dépense au mauvais endroit. */
+function objDetailSemaine(mesure) {
+  const morceaux = [];
+  if (mesure.projet) morceaux.push(escapeHtml(mesure.projet));
+  else if (mesure.categorie) morceaux.push(escapeHtml(mesure.categorie));
+  else morceaux.push(t("Toutes les dépenses"));
+  morceaux.push(
+    `${formatDateCourte(mesure.semaine.debut)} → ${formatDateCourte(mesure.semaine.fin)}`
+  );
+  if (mesure.mesure === "nombre" || mesure.mesure === "montant_moyen") {
+    morceaux.push(`${mesure.semaine.echantillon} ${t("dépenses cette semaine")}`);
+  }
+  const filtres = objResumeFiltres(mesure.filtres, mesure.monnaie_id);
+  if (filtres) morceaux.push(filtres);
+  return morceaux.join(" · ");
+}
+
+/** La bascule posée sur la carte d'un objectif hebdomadaire lu sur un mois. */
+function objBasculeSemaine(mesure) {
+  if (!mesure.semaine) return "";
+  const vue = objVueSemaine(mesure.objectif_id);
+  const bouton = (valeur, libelle) =>
+    `<button type="button" class="${vue === valeur ? "actif" : ""}"
+             data-obj-vue="${valeur}" data-obj-id="${mesure.objectif_id}">${t(libelle)}</button>`;
+  return `<div class="obj-bascule">${bouton("semaine", "Semaine en cours")}${bouton(
+    "moyenne",
+    "Moyenne du mois"
+  )}</div>`;
+}
+
+function objCarteHtml(mesureServeur, options = {}) {
+  const mesure = objMesureAffichee(mesureServeur);
   // SANS CIBLE, LA CARTE NE JUGE RIEN : ni « tenu », ni « manqué », ni barre.
   // Elle ne porte plus qu'un chiffre et ce qui a servi à le calculer — c'est
   // exactement ce qu'on lui demande quand on suit un projet en cours. Peindre
@@ -192,10 +365,13 @@ function objCarteHtml(mesure, options = {}) {
           mesure.monnaie_id
         )}</span>
         <span class="obj-unite">${escapeHtml(
-          objUniteCible(mesure.mesure, mesure.cadence, mesure.mode)
+          mesure.enSemaine && objMesureCumule(mesure.mesure)
+            ? t("cette semaine")
+            : objUniteCible(mesure.mesure, mesure.cadence, mesure.mode)
         )}</span>
         ${cible}
       </div>
+      ${objBasculeSemaine(mesure)}
       ${sansCible ? "" : objBarre(mesure.avancement, mesure.atteint)}
       <div class="obj-detail hint">${objDetailMesure(mesure)}</div>
     </div>`;
@@ -379,6 +555,8 @@ function objOuvrirEditeur(objectif) {
   // liste du périmètre, et le poser plus tôt le ferait effacer.
   majChampsObjectif();
   document.getElementById("objectif-perimetre").value = objValeurPerimetre(objectif);
+  objBrouillonFiltres = objectif && objectif.filtres ? JSON.parse(JSON.stringify(objectif.filtres)) : [];
+  objRenderFiltres();
   document.getElementById("objectif-editeur").style.display = "";
   document.getElementById("objectif-nom").focus();
 }
@@ -458,6 +636,16 @@ async function objEnregistrer() {
   const categorieId = axe === "cat" ? Number(reference) : null;
   const projetId = axe === "projet" ? Number(reference) : null;
   const avecCible = document.getElementById("objectif-avec-cible").checked;
+  // UN FILTRE SANS VALEUR EST REFUSÉ ICI plutôt qu'ignoré : posé puis laissé
+  // vide, il ne filtrerait rien et ferait croire à un objectif raffiné.
+  if (objBrouillonFiltres.some((f) => String(f.valeur ?? "").trim() === "")) {
+    showMessage(t("Chaque filtre doit avoir une valeur."), "error");
+    return;
+  }
+  const filtres = objBrouillonFiltres.map((f) => ({
+    champ: f.champ,
+    valeur: objDefinitionFiltre(f.champ)?.saisie === "montant" ? Number(f.valeur) : String(f.valeur).trim(),
+  }));
   const corps = {
     nom,
     mesure: document.getElementById("objectif-mesure").value,
@@ -478,6 +666,7 @@ async function objEnregistrer() {
       Number(document.getElementById("objectif-monnaie-champ").value) ||
       objMonnaieParDefaut,
     visible_dashboard: document.getElementById("objectif-visible").checked,
+    filtres,
   };
   try {
     if (id) {
@@ -554,6 +743,35 @@ document.getElementById("objectifs-liste")?.addEventListener("click", (e) => {
  * recharge pas la page.
  */
 
+// La dernière mesure du dashboard, gardée pour pouvoir redessiner ses cartes
+// quand on bascule une lecture hebdomadaire, sans refaire la requête.
+let objMesuresDashboard = [];
+
+function objRenderDashboard(bloc) {
+  bloc.innerHTML = `
+      <h3>${t("Objectifs")}<i class="info-bulle" tabindex="0"
+          data-info-cle="objectifs.dashboard">i</i></h3>
+      <div class="obj-liste obj-liste-dashboard">
+        ${objMesuresDashboard.map((mesure) => objCarteHtml(mesure)).join("")}
+      </div>`;
+}
+
+// LA BASCULE SEMAINE / MOYENNE, déléguée sur tout le document : les cartes
+// vivent sur deux écrans (la page et le dashboard), réécrits à chaque rendu.
+document.addEventListener("click", (e) => {
+  const bouton = e.target.closest("[data-obj-vue]");
+  if (!bouton) return;
+  objChoisirVueSemaine(bouton.dataset.objId, bouton.dataset.objVue);
+  objRenderListe();
+  const bloc = document.getElementById("dashboard-objectifs");
+  if (bloc && objMesuresDashboard.length) {
+    objRenderDashboard(bloc);
+    appliquerTextes(bloc);
+    traduireDomStatique(bloc);
+    appliquerPuces(bloc);
+  }
+});
+
 async function objRendreDashboard(annee, mois) {
   const bloc = document.getElementById("dashboard-objectifs");
   if (!bloc) return;
@@ -577,18 +795,14 @@ async function objRendreDashboard(annee, mois) {
       `monnaie_id=${monnaieId}&annee=${annee}&dashboard=true` +
       (enAnnee ? "" : `&mois=${mois}`);
     const data = await apiFetch(`${OBJECTIFS_BASE}/mesures?${requete}`);
+    objMesuresDashboard = data.objectifs;
     if (!data.objectifs.length) {
       bloc.innerHTML = "";
       bloc.style.display = "none";
       return;
     }
     bloc.style.display = "";
-    bloc.innerHTML = `
-      <h3>${t("Objectifs")}<i class="info-bulle" tabindex="0"
-          data-info-cle="objectifs.dashboard">i</i></h3>
-      <div class="obj-liste obj-liste-dashboard">
-        ${data.objectifs.map((mesure) => objCarteHtml(mesure)).join("")}
-      </div>`;
+    objRenderDashboard(bloc);
     // Les deux passes de textes, dans cet ordre : la pastille « i » qu'on vient
     // d'écrire porte une clé, pas une phrase (cf. frontend/textes.js).
     appliquerTextes(bloc);

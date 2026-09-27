@@ -845,6 +845,26 @@ class CadenceObjectif(str, enum.Enum):
     mois = "mois"
 
 
+class ChampFiltreObjectif(str, enum.Enum):
+    """Ce sur quoi un filtre d'objectif peut porter (migration 0073).
+
+    UNE DÉPENSE N'EST COMPTÉE QUE SI ELLE PASSE TOUS LES FILTRES. Les bornes de
+    montant lisent le montant de la LIGNE (ce qu'on lit sur le relevé), les deux
+    filtres de libellé un mot, sans tenir compte de la casse ni des accents, et
+    `jours` la moitié de semaine où la dépense tombe."""
+
+    montant_min = "montant_min"
+    montant_max = "montant_max"
+    libelle_contient = "libelle_contient"
+    libelle_exclut = "libelle_exclut"
+    jours = "jours"
+
+
+class JoursFiltreObjectif(str, enum.Enum):
+    semaine = "semaine"   # du lundi au vendredi
+    weekend = "weekend"   # samedi et dimanche
+
+
 # Combien de jours vaut une unité de cadence. Le mois n'a pas de valeur fixe :
 # il vaut le nombre de jours du mois regardé (cf. service_objectifs.unites_de
 # _cadence), et cette table ne sert donc qu'à la semaine.

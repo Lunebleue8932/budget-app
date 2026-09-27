@@ -182,3 +182,45 @@
 .obj-liste-dashboard .obj-valeur {
   font-size: 1.35rem;
 }
+
+/* ---------- Semaine en cours / moyenne du mois ----------
+   Deux boutons collés, sur la carte d'un objectif hebdomadaire lu sur un mois.
+   Discrets : c'est un réglage de lecture, pas une action. */
+.obj-bascule {
+  display: inline-flex;
+  margin: 0.2rem 0 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.obj-bascule button {
+  background: var(--bg-surface-alt);
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.obj-bascule button + button {
+  border-left: 1px solid var(--border);
+}
+
+.obj-bascule button.actif {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Les filtres de l'éditeur : les lignes posées, puis le bouton d'ajout. */
+.objectif-filtres-ligne {
+  align-items: flex-start;
+}
+
+.objectif-filtres-bloc {
+  flex: 1;
+}
+
+#objectif-filtres .champ-ajoute:first-child {
+  margin-top: 0;
+}

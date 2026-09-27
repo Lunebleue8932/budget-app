@@ -107,6 +107,19 @@
       <span class="hint" id="objectif-cible-unite"></span>
     </div>
 
+    <!-- LES FILTRES, POSÉS UN PAR UN (migration 0073). Aucun n'est affiché
+         d'office : « + Ajouter un filtre » propose ceux qui restent, et chaque
+         ligne posée a sa croix pour la retirer (cf. app.js,
+         creerMenuAjoutChamp). Cinq filtres affichés d'avance auraient fait de
+         ce formulaire un inventaire, pour la seule ligne qu'on vient écrire. -->
+    <div class="regle-champ-ligne objectif-filtres-ligne">
+      <label>Filtres<i class="info-bulle" tabindex="0" data-info-cle="objectifs.filtres">i</i></label>
+      <div class="objectif-filtres-bloc">
+        <div id="objectif-filtres"></div>
+        <div id="objectif-filtres-ajout"></div>
+      </div>
+    </div>
+
     <div class="regle-champ-ligne" id="objectif-ligne-monnaie">
       <label for="objectif-monnaie-champ">Monnaie</label>
       <select id="objectif-monnaie-champ"></select>
