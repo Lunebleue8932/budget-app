@@ -562,6 +562,91 @@ def test_frais_dans_une_troisieme_monnaie_bloquent_tout_limport(db_session):
     assert db_session.query(models.Operation).count() == 0
 
 
+def _fichier_frais_troisieme_monnaie():
+    return _fichier_wise(
+        [
+            [date(2026, 7, 1), "Transfert", 108.0, "Dollar", 2.0, "Livre", 100.0, "Euro", "Wise"],
+            [date(2026, 7, 2), "Courses", -20.0, "Euro", None, None, None, None, "Wise"],
+        ]
+    )
+
+
+def test_frais_corriges_dans_lapercu_ne_bloquent_plus_limport(db_session):
+    """Le blocage juge la ligne RETOUCHÉE, pas celle du fichier : corriger à la
+    main la devise des frais débloquait le bouton de l'aperçu, et le serveur
+    refusait quand même le fichier."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    livre = creer_monnaie(db_session, "Livre", "£").id
+    compte = creer_compte(
+        db_session, "Wise", monnaies=[(euro, 1000.0), (dollar, 0.0), (livre, 0.0)]
+    )
+    preset = _preset_wise(db_session)
+    contenu = _fichier_frais_troisieme_monnaie()
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        contenu,
+        schemas.ImportMappingOverrides(
+            comptes={"Wise": compte.id},
+            categories={"": get_categorie_id(db_session, "Autres")},
+            lignes={1: schemas.ImportLigneOverride(frais=2.0, monnaie_frais_id=dollar)},
+        ),
+    )
+
+    assert resultat.operations_creees == 2
+
+
+def test_corriger_la_seule_devise_des_frais_debloque_limport(db_session):
+    """La retouche ne porte que la devise des frais : le drapeau posé à la
+    lecture du fichier doit être recalculé, sans quoi il survit à la
+    correction et le serveur bloque un aperçu que l'écran jugeait valide."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    livre = creer_monnaie(db_session, "Livre", "£").id
+    compte = creer_compte(
+        db_session, "Wise", monnaies=[(euro, 1000.0), (dollar, 0.0), (livre, 0.0)]
+    )
+    preset = _preset_wise(db_session)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        _fichier_frais_troisieme_monnaie(),
+        schemas.ImportMappingOverrides(
+            comptes={"Wise": compte.id},
+            categories={"": get_categorie_id(db_session, "Autres")},
+            lignes={1: schemas.ImportLigneOverride(monnaie_frais_id=dollar)},
+        ),
+    )
+
+    assert resultat.operations_creees == 2
+
+
+def test_une_ligne_supprimee_de_lapercu_ne_bloque_plus_limport(db_session):
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    livre = creer_monnaie(db_session, "Livre", "£").id
+    compte = creer_compte(
+        db_session, "Wise", monnaies=[(euro, 1000.0), (dollar, 0.0), (livre, 0.0)]
+    )
+    preset = _preset_wise(db_session)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        _fichier_frais_troisieme_monnaie(),
+        schemas.ImportMappingOverrides(
+            comptes={"Wise": compte.id},
+            categories={"": get_categorie_id(db_session, "Autres")},
+            lignes_supprimees=[1],
+        ),
+    )
+
+    assert resultat.operations_creees == 1
+
+
 def test_frais_superieurs_a_un_montant_entrant_mettent_la_ligne_en_erreur(db_session):
     """Seule une ENTRÉE peut être entamée jusqu'à disparaître : sur une sortie,
     les frais s'ajoutent et il n'y a rien à épuiser."""

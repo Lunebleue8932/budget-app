@@ -402,6 +402,12 @@ const TUTORIEL_IMPORT = [
     avant: () => deplierBloc("#import-config-fichier"),
   },
   {
+    cible: "#import-config-colonnes",
+    titre: "La colonne Notes",
+    texte: texteAide("noyau.tuto-import-notes"),
+    avant: () => deplierBloc("#import-config-fichier"),
+  },
+  {
     cible: "#import-config-avancee",
     titre: "Les colonnes secondaires",
     texte:
@@ -568,15 +574,28 @@ const TUTORIEL_REGLES = [
     avant: ouvrirEditeurRegleTutoriel,
   },
   {
+    cible: "#regle-groupes",
+    titre: "La note du relevé",
+    texte: texteAide("regles.tuto-notes"),
+    avant: ouvrirEditeurRegleTutoriel,
+  },
+  {
     cible: "#regle-type",
     titre: "Ce qu'elle fait",
     texte: texteAide("regles.tuto-action"),
     avant: ouvrirEditeurRegleTutoriel,
   },
   {
-    cible: "#regle-nature",
+    // Le menu et non un champ : les champs ne s'affichent qu'une fois posés.
+    cible: "#regle-autres-ajout",
     titre: "Et le reste de la ligne",
     texte: texteAide("regles.tuto-autres"),
+    avant: ouvrirEditeurRegleTutoriel,
+  },
+  {
+    cible: "#regle-autres-ajout",
+    titre: "Un champ à la fois",
+    texte: texteAide("regles.tuto-ajout-champ"),
     avant: ouvrirEditeurRegleTutoriel,
   },
   {

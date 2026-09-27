@@ -87,7 +87,15 @@ jobs:
           - os: windows-latest
             nom: Windows
             archive: budget-app-windows
-          - os: ubuntu-latest
+          # UBUNTU 22.04 ET NON `ubuntu-latest`. La glibc ne s'embarque pas :
+          # un binaire exige une glibc AU MOINS aussi récente que celle de la
+          # machine qui l'a construit — l'interpréteur Python fourni par
+          # setup-python compris. Construit sur 24.04 (glibc 2.39), le bundle
+          # refusait de démarrer sur toute distribution plus ancienne
+          # (« GLIBC_2.38 not found » sur Debian 12, Ubuntu 22.04, Mint 21…).
+          # Construire sur la plus ancienne image disponible élargit d'autant
+          # les systèmes acceptés ; le pas « Vérifier la glibc » le garantit.
+          - os: ubuntu-22.04
             nom: Linux
             archive: budget-app-linux
           # DEUX RUNNERS macOS, ET NON UN. PyInstaller ne compile que pour
@@ -202,6 +210,25 @@ jobs:
             fi
           done
           echo "Bundle complet."
+
+      # LA GLIBC LA PLUS RÉCENTE QU'EXIGE LE BUNDLE, et un échec si elle dépasse
+      # celle d'Ubuntu 22.04. Sans ce pas, un changement d'image ou une roue
+      # compilée ailleurs referait passer la barre en silence, et on
+      # l'apprendrait d'un utilisateur dont l'application ne démarre pas.
+      - name: Vérifier la glibc (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -eu
+          max_autorise="2.35"
+          requis=$(find "desktop/dist/Budget App" -type f \( -name '*.so*' -o -name 'Budget App' \) \
+            -exec objdump -T {} \; 2>/dev/null \
+            | grep -o 'GLIBC_[0-9]*\.[0-9]*' | sed 's/GLIBC_//' | sort -V | tail -n1)
+          echo "glibc minimale exigée par le bundle : $requis"
+          if [ "$(printf '%s\n%s\n' "$requis" "$max_autorise" | sort -V | tail -n1)" != "$max_autorise" ]; then
+            echo "Le bundle exige glibc $requis, au-delà de $max_autorise (Ubuntu 22.04)." >&2
+            exit 1
+          fi
 
       # LE DOSSIER `extensions/` EST LIVRÉ, VIDE MAIS PRÉSENT. L'application le
       # crée toute seule au premier lancement (cf. app/extensions.py::
@@ -327,7 +354,7 @@ jobs:
             | Windows | `budget-app-windows.zip` | Rien à installer |
             | macOS — puce Apple | `budget-app-macos-arm64.zip` | Mac M1 ou plus récent. Voir « Ouvrir l'app » ci-dessous |
             | macOS — Intel | `budget-app-macos-x64.zip` | Mac à processeur Intel. Voir « Ouvrir l'app » ci-dessous |
-            | Linux | `budget-app-linux.zip` | Nécessite WebKit2GTK (voir le README) |
+            | Linux | `budget-app-linux.zip` | Nécessite WebKit2GTK (voir le README) et une distribution de 2022 ou plus récente (glibc 2.35 : Ubuntu 22.04, Debian 12, Mint 21, Fedora 36…) |
 
             **Quelle archive macOS ?** Menu  > *À propos de ce Mac*. Si la
             ligne dit « Puce Apple M… », prends `arm64` ; si elle dit

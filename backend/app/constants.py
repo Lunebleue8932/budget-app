@@ -240,6 +240,10 @@ PROPRIETES_IMPORT_BASE = {
     "nature",
     "categorie_banque",
     "montant",
+    # Une note libre (commentaire, référence, mémo) : reprise telle quelle dans
+    # `Operation.notes`, et comparable dans les conditions de règle. Aucune
+    # colonne par défaut ne la lit — elle s'allume à la main.
+    "notes",
 }
 
 # Propriétés de la « configuration avancée ». Elles répondent toutes à la même
@@ -540,6 +544,7 @@ CHAMPS_REGLE_VALIDES = {
     "nature",
     "categorie_banque",
     "compte_banque",
+    "notes",
 } | CHAMPS_REGLE_NUMERIQUES
 
 

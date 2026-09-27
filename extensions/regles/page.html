@@ -105,28 +105,43 @@
     </div>
     <!-- TOUTES LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071), sauf ses
          montants et sa date — ce que le relevé AFFIRME. Chacune est
-         facultative : laissée vide, la règle n'en dit rien. -->
+         facultative : laissée vide, la règle n'en dit rien.
+
+         MÊME FORME QUE LES SORTIES CONDITIONNELLES : seuls les champs posés
+         s'affichent, un à un, par « + Ajouter un champ » (cf. regles.js,
+         AUTRES_CHAMPS_REGLE). Les cinq lignes toujours visibles n'étaient
+         qu'un inventaire à parcourir pour trouver celle qui compte. -->
     <h4>Et aussi<i class="info-bulle" tabindex="0" data-info-cle="regles.autres-proprietes">i</i></h4>
-    <div class="regle-champ-ligne">
-      <label for="regle-nature">Renommer en</label>
-      <input type="text" id="regle-nature" placeholder="— ne pas changer —" />
+    <div id="regle-autres-champs">
+      <div class="champ-ajoute" data-autre="nature">
+        <span class="champ-ajoute-libelle">Renommer en</span>
+        <input type="text" id="regle-nature" />
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="nature" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div class="champ-ajoute" data-autre="compte">
+        <span class="champ-ajoute-libelle">Sur le compte</span>
+        <select id="regle-compte"><option value="">— ne pas changer —</option></select>
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="compte" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div class="champ-ajoute" data-autre="notes">
+        <span class="champ-ajoute-libelle">Avec la note</span>
+        <input type="text" id="regle-notes" />
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="notes" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div class="champ-ajoute" data-autre="amortissement">
+        <span class="champ-ajoute-libelle">Amortir sur (mois)</span>
+        <input type="number" id="regle-amortissement" min="2" max="120" step="1" />
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="amortissement" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div class="champ-ajoute" data-autre="imprevue" id="regle-imprevue-bloc">
+        <label class="import-option-ligne">
+          <input type="checkbox" id="regle-imprevue" />
+          Marquer comme dépense imprévue
+        </label>
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="imprevue" title="Retirer" aria-label="Retirer">×</button>
+      </div>
     </div>
-    <div class="regle-champ-ligne">
-      <label for="regle-compte">Sur le compte</label>
-      <select id="regle-compte"><option value="">— ne pas changer —</option></select>
-    </div>
-    <div class="regle-champ-ligne">
-      <label for="regle-notes">Avec la note</label>
-      <input type="text" id="regle-notes" placeholder="— aucune —" />
-    </div>
-    <div class="regle-champ-ligne">
-      <label for="regle-amortissement">Amortir sur (mois)</label>
-      <input type="number" id="regle-amortissement" min="2" max="120" step="1" placeholder="— non —" />
-    </div>
-    <label class="import-option-ligne" id="regle-imprevue-bloc" style="display:none">
-      <input type="checkbox" id="regle-imprevue" />
-      Marquer comme dépense imprévue
-    </label>
+    <div id="regle-autres-ajout"></div>
     <!-- LES SORTIES CONDITIONNELLES (migration 0072) : la détection reste
          celle de la règle, mais ce qu'elle fait peut dépendre de la ligne —
          un virement interne dont le compte en face change d'une ligne à

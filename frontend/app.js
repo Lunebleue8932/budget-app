@@ -8898,6 +8898,8 @@ const PROPRIETES_IMPORT = [
   ["nature", "Nature"],
   ["categorie_banque", "Catégorie bancaire"],
   ["montant", "Montant"],
+  // Éteinte tant qu'on ne l'allume pas : aucune colonne par défaut ne la lit.
+  ["notes", "Notes"],
 ];
 
 // Celles qu'un preset lit forcément (miroir de
@@ -12620,6 +12622,34 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
         inputFrais.value = ligne.frais != null ? ligne.frais : "";
         labelFraisSimple.appendChild(inputFrais);
         monnaieWrap.appendChild(labelFraisSimple);
+        // LA DEVISE DES FRAIS SE CORRIGE AUSSI ICI. Sans ce menu, une ligne
+        // ordinaire dont les frais tombaient dans une troisième monnaie ne
+        // pouvait être réparée nulle part, et bloquait l'import entier. Il ne
+        // propose que les monnaies de la ligne : ce sont les seules auxquelles
+        // des frais puissent s'appliquer (cf. _appliquer_frais).
+        const idsFrais = [
+          ...new Set(
+            [ligne.monnaie_envoyee_id, ligne.monnaie_id, ligne.monnaie_frais_id].filter(
+              (id) => id != null
+            )
+          ),
+        ];
+        if (idsFrais.length > 1 || ligne.frais_incoherents) {
+          const labelMonnaieFraisSimple = document.createElement("label");
+          labelMonnaieFraisSimple.textContent = "Monnaie des frais";
+          selectMonnaieFrais = document.createElement("select");
+          idsFrais.forEach((id) => {
+            const monnaie = monnaieParId(id);
+            if (!monnaie) return;
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = `${monnaie.nom} (${monnaie.symbole})`;
+            selectMonnaieFrais.appendChild(opt);
+          });
+          if (ligne.monnaie_frais_id != null) selectMonnaieFrais.value = String(ligne.monnaie_frais_id);
+          labelMonnaieFraisSimple.appendChild(selectMonnaieFrais);
+          monnaieWrap.appendChild(labelMonnaieFraisSimple);
+        }
       }
       const compteId = compteChamp && compteChamp.estConfirme() ? Number(compteChamp.select.value) : null;
       if (compteId && monnaiesDuCompte(compteId).length <= 1) return;
@@ -13234,9 +13264,18 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       // catégorie, et le montant importé retombait sous celui du relevé.
       const fraisSaisis = inputFrais ? parseFloat(inputFrais.value) : NaN;
       override.frais = inputFrais ? (isNaN(fraisSaisis) ? 0 : fraisSaisis) : ligne.frais;
-      override.monnaie_frais_id = selectMonnaieFrais
-        ? Number(selectMonnaieFrais.value) || null
-        : ligne.monnaie_frais_id ?? null;
+      // UN MENU MASQUÉ N'EST PAS UN MENU VIDÉ. À monnaies égales, le menu des
+      // frais d'un virement n'est jamais rempli : sa valeur vide partait en
+      // `null`, que l'aperçu lisait « devise effacée » (ligne débloquée) et le
+      // serveur « ne touche pas » (devise du fichier gardée, import bloqué).
+      // Les deux jambes n'ayant qu'une monnaie, c'est celle des frais.
+      const fraisChoisis = selectMonnaieFrais && Number(selectMonnaieFrais.value);
+      override.monnaie_frais_id =
+        fraisChoisis ||
+        (info.virement && override.monnaie_id != null &&
+        override.monnaie_id === override.monnaie_envoyee_id
+          ? override.monnaie_id
+          : ligne.monnaie_frais_id ?? null);
     }
     const typeAvant = typeOperationLigne(ligne);
     importLigneOverrides[ligne.ligne] = override;

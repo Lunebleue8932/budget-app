@@ -33,6 +33,8 @@ const CHAMPS_REGLE = [
   ["nature", "Nature / libellé"],
   ["categorie_banque", "Catégorie bancaire"],
   ["compte_banque", "Compte bancaire"],
+  // La colonne « Notes » du relevé, quand le preset la lit.
+  ["notes", "Notes"],
   // LE MONTANT EST TOUJOURS POSITIF, comme partout dans l'app : le sens
   // (dépense / recette) est une colonne à part, jamais un signe. « supérieur à
   // 50 » veut donc dire « plus de 50 € en jeu », quel que soit le sens.
@@ -728,12 +730,12 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-notes").value = (regle && regle.notes) || "";
   document.getElementById("regle-amortissement").value =
     (regle && regle.amortissement_mois) || "";
-  // L'étiquette « imprévue » appartient à l'extension « Budget » : sans elle,
-  // aucun écran ne la montre, et la proposer ici poserait une étiquette
-  // invisible.
-  document.getElementById("regle-imprevue-bloc").style.display =
-    BudgetApp.extensions.estActive("analyse-budget") ? "" : "none";
   document.getElementById("regle-imprevue").checked = !!(regle && regle.imprevue);
+  // Ne s'affichent que les champs qui disent déjà quelque chose.
+  regleAutresAffiches = autresChampsDisponibles()
+    .filter(autreChampRempli)
+    .map((def) => def.cle);
+  renderAutresChampsRegle();
 
   // AVANT majVisibiliteCategorieRegle, qui lit la case pour décider d'afficher
   // les parts ou la catégorie unique.
@@ -753,6 +755,72 @@ function ouvrirEditeurRegle(regle = null) {
   renderRegleSorties();
   document.getElementById("regle-editeur").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
+
+/* ---------- « ET AUSSI » : LES AUTRES PROPRIÉTÉS, CHAMP PAR CHAMP ----------
+ *
+ * Même forme que les actions d'une sortie conditionnelle (cf. SORTIE_CHAMPS) :
+ * seuls les champs posés s'affichent, et « + Ajouter un champ » en pose un de
+ * plus. Les champs vivent dans page.html sous leurs identifiants d'avant — la
+ * lecture à l'enregistrement n'a donc pas changé ; retirer un champ le VIDE,
+ * ce qui revient exactement à « la règle n'en dit rien ».
+ */
+const AUTRES_CHAMPS_REGLE = [
+  { cle: "nature", libelle: "Renommer en", id: "regle-nature" },
+  { cle: "compte", libelle: "Sur le compte", id: "regle-compte" },
+  { cle: "notes", libelle: "Avec la note", id: "regle-notes" },
+  { cle: "amortissement", libelle: "Amortir sur (mois)", id: "regle-amortissement" },
+  { cle: "imprevue", libelle: "Marquer comme dépense imprévue", id: "regle-imprevue" },
+];
+let regleAutresAffiches = [];
+
+/** L'étiquette « imprévue » appartient à l'extension « Budget » : sans elle,
+ *  aucun écran ne la montre, et la proposer ici poserait une étiquette
+ *  invisible. */
+function autresChampsDisponibles() {
+  return AUTRES_CHAMPS_REGLE.filter(
+    (def) => def.cle !== "imprevue" || BudgetApp.extensions.estActive("analyse-budget")
+  );
+}
+
+function autreChampRempli(def) {
+  const el = document.getElementById(def.id);
+  return el.type === "checkbox" ? el.checked : el.value.trim() !== "";
+}
+
+function renderAutresChampsRegle() {
+  const disponibles = autresChampsDisponibles().map((def) => def.cle);
+  document.querySelectorAll("#regle-autres-champs [data-autre]").forEach((ligne) => {
+    const cle = ligne.dataset.autre;
+    ligne.style.display = regleAutresAffiches.includes(cle) && disponibles.includes(cle) ? "" : "none";
+  });
+  creerMenuAjoutChamp(document.getElementById("regle-autres-ajout"), {
+    libelle: t("Ajouter un champ"),
+    options: autresChampsDisponibles()
+      .filter((def) => !regleAutresAffiches.includes(def.cle))
+      .map((def) => ({ cle: def.cle, libelle: t(def.libelle) })),
+    onChoix: (cle) => {
+      regleAutresAffiches.push(cle);
+      const def = AUTRES_CHAMPS_REGLE.find((d) => d.cle === cle);
+      const el = document.getElementById(def.id);
+      // Ajouter la case, c'est vouloir l'étiquette : on la coche d'office.
+      if (el.type === "checkbox") el.checked = true;
+      renderAutresChampsRegle();
+      el.focus();
+    },
+  });
+}
+
+document.querySelectorAll("#regle-autres-champs [data-retirer-autre]").forEach((bouton) => {
+  bouton.addEventListener("click", () => {
+    const cle = bouton.dataset.retirerAutre;
+    const def = AUTRES_CHAMPS_REGLE.find((d) => d.cle === cle);
+    const el = document.getElementById(def.id);
+    if (el.type === "checkbox") el.checked = false;
+    else el.value = "";
+    regleAutresAffiches = regleAutresAffiches.filter((c) => c !== cle);
+    renderAutresChampsRegle();
+  });
+});
 
 /* ---------- LES SORTIES CONDITIONNELLES ----------
  *

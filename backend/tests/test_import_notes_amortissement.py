@@ -82,6 +82,66 @@ def test_note_saisie_a_l_import_est_portee_par_l_operation(db_session):
     assert db_session.query(models.Operation).one().notes == "facture partagée avec Léa"
 
 
+def _fichier_avec_colonne_notes(note):
+    """Le classeur habituel, avec une note en colonne 12."""
+    classeur = openpyxl.load_workbook(io.BytesIO(_fichier_une_depense()))
+    classeur.active.cell(row=2, column=12, value=note)
+    tampon = io.BytesIO()
+    classeur.save(tampon)
+    return tampon.getvalue()
+
+
+def _preset_avec_notes(db):
+    return crud.create_import_preset(
+        db,
+        "Avec notes",
+        COLONNES_IMPORT_PAR_DEFAUT + [{"index": 12, "propriete": "notes"}],
+        [],
+        lignes_entete=1,
+    )
+
+
+def test_la_colonne_notes_est_recopiee_dans_l_operation(db_session):
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _preset_avec_notes(db_session)
+
+    import_bancaire.confirmer(
+        db_session, preset.id, _fichier_avec_colonne_notes("Réf. 4521"), _overrides(compte)
+    )
+
+    assert db_session.query(models.Operation).one().notes == "Réf. 4521"
+
+
+def test_une_regle_peut_se_declencher_sur_la_colonne_notes(db_session):
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _preset_avec_notes(db_session)
+    loisirs = get_categorie_id(db_session, "Loisirs & sorties")
+    crud.create_regle_categorisation(
+        db_session,
+        nom="Cadeaux",
+        type_id=get_type_id(db_session, "classique"),
+        categorie_id=loisirs,
+        conditions={
+            "operateur": "ET",
+            "groupes": [
+                {
+                    "operateur": "ET",
+                    "conditions": [
+                        {"champ": "notes", "operateur": "contient", "valeur": "cadeau"}
+                    ],
+                }
+            ],
+        },
+    )
+
+    ligne = import_bancaire.previsualiser(
+        db_session, preset.id, _fichier_avec_colonne_notes("Cadeau anniversaire")
+    ).lignes[0]
+
+    assert ligne.categorie_id == loisirs
+    assert ligne.regle_appliquee == "Cadeaux"
+
+
 def test_sans_note_l_operation_importee_n_en_porte_aucune(db_session):
     """Le défaut ne change pas : une ligne non retouchée reste exactement ce
     qu'elle était avant que le champ existe."""

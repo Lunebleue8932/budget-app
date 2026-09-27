@@ -370,6 +370,12 @@ const TEXTES = {
     "Ce que la règle fait de la ligne reconnue : son type, puis sa catégorie (ou une découpe entre plusieurs). « — ne pas changer — » laisse le type aux règles suivantes.",
   "regles.tuto-autres":
     "Tout le reste de la ligne peut changer aussi, sauf ses montants et sa date : son nom, son compte, une note, un amortissement. Un champ vide ne change rien.",
+  "regles.tuto-notes":
+    "Si ton preset lit la colonne « Notes » du relevé, une condition peut aussi porter sur elle : utile quand la banque écrit la référence utile dans le commentaire plutôt que dans le libellé.",
+  "regles.tuto-ajout-champ":
+    "Rien ne s'affiche d'office : « + Ajouter un champ » pose une propriété à la fois, et la croix la retire. Même geste que dans les sorties conditionnelles, juste en dessous.",
+  "noyau.tuto-import-notes":
+    "La colonne « Notes » est éteinte au départ. Allume-la si ton relevé porte un commentaire ou une référence : il est recopié dans la note de l'opération, et tes règles peuvent s'en servir.",
   "regles.tuto-sorties":
     "Quand ce que la règle doit faire dépend d'un détail de la ligne, inutile de la recopier : ajoute des sorties. Chacune a ses conditions et ses actions, et la première qui correspond l'emporte. Typiquement : une seule règle « Virement interne », une sortie par compte en face.",
   "regles.tuto-ordre":
@@ -414,6 +420,8 @@ const TEXTES = {
   /* ----- Les colonnes de l'import bancaire (posées par app.js) ----- */
   "noyau.import-propriete-categorie_banque":
     "La catégorie que ta banque a posée elle-même sur la ligne.\n\nElle ne devient pas une catégorie de l'app toute seule : tu fais le rapprochement une fois, il est retenu.",
+  "noyau.import-propriete-notes":
+    "Un commentaire, une référence ou un mémo que ta banque écrit à côté du libellé.\n\nIl est recopié dans les notes de l'opération (sauf si une règle en pose une), et tes règles peuvent le tester comme le libellé.",
   "noyau.import-propriete-compte_banque":
     "Le compte concerné, quand le fichier le nomme.\n\nInutile si le preset est déjà lié à un compte : ce lien vaut pour toutes les lignes.",
   "noyau.import-propriete-sens":

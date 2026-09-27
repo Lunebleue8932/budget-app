@@ -213,6 +213,7 @@ _PROPRIETE_VERS_CLE = {
     "nature": "nature",
     "categorie_banque": "categorie_banque",
     "montant": "montant_brut",
+    "notes": "notes_banque",
     # Configuration avancée.
     "compte_banque": "compte_banque",
     "sens": "sens_banque",
@@ -1646,6 +1647,7 @@ def _resoudre_ligne(
     nature = _texte(brute["nature"])
     nom_categorie_banque = _texte(brute["categorie_banque"])
     nom_compte_banque = _texte(brute["compte_banque"])
+    notes_fichier = _texte(brute["notes_banque"]) or None
 
     erreurs = []
     # Le montant vient d'UNE colonne signée, ou de DEUX dont la position tient
@@ -1757,6 +1759,7 @@ def _resoudre_ligne(
             "nature": nature,
             "categorie_banque": nom_categorie_banque,
             "compte_banque": nom_compte_banque,
+            "notes": notes_fichier,
             # LE MONTANT EN VALEUR ABSOLUE, comme partout dans l'app : le sens
             # est une colonne, jamais un signe. « supérieur à 50 » veut donc
             # dire « plus de 50 € en jeu », de quelque côté que la ligne tombe.
@@ -1927,14 +1930,16 @@ def _resoudre_ligne(
     # remplacé APRÈS l'évaluation des règles, qui ont donc toutes vu le libellé
     # LU : c'est lui que le relevé porte, et lui qu'on a sous les yeux en
     # écrivant une condition.
-    notes_regle = None
+    # La note du FICHIER, sauf si une règle en pose une : la règle a été écrite
+    # exprès pour cette ligne, la colonne ne dit que ce que la banque y a mis.
+    notes_regle = notes_fichier
     imprevue_regle = False
     amorti_regle = False
     debut_regle = fin_regle = None
     if resultat_regle is not None:
         if resultat_regle.nature:
             nature = resultat_regle.nature
-        notes_regle = resultat_regle.notes
+        notes_regle = resultat_regle.notes or notes_fichier
         imprevue_regle = bool(resultat_regle.imprevue)
         # Un amortissement part du mois de la ligne ; sans date lisible, il n'y
         # a pas de mois de départ, et la ligne part déjà en erreur.
@@ -2699,6 +2704,97 @@ def _erreur_monnaie_compte(
     )
 
 
+def _retoucher_ligne(
+    ligne: schemas.ImportLigne,
+    override: Optional[schemas.ImportLigneOverride],
+) -> tuple[schemas.ImportLigne, Optional[str], Optional[list]]:
+    """Applique à une ligne l'édition manuelle de l'aperçu (bouton « Modifier »).
+
+    Ne remplace que les champs explicitement fournis ; l'erreur, elle, est
+    recalculée ensuite par `confirmer` à partir de l'état final (une correction
+    peut lever l'erreur d'origine, ex. date corrigée à la main).
+
+    Rend (ligne retouchée, erreur née de la réimputation des frais, liens de
+    règlement)."""
+    # Erreur née de la réimputation des frais (« frais supérieurs au
+    # montant ») : _erreur_ligne reconstruit l'erreur à partir du seul état
+    # de la ligne et ne saurait pas la retrouver, d'où ce report explicite.
+    erreur_frais = None
+    # LES LIENS DE RÈGLEMENT NE SONT PAS UNE RETOUCHE DE LA LIGNE : ils ne
+    # décrivent pas ce que l'opération EST, mais ce qu'elle SOLDE, et
+    # `ImportLigne` n'a aucun champ pour les porter. Sortis des retouches
+    # avant la copie — `model_copy(update=…)` y aurait ajouté un attribut
+    # muet que plus rien ne relirait — et posés après création, seul moment
+    # où l'opération qui les porte existe.
+    liens_remboursement = None
+    if override is None:
+        return ligne, erreur_frais, liens_remboursement
+    type_avant = ligne.type_code
+    retouches = override.model_dump(exclude_none=True)
+    liens_remboursement = retouches.pop("operations_remboursees", None)
+    # Un montant envoyé SAISI n'est plus déduit : l'utilisateur dit
+    # lui-même ce qui est parti, et la ligne décrit dès lors ses deux
+    # jambes comme le ferait un relevé qui porte la colonne.
+    if "montant_envoye" in retouches:
+        retouches["montant_envoye_deduit"] = False
+    # UNE RETOUCHE QUI CONTREDIT LA DÉCOUPE LA DÉFAIT. Trois cas, et un
+    # seul geste : choisir une catégorie à la main, c'est dire qu'on ne
+    # veut plus des parts ; changer le montant rompt l'égalité « somme
+    # des parts = montant », qu'aucune répartition automatique ne peut
+    # rétablir sans décider à la place de l'utilisateur ; changer le
+    # type peut sortir de `classique`, seul type qui se découpe.
+    #
+    # La ligne repasse alors « catégorie non résolue » si rien ne la
+    # classe (cf. _erreur_ligne) : l'aperçu la signale et en redemande
+    # une, plutôt que d'importer en silence une ligne dont le classement
+    # vient de disparaître.
+    if ligne.decoupes and (
+        "categorie_id" in retouches
+        or "montant" in retouches
+        or retouches.get("type_code", ligne.type_code) != ligne.type_code
+    ):
+        retouches["decoupes"] = []
+    ligne = ligne.model_copy(update=retouches)
+    # Le montant qui fait l'opération dépend du TYPE et du SENS : les
+    # changer dans l'aperçu change la jambe qui compte, donc le montant
+    # importé. Une retouche qui porte des frais redéfinit en plus la
+    # lecture des deux montants — ils valent alors HORS FRAIS, c'est ce
+    # que le formulaire affiche dès qu'il montre les frais.
+    #
+    # Recalculer dans ces trois cas seulement : ailleurs, les montants
+    # de la ligne sont déjà ceux qui ont bougé, et les refaire écraserait
+    # une correction manuelle du montant.
+    # La devise des frais seule suffit : c'est elle que l'on corrige quand
+    # l'aperçu signale des frais incohérents, et sans recalcul le drapeau posé
+    # à la lecture du fichier survivait à la correction — import bloqué.
+    montants_a_refaire = (
+        "frais" in retouches
+        or (ligne.frais and "monnaie_frais_id" in retouches)
+        or retouches.get("type_code", type_avant) != type_avant
+    )
+    # Un montant envoyé SAISI compte au même titre que des frais : il
+    # redéfinit la base de calcul. Sans lui, un reclassement EN virement
+    # interne (qui déclenche la réimputation ci-dessous) repartait des
+    # montants du FICHIER — lequel ne porte aucune colonne « Montant
+    # initial », sans quoi l'utilisateur n'aurait rien eu à saisir — et
+    # effaçait la jambe émettrice qu'on venait de lui demander.
+    if "frais" in retouches or "montant_envoye" in retouches:
+        ligne = ligne.model_copy(
+            update={
+                "montant_hors_frais": retouches.get("montant", ligne.montant_hors_frais),
+                "montant_envoye_hors_frais": retouches.get(
+                    "montant_envoye", ligne.montant_envoye_hors_frais
+                ),
+            }
+        )
+    if montants_a_refaire:
+        avant = ligne.erreur
+        ligne = _reimputer_frais(ligne)
+        if ligne.erreur and ligne.erreur != avant:
+            erreur_frais = ligne.erreur
+    return ligne, erreur_frais, liens_remboursement
+
+
 def confirmer(
     db,
     preset_id: int,
@@ -2758,6 +2854,20 @@ def confirmer(
         donnees_par_ligne[brute["ligne"]] = brute["donnees_completes"]
         lignes.append(ligne_resolue)
 
+    # LES RETOUCHES DE L'APERÇU, APPLIQUÉES AVANT TOUT CONTRÔLE. Le blocage
+    # ci-dessous lisait la ligne telle que le FICHIER la donnait : corriger à la
+    # main la devise des frais de chaque ligne fautive débloquait le bouton de
+    # l'aperçu (qui juge l'état retouché), et le serveur refusait quand même le
+    # fichier, pour des lignes qui n'existaient plus sous cette forme. Même
+    # chose d'une ligne supprimée de l'aperçu : elle ne sera pas importée, ses
+    # frais n'ont plus à bloquer quoi que ce soit.
+    retouchees = {
+        ligne.ligne: _retoucher_ligne(ligne, overrides.lignes.get(ligne.ligne))
+        for ligne in lignes
+        if ligne.statut_import != StatutImport.refuse.value
+        and ligne.ligne not in overrides.lignes_supprimees
+    }
+
     # Des frais qu'aucun des deux montants de la ligne ne peut porter : c'est la
     # CONFIGURATION du preset qui ne tient pas, pas une ligne isolée. Importer
     # le reste laisserait un fichier à moitié passé, dont il faudrait ensuite
@@ -2766,9 +2876,9 @@ def confirmer(
     # bloquer le fichier à cause d'eux ferait corriger une colonne pour une
     # opération qui n'aura jamais lieu.
     bloquantes = [
-        ligne.ligne
-        for ligne in lignes
-        if ligne.frais_incoherents and ligne.statut_import != StatutImport.refuse.value
+        numero
+        for numero, (ligne, _, _) in retouchees.items()
+        if ligne.frais_incoherents
     ]
     if bloquantes:
         apercu = ", ".join(str(numero) for numero in bloquantes[:5])
@@ -2832,81 +2942,7 @@ def confirmer(
         if ligne.ligne in overrides.lignes_supprimees:
             continue
 
-        # Édition manuelle directement sur la ligne (bouton "Modifier" de
-        # l'aperçu) : ne remplace que les champs explicitement fournis, et
-        # recalcule l'erreur à partir de l'état final (une correction peut
-        # lever l'erreur d'origine, ex. date corrigée à la main).
-        override = overrides.lignes.get(ligne.ligne)
-        # Erreur née de la réimputation des frais (« frais supérieurs au
-        # montant ») : _erreur_ligne reconstruit l'erreur à partir du seul état
-        # de la ligne et ne saurait pas la retrouver, d'où ce report explicite.
-        erreur_frais = None
-        # LES LIENS DE RÈGLEMENT NE SONT PAS UNE RETOUCHE DE LA LIGNE : ils ne
-        # décrivent pas ce que l'opération EST, mais ce qu'elle SOLDE, et
-        # `ImportLigne` n'a aucun champ pour les porter. Sortis des retouches
-        # avant la copie — `model_copy(update=…)` y aurait ajouté un attribut
-        # muet que plus rien ne relirait — et posés après création, seul moment
-        # où l'opération qui les porte existe.
-        liens_remboursement = None
-        if override is not None:
-            type_avant = ligne.type_code
-            retouches = override.model_dump(exclude_none=True)
-            liens_remboursement = retouches.pop("operations_remboursees", None)
-            # Un montant envoyé SAISI n'est plus déduit : l'utilisateur dit
-            # lui-même ce qui est parti, et la ligne décrit dès lors ses deux
-            # jambes comme le ferait un relevé qui porte la colonne.
-            if "montant_envoye" in retouches:
-                retouches["montant_envoye_deduit"] = False
-            # UNE RETOUCHE QUI CONTREDIT LA DÉCOUPE LA DÉFAIT. Trois cas, et un
-            # seul geste : choisir une catégorie à la main, c'est dire qu'on ne
-            # veut plus des parts ; changer le montant rompt l'égalité « somme
-            # des parts = montant », qu'aucune répartition automatique ne peut
-            # rétablir sans décider à la place de l'utilisateur ; changer le
-            # type peut sortir de `classique`, seul type qui se découpe.
-            #
-            # La ligne repasse alors « catégorie non résolue » si rien ne la
-            # classe (cf. _erreur_ligne) : l'aperçu la signale et en redemande
-            # une, plutôt que d'importer en silence une ligne dont le classement
-            # vient de disparaître.
-            if ligne.decoupes and (
-                "categorie_id" in retouches
-                or "montant" in retouches
-                or retouches.get("type_code", ligne.type_code) != ligne.type_code
-            ):
-                retouches["decoupes"] = []
-            ligne = ligne.model_copy(update=retouches)
-            # Le montant qui fait l'opération dépend du TYPE et du SENS : les
-            # changer dans l'aperçu change la jambe qui compte, donc le montant
-            # importé. Une retouche qui porte des frais redéfinit en plus la
-            # lecture des deux montants — ils valent alors HORS FRAIS, c'est ce
-            # que le formulaire affiche dès qu'il montre les frais.
-            #
-            # Recalculer dans ces trois cas seulement : ailleurs, les montants
-            # de la ligne sont déjà ceux qui ont bougé, et les refaire écraserait
-            # une correction manuelle du montant.
-            montants_a_refaire = "frais" in retouches or (
-                retouches.get("type_code", type_avant) != type_avant
-            )
-            # Un montant envoyé SAISI compte au même titre que des frais : il
-            # redéfinit la base de calcul. Sans lui, un reclassement EN virement
-            # interne (qui déclenche la réimputation ci-dessous) repartait des
-            # montants du FICHIER — lequel ne porte aucune colonne « Montant
-            # initial », sans quoi l'utilisateur n'aurait rien eu à saisir — et
-            # effaçait la jambe émettrice qu'on venait de lui demander.
-            if "frais" in retouches or "montant_envoye" in retouches:
-                ligne = ligne.model_copy(
-                    update={
-                        "montant_hors_frais": retouches.get("montant", ligne.montant_hors_frais),
-                        "montant_envoye_hors_frais": retouches.get(
-                            "montant_envoye", ligne.montant_envoye_hors_frais
-                        ),
-                    }
-                )
-            if montants_a_refaire:
-                avant = ligne.erreur
-                ligne = _reimputer_frais(ligne)
-                if ligne.erreur and ligne.erreur != avant:
-                    erreur_frais = ligne.erreur
+        ligne, erreur_frais, liens_remboursement = retouchees[ligne.ligne]
         manques = _erreur_ligne(ligne)
         eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes)
         ligne = ligne.model_copy(
