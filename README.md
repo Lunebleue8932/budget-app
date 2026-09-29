@@ -1,107 +1,34 @@
 # Budget App
-Petit disclaimer avant de rentrer dans le vif du sujet : cette app a été entièrement conçue à l'aide de Claude Code. Si c'est quelque chose qui te dérange ou à laquelle tu t'opposes, je préfère que tu le saches.
 
-Cette app est née suite au besoin que j'avais de suivre mes dépenses. Pendant à peu près un an, Excel s'est avéré suffisant. Mais force est de constater qu'avec plusieurs comptes, devises et d'autres raisons, l'outil n'est pas le plus pratique. 
-De là, j'ai re-employé ce que j'avais appris, ce qu'il me manquait et ce que je voulais pouvoir faire en gérant mes dépenses dans un but : avoir une app qui regroupe tout.
+## Qu'est-ce que cette app ?
 
-Je vais être concis pour que t'en profites pour voir par toi-même plutôt qu'imaginer en lisant. 
+Une app de budget qui permet de regrouper tous tes comptes au même endroit et de visualiser comment ton argent est réparti.
 
-L'app vient en deux morceaux : 
-- L'app principale, qui inclut les fonctionnalités de bases 
-- Des extensions, téléchargeables depuis le Git et activables / désactivables à volonté 
+Tu contrôles les données de tes dépenses : ce que tu veux catégoriser et comment, la période que tu veux regarder, les objectifs que tu te fixes, et la façon dont tu classes tes opérations (imprévue, remboursable, remboursement, amortie sur une durée, prévisionnelle, etc.).
 
-Pourquoi des extensions si elles sont gratuites ? Deux raisons à ça : 
+Le tout en automatisant : la première fois, tu expliques à l'app comment interpréter ce qu'elle voit. À partir de la seconde fois, elle le fait toute seule.
+L'app se divise en deux parties : l'app de base et les extensions. Elle est volontairement minimaliste, pour que tu puisses la découvrir sans être submergé, puis la personnaliser en choisissant les extensions qui te sont utiles.
 
-1 - Rendre l'app personnalisable, minimaliste et pratique à utiliser. Tu peux te servir dans les extensions, les tester, les désactiver / désinstaller et ne garder que celles qui te servent pour une app plus épurée.
-2 - L'une des extensions inclut une connexion à l'internet (lecture de cours, plus de détails plus dans le ReadMe des extensions)
+Je n'en dis pas plus, tu découvriras par toi-même.
 
-Et ça nous amène à l'un des points les plus importants : l'app tourne 100% hors-ligne et ne communique jamais avec internet. C'est une mesure à la fois de facilité (plus simple que de créer un agrégateur de comptes) et de sûreté : tes informations bancaires sont dans une base de données sur ta machine, et elles y restent.
+![Vue d'ensemble de l'app](docs/Page_dashboard.png)
+![Vue du budget de l'app](docs/Page_budget.png)
+![Vue des opérations de l'app](docs/Page_opérations.png)
 
-Pour l'instant, je t'invite à commencer sans activer d'extensions pour pas ajouter trop de complexité : une fois installée, crée un ou des comptes, une propriété de l'app et nullement un compte nécessitant une identification (répliquant ton/tes comptes en banque) et des catégories d'opérations.
+## Trois points importants
 
-Ensuite, jette un oeil aux différents types d'opérations : 
-- Opération classique, ras
-- Dépense remboursable : comme précédemment, mais tu peux indiquer un montant à rembourser. Ca va affecter ton montant prévisionnel et ça s'affichera comme en attente de remboursement.
-- Remboursements : pour les remboursements que tu recevras. Tu peux lier une opération de ce type à une ou plusiers opérations remboursables, en spécifiant les montants affectés à chaque dépense remboursable. Deux choses à avoir en tête : 
-	- Le montant remboursé ne peut pas dépasser le montant à rembourser (encore moins le montant total de l'opération remboursable)
-	- La somme des montants affectés à différentes opérations remboursable ne dépasse pas le montant du remboursement
-Rien de nouveau sous le soleil, juste des précautions logiques/
+- **Tout reste en local.** L'app vit entièrement sur ton ordinateur, sans envoyer tes données et sans connexion à internet, à deux exceptions près : une extension que tu actives pour lire des cours boursiers, et le bouton de feedback.
+- **Elle est et restera gratuite.**
+- **Elle a été entièrement conçue avec Claude Code.** Si cela te dérange, je préfère que tu le saches avant de l'installer.
 
-Te voilà prêt. Maintenant, tu peux créer tes premières opérations ou les importer via le menu d'import. 
+## Installation
 
-La première importation est toujours plus longue car il faut régler les différents paramètres de ton preset d'importation. Note que l'app ne permet que l'importation au format excel ou csv :)
+Télécharge l'application depuis la section Assets de la page [Releases](https://github.com/Lunebleue8932/budget-app/releases). Toutes les informations d'installation y sont regroupées.
 
-Au début l'app peut paraître longue à prendre en main. 
-Mais quand quelques paramètres sont configurés, tu peux suivre l'évolution de tes comptes de manière flexible - en arrangeant tes dépenses comme tu le souhaites - en quelques clics.
+> ⚠️ L'app n'est pas signée numériquement : Windows et macOS afficheront un avertissement au premier lancement. Ils ne disent pas qu'elle est dangereuse, ils ne peuvent simplement pas vérifier son auteur. La marche à suivre pour chaque système est sur la page Releases.
 
-Des tooltips sont disséminés un peu partout pour quelques explications plus approfondies "i". Enfin, si vous avez des questions ou des propositions, n'hésitez pas à m'en faire part :)
+## Licence
 
-Merci d'avoir lu jusque ici ! 
+Le code est visible, il n'est pas libre pour autant. Tous droits réservés : tu peux lire ce dépôt et te servir de l'application pour ton usage personnel, mais aucune autorisation d'exploitation n'est accordée : ni redistribution, ni usage commercial, ni réutilisation du code dans un autre projet.
 
-PS : si vous avez des suggestions pour le nom, je suis preneur.
-
-
-## Installer l'application
-
-Télécharge l'application depuis la section Assets de la page Releases (https://github.com/Lunebleue8932/budget-app/releases). 
-Va chercher l'archive de ton système, décompresse-la quelque part où tu as le droit d'écrire, et lance `Budget App`.
-
-| Système | Archive | Au premier lancement |
-|---|---|---|
-| **Windows** | `budget-app-windows.zip` | SmartScreen affiche un écran bleu : clique *Informations complémentaires*, puis *Exécuter quand même*. |
-| **macOS** (puce Apple) | `budget-app-macos-arm64.zip` | Le refus est attendu : *Réglages Système → Confidentialité et sécurité → **Ouvrir quand même***. Détails : [macOS](desktop/platforms/macos/README.md). |
-| **macOS** (Intel) | `budget-app-macos-x64.zip` | Idem. Menu  → *À propos de ce Mac* dit lequel des deux tu as. |
-| **Linux** | `budget-app-linux.zip` | Un paquet à installer d'abord, le moteur d'affichage : [Linux](desktop/platforms/linux/README.md). |
-
-**Évite `Program Files`** (et `/Applications` sur macOS) : l'application crée sa
-base de données à côté d'elle-même, et ces dossiers sont protégés en écriture.
-Un dossier de tes documents fait très bien l'affaire.
-
-Si ton système s'inquiète, c'est normal : l'application **n'est pas signée
-numériquement** (car c'est payant $$$). Windows et macOS ne savent donc pas qui a écrit
-le programme — ils ne disent pas qu'il est dangereux, ils disent qu'ils ne
-peuvent pas le vérifier. Le tableau ci-dessus donne le geste à faire pour chaque
-système.
-
-### Les extensions
-
-Elles ne sont **pas livrées avec l'application** : le dossier `extensions/`
-arrive vide.
-
-Chacune a sa propre archive sur la page Releases, nommée `extension-<nom>.zip`.
-Télécharge-la, décompresse-la dans `extensions/`, puis relance l'application pour pouvoir l'activer.
-
-Attention à décompresser le dossier de l'extension, pas une archive
-qui le contiendrait.
-L'architecture dans le dossier extensions doit ressembler à ce qui suit - le dossier d'une extension est directement un dossier fille d'"extensions/" :
-
-```
-Budget App/
-  Budget App.exe        (ou « Budget App.app » sur macOS)
-  data/                 ta base de données
-  extensions/
-    placements/         <- le dossier décompressé, tel quel
-```
-
-
-
-Toute erreur au démarrage est écrite en détail dans `erreur.log`, à côté de la
-base de données. Regarde d'abord là, et joins ce fichier si tu me signales le
-problème.
-
-**Si l'application refuse de démarrer sous Windows** avec une longue trace
-mentionnant `Python.Runtime.dll` : c'est la « marque Internet » que Windows
-pose sur les fichiers téléchargés, et que l'Explorateur recopie sur tout ce
-qu'il extrait d'une archive. Les versions à partir de la v1.0.4 s'en accommodent
-toutes seules. Sur une version antérieure, fais un **clic droit sur le ZIP →
-Propriétés → coche « Débloquer »**, *avant* de le décompresser.
-
-## Point légal
-
-Le code est visible, il n'est pas libre pour autant. Tous droits réservés :
-tu peux lire ce dépôt et te servir de l'application pour ton usage personnel,
-mais aucune autorisation d'exploitation n'est accordée — ni redistribution, ni
-usage commercial, ni réutilisation du code dans un autre projet.
-
-Le détail est dans le fichier [LICENSE](LICENSE). Si tu veux faire quelque chose
-qui n'y rentre pas, demande-moi.
+Le détail est dans le fichier [LICENSE](LICENSE). Si tu as des questions ou une demande particulière, tu peux me les adresser via GitHub.
