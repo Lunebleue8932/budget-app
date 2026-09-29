@@ -12,8 +12,6 @@ L'app se divise en deux parties : l'app de base et les extensions. Elle est volo
 Je n'en dis pas plus, tu découvriras par toi-même.
 
 ![Vue d'ensemble de l'app](docs/Page_dashboard.png)
-![Vue du budget de l'app](docs/Page_budget.png)
-![Vue des opérations de l'app](docs/Page_opérations.png)
 
 ## Trois points importants
 
