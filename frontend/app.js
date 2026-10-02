@@ -15067,14 +15067,10 @@ async function loadParametresBdd() {
     // croire à une panne. Le message du build de test dit la même chose, mais
     // en donnant la raison.
     if (etat.build_de_test) {
-      messages.push(
-        t(
-          "Build de test construit en local : cette copie ouvre toujours sa propre base de test " +
-            "et n'écrit jamais dans la configuration de l'application. Changer de base ne vaut " +
-            "que pour cette session. Supprime le fichier BUILD-DE-TEST.txt à côté de l'exécutable " +
-            "pour qu'elle se comporte comme une version publiée."
-        )
-      );
+      // Rien à dire : le message d'un build de test n'est plus affiché. Cette
+      // branche reste VIDE plutôt que supprimée, pour qu'un build de test ne
+      // retombe pas sur « Ce choix n'a pas pu être enregistré » plus bas — il ne
+      // l'est jamais, par construction.
     } else if (etat.mode_developpement) {
       // Le serveur de dev : même règle, autre raison (il n'y a pas de bundle à
       // démarquer). Dire laquelle des deux on est évite de chercher un
