@@ -37,10 +37,10 @@ from app.services import placements
 
 from .conftest import charger_module_extension, creer_compte, get_monnaie_id
 
-service = charger_module_extension("import-placements", "service_import_placements.py")
-routeur = charger_module_extension("import-placements", "routeur_import_placements.py")
+service = charger_module_extension("placements", "service_import_placements.py")
+routeur = charger_module_extension("placements", "routeur_import_placements.py")
 schemas_pl = charger_module_extension(
-    "import-placements", "schemas_import_placements.py"
+    "placements", "schemas_import_placements.py"
 )
 
 PHOTO = date(2026, 8, 29)

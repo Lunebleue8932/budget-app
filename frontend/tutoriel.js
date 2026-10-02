@@ -328,7 +328,7 @@ const TUTORIEL_DECOUVERTE = [
     titre: "Comptes, catégories, monnaies : on ÉTEINT",
     texte:
       "Supprimer emporterait l'historique. Éteindre ne supprime rien : l'élément quitte simplement les menus, plus aucune écriture nouvelle ne le désigne, et tout reparaît tel quel sur une période antérieure. Le bouton est dans le formulaire (double-clic sur la ligne), pas dans la liste.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-comptes" }),
+    avant: () => switchSection("parametres", { sousSection: "parametres-configuration" }),
   },
   {
     cible: "#parametres-sous-nav-droite",
@@ -345,11 +345,11 @@ const TUTORIEL_DECOUVERTE = [
     avant: () => switchSection("parametres", { sousSection: "parametres-extensions" }),
   },
   {
-    cible: "#sous-section-parametres-bdd",
+    cible: "#parametres-partie-bdd",
     titre: "Où vivent tes données",
     texte:
       "Un seul fichier .db, à l'endroit que tu as choisi au premier démarrage. Range-le ailleurs que dans le dossier de l'application : c'est celui qu'une mise à jour remplace. Le chemin est retenu d'un lancement à l'autre, hors de ce dossier, justement pour qu'aucune mise à jour n'y touche.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-bdd" }),
+    avant: () => switchSection("parametres", { sousSection: "parametres-generaux" }),
   },
   {
     cible: "#tutoriels-liste",

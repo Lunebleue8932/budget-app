@@ -5,16 +5,8 @@
       "id": "placements",
       "numero": 6,
       "nom": "Placements financiers",
-      "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne. Son écran est un ONGLET de la page des avoirs, à côté de la vue des comptes : les deux répondent à la même question — ce qu'on détient à cet instant, en soldes d'un côté, en titres de l'autre.",
-      "version": "1.0.0",
-      "type": "standard"
-    },
-    {
-      "id": "import-placements",
-      "numero": 1,
-      "nom": "Import de placements",
-      "description": "Lit une liste d'opérations exportée depuis un compte de placements (achats, ventes, transferts d'espèces) et l'importe en une fois, sur le modèle de l'import de relevé bancaire : un preset par courtier, un aperçu ligne par ligne avant validation, et la même détection de doublons. Les titres inconnus sont créés à l'import, avec leur code ISIN. Nécessite « Placements financiers » : sans elle, il n'y a aucun compte-titres où importer.",
-      "version": "1.0.0",
+      "description": "Suivi d'un portefeuille de titres : achat, vente, valorisation au dernier cours saisi et plus-values latentes, par compte de placements. Les cours sont saisis à la main — l'application ne consulte aucun service en ligne. Son écran est un ONGLET de la page des avoirs, à côté de la vue des comptes : les deux répondent à la même question — ce qu'on détient à cet instant, en soldes d'un côté, en titres de l'autre. Il permet aussi d'IMPORTER une liste d'opérations exportée depuis un compte de placements (achats, ventes, transferts d'espèces), sur le modèle de l'import de relevé bancaire : un preset par courtier, un aperçu ligne par ligne avant validation, la même détection de doublons, et les titres inconnus créés à l'import avec leur code ISIN.",
+      "version": "1.1.0",
       "type": "standard"
     },
     {

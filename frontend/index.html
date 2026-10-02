@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=131" />
+  <link rel="stylesheet" href="style.css?v=132" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -1394,8 +1394,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            laisseraient un onglet actif de chaque côté. -->
       <div class="sous-onglets sous-onglets-deux-groupes" id="parametres-sous-nav">
         <div class="sous-onglets-groupe" id="parametres-sous-nav-gauche">
-          <button type="button" data-sous-section="parametres-comptes" class="active"><img class="onglet-logo" src="/img/bank_account_logo.svg" alt="" width="15" height="15" />Comptes</button>
-          <button type="button" data-sous-section="parametres-categories"><img class="onglet-logo" src="/img/category_logo.svg" alt="" width="15" height="15" />Catégories</button>
+          <!-- UN SEUL ONGLET POUR CE QUE L'APPLICATION MANIPULE : Catégories,
+               Comptes et Monnaies sont les trois objets du modèle qu'on règle une
+               fois puis qu'on rouvre rarement, et trois onglets voisins
+               n'apprenaient rien de plus qu'une page en trois parties. Chacune
+               garde son logo, posé devant son titre (cf. `.partie-titre`). -->
+          <button type="button" data-sous-section="parametres-configuration" class="active">Configuration</button>
         </div>
         <div class="sous-onglets-groupe" id="parametres-sous-nav-droite">
           <!-- EN TÊTE DU GROUPE DE DROITE, celui de ce qui RÈGLE l'application :
@@ -1416,7 +1420,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
                part). -->
           <button type="button" data-sous-section="parametres-import"><img class="onglet-logo" src="/img/import_logo.svg" alt="" width="15" height="15" />Import</button>
           <button type="button" data-sous-section="parametres-extensions"><img class="onglet-logo" src="/img/extensions_logo.svg" alt="" width="15" height="15" />Extensions</button>
-          <button type="button" data-sous-section="parametres-bdd"><img class="onglet-logo" src="/img/database_logo.svg" alt="" width="15" height="15" />Base de données</button>
         </div>
       </div>
 
@@ -1471,42 +1474,63 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Tutoriels guidés</label>
           <div id="tutoriels-liste" class="tutoriels-liste"></div>
         </div>
+
+        <!-- BASE DE DONNÉES — venue de `extensions-dev/base-de-donnees/`, qui
+             n'existe plus, puis d'un onglet à elle. Ce panneau était un outil de
+             développeur tant que l'emplacement par défaut de la base était sûr ;
+             il ne l'est pas (il vit dans le dossier que la mise à jour
+             remplace), et choisir où ranger ses données est devenu la seule
+             chose qui les protège. C'est un RÉGLAGE de l'application, d'où sa
+             place ici : une partie de cette page, avec son logo.
+             Cf. backend/app/routers/parametres_base.py.
+
+             L'ancien bloc « Base actuelle » n'est plus : le champ ci-dessous
+             porte déjà le chemin de la base ouverte, et le répéter au-dessus
+             faisait deux fois la même ligne. Seul un schéma qui ne correspond
+             pas à celui de l'application reste dit, dans l'alerte. -->
+        <div id="parametres-partie-bdd" class="configuration-partie">
+          <h3 class="partie-titre"><img class="onglet-logo" src="/img/database_logo.svg" alt="" width="15" height="15" />Base de données<i class="info-bulle" tabindex="0" data-info-cle="noyau.base-de-donnees">i</i></h3>
+
+          <div id="bdd-alerte-risque" class="import-avertissements" style="display:none"></div>
+
+          <form id="form-bdd" class="full-width">
+            <label class="full-width">Chemin complet du fichier .db
+              <input type="text" id="bdd-chemin" placeholder="C:\chemin\vers\ma_base.db" />
+            </label>
+            <input type="file" id="bdd-fichier" accept=".db,.sqlite,.sqlite3" hidden />
+            <div class="actions full-width">
+              <button type="button" id="btn-bdd-parcourir">Parcourir…</button>
+              <button type="submit" class="primary">Basculer sur ce fichier</button>
+              <button type="button" id="btn-bdd-installer">Créer / déplacer ici</button>
+              <!-- LE RESET, et il n'existe QU'EN MODE DÉVELOPPEMENT (serveur de
+                   dev, ou bundle construit en local) : c'est là que la base
+                   personnelle n'est jamais qu'un détour momentané. Sur une
+                   version publiée, la base « de l'application » est celle du
+                   dossier que la mise à jour remplace — un bouton qui y ramènerait
+                   en un clic serait un piège, pas un raccourci. Masqué d'origine,
+                   révélé par loadParametresBdd. -->
+              <button type="button" id="btn-bdd-reinitialiser" style="display:none">
+                Revenir à la base de l'application
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <!-- COMPTES -->
-      <div id="sous-section-parametres-comptes" class="sous-section active">
-        <h3>Comptes<i class="info-bulle" tabindex="0" data-info-cle="noyau.comptes">i</i></h3>
-        <div id="comptes-liste"></div>
+      <!-- CONFIGURATION — Catégories, Comptes, Monnaies, DANS CET ORDRE.
 
-        <h3 id="form-compte-titre">Ajouter un compte</h3>
-        <form id="form-compte">
-          <input type="hidden" id="compte-id" />
-          <label>Nom
-            <input type="text" id="compte-nom" required />
-          </label>
-          <label>Type
-            <select id="compte-type" required></select>
-          </label>
-          <div class="full-width">
-            <label for="compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaies-du-compte">i</i></label>
-            <div id="compte-monnaies" class="import-mappings"></div>
-          </div>
-          <!-- ÉTEINDRE EST ICI ET PLUS DANS LA LISTE. Une ligne de compte portait
-               trois boutons — modifier, éteindre, supprimer — pour un écran qu'on
-               vient LIRE ; le double-clic ouvrant déjà le formulaire, « Modifier »
-               ne disait que ce que la ligne fait déjà. Et éteindre n'est pas un
-               geste qu'on fait en passant : il se décide en regardant le compte,
-               c'est-à-dire ici. Masqué à la CRÉATION — il n'y a rien à éteindre
-               qui n'existe pas encore. -->
-          <div class="actions">
-            <button type="submit" class="primary">Enregistrer</button>
-            <button type="button" id="compte-etat" style="display:none"></button>
-            <button type="button" id="compte-annuler" style="display:none">Annuler</button>
-          </div>
-        </form>
+           Une page en trois parties, et non trois onglets : ce sont les objets
+           qu'on règle une fois puis qu'on rouvre rarement, et les voir
+           ensemble dit tout de suite ce que l'application connaît de soi. Les
+           catégories viennent en premier (elles ne dépendent de rien), les
+           comptes ensuite, les monnaies en dernier — l'extension « Monnaies »
+           pose sa partie à la fin de ce bloc, quand elle tourne
+           (`navigation.partie_de = "configuration"`, cf. extensions.js).
 
-      </div>
-
+           UNE `.sous-section`, ET TROIS `.configuration-partie` qui n'en sont
+           pas : c'est le gestionnaire délégué de app.js qui montre et cache
+           l'onglet entier, les parties sont toujours toutes visibles. -->
+      <div id="sous-section-parametres-configuration" class="sous-section active">
       <!-- CATEGORIES -->
       <!-- CETTE PAGE NE PORTE PLUS QUE LES CATÉGORIES ELLES-MÊMES : leur nom,
            leur ordre, leur existence. Les DEUX CHIFFRES qu'on y réglait — le
@@ -1521,8 +1545,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            question qu'on se pose en les posant. Cette page-ci demandait en
            plus une monnaie et un mois, dont le nom d'une catégorie ne dépend
            pas : deux rangées d'onglets pour une seule colonne. -->
-      <div id="sous-section-parametres-categories" class="sous-section">
-        <h3>Catégories de dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-de-depenses">i</i></h3>
+      <div id="configuration-partie-categories" class="configuration-partie">
+        <h3 class="partie-titre"><img class="onglet-logo" src="/img/category_logo.svg" alt="" width="15" height="15" />Catégories de dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-de-depenses">i</i></h3>
 
         <table>
           <thead>
@@ -1557,6 +1581,41 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <button type="button" id="categorie-annuler" style="display:none">Annuler</button>
           </div>
         </form>
+      </div>
+
+      <!-- COMPTES -->
+      <div id="configuration-partie-comptes" class="configuration-partie">
+        <h3 class="partie-titre"><img class="onglet-logo" src="/img/bank_account_logo.svg" alt="" width="15" height="15" />Comptes<i class="info-bulle" tabindex="0" data-info-cle="noyau.comptes">i</i></h3>
+        <div id="comptes-liste"></div>
+
+        <h3 id="form-compte-titre">Ajouter un compte</h3>
+        <form id="form-compte">
+          <input type="hidden" id="compte-id" />
+          <label>Nom
+            <input type="text" id="compte-nom" required />
+          </label>
+          <label>Type
+            <select id="compte-type" required></select>
+          </label>
+          <div class="full-width">
+            <label for="compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaies-du-compte">i</i></label>
+            <div id="compte-monnaies" class="import-mappings"></div>
+          </div>
+          <!-- ÉTEINDRE EST ICI ET PLUS DANS LA LISTE. Une ligne de compte portait
+               trois boutons — modifier, éteindre, supprimer — pour un écran qu'on
+               vient LIRE ; le double-clic ouvrant déjà le formulaire, « Modifier »
+               ne disait que ce que la ligne fait déjà. Et éteindre n'est pas un
+               geste qu'on fait en passant : il se décide en regardant le compte,
+               c'est-à-dire ici. Masqué à la CRÉATION — il n'y a rien à éteindre
+               qui n'existe pas encore. -->
+          <div class="actions">
+            <button type="submit" class="primary">Enregistrer</button>
+            <button type="button" id="compte-etat" style="display:none"></button>
+            <button type="button" id="compte-annuler" style="display:none">Annuler</button>
+          </div>
+        </form>
+
+      </div>
       </div>
 
       <!-- CORRESPONDANCES MÉMORISÉES — noyau.
@@ -2141,46 +2200,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div id="extensions-liste"></div>
       </div>
 
-      <!-- BASE DE DONNÉES — venue de `extensions-dev/base-de-donnees/`, qui
-           n'existe plus. Ce panneau était un outil de développeur tant que
-           l'emplacement par défaut de la base était sûr ; il ne l'est pas (il
-           vit dans le dossier que la mise à jour remplace), et choisir où
-           ranger ses données est devenu la seule chose qui les protège.
-           Cf. backend/app/routers/parametres_base.py. -->
-      <div id="sous-section-parametres-bdd" class="sous-section">
-        <h3>Base de données<i class="info-bulle" tabindex="0" data-info-cle="noyau.base-de-donnees">i</i></h3>
-
-        <div id="bdd-alerte-risque" class="import-avertissements" style="display:none"></div>
-
-        <div class="stat-box">
-          <div class="hint">Base actuelle</div>
-          <div id="bdd-chemin-actuel" style="font-variant-numeric: tabular-nums;">-</div>
-          <div id="bdd-schema" class="hint">-</div>
-        </div>
-
-        <form id="form-bdd" class="full-width">
-          <label class="full-width">Chemin complet du fichier .db
-            <input type="text" id="bdd-chemin" placeholder="C:\chemin\vers\ma_base.db" />
-          </label>
-          <input type="file" id="bdd-fichier" accept=".db,.sqlite,.sqlite3" hidden />
-          <div class="actions full-width">
-            <button type="button" id="btn-bdd-parcourir">Parcourir…</button>
-            <button type="submit" class="primary">Basculer sur ce fichier</button>
-            <button type="button" id="btn-bdd-installer">Créer / déplacer ici</button>
-            <!-- LE RESET, et il n'existe QU'EN MODE DÉVELOPPEMENT (serveur de
-                 dev, ou bundle construit en local) : c'est là que la base
-                 personnelle n'est jamais qu'un détour momentané. Sur une
-                 version publiée, la base « de l'application » est celle du
-                 dossier que la mise à jour remplace — un bouton qui y ramènerait
-                 en un clic serait un piège, pas un raccourci. Masqué d'origine,
-                 révélé par loadParametresBdd. -->
-            <button type="button" id="btn-bdd-reinitialiser" style="display:none">
-              Revenir à la base de l'application
-            </button>
-          </div>
-        </form>
-
-      </div>
     </section>
     <!-- LA NOTICE D'UTILISATION — un écran, et non une page d'aide en ligne.
          Elle vit DANS l'application parce que l'application est hors ligne :
@@ -2474,19 +2493,19 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
   <script src="textes.js?v=31"></script>
-  <script src="i18n.js?v=81"></script>
-  <script src="extensions.js?v=24"></script>
-  <script src="app.js?v=161"></script>
+  <script src="i18n.js?v=82"></script>
+  <script src="extensions.js?v=25"></script>
+  <script src="app.js?v=162"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
        le comportement de l'application mais un écran qui la DÉCRIT, plus la
        bulle du tutoriel, que rien d'autre n'emploie. -->
-  <script src="notice.js?v=5"></script>
+  <script src="notice.js?v=6"></script>
   <!-- APRÈS app.js, comme la notice, et pour les mêmes raisons : il appelle
        `switchSection`, `escapeHtml`, `showMessage` et `t`. Un fichier à part
        parce qu'il ne porte pas le comportement de l'application mais la bulle
        qui la montre, plus la mémoire de ce qu'on en a déjà parcouru. -->
-  <script src="tutoriel.js?v=3"></script>
+  <script src="tutoriel.js?v=4"></script>
 </body>
 </html>

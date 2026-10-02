@@ -35,10 +35,10 @@ from .conftest import charger_module_extension, creer_compte, get_monnaie_id
 
 # L'import de placements est une EXTENSION : ses modules se chargent par chemin
 # de fichier, comme l'application le fait (cf. conftest.charger_module_extension).
-service = charger_module_extension("import-placements", "service_import_placements.py")
-routeur = charger_module_extension("import-placements", "routeur_import_placements.py")
+service = charger_module_extension("placements", "service_import_placements.py")
+routeur = charger_module_extension("placements", "routeur_import_placements.py")
 schemas_pl = charger_module_extension(
-    "import-placements", "schemas_import_placements.py"
+    "placements", "schemas_import_placements.py"
 )
 
 

@@ -418,6 +418,9 @@ function renderTitresSuivis() {
 }
 
 async function loadPlacements() {
+  // On rouvre toujours la page sur le portefeuille, jamais sur le volet d'import
+  // laissé ouvert d'une visite précédente (cf. import-placements.js).
+  if (typeof afficherVuePlacements === "function") afficherVuePlacements(false);
   try {
     await refreshMonnaies();
     fillMonnaiesSelect(document.getElementById("action-monnaie"), state.monnaies);
@@ -629,8 +632,8 @@ function formatQuantite(valeur) {
  * TOUT EST PRÉFIXÉ `PLACEMENTS_` / `placements…` : les scripts d'extension
  * s'exécutent en portée globale, dans l'ordre alphabétique des dossiers, et un
  * nom nu se ferait écraser par celui d'une autre extension (cf.
- * extensions/README.md). Le préfixe `impl` était d'ailleurs déjà pris — c'est
- * celui d'`import-placements`, qui se charge juste avant.
+ * extensions/README.md). Le préfixe `impl` est d'ailleurs déjà pris — c'est
+ * celui de l'import de placements (import-placements.js), chargé juste après.
  */
 const PLACEMENTS_COLONNES_DETENTIONS = [
   { cle: "titre", libelle: "Titre", verrouillee: true, defaut: true },

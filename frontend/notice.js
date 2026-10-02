@@ -112,10 +112,28 @@ function boutonNomme(boutons, nom) {
   return [...boutons].find((b) => cleChemin(b.textContent) === cle) || null;
 }
 
+/* Le texte d'un titre SANS sa pastille « i » : « Comptes » et non « Comptesi ». */
+function texteDuTitre(titre) {
+  const copie = titre.cloneNode(true);
+  copie.querySelectorAll(".info-bulle").forEach((bulle) => bulle.remove());
+  return copie.textContent;
+}
+
+/* Le titre d'un volet qui porte ce nom — exactement, ou en commençant par lui :
+ * « Paramètres → Catégories » désigne la partie « Catégories de dépenses ». */
+function titreNomme(conteneur, nom) {
+  const cle = cleChemin(nom);
+  return (
+    [...conteneur.querySelectorAll("h2, h3, h4, dt")].find((titre) => {
+      const cleTitre = cleChemin(texteDuTitre(titre));
+      return cleTitre === cle || cleTitre.startsWith(`${cle} `);
+    }) || null
+  );
+}
+
 function defilerVersTitre(conteneur, nom) {
   if (!conteneur || !nom) return;
-  const titre = boutonNomme(conteneur.querySelectorAll("h2, h3, h4, dt"), nom);
-  titre?.scrollIntoView({ behavior: "smooth", block: "start" });
+  titreNomme(conteneur, nom)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function ouvrirCheminApplication(chemin) {
@@ -132,9 +150,26 @@ function ouvrirCheminApplication(chemin) {
           suite[0]
         )
       : null;
-    switchSection(section, onglet ? { sousSection: onglet.dataset.sousSection } : {});
-    const volet = onglet
-      ? document.getElementById(`sous-section-${onglet.dataset.sousSection}`)
+    // PAS D'ONGLET À CE NOM : c'est peut-être une PARTIE de page. « Comptes »,
+    // « Catégories » ou « Base de données » ont cessé d'être des onglets de
+    // Paramètres pour devenir des titres de la page Configuration et des
+    // paramètres généraux — le chemin continue de les désigner, on ouvre alors
+    // le volet qui porte ce titre et on y défile.
+    let voletDeLaPartie = null;
+    if (suite[0] && !onglet) {
+      voletDeLaPartie =
+        [...document.querySelectorAll(`#section-${section} > .sous-section`)].find((v) =>
+          titreNomme(v, suite[0])
+        ) || null;
+    }
+    const sousSection = onglet
+      ? onglet.dataset.sousSection
+      : voletDeLaPartie
+      ? voletDeLaPartie.id.replace(/^sous-section-/, "")
+      : null;
+    switchSection(section, sousSection ? { sousSection } : {});
+    const volet = sousSection
+      ? document.getElementById(`sous-section-${sousSection}`)
       : document.getElementById(`section-${section}`);
     defilerVersTitre(volet, onglet ? suite[1] : suite[0]);
     return true;

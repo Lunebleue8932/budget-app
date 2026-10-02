@@ -881,8 +881,23 @@ tr.negatif {
   font-weight: 600;
 }
 
+/* LE MONTANT RÉEL D'UNE DÉPENSE AMORTIE, sous la part attribuée à la période
+   (drill-through d'une catégorie) : un rappel, donc gris, petit et en italique —
+   ce n'est pas ce qu'on compare. */
+.montant-origine {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-style: italic;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .montant.entree { color: var(--positif); }
-.montant.sortie { color: var(--depense); }
+/* UNE DÉPENSE EST GRISE, ni rouge ni orange : sortir de l'argent est le geste
+   ordinaire d'un budget, pas une alerte. Le vert des entrées suffit à les
+   distinguer, et les couleurs vives restent aux choses qui demandent un regard
+   (un dépassement, un solde négatif). */
+.montant.sortie { color: var(--text-secondary); }
 .montant.neutre { color: var(--text-secondary); }
 
 /* Liseré latéral : état de règlement d'une dépense remboursable / d'un prêt
@@ -1272,6 +1287,32 @@ form .operation-cases input[type="checkbox"] {
 .sous-section.active {
   display: block;
   animation: fade-in 0.18s ease-out;
+}
+
+/* ---------- Une page en plusieurs PARTIES ----------
+ *
+ * « Configuration » (catégories, comptes, monnaies) et la base de données des
+ * paramètres généraux : des blocs qui étaient chacun un onglet, et que rien ne
+ * sépare plus qu'un titre. Le titre porte le logo de l'ancien onglet, et un
+ * filet le détache de la partie précédente — sans lui, le formulaire qui clôt
+ * une partie se lirait comme le début de la suivante. */
+.configuration-partie + .configuration-partie {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.partie-titre {
+  font-size: 1.3rem;
+  margin-top: 0;
+}
+
+/* Le bloc de la base de données suit des réglages ordinaires, dans les
+   paramètres généraux : même filet, même respiration. */
+.reglage-bloc-tutoriels + .configuration-partie {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
 }
 
 /* Onglets de mois (2e niveau, sous les onglets d'année) : plus petits, pas de
@@ -1926,6 +1967,16 @@ form .operation-cases input[type="checkbox"] {
   border-color: var(--accent);
 }
 
+/* QUAND LE SÉLECTEUR FILTRE, IL EST BLEU — plein, pour se voir de loin : un
+   filtre posé puis replié est exactement ce qu'on oublie, et ce qu'on cherche
+   ensuite en se demandant pourquoi le graphe n'a pas tout. */
+#btn-dashboard-filtre-categories.filtre-actif,
+.filtre-menu-bouton.filtre-actif {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .filtre-categories-panneau {
   position: absolute;
   z-index: 20;
@@ -2412,6 +2463,16 @@ button.danger:hover {
 
 .filtres-repli > summary:hover {
   color: var(--text-primary);
+}
+
+/* Un filtre est posé : le bandeau le dit en bleu, replié ou non. */
+.filtres-repli.filtres-actifs > summary,
+.filtres-repli.filtres-actifs > summary:hover {
+  color: var(--accent-light);
+}
+
+.filtres-repli.filtres-actifs > summary::before {
+  color: var(--accent-light);
 }
 
 /* Le triangle natif de <summary> : dessiné à la main pour qu'il suive le thème
@@ -4260,7 +4321,7 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 }
 
 .apercu-sens.sortie {
-  color: var(--depense);
+  color: var(--text-secondary);
 }
 
 .apercu-sens.entree {

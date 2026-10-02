@@ -3153,6 +3153,10 @@ const TRADUCTIONS = {
       "The cost price of ONE security (average unit cost) \u2014 what it cost you on average, fees included.\n\nPer unit, not the total amount invested: that is what most brokers write, and the total follows from it (unit cost \u00d7 quantity). If your statement gives the total, divide it before importing \u2014 otherwise each position will be multiplied by its quantity.",
     "Ce que la ligne vaut aujourd'hui, tous titres confondus. La seule colonne enti\u00e8rement facultative.\n\nElle ne cr\u00e9e aucune d\u00e9tention : elle sert \u00e0 en d\u00e9duire le COURS du titre (valorisation \u00f7 quantit\u00e9), qui n'a pas de colonne \u00e0 lui dans ce genre d'export. Sans elle, le cours reste celui d\u00e9j\u00e0 connu, \u00e0 saisir \u00e0 la main.":
       "What the row is worth today, all securities together. The only entirely optional column.\n\nIt creates no holding: it serves to infer the security's PRICE (valuation \u00f7 quantity), which has no column of its own in this kind of export. Without it, the price stays the one already known, to be entered by hand.",
+
+    // ---------- Drill-through d'une catégorie : dépense amortie ----------
+    "{n} mois": "{n} months",
+    "1 mois": "1 month",
   },
 };
 

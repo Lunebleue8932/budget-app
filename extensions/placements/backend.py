@@ -23,13 +23,23 @@ from fastapi import APIRouter, Depends
 from app.extensions import exiger_extension
 
 from routeur_actions import router as router_actions
+from routeur_import_placements import router as router_import_placements
 from routeur_placements import router as router_placements
+from routeur_regles_placements import router as router_regles_placements
 from routeur_types_titre import router as router_types_titre
 
 # `dependencies` sur le routeur agrégateur : la vérification s'applique à
-# TOUTES les routes des deux sous-routeurs, sans avoir à la répéter sur
-# chacune — et sans qu'une route ajoutée plus tard puisse l'oublier.
+# TOUTES les routes des sous-routeurs, sans avoir à la répéter sur chacune — et
+# sans qu'une route ajoutée plus tard puisse l'oublier.
 router = APIRouter(dependencies=[Depends(exiger_extension("placements"))])
 router.include_router(router_actions)
 router.include_router(router_placements)
 router.include_router(router_types_titre)
+# L'IMPORT DE PLACEMENTS (`/import-placements`) ET SES RÈGLES
+# (`/regles-import-placements`) : naguère une extension à part, devenus une
+# fonction de celle-ci — un import de titres sans écran de titres importerait
+# dans le vide. Sous le MÊME garde-fou, donc éteints avec elle. Les presets, leur
+# historique et leur stock anti-doublons dorment en base (le schéma est au
+# noyau, migration 0041) : rien ne se perd à l'extinction.
+router.include_router(router_import_placements)
+router.include_router(router_regles_placements)

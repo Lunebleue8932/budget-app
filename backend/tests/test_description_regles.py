@@ -25,7 +25,7 @@ from .conftest import charger_module_extension, get_type_id
 
 routeur_bancaire = charger_module_extension("regles", "routeur_regles.py")
 routeur_placement = charger_module_extension(
-    "import-placements", "routeur_regles_placements.py"
+    "placements", "routeur_regles_placements.py"
 )
 
 NOTE = "La banque écrit « VIR RECU M DUPONT » pour les remboursements de Paul."

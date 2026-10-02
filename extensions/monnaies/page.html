@@ -1,10 +1,14 @@
 <!-- Écran de l'extension « Monnaies ».
 
-     L'id de la div est imposé par le manifeste (navigation.sous_section
-     = "monnaies") : le noyau cherche exactement
-     `sous-section-parametres-monnaies` pour y brancher le bouton d'onglet. -->
-<div id="sous-section-parametres-monnaies" class="sous-section">
-        <h3>Monnaies<i class="info-bulle" tabindex="0" data-info-cle="monnaies.monnaies">i</i></h3>
+     UNE PARTIE DE LA PAGE CONFIGURATION, et non un onglet (cf. le manifeste :
+     navigation.partie_de = "configuration") : le noyau pose ce bloc à la suite
+     des catégories et des comptes, dans `sous-section-parametres-configuration`.
+     Ce n'est donc PAS une `.sous-section` — c'est l'onglet « Configuration » qui
+     se montre et se cache, et le bloc l'accompagne. Son logo est celui de
+     l'extension (navigation.icone), posé devant le titre comme celui des deux
+     autres parties. -->
+<div id="configuration-partie-monnaies" class="configuration-partie">
+        <h3 class="partie-titre"><img class="onglet-logo" src="/img/currency_logo.svg" alt="" width="15" height="15" />Monnaies<i class="info-bulle" tabindex="0" data-info-cle="monnaies.monnaies">i</i></h3>
         <div id="monnaies-liste" class="import-mappings"></div>
 
         <!-- Le titre et le formulaire sont DÉPLACÉS sous la ligne éditée au

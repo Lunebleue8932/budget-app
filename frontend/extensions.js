@@ -90,6 +90,10 @@ window.BudgetApp.extensions = {
     return appelerChargeur(
       (nav) =>
         (nav.type === "parametres" && `parametres-${nav.sous_section}` === sousSection) ||
+        // Une PARTIE d'une page de réglages se recharge quand la page s'ouvre.
+        (nav.type === "parametres" &&
+          nav.partie_de &&
+          `parametres-${nav.partie_de}` === sousSection) ||
         // Un ONGLET posé dans un écran du noyau autre que Paramètres (la page
         // des comptes) : même mécanique, l'écran hôte le nomme.
         (nav.type === "onglet" &&
@@ -161,7 +165,14 @@ async function injecterHtml(id, fichier, navigation) {
   const hote = greffe
     ? document.getElementById(`sous-section-${navigation.hote}`)
     : navigation && navigation.type === "parametres"
-      ? document.getElementById("section-parametres")
+      ? // UNE PARTIE D'UNE PAGE DE RÉGLAGES (`partie_de`, cf. « Monnaies » dans la
+        // page Configuration) se pose dans le volet qui la nomme, à la suite des
+        // parties du noyau ; sans elle, c'est une sous-page de plus de Paramètres.
+        document.getElementById(
+          navigation.partie_de
+            ? `sous-section-parametres-${navigation.partie_de}`
+            : "section-parametres"
+        )
       : navigation && navigation.type === "onglet"
         ? document.getElementById(`section-${navigation.hote_section}`)
         : document.querySelector("main");
@@ -187,7 +198,11 @@ async function injecterHtml(id, fichier, navigation) {
   // Un ONGLET a bien un bouton, mais son volet vit dans la <section> du noyau :
   // masquer le bouton laisserait le volet affiché si c'est lui qui était ouvert
   // au moment où l'extension s'éteint.
-  if (navigation && navigation.type === "onglet") pose.dataset.extensionOnglet = id;
+  // Une PARTIE de page se cache de la même façon, et pour la même raison : elle
+  // n'a pas de bouton, c'est son bloc qui doit disparaître avec l'extension.
+  if (navigation && (navigation.type === "onglet" || navigation.partie_de)) {
+    pose.dataset.extensionOnglet = id;
+  }
 
   // TRADUIRE LE FRAGMENT QU'ON VIENT DE POSER. app.js traduit `document.body`
   // au tout début, bien avant que les extensions ne soient lues : sans ce
@@ -233,6 +248,11 @@ function ajouterNavigation(manifeste) {
   // L'extension reste de type `page` : elle a bien un écran à elle, et c'est
   // par ce type que `BudgetApp.extensions.ouvrir` sait le lui rendre.
   if (navigation.bouton === false) return;
+
+  // UNE PARTIE de page de réglages n'a pas d'onglet : elle vit dans celui du
+  // noyau qui la nomme (« Configuration »), et un bouton de plus mènerait au
+  // même endroit.
+  if (navigation.type === "parametres" && navigation.partie_de) return;
 
   const bouton = document.createElement("button");
   bouton.type = "button";

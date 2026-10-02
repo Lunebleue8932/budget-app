@@ -15,9 +15,9 @@
   },
   "navigation": {
     "type": "parametres",
+    "partie_de": "configuration",
     "sous_section": "monnaies",
     "libelle": "Monnaies",
-    "groupe": "gauche",
     "icone": "currency_logo.svg"
   }
 }

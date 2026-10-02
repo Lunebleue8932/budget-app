@@ -26,9 +26,9 @@ from app.services import regles_categorisation
 
 from .conftest import charger_module_extension, creer_compte
 
-service = charger_module_extension("import-placements", "service_import_placements.py")
+service = charger_module_extension("placements", "service_import_placements.py")
 routeur_regles = charger_module_extension(
-    "import-placements", "routeur_regles_placements.py"
+    "placements", "routeur_regles_placements.py"
 )
 
 

@@ -1,12 +1,16 @@
-/* ---------- Extension « Import de placements » ----------
+/* ---------- Import de placements (fonction de « Placements financiers ») ----------
  *
  * L'écran d'import du noyau, transposé aux relevés de compte-titres : mêmes
  * gestes, même ordre, mêmes classes CSS — seules les colonnes lues et les
  * sections de l'aperçu changent.
  *
+ * CE N'EST PLUS UNE EXTENSION À PART. L'import n'a de sens qu'avec un
+ * portefeuille où importer : il vit donc dans le dossier de « Placements
+ * financiers », s'allume et s'éteint avec elle, et son écran est le second
+ * volet de la page Placements (cf. `ouvrirImportPlacements`).
+ *
  * CHARGÉ PAR frontend/extensions.js, après que le fragment page.html a été
- * injecté dans <main> : les écouteurs posés plus bas trouvent donc bien leurs
- * éléments. Le script s'exécute dans la portée globale de la page, il a donc
+ * injecté : les écouteurs posés plus bas trouvent donc bien leurs éléments. Le script s'exécute dans la portée globale de la page, il a donc
  * accès à tout ce que app.js expose (apiFetch, apiFetchForm, showMessage,
  * formatMontant, escapeHtml, state, t, ICONE_OEIL…) — c'est ce qui évite de
  * dupliquer ces utilitaires ici.
@@ -17,8 +21,8 @@
  * des symptômes indébrouillables (un aperçu qui se vide, une configuration qui
  * s'écrit dans le mauvais preset).
  *
- * L'enregistrement auprès du noyau est en FIN de fichier : `loadImportPlacements`
- * doit exister au moment où on la référence.
+ * La porte d'entrée est en FIN de fichier : `loadImportPlacements` doit exister
+ * au moment où on la référence.
  */
 
 const IMPL_BASE = "/import-placements";
@@ -2324,97 +2328,65 @@ document.getElementById("impl-compte-defaut").addEventListener("change", () => {
   if (implFichier) analyserFichierImpl();
 });
 
-BudgetApp.extensions.enregistrer("import-placements", {
-  chargeur: loadImportPlacements,
-});
-
 /* ---------- La porte d'entrée : un bouton sur l'onglet Placements ----------
  *
- * CE QUI A CHANGÉ, ET POURQUOI. Cet écran avait son propre onglet dans la
- * barre du haut, juste à côté de « Placements financiers ». Deux onglets
- * voisins pour un même portefeuille — l'un pour le consulter, l'autre pour
- * l'alimenter — obligeaient à choisir avant de savoir : on ouvrait
- * « Placements », puis on repartait chercher l'autre. L'import est une ACTION
- * sur ce portefeuille, pas une destination parallèle : il se déclenche donc
- * depuis la page qu'il remplit, par un bouton posé au bord droit de son titre.
+ * L'IMPORT EST UNE ACTION SUR LE PORTEFEUILLE, pas une destination parallèle :
+ * il se déclenche depuis la page qu'il remplit, par un bouton posé au bord droit
+ * de son titre. Son écran est le SECOND VOLET de cette page (`#placements-vue-
+ * import`, frère de `#placements-vue-principale`) : on bascule de l'un à l'autre
+ * localement, sans passer par `switchSection` — il n'y a plus d'écran à part.
  *
- * COMMENT ON SE GREFFE. Le noyau n'offre aucune API « ajoute-toi à l'écran
- * d'une autre extension » ; on pose donc le bouton nous-même dans le titre de
- * `#sous-section-comptes-globale-placements`, dès que celui-ci existe.
- *
- * ON NE RÉ-ENREGISTRE PAS LE CHARGEUR DE « placements », contrairement à la
- * greffe des cours (cf. lecture-de-cours.js). Deux raisons, et la seconde
- * suffirait : le bouton est statique, il n'a rien à redessiner à chaque
- * ouverture de l'écran ; et il n'y a qu'UN chargeur par extension — les deux
- * greffes se le disputeraient, la dernière enregistrée effaçant l'autre.
- *
- * L'ORDRE DE CHARGEMENT NE NOUS EST PAS FAVORABLE : les scripts d'extension
- * s'exécutent dans l'ordre alphabétique des dossiers, « import-placements »
- * avant « placements ». La pose échoue donc au premier essai et se rejoue sur
- * l'événement `budgetapp:extension-chargee`, comme la greffe des cours.
- */
-
-const IMPL_ID = "import-placements";
-
-/**
- * Pose le bouton d'import au bord droit du titre de l'onglet Placements.
- *
- * DANS le `<h2>` et non après lui : c'est ce qui le met sur la ligne du titre
- * sans introduire d'élément entre le titre et ce qui le suit — la barre de
- * mise à jour des cours s'insère précisément là (`h2` + `afterend`), et
- * envelopper le titre la ferait atterrir dans notre conteneur.
- *
- * Plus précisément dans le `.placements-titre-actions` que l'hôte y déclare :
+ * LE BOUTON EST DANS LE `<h2>` et non après lui : c'est ce qui le met sur la
+ * ligne du titre sans introduire d'élément entre le titre et ce qui le suit — la
+ * barre de mise à jour des cours s'insère précisément là (`h2` + `afterend`).
+ * Plus précisément dans le `.placements-titre-actions` que la page y déclare :
  * c'est lui qui groupe les boutons au bord droit, et c'est ce qui permet à
  * plusieurs extensions d'en poser un sans se marcher dessus.
  *
- * `data-extension` fait le reste : le noyau montre et masque tout élément qui
- * le porte quand l'extension change d'état (cf. majVisibiliteNavigation).
- * Éteindre l'import depuis les Paramètres retire donc la porte d'entrée
- * sur-le-champ, sans une ligne de plus ici.
- *
- * Rend false tant que l'onglet Placements n'est pas là : l'appelant réessaiera.
+ * Il n'a plus de `data-extension` : il vit dans le volet de « Placements
+ * financiers », qui disparaît tout entier quand elle s'éteint.
  */
-function poserBoutonImportPlacements() {
-  const section = document.getElementById("sous-section-comptes-globale-placements");
-  if (!section) return false;
-  if (document.getElementById("btn-impl-ouvrir")) return true;
-  const titre = section.querySelector("h2");
-  if (!titre) return false;
-  // Le conteneur des actions, déclaré par l'hôte dans son page.html. C'est LUI
-  // qui porte la marge automatique : chaque bouton portant la sienne, deux
-  // extensions se partageaient l'espace libre au lieu de se grouper à droite,
-  // et le premier bouton se retrouvait planté au milieu du titre.
-  const actions = titre.querySelector(".placements-titre-actions");
-  if (!actions) return false;
 
+function afficherVuePlacements(import_) {
+  const principale = document.getElementById("placements-vue-principale");
+  const vueImport = document.getElementById("placements-vue-import");
+  if (principale) principale.style.display = import_ ? "none" : "";
+  if (vueImport) vueImport.style.display = import_ ? "" : "none";
+}
+
+/** Ouvre le volet d'import (et charge ses données). */
+async function ouvrirImportPlacements() {
+  afficherVuePlacements(true);
+  try {
+    await loadImportPlacements();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+/** Referme le volet d'import : la page Placements reprend sa place. */
+function fermerImportPlacements() {
+  afficherVuePlacements(false);
+}
+
+function poserBoutonImportPlacements() {
+  if (document.getElementById("btn-impl-ouvrir")) return;
+  const actions = document.querySelector(
+    "#placements-vue-principale .placements-titre-actions"
+  );
+  if (!actions) return;
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.id = "btn-impl-ouvrir";
   bouton.className = "placements-titre-action";
-  bouton.dataset.extension = IMPL_ID;
   bouton.textContent = t("Importer des opérations");
-  bouton.style.display = BudgetApp.extensions.estActive(IMPL_ID) ? "" : "none";
-  // `ongletActif` : cet écran n'a pas de bouton à lui dans la barre du haut
-  // (cf. `bouton: false` dans le manifeste). Sans ce second argument, plus
-  // aucun onglet ne serait allumé et l'application aurait l'air d'avoir quitté
-  // toutes ses pages.
-  bouton.addEventListener("click", () =>
-    switchSection("import-placements", { ongletActif: "comptes-globale" })
-  );
+  bouton.addEventListener("click", ouvrirImportPlacements);
   actions.appendChild(bouton);
-  return true;
 }
 
-if (!poserBoutonImportPlacements()) {
-  document.addEventListener("budgetapp:extension-chargee", (evenement) => {
-    if (evenement.detail && evenement.detail.id === "placements") {
-      poserBoutonImportPlacements();
-    }
-  });
-}
+poserBoutonImportPlacements();
 
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document
   .getElementById("btn-impl-retour")
-  .addEventListener("click", () => switchSection("comptes-globale", { sousSection: "comptes-globale-placements" }));
+  .addEventListener("click", fermerImportPlacements);

@@ -27,13 +27,13 @@ from .conftest import charger_module_extension, creer_compte
 routeur_types = charger_module_extension("placements", "routeur_types_titre.py")
 routeur_actions = charger_module_extension("placements", "routeur_actions.py")
 routeur_regles = charger_module_extension(
-    "import-placements", "routeur_regles_placements.py"
+    "placements", "routeur_regles_placements.py"
 )
 service_import = charger_module_extension(
-    "import-placements", "service_import_placements.py"
+    "placements", "service_import_placements.py"
 )
 schemas_pl = charger_module_extension(
-    "import-placements", "schemas_import_placements.py"
+    "placements", "schemas_import_placements.py"
 )
 
 

@@ -123,6 +123,9 @@ const state = {
   // du budget du mois). Jamais mémorisée d'une session à l'autre — cf.
   // basculerVuePie.
   dashboardVuePie: "actuel",
+  // Le contexte d'un drill-through de catégorie vers la page Opérations, ou null
+  // (cf. drillActif) : de quel onglet, quelle catégorie, quelles bornes.
+  drillOperations: null,
   triSelections: {
     classique: "date-desc",
     remboursable: "date-desc",
@@ -1454,15 +1457,24 @@ document.getElementById("comptes-globale-sous-nav").addEventListener("click", (e
 
 // Comptes et Catégories vivaient dans la barre de navigation principale ; ce
 // sont des réglages, consultés rarement, pas des pages du quotidien — d'où leur
-// place ici, aux côtés des correspondances et de l'import.
+// place ici, aux côtés des correspondances et de l'import. Ils forment, avec les
+// monnaies, la page « Configuration ».
 function chargerSousPageParametres(page) {
-  if (page === "parametres-generaux") loadParametresGeneraux();
-  if (page === "parametres-comptes") loadComptes();
-  if (page === "parametres-categories") loadCategories();
+  if (page === "parametres-generaux") {
+    loadParametresGeneraux();
+    // La base de données est une PARTIE des paramètres généraux (cf. index.html).
+    loadParametresBdd();
+  }
+  // CONFIGURATION : une page en trois parties — catégories, comptes, et les
+  // monnaies quand l'extension tourne (c'est elle qui charge la sienne, par
+  // `ouvrirSousPage` ci-dessous).
+  if (page === "parametres-configuration") {
+    loadCategories();
+    loadComptes();
+  }
   if (page === "parametres-correspondances") loadCorrespondances();
   if (page === "parametres-import") loadImportSection();
   if (page === "parametres-extensions") loadExtensions();
-  if (page === "parametres-bdd") loadParametresBdd();
   // Sous-pages apportées par une extension : comme pour les écrans principaux,
   // le noyau ne les connaît pas par leur nom et demande à qui de droit.
   BudgetApp.extensions.ouvrirSousPage(page);
@@ -1577,7 +1589,7 @@ document.getElementById("btn-touche-gel-aucune")?.addEventListener("click", () =
 
 function loadParametresSousPage() {
   const btnActif = document.querySelector("#parametres-sous-nav button.active");
-  chargerSousPageParametres(btnActif ? btnActif.dataset.sousSection : "parametres-comptes");
+  chargerSousPageParametres(btnActif ? btnActif.dataset.sousSection : "parametres-configuration");
 }
 
 // L'AFFICHAGE de la sous-page (classes .active) est géré plus bas par le
@@ -3736,6 +3748,17 @@ async function drillThroughCategorie(depense) {
   panneau.querySelector('[data-filtre="categorieId"]').value = categorie.id;
   panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
   panneau.querySelector('[data-filtre="dateFin"]').value = fin;
+  // LE CONTEXTE DU DRILL-THROUGH, posé APRÈS les filtres qu'il décrit : tant que
+  // les trois champs valent ce qu'on vient d'y mettre, l'écran sait d'où il
+  // vient (cf. drillActif).
+  state.drillOperations = { onglet: "classique", categorieId: String(categorie.id), debut, fin };
+  // PAR MONTANT DÉCROISSANT : c'est la suite du top 3 de l'infobulle d'où l'on
+  // vient. C'est le MÊME geste que de choisir ce tri dans le menu — l'état ET le
+  // menu bougent, puis le rendu repart (la date quitte alors les séparateurs et
+  // descend dans la ligne, cf. colonnesOperations).
+  state.triSelections.classique = "montant-desc";
+  const menuTri = document.querySelector('select.tri-select[data-onglet="classique"]');
+  if (menuTri) menuTri.value = "montant-desc";
   // TROIS FILTRES POSÉS SANS QU'ON LES AIT TAPÉS : la section s'ouvre, sinon on
   // arrive sur un tableau restreint dont rien à l'écran ne dit qu'il l'est.
   ouvrirFiltresOnglet("classique");
@@ -3772,6 +3795,13 @@ function majCaseToutDashboard(depenses) {
   const visibles = categoriesVisiblesDashboard(depenses);
   caseTout.checked = depenses.length > 0 && visibles.size === depenses.length;
   caseTout.indeterminate = visibles.size > 0 && visibles.size < depenses.length;
+  // LE SÉLECTEUR SE COLORE QUAND IL FILTRE : un menu replié dont des catégories
+  // sont décochées est l'explication la plus probable d'un graphe « incomplet »,
+  // et rien ne le disait. Le bleu est celui de l'accent — c'est lui, sur ce
+  // bouton, qui prévient que l'écran ne montre pas tout.
+  document
+    .getElementById("btn-dashboard-filtre-categories")
+    .classList.toggle("filtre-actif", depenses.length > 0 && visibles.size < depenses.length);
 }
 
 // Reconstruit la liste de cases à cocher d'après les catégories de la période
@@ -7196,9 +7226,11 @@ function wireEditDeleteButtons(body) {
   });
 }
 
-// En-têtes par onglet. La date n'y figure plus : elle est portée par le
-// regroupement par jour (un tableau par journée), pas par une colonne répétée
-// à l'identique sur toutes les lignes du même jour.
+// En-têtes par onglet. La date n'y figure pas : tant que le tri est
+// chronologique, elle est portée par le regroupement par jour (un tableau par
+// journée), pas par une colonne répétée à l'identique sur toutes les lignes du
+// même jour. Dès que le tri est autre, `colonnesOperations` la fait apparaître
+// à la place indiquée par POSITION_DATE_OPERATIONS.
 const COLONNES_OPERATIONS = {
   classique: ["Nature", "Montant", "Compte", "Catégorie", "Statut", "Actions"],
   remboursable: [
@@ -7214,6 +7246,22 @@ const COLONNES_OPERATIONS = {
   virements: ["Nature", "Montant", "Compte source", "Compte destination", "Statut", "Actions"],
   prets: ["Nature", "Montant", "Compte", "Reste à rembourser", "Actions"],
   "remboursement-prets": ["Nature", "Montant", "Compte", "Prêts réglés", "Actions"],
+};
+
+// OÙ VIENT SE POSER LA DATE quand elle descend dans la ligne : JUSTE APRÈS LE
+// OU LES COMPTES, avant la catégorie (ou ce qui la remplace). Au milieu de la
+// ligne plutôt qu'en tête : le regard arrive sur la nature et le montant, puis
+// situe l'opération (quel compte, quand) avant de lire ce qui la classe. Et c'est
+// la place qu'occupe la catégorie masquée d'un drill-through (cf.
+// `drillActif`) : la date s'y lit à peu près là où l'œil attendait la catégorie.
+// C'est un INDEX DE CELLULE, dans la ligne construite SANS la date.
+const POSITION_DATE_OPERATIONS = {
+  classique: 3,
+  remboursable: 3,
+  remboursements: 3,
+  virements: 4,
+  prets: 3,
+  "remboursement-prets": 3,
 };
 
 // Dimanche en premier : l'index vient de Date.getDay(), qui compte de 0 (dimanche)
@@ -7240,6 +7288,115 @@ function ongletDeListe(listeId) {
   return listeId.replace(/^liste-/, "").replace(/-(ponctuelles|recurrentes)$/, "");
 }
 
+/* ---------- Le DRILL-THROUGH d'une catégorie, et ce que le budget d'un mois contient ----------
+ *
+ * « Voir toutes les dépenses » ouvre la page Opérations filtrée sur une
+ * catégorie et une période. Deux choses y changent, parce que l'écran sait alors
+ * D'OÙ il vient :
+ *
+ *   - la CATÉGORIE n'est plus une colonne (elle vaut la même chose partout) ; la
+ *     date prend sa place, et le tri par montant décroissant est posé d'office ;
+ *   - la PÉRIODE ne se lit plus sur la date de l'opération mais sur le BUDGET du
+ *     mois, exactement comme l'histogramme et le top 3 de l'infobulle : une
+ *     dépense amortie y entre par les mois qu'elle pèse (elle y est, même payée
+ *     trois mois plus tôt) et n'y entre pas par sa date (une dépense de ce mois
+ *     étalée sur les suivants n'y pèse pas). Sans cette règle, l'infobulle
+ *     annonçait un top 3 dont rien n'apparaissait dans la page qu'elle ouvre.
+ *
+ * LE CONTEXTE SE VALIDE LUI-MÊME : il ne vaut que tant que la catégorie et les
+ * deux dates du filtre sont ce que le drill-through y a posées. Les changer à la
+ * main — ou « Réinitialiser » — le fait tomber sans qu'aucun écouteur n'ait à
+ * s'en occuper, et l'écran retrouve alors sa lecture ordinaire.
+ */
+// (l'état vit dans `state.drillOperations`, déclaré avec les autres : une variable
+// `let` posée ici serait en zone morte pour tout rendu lancé avant cette ligne.)
+
+function drillActif(onglet) {
+  if (!state.drillOperations || state.drillOperations.onglet !== onglet) return false;
+  const f = lireFiltresOnglet(onglet);
+  return (
+    f.categorieId === state.drillOperations.categorieId &&
+    f.dateDebut === state.drillOperations.debut &&
+    f.dateFin === state.drillOperations.fin
+  );
+}
+
+// Numérote les mois d'affilée pour qu'ils se comparent sans se soucier du
+// passage d'année (miroir de soldes._index_mois).
+function indexMoisIso(iso) {
+  return Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7));
+}
+
+/**
+ * Combien de mois d'amortissement de `op` tombent dans la période du
+ * drill-through (0 : elle n'y pèse pas). Miroir de soldes.part_amortie.
+ */
+function moisCouvertsDrill(op) {
+  const debutPeriode = indexMoisIso(state.drillOperations.debut);
+  const finPeriode = indexMoisIso(state.drillOperations.fin);
+  const debutAmortissement = indexMoisIso(op.amortissement_debut);
+  const finAmortissement = indexMoisIso(op.amortissement_fin);
+  return Math.max(
+    0,
+    Math.min(finAmortissement, finPeriode) - Math.max(debutAmortissement, debutPeriode) + 1
+  );
+}
+
+/** L'opération fait-elle partie du budget de la période du drill-through ? */
+function operationDansBudgetDrill(op) {
+  if (op.amorti && op.amortissement_debut && op.amortissement_fin) {
+    return moisCouvertsDrill(op) > 0;
+  }
+  return correspondDate(state.drillOperations.debut, state.drillOperations.fin, op.date);
+}
+
+/**
+ * Le montant que l'opération apporte à la période du drill-through : son montant
+ * entier, ou pour une dépense amortie la part des mois qui y tombent.
+ *
+ * UNE SEMAINE n'a pas de jour dans un amortissement : la part du mois est répartie
+ * au prorata des jours, comme le fait la barre de l'histogramme (cf.
+ * soldes.prorata_semaine) — sans quoi la somme des lignes ne vaudrait pas la barre.
+ */
+function montantAttribueDrill(op) {
+  if (!op.amorti || !op.amortissement_nb_mois) return op.montant;
+  let part = moisCouvertsDrill(op) / op.amortissement_nb_mois;
+  const { debut, fin } = state.drillOperations;
+  if (indexMoisIso(debut) === indexMoisIso(fin)) {
+    const joursDuMois = new Date(Number(debut.slice(0, 4)), Number(debut.slice(5, 7)), 0).getDate();
+    part *= (Number(fin.slice(8, 10)) - Number(debut.slice(8, 10)) + 1) / joursDuMois;
+  }
+  return op.montant * part;
+}
+
+/**
+ * La cellule « Montant » d'une opération. Ordinaire, c'est `montantHtml`. Dans
+ * un drill-through, une dépense AMORTIE montre ce qu'elle pèse sur la période, et
+ * son montant réel dessous — en gris, petit et en italique : c'est un rappel, pas
+ * ce qu'on compare.
+ */
+function celluleMontantOperation(op, onglet) {
+  if (!drillActif(onglet) || !op.amorti || !op.amortissement_nb_mois) {
+    return montantHtml(op.montant, op.sens, op.monnaie_id);
+  }
+  return (
+    montantHtml(montantAttribueDrill(op), op.sens, op.monnaie_id) +
+    `<div class="montant-origine">${formatMontant(op.montant, op.monnaie_id)}</div>`
+  );
+}
+
+/**
+ * Ce qui se lit après la date d'une ligne : dans un drill-through, le nombre de
+ * mois sur lesquels la dépense est amortie, entre crochets. La date prend la
+ * place de la catégorie, et c'est ici que le tableau dit « cette ligne n'est
+ * pas ce qu'elle a coûté ce mois-ci ».
+ */
+function complementDateOperation(op, onglet) {
+  if (!drillActif(onglet) || !op.amorti || !op.amortissement_nb_mois) return "";
+  const n = op.amortissement_nb_mois;
+  return `[${n > 1 ? t("{n} mois", { n }) : t("1 mois")}]`;
+}
+
 /* ---------- Deux façons de ranger un tableau d'opérations ----------
  *
  * TANT QUE LE TRI EST CHRONOLOGIQUE, la date appartient au GROUPE : chaque
@@ -7264,10 +7421,17 @@ function triParDate(onglet) {
   return String(state.triSelections[onglet] || "").startsWith("date-");
 }
 
-/** Les colonnes d'un onglet, DATE comprise quand le tri ne l'est pas. */
+/**
+ * Les colonnes d'un onglet : la DATE y est (entre le compte et la catégorie)
+ * quand le tri ne l'est pas, et la CATÉGORIE n'y est plus quand on arrive d'un
+ * drill-through de catégorie — elle serait la même sur toutes les lignes.
+ */
 function colonnesOperations(onglet) {
-  const colonnes = COLONNES_OPERATIONS[onglet] || [];
-  return triParDate(onglet) ? colonnes : ["Date", ...colonnes];
+  const colonnes = [...(COLONNES_OPERATIONS[onglet] || [])];
+  if (!triParDate(onglet)) {
+    colonnes.splice(POSITION_DATE_OPERATIONS[onglet] ?? 0, 0, "Date");
+  }
+  return drillActif(onglet) ? colonnes.filter((c) => c !== "Catégorie") : colonnes;
 }
 
 // Dix lignes : assez pour que le filet ne hache pas la lecture, assez peu pour
@@ -7291,21 +7455,24 @@ function blocsOperations(liste, onglet, dateDe = (op) => op.date) {
 }
 
 /**
- * Pose la cellule de date en tête d'une ligne, quand le tri l'a fait descendre
- * du séparateur (cf. colonnesOperations).
+ * Pose la cellule de date dans la ligne, entre le compte et la catégorie, quand
+ * le tri l'a fait descendre du séparateur (cf. colonnesOperations).
  *
  * LE NŒUD PEUT ÊTRE UN FRAGMENT — une opération découpée ou annotée en rend
  * plusieurs lignes (cf. renderClassiques) : la date va sur la PREMIÈRE, les
  * lignes de détail traversant de toute façon toute la largeur.
  */
-function avecCelluleDate(noeud, dateIso, onglet) {
+function avecCelluleDate(noeud, dateIso, onglet, complement = "") {
   if (triParDate(onglet)) return noeud;
   const tr = noeud.tagName === "TR" ? noeud : noeud.querySelector("tr");
   if (!tr) return noeud;
   const td = document.createElement("td");
   td.className = "operation-date";
   td.textContent = dateIso ? formatDateCourte(dateIso) : "-";
-  tr.insertBefore(td, tr.firstChild);
+  // `complement` : ce qui se lit juste après la date — « [3 mois] » pour une
+  // dépense amortie dans un drill-through (cf. renderClassiques).
+  if (complement) td.textContent += ` ${complement}`;
+  tr.insertBefore(td, tr.children[POSITION_DATE_OPERATIONS[onglet] ?? 0] || null);
   return noeud;
 }
 
@@ -7359,7 +7526,9 @@ function remplirListeOperations(listeId, liste, construireLigne) {
       body.appendChild(ligneSeparatriceJour(bloc.jour, colonnes.length));
     }
     bloc.elements.forEach((op) =>
-      body.appendChild(avecCelluleDate(construireLigne(op), op.date, onglet))
+      body.appendChild(
+        avecCelluleDate(construireLigne(op), op.date, onglet, complementDateOperation(op, onglet))
+      )
     );
     table.appendChild(body);
     wireEditDeleteButtons(body);
@@ -7491,14 +7660,17 @@ function celluleNature(op) {
 
 function renderClassiques(liste) {
   const nbColonnes = colonnesOperations("classique").length;
+  // Arrivé d'un drill-through, le tableau ne montre que UNE catégorie : la
+  // colonne répéterait le même mot sur chaque ligne (cf. drillActif).
+  const sansCategorie = drillActif("classique");
   const construireLigne = (op) => {
     const tr = document.createElement("tr");
     if (op.decoupes && op.decoupes.length > 0) tr.classList.add("operation-decoupee");
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
-      <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
+      <td>${celluleMontantOperation(op, "classique")}</td>
       <td>${nomCompte(op.compte_id)}</td>
-      <td>${celluleCategorieOperation(op)}</td>
+      ${sansCategorie ? "" : `<td>${celluleCategorieOperation(op)}</td>`}
       <td>${statutLabel(op.statut)}</td>
       <td>
         <button data-action="edit" data-id="${op.id}">${t("Modifier")}</button>
@@ -7879,7 +8051,7 @@ let operationsParOnglet = {
   "remboursement-prets": [],
 };
 
-function comparateurOperation(critere) {
+function comparateurOperation(critere, budget = false) {
   const [champ, sens] = critere.split("-");
   const direction = sens === "asc" ? 1 : -1;
   const valeur = (op) => {
@@ -7887,7 +8059,10 @@ function comparateurOperation(critere) {
       case "nature":
         return (op.nature || "").toLowerCase();
       case "montant":
-        return op.montant;
+        // DANS UN DRILL-THROUGH, le montant qui classe est celui qu'on LIT : la
+        // part attribuée au mois pour une dépense amortie. C'est aussi celui du
+        // top 3 de l'infobulle d'où l'on vient — le classement est sa suite.
+        return budget ? montantAttribueDrill(op) : op.montant;
       case "date":
         return op.date;
       case "compte":
@@ -8006,6 +8181,8 @@ function majResumeFiltres(onglet) {
   if (!resume) return;
   const actifs = Object.values(lireFiltresOnglet(onglet)).filter((v) => v !== "").length;
   resume.textContent = actifs === 0 ? "" : t("· {n} actif(s)", { n: actifs });
+  // Le bandeau entier passe en bleu quand un filtre est posé (cf. .filtres-actifs).
+  document.getElementById(`filtres-repli-${onglet}`)?.classList.toggle("filtres-actifs", actifs > 0);
 }
 
 /**
@@ -8035,9 +8212,13 @@ function lireFiltresOnglet(onglet) {
   return filtres;
 }
 
-function operationCorrespondFiltres(op, onglet, f) {
+function operationCorrespondFiltres(op, onglet, f, budget = false) {
   if (!correspondTexte(f.nature, op.nature)) return false;
-  if (!correspondDate(f.dateDebut, f.dateFin, op.date)) return false;
+  // `budget` : arrivé d'un drill-through, la « date » d'une opération amortie est
+  // le mois qu'elle pèse, pas celui où l'argent est sorti.
+  if (budget ? !operationDansBudgetDrill(op) : !correspondDate(f.dateDebut, f.dateFin, op.date)) {
+    return false;
+  }
   if (f.monnaieId && String(op.monnaie_id) !== f.monnaieId) return false;
   if (f.montantMin !== undefined && !correspondMontant(f.montantMin, f.montantMax, op.montant)) {
     return false;
@@ -8128,10 +8309,15 @@ function trierEtRerender(onglet) {
     // deux qui existe plutôt que sur sortante uniquement.
     liste.sort((a, b) => base(a[1].sortante || a[1].entrante, b[1].sortante || b[1].entrante));
   } else {
+    // ARRIVÉ D'UN DRILL-THROUGH, c'est le BUDGET du mois qui dit quelles
+    // opérations sont là, et non leur date : les bornes du filtre le décrivent
+    // seules, la rangée d'onglets de période n'a plus à trancher (cf.
+    // operationDansBudgetDrill).
+    const drill = drillActif(onglet);
     liste = operationsParOnglet[onglet]
-      .filter(operationDansPeriode)
-      .filter((op) => operationCorrespondFiltres(op, onglet, filtres));
-    liste.sort(comparateurOperation(critere));
+      .filter((op) => drill || operationDansPeriode(op))
+      .filter((op) => operationCorrespondFiltres(op, onglet, filtres, drill));
+    liste.sort(comparateurOperation(critere, drill));
   }
   RENDER_PAR_ONGLET[onglet](liste);
 }
@@ -14847,7 +15033,6 @@ async function choisirCheminNatif(methode, cheminPropose) {
 async function loadParametresBdd() {
   try {
     const etat = await apiFetch("/parametres/base");
-    document.getElementById("bdd-chemin-actuel").textContent = etat.chemin_actuel;
     document.getElementById("bdd-chemin").value = etat.chemin_actuel;
 
     // L'AVERTISSEMENT EST LE CŒUR DE L'ÉCRAN, pas une décoration : c'est la
@@ -14902,19 +15087,18 @@ async function loadParametresBdd() {
         t("Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session.")
       );
     }
-    alerte.innerHTML = messages.map((m) => `<div>${escapeHtml(m)}</div>`).join("");
-    alerte.style.display = messages.length ? "" : "none";
-
     // La version de schéma du fichier ouvert, face à celle qu'attend l'app :
     // un écart est exactement ce qui rend une base illisible après une mise à
     // jour, et c'est la première chose à vérifier quand quelque chose cloche.
-    const schemaEl = document.getElementById("bdd-schema");
-    const aJour = etat.revision_base === etat.revision_app;
-    schemaEl.textContent = aJour
-      ? `Schéma ${etat.revision_base || "?"} — à jour.`
-      : `Schéma ${etat.revision_base || "inconnu"}, l'application attend ${etat.revision_app}.`;
-    schemaEl.classList.toggle("hint", aJour);
-    schemaEl.classList.toggle("import-avertissements", !aJour);
+    // Elle n'a plus sa ligne à elle (le bloc « Base actuelle » a disparu) : un
+    // schéma à jour n'apprend rien, un schéma qui diverge rejoint l'alerte.
+    if (etat.revision_base !== etat.revision_app) {
+      messages.push(
+        `Schéma ${etat.revision_base || "inconnu"}, l'application attend ${etat.revision_app}.`
+      );
+    }
+    alerte.innerHTML = messages.map((m) => `<div>${escapeHtml(m)}</div>`).join("");
+    alerte.style.display = messages.length ? "" : "none";
 
     // LE RESET N'EXISTE QU'EN MODE DÉVELOPPEMENT, et il ne s'affiche que s'il
     // a quelque chose à faire : proposer « revenir à la base de l'application »

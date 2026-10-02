@@ -44,8 +44,11 @@
   border-left-color: var(--positif);
 }
 
+/* UN OBJECTIF MANQUÉ EST GRIS, PAS ROUGE : le rouge en faisait un échec, alors
+   qu'une cible manquée est une information — on la regarde pour ajuster, pas
+   pour se reprocher quoi que ce soit. Seul le vert dit « tenu ». */
 .obj-carte.obj-manque {
-  border-left-color: var(--negatif);
+  border-left-color: var(--text-muted);
 }
 
 .obj-carte-tete {
@@ -74,8 +77,8 @@
 }
 
 .obj-manque .obj-etat {
-  background: var(--error-bg);
-  color: var(--error-text);
+  background: var(--bg-surface-alt);
+  color: var(--text-secondary);
 }
 
 /* UN OBJECTIF SANS CIBLE NE SE PEINT NI EN VERT NI EN ROUGE (migration 0070) :
@@ -150,7 +153,7 @@
 }
 
 .obj-barre-manquee {
-  background: var(--negatif);
+  background: var(--text-muted);
 }
 
 .obj-detail {
