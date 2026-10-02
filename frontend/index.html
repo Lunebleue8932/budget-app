@@ -86,6 +86,13 @@
             <path d="M30,0 v30 M0,15 h60" stroke="#cf142b" stroke-width="6" />
           </svg>
         </button>
+        <button type="button" class="langue-drapeau" data-langue="pt" title="Português" aria-label="Português" aria-pressed="false">
+          <svg viewBox="0 0 20 14" width="20" height="14" aria-hidden="true">
+            <rect width="20" height="14" fill="#009C3B" />
+            <path d="M10,1.6 L18,7 L10,12.4 L2,7 z" fill="#FFDF00" />
+            <circle cx="10" cy="7" r="3.2" fill="#002776" />
+          </svg>
+        </button>
       </div>
 
       <!-- Recherche : surligne dans la page AFFICHÉE, à chaque caractère. Une
@@ -1399,7 +1406,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
                fois puis qu'on rouvre rarement, et trois onglets voisins
                n'apprenaient rien de plus qu'une page en trois parties. Chacune
                garde son logo, posé devant son titre (cf. `.partie-titre`). -->
-          <button type="button" data-sous-section="parametres-configuration" class="active">Configuration</button>
+          <button type="button" data-sous-section="parametres-configuration" class="active"><img class="onglet-logo" src="/img/folder_logo.svg" alt="" width="15" height="15" />Configuration</button>
         </div>
         <div class="sous-onglets-groupe" id="parametres-sous-nav-droite">
           <!-- EN TÊTE DU GROUPE DE DROITE, celui de ce qui RÈGLE l'application :
@@ -2416,10 +2423,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               Télécharger le relevé d'exemple
             </a>
           </div>
-          <!-- LA RÉPONSE DE L'EXERCICE, et il faut qu'elle y soit : sans elle,
-               on ne sait pas si l'aperçu qu'on obtient est celui qu'on devait
-               obtenir — et on apprend alors à cliquer, pas à régler. -->
-          <p class="hint" data-texte-cle="noyau.notice-exemple-colonnes"></p>
         </div>
 
         <h3>Les cinq étapes d'un import</h3>
@@ -2460,9 +2463,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <dt>L'aperçu ligne par ligne</dt>
           <dd data-texte-cle="noyau.apercu-import"></dd>
         </dl>
-
-        <h3>Si l'import ne donne pas ce que tu attendais</h3>
-        <p data-texte-cle="noyau.notice-import-annuler"></p>
       </div>
 
       <!-- ---------- LES EXTENSIONS ---------- -->
@@ -2492,16 +2492,17 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=31"></script>
-  <script src="i18n.js?v=82"></script>
-  <script src="extensions.js?v=25"></script>
-  <script src="app.js?v=162"></script>
+  <script src="textes.js?v=33"></script>
+  <script src="i18n.js?v=83"></script>
+  <script src="i18n-pt.js?v=1"></script>
+  <script src="extensions.js?v=26"></script>
+  <script src="app.js?v=164"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
        le comportement de l'application mais un écran qui la DÉCRIT, plus la
        bulle du tutoriel, que rien d'autre n'emploie. -->
-  <script src="notice.js?v=6"></script>
+  <script src="notice.js?v=7"></script>
   <!-- APRÈS app.js, comme la notice, et pour les mêmes raisons : il appelle
        `switchSection`, `escapeHtml`, `showMessage` et `t`. Un fichier à part
        parce qu'il ne porte pas le comportement de l'application mais la bulle

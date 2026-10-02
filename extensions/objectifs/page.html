@@ -30,6 +30,12 @@
      sont donc tous montrés, chacun mesuré dans sa propre monnaie sur le MOIS
      EN COURS — la période la plus probable, et celle qu'on ne choisit pas. -->
 <div id="sous-section-budget-objectifs" class="sous-section">
+  <!-- DEUX VUES DANS UN MÊME ONGLET, jamais ensemble : la LISTE des objectifs
+       (où on les crée, les modifie, les relit) et la PAGE D'UN OBJECTIF, qu'on
+       ouvre en cliquant sa carte — sur cet écran comme au dashboard. Même
+       procédé que l'onglet « Projets » : le détail remplace la liste, et un
+       bouton y ramène (cf. objectifs.js, `objMontreVuePage`). -->
+  <div id="objectifs-vue-liste">
   <h3>Objectifs<i class="info-bulle" tabindex="0" data-info-cle="objectifs.objectifs">i</i></h3>
 
   <div class="actions">
@@ -137,4 +143,29 @@
   </div>
 
   <div id="objectifs-liste" class="obj-liste"></div>
+  </div>
+
+  <!-- ----- La page d'un objectif ----- -->
+  <div id="objectif-detail" style="display:none">
+    <div class="objectif-detail-entete">
+      <h3 id="objectif-detail-titre"></h3>
+      <button type="button" id="btn-objectif-fermer">&larr; Retour aux objectifs</button>
+    </div>
+
+    <!-- LA CARTE, telle qu'on vient de la quitter, avec sa bascule : la liste
+         dessous suit la vue choisie. -->
+    <div id="objectif-detail-carte" class="obj-liste"></div>
+
+    <h4>Opérations qui entrent en compte — <span id="objectif-detail-nombre"></span><i class="info-bulle" tabindex="0" data-info-cle="objectifs.page-objectif">i</i></h4>
+    <p class="hint" id="objectif-detail-vide" style="display:none">Aucune opération n'entre en compte sur cette période.</p>
+    <table id="objectif-detail-tableau">
+      <thead>
+        <tr>
+          <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th><th>Montant retenu</th>
+        </tr>
+      </thead>
+      <tbody id="objectif-detail-liste"></tbody>
+    </table>
+    <p class="objectif-detail-total" id="objectif-detail-total"></p>
+  </div>
 </div>

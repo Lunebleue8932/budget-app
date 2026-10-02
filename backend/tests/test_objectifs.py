@@ -871,25 +871,234 @@ def test_la_semaine_de_lecture(db_session):
     )
 
 
-def test_un_objectif_hebdomadaire_rend_aussi_la_semaine_en_cours(db_session, compte):
-    """DEUX LECTURES DU MÊME OBJECTIF : la moyenne du mois, et la semaine en
-    cours, jugée contre la même cible."""
+def test_un_objectif_hebdomadaire_rend_la_semaine_en_cours_et_la_moyenne_du_mois(
+    db_session, compte
+):
+    """DEUX LECTURES DU MÊME OBJECTIF : la semaine en cours, jugée contre la même
+    cible, et la moyenne du mois."""
     for jour in (1, 2, 3, 22, 23, 24):
         _depense(db_session, compte, 20.0, date(2026, 9, jour))
     objectif = _objectif(db_session, cadence="semaine", cible=2.0)
     mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
 
     assert mesure["mode"] == "moyenne"
-    semaine = mesure["semaine"]
-    assert (semaine["debut"], semaine["fin"]) == ("2026-09-21", "2026-09-27")
-    assert semaine["valeur"] == 3
-    assert semaine["atteint"] is False
-    assert semaine["avancement"] == pytest.approx(150.0)
+    actuelle = mesure["actuelle"]
+    assert actuelle["kind"] == "semaine"
+    assert (actuelle["debut"], actuelle["fin"]) == ("2026-09-21", "2026-09-27")
+    assert actuelle["valeur"] == 3
+    assert actuelle["mode"] == "cumul"
+    assert actuelle["atteint"] is False
+    assert actuelle["avancement"] == pytest.approx(150.0)
+
+    moyennee = mesure["moyennee"]
+    assert moyennee["kind"] == "mois"
+    assert (moyennee["debut"], moyennee["fin"]) == ("2026-09-01", "2026-09-30")
+    assert moyennee["mode"] == "moyenne"
+    assert moyennee["valeur"] == 6
+    # Les têtes de la carte sont la période du sélecteur : ici, la moyenne.
+    assert mesure["valeur_cadence"] == pytest.approx(moyennee["valeur_cadence"])
 
 
-def test_un_objectif_mensuel_n_a_pas_de_lecture_hebdomadaire(db_session, compte):
-    objectif = _objectif(db_session, cadence="mois")
-    assert service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))["semaine"] is None
-    hebdo = _objectif(db_session, cadence="semaine")
-    # En vue année, il n'y a pas de « semaine du mois » à proposer.
-    assert service.mesurer(db_session, hebdo, 2026, None, date(2026, 9, 24))["semaine"] is None
+def test_un_objectif_hebdomadaire_a_aussi_ses_deux_vues_sur_une_annee(db_session, compte):
+    """AU NIVEAU « ANNÉE », LA SEMAINE EN COURS EXISTE TOUJOURS : c'est celle
+    d'aujourd'hui, et la moyenne porte sur l'année entière."""
+    objectif = _objectif(db_session, cadence="semaine")
+    mesure = service.mesurer(db_session, objectif, 2026, None, date(2026, 9, 24))
+    assert (mesure["actuelle"]["debut"], mesure["actuelle"]["fin"]) == (
+        "2026-09-21", "2026-09-27"
+    )
+    assert mesure["moyennee"]["kind"] == "annee"
+    assert (mesure["moyennee"]["debut"], mesure["moyennee"]["fin"]) == (
+        "2026-01-01", "2026-12-31"
+    )
+
+
+def test_un_objectif_mensuel_se_lit_sur_son_mois_puis_sur_l_annee(db_session, compte):
+    """AU NIVEAU « MOIS » : le mois d'un côté, l'année de l'autre — c'est elle
+    que l'objectif mensuel moyenne."""
+    _depense(db_session, compte, 100.0, date(2026, 3, 5))
+    _depense(db_session, compte, 300.0, date(2026, 9, 5))
+    objectif = _objectif(db_session, mesure="montant_total", cadence="mois", cible=250.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+
+    assert mesure["actuelle"]["kind"] == "mois"
+    assert mesure["actuelle"]["valeur"] == pytest.approx(300.0)
+    assert mesure["actuelle"]["mode"] == "cumul"
+    assert mesure["actuelle"]["atteint"] is False
+
+    moyennee = mesure["moyennee"]
+    assert moyennee["kind"] == "annee"
+    assert moyennee["valeur"] == pytest.approx(400.0)
+    assert moyennee["mode"] == "moyenne"
+    # Huit mois révolus + vingt-quatre jours de septembre.
+    assert moyennee["unites"] == pytest.approx(8 + 24 / 30)
+    assert moyennee["valeur_cadence"] == pytest.approx(400.0 / (8 + 24 / 30))
+
+
+def test_un_objectif_mensuel_au_niveau_annee_se_moyenne_sur_tout_l_historique(
+    db_session, compte
+):
+    """AU NIVEAU « ANNÉE » : le mois de lecture est celui d'aujourd'hui, et la
+    moyenne couvre TOUT L'HISTORIQUE, depuis le premier mois où l'on a dépensé."""
+    _depense(db_session, compte, 120.0, date(2025, 11, 10))
+    _depense(db_session, compte, 80.0, date(2026, 9, 3))
+    objectif = _objectif(db_session, mesure="montant_total", cadence="mois", cible=250.0)
+    mesure = service.mesurer(db_session, objectif, 2026, None, date(2026, 9, 24))
+
+    assert (mesure["actuelle"]["debut"], mesure["actuelle"]["fin"]) == (
+        "2026-09-01", "2026-09-30"
+    )
+    assert mesure["actuelle"]["valeur"] == pytest.approx(80.0)
+
+    tout = mesure["moyennee"]
+    assert tout["kind"] == "tout"
+    assert tout["debut"] == "2025-11-01"
+    assert tout["valeur"] == pytest.approx(200.0)
+    # Novembre 2025 à août 2026 : dix mois ; septembre : 24 jours sur 30.
+    assert tout["unites"] == pytest.approx(10 + 24 / 30)
+
+
+def test_un_rapport_moyenne_la_meme_mesure_sur_la_fenetre_large(db_session, compte):
+    """UN MONTANT MOYEN N'A PAS DE CADENCE : sa vue moyennée est la même moyenne
+    sur l'année, sans rien diviser par une durée."""
+    _depense(db_session, compte, 10.0, date(2026, 3, 5))
+    _depense(db_session, compte, 50.0, date(2026, 9, 5))
+    objectif = _objectif(db_session, mesure="montant_moyen", cible=100.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+    assert mesure["actuelle"]["valeur_cadence"] == pytest.approx(50.0)
+    assert mesure["moyennee"]["valeur_cadence"] == pytest.approx(30.0)
+    assert mesure["moyennee"]["mode"] == "cumul"
+
+
+# ---------- Les opérations qui entrent en compte ----------
+
+
+def test_les_operations_d_une_semaine_sont_les_lignes_qui_ont_fait_le_chiffre(
+    db_session, compte
+):
+    for jour in (21, 22, 23):
+        _depense(db_session, compte, 10.0 * (jour - 20), date(2026, 9, jour))
+    _depense(db_session, compte, 99.0, date(2026, 9, 10))  # hors de la semaine
+    objectif = _objectif(db_session, mesure="montant_total", cadence="semaine", cible=100.0)
+
+    fenetres = service.fenetres_de_lecture(
+        db_session, objectif, 2026, 9, date(2026, 9, 24)
+    )
+    lignes = service.operations_contribuantes(db_session, objectif, fenetres["actuelle"])
+    assert [ligne["date"] for ligne in lignes] == ["2026-09-23", "2026-09-22", "2026-09-21"]
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+    assert sum(ligne["retenu"] for ligne in lignes) == pytest.approx(
+        mesure["actuelle"]["valeur"]
+    )
+
+
+def test_une_depense_amortie_entre_dans_le_budget_du_mois_qu_elle_pese(
+    db_session, compte
+):
+    """LE DÉFAUT QUE LA PAGE D'UN OBJECTIF EXISTE POUR ÉVITER : une carte annonce un
+    montant, et la liste ne retrouve pas la dépense qui le porte. Une dépense payée
+    en juillet et étalée sur cinq mois est dans le budget de septembre — pour sa
+    part du mois, pas pour son montant."""
+    _depense(
+        db_session,
+        compte,
+        500.0,
+        date(2026, 7, 20),
+        nature="Assurance",
+        amorti=True,
+        amortissement_debut=date(2026, 7, 1),
+        amortissement_fin=date(2026, 11, 1),
+    )
+    # Payée en septembre mais étalée APRÈS : elle ne pèse pas sur septembre.
+    _depense(
+        db_session,
+        compte,
+        900.0,
+        date(2026, 9, 5),
+        nature="Canapé",
+        amorti=True,
+        amortissement_debut=date(2026, 10, 1),
+        amortissement_fin=date(2026, 12, 1),
+    )
+    _depense(db_session, compte, 40.0, date(2026, 9, 6), nature="Courses")
+    objectif = _objectif(db_session, mesure="montant_total", cadence="mois", cible=300.0)
+
+    fenetres = service.fenetres_de_lecture(
+        db_session, objectif, 2026, 9, date(2026, 9, 24)
+    )
+    lignes = service.operations_contribuantes(db_session, objectif, fenetres["actuelle"])
+    assert {ligne["nature"] for ligne in lignes} == {"Assurance", "Courses"}
+    assurance = next(ligne for ligne in lignes if ligne["nature"] == "Assurance")
+    assert assurance["montant"] == pytest.approx(500.0)
+    assert assurance["retenu"] == pytest.approx(100.0)
+    assert assurance["amorti"] is True
+    assert assurance["amortissement_nb_mois"] == 5
+
+    # ET LA SOMME EST CELLE DE LA CARTE, qui est celle de l'histogramme.
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+    assert sum(ligne["retenu"] for ligne in lignes) == pytest.approx(
+        mesure["actuelle"]["valeur"]
+    )
+    assert mesure["actuelle"]["valeur"] == pytest.approx(140.0)
+
+
+def test_la_liste_d_une_annee_et_de_tout_l_historique_tombe_sur_la_carte(
+    db_session, compte
+):
+    _depense(db_session, compte, 60.0, date(2025, 12, 5), categorie="Loisirs & sorties")
+    _depense(
+        db_session,
+        compte,
+        1200.0,
+        date(2026, 1, 10),
+        categorie="Loisirs & sorties",
+        amorti=True,
+        amortissement_debut=date(2026, 1, 1),
+        amortissement_fin=date(2027, 12, 1),
+    )
+    _depense(db_session, compte, 30.0, date(2026, 6, 6), categorie="Alimentaire")
+    objectif = _objectif(
+        db_session,
+        mesure="montant_total",
+        cadence="mois",
+        cible=500.0,
+        categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+    )
+    aujourdhui = date(2026, 9, 24)
+    mesure = service.mesurer(db_session, objectif, 2026, 3, aujourdhui)
+    fenetres = service.fenetres_de_lecture(db_session, objectif, 2026, 3, aujourdhui)
+
+    annee = service.operations_contribuantes(db_session, objectif, fenetres["moyennee"])
+    # 1 200 € sur 24 mois : douze mois en 2026.
+    assert sum(ligne["retenu"] for ligne in annee) == pytest.approx(600.0)
+    assert sum(ligne["retenu"] for ligne in annee) == pytest.approx(
+        mesure["moyennee"]["valeur"]
+    )
+
+    mesure_tout = service.mesurer(db_session, objectif, 2026, None, aujourdhui)
+    fenetres_tout = service.fenetres_de_lecture(db_session, objectif, 2026, None, aujourdhui)
+    tout = service.operations_contribuantes(db_session, objectif, fenetres_tout["moyennee"])
+    assert sum(ligne["retenu"] for ligne in tout) == pytest.approx(
+        mesure_tout["moyennee"]["valeur"]
+    )
+    assert {ligne["nature"] for ligne in tout} == {"Dépense"}
+    assert len(tout) == 2
+
+
+def test_la_route_des_operations_rend_la_mesure_et_la_liste(db_session, compte):
+    _depense(db_session, compte, 75.0, date(2026, 9, 6), nature="Resto")
+    objectif = _objectif(db_session, mesure="montant_total", cadence="mois", cible=300.0)
+    reponse = routeur.operations_de_l_objectif(
+        objectif.id, vue="actuelle", annee=2026, mois=9, db=db_session
+    )
+    assert reponse.vue == "actuelle"
+    assert reponse.fenetre.kind == "mois"
+    assert [o.nature for o in reponse.operations] == ["Resto"]
+    assert reponse.total_retenu == pytest.approx(75.0)
+    assert reponse.mesure.objectif_id == objectif.id
+    with pytest.raises(HTTPException) as erreur:
+        routeur.operations_de_l_objectif(objectif.id, vue="autre", db=db_session)
+    assert erreur.value.status_code == 400
+    with pytest.raises(HTTPException) as erreur:
+        routeur.operations_de_l_objectif(9999, db=db_session)
+    assert erreur.value.status_code == 404

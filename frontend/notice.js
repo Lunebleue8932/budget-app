@@ -70,10 +70,11 @@ async function loadNotice() {
         <div class="notice-extension ${ext.actif ? "notice-extension-active" : ""}">
           <span class="notice-extension-nom">${escapeHtml(t(ext.nom))}</span>
           <span class="notice-extension-etat">${etat}</span>
-          <p class="hint">${escapeHtml(t(descriptionExtension(ext)))}</p>
+          <p class="hint" data-aide-marqueurs>${escapeHtml(t(descriptionExtension(ext)))}</p>
         </div>`;
       })
       .join("");
+    appliquerPuces(liste);
   } catch (err) {
     liste.innerHTML = `<p class="hint">${escapeHtml(err.message)}</p>`;
   }
@@ -126,7 +127,11 @@ function titreNomme(conteneur, nom) {
   return (
     [...conteneur.querySelectorAll("h2, h3, h4, dt")].find((titre) => {
       const cleTitre = cleChemin(texteDuTitre(titre));
-      return cleTitre === cle || cleTitre.startsWith(`${cle} `);
+      // En fin de titre aussi : « Settings → Categories » désigne la partie
+      // « Spending categories » — les deux langues ne placent pas le mot pareil.
+      return (
+        cleTitre === cle || cleTitre.startsWith(`${cle} `) || cleTitre.endsWith(` ${cle}`)
+      );
     }) || null
   );
 }

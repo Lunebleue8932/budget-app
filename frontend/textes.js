@@ -140,8 +140,6 @@ const TEXTES = {
     "L'import, c'est la manière la plus simple de mettre l'app à jour sur ton budget. Tu peux créer des preset d'imports et des règles /Les extensions/Règles de catégorisation pour configurer une fois ton système d'importation. Les fois d'après, il ne suffira que de quelques clics pour importer.",
   "noyau.notice-tutoriel-encart":
     "Un relevé d'exemple au format CSV est disponible te permettre de visualiser. Il contient deux lignes de titre (à ne pas lire) trois colonnes inutiles pour l'app.",
-  "noyau.notice-exemple-colonnes":
-    "A SUPPRIMER",
   "noyau.notice-import-etape-1":
     "Choisis ou crée le PRESET qui correspond à ton fichier, et sélectionne de quel compte il s'agit.",
   "noyau.notice-import-etape-2":
@@ -152,8 +150,6 @@ const TEXTES = {
     "Remplis les correspondances entre catégories, monnaies ou banques de ton relevé et ceux de l'app. L'app les garde en mémoire pour que tu n'aies pas à les renseigner à nouveau.",
   "noyau.notice-import-etape-5":
     "Confirmer te permet de finaliser ! Si tu souhaites revenir en arrière, tu peux annuler l'import : tout revient alors précisément à l'état précédent.",
-  "noyau.notice-import-annuler":
-    "A SUPPRIMER",
   "noyau.notice-extensions-intro":
     "L'application est par défaut minimaliste. Une fois familiarisé, choisis les extensions qui t'intéressent et te sont utiles à ta guise.",
   "noyau.notice-extensions-eteindre":
@@ -179,8 +175,6 @@ const TEXTES = {
     "Les comptes d'ÉPARGNE seulement, et leur solde réel. Un compte de placements porte des titres, qui ne sont disponibles qu'après une vente, à un cours qu'on ne connaît pas d'avance : les compter dans un matelas de sécurité reviendrait à se rassurer avec de l'argent qu'on n'a pas encore. Laisse à zéro pour ne pas poser de seuil du tout.",
   "analyse-budget.imprevues":
     "Les dépenses que tu n'avais prévues : une vue globale te permet de mieux comprendre comment elles pèsent dans ton budget.",
-  "analyse-budget.imprevues-aide":
-    "Tooltip à SUPPRIMER",
   "analyse-budget.imprevue-champ":
     "Une étiquette lue par l'extension budget. Elle te permet d'avoir une vue globale de tes dépenses liées à des imprévus.",
 
@@ -296,16 +290,12 @@ const TEXTES = {
     "Comment ton portefeuille est détenu : quelles sont les enveloppes que tu utilises ?",
 
   /* ----- Extension « Monnaies » ----- */
-  "monnaies.monnaies":
-    "Tooltip à SUPPRIMER",
   "monnaies.taux-de-change":
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.",
 
   /* ----- Extension « Placements » ----- */
   "placements.titres-suivis":
     "Les titres que tu utilises sur l'app. Le cours se saisit à la main ou se lit en ligne avec l'extension Lecture de cours.",
-  "placements.afficher-les-titres-archives":
-    "Tooltip à SUPPRIMER",
   "placements.enveloppe":
     "Voir l'infobulle plus bas.",
   "placements.classe-actif":
@@ -330,6 +320,8 @@ const TEXTES = {
     "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.",
   "objectifs.filtres":
     "Des conditions que chaque dépense doit remplir pour être comptée : un montant minimum ou maximum, un mot présent ou absent du libellé, les jours de semaine ou le week-end. -- Toutes s'appliquent ensemble. -- Un objectif filtré compte les dépenses ligne par ligne : une dépense amortie y pèse entièrement sur le mois où elle a été faite.",
+  "objectifs.page-objectif":
+    "Toutes les opérations qui entrent dans le chiffre de la carte, sur la vue choisie : la plus grosse d'abord. Le montant retenu est ce que chacune pèse dans l'objectif — son reste à charge si elle est remboursable, sa part si elle est découpée, la part du mois si elle est amortie (son montant réel est écrit en dessous, et le nombre de mois d'amortissement entre crochets après la date). La somme des montants retenus est le chiffre de la carte, avant d'être ramenée à la cadence ou divisée par le nombre de dépenses selon ce que l'objectif mesure.",
   "objectifs.dashboard":
     "Ce que tu t'es fixé, mesuré sur la période affichée ci-dessus et dans la monnaie de l'onglet. Le grand chiffre est ramené à la cadence de l'objectif ; la ligne du dessous dit ce qui a servi à le calculer. Rien ici n'influe sur tes soldes ni sur tes graphes : un objectif regarde, il ne change aucun montant. Ils se créent et se modifient dans Budget → Objectifs.",
 
@@ -685,6 +677,9 @@ function ecrireCheminsSeuls(parent, texte) {
     while (fin < reste.length && !CHEMIN_FIN.test(reste[fin])) {
       // Un autre marqueur de chemin arrête aussi celui-ci.
       if (reste[fin] === "/" && /\s/.test(reste[fin - 1])) break;
+      // UN TIRET ENTRE DEUX ESPACES ARRÊTE LE CHEMIN comme la ponctuation : « /Vue des
+      // avoirs - te permet de… » désigne la page, pas la phrase qui la suit.
+      if (/[-–—]/.test(reste[fin]) && /\s/.test(reste[fin - 1]) && /\s/.test(reste[fin + 1] || "")) break;
       fin++;
     }
     const brut = reste.slice(i + 1, fin).trim();
@@ -753,7 +748,10 @@ function ecrireTexteAide(el, texte) {
  * s'ouvrant (cf. app.js, `afficherInfobulle`).
  */
 function appliquerPuces(racine) {
-  racine.querySelectorAll("[data-texte-cle]").forEach((el) => {
+  // `data-aide-marqueurs` : un texte qui n'a pas de clé dans le HTML mais qui vient de
+  // ce fichier quand même — la description d'une extension, posée en JS dans trois
+  // écrans (Paramètres → Extensions, la fenêtre d'annonce, la notice).
+  racine.querySelectorAll("[data-texte-cle], [data-aide-marqueurs]").forEach((el) => {
     if (texteAMarqueurs(el.textContent)) ecrireTexteAide(el, el.textContent);
   });
 }

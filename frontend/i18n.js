@@ -1,6 +1,7 @@
 /**
- * Traduction de l'interface. Deux langues : le français, langue SOURCE, et
- * l'anglais.
+ * Traduction de l'interface. Trois langues : le français, langue SOURCE,
+ * l'anglais, et le portugais du Brésil (i18n-pt.js, chargé juste après ce
+ * fichier).
  *
  * POURQUOI LE FRANÇAIS SERT DE CLÉ. Un dictionnaire de clés abstraites
  * (« dashboard.kpi.solde ») aurait voulu dire toucher chaque libellé de
@@ -26,7 +27,7 @@
  * retraduire un DOM où les deux se mélangent.
  */
 
-const LANGUES = ["fr", "en"];
+const LANGUES = ["fr", "en", "pt"];
 const LANGUE_PAR_DEFAUT = "fr";
 const CLE_STOCKAGE = "budget-app-langue";
 
@@ -101,7 +102,7 @@ function traduireMessageServeur(message) {
 function traduireFragmentServeur(fragment) {
   const table = TRADUCTIONS[langueActuelle];
   if (table[fragment]) return table[fragment];
-  for (const [motif, remplacement] of MOTIFS_SERVEUR) {
+  for (const [motif, remplacement] of MOTIFS_PAR_LANGUE[langueActuelle] || []) {
     const trouve = fragment.match(motif);
     if (trouve) {
       return remplacement.replace(/\$(\d)/g, (_, n) => trouve[Number(n)] ?? "");
@@ -3157,6 +3158,399 @@ const TRADUCTIONS = {
     // ---------- Drill-through d'une catégorie : dépense amortie ----------
     "{n} mois": "{n} months",
     "1 mois": "1 month",
+
+    // ---------- Textes d'aide récrits, et page d'un objectif ----------
+    // noyau.touche-gel-infobulle
+    "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches":
+      "The key that freezes the tooltip on charts. To change it, click the field and press the new key or key combination",
+    // noyau.camembert-vue-budget
+    "La répartition de tes dépenses rapportées à ton budget de la période.":
+      "How your spending breaks down against your budget for the period.",
+    // noyau.reste-a-rembourser
+    "Ce qu'on te doit - Ce que tu dois.":
+      "What you are owed - what you owe.",
+    // noyau.total-entrees
+    "Les entrées d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui rentre sur ton compte durant la période). Les entrées amorties sont comptées au prorata, et les dépenses remboursables ne comptent que pour la part non-remboursable.":
+      "Money coming in - forecast included - attributed to the period (not the same as what actually lands in your account during the period). Spread-out income is counted pro rata, and reimbursable expenses only count for their non-reimbursable share.",
+    // noyau.total-depenses
+    "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser.":
+      "Money going out - forecast included - attributed to the period (not the same as what actually leaves your account during the period). Spread expenses are counted pro rata. Loans only count for the part to be repaid.",
+    // noyau.variation-attribuee-au-mois
+    "La différence des deux KPIs différents.":
+      "The difference between the two different KPIs.",
+    // noyau.variation-sur-le-mois-brute
+    "La variation de ce que tu possèdes sur le mois : un calcul brut en fonction de la date et du montant.":
+      "The change in what you own over the month: a raw calculation based on date and amount.",
+    // noyau.statut-previsionnel
+    "Pour les opérations à venir qui n'ont pas encore eu lieu. Elles comptent pour ton solde projeté et dans les graphiques du dashboard - de manière distincte.":
+      "For upcoming transactions that have not happened yet. They count towards your projected balance and in the dashboard charts - separately.",
+    // noyau.repartition-des-avoirs
+    "La répartition des avoirs en fonction du type de comptes - prends en compte la valorisation des titres possédés.":
+      "The breakdown of your assets by account type - taking into account the valuation of the securities you hold.",
+    // noyau.montant-min
+    "Montant brut, sans le signe. Ne rien mettre n'impose pas de borne.":
+      "Gross amount, without the sign. Leaving it empty sets no bound.",
+    // noyau.frais
+    "Les frais sur ton opération. Ils apparaissent séparément pour pouvoir les distinguer, mais c'est bien le montant + les frais (ou - les frais) qui sont utilisés pour les calculs.":
+      "The fees on your transaction. They are shown separately so you can tell them apart, but it is the amount + fees (or - fees) that is used in calculations.",
+    // noyau.monnaie-des-frais
+    "Utile pour les virements internes entre devises différentes. Elle permet à l'app de comprendre si elle doit soustraire ou additioner les frais - et où.":
+      "Useful for internal transfers between different currencies. It lets the app work out whether to subtract or add the fees - and where.",
+    // noyau.decouper-entre-plusieurs-categories
+    "Pour répartir le montant d'une opération en plusieurs catégories.":
+      "To split the amount of a transaction across several categories.",
+    // noyau.amortie-sur-plusieurs-mois
+    "Permet d'amortir la dépense sur plusieurs mois, pour avoir une meilleure vue de tes dépenses. N'affecte pas le solde de ton compte et ne change pas la date de l'opération.":
+      "Lets you spread the expense over several months, for a better view of your spending. Does not affect your account balance and does not change the transaction's date.",
+    // noyau.notice-intro
+    "Le mode d'emploi de l'application. Il est assez dense, mais n'a pas vocation à être lu d'un coup. Il s'agit pluôt d'un guide à consulter si tu te poses des questions.":
+      "The app's user guide. It is fairly dense and is not meant to be read in one go. Think of it as a guide to consult when you have questions.",
+    // noyau.notice-mot-compte
+    "C'est la première brique pour catégoriser tes opérations : affecter une opération à un compte impactera son solde, et pas celui des autres.":
+      "This is the first building block for categorising your transactions: assigning a transaction to an account affects that account's balance, and not the others'.",
+    // noyau.notice-mot-operation
+    "Une ligne : une date, un libellé, un montant, un compte. C'est la base sur laquelle repose le reste de l'application.":
+      "A line: a date, a description, an amount, an account. It is the foundation the rest of the app rests on.",
+    // noyau.notice-mot-categorie
+    "C'est la seconde brique pour catégoriser une opération, qui vient avec des valeurs par défaut (modifiables et supprimables) : alimentation, transports, loisirs. C'est avec elles que les graphiques du dashboard se construisent.":
+      "This is the second building block for categorising a transaction, and it comes with default values (editable and deletable): groceries, transport, leisure. The dashboard charts are built from them.",
+    // noyau.notice-mot-monnaie
+    "L'application permet de prendre en compte plusieurs devises avec l'extension « Monnaies », pour ne pas mélanger ce qui ne devrait pas l'être.":
+      "The app can handle several currencies with the “Currencies” extension, so that you don't mix what shouldn't be mixed.",
+    // noyau.notice-demarrer-1
+    "Crée ton ou tes comptes (dans Paramètres → Comptes /Paramètres/Comptes), en choissisant leur type (Courant, d'épargne ou de placements) et leur solde de départ.":
+      "Create your account(s) (in Settings → Accounts /Settings/Accounts), choosing their type (Current, savings or investments) and their opening balance.",
+    // noyau.notice-demarrer-2
+    "Réorganise tes catégories, dans Paramètres → Catégories /Paramètres/Catégories. Tu peux librement en créer, supprimer et modifier, dont les 4 de base.":
+      "Reorganise your categories, in Settings → Categories /Settings/Categories. You can freely create, delete and edit them, including the 4 default ones.",
+    // noyau.notice-demarrer-3
+    "Créer tes opérations : à la main dans la page Opérations /Opérations, ou par un import de relevé (cf. Importer un relevé /Importer un relevé)":
+      "Create your transactions: by hand on the Transactions page /Transactions, or through a statement import (see Importing a statement /Importing a statement)",
+    // noyau.notice-demarrer-4
+    "Ensuite, direction le dashboard ! /- En haut, une vue globale de tes avoirs. /- Au milieu, des cartes qui décrivent l'évolution de ton compte sur le mois ou l'année. /- En bas, deux graphiques te permettant de comprendre ta répartition. // Et enfin, un champ libre de notes (qui s'enregistre automatiquement).":
+      "Next, head to the dashboard! /- At the top, a global view of your assets. /- In the middle, cards describing how your account has changed over the month or the year. /- At the bottom, two charts to help you understand your breakdown. // And finally, a free notes field (saved automatically).",
+    // noyau.notice-donnees
+    "Toutes tes données vivent dans un fichier, dont tu dois choisir l'emplacement au premier lancement. Tu peux le déplacer via Paramètres → Base de données /Paramètres/Base de données. Aucune copie n'est faite et rien ne sort de ton PC : fais donc attention à ne pas le supprimer par erreur.":
+      "All your data lives in a single file, whose location you must choose on first launch. You can move it via Settings → Database /Settings/Database. No copy is made and nothing leaves your PC: so be careful not to delete it by mistake.",
+    // noyau.notice-dashboard-intro
+    "Le dashboard répond à deux questions différentes : qu'est-ce que tu as aujourd'hui (cartes en haut) et comment ce que tu as a évolué (cartes en-dessous) sur la période choisie.":
+      "The dashboard answers two different questions: what do you have today (cards at the top) and how what you have has changed (cards below) over the chosen period.",
+    // noyau.notice-kpi-solde-total
+    "Le total de tes comptes courants. Le chiffre en plus est le prévisionnel, il prend en compte les opérations prévisionelles (cf. Les types d'opérations /Les types d'opérations).":
+      "The total of your current accounts. The extra figure is the forecast, which takes forecast transactions into account (see Transaction types /Transaction types).",
+    // noyau.notice-kpi-avoirs
+    "Ce KPI regroupe tout ce que tu possèdes : comptes courants, épargne, et la valeur de tes titres côtés si l'extension « Placements financiers » tourne.":
+      "This KPI gathers everything you own: current accounts, savings, and the value of your listed securities if the “Investments” extension is running.",
+    // noyau.notice-dashboard-ecart
+    "Deux KPIs pour deux manières de calculer des variations sur le mois : l'une dit ce que le mois COÛTE - les dépenses que tu as attribuées à ce mois - et l'autre ce qui est PASSÉ sur ton compte sur ce mois. /- Par exemple, tu peux payer pour un abonnement annuel et vouloir le faire compter sur chaque mois au lieu d'un seul dans l'année (c'est la fonctionnalité d'amortissement /Les types d'opérations). /- Tu peux aussi avoir une dépense à faire rembourser (en partie ou en totalité) : le premier KPI prendra en compte ce que tu as dépense - ce qu'on te doît, l'autre fera abstraction de cette deuxième donnée. // Quand elles diffèrent, un bouton apparaît et te permet de voir plus en détails.":
+      "Two KPIs for two ways of calculating changes over the month: one says what the month COSTS - the expenses you attributed to this month - and the other what actually HAPPENED in your account this month. /- For example, you may pay for an annual subscription and want it to count on each month rather than once in the year (that is the spreading feature /Transaction types). /- You may also have an expense to be reimbursed (in part or in full): the first KPI will take into account what you spent - what you are owed, the other will ignore that second piece of data. // When they differ, a button appears and lets you see more details.",
+    // noyau.notice-graphes
+    "Les deux graphes montrent la répartition de tes dépenses en fonction de la catégorie. Tu pilotes l'affichage avec la période du sélecteur et avec le filtre « Catégories ». Survoler une barre, une tranche ou une ligne de légende ouvre une infobulle avec plus de détails : /- Le total de la catégorie /- Le poids en pourcentage de celle-ci /- Ton top 3 dépenses (agrégées selon le nom : si tu fais 5 fois des courses au même endroit, tu verras une ligne avec le total et un (5)). /- Enfin, tes objectifs de budget s'y affichent si tu as activé l'extension.":
+      "The two charts show the breakdown of your spending by category. You control the display with the period selector and the “Categories” filter. Hovering over a bar, a slice or a legend line opens a tooltip with more details: /- The category's total /- Its weight as a percentage /- Your top 3 expenses (aggregated by name: if you shop five times at the same place, you will see one line with the total and a (5)). /- Finally, your budget goals appear there if you have enabled the extension.",
+    // noyau.notice-graphes-histogramme
+    "L'histogramme affiche le total par catégorie ! Si tu as l'extension « Budget », la barre rouge qui apparaît est le budget que tu t'es fixé.":
+      "The histogram shows the total per category! If you have the “Budget” extension, the red bar that appears is the budget you set yourself.",
+    // noyau.notice-graphes-camembert
+    "Le camembert montre la part de chaque catégorie. / -En vue « État actuel », chaque tranche est rapportée au total dépensé (le total fait donc 100%). /- En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.":
+      "The pie chart shows each category's share. / -In the “Current state” view, each slice is relative to the total spent (so the total is 100%). /- In the “Budget” view, they are relative to the month's budget: the ring stays open on what has not been spent.",
+    // noyau.notice-graphes-legende
+    "La légende sous les deux est commune aux deux graphiques : l'infobulle affiche le bouton « Voir toutes les dépenses » qui t'emmène à la liste des opérations de cette catégorie.":
+      "The legend below the two is shared by both charts: the tooltip shows the “See all expenses” button that takes you to the list of transactions in that category.",
+    // noyau.notice-graphes-semaines
+    "La flèche sous la rangée des mois déplie les semaines : l'histogramme devient celui de la semaine choisie, et « Moyenne » te montre une vue moyennée sur le mois (au prorata en fonction du nombre de jours écoulés). Les cartes ne sont pas affectées.":
+      "The arrow under the row of months expands the weeks: the histogram becomes that of the chosen week, and “Average” shows you an averaged view over the month (pro rata according to the number of days elapsed). The cards are not affected.",
+    // noyau.notice-types-intro
+    "Le type d'une opération te permet de dicter comment elle agit. Deux types sont disponibles de base, les opérations classiques (entrées et sorties d'argent) et les virements internes (entre deux comptes que tu possèdes). Les autres sont activables et utilisables grâce à des extensions.":
+      "A transaction's type lets you dictate how it behaves. Two types are available by default: standard transactions (money in and out) and internal transfers (between two accounts you own). The others can be enabled and used through extensions.",
+    // noyau.notice-type-classique
+    "Le type d'opération par défaut et le plus courant : des courses, un paiement, un salaire, etc... C'est le seul type que tu peux découper en plusieurs catégories (plus de détails en bas de page).":
+      "The default and most common transaction type: groceries, a payment, a salary, etc. It is the only type you can split across several categories (more details at the bottom of the page).",
+    // noyau.notice-type-virement
+    "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs (à l'exception des virements internes entre deux monnaies différentes).":
+      "Internal transfers do not change how much you own. They have their own type and do not enter your KPI calculations (except internal transfers between two different currencies).",
+    // noyau.notice-type-remboursable
+    "Si tu as avancé de l'argent ou qu'une de tes dépenses est remboursable, ce type est fait pour ton opération. Il te permet de /- ne compter que combien tu as réellement dépensé dans tes KPIs et les graphiques /- renseigner un montant dû /- suivre combien on te doit // Quand un remboursement est effectué (en partie ou totalement), le type Remboursement reçu te permet de relier l'opération de remboursement à la dépense remboursable.":
+      "If you advanced money or one of your expenses is reimbursable, this type is made for your transaction. It lets you /- count only what you actually spent in your KPIs and charts /- record an amount owed /- track how much you are owed // When a reimbursement is made (in part or in full), the Reimbursement received type lets you link the reimbursement transaction to the reimbursable expense.",
+    // noyau.notice-type-pret
+    "Ce type est similaire au précédent, mais dans la situation inverse. Ici, seul les intérêts du montant prêté (s'il y en a) rentrent dans le compte des dépenses.":
+      "This type is similar to the previous one, but in the opposite situation. Here, only the interest on the amount borrowed (if any) counts towards expenses.",
+    // noyau.notice-statut
+    "Deux possibilités pour une opération, réelle ou prévisionnelle :/- les dépenses réelles (la plupart des opérations) sont celles qui ont eu lieu /- les dépenses prévisionnelles sont celles que tu anticipes. A l'import de l'opération en question, l'app le détecte et te propose de remplacer l'opération prévisionnelle.":
+      "Two possibilities for a transaction, actual or forecast: /- actual expenses (most transactions) are those that took place /- forecast expenses are those you anticipate. When the transaction in question is imported, the app detects it and offers to replace the forecast transaction.",
+    // noyau.notice-import-intro
+    "L'import, c'est la manière la plus simple de mettre l'app à jour sur ton budget. Tu peux créer des preset d'imports et des règles /Les extensions/Règles de catégorisation pour configurer une fois ton système d'importation. Les fois d'après, il ne suffira que de quelques clics pour importer.":
+      "Importing is the simplest way to bring the app up to date with your budget. You can create import presets and rules /Extensions/Categorisation rules to set up your import system once. Afterwards, a few clicks are all it takes to import.",
+    // noyau.notice-tutoriel-encart
+    "Un relevé d'exemple au format CSV est disponible te permettre de visualiser. Il contient deux lignes de titre (à ne pas lire) trois colonnes inutiles pour l'app.":
+      "A sample statement in CSV format is available so you can see how it works. It contains two header lines (not to be read) and three columns that are useless to the app.",
+    // noyau.notice-import-etape-1
+    "Choisis ou crée le PRESET qui correspond à ton fichier, et sélectionne de quel compte il s'agit.":
+      "Choose or create the PRESET that matches your file, and select which account it is for.",
+    // noyau.notice-import-etape-2
+    "Dépose le fichier. L'application le lit et affiche comment elle le lit actuellement.":
+      "Drop the file. The app reads it and shows how it currently reads it.",
+    // noyau.notice-import-etape-4
+    "Remplis les correspondances entre catégories, monnaies ou banques de ton relevé et ceux de l'app. L'app les garde en mémoire pour que tu n'aies pas à les renseigner à nouveau.":
+      "Fill in the mappings between your statement's categories, currencies or banks and those of the app. The app remembers them so you don't have to enter them again.",
+    // noyau.notice-import-etape-5
+    "Confirmer te permet de finaliser ! Si tu souhaites revenir en arrière, tu peux annuler l'import : tout revient alors précisément à l'état précédent.":
+      "Confirming lets you finalise! If you want to go back, you can cancel the import: everything then returns exactly to its previous state.",
+    // noyau.notice-extensions-intro
+    "L'application est par défaut minimaliste. Une fois familiarisé, choisis les extensions qui t'intéressent et te sont utiles à ta guise.":
+      "The app is minimalist by default. Once you are familiar with it, pick the extensions that interest you and are useful to you, as you like.",
+    // noyau.notice-extensions-eteindre
+    "Éteindre une extension ne supprime AUCUNE donnée : seul l'affichage disparaît.":
+      "Turning an extension off deletes NO data: only the display disappears.",
+    // analyse-budget.graphes
+    "« Comparer avec » te permet de comparer deux périodes de même durée.":
+      "“Compare with” lets you compare two periods of equal length.",
+    // analyse-budget.budget-total
+    "Le budget de chaque mois, il reprend la valeur du dernier mois par défaut. Il relie les objectifs par catégorie en pourcentage et en valeur. ":
+      "Each month's budget; by default it takes the value of the previous month. It links the goals by category in percentage and in value. ",
+    // analyse-budget.budget-total-aide
+    "Mois par mois et monnaie par monnaie. Hérite par défaut des valeurs du mois précédent.":
+      "Month by month and currency by currency. By default it inherits the previous month's values.",
+    // analyse-budget.epargne
+    "La différence entre ce qui entre et ce qui sort de tes comptes d'épargne ou de placements. Un bon indicateur à suivre si tu veux mettre de l'argent de côté régulièrement.":
+      "The difference between what comes into and what leaves your savings or investment accounts. A good indicator to follow if you want to set money aside regularly.",
+    // analyse-budget.matelas
+    "Le matelas de sécurité que tu gardes sur tes comptes d'épargne - les comptes de placements ne rentrent pas dans ce scope.":
+      "The safety cushion you keep in your savings accounts - investment accounts are not in this scope.",
+    // analyse-budget.imprevues
+    "Les dépenses que tu n'avais prévues : une vue globale te permet de mieux comprendre comment elles pèsent dans ton budget.":
+      "Expenses you had not planned for: a global view helps you better understand how they weigh on your budget.",
+    // analyse-budget.imprevue-champ
+    "Une étiquette lue par l'extension budget. Elle te permet d'avoir une vue globale de tes dépenses liées à des imprévus.":
+      "A label read by the budget extension. It gives you a global view of your expenses linked to unexpected events.",
+    // noyau.import-previsionnelles
+    "Ces lignes du relevé correspondent à des dépenses que tu avais écrites d'avance, en prévisionnel. Plutôt que d'ajouter une opération de plus à côté de la prévision, l'import va REMPLACER la prévision par la vraie ligne : même opération, désormais réelle, avec la date et le montant du relevé. Elle garde tout ce qui lui était rattaché — son projet, son profil de remboursement, sa récurrence. Coché, le remplacement a lieu ; décoché, la ligne s'importe comme une autre et la dépense prévue reste telle quelle. Vérifie la colonne de droite avant de confirmer : c'est elle qui dit ce qui sera écrasé. Et si tu te trompes, annuler l'import rend chaque prévision à son état d'origine.":
+      "These statement lines match expenses you had written in advance, as forecasts. Rather than adding one more transaction next to the forecast, the import will REPLACE the forecast with the real line: same transaction, now actual, with the statement's date and amount. It keeps everything attached to it — its project, its reimbursement profile, its recurrence. Ticked, the replacement takes place; unticked, the line is imported like any other and the planned expense stays as it was. Check the right-hand column before confirming: it tells you what will be overwritten. And if you get it wrong, cancelling the import returns each forecast to its original state.",
+    // noyau.rapprochement
+    "Permet l'amélioration de la détection d'une dépense prévisionnelle renseignée dans l'app lors de son importation. L'import te proposera alors de valider la substitution.":
+      "Improves the detection of a forecast expense entered in the app when it is imported. The import will then offer to confirm the substitution.",
+    // noyau.rapprochement-mots-cles
+    "Permet de ne pas confondre des dépenses de même montant, compte et date mais dont le libellé est différent.":
+      "Prevents mixing up expenses with the same amount, account and date but a different description.",
+    // noyau.montant-a-rembourser
+    "Combien on te doit sur une dépense remboursable, combien tu dois sur un prêt.":
+      "How much you are owed on a reimbursable expense, how much you owe on a loan.",
+    // noyau.monnaies-du-compte
+    "Chaque monnaie du compte garde son propre solde, non mélangé aux autres.":
+      "Each currency of the account keeps its own balance, not mixed with the others.",
+    // noyau.categories-de-depenses
+    "Les dépenses se rangent dans ces catégories. Les réordonner change l'ordre d'apparition sur le dashboard. Eteindre une catégorie agit comme si elle n'existait plus à partir de l'extinction, tout en la conservant comme la catégorie des dépenses à laquelle elle est attribuée.":
+      "Expenses are filed into these categories. Reordering them changes the order they appear in on the dashboard. Turning a category off acts as if it no longer existed from that point on, while keeping it as the expense category it is assigned to.",
+    // noyau.categorie-entree
+    "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.":
+      "Lets you mark categories as money coming in. They do not appear on the histogram and carry no budget.",
+    // noyau.correspondances-memorisees
+    "Les correspondances - catégories, comptes bancaires, monnaies - que l'app a mémorisé de tes imports":
+      "The mappings - categories, bank accounts, currencies - that the app has remembered from your imports",
+    // noyau.categories-bancaires
+    "Le libellé de ton relevé, suivi du compte lié au preset d'importation. Glisse-le vers une autre catégorie pour modifier la correspondance.":
+      "Your statement's label, followed by the account linked to the import preset. Drag it onto another category to change the mapping.",
+    // noyau.comptes-bancaires
+    "Les noms de compte lus dans tes relevés et le comptes de l'app en face.":
+      "The account names read in your statements and the app's account opposite.",
+    // noyau.devises
+    "Les libellés de devise de tes relevés (« EUR »), et la monnaie de l'app en face.":
+      "The currency labels in your statements (“EUR”), and the app's currency opposite.",
+    // noyau.preset
+    "Comment l'app doit comprendre ton fichier d'opérations.":
+      "How the app should understand your transactions file.",
+    // noyau.compte-bancaire-de-ce-preset
+    "Toutes les lignes du fichier iront sur ce compte. Laisse « aucun » si le fichier comporte une colonne comptes.":
+      "All the lines in the file will go to this account. Leave “none” if the file has an accounts column.",
+    // noyau.configuration-du-fichier
+    "Quelle colonne de ton fichier porte quelle information. Date, Nature et Montant sont obligatoires.":
+      "Which column of your file carries which piece of information. Date, Description and Amount are required.",
+    // noyau.colonnes-lues
+    "Clique sur l'œil pour indiquer à l'app de lire ou d'ignorer une information.":
+      "Click the eye to tell the app to read or ignore a piece of information.",
+    // noyau.configuration-avancee
+    "Pour les fichiers nécessitant un paramétrage plus complexe.":
+      "For files that need more complex settings.",
+    // noyau.detection-colonnes
+    "L'application lit le fichier et essaie d'attribuer chaque colonne à une ou plusieurs potentielles propriétés. Ensuite, à toi de trancher. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement ou d'actualisation.":
+      "The app reads the file and tries to assign each column to one or more possible properties. Then it is up to you to decide. Nothing is saved to your preset until you use the save or update button.",
+    // noyau.detection-colonnes-enregistrer
+    "Appliquer met à jour les colonnes, sans enregistrer le preset. Attention : si tu appuies sur Enregistrer le preset, ton ancien preset sera remplacé par la configuration actuelle.":
+      "Apply updates the columns without saving the preset. Careful: if you press Save the preset, your old preset will be replaced by the current configuration.",
+    // noyau.detection-colonnes-suggestion
+    "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.":
+      "Most lines are unreadable; you can use automatic column detection to help fix this.",
+    // noyau.le-fichier-tel-qu-il-est
+    "Les colonnes lues sont colorées et portent l'information que l'app en tire en en-tête. Deux façons de modifier : glisser un en-tête sur un autre pour échanger les deux ou saisir les numéros dans « Configuration du fichier » au-dessus.":
+      "The columns read are coloured and carry, in the header, the information the app takes from them. Two ways to change them: drag a header onto another to swap the two, or enter the numbers in “File configuration” above.",
+    // noyau.categories-bancaires-a-confirmer
+    "Les nouveaux libellés apparaîtront ici, pour que tu renseignes vers quelle catégorie de l'app ils pointent. Une fois fait, confirme en cochant la case.":
+      "New labels will appear here so that you can say which app category they point to. Once done, confirm by ticking the box.",
+    // noyau.apercu-import
+    "Les doublons repérés sont déjà cochés pour permettre une suppression rapide. Pour déverrouiller l'import, supprime-les ou décoche-les si tu veux tout de même les importer.":
+      "Duplicates spotted are already ticked to allow quick deletion. To unlock the import, delete them, or untick them if you still want to import them.",
+    // noyau.ressemblances
+    "Une détection de doublons pour les virements internes : les opérations ici ne sont pas rejetés par défaut, mais l'app te les signale pour éviter d'importer des opérations en double.":
+      "A duplicate check for internal transfers: transactions here are not rejected by default, but the app flags them so you avoid importing duplicates.",
+    // noyau.doublons-detectes
+    "Ces lignes sont identiques à des lignes déjà importées, sur la base des critères que tu as défini pour le preset. Tu peux les importer en les décochant.":
+      "These lines are identical to lines already imported, based on the criteria you defined for the preset. You can import them by unticking them.",
+    // noyau.lignes-entete
+    "Les lignes d'en-tête et d'informations qui ne sont pas des opérations. N'utilise pas ceci pour gérer des doublons, une fonctionnalité est présente pour ça.":
+      "Header and information lines that are not transactions. Don't use this to handle duplicates; there is a feature for that.",
+    // noyau.comparaison-des-doublons
+    "Quelles colonnes l'app doit lire ou non pour identifier un doublon.":
+      "Which columns the app should read or not to identify a duplicate.",
+    // noyau.mots-cles-de-la-colonne-sens
+    "Les mots-clés indiquant si ligne sort ou entre. Ajoute-les un par un avec « + » ou Entrée ; insensible aux majuscules et accents.":
+      "Keywords indicating whether a line goes out or comes in. Add them one by one with “+” or Enter; case- and accent-insensitive.",
+    // noyau.mots-cles-de-la-colonne-etat
+    "Les mots-clés indiquant l'état de l'opération : utile si ton fichier renseigne des status (ex : en attente, complété, annulé).":
+      "Keywords indicating the transaction's status: useful if your file records statuses (e.g. pending, completed, cancelled).",
+    // noyau.devises-a-faire-correspondre
+    "Même fonctionnement que pour les catégories : enregistre la correspondance une fois pour toutes.":
+      "Same as for categories: save the mapping once and for all.",
+    // noyau.devises-deja-rattachees
+    "Ces libellés ont déjà leur correspondance : simplement là pour vérifier avant de confirmer.":
+      "These labels already have their mapping: they are just here for you to check before confirming.",
+    // noyau.historique-des-importations
+    "Annuler un import retire les opérations qu'il avait créées, qu'elles aient été modifiées ou non.":
+      "Cancelling an import removes the transactions it created, whether or not they were edited.",
+    // noyau.base-de-donnees
+    "L'application lit et écrit dans un seul fichier .db. « Basculer » permet de lire un fichier différent. « Créer / déplacer ici » déplace la base actuelle dans le nouveau dossier.":
+      "The app reads and writes in a single .db file. “Switch” lets you read a different file. “Create / move here” moves the current database to the new folder.",
+    // import-placements.colonnes-lues
+    "Clique sur l'œil pour lire ou ignorer une colonne. Les colonnes proposées dépendent de ce que le fichier contient : une liste d'opérations lit une date et un type, une photographie lit une quantité détenue et un prix de revient.":
+      "Click the eye to read or ignore a column. The columns offered depend on what the file contains: a list of transactions reads a date and a type, a snapshot reads a quantity held and a cost price.",
+    // import-placements.regles-de-type-d-operation
+    "Une règle reconnaît une ligne à son libellé et dit ce qu'elle est : achat, vente, transfert d'espèces. Elle vaut pour tous tes courtiers et passe avant les mots-clés du preset. Les mots-clés de la « Configuration du fichier » comparent un libellé entier : « Achat » est un achat, et rien d'autre ne l'est. Quand le courtier écrit une phrase — « ACHAT COMPTANT ETF MSCI WORLD », avec le nom du titre dedans — aucune liste de mots-clés ne peut la reconnaître, parce qu'il n'y a pas deux fois le même libellé dans le fichier. Une règle, elle, sait dire « contient ACHAT ». Elles sont évaluées de haut en bas et s'arrêtent à la première qui correspond : contrairement aux règles bancaires, une règle de placement ne décide que d'une chose, il n'y a donc rien à compléter en dessous. Place les cas particuliers au-dessus des cas généraux. Une ligne qu'aucune règle ne reconnaît retombe sur les mots-clés du preset. Sans aucune règle, l'import se comporte donc exactement comme avant.":
+      "A rule recognises a line by its label and says what it is: purchase, sale, cash transfer. It applies to all your brokers and takes precedence over the preset's keywords. The keywords under “File configuration” compare a whole label: “Purchase” is a purchase, and nothing else is. When the broker writes a sentence — “ACHAT COMPTANT ETF MSCI WORLD”, with the security's name inside — no keyword list can recognise it, because the same label never appears twice in the file. A rule, on the other hand, can say “contains ACHAT”. They are evaluated from top to bottom and stop at the first one that matches: unlike bank rules, an investment rule decides only one thing, so there is nothing to complete below it. Put special cases above general ones. A line that no rule recognises falls back on the preset's keywords. With no rules at all, the import therefore behaves exactly as before.",
+    // import-placements.description
+    "C'est l'extension te permettant d'importer des relevés pour tes titres de placements (nécessite l'extension Placements). Le mécanisme d'import est le même que celui pour l'import d'informations, et l'information clé est l'ISIN d'un titre - un identifiant unique.":
+      "This is the extension that lets you import statements for your investment securities (requires the Investments extension). The import mechanism is the same as for importing information, and the key piece of information is a security's ISIN - a unique identifier.",
+    // interets-percus.interets-percus
+    "Pour renseigner les intérêts perçus sur tes comptes de placements. Pense à les remettre à 0 si un import de relevé les importe.":
+      "To record the interest received on your investment accounts. Remember to set them back to 0 if a statement import brings them in.",
+    // investing-overview.repartition-par-classe
+    "À quoi ton portefeuille est exposé : actions, obligations, immobilier, monétaire ?":
+      "What is your portfolio exposed to: stocks, bonds, real estate, money market?",
+    // investing-overview.repartition-par-type-de-titre
+    "Comment ton portefeuille est détenu : quelles sont les enveloppes que tu utilises ?":
+      "How your portfolio is held: which wrappers do you use?",
+    // monnaies.taux-de-change
+    "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.":
+      "Lets you use the dashboard's convert-all feature for a complete view. Your transactions are never modified, only the dashboard display.",
+    // placements.titres-suivis
+    "Les titres que tu utilises sur l'app. Le cours se saisit à la main ou se lit en ligne avec l'extension Lecture de cours.":
+      "The securities you use in the app. The price is entered by hand or read online with the Price lookup extension.",
+    // placements.enveloppe
+    "Voir l'infobulle plus bas.":
+      "See the tooltip further down.",
+    // placements.types-de-titre
+    "Sous quelle forme tes titres sont détenus : ETF, action en direct, fonds et SCPI sont livrés par défaut.":
+      "The form in which your securities are held: ETF, direct stock, funds and SCPI are provided by default.",
+    // placements.classes-actif
+    "À quel type d'objet financier tes avoirs t'exposent-ils ?":
+      "What kind of financial asset do your holdings expose you to?",
+    // objectifs.page-objectif
+    "Toutes les opérations qui entrent dans le chiffre de la carte, sur la vue choisie : la plus grosse d'abord. Le montant retenu est ce que chacune pèse dans l'objectif — son reste à charge si elle est remboursable, sa part si elle est découpée, la part du mois si elle est amortie (son montant réel est écrit en dessous, et le nombre de mois d'amortissement entre crochets après la date). La somme des montants retenus est le chiffre de la carte, avant d'être ramenée à la cadence ou divisée par le nombre de dépenses selon ce que l'objectif mesure.":
+      "All the transactions that go into the card's figure, in the chosen view: the biggest first. The amount counted is what each one weighs in the goal — its out-of-pocket share if it is reimbursable, its share if it is split, the month's share if it is spread (its real amount is written below, and the number of spreading months in square brackets after the date). The sum of the amounts counted is the card's figure, before it is brought back to the cadence or divided by the number of expenses, depending on what the goal measures.",
+    // projets.projets
+    "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.":
+      "Brings together transactions you have already entered, whatever their category and account, to see what a trip or a move cost you. A transaction can belong to several projects, and nothing else in the app takes them into account. A project is not entered from a transaction: you create it here, then add the relevant transactions to it. It is a READING grouping — removing a transaction from a project does not delete it, and deleting a project deletes no expense.",
+    // regles.regles-de-categorisation
+    "Une règle reconnaît des lignes à leur libellé et dit ce qu'elles sont : virement interne, prêt, dépense remboursable… Elle peut aussi poser la catégorie, et passe avant tout le reste. Une règle classe automatiquement les lignes importées d'après leurs libellés — c'est le seul moyen de marquer une ligne « remboursable » ou de la classer en Prêt / Remboursement sans le faire à la main. Les règles sont communes à tous les presets d'import. Elles sont évaluées de haut en bas, et s'arrêtent à la première qui correspond — sauf si celle-ci décoche « Arrêter la lecture des règles ici ». Plusieurs règles peuvent alors s'appliquer à une même ligne, mais aucune ne défait ce qu'une règle plus haute a décidé : en cas de désaccord, la plus haute gagne. Place les cas particuliers au-dessus des cas généraux. Les règles passent avant les correspondances mémorisées : un type reconnu ici ne peut plus être défait par une correspondance de catégorie. Les dossiers ne servent qu'à s'y retrouver : ils ne changent pas l'ordre d'évaluation, qui reste celui de la vue liste (le numéro sur chaque carte le rappelle). Fais glisser une règle d'un dossier à l'autre pour la ranger. Ce classement reste sur cet ordinateur — il n'est pas enregistré dans la base.":
+      "A rule recognises lines by their label and says what they are: internal transfer, loan, reimbursable expense… It can also set the category, and it takes precedence over everything else. A rule automatically classifies imported lines from their labels — it is the only way to mark a line “reimbursable” or to classify it as a Loan / Repayment without doing it by hand. Rules are shared by all import presets. They are evaluated from top to bottom, and stop at the first one that matches — unless it has “Stop reading rules here” unticked. Several rules can then apply to the same line, but none undoes what a higher rule decided: in case of disagreement, the highest wins. Put special cases above general ones. Rules take precedence over remembered mappings: a type recognised here can no longer be undone by a category mapping. Folders are only there to help you find your way: they do not change the evaluation order, which remains that of the list view (the number on each card reminds you). Drag a rule from one folder to another to file it. This arrangement stays on this computer — it is not saved in the database.",
+    // regles.description
+    "L'une des extensions phares de l'application. Ta banque fournit un libellé conséquent pour des dépenses récurrentes, que tu dois renommer sans cesse ? Tu voudrais automatiser les modifications récurrentes que tu fais ? L'extension règle t'apporte la flexibilité de faire /bold(ce que tu veux).":
+      "One of the app's flagship extensions. Does your bank give a lengthy label for recurring expenses that you have to keep renaming? Would you like to automate the edits you keep making? The rules extension gives you the flexibility to do /bold(whatever you want).",
+    // regles.tuto-notes
+    "Si ton preset lit la colonne « Notes » du relevé, une condition peut aussi porter sur elle : utile quand la banque écrit la référence utile dans le commentaire plutôt que dans le libellé.":
+      "If your preset reads the statement's “Notes” column, a condition can also apply to it: useful when the bank writes the useful reference in the comment rather than in the label.",
+    // regles.tuto-ajout-champ
+    "Rien ne s'affiche d'office : « + Ajouter un champ » pose une propriété à la fois, et la croix la retire. Même geste que dans les sorties conditionnelles, juste en dessous.":
+      "Nothing is shown by default: “+ Add a field” adds one property at a time, and the cross removes it. Same gesture as in the conditional outputs, just below.",
+    // noyau.tuto-import-notes
+    "La colonne « Notes » est éteinte au départ. Allume-la si ton relevé porte un commentaire ou une référence : il est recopié dans la note de l'opération, et tes règles peuvent s'en servir.":
+      "The “Notes” column is off by default. Turn it on if your statement carries a comment or a reference: it is copied into the transaction's note, and your rules can use it.",
+    // regles.action
+    "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.":
+      "The type determines what follows: only “Standard transaction” and “Reimbursable expense” let you choose a category — the other types impose their own. Each part says how much it takes. You can write a number (50), a percentage (30%), a calculation (montant - 50), or use min and max — for example min(montant; 50) for “at most €50”. The word reste gives a part everything the others have not taken; only one part can carry it, and the sum must equal the line's amount.",
+    // noyau.import-propriete-notes
+    "Un commentaire, une référence ou un mémo que ta banque écrit à côté du libellé.\n\nIl est recopié dans les notes de l'opération (sauf si une règle en pose une), et tes règles peuvent le tester comme le libellé.":
+      "A comment, a reference or a memo that your bank writes next to the label.\n\nIt is copied into the transaction's notes (unless a rule sets one), and your rules can test it like the label.",
+    // import-placements.le-fichier-tel-qu-il-est
+    "Chaque colonne lue est colorée et porte le nom de la propriété qui sera importée. Les colonnes grises sont ignorées. Si une couleur ne tombe pas en face des bonnes données, corrige les numéros de colonne dans « Configuration du fichier » au-dessus.":
+      "Each column read is coloured and carries the name of the property that will be imported. Grey columns are ignored. If a colour does not land opposite the right data, fix the column numbers in “File configuration” above.",
+    // import-placements.titres-detenus-ligne-s
+    "Chaque ligne devient un achat daté du jour de la photographie : c'est ainsi qu'une détention existe dans l'application, et c'est ce qui rend justes d'un coup la valorisation et les plus-values. Les espèces du compte baissent donc du total investi — pense à poser son solde initial en conséquence.":
+      "Each line becomes a purchase dated the day of the snapshot: that is how a holding exists in the application, and it is what makes the valuation and the gains right all at once. The account's cash therefore drops by the total invested — remember to set its opening balance accordingly.",
+    // import-placements.transferts-deja-connus-ligne-s
+    "Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé du courtier et sur celui du compte courant. Seuls les virements qui touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné : toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie de ce à quoi elle ressemble.":
+      "These transfers look like a transfer already recorded: same amount, same accounts, within a few days. That is normal — the same movement appears on the broker's statement and on the current account's. Only transfers touching this preset's account are compared. Nothing is blocked or pre-selected: only you know whether you really made the movement twice. Each line is followed by what it looks like.",
+    // import-placements.lignes-en-erreur-ligne-s
+    "Ces lignes ne seront pas importées telles quelles. Corrige-les avec « Modifier », ou supprime-les de l'aperçu — le reste du fichier s'importe normalement.":
+      "These lines will not be imported as they are. Fix them with “Edit”, or delete them from the preview — the rest of the file imports normally.",
+    // analyse-budget.description
+    "C'est LA page pour pouvoir tenir ton budget. // Elle te permet de sélectionner un budget pour ton mois et de choisir des budgets par catégorie. // Tu peux l'utiliser pour comparer les graphiques du dashboard sur différentes périodes, et mieux comprendre comme tu gères ton argent avec plus de recul. // Elle te permet également d'avoir accès à trois nouveaux indicateurs : /- L'argent que tu as mis de côté sur la période (virements internes vers tes comptes d'épargne ou de placements) /- Un matelas de sécurité que tu définis, utile pour s'assurer que ce dernier se porte bien /- La classification de dépenses comme étant imprévues, et le montant de ces imprévus sur la période : cet indicateur te permet de mieux comprendre ce qu'on n'anticipe jamais et qu'on finit par souvent par définir comme impossible à prendre en compte dans le budget ":
+      "THE page for keeping your budget. // It lets you choose a budget for your month and set budgets by category. // You can use it to compare the dashboard charts over different periods, and better understand how you manage your money with more perspective. // It also gives you access to three new indicators: /- The money you set aside over the period (internal transfers to your savings or investment accounts) /- A safety cushion that you define, useful to make sure it is doing well /- Marking expenses as unexpected, and the amount of those unexpected expenses over the period: this indicator helps you better understand what we never anticipate and often end up calling impossible to account for in the budget ",
+    // interets-percus.description
+    "Un compte d'épargne te rapporte de l'argent passivement, à des fréquences différences (journalier, mensuel, annuel, ...). Néanmoins, une opération ne s'écrit pas pour autant dans tes relevés - l'app affichera donc un montant erroné pour ton compte de placements quand tes intérêts apparaîtront sur ton compte. // Cette extension - s'affichant dans la page Vue des avoirs /Vue des avoirs - te permet de renseigner à la main ces intérêts et les assigner à un compte de placements.":
+      "A savings account earns you money passively, at different frequencies (daily, monthly, yearly, ...). However, no transaction is written in your statements as a result — so the app will show a wrong amount for your investment account when your interest shows up in your account. // This extension - shown on the Assets overview page /Assets overview - lets you enter that interest by hand and assign it to an investment account.",
+    // investing-overview.description
+    "Cette extension te permet d'avoir une vue d'ensemble sur les actifs que tu possèdes (nécessite l'extension Placements), avec plusieurs classifications (type d'actifs, d'enveloppes) pour mieux comprendre ce que tu possèdes, comment et à quoi tes actifs t'exposent.":
+      "This extension gives you an overview of the assets you own (requires the Investments extension), with several classifications (asset type, wrappers) to better understand what you own, how, and what your assets expose you to.",
+    // lecture-de-cours.description
+    "IMPORTANT : cette extension est la seule à te permettre de relier ton app à internet. Elle te permet de fournir des liens de pages de cotation pour que l'app les utilise : elle nécessite l'extension Placements financiers (lecture de cours d'actifs) ou Monnaies (lecture de taux de change).":
+      "IMPORTANT: this extension is the only one that lets you connect your app to the internet. It lets you provide quote-page links for the app to use: it requires the Investments extension (asset price lookup) or Currencies (exchange-rate lookup).",
+    // monnaies.description
+    "Sans cette extension, l'application est mono-devise. L'activer te permet de créer de nouvelles monnaies, et donc de relier des dépenses ou des comptes à différentes monnaies pour ne pas mélanger ce qui ne se mélange.":
+      "Without this extension, the application is single-currency. Enabling it lets you create new currencies, and so link expenses or accounts to different currencies so as not to mix what should not be mixed.",
+    // objectifs.description
+    "Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois).":
+      "This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month).",
+    // placements.description
+    "Grâce à cette extension, tu peux renseigner et comprendre les actifs que tu détiens (achat, vente, plus-value, valorisation). Une fois activée, tu retrouveras cette page en onglet de la page Vue des avoirs /Vue des avoirs.":
+      "Thanks to this extension, you can record and understand the assets you hold (purchase, sale, capital gain, valuation). Once enabled, you will find this page as a tab of the Assets overview page /Assets overview.",
+    // prets.description
+    "Te permet de classifier comme tel et suivre l'argent qu'on t'a prêté (intérêts compris). Le fonctionnement de ces types d'opérations est similaire aux opérations remboursables / remboursements.":
+      "Lets you classify money lent to you as such and track it (interest included). These transaction types work like reimbursable expenses / reimbursements.",
+    // projets.description
+    "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories.":
+      "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category.",
+    // suivi-remboursements.description
+    "On te doit de l'argent à droite à gauche, et tu dois des dépenses, des montants, de combien on t'a remboursé et des personnes de tête ? // Active cette extension pour avoir accès à deux types d'opérations : /- les opérations remboursables : tu peux y sélectionner le montant à rembourser, le montant dû et l'extension te permet d'ajouter qui te doit l'argent via le menu Suivi des remboursements /- les remboursements reçus : comme une opération classique, que tu peux relier à l'opération remboursable - le montant dû se met alors automatiquement à jour // italic(La page Suivi des remboursements te permet de voir tous tes remboursements en attente et indiquer qui te doit quoi.)":
+      "People owe you money here and there, and you owe expenses, amounts, how much you were reimbursed and people to keep in your head? // Enable this extension to get access to two transaction types: /- reimbursable expenses: you can set the amount to be reimbursed and the amount owed, and the extension lets you add who owes you the money via the Repayment tracking menu /- reimbursements received: like a standard transaction, which you can link to the reimbursable expense - the amount owed is then updated automatically // italic(The Repayment tracking page lets you see all your pending reimbursements and note who owes you what.)",
+    "Semaine affichée": "Week shown",
+    "Mois en cours": "This month",
+    "Mois affiché": "Month shown",
+    "Moyenne de l'année": "Year average",
+    "Moyenne sur tout l'historique": "All-time average",
+    "Depuis": "Since",
+    "Voir les opérations": "View transactions",
+    "← Retour aux objectifs": "← Back to goals",
+    "Opérations qui entrent en compte —": "Transactions counted —",
+    "Aucune opération n'entre en compte sur cette période.": "No transaction counts towards this goal over this period.",
+    "Montant retenu": "Amount counted",
+    "Total retenu": "Total counted",
+
+    // ---------- Libellés posés en JavaScript, et clés normalisées des textes d'aide ----------
+    "Catégorie d'entrée": "Income category",
+    "Dépenses prévues reconnues —": "Forecast expenses recognised —",
+    "Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page Placements financiers, et la répartition apparaîtra ici.": "No securities held yet. Buy or import securities from the Investments page, and the breakdown will appear here.",
+    "entrée": "income",
+    "ex. EDF": "e.g. EDF",
+    "Aucun mot-clé : le compte, le montant et la date suffisent à reconnaître la dépense.": "No keyword: the account, the amount and the date are enough to recognise the expense.",
+    "Modifier le virement": "Edit transfer",
+    "Supprimer ce virement ? Les deux lignes liées (sortante et entrante) seront supprimées.": "Delete this transfer? Both linked lines (outgoing and incoming) will be deleted.",
+    "- À choisir -": "- Choose -",
+    "Dépenses réglées": "Expenses settled",
+    "Ajouter un groupe": "Add a group",
+    "Le budget de chaque mois, il reprend la valeur du dernier mois par défaut. Il relie les objectifs par catégorie en pourcentage et en valeur.":
+      "Each month's budget; by default it takes the value of the previous month. It links the goals by category in percentage and in value. ",
+    "Un commentaire, une référence ou un mémo que ta banque écrit à côté du libellé. Il est recopié dans les notes de l'opération (sauf si une règle en pose une), et tes règles peuvent le tester comme le libellé.":
+      "A comment, a reference or a memo that your bank writes next to the label.\n\nIt is copied into the transaction's notes (unless a rule sets one), and your rules can test it like the label.",
+    "C'est LA page pour pouvoir tenir ton budget. // Elle te permet de sélectionner un budget pour ton mois et de choisir des budgets par catégorie. // Tu peux l'utiliser pour comparer les graphiques du dashboard sur différentes périodes, et mieux comprendre comme tu gères ton argent avec plus de recul. // Elle te permet également d'avoir accès à trois nouveaux indicateurs : /- L'argent que tu as mis de côté sur la période (virements internes vers tes comptes d'épargne ou de placements) /- Un matelas de sécurité que tu définis, utile pour s'assurer que ce dernier se porte bien /- La classification de dépenses comme étant imprévues, et le montant de ces imprévus sur la période : cet indicateur te permet de mieux comprendre ce qu'on n'anticipe jamais et qu'on finit par souvent par définir comme impossible à prendre en compte dans le budget":
+      "THE page for keeping your budget. // It lets you choose a budget for your month and set budgets by category. // You can use it to compare the dashboard charts over different periods, and better understand how you manage your money with more perspective. // It also gives you access to three new indicators: /- The money you set aside over the period (internal transfers to your savings or investment accounts) /- A safety cushion that you define, useful to make sure it is doing well /- Marking expenses as unexpected, and the amount of those unexpected expenses over the period: this indicator helps you better understand what we never anticipate and often end up calling impossible to account for in the budget ",
   },
 };
 
@@ -3252,4 +3646,9 @@ const MOTIFS_SERVEUR = [
     "fees in “$1”: that is not the $2 currency they should apply to",
   ],
 ];
+
+// UN JEU DE MOTIFS PAR LANGUE : la liste ci-dessus est l'anglaise, celle du
+// portugais s'ajoute depuis i18n-pt.js. Le français n'en a pas — c'est la langue
+// des messages tels que le serveur les écrit.
+const MOTIFS_PAR_LANGUE = { en: MOTIFS_SERVEUR, pt: [] };
 

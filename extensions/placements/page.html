@@ -1,6 +1,6 @@
 <!-- Écran de l'extension « Placements financiers ».
 
-<!-- L'IMPORT DE PLACEMENTS N'EST PLUS UNE EXTENSION : c'est une fonction de
+     L'IMPORT DE PLACEMENTS N'EST PLUS UNE EXTENSION : c'est une fonction de
      « Placements financiers », et son écran est le SECOND VOLET de cette page.
      Il se déclenche par le bouton « Importer des opérations » posé au bord droit
      du titre, et se referme par « Retour aux placements » — deux blocs frères
@@ -8,7 +8,7 @@
      montrent jamais qu'un à la fois (`#placements-vue-principale`,
      `#placements-vue-import`). Les identifiants de l'import restent préfixés
      `impl-` : ils vivent dans le MÊME document que ceux de la page Import du
-     noyau, et un préfixe est la seule garantie contre une collision. -->
+     noyau, et un préfixe est la seule garantie contre une collision.
 
      UN ONGLET DE LA PAGE DES COMPTES (cf. le manifeste : navigation.type =
      "onglet", hote_section = "comptes-globale"), et non plus une page à part
@@ -140,7 +140,7 @@
              d'où l'on peut remettre un titre rangé en service. -->
         <label class="import-option-ligne">
           <input type="checkbox" id="placements-voir-archives" />
-          Afficher les titres archivés<i class="info-bulle" tabindex="0" data-info-cle="placements.afficher-les-titres-archives">i</i>
+          Afficher les titres archivés
         </label>
         <div id="placements-actions-liste" class="import-mappings"></div>
         <form id="form-action">

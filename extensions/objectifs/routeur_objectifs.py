@@ -271,3 +271,42 @@ def mesurer_objectifs(
             )
         ],
     )
+
+
+# ---------- Les opérations qui entrent en compte ----------
+
+
+@router.get("/{objectif_id}/operations", response_model=schemas_obj.ObjectifOperationsRead)
+def operations_de_l_objectif(
+    objectif_id: int,
+    vue: str = "actuelle",
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """La page d'un objectif : toutes les opérations qui entrent dans sa mesure.
+
+    `vue` choisit l'une des deux lectures (« actuelle » ou « moyennee », cf.
+    service_objectifs.fenetres_de_lecture), et `annee` / `mois` le niveau du
+    dashboard d'où l'on vient — `mois` absent est la vue année. LES FENÊTRES SE
+    RECALCULENT ICI plutôt que de voyager depuis l'écran : c'est le serveur qui sait
+    ce qu'est « la semaine en cours » ou « tout l'historique », et un client qui
+    enverrait des bornes pourrait demander une liste qui n'est celle d'aucune
+    carte.
+
+    LA SOMME DE `retenu` EST LA VALEUR DE LA CARTE (cf.
+    service_objectifs.operations_contribuantes)."""
+    if vue not in ("actuelle", "moyennee"):
+        raise HTTPException(status_code=400, detail="Vue inconnue : « actuelle » ou « moyennee »")
+    objectif = _objectif_ou_404(db, objectif_id)
+    annee = annee if annee is not None else date_type.today().year
+    mesure = service.mesurer(db, objectif, annee, mois)
+    fenetres = service.fenetres_de_lecture(db, objectif, annee, mois)
+    lignes = service.operations_contribuantes(db, objectif, fenetres[vue])
+    return schemas_obj.ObjectifOperationsRead(
+        mesure=schemas_obj.ObjectifMesureRead(**mesure),
+        vue=vue,
+        fenetre=schemas_obj.VueObjectifRead(**mesure[vue]),
+        total_retenu=sum(ligne["retenu"] for ligne in lignes),
+        operations=[schemas_obj.OperationObjectifRead(**ligne) for ligne in lignes],
+    )

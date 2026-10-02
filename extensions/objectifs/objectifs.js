@@ -22,6 +22,10 @@
  * quand on change de devise. S'accrocher à `loadDashboard` n'aurait attrapé que
  * l'ouverture de l'écran.
  *
+ * UN TROISIÈME ENDROIT, la PAGE D'UN OBJECTIF : en cliquant sa carte — sur la
+ * page comme au dashboard — on ouvre la liste de toutes les opérations qui
+ * entrent dans sa mesure (cf. « La page d'un objectif », plus bas).
+ *
  * TOUS LES IDENTIFIANTS SONT PRÉFIXÉS `objectif-` / `obj` : cet écran vit dans
  * le même document que le reste de l'application, et les scripts d'extension
  * partagent une seule portée globale (cf. extensions/README.md).
@@ -132,17 +136,27 @@ function objResumeFiltres(filtres, monnaieId) {
     .join(" · ");
 }
 
-/* ---------- Semaine en cours / moyenne du mois ----------
+/* ---------- Les deux vues d'un objectif ----------
  *
- * UN OBJECTIF HEBDOMADAIRE LU SUR UN MOIS a deux lectures, et le serveur rend
- * les deux (cf. service_objectifs.mesurer, champ `semaine`) : où j'en suis
- * CETTE semaine, et quel rythme j'ai tenu sur le mois. La bascule est posée sur
- * la carte elle-même, et retenue par objectif dans ce navigateur — c'est un
- * réglage de lecture, pas une donnée.
+ * TOUT OBJECTIF SE LIT DE DEUX FAÇONS, à chaque niveau du dashboard, et le
+ * serveur rend les deux (cf. service_objectifs.fenetres_de_lecture) :
+ *
+ *   - L'ACTUELLE : la période PROPRE de l'objectif — la semaine pour un objectif
+ *     hebdomadaire, le mois pour un objectif mensuel. « Où j'en suis » : un
+ *     cumul, comparé à la cible entière ;
+ *   - LA MOYENNÉE : une fenêtre plus large, ramenée à la cadence — « quel rythme
+ *     j'ai tenu ». Un objectif hebdomadaire se moyenne sur le mois (dashboard
+ *     mois) ou l'année (dashboard année) ; un objectif mensuel sur l'année
+ *     (dashboard mois) ou tout l'historique (dashboard année).
+ *
+ * LA BASCULE EST POSÉE SUR LA CARTE, et retenue par objectif dans ce navigateur
+ * — c'est un réglage de lecture, pas une donnée. Elle vaut pour le dashboard,
+ * la page des objectifs et la page de l'objectif : une seule lecture à la fois,
+ * partout.
  */
-const OBJ_CLE_VUES = "objectifs.vues-semaine";
+const OBJ_CLE_VUES = "objectifs.vues";
 
-function objVuesSemaine() {
+function objVues() {
   try {
     return JSON.parse(localStorage.getItem(OBJ_CLE_VUES) || "{}") || {};
   } catch (err) {
@@ -150,12 +164,12 @@ function objVuesSemaine() {
   }
 }
 
-function objVueSemaine(objectifId) {
-  return objVuesSemaine()[objectifId] || "semaine";
+function objVue(objectifId) {
+  return objVues()[objectifId] === "moyennee" ? "moyennee" : "actuelle";
 }
 
-function objChoisirVueSemaine(objectifId, vue) {
-  const vues = objVuesSemaine();
+function objChoisirVue(objectifId, vue) {
+  const vues = objVues();
   vues[objectifId] = vue;
   try {
     localStorage.setItem(OBJ_CLE_VUES, JSON.stringify(vues));
@@ -164,17 +178,67 @@ function objChoisirVueSemaine(objectifId, vue) {
   }
 }
 
-/** La mesure telle que la carte doit l'afficher : sur la semaine en cours
- *  quand c'est la lecture choisie, sinon telle que le serveur l'a rendue. */
-function objMesureAffichee(mesure) {
-  if (!mesure.semaine || objVueSemaine(mesure.objectif_id) !== "semaine") return mesure;
+/** La mesure telle que la carte doit l'afficher : celle de la vue choisie, avec
+ *  ses bornes (`fenetre`) — les champs de tête du serveur sont ceux du sélecteur
+ *  du dashboard, pas de la vue. */
+function objMesureAffichee(mesure, vue = objVue(mesure.objectif_id)) {
+  const fenetre = mesure[vue];
   return {
     ...mesure,
-    valeur_cadence: mesure.semaine.valeur,
-    atteint: mesure.semaine.atteint,
-    avancement: mesure.semaine.avancement,
-    enSemaine: true,
+    vue,
+    fenetre,
+    valeur: fenetre.valeur,
+    valeur_cadence: fenetre.valeur_cadence,
+    mode: fenetre.mode,
+    unites: fenetre.unites,
+    unites_periode: fenetre.unites_periode,
+    echantillon: fenetre.echantillon,
+    atteint: fenetre.atteint,
+    avancement: fenetre.avancement,
   };
+}
+
+/** La période d'une vue, écrite en toutes lettres : « 21 Sept. → 27 Sept. 2026 »,
+ *  « Septembre 2026 », « 2026 », « Depuis novembre 2025 ». Sans elle, « 17
+ *  sorties » ne dit pas sur quoi. */
+function objLibellePeriode(fenetre) {
+  const mois = (iso) =>
+    capitalizeFirst(
+      new Intl.DateTimeFormat(langue(), { month: "long", year: "numeric" }).format(
+        new Date(`${iso}T00:00:00`)
+      )
+    );
+  if (fenetre.kind === "semaine") {
+    return `${formatDateCourte(fenetre.debut)} → ${formatDateCourte(fenetre.fin)}`;
+  }
+  if (fenetre.kind === "mois") return mois(fenetre.debut);
+  if (fenetre.kind === "annee") return fenetre.debut.slice(0, 4);
+  return `${t("Depuis")} ${mois(fenetre.debut).toLowerCase()}`;
+}
+
+function objFenetreContientAujourdhui(fenetre) {
+  const aujourdhui = new Date().toLocaleDateString("sv-SE");
+  return fenetre.debut <= aujourdhui && aujourdhui <= fenetre.fin;
+}
+
+/** Le mot du bouton : il dit ce que la vue regarde. « en cours » quand la fenêtre
+ *  contient aujourd'hui, « affiché » quand le sélecteur du dashboard est sur une
+ *  autre période. */
+function objLibelleVue(vue, fenetre) {
+  if (vue === "actuelle") {
+    const courante = objFenetreContientAujourdhui(fenetre);
+    if (fenetre.kind === "semaine") {
+      return courante ? "Semaine en cours" : "Semaine affichée";
+    }
+    return courante ? "Mois en cours" : "Mois affiché";
+  }
+  return (
+    {
+      mois: "Moyenne du mois",
+      annee: "Moyenne de l'année",
+      tout: "Moyenne sur tout l'historique",
+    }[fenetre.kind] || "Moyenne du mois"
+  );
 }
 
 /* ---------- Dire un chiffre dans l'unité de sa mesure ---------- */
@@ -242,7 +306,6 @@ function objBarre(avancement, atteint) {
 }
 
 function objDetailMesure(mesure) {
-  if (mesure.enSemaine) return objDetailSemaine(mesure);
   // CE QUI A SERVI À CALCULER, en petit sous la barre. « 3,8 par semaine » sort
   // d'une division que rien d'autre ne montre : sans « 17 dépenses sur 4,4
   // semaines », le chiffre affiché est à croire sur parole.
@@ -261,11 +324,17 @@ function objDetailMesure(mesure) {
     const monnaie = (state.monnaies || []).find((m) => m.id === mesure.monnaie_id);
     if (monnaie) morceaux.push(escapeHtml(monnaie.nom));
   }
+  // LA PÉRIODE QUE LA VUE REGARDE : les bornes de la semaine (elle peut déborder
+  // sur le mois voisin, et le dire évite de chercher une dépense au mauvais
+  // endroit), le mois, l'année ou « depuis… ».
+  morceaux.push(escapeHtml(objLibellePeriode(mesure.fenetre)));
 
+  const enSemaine = mesure.fenetre.kind === "semaine";
+  const dansLaPeriode = enSemaine ? t("dépenses cette semaine") : t("dépenses sur la période");
   if (mesure.mesure === "nombre") {
-    morceaux.push(`${mesure.valeur} ${t("dépenses sur la période")}`);
+    morceaux.push(`${mesure.valeur} ${dansLaPeriode}`);
   } else if (mesure.mesure === "montant_moyen") {
-    morceaux.push(`${mesure.echantillon} ${t("dépenses sur la période")}`);
+    morceaux.push(`${mesure.echantillon} ${dansLaPeriode}`);
   } else if (mesure.mesure === "montant_total" && mesure.mode === "moyenne") {
     // En mode cumul, le grand chiffre EST déjà ce total : le répéter en petit
     // juste en dessous n'apprend rien.
@@ -286,40 +355,19 @@ function objDetailMesure(mesure) {
   return morceaux.join(" · ");
 }
 
-/** Le détail d'une carte lue sur la semaine en cours : le périmètre, ce qui a
- *  été compté, et les deux bornes de la semaine — elle peut déborder sur le
- *  mois voisin, et le dire évite de chercher une dépense au mauvais endroit. */
-function objDetailSemaine(mesure) {
-  const morceaux = [];
-  if (mesure.projet) morceaux.push(escapeHtml(mesure.projet));
-  else if (mesure.categorie) morceaux.push(escapeHtml(mesure.categorie));
-  else morceaux.push(t("Toutes les dépenses"));
-  morceaux.push(
-    `${formatDateCourte(mesure.semaine.debut)} → ${formatDateCourte(mesure.semaine.fin)}`
-  );
-  if (mesure.mesure === "nombre" || mesure.mesure === "montant_moyen") {
-    morceaux.push(`${mesure.semaine.echantillon} ${t("dépenses cette semaine")}`);
-  }
-  const filtres = objResumeFiltres(mesure.filtres, mesure.monnaie_id);
-  if (filtres) morceaux.push(filtres);
-  return morceaux.join(" · ");
-}
-
-/** La bascule posée sur la carte d'un objectif hebdomadaire lu sur un mois. */
-function objBasculeSemaine(mesure) {
-  if (!mesure.semaine) return "";
-  const vue = objVueSemaine(mesure.objectif_id);
-  const bouton = (valeur, libelle) =>
+/** La bascule posée sur chaque carte : l'actuelle, et la moyennée. */
+function objBasculeVues(mesure) {
+  const vue = objVue(mesure.objectif_id);
+  const bouton = (valeur) =>
     `<button type="button" class="${vue === valeur ? "actif" : ""}"
-             data-obj-vue="${valeur}" data-obj-id="${mesure.objectif_id}">${t(libelle)}</button>`;
-  return `<div class="obj-bascule">${bouton("semaine", "Semaine en cours")}${bouton(
-    "moyenne",
-    "Moyenne du mois"
-  )}</div>`;
+             data-obj-vue="${valeur}" data-obj-id="${mesure.objectif_id}">${t(
+      objLibelleVue(valeur, mesure[valeur])
+    )}</button>`;
+  return `<div class="obj-bascule">${bouton("actuelle")}${bouton("moyennee")}</div>`;
 }
 
 function objCarteHtml(mesureServeur, options = {}) {
-  const mesure = objMesureAffichee(mesureServeur);
+  const mesure = objMesureAffichee(mesureServeur, options.vue);
   // SANS CIBLE, LA CARTE NE JUGE RIEN : ni « tenu », ni « manqué », ni barre.
   // Elle ne porte plus qu'un chiffre et ce qui a servi à le calculer — c'est
   // exactement ce qu'on lui demande quand on suit un projet en cours. Peindre
@@ -351,8 +399,9 @@ function objCarteHtml(mesureServeur, options = {}) {
   return `
     <div class="obj-carte ${
       sansCible ? "obj-sans-cible" : mesure.atteint ? "obj-tenu" : "obj-manque"
-    }"
-         data-objectif-id="${mesure.objectif_id}">
+    } ${options.sansOuverture ? "" : "obj-carte-cliquable"}"
+         data-objectif-id="${mesure.objectif_id}"
+         ${options.sansOuverture ? "" : `data-obj-ouvrir="${mesure.objectif_id}"`}>
       <div class="obj-carte-tete">
         <span class="obj-nom">${escapeHtml(mesure.nom)}</span>
         ${etat}
@@ -365,15 +414,22 @@ function objCarteHtml(mesureServeur, options = {}) {
           mesure.monnaie_id
         )}</span>
         <span class="obj-unite">${escapeHtml(
-          mesure.enSemaine && objMesureCumule(mesure.mesure)
+          mesure.fenetre.kind === "semaine" && objMesureCumule(mesure.mesure)
             ? t("cette semaine")
             : objUniteCible(mesure.mesure, mesure.cadence, mesure.mode)
         )}</span>
         ${cible}
       </div>
-      ${objBasculeSemaine(mesure)}
+      ${objBasculeVues(mesureServeur)}
       ${sansCible ? "" : objBarre(mesure.avancement, mesure.atteint)}
       <div class="obj-detail hint">${objDetailMesure(mesure)}</div>
+      ${
+        options.sansOuverture
+          ? ""
+          : `<button type="button" class="lien obj-voir" data-obj-ouvrir-lien="${
+              mesure.objectif_id
+            }">${t("Voir les opérations")} →</button>`
+      }
     </div>`;
 }
 
@@ -617,9 +673,119 @@ async function loadObjectifs() {
     objObjectifs = liste;
     objMesures = mesures.objectifs;
     objRenderListe();
+    // On rouvre toujours l'onglet sur sa liste — sauf quand on y arrive d'une
+    // carte du dashboard, qui a demandé la page d'un objectif précis.
+    if (objDetailEnAttente) {
+      const demande = objDetailEnAttente;
+      objDetailEnAttente = null;
+      await objOuvrirDetail(demande.objectifId, demande.annee, demande.mois);
+    } else {
+      objFermerDetail();
+    }
   } catch (err) {
     showMessage(err.message, "error");
   }
+}
+
+/* ---------- La page d'un objectif ----------
+ *
+ * UN OBJECTIF CRÉÉ A SA PAGE, comme un projet : on clique sa carte, et elle
+ * liste TOUTES LES OPÉRATIONS qui entrent dans sa mesure — c'est la réponse à
+ * « d'où vient ce chiffre ? », que la carte ne peut pas donner. La liste est celle
+ * du SERVEUR (cf. routeur_objectifs.operations_de_l_objectif), calculée sur la
+ * même fenêtre que la carte : la somme des montants retenus est le chiffre
+ * affiché, pas une requête de plus qui finirait par s'en écarter.
+ *
+ * ELLE SUIT LA VUE DE LA CARTE (actuelle ou moyennée) et le niveau du dashboard
+ * d'où l'on vient :
+ *   - en vue ACTUELLE, les opérations de la période propre de l'objectif (la
+ *     semaine, le mois) ;
+ *   - en vue MOYENNÉE, celles de la seule fenêtre sur laquelle on moyenne (le
+ *     mois, l'année, tout l'historique).
+ * Depuis la page des objectifs, qui n'a pas de sélecteur, c'est le mois en cours.
+ */
+let objDetail = null;
+// Une carte du dashboard demande la page d'un objectif AVANT que l'onglet ne soit
+// chargé : la demande attend ici que `loadObjectifs` ait fini.
+let objDetailEnAttente = null;
+// Le niveau du dashboard, gardé au dernier rendu : c'est lui que les cartes du
+// dashboard transmettent à la page de l'objectif.
+let objContexteDashboard = null;
+
+function objMontreVuePage(detail) {
+  const liste = document.getElementById("objectifs-vue-liste");
+  const page = document.getElementById("objectif-detail");
+  if (liste) liste.style.display = detail ? "none" : "";
+  if (page) page.style.display = detail ? "" : "none";
+}
+
+function objFermerDetail() {
+  objDetail = null;
+  objMontreVuePage(false);
+}
+
+async function objOuvrirDetail(objectifId, annee, mois) {
+  objDetail = { objectifId: Number(objectifId), annee, mois };
+  await objChargerDetail();
+}
+
+/** Redemande la page de l'objectif ouvert, dans la vue qui est CHOISIE à cet
+ *  instant (la bascule de la carte change la liste, pas seulement le chiffre). */
+async function objChargerDetail() {
+  if (!objDetail) return;
+  const { objectifId, annee, mois } = objDetail;
+  const vue = objVue(objectifId);
+  const requete = `vue=${vue}&annee=${annee}` + (mois ? `&mois=${mois}` : "");
+  try {
+    const data = await apiFetch(`${OBJECTIFS_BASE}/${objectifId}/operations?${requete}`);
+    objRenderDetail(data);
+    objMontreVuePage(true);
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    objFermerDetail();
+  }
+}
+
+function objCelluleRetenu(op) {
+  // Ce que la ligne pèse dans la mesure ; et, quand ce n'est pas son montant
+  // (reste à charge, part de découpe, part du mois d'une amortie), son montant
+  // réel dessous, en gris — un rappel, pas ce qu'on compare.
+  const differe = Math.abs(op.retenu - op.montant) > 0.005;
+  return (
+    montantHtml(op.retenu, "dépense", op.monnaie_id) +
+    (differe ? `<div class="montant-origine">${formatMontant(op.montant, op.monnaie_id)}</div>` : "")
+  );
+}
+
+function objRenderDetail(data) {
+  const mesure = data.mesure;
+  document.getElementById("objectif-detail-titre").textContent = mesure.nom;
+  document.getElementById("objectif-detail-carte").innerHTML = objCarteHtml(mesure, {
+    vue: data.vue,
+    sansOuverture: true,
+  });
+
+  const operations = data.operations || [];
+  document.getElementById("objectif-detail-nombre").textContent = operations.length;
+  document.getElementById("objectif-detail-vide").style.display = operations.length ? "none" : "";
+  document.getElementById("objectif-detail-tableau").style.display = operations.length ? "" : "none";
+  document.getElementById("objectif-detail-liste").innerHTML = operations
+    .map((op) => {
+      const mois = op.amorti && op.amortissement_nb_mois
+        ? ` [${op.amortissement_nb_mois > 1 ? t("{n} mois", { n: op.amortissement_nb_mois }) : t("1 mois")}]`
+        : "";
+      return `<tr>
+        <td class="operation-date">${formatDateCourte(op.date)}${mois}</td>
+        <td>${escapeHtml(op.nature)}</td>
+        <td>${nomCompte(op.compte_id)}</td>
+        <td>${op.decoupee ? t("Découpée") : nomCategorie(op.categorie_id)}</td>
+        <td>${objCelluleRetenu(op)}</td>
+      </tr>`;
+    })
+    .join("");
+  document.getElementById("objectif-detail-total").innerHTML = operations.length
+    ? `${t("Total retenu")} : <strong>${formatMontant(data.total_retenu, mesure.monnaie_id)}</strong>`
+    : "";
 }
 
 async function objEnregistrer() {
@@ -756,21 +922,52 @@ function objRenderDashboard(bloc) {
       </div>`;
 }
 
-// LA BASCULE SEMAINE / MOYENNE, déléguée sur tout le document : les cartes
-// vivent sur deux écrans (la page et le dashboard), réécrits à chaque rendu.
+// LA BASCULE ACTUELLE / MOYENNÉE ET L'OUVERTURE D'UNE CARTE, déléguées sur tout
+// le document : les cartes vivent sur trois écrans (la page, le dashboard, la
+// page d'un objectif), réécrits à chaque rendu.
 document.addEventListener("click", (e) => {
   const bouton = e.target.closest("[data-obj-vue]");
-  if (!bouton) return;
-  objChoisirVueSemaine(bouton.dataset.objId, bouton.dataset.objVue);
-  objRenderListe();
-  const bloc = document.getElementById("dashboard-objectifs");
-  if (bloc && objMesuresDashboard.length) {
-    objRenderDashboard(bloc);
-    appliquerTextes(bloc);
-    traduireDomStatique(bloc);
-    appliquerPuces(bloc);
+  if (bouton) {
+    objChoisirVue(bouton.dataset.objId, bouton.dataset.objVue);
+    // Sur la page d'un objectif, la liste change avec la vue : on la redemande.
+    if (bouton.closest("#objectif-detail")) {
+      objChargerDetail();
+      return;
+    }
+    objRenderListe();
+    const bloc = document.getElementById("dashboard-objectifs");
+    if (bloc && objMesuresDashboard.length) {
+      objRenderDashboard(bloc);
+      appliquerTextes(bloc);
+      traduireDomStatique(bloc);
+      appliquerPuces(bloc);
+    }
+    return;
   }
+
+  const carte = e.target.closest("[data-obj-ouvrir]");
+  if (!carte) return;
+  // Un bouton de la carte (Modifier, Supprimer, la bascule) fait son propre
+  // travail : seul le lien « Voir les opérations » compte comme une ouverture.
+  if (e.target.closest("button, a") && !e.target.closest("[data-obj-ouvrir-lien]")) return;
+  objOuvrirDepuisCarte(carte);
 });
+
+function objOuvrirDepuisCarte(carte) {
+  const objectifId = Number(carte.dataset.objOuvrir);
+  if (carte.closest("#dashboard-objectifs") && objContexteDashboard) {
+    // DEPUIS LE DASHBOARD : la page s'ouvre dans l'onglet Objectifs de la page
+    // Budget, avec le niveau (mois ou année) que le sélecteur affichait.
+    objDetailEnAttente = { objectifId, ...objContexteDashboard };
+    switchSection("budget", { sousSection: "budget-objectifs" });
+    return;
+  }
+  // DEPUIS LA PAGE DES OBJECTIFS : le mois en cours, qu'elle mesure déjà.
+  const { annee, mois } = objPeriodeCourante();
+  objOuvrirDetail(objectifId, annee, mois);
+}
+
+document.getElementById("btn-objectif-fermer")?.addEventListener("click", objFermerDetail);
 
 async function objRendreDashboard(annee, mois) {
   const bloc = document.getElementById("dashboard-objectifs");
@@ -791,6 +988,7 @@ async function objRendreDashboard(annee, mois) {
     // veut dire l'année entière (cf. soldes._filtre_periode), et la cadence
     // fait le reste — un objectif mensuel y vaut douze unités.
     const enAnnee = state.dashboardPeriode.vue === "annee";
+    objContexteDashboard = { annee, mois: enAnnee ? null : mois };
     const requete =
       `monnaie_id=${monnaieId}&annee=${annee}&dashboard=true` +
       (enAnnee ? "" : `&mois=${mois}`);

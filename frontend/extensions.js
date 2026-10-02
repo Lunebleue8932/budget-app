@@ -594,7 +594,7 @@ function afficherModaleExtensions(extensions) {
       const explication = basculeDetailHtml(
         `modale-explication-${e.id}`,
         descriptionExtension(e)
-          ? `<p class="modale-extension-description">${escapeHtml(t(descriptionExtension(e)))}</p>`
+          ? `<p class="modale-extension-description" data-aide-marqueurs>${escapeHtml(t(descriptionExtension(e)))}</p>`
           : "",
         { libelle: t("Afficher ce que fait cette extension") }
       );
@@ -628,6 +628,7 @@ function afficherModaleExtensions(extensions) {
       </li>`;
     })
     .join("");
+  appliquerPuces(document.getElementById("modale-extensions-liste"));
 
   fond.style.display = "";
   // La page derrière ne doit plus défiler : une molette au-dessus d'une modale

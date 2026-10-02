@@ -227,3 +227,40 @@
 #objectif-filtres .champ-ajoute:first-child {
   margin-top: 0;
 }
+
+/* ---------- La page d'un objectif ---------- */
+
+/* La carte ouvre la page de l'objectif : elle le dit au curseur et au survol. Les
+   boutons qu'elle porte (modifier, supprimer, la bascule) gardent leur geste. */
+.obj-carte-cliquable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.obj-carte-cliquable:hover {
+  border-color: var(--accent);
+}
+
+.obj-voir {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.objectif-detail-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.objectif-detail-entete h3 {
+  margin: 0;
+  margin-right: auto;
+}
+
+/* Le total sous le tableau, aligné sur la colonne qu'il somme. */
+.objectif-detail-total {
+  text-align: right;
+  margin-top: 0.6rem;
+  color: var(--text-secondary);
+}

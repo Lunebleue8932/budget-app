@@ -1181,7 +1181,7 @@ function majCorrespondanceCourante({ defiler = true } = {}) {
   const resultat = document.getElementById("recherche-resultat");
   const total = rechercheCorrespondances.length;
   if (total === 0) {
-    if (resultat) resultat.textContent = rechercheTerme.trim() ? "aucun résultat" : "";
+    if (resultat) resultat.textContent = rechercheTerme.trim() ? t("aucun résultat") : "";
     return;
   }
   rechercheIndex = ((rechercheIndex % total) + total) % total;
@@ -4926,7 +4926,7 @@ function resetCompteForm() {
   renderCompteMonnaies(
     state.monnaies.length > 0 ? [{ monnaie_id: state.monnaies[0].id, solde_initial: 0 }] : []
   );
-  document.getElementById("form-compte-titre").textContent = "Ajouter un compte";
+  document.getElementById("form-compte-titre").textContent = t("Ajouter un compte");
   document.getElementById("compte-annuler").style.display = "none";
   // EN CRÉATION, RIEN À ÉTEINDRE : le bouton d'état ne vaut que devant un
   // compte qui existe déjà.
@@ -5008,7 +5008,7 @@ async function loadComptes() {
       if (comptes.length === 0) {
         const vide = document.createElement("span");
         vide.className = "hint groupe-carte-vide";
-        vide.textContent = "Aucun compte — dépose-en un ici.";
+        vide.textContent = t("Aucun compte — dépose-en un ici.");
         corps.appendChild(vide);
       }
       comptes.forEach((c) => corps.appendChild(construireLigneCompte(c)));
@@ -5318,7 +5318,7 @@ function resetCategorieForm() {
   delete document.getElementById("categorie-nom").dataset.nomInitial;
   document.getElementById("categorie-entree-bloc").style.display = "none";
   document.getElementById("categorie-entree").checked = false;
-  document.getElementById("form-categorie-titre").textContent = "Ajouter une catégorie";
+  document.getElementById("form-categorie-titre").textContent = t("Ajouter une catégorie");
   document.getElementById("categorie-annuler").style.display = "none";
   document.getElementById("categorie-etat").style.display = "none";
 }
@@ -5845,7 +5845,7 @@ function assurerEditeurRapprochement() {
   creerEditeurMotsCles(GROUPE_MOTS_CLES_RAPPROCHEMENT, {
     conteneur: champs,
     libelles: { mots: t("Mots-clés") },
-    vide: "Aucun mot-clé : le compte, le montant et la date suffisent à reconnaître la dépense.",
+    vide: t("Aucun mot-clé : le compte, le montant et la date suffisent à reconnaître la dépense."),
   });
   document
     .getElementById("operation-rapprochement-actif")
@@ -5969,8 +5969,8 @@ function updateOperationTypeFields() {
   blocImprevue.classList.toggle("champ-hors-sujet", !imprevuePossible);
   document.getElementById("operation-remboursements-bloc").style.display = estReglement ? "" : "none";
   document.getElementById("operation-remboursements-titre").textContent = estRemboursementPret
-    ? "Prêts réglés"
-    : "Opérations remboursées";
+    ? t("Prêts réglés")
+    : t("Opérations remboursées");
 
   // Sur cette page, le montant d'un règlement est PILOTÉ par la checklist
   // (somme des liens, cf. recalculerMontantRemboursement) : cocher une cible
@@ -6053,10 +6053,10 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
   const estVirement = type === "virement";
 
   if (!estVirement) {
-    document.getElementById("operation-montant-label").textContent = "Montant";
+    document.getElementById("operation-montant-label").textContent = t("Montant");
     document.getElementById("operation-montant-recu-bloc").style.display = "none";
     document.getElementById("operation-monnaie-recue-bloc").style.display = "none";
-    document.getElementById("operation-monnaie-label").textContent = "Monnaie";
+    document.getElementById("operation-monnaie-label").textContent = t("Monnaie");
     syncSelectMonnaieCompte(
       "operation-monnaie",
       "operation-monnaie-bloc",
@@ -6085,10 +6085,10 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
   );
 
   const memeMonnaie = monnaieSource === monnaieDestination;
-  document.getElementById("operation-monnaie-label").textContent = "Monnaie envoyée";
+  document.getElementById("operation-monnaie-label").textContent = t("Monnaie envoyée");
   document.getElementById("operation-montant-label").textContent = memeMonnaie
-    ? "Montant"
-    : "Montant envoyé";
+    ? t("Montant")
+    : t("Montant envoyé");
   document.getElementById("operation-montant-recu-bloc").style.display = memeMonnaie ? "none" : "";
   if (memeMonnaie) {
     document.getElementById("operation-montant-recu").value = "";
@@ -6679,7 +6679,7 @@ function majChampsFraisOperation() {
   const noeudRecu = blocRecu.firstChild;
   if (noeudRecu && noeudRecu.nodeType === Node.TEXT_NODE) {
     noeudRecu.nodeValue =
-      "Montant reçu" + (actif && operationFrais.cote === "recu" ? suffixe : "");
+      t("Montant reçu") + (actif && operationFrais.cote === "recu" ? suffixe : "");
   }
 }
 
@@ -6792,7 +6792,7 @@ function resetOperationForm() {
   // Les notes n'existent qu'à l'édition : une création repart sans champ.
   document.getElementById("operation-notes").value = "";
   document.getElementById("operation-notes-bloc").style.display = "none";
-  document.getElementById("form-operation-titre").textContent = "Ajouter une opération";
+  document.getElementById("form-operation-titre").textContent = t("Ajouter une opération");
   document.getElementById("operation-annuler").style.display = "none";
   montantDuAutoSync = true;
   operationEditionEstOccurrenceGeneree = false;
@@ -7186,7 +7186,7 @@ async function editerVirementEnLigne(virementId, sortante, entrante, tr) {
   document.getElementById("operation-notes").value = sortante.notes || "";
   document.getElementById("operation-notes-bloc").style.display = "";
 
-  document.getElementById("form-operation-titre").textContent = "Modifier le virement";
+  document.getElementById("form-operation-titre").textContent = t("Modifier le virement");
   document.getElementById("operation-annuler").style.display = "inline-block";
 }
 
@@ -7881,8 +7881,8 @@ function renderVirements(paires) {
         const id = btn.dataset.virementId;
         const estSolo = id.startsWith("solo-");
         const message = estSolo
-          ? "Supprimer cette opération ?"
-          : "Supprimer ce virement ? Les deux lignes liées (sortante et entrante) seront supprimées.";
+          ? t("Supprimer cette opération ?")
+          : t("Supprimer ce virement ? Les deux lignes liées (sortante et entrante) seront supprimées.");
         if (!confirm(message)) return;
         try {
           if (estSolo) {
@@ -8953,7 +8953,7 @@ document.querySelectorAll(".ajouter-operation").forEach((carte) => {
     resetOperationForm();
     ouvrirFormulaireOperation(onglet, null);
     setOperationType(TYPE_PAR_ONGLET[onglet]);
-    document.getElementById("form-operation-titre").textContent = "Nouvelle opération";
+    document.getElementById("form-operation-titre").textContent = t("Nouvelle opération");
     document.getElementById("operation-annuler").style.display = "inline-block";
   };
   carte.addEventListener("click", ouvrir);
@@ -12350,7 +12350,7 @@ function creerChampCompteAvecIndice(valeurInitiale) {
   const select = document.createElement("select");
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = "- À choisir -";
+  placeholder.textContent = t("- À choisir -");
   select.appendChild(placeholder);
   fillComptesSelect(select, comptesProposables(valeurInitiale ?? null), { keepFirst: true });
 
@@ -12837,7 +12837,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
         ];
         if (idsFrais.length > 1 || ligne.frais_incoherents) {
           const labelMonnaieFraisSimple = document.createElement("label");
-          labelMonnaieFraisSimple.textContent = "Monnaie des frais";
+          labelMonnaieFraisSimple.textContent = t("Monnaie des frais");
           selectMonnaieFrais = document.createElement("select");
           idsFrais.forEach((id) => {
             const monnaie = monnaieParId(id);
@@ -12855,7 +12855,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       const compteId = compteChamp && compteChamp.estConfirme() ? Number(compteChamp.select.value) : null;
       if (compteId && monnaiesDuCompte(compteId).length <= 1) return;
       const label = document.createElement("label");
-      label.textContent = "Monnaie";
+      label.textContent = t("Monnaie");
       selectMonnaie = creerSelectMonnaie(compteId, ligne.monnaie_id);
       label.appendChild(selectMonnaie);
       monnaieWrap.appendChild(label);
@@ -12877,12 +12877,12 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       : null;
 
     const labelMonnaieEnvoyee = document.createElement("label");
-    labelMonnaieEnvoyee.textContent = "Monnaie envoyée";
+    labelMonnaieEnvoyee.textContent = t("Monnaie envoyée");
     selectMonnaieEnvoyee = creerSelectMonnaie(compteSourceId, ligne.monnaie_envoyee_id);
     labelMonnaieEnvoyee.appendChild(selectMonnaieEnvoyee);
 
     const labelMonnaieRecue = document.createElement("label");
-    labelMonnaieRecue.textContent = "Monnaie reçue";
+    labelMonnaieRecue.textContent = t("Monnaie reçue");
     selectMonnaie = creerSelectMonnaie(compteDestinationId, ligne.monnaie_id);
     labelMonnaieRecue.appendChild(selectMonnaie);
 
@@ -12926,7 +12926,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     labelFrais.appendChild(inputFrais);
 
     const labelMonnaieFrais = document.createElement("label");
-    labelMonnaieFrais.textContent = "Monnaie des frais";
+    labelMonnaieFrais.textContent = t("Monnaie des frais");
     selectMonnaieFrais = document.createElement("select");
     labelMonnaieFrais.appendChild(selectMonnaieFrais);
 
@@ -13013,7 +13013,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
 
     montantWrap.innerHTML = "";
     const labelMontant = document.createElement("label");
-    labelMontant.textContent = "Montant";
+    labelMontant.textContent = t("Montant");
     // majChampsFrais le renomme en « Montant reçu » dès qu'un virement traverse
     // deux monnaies : il lui faut donc une référence, et non une variable locale.
     labelMontantElement = labelMontant;
@@ -13030,7 +13030,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     categorieWrap.innerHTML = "";
     if (info.categorieLibre) {
       const label = document.createElement("label");
-      label.textContent = "Catégorie";
+      label.textContent = t("Catégorie");
       selectCategorie = document.createElement("select");
       categoriesProposables(ligne.categorie_id ?? null).forEach((c) => {
         const opt = document.createElement("option");
@@ -13061,12 +13061,12 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       const valeurAutre = ligne.compte_id_autre ?? null;
 
       const labelEmetteur = document.createElement("label");
-      labelEmetteur.textContent = "Compte émetteur";
+      labelEmetteur.textContent = t("Compte émetteur");
       compteChampEmetteur = creerChampCompteAvecIndice(emetteurActif ? ligne.compte_id : valeurAutre);
       labelEmetteur.appendChild(compteChampEmetteur.wrap);
 
       const labelRecepteur = document.createElement("label");
-      labelRecepteur.textContent = "Compte récepteur";
+      labelRecepteur.textContent = t("Compte récepteur");
       compteChampRecepteur = creerChampCompteAvecIndice(!emetteurActif ? ligne.compte_id : valeurAutre);
       labelRecepteur.appendChild(compteChampRecepteur.wrap);
 
@@ -13095,7 +13095,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     if (TYPES_REMBOURSABLES.has(info.cle)) {
       montantDuEstPlancher = info.cle === "pret";
       const label = document.createElement("label");
-      label.textContent = "Montant à rembourser";
+      label.textContent = t("Montant à rembourser");
       inputMontantDu = document.createElement("input");
       inputMontantDu.type = "number";
       inputMontantDu.step = "0.01";
@@ -13124,7 +13124,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     montantsParOperationId = {};
     if (info.reglement) {
       const label = document.createElement("label");
-      label.textContent = info.cle === "remboursement_pret" ? "Prêts réglés" : "Dépenses réglées";
+      label.textContent = info.cle === "remboursement_pret" ? t("Prêts réglés") : t("Dépenses réglées");
       const checklist = document.createElement("div");
       checklist.className = "checklist";
       checklist.textContent = "Chargement...";
@@ -13202,7 +13202,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   const btnEnregistrer = document.createElement("button");
   btnEnregistrer.type = "button";
   btnEnregistrer.className = "primary";
-  btnEnregistrer.textContent = "Enregistrer";
+  btnEnregistrer.textContent = t("Enregistrer");
   const btnAnnuler = document.createElement("button");
   btnAnnuler.type = "button";
   btnAnnuler.textContent = "Annuler";
@@ -14557,7 +14557,7 @@ function carteExtensionHtml(e) {
   // chose qu'on vient chercher ici — l'état de chacune.
   const explication = basculeDetailHtml(
     `extension-explication-${e.id}`,
-    `<p class="extension-description">${escapeHtml(t(descriptionExtension(e)))}</p>`,
+    `<p class="extension-description" data-aide-marqueurs>${escapeHtml(t(descriptionExtension(e)))}</p>`,
     { libelle: t("Afficher ce que fait cette extension") }
   );
   // CE QUI L'EMPÊCHE DE CHANGER D'ÉTAT : replié aussi, mais signalé à part.
@@ -14653,6 +14653,9 @@ function renderExtensions(extensions) {
          ${nonInstallees.map(carteExtensionHtml).join("")}`;
 
   bloc.innerHTML = sectionInstallees + sectionNonInstallees;
+  // Les descriptions portent les marqueurs de textes.js (sauts de ligne, puces,
+  // chemins cliquables) : on les met en forme une fois la liste posée.
+  appliquerPuces(bloc);
 }
 
 // Délégation : les cartes sont reconstruites à chaque rendu.

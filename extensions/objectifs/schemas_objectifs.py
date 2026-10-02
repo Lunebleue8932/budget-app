@@ -119,16 +119,24 @@ class ObjectifRead(ObjectifBase):
     id: int
 
 
-class MesureSemaineRead(BaseModel):
-    """L'objectif hebdomadaire lu sur UNE semaine : celle d'aujourd'hui quand la
-    période affichée la contient, sinon la dernière de la période (cf.
-    service_objectifs.semaine_de_lecture). C'est l'autre lecture que l'écran
-    propose à côté de la moyenne du mois — « où j'en suis cette semaine » plutôt
-    que « quel rythme j'ai tenu »."""
+class VueObjectifRead(BaseModel):
+    """L'objectif lu sur UNE fenêtre : l'une de ses deux vues (cf.
+    service_objectifs.fenetres_de_lecture).
 
+    `kind` dit ce que la fenêtre est (« semaine », « mois », « annee », « tout »),
+    `debut` et `fin` ses bornes — l'écran les écrit, sans quoi « 17 sorties » ne
+    dit pas sur quoi. `semantique` dit ce qui a été compté : « lignes » (des
+    lignes de relevé) ou « budget » (ce que l'histogramme du dashboard affiche)."""
+
+    kind: str
     debut: str
     fin: str
+    semantique: str = "lignes"
     valeur: float = 0.0
+    valeur_cadence: float = 0.0
+    mode: str = "cumul"
+    unites: float = 0.0
+    unites_periode: float = 0.0
     echantillon: int = 0
     atteint: bool = True
     avancement: float = 0.0
@@ -181,10 +189,12 @@ class ObjectifMesureRead(BaseModel):
     atteint: bool = True
     avancement: float = 0.0
     filtres: list[FiltreObjectif] = Field(default_factory=list)
-    # Présente pour un objectif HEBDOMADAIRE lu sur un mois seulement : c'est le
-    # seul cas où « la semaine en cours » et « la moyenne du mois » sont deux
-    # lectures différentes du même objectif.
-    semaine: Optional[MesureSemaineRead] = None
+    # LES DEUX VUES, toujours rendues (cf. service_objectifs.fenetres_de_lecture) :
+    # l'ACTUELLE (la période propre de l'objectif — la semaine ou le mois) et la
+    # MOYENNÉE (une fenêtre plus large, ramenée à la cadence). Les champs de tête
+    # restent la période du sélecteur, telle que le dashboard la montre.
+    actuelle: VueObjectifRead
+    moyennee: VueObjectifRead
 
 
 class ObjectifsPeriodeRead(BaseModel):
@@ -196,3 +206,33 @@ class ObjectifsPeriodeRead(BaseModel):
     # monnaie, et on n'y additionne jamais deux devises.
     monnaie_id: Optional[int] = None
     objectifs: list[ObjectifMesureRead] = Field(default_factory=list)
+
+
+class OperationObjectifRead(BaseModel):
+    """Une opération qui entre dans la mesure d'un objectif, et ce qu'elle y
+    apporte. `montant` est celui de la ligne, `retenu` ce qu'elle pèse DANS CETTE
+    MESURE : son reste à charge, sa part de découpe, sa part du mois si elle est
+    amortie. L'écran écrit le premier en petit quand il diffère du second."""
+
+    operation_id: int
+    date: str
+    nature: str
+    compte_id: int
+    categorie_id: Optional[int] = None
+    monnaie_id: int
+    montant: float
+    retenu: float
+    decoupee: bool = False
+    amorti: bool = False
+    amortissement_nb_mois: Optional[int] = None
+
+
+class ObjectifOperationsRead(BaseModel):
+    """La page d'un objectif : l'objectif mesuré (ses deux vues), la vue choisie
+    et les opérations qui la composent."""
+
+    mesure: ObjectifMesureRead
+    vue: str
+    fenetre: VueObjectifRead
+    total_retenu: float = 0.0
+    operations: list[OperationObjectifRead] = Field(default_factory=list)

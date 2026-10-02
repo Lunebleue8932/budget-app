@@ -789,3 +789,20 @@ def test_une_extension_absente_ne_peut_pas_etre_activee(faux_projet, faux_catalo
             "fantome", ExtensionEtatUpdate(actif=True), db=None
         )
     assert erreur.value.status_code == 404
+
+
+def test_une_extension_retiree_est_ignoree(tmp_path, monkeypatch):
+    """« Import de placements » est devenu une fonction de « Placements financiers » :
+    son ancien dossier, resté chez quelqu'un après une mise à jour, ne doit pas être
+    chargé — il ferait doublon (routes, fichiers, identifiants de la page)."""
+    from app import extensions
+
+    dossiers = tmp_path / "extensions"
+    for nom in ("import-placements", "autre"):
+        (dossiers / nom).mkdir(parents=True)
+        (dossiers / nom / "extension.json").write_text('{"nom": "X"}', encoding="utf-8")
+    monkeypatch.setattr(extensions, "_racine_projet", lambda: tmp_path)
+    monkeypatch.setattr(extensions, "DOSSIERS", [("extensions", "standard")])
+    trouvees = extensions.decouvrir()
+    assert "autre" in trouvees
+    assert "import-placements" not in trouvees

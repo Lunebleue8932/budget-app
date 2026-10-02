@@ -43,6 +43,15 @@ from fastapi import HTTPException
 # README, un dossier de travail ou un `__pycache__` sans rien casser.
 FICHIER_MANIFESTE = "extension.json"
 
+# LES EXTENSIONS RETIRÉES, ET QUI PEUVENT ENCORE TRAÎNER SUR UN POSTE. « Import de
+# placements » est devenu une fonction de « Placements financiers » : son dossier
+# n'est plus livré, mais quelqu'un qui l'avait installé le garde à côté de
+# l'exécutable après une mise à jour. Le charger ferait doublon avec la version
+# intégrée — mêmes routes, mêmes fichiers, mêmes identifiants dans la page — donc
+# `decouvrir` l'ignore, comme un dossier sans manifeste. Ses données dorment en
+# base et sont lues par `placements`, rien ne se perd.
+EXTENSIONS_RETIREES = {"import-placements"}
+
 # Les deux racines scannées, dans cet ordre. « standard » d'abord pour qu'une
 # extension de développement portant le même identifiant ne masque jamais une
 # extension livrée par accident (cf. `decouvrir`, qui refuse le doublon).
@@ -317,6 +326,8 @@ def decouvrir() -> dict[str, Extension]:
         for dossier in sorted(base.iterdir()):
             manifeste_json = dossier / FICHIER_MANIFESTE
             if not dossier.is_dir() or not manifeste_json.is_file():
+                continue
+            if dossier.name in EXTENSIONS_RETIREES:
                 continue
             try:
                 manifeste = json.loads(manifeste_json.read_text(encoding="utf-8"))

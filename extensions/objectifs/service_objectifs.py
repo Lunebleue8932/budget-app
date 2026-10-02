@@ -34,6 +34,7 @@ from datetime import date as date_type
 from datetime import timedelta
 from typing import Optional
 
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 # Imports ABSOLUS vers le noyau : ce module n'est pas un sous-paquet de `app`,
@@ -110,6 +111,23 @@ def unites_de_cadence(
     moyenne hebdomadaire au gré du calendrier plutôt qu'au gré des dépenses."""
     debut = date_type(annee, mois or 1, 1)
     fin = soldes.fin_de_periode(annee, mois)
+    return unites_fenetre(cadence, debut, fin, aujourdhui, ecoulees)
+
+
+def unites_fenetre(
+    cadence: str,
+    debut: date_type,
+    fin: date_type,
+    aujourdhui: Optional[date_type] = None,
+    ecoulees: bool = True,
+) -> float:
+    """La même chose pour une FENÊTRE QUELCONQUE : une semaine, un mois, une
+    année, ou tout l'historique (cf. `fenetres_de_lecture`).
+
+    UNE FENÊTRE DE MOIS COMMENCE LE 1er : c'est ce que sont toutes celles qu'on
+    lit ici (un mois, une année, tout l'historique depuis le début de son
+    premier mois), et c'est ce qui permet de compter chaque mois pour la fraction
+    de lui-même qui est écoulée."""
     aujourdhui = (aujourdhui or date_type.today()) if ecoulees else fin
     borne, jours = _jours_ecoules(debut, fin, aujourdhui)
     if jours <= 0:
@@ -122,13 +140,12 @@ def unites_de_cadence(
     # lui-même qui est écoulée. Un mois entier vaut 1, le mois en cours vaut ses
     # jours passés sur son nombre de jours.
     total = 0.0
-    for m in range(mois or 1, (mois or 12) + 1):
-        premier = date_type(annee, m, 1)
-        if borne < premier:
-            break
-        jours_du_mois = calendar.monthrange(annee, m)[1]
-        comptes = borne.day if borne.month == m else jours_du_mois
+    annee, mois = debut.year, debut.month
+    while date_type(annee, mois, 1) <= borne:
+        jours_du_mois = calendar.monthrange(annee, mois)[1]
+        comptes = borne.day if (borne.year, borne.month) == (annee, mois) else jours_du_mois
         total += min(comptes, jours_du_mois) / jours_du_mois
+        annee, mois = (annee + 1, 1) if mois == 12 else (annee, mois + 1)
     return total
 
 
@@ -208,7 +225,31 @@ def _lignes_depenses(
     sous_filtre_id: Optional[int] = None,
     filtres: Optional[list] = None,
 ) -> list[float]:
-    """Le montant retenu de chaque dépense de la période, une valeur par LIGNE.
+    """Le montant retenu de chaque dépense de la période, une valeur par LIGNE
+    (cf. `_lignes_detaillees`, qui rend aussi l'opération de chaque ligne)."""
+    return [
+        retenu
+        for _operation, retenu in _lignes_detaillees(
+            db, debut, fin, monnaie_id, categorie_id, sous_filtre_id, filtres
+        )
+    ]
+
+
+def _lignes_detaillees(
+    db: Session,
+    debut: date_type,
+    fin: date_type,
+    monnaie_id: int,
+    categorie_id: Optional[int],
+    sous_filtre_id: Optional[int] = None,
+    filtres: Optional[list] = None,
+) -> list[tuple]:
+    """Chaque dépense de la période, avec son montant retenu : `(opération,
+    retenu)`, une paire par LIGNE.
+
+    LA PAGE D'UN OBJECTIF LIT CETTE FONCTION, comme la mesure : les opérations
+    qu'elle liste sont EXACTEMENT celles qui ont servi au chiffre de la carte, et
+    non une seconde requête qui finirait par ne plus tomber d'accord avec lui.
 
     LE MÊME PÉRIMÈTRE DE TYPES QUE L'HISTOGRAMME (classique et remboursable,
     statut réel) : ce sont les opérations qui portent une catégorie, donc les
@@ -259,7 +300,7 @@ def _lignes_depenses(
             operation_sous_filtre.c.operation_id == models.Operation.id,
         ).filter(operation_sous_filtre.c.sous_filtre_id == sous_filtre_id)
 
-    montants: list[float] = []
+    lignes: list[tuple] = []
     for operation, code in requete.all():
         if not passe_filtres(operation, filtres):
             continue
@@ -277,8 +318,8 @@ def _lignes_depenses(
                 continue
             retenu = _retenu(operation, code, part)
         if retenu:
-            montants.append(retenu)
-    return montants
+            lignes.append((operation, retenu))
+    return lignes
 
 
 # ---------- Le périmètre « ce que le dashboard affiche » ----------
@@ -304,11 +345,12 @@ def _depenses_du_dashboard(
 
 
 def semaine_de_lecture(
-    annee: int, mois: int, aujourdhui: Optional[date_type] = None
+    annee: int, mois: Optional[int], aujourdhui: Optional[date_type] = None
 ) -> tuple[date_type, date_type]:
     """LA SEMAINE (du lundi au dimanche) sur laquelle lire un objectif
-    hebdomadaire : celle d'aujourd'hui si le mois affiché la contient, sinon la
-    dernière semaine d'un mois passé, ou la première d'un mois à venir.
+    hebdomadaire : celle d'aujourd'hui si la période affichée la contient, sinon
+    la dernière semaine d'une période passée, ou la première d'une période à
+    venir. `mois` absent veut dire l'année entière, comme partout.
 
     UNE VRAIE SEMAINE, qui peut déborder sur le mois voisin : « cette semaine »
     ne s'arrête pas au 30 parce que le sélecteur affiche septembre."""
@@ -373,70 +415,185 @@ def _mesure_sur_lignes(
     return ((sum(montants) / base * 100.0) if base else 0.0), echantillon
 
 
-def mesurer(
+# ---------- Les deux vues d'un objectif ----------
+#
+# UN OBJECTIF SE LIT DE DEUX FAÇONS, TOUJOURS LES DEUX, à chaque niveau du
+# dashboard :
+#
+#   - L'ACTUELLE : la période PROPRE de l'objectif — la semaine pour un objectif
+#     hebdomadaire, le mois pour un objectif mensuel. C'est « où j'en suis » : un
+#     cumul, comparé à la cible entière, jamais une extrapolation.
+#   - LA MOYENNÉE : une fenêtre plus large, ramenée à la cadence — « quel rythme
+#     j'ai tenu ». Elle dépend du niveau du dashboard ET de la cadence :
+#
+#         objectif semaine : dashboard mois → le mois    dashboard année → l'année
+#         objectif mois    : dashboard mois → l'année    dashboard année → TOUT
+#                                                        l'historique
+#
+#     Une moyenne n'a de sens que sur plusieurs unités : la semaine se moyenne sur
+#     un mois puis une année, le mois sur une année puis tout l'historique.
+#
+# LES MESURES DE RAPPORT (montant moyen, part) n'ont pas de cadence : elles
+# prennent celle du mois, et leur « moyennée » est la même mesure sur la fenêtre
+# plus large — un rapport ne se divise pas par une durée.
+
+
+def _cadence_de_lecture(objectif: models.ObjectifKpi) -> str:
+    """La cadence qui décide des fenêtres : celle de l'objectif quand sa mesure
+    cumule, le mois pour un rapport (cf. ci-dessus)."""
+    if objectif.mesure in MESURES_OBJECTIF_CUMULATIVES:
+        return objectif.cadence
+    return CadenceObjectif.mois.value
+
+
+def premier_jour_de_l_historique(
+    db: Session, monnaie_id: int, aujourdhui: date_type
+) -> date_type:
+    """Le premier du mois de la plus ancienne dépense de la monnaie — où commence
+    « tout l'historique ». Sans aucune dépense, le mois en cours : une fenêtre
+    vide plutôt qu'une fenêtre qui remonte à l'an zéro."""
+    premiere = (
+        db.query(func.min(models.Operation.date))
+        .filter(
+            models.Operation.monnaie_id == monnaie_id,
+            models.Operation.sens == Sens.depense,
+        )
+        .scalar()
+    )
+    if premiere is None or premiere > aujourdhui:
+        premiere = aujourdhui
+    return date_type(premiere.year, premiere.month, 1)
+
+
+def _fenetre(kind: str, debut: date_type, fin: date_type, annee=None, mois=None) -> dict:
+    return {"kind": kind, "debut": debut, "fin": fin, "annee": annee, "mois": mois}
+
+
+def fenetres_de_lecture(
     db: Session,
     objectif: models.ObjectifKpi,
     annee: int,
     mois: Optional[int],
     aujourdhui: Optional[date_type] = None,
 ) -> dict:
-    """Ce que l'objectif vaut sur la période affichée, et ce qu'il visait.
+    """Les deux fenêtres d'un objectif pour un niveau du dashboard : `actuelle`
+    et `moyennee` (cf. le commentaire ci-dessus). `mois` absent est la vue année.
 
-    DEUX FAÇONS DE LIRE UN CUMUL, ET LA PÉRIODE DÉCIDE LAQUELLE — c'est le
-    cœur de ce calcul, et la première version s'y était trompée :
+    TOUT L'HISTORIQUE S'ARRÊTE À LA FIN DE L'ANNÉE EN COURS, et non à aujourd'hui :
+    c'est ce que fait la vue année du dashboard (elle compte aussi ce qui est
+    étalé sur les mois à venir), et la fenêtre doit tomber d'accord avec lui. Ce
+    sont les UNITÉS qui ne comptent que le temps écoulé."""
+    aujourdhui = aujourdhui or date_type.today()
+    cadence = _cadence_de_lecture(objectif)
+    debut_p, fin_p = bornes_periode(annee, mois)
 
-      - LA PÉRIODE TIENT DANS UNE CADENCE (un objectif mensuel lu sur un mois) :
-        on compare le CUMUL à la cible, sans rien diviser. « 196 € sur 250 € »
-        le 19 du mois est ce qu'on veut lire. La version d'avant ramenait à la
-        cadence et affichait « 309 € par mois » — une EXTRAPOLATION, qui
-        annonçait manqué un objectif qu'on pouvait encore tenir, et qui faisait
-        dire au dashboard un chiffre qu'aucune addition de l'écran ne donne.
-      - LA PÉRIODE EN CONTIENT PLUSIEURS (un objectif hebdomadaire lu sur un
-        mois, un objectif mensuel lu sur une année) : il FAUT convertir, et
-        c'est alors une MOYENNE sur du temps réellement écoulé — « 3,8 par
-        semaine » — jamais une prévision.
+    if cadence == CadenceObjectif.semaine.value:
+        lundi, dimanche = semaine_de_lecture(annee, mois, aujourdhui)
+        actuelle = _fenetre("semaine", lundi, dimanche)
+        moyennee = (
+            _fenetre("mois", debut_p, fin_p, annee, mois)
+            if mois is not None
+            else _fenetre("annee", debut_p, fin_p, annee, None)
+        )
+        return {"actuelle": actuelle, "moyennee": moyennee}
+
+    # Cadence « mois ». Sur la vue année, le mois de lecture est celui
+    # d'aujourd'hui si l'année le contient, sinon son dernier (ou son premier).
+    if mois is None:
+        mois_lecture = min(max(aujourdhui, debut_p), fin_p).month
+    else:
+        mois_lecture = mois
+    d, f = bornes_periode(annee, mois_lecture)
+    actuelle = _fenetre("mois", d, f, annee, mois_lecture)
+    if mois is not None:
+        d, f = bornes_periode(annee, None)
+        moyennee = _fenetre("annee", d, f, annee, None)
+    else:
+        premier = premier_jour_de_l_historique(db, objectif.monnaie_id, aujourdhui)
+        moyennee = _fenetre(
+            "tout", premier, date_type(max(aujourdhui.year, annee), 12, 31)
+        )
+    return {"actuelle": actuelle, "moyennee": moyennee}
+
+
+def _semantique(objectif: models.ObjectifKpi, fenetre: dict) -> str:
+    """« budget » ou « lignes » : ce que la fenêtre COMPTE (cf. l'en-tête du
+    module).
+
+    LE BUDGET, c'est ce que l'histogramme du dashboard affiche — étalement,
+    reste à charge, parts de découpe — et il n'existe que pour un mois, une année
+    ou tout l'historique d'un objectif SANS filtre ni projet, qui mesure un
+    montant total ou une part. TOUT LE RESTE COMPTE DES LIGNES de relevé : un
+    nombre, un montant moyen, un objectif filtré ou de projet, et toute semaine
+    (le calcul du dashboard ne sait pas lire une semaine qui déborde d'un mois)."""
+    sur_lignes = objectif.sous_filtre_id is not None or bool(objectif.filtres)
+    if (
+        fenetre["kind"] == "semaine"
+        or sur_lignes
+        or objectif.mesure in (MesureObjectif.nombre.value, MesureObjectif.montant_moyen.value)
+    ):
+        return "lignes"
+    return "budget"
+
+
+def _depenses_budget(db: Session, fenetre: dict, monnaie_id: int) -> tuple[float, dict]:
+    """Le total dépensé d'une fenêtre « budget » et son détail par catégorie. Une
+    année ou un mois sont ceux du dashboard, tels quels ; TOUT L'HISTORIQUE est
+    la somme des années qu'il couvre."""
+    if fenetre["kind"] != "tout":
+        return _depenses_du_dashboard(db, fenetre["annee"], fenetre["mois"], monnaie_id)
+    total = 0.0
+    par_categorie: dict = {}
+    for annee in range(fenetre["debut"].year, fenetre["fin"].year + 1):
+        sous_total, detail = _depenses_du_dashboard(db, annee, None, monnaie_id)
+        total += sous_total
+        for nom, montant in detail.items():
+            par_categorie[nom] = par_categorie.get(nom, 0.0) + montant
+    return total, par_categorie
+
+
+def mesurer_fenetre(
+    db: Session,
+    objectif: models.ObjectifKpi,
+    fenetre: dict,
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """Ce que l'objectif vaut sur UNE fenêtre, et ce qu'il visait.
+
+    DEUX FAÇONS DE LIRE UN CUMUL, ET LA FENÊTRE DÉCIDE LAQUELLE — c'est le cœur de
+    ce calcul, et la première version s'y était trompée :
+
+      - LA FENÊTRE TIENT DANS UNE CADENCE (un objectif mensuel lu sur son mois, un
+        objectif hebdomadaire sur sa semaine) : on compare le CUMUL à la cible,
+        sans rien diviser. « 196 € sur 250 € » le 19 du mois est ce qu'on veut
+        lire. La version d'avant ramenait à la cadence et affichait « 309 € par
+        mois » — une EXTRAPOLATION, qui annonçait manqué un objectif qu'on pouvait
+        encore tenir ;
+      - LA FENÊTRE EN CONTIENT PLUSIEURS (un objectif hebdomadaire lu sur un mois,
+        un objectif mensuel lu sur une année) : il FAUT convertir, et c'est alors
+        une MOYENNE sur du temps réellement écoulé — « 3,8 par semaine » — jamais
+        une prévision.
 
     LES MESURES DE RAPPORT (montant moyen, part) ne convertissent jamais : une
     moyenne ne double pas quand la période double.
 
-    UN OBJECTIF HEBDOMADAIRE LU SUR UN MOIS rend EN PLUS sa mesure sur la
-    semaine de lecture (cf. `semaine_de_lecture`) : l'écran propose les deux
-    lectures, « où j'en suis cette semaine » et « quel rythme j'ai tenu ».
-
     LA CIBLE NE BOUGE JAMAIS, dans les deux cas : elle est comparée telle qu'on
     l'a écrite. Une cible proratisée aurait donné la même inégalité au même
     moment, pour un chiffre de plus à comprendre à l'écran."""
-    unites = unites_de_cadence(objectif.cadence, annee, mois, aujourdhui)
-    unites_periode = unites_de_cadence(
-        objectif.cadence, annee, mois, aujourdhui, ecoulees=False
+    cadence = _cadence_de_lecture(objectif)
+    unites = unites_fenetre(cadence, fenetre["debut"], fenetre["fin"], aujourdhui)
+    unites_periode = unites_fenetre(
+        cadence, fenetre["debut"], fenetre["fin"], aujourdhui, ecoulees=False
     )
+    semantique = _semantique(objectif, fenetre)
     echantillon = 0
-    # DES LIGNES, ET NON LE CALCUL DU DASHBOARD, dans deux cas :
-    #
-    #  - UN OBJECTIF DE PROJET, ses quatre mesures comprises : c'est la seule
-    #    façon de rester d'accord avec l'écran qui le détaille.
-    #    `get_depenses_par_categorie` ne sait pas ce qu'est un projet, et un
-    #    projet est un paquet de LIGNES qu'on a versées dedans ;
-    #  - UN OBJECTIF FILTRÉ (migration 0073) : un filtre porte sur une ligne — son
-    #    libellé, son montant, son jour — et le calcul du dashboard ne connaît
-    #    que des sommes par catégorie.
-    #
-    # CE QUI DIFFÈRE ALORS D'UN OBJECTIF DE CATÉGORIE : l'étalement, et lui seul.
-    # Une facture annuelle payée en janvier pèse entièrement sur janvier. Le
-    # reste — reste à charge des remboursables, parts des découpes — est le même
-    # des deux côtés (cf. `_retenu`).
-    sur_lignes = objectif.sous_filtre_id is not None or bool(objectif.filtres)
-    debut, fin = bornes_periode(annee, mois)
 
-    if sur_lignes or objectif.mesure in (
-        MesureObjectif.nombre.value,
-        MesureObjectif.montant_moyen.value,
-    ):
-        valeur, echantillon = _mesure_sur_lignes(db, objectif, debut, fin)
-    else:
-        total, par_categorie = _depenses_du_dashboard(
-            db, annee, mois, objectif.monnaie_id
+    if semantique == "lignes":
+        valeur, echantillon = _mesure_sur_lignes(
+            db, objectif, fenetre["debut"], fenetre["fin"]
         )
+    else:
+        total, par_categorie = _depenses_budget(db, fenetre, objectif.monnaie_id)
         nom_categorie = objectif.categorie.nom if objectif.categorie else None
         retenu = par_categorie.get(nom_categorie, 0.0) if nom_categorie else total
         if objectif.mesure == MesureObjectif.montant_total.value:
@@ -462,23 +619,48 @@ def mesurer(
         valeur_cadence = valeur
 
     atteint, avancement = _jugement(objectif, valeur_cadence)
+    return {
+        "kind": fenetre["kind"],
+        "debut": fenetre["debut"].isoformat(),
+        "fin": fenetre["fin"].isoformat(),
+        "semantique": semantique,
+        "valeur": valeur,
+        "valeur_cadence": valeur_cadence,
+        # « cumul » : le grand chiffre EST le total de la période, comparé à la
+        # cible entière. « moyenne » : c'est une moyenne par unité de cadence.
+        # L'écran en tire l'unité qu'il écrit à côté du chiffre — « ce mois-ci »
+        # ne se dit pas comme « par semaine ».
+        "mode": "moyenne" if en_moyenne else "cumul",
+        "unites": unites,
+        "unites_periode": unites_periode,
+        "echantillon": echantillon,
+        "atteint": atteint,
+        "avancement": avancement,
+    }
 
-    semaine = None
-    if objectif.cadence == CadenceObjectif.semaine.value and mois is not None:
-        lundi, dimanche = semaine_de_lecture(annee, mois, aujourdhui)
-        valeur_semaine, echantillon_semaine = _mesure_sur_lignes(
-            db, objectif, lundi, dimanche
-        )
-        atteint_semaine, avancement_semaine = _jugement(objectif, valeur_semaine)
-        semaine = {
-            "debut": lundi.isoformat(),
-            "fin": dimanche.isoformat(),
-            "valeur": valeur_semaine,
-            "echantillon": echantillon_semaine,
-            "atteint": atteint_semaine,
-            "avancement": avancement_semaine,
-        }
 
+def mesurer(
+    db: Session,
+    objectif: models.ObjectifKpi,
+    annee: int,
+    mois: Optional[int],
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """Ce que l'objectif vaut sur la période affichée, et ce qu'il visait.
+
+    LES CHAMPS DE TÊTE (`valeur`, `mode`, `atteint`…) SONT LA PÉRIODE DU
+    SÉLECTEUR, telle que le dashboard la montre : le mois ou l'année, mesurée
+    d'après ce que l'objectif compte. Les DEUX VUES — `actuelle` et `moyennee`,
+    cf. `fenetres_de_lecture` — sont rendues à côté, avec leurs bornes : c'est
+    ce que l'écran bascule, et ce que la page d'un objectif détaille."""
+    debut, fin = bornes_periode(annee, mois)
+    periode = mesurer_fenetre(
+        db,
+        objectif,
+        _fenetre("mois" if mois is not None else "annee", debut, fin, annee, mois),
+        aujourdhui,
+    )
+    fenetres = fenetres_de_lecture(db, objectif, annee, mois, aujourdhui)
     return {
         "objectif_id": objectif.id,
         "nom": objectif.nom,
@@ -492,21 +674,159 @@ def mesurer(
         "projet": objectif.sous_filtre.nom if objectif.sous_filtre else None,
         "monnaie_id": objectif.monnaie_id,
         "visible_dashboard": objectif.visible_dashboard,
-        "valeur": valeur,
-        "valeur_cadence": valeur_cadence,
-        # « cumul » : le grand chiffre EST le total de la période, comparé à la
-        # cible entière. « moyenne » : c'est une moyenne par unité de cadence.
-        # L'écran en tire l'unité qu'il écrit à côté du chiffre — « ce mois-ci »
-        # ne se dit pas comme « par semaine ».
-        "mode": "moyenne" if en_moyenne else "cumul",
-        "unites": unites,
-        "unites_periode": unites_periode,
-        "echantillon": echantillon,
-        "atteint": atteint,
-        "avancement": avancement,
+        "valeur": periode["valeur"],
+        "valeur_cadence": periode["valeur_cadence"],
+        "mode": periode["mode"],
+        "unites": periode["unites"],
+        "unites_periode": periode["unites_periode"],
+        "echantillon": periode["echantillon"],
+        "atteint": periode["atteint"],
+        "avancement": periode["avancement"],
         "filtres": list(objectif.filtres or []),
-        "semaine": semaine,
+        "actuelle": mesurer_fenetre(db, objectif, fenetres["actuelle"], aujourdhui),
+        "moyennee": mesurer_fenetre(db, objectif, fenetres["moyennee"], aujourdhui),
     }
+
+
+# ---------- Les opérations qui entrent en compte ----------
+
+
+def _mois_couverts(operation, debut: date_type, fin: date_type) -> int:
+    """Combien de mois d'amortissement de `operation` tombent entre `debut` et
+    `fin` (0 : elle n'y pèse pas). Miroir de `soldes.part_amortie`, pour une
+    fenêtre quelconque de mois entiers."""
+    premier = max(
+        soldes._index_mois(operation.amortissement_debut), soldes._index_mois(debut)
+    )
+    dernier = min(
+        soldes._index_mois(operation.amortissement_fin), soldes._index_mois(fin)
+    )
+    return max(0, dernier - premier + 1)
+
+
+def _lignes_budget(
+    db: Session, objectif: models.ObjectifKpi, debut: date_type, fin: date_type
+) -> list[tuple]:
+    """Les opérations qui font le BUDGET d'une fenêtre — ce que l'histogramme du
+    dashboard compte — avec la part de chacune : `(opération, retenu, part)`.
+
+    LE MÊME PÉRIMÈTRE QUE `get_depenses_par_categorie`, et c'est tout l'enjeu :
+    la somme des `retenu` vaut la valeur de la carte, au centime. Une dépense
+    datée dans la fenêtre y compte entière ; une dépense AMORTIE y compte pour la
+    fraction de ses mois qui y tombent — elle y est, même payée trois mois plus
+    tôt, et n'y est pas si son étalement commence après. Le reste à charge d'une
+    remboursable et les parts d'une découpe suivent la règle de partout (cf.
+    `_retenu`).
+
+    CE QUI N'Y EST PAS : la barre « Intérêts de prêts » du dashboard, qui n'est
+    pas une opération de dépense (cf. soldes._barre_interets_prets) — un
+    objectif sur toutes les dépenses la compte, sa liste ne peut pas la montrer."""
+    requete = (
+        db.query(models.Operation, models.TypeOperationDB.code)
+        .join(
+            models.TypeOperationDB,
+            models.Operation.type_id == models.TypeOperationDB.id,
+        )
+        .filter(
+            models.Operation.monnaie_id == objectif.monnaie_id,
+            models.Operation.statut == Statut.reel,
+            models.Operation.sens == Sens.depense,
+            models.TypeOperationDB.code.in_(
+                [TypeOperation.classique.value, TypeOperation.remboursable.value]
+            ),
+            or_(
+                and_(
+                    models.Operation.amorti.is_(False),
+                    models.Operation.date >= debut,
+                    models.Operation.date <= fin,
+                ),
+                and_(
+                    models.Operation.amorti.is_(True),
+                    models.Operation.amortissement_debut <= fin,
+                    models.Operation.amortissement_fin >= debut,
+                ),
+            ),
+        )
+    )
+    lignes: list[tuple] = []
+    for operation, code in requete.all():
+        part = 1.0
+        if operation.amorti:
+            nb_mois = operation.amortissement_nb_mois
+            couverts = _mois_couverts(operation, debut, fin)
+            if not nb_mois or not couverts:
+                continue
+            part = couverts / nb_mois
+        categorie_id = objectif.categorie_id
+        if categorie_id is None:
+            # Toutes les dépenses… sauf celles d'une catégorie d'ENTRÉE, que
+            # l'histogramme ne dessine pas (cf. get_depenses_par_categorie).
+            if operation.categorie is not None and operation.categorie.est_entree:
+                continue
+            brut = operation.montant
+        elif operation.categorie_id == categorie_id:
+            brut = operation.montant
+        else:
+            brut = sum(
+                p.montant for p in operation.decoupes if p.categorie_id == categorie_id
+            )
+            if not brut:
+                continue
+        retenu = _retenu(operation, code, brut) * part
+        if retenu:
+            lignes.append((operation, retenu, part))
+    return lignes
+
+
+def operations_contribuantes(
+    db: Session,
+    objectif: models.ObjectifKpi,
+    fenetre: dict,
+) -> list[dict]:
+    """Toutes les opérations qui entrent dans la mesure de l'objectif sur cette
+    fenêtre, chacune avec ce qu'elle y apporte (`retenu`).
+
+    LA LISTE SUIT LA MESURE (cf. `_semantique`) : des lignes de relevé quand
+    l'objectif en compte, le budget du dashboard quand il en lit les barres. La
+    somme de `retenu` est donc la valeur de la carte — pas plus, pas moins — sauf
+    pour un RAPPORT (montant moyen, part), dont la carte divise cette somme.
+
+    LES PLUS GROSSES D'ABORD : c'est ce qui explique un chiffre, et la page se lit
+    de haut en bas jusqu'à ce qu'on ait compris d'où il vient."""
+    if _semantique(objectif, fenetre) == "lignes":
+        paires = [
+            (operation, retenu, 1.0)
+            for operation, retenu in _lignes_detaillees(
+                db,
+                fenetre["debut"],
+                fenetre["fin"],
+                objectif.monnaie_id,
+                objectif.categorie_id,
+                objectif.sous_filtre_id,
+                objectif.filtres or [],
+            )
+        ]
+    else:
+        paires = _lignes_budget(db, objectif, fenetre["debut"], fenetre["fin"])
+
+    lignes = [
+        {
+            "operation_id": operation.id,
+            "date": operation.date.isoformat(),
+            "nature": operation.nature,
+            "compte_id": operation.compte_id,
+            "categorie_id": operation.categorie_id,
+            "monnaie_id": operation.monnaie_id,
+            "montant": operation.montant,
+            "retenu": retenu,
+            "decoupee": bool(operation.decoupes),
+            "amorti": bool(operation.amorti),
+            "amortissement_nb_mois": operation.amortissement_nb_mois,
+        }
+        for operation, retenu, _part in paires
+    ]
+    lignes.sort(key=lambda ligne: (-ligne["retenu"], ligne["date"]))
+    return lignes
 
 
 def mesurer_tous(
