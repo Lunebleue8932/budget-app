@@ -333,13 +333,34 @@ jobs:
     # construction passe, pas à publier une version.
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      # Seulement pour NOTES_DE_VERSION.md (cf. body_path plus bas).
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: NOTES_DE_VERSION.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v4
         with:
           path: archives
           merge-multiple: true
 
+      # Le titre de la Release : le numéro de version, suivi de la première
+      # ligne de NOTES_DE_VERSION.md si elle commence par « # ». Cette ligne
+      # est retirée du texte, qui sinon répéterait le titre juste en dessous.
+      - name: Titre et texte de la Release
+        id: notes
+        run: |
+          titre=$(sed -n '1s/^# \+//p' NOTES_DE_VERSION.md)
+          echo "titre=${GITHUB_REF_NAME}${titre:+ — $titre}" >> "$GITHUB_OUTPUT"
+          sed '1{/^# /d}' NOTES_DE_VERSION.md > corps-release.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: archives/*.zip
+          # Le texte de la Release : ce qui change dans CETTE version, écrit à
+          # la main avant chaque tag. La procédure d'installation, identique
+          # d'une version à l'autre, vit dans le README. Les notes générées
+          # (liste des commits) s'ajoutent à la suite.
+          body_path: corps-release.md
           generate_release_notes: true
-          name: Améliorations visuelles de l'import
+          name: ${{ steps.notes.outputs.titre }}
