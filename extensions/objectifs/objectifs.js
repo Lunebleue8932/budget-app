@@ -422,7 +422,11 @@ function objCarteHtml(mesureServeur, options = {}) {
       </div>
       ${objBasculeVues(mesureServeur)}
       ${sansCible ? "" : objBarre(mesure.avancement, mesure.atteint)}
-      <div class="obj-detail hint">${objDetailMesure(mesure)}</div>
+      ${
+        // Le dashboard ne détaille pas : catégorie, monnaie, période et filtres
+        // se lisent sur la page Objectifs, pas ici.
+        options.sansDetail ? "" : `<div class="obj-detail hint">${objDetailMesure(mesure)}</div>`
+      }
       ${
         options.sansOuverture
           ? ""
@@ -918,7 +922,7 @@ function objRenderDashboard(bloc) {
       <h3>${t("Objectifs")}<i class="info-bulle" tabindex="0"
           data-info-cle="objectifs.dashboard">i</i></h3>
       <div class="obj-liste obj-liste-dashboard">
-        ${objMesuresDashboard.map((mesure) => objCarteHtml(mesure)).join("")}
+        ${objMesuresDashboard.map((mesure) => objCarteHtml(mesure, { sansDetail: true })).join("")}
       </div>`;
 }
 

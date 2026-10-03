@@ -9072,10 +9072,51 @@ document.getElementById("btn-supprimer-toutes-operations").addEventListener("cli
 // bouton "Filtrer" — un seul écouteur délégué couvre les six. `input` pour le
 // texte/nombre/date à chaque frappe, `change` pour les <select> (certains
 // navigateurs ne déclenchent pas `input` dessus).
+/**
+ * UN FILTRE POSÉ VAUT POUR TOUS LES ONGLETS qui ont le même champ : changer
+ * d'onglet (ou de page) ne le défait pas. Il vit dans les champs eux-mêmes, donc
+ * jusqu'à la fermeture de l'application — ou jusqu'à « Réinitialiser », qui le
+ * retire partout.
+ *
+ * Les champs se reconnaissent à leur NOM (`data-filtre`). Un menu n'est aligné
+ * que si l'autre onglet propose cette valeur (une catégorie n'existe pas dans
+ * l'onglet des virements : rien n'est écrit, plutôt qu'un menu vidé).
+ * Les autres onglets sont réaffichés en différé et d'un seul coup : un onglet
+ * qu'on ne regarde pas n'a pas à se redessiner à chaque frappe.
+ */
+let rerenduAutresOngletsTimer = null;
+function propagerFiltreAuxAutresOnglets(champ, ongletSource) {
+  const nom = champ.dataset.filtre;
+  if (!nom) return;
+  const touches = [];
+  document.querySelectorAll(".filtres[id^='filtres-']").forEach((panneau) => {
+    const onglet = panneau.id.slice("filtres-".length);
+    if (onglet === ongletSource) return;
+    const cible = panneau.querySelector(`[data-filtre="${nom}"]`);
+    if (!cible || cible.value === champ.value) return;
+    if (
+      cible.tagName === "SELECT" &&
+      champ.value !== "" &&
+      ![...cible.options].some((o) => o.value === champ.value)
+    ) {
+      return;
+    }
+    cible.value = champ.value;
+    majResumeFiltres(onglet);
+    touches.push(onglet);
+  });
+  if (!touches.length) return;
+  clearTimeout(rerenduAutresOngletsTimer);
+  rerenduAutresOngletsTimer = setTimeout(() => {
+    touches.forEach((onglet) => trierEtRerender(onglet));
+  }, 200);
+}
+
 function gererChangementFiltreOperations(e) {
   const panneau = e.target.closest(".filtres[id^='filtres-']");
   if (!panneau) return;
   const onglet = panneau.id.slice("filtres-".length);
+  propagerFiltreAuxAutresOnglets(e.target, onglet);
   // SEULES LES DEUX DATES DÉPLACENT LA PÉRIODE (cf. synchroniserPeriodeAvecFiltres).
   // Le faire à chaque champ aurait renvoyé au mois courant dès qu'on tape trois
   // lettres dans « Nature », en défaisant l'onglet choisi à la main juste avant.
@@ -9094,6 +9135,8 @@ document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
       .querySelectorAll(`#filtres-${onglet} [data-filtre]`)
       .forEach((champ) => {
         champ.value = "";
+        // Le filtre se retire PARTOUT : il valait pour tous les onglets.
+        propagerFiltreAuxAutresOnglets(champ, onglet);
       });
     majResumeFiltres(onglet);
     trierEtRerender(onglet);
