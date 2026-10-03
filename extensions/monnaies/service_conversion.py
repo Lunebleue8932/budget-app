@@ -12,12 +12,13 @@ main depuis l'écran des monnaies, soit par l'extension « Lecture de cours »
 quand elle tourne. C'est la même table : un taux relu en ligne sert donc à
 convertir sans qu'on ait à le ressaisir.
 
-PAS DE CHAÎNE DE CONVERSION. Un taux EUR->USD et un taux USD->JPY ne sont pas
-utilisés pour fabriquer un EUR->JPY. Deux raisons, et la seconde suffirait :
-les erreurs se multiplient d'un maillon à l'autre, et surtout un taux qu'on n'a
-jamais saisi apparaîtrait comme s'il était connu. Une monnaie sans taux direct
-(ou sans l'inverse) n'est pas convertie — elle est NOMMÉE dans la réponse, et
-l'écran le dit.
+LA TRANSITIVITÉ EST ADMISE. Un taux EUR->USD et un taux USD->JPY suffisent à
+convertir du yen en euros : le taux voulu se déduit des deux, et exiger de le
+saisir aussi aurait obligé à tenir à jour une ligne pour chaque couple possible.
+LE CHEMIN LE PLUS COURT L'EMPORTE : un taux direct (un maillon) n'est jamais
+remplacé par un détour qui multiplierait les erreurs d'arrondi. Une monnaie
+qu'aucun chemin ne relie à la cible n'est pas convertie — elle est NOMMÉE dans
+la réponse, et l'écran le dit.
 
 L'INVERSE, LUI, EST ADMIS. « 1 € vaut 1,08 $ » et « 1 $ vaut 0,926 € » sont la
 même information écrite dans les deux sens ; obliger à saisir les deux lignes ne
@@ -39,17 +40,31 @@ def table_de_conversion(db, vers_monnaie_id: int) -> tuple[dict, list]:
     """
     coefficients = {vers_monnaie_id: 1.0}
 
-    couples = db.query(models.TauxChange).filter(models.TauxChange.taux.isnot(None)).all()
-    for couple in couples:
-        if couple.taux <= 0:
-            # Un taux nul ou négatif ne décrit rien et ferait exploser la
-            # division de l'inverse. Ignoré plutôt que refusé : la saisie le
-            # rejette déjà, et une donnée ancienne ne doit pas casser un écran.
-            continue
-        if couple.monnaie_cible_id == vers_monnaie_id:
-            coefficients.setdefault(couple.monnaie_source_id, couple.taux)
-        elif couple.monnaie_source_id == vers_monnaie_id:
-            coefficients.setdefault(couple.monnaie_cible_id, 1.0 / couple.taux)
+    couples = [
+        couple
+        for couple in db.query(models.TauxChange).filter(models.TauxChange.taux.isnot(None)).all()
+        # Un taux nul ou négatif ne décrit rien et ferait exploser la division de
+        # l'inverse. Ignoré plutôt que refusé : la saisie le rejette déjà, et une
+        # donnée ancienne ne doit pas casser un écran.
+        if couple.taux > 0
+    ]
+    # Parcours en largeur depuis la cible : à chaque monnaie atteinte, on lit ses
+    # couples dans les deux sens. `setdefault` garde le premier coefficient
+    # trouvé, donc celui du chemin le plus court.
+    file = [vers_monnaie_id]
+    while file:
+        courante = file.pop(0)
+        valeur = coefficients[courante]
+        for couple in couples:
+            if couple.monnaie_cible_id == courante:
+                voisine, coefficient = couple.monnaie_source_id, couple.taux * valeur
+            elif couple.monnaie_source_id == courante:
+                voisine, coefficient = couple.monnaie_cible_id, valeur / couple.taux
+            else:
+                continue
+            if voisine not in coefficients:
+                coefficients[voisine] = coefficient
+                file.append(voisine)
 
     manquantes = [
         monnaie for monnaie in crud.get_monnaies(db) if monnaie.id not in coefficients

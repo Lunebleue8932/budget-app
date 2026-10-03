@@ -86,6 +86,7 @@ const state = {
   // avait la sienne tant qu'elle portait une colonne « Budget » ; celui-ci
   // vit maintenant sur la page Budget, qui garde la sienne de son côté.
   dashboardMonnaieId: null,
+  monnaieAffichageDefautId: undefined,
   // La monnaie du camembert « Répartition des avoirs », page Vue globale des
   // comptes. UNE TROISIÈME SÉLECTION, indépendante des deux autres : cette
   // page-là n'a pas d'onglet de monnaie (chaque carte montre tous ses soldes),
@@ -1548,8 +1549,42 @@ function majAffichageToucheGel() {
   champ.value = combo ? libelleCombo(combo) : t("Désactivé");
 }
 
+/** Le menu « Monnaie d'affichage par défaut » : toutes les monnaies, plus
+ * « Aucune » (première de la liste). */
+function majAffichageMonnaieDefaut() {
+  const select = document.getElementById("reglage-monnaie-defaut");
+  if (!select) return;
+  select.innerHTML = "";
+  const aucune = document.createElement("option");
+  aucune.value = "";
+  aucune.textContent = t("Aucune (la première)");
+  select.appendChild(aucune);
+  // Une monnaie désactivée ne se propose pas : elle n'est plus faite pour être
+  // regardée en premier.
+  const proposables = state.monnaies.filter((m) => m.active !== false);
+  proposables.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = `${m.nom} (${m.symbole})`;
+    select.appendChild(opt);
+  });
+  const preferee = state.monnaieAffichageDefautId;
+  select.value = preferee != null && proposables.some((m) => m.id === preferee) ? String(preferee) : "";
+}
+
+document.getElementById("reglage-monnaie-defaut")?.addEventListener("change", async (e) => {
+  const id = Number(e.target.value) || null;
+  if (await ecrirePreference(CLE_MONNAIE_AFFICHAGE, id)) {
+    state.monnaieAffichageDefautId = id;
+  } else {
+    showMessage(t("Réglage non enregistré."), "error");
+    majAffichageMonnaieDefaut();
+  }
+});
+
 function loadParametresGeneraux() {
   majAffichageTheme();
+  majAffichageMonnaieDefaut();
   majAffichageToucheGel();
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
@@ -1645,10 +1680,35 @@ async function refreshTypesComptes() {
   fillTypesComptesSelect(document.getElementById("compte-type"), state.typesComptes);
 }
 
+/**
+ * LA MONNAIE D'AFFICHAGE PAR DÉFAUT : celle qui s'affiche en premier au lancement
+ * de l'application ou d'une page (dashboard, budget, avoirs…). Un réglage
+ * d'AFFICHAGE, rien de plus : aucune opération ni aucun solde n'en dépend.
+ *
+ * DANS LA BASE, et non le `localStorage` : elle désigne l'identifiant d'une
+ * monnaie (cf. models.PreferenceInterface). Posée dans `state` au chargement des
+ * monnaies ; `undefined` = pas encore lue, `null` = aucune préférence.
+ */
+const CLE_MONNAIE_AFFICHAGE = "noyau.monnaie-affichage-defaut";
+
+/** Parmi des identifiants de monnaie candidats, celui à montrer d'abord : la
+ * préférée si elle en fait partie, sinon le premier. */
+function monnaiePreferee(ids) {
+  const liste = (ids || []).filter((id) => id != null);
+  const preferee = state.monnaieAffichageDefautId;
+  const desactivee = (state.monnaies || []).some((m) => m.id === preferee && m.active === false);
+  if (preferee != null && !desactivee && liste.includes(preferee)) return preferee;
+  return liste.length > 0 ? liste[0] : null;
+}
+
 async function refreshMonnaies() {
   state.monnaies = await apiFetch("/monnaies");
+  if (state.monnaieAffichageDefautId === undefined) {
+    const valeur = await lirePreference(CLE_MONNAIE_AFFICHAGE);
+    state.monnaieAffichageDefautId = Number.isInteger(valeur) ? valeur : null;
+  }
   if (!state.dashboardMonnaieId && state.monnaies.length > 0) {
-    state.dashboardMonnaieId = state.monnaies[0].id;
+    state.dashboardMonnaieId = monnaiePreferee(state.monnaies.map((m) => m.id));
   }
   // Un `<select class="filtre-select-monnaie">` par champ monnaie filtrable
   // de la page Opérations (une monnaie envoyée ET une monnaie reçue sur
@@ -1820,7 +1880,7 @@ async function loadDashboardData(annee, mois) {
     // l'histogramme. La sélection survit d'un rechargement à l'autre tant que
     // la monnaie existe encore.
     if (!data.kpis.some((k) => k.monnaie_id === state.dashboardMonnaieId)) {
-      state.dashboardMonnaieId = data.kpis.length > 0 ? data.kpis[0].monnaie_id : null;
+      state.dashboardMonnaieId = monnaiePreferee(data.kpis.map((k) => k.monnaie_id));
     }
 
     renderOngletsMonnaies(
@@ -1874,7 +1934,7 @@ function renderRepartitionAvoirs() {
 
   const monnaies = data.monnaies || [];
   if (!monnaies.some((m) => m.id === state.comptesRepartitionMonnaieId)) {
-    state.comptesRepartitionMonnaieId = monnaies.length > 0 ? monnaies[0].id : null;
+    state.comptesRepartitionMonnaieId = monnaiePreferee(monnaies.map((m) => m.id));
   }
   menu.innerHTML = monnaies
     .map(
@@ -4958,7 +5018,7 @@ function fillCompteForm(compte, ancre) {
     protege: false,
     url: `/comptes/${compte.id}/etat`,
     corps: { actif: compte.actif === false },
-    message: compte.actif === false ? t("Compte rallumé") : t("Compte éteint"),
+    message: compte.actif === false ? t("Compte réactivé") : t("Compte désactivé"),
     apres: loadComptes,
   });
 }
@@ -5348,7 +5408,7 @@ function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apre
     return;
   }
   bouton.style.display = "inline-block";
-  bouton.textContent = eteint ? t("Rallumer") : t("Éteindre");
+  bouton.textContent = eteint ? t("Réactiver") : t("Désactiver");
   bouton.onclick = async () => {
     try {
       await apiFetch(url, { method: "PUT", body: JSON.stringify(corps) });
@@ -5385,7 +5445,7 @@ function fillCategorieForm(categorie, ancre) {
     url: `/categories/${categorie.id}/etat`,
     corps: { active: categorie.active === false },
     message:
-      categorie.active === false ? t("Catégorie rallumée") : t("Catégorie éteinte"),
+      categorie.active === false ? t("Catégorie réactivée") : t("Catégorie désactivée"),
     apres: loadCategories,
   });
 }
@@ -6068,6 +6128,10 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
 
   const compteSourceId = Number(document.getElementById("operation-compte1").value);
   const compteDestinationId = Number(document.getElementById("operation-compte2").value);
+  // Le bloc « Monnaie reçue » est masqué tant que l'opération n'est pas un
+  // virement : s'il l'est encore, on VIENT de basculer vers ce type.
+  const vientDeBasculer =
+    document.getElementById("operation-monnaie-recue-bloc").style.display === "none";
   // Sur un virement, le menu est toujours affiché même mono-monnaie : il
   // nomme explicitement ce qui part et ce qui arrive, ce dont on a besoin dès
   // que les deux comptes ne partagent pas la même monnaie.
@@ -6083,8 +6147,20 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
     compteDestinationId,
     { forcerAffichage: true, monnaieConservee: monnaieRecue }
   );
+  // PAR DÉFAUT, LA MONNAIE D'EN FACE EST CELLE DE L'ÉMETTEUR (virement sans
+  // change, le cas ordinaire), tant que le compte récepteur la porte. Seulement
+  // à la bascule : ensuite, c'est le choix de l'utilisateur qui prime.
+  const selectRecue = document.getElementById("operation-monnaie-recue");
+  if (
+    vientDeBasculer &&
+    monnaieRecue == null &&
+    monnaieSource != null &&
+    [...selectRecue.options].some((o) => Number(o.value) === monnaieSource)
+  ) {
+    selectRecue.value = String(monnaieSource);
+  }
 
-  const memeMonnaie = monnaieSource === monnaieDestination;
+  const memeMonnaie = monnaieSource === (Number(selectRecue.value) || null);
   document.getElementById("operation-monnaie-label").textContent = t("Monnaie envoyée");
   document.getElementById("operation-montant-label").textContent = memeMonnaie
     ? t("Montant")
@@ -8181,6 +8257,12 @@ function majResumeFiltres(onglet) {
   if (!resume) return;
   const actifs = Object.values(lireFiltresOnglet(onglet)).filter((v) => v !== "").length;
   resume.textContent = actifs === 0 ? "" : t("· {n} actif(s)", { n: actifs });
+  // Et chaque champ rempli passe son texte en bleu (cf. .filtre-rempli) : la valeur
+  // d'un montant max, le « Oui » d'une dépense récurrente. On voit d'un coup d'œil
+  // LESQUELS des champs filtrent, sans avoir à les relire tous.
+  document.querySelectorAll(`#filtres-${onglet} [data-filtre]`).forEach((champ) => {
+    champ.classList.toggle("filtre-rempli", champ.value.trim() !== "");
+  });
   // Le bandeau entier passe en bleu quand un filtre est posé (cf. .filtres-actifs).
   document.getElementById(`filtres-repli-${onglet}`)?.classList.toggle("filtres-actifs", actifs > 0);
 }
@@ -9076,6 +9158,11 @@ let importConfigColonnesComparaison = [];
 // pour savoir, à l'enregistrement suivant, si l'aperçu du fichier chargé a
 // cessé d'être à jour — et donc s'il faut le refaire.
 let importSignatureApercuEnregistree = null;
+// Les colonnes lues telles qu'ENREGISTRÉES dans le preset (cf.
+// signatureColonnesImport) : l'alerte « les colonnes ont changé » compare la
+// configuration vivante à elles, et non à un drapeau qu'une modification
+// remise à l'identique ne ferait jamais retomber.
+let importSignatureColonnesEnregistrees = null;
 
 // Ce que tout relevé porte : c'est la « Configuration du fichier ». Les clés
 // sont celles de constants.PROPRIETES_IMPORT_BASE.
@@ -9609,6 +9696,16 @@ function lignesEnteteSaisies() {
   return Math.min(valeur, Number(champ.max) || valeur);
 }
 
+/** Les colonnes lues, indépendamment de leur ordre de saisie. */
+function signatureColonnesImport(colonnes) {
+  return JSON.stringify(
+    (colonnes || [])
+      .filter((c) => c.index >= 1)
+      .map((c) => `${c.propriete}:${c.index}`)
+      .sort()
+  );
+}
+
 function signatureApercu(config) {
   return JSON.stringify({
     colonnes: config.colonnes,
@@ -9630,6 +9727,7 @@ function signatureApercu(config) {
 async function loadImportConfiguration() {
   const config = await apiFetch(importUrl(""));
   importSignatureApercuEnregistree = signatureApercu(config);
+  importSignatureColonnesEnregistrees = signatureColonnesImport(config.colonnes);
   importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
   importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
@@ -10444,6 +10542,7 @@ async function enregistrerConfigurationImport({
     // fichier plus bas.
     const apercuPerime = signatureApercu(config) !== importSignatureApercuEnregistree;
     importSignatureApercuEnregistree = signatureApercu(config);
+    importSignatureColonnesEnregistrees = signatureColonnesImport(config.colonnes);
     importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
     importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
     document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
@@ -10913,8 +11012,13 @@ function majBoutonRelireApercu() {
     ? t("Les colonnes ont changé : relire le fichier pour voir ce que l'import donnera.")
     : t("Relire le fichier avec la configuration actuelle");
   bouton.setAttribute("aria-label", bouton.title);
+  // L'alerte parle de ce qui n'est pas ENREGISTRÉ : déplacer une colonne puis la
+  // remettre à sa place la fait disparaître, même si le fichier n'a pas été relu.
+  const colonnesNonEnregistrees =
+    importSignatureColonnesEnregistrees !== null &&
+    signatureColonnesImport(importConfigColonnes) !== importSignatureColonnesEnregistrees;
   document.getElementById("import-apercu-fichier-alerte").style.display =
-    importApercuAReloire ? "" : "none";
+    colonnesNonEnregistrees ? "" : "none";
 }
 
 /* ---------- DEVINER LES COLONNES ----------
@@ -11553,8 +11657,13 @@ function montantLigneApercuHtml(ligne) {
   // montant scindé : le montant s'affiche toujours en positif, ce rappel est le
   // seul endroit où l'on voit que la ligne est une sortie plutôt qu'une entrée
   // avant de l'avoir importée.
-  if (ligne.sens_explicite) {
-    const sortie = ligne.montant_signe != null && ligne.montant_signe < 0;
+  //
+  // Le rappel ne dépend PAS de `sens_explicite` : un relevé à UNE colonne de
+  // montants signés (négatifs / positifs) donne aussi un signe, et il doit se
+  // voir de la même façon. `sens_explicite` ne décide que de ce que l'import
+  // impose à l'opération, pas de ce que l'aperçu montre.
+  if (ligne.montant_signe != null && ligne.montant_signe !== 0) {
+    const sortie = ligne.montant_signe < 0;
     html = `<span class="apercu-sens ${sortie ? "sortie" : "entree"}">${
       sortie ? "−" : "+"
     }</span>${html}`;
@@ -11576,6 +11685,10 @@ function montantLigneApercuHtml(ligne) {
     html += `<span class="apercu-frais">dont frais ${escapeHtml(
       formatMontant(ligne.frais, monnaieFrais)
     )}</span>`;
+  }
+  // Une sortie se lit en orange, montant compris (et pas seulement son signe).
+  if (ligne.montant_signe != null && ligne.montant_signe < 0) {
+    html = `<span class="apercu-montant-sortie">${html}</span>`;
   }
   return html;
 }
@@ -12878,12 +12991,18 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
 
     const labelMonnaieEnvoyee = document.createElement("label");
     labelMonnaieEnvoyee.textContent = t("Monnaie envoyée");
-    selectMonnaieEnvoyee = creerSelectMonnaie(compteSourceId, ligne.monnaie_envoyee_id);
+    // PAR DÉFAUT, LA MONNAIE D'EN FACE EST CELLE QUE LE RELEVÉ A LUE : un virement
+    // sans change est le cas ordinaire, et c'est seulement quand les deux
+    // diffèrent que l'utilisateur a quelque chose à dire. Si le compte d'en face
+    // ne porte pas cette monnaie, `creerSelectMonnaie` retombe sur la sienne.
+    const monnaieLue =
+      ligne.monnaie_id ?? ligne.monnaie_operation_id ?? ligne.monnaie_envoyee_id ?? monnaieParDefautLigne(ligne);
+    selectMonnaieEnvoyee = creerSelectMonnaie(compteSourceId, ligne.monnaie_envoyee_id ?? monnaieLue);
     labelMonnaieEnvoyee.appendChild(selectMonnaieEnvoyee);
 
     const labelMonnaieRecue = document.createElement("label");
     labelMonnaieRecue.textContent = t("Monnaie reçue");
-    selectMonnaie = creerSelectMonnaie(compteDestinationId, ligne.monnaie_id);
+    selectMonnaie = creerSelectMonnaie(compteDestinationId, ligne.monnaie_id ?? monnaieLue);
     labelMonnaieRecue.appendChild(selectMonnaie);
 
     const labelMontantEnvoye = document.createElement("label");
@@ -13831,11 +13950,6 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
 // Tous presets confondus, et donc sans importUrl : la sous-page
 // « Correspondances » s'affiche même sans preset sélectionné.
 async function loadImportMappingsOverview() {
-  // LE RANGEMENT AVANT LE RENDU, et à chaque fois : il vit dans la base, qui
-  // peut changer sous l'application (panneau « Base de données »). Le lire une
-  // seule fois au démarrage aurait montré, après une bascule, l'ordre de la
-  // base précédente.
-  await chargerOrdreColonnesMappings();
   renderImportMappingsOverview(await apiFetch("/import/mappings"));
 }
 
@@ -13914,6 +14028,8 @@ function ajusterHauteursGalerie(bloc) {
   // page pour de bon. C'est l'observateur plus bas qui relance le calcul dès
   // qu'elle réapparaît.
   if (bloc.getBoundingClientRect().height === 0) return;
+  // Gelée le temps d'un glissement (cf. geleGalerie).
+  if (bloc.dataset.gele === "1") return;
 
   const styles = window.getComputedStyle(bloc);
   const hauteurRangee = parseFloat(styles.gridAutoRows) || 1;
@@ -13933,6 +14049,47 @@ function ajusterHauteursGalerie(bloc) {
   });
 }
 
+/**
+ * GÈLE LA GALERIE le temps d'un glissement (carte ou colonne).
+ *
+ * Reclasser un libellé change la hauteur de deux colonnes, donc — par le calcul
+ * des rangées ci-dessus — la place de toutes les autres : la cible visée se
+ * dérobait sous la souris au moment de déposer. Pendant le geste, on fige donc
+ * les rangées occupées par chaque colonne (plus de recalcul) et sa hauteur
+ * actuelle (`min-height`, pour que celle d'où la carte part ne se referme pas).
+ * Le recalcul normal reprend à la fin du glissement, quand plus rien ne bouge
+ * sous le pointeur.
+ */
+function geleGalerie(bloc) {
+  if (!bloc || bloc.dataset.gele === "1") return;
+  bloc.querySelectorAll(".galerie-colonne").forEach((colonne) => {
+    colonne.style.minHeight = `${colonne.getBoundingClientRect().height}px`;
+  });
+  bloc.dataset.gele = "1";
+}
+
+function degeleGalerie(bloc) {
+  if (!bloc || bloc.dataset.gele !== "1") return;
+  delete bloc.dataset.gele;
+  bloc.querySelectorAll(".galerie-colonne").forEach((colonne) => {
+    colonne.style.minHeight = "";
+  });
+  ajusterHauteursGalerie(bloc);
+}
+
+/** Branche le gel sur tout glissement qui part d'une carte ou d'une colonne de
+ *  la galerie — une seule fois par conteneur, il survit aux rendus. */
+function brancherGelGalerie(bloc) {
+  if (bloc.dataset.gelBranche === "1") return;
+  bloc.dataset.gelBranche = "1";
+  bloc.addEventListener("dragstart", (e) => {
+    if (e.target.closest && e.target.closest(".galerie-carte, .galerie-colonne")) geleGalerie(bloc);
+  });
+  bloc.addEventListener("dragend", () => degeleGalerie(bloc));
+  // Un glissement abandonné hors de la page n'envoie pas toujours `dragend`.
+  document.addEventListener("drop", () => degeleGalerie(bloc));
+}
+
 // Une seule galerie à l'écran. L'observateur suit sa taille : il couvre d'un
 // coup le repli/dépli de l'onglet Règles, le redimensionnement de la fenêtre et
 // les cartes qui changent de hauteur quand leur libellé se replie — sans avoir à
@@ -13947,149 +14104,41 @@ function surveillerHauteursGalerie(bloc) {
 }
 
 /**
- * ORDRE DES COLONNES DE LA GALERIE, choisi à la main.
+ * ORDRE DES COLONNES DE LA GALERIE : calculé, jamais choisi à la main.
  *
- * Les colonnes arrivaient dans l'ordre des catégories (celui de la page
- * Catégories, qui suit le budget). C'est un bon ordre pour lire un budget, pas
- * pour ranger des libellés : ce qu'on veut ici, c'est mettre côte à côte les
- * deux ou trois catégories entre lesquelles on hésite à chaque import, et
- * repousser au bout celles qui ne reçoivent jamais rien. On attrape donc une
- * colonne PAR SON EN-TÊTE et on la pose ailleurs.
+ * Les groupes (une colonne par catégorie) ne se déplacent plus : seules les
+ * cartes passent d'un groupe à l'autre. Les groupes s'agencent d'eux-mêmes pour
+ * tenir le moins de place en hauteur — on compte combien de libellés chacun porte
+ * et on pose les plus chargés en premier, la grille empilant ensuite chaque
+ * colonne sous la plus courte (cf. ajusterHauteursGalerie).
  *
- * STOCKÉ EN BASE (`PreferenceInterface`, clé « noyau.correspondances-ordre »,
- * migration 0069), et non plus dans le `localStorage` : ce qui est rangé ici est
- * une liste d'IDENTIFIANTS DE CATÉGORIE, qui n'existent que dans une base
- * précise. Le même rangement appliqué à une autre base range d'autres colonnes.
- *
- * CE N'EST PAS `Categorie.ordre` POUR AUTANT, et il ne faut surtout pas les
- * confondre : celui-là suit le budget et commande la page Catégories, l'écran
- * des flux, l'histogramme. Le bousculer depuis un écran qui ne parle pas de
- * budget aurait réordonné le budget lui-même. Deux rangements différents, deux
- * endroits différents — l'un est une colonne de la table, l'autre une clé de
- * rangement d'écran.
- *
- * L'ordre mémorisé ne fait pas autorité sur la LISTE : une catégorie créée
- * depuis le dernier rangement n'y figure pas, et se range à la fin ; une
- * catégorie supprimée y reste sans conséquence (plus rien ne la réclame).
+ * CALCULÉ UNE FOIS PAR LANCEMENT DE L'APPLICATION, et non à chaque rendu :
+ * reclasser une carte change le compte de deux groupes, et réarranger toute la
+ * galerie sous la souris à chaque dépôt était justement ce qui rendait le geste
+ * pénible. L'ordre se fige donc au premier rendu ; une catégorie créée depuis se
+ * range à la fin, jusqu'au prochain lancement.
  */
-const CLE_ORDRE_COLONNES_MAPPINGS = "noyau.correspondances-ordre";
-// L'ancienne clé de localStorage, reprise UNE FOIS puis effacée.
-const CLE_ORDRE_COLONNES_MAPPINGS_LOCALE = "budget-app.correspondances.ordre-colonnes";
+let ordreGalerieDuLancement = null;
 
-/**
- * L'ordre RETENU, tenu en mémoire entre deux rendus.
- *
- * `ordonnerCiblesMappings` est appelée depuis le rendu, qui est synchrone :
- * aller chercher le rangement à ce moment-là aurait demandé de rendre tout le
- * chemin d'affichage asynchrone pour une liste de nombres. Il est donc chargé
- * une fois par `loadImportMappingsOverview`, seul chemin par lequel cet écran
- * se dessine.
- */
-let ordreColonnesMappings = [];
-
-function normaliserOrdreColonnes(brut) {
-  return Array.isArray(brut) ? brut.map(Number).filter(Number.isFinite) : [];
-}
-
-async function chargerOrdreColonnesMappings() {
-  let brut = await lirePreference(CLE_ORDRE_COLONNES_MAPPINGS);
-  if (brut === null || brut === undefined) {
-    const local = reprendreDuLocalStorage(CLE_ORDRE_COLONNES_MAPPINGS_LOCALE);
-    if (Array.isArray(local)) {
-      brut = local;
-      await ecrirePreference(CLE_ORDRE_COLONNES_MAPPINGS, local);
-    }
+/** Les cibles dans l'ordre du lancement ; les inconnues à la fin, dans leur ordre. */
+function ordonnerCiblesMappings(cibles, parCategorie) {
+  if (ordreGalerieDuLancement === null) {
+    ordreGalerieDuLancement = cibles
+      .map((cible, position) => ({
+        id: cible.id,
+        position,
+        nombre: (parCategorie.get(cible.id) || []).length,
+      }))
+      // Les plus chargés d'abord ; à égalité, l'ordre des catégories.
+      .sort((a, b) => b.nombre - a.nombre || a.position - b.position)
+      .map((entree) => entree.id);
   }
-  ordreColonnesMappings = normaliserOrdreColonnes(brut);
-}
-
-// Sans `await` : les colonnes sont déjà à leur place à l'écran quand la requête
-// part, et attendre l'aller-retour pour redessiner ferait clignoter la galerie
-// à chaque dépôt.
-function enregistrerOrdreColonnesMappings(ids) {
-  ordreColonnesMappings = normaliserOrdreColonnes(ids);
-  ecrirePreference(CLE_ORDRE_COLONNES_MAPPINGS, ordreColonnesMappings);
-}
-
-/** Les cibles dans l'ordre retenu ; les inconnues à la fin, dans leur ordre. */
-function ordonnerCiblesMappings(cibles) {
-  const rangs = new Map(ordreColonnesMappings.map((id, rang) => [id, rang]));
+  const rangs = new Map(ordreGalerieDuLancement.map((id, rang) => [id, rang]));
   return [...cibles].sort((a, b) => {
     const rangA = rangs.has(a.id) ? rangs.get(a.id) : Number.MAX_SAFE_INTEGER;
     const rangB = rangs.has(b.id) ? rangs.get(b.id) : Number.MAX_SAFE_INTEGER;
-    // Départage par la position d'origine : deux colonnes jamais rangées
-    // gardent l'ordre des catégories entre elles.
     if (rangA !== rangB) return rangA - rangB;
     return cibles.indexOf(a) - cibles.indexOf(b);
-  });
-}
-
-/**
- * Rend les colonnes déplaçables, par leur en-tête et par lui seul.
- *
- * L'EN-TÊTE COMME POIGNÉE, plutôt qu'une colonne déplaçable de partout : son
- * corps est déjà la zone où l'on dépose les cartes, et le même geste au même
- * endroit ne peut pas vouloir dire deux choses. `draggable` n'est donc posé sur
- * la colonne qu'au moment où le bouton s'enfonce sur son titre, et retiré
- * ensuite — c'est l'ancêtre déplaçable le plus proche qui l'emporte, et une
- * colonne déplaçable en permanence volerait le glissement des cartes.
- */
-function attacherDragColonnesGalerie(bloc, { onOrdreChange, onHauteursChangees }) {
-  const ordreColonnes = (bloc) =>
-    [...bloc.querySelectorAll(".galerie-colonne")].map((c) => Number(c.dataset.categorieId));
-  let ordreAvant = "";
-
-  bloc.querySelectorAll(".galerie-colonne").forEach((colonne) => {
-    const titre = colonne.querySelector(".galerie-colonne-titre");
-    if (!titre) return;
-    titre.classList.add("galerie-colonne-poignee");
-    titre.setAttribute("title", t("Fais glisser cet en-tête pour déplacer la colonne"));
-
-    titre.addEventListener("mousedown", () => (colonne.draggable = true));
-    // Relâché sans avoir glissé : la colonne ne doit pas rester déplaçable, ou
-    // le clic suivant sur une carte partirait avec elle.
-    titre.addEventListener("mouseup", () => (colonne.draggable = false));
-
-    colonne.addEventListener("dragstart", (e) => {
-      colonne.classList.add("colonne-dragging");
-      // L'ordre AVANT le glissement : au dragend, les colonnes ont déjà bougé
-      // dans le DOM, et lui seul dit si quelque chose a réellement changé —
-      // reposer une colonne là où elle était ne doit rien annoncer.
-      ordreAvant = ordreColonnes(bloc).join(",");
-      e.dataTransfer.effectAllowed = "move";
-      // Firefox n'amorce aucun glissement sans donnée transportée.
-      e.dataTransfer.setData("text/plain", colonne.dataset.categorieId || "");
-      // Le glissement part de la colonne, pas d'une carte : les gestionnaires
-      // de cartes se reconnaissent à `.galerie-carte.dragging` et laissent
-      // passer.
-      e.stopPropagation();
-    });
-
-    colonne.addEventListener("dragend", () => {
-      colonne.draggable = false;
-      colonne.classList.remove("colonne-dragging");
-      // Les colonnes ont changé de place, donc de voisines, donc de rangée :
-      // sans ce recalcul les `span` d'avant le déplacement resteraient posés.
-      if (onHauteursChangees) onHauteursChangees();
-      const ids = ordreColonnes(bloc);
-      if (ids.join(",") === ordreAvant) return;
-      enregistrerOrdreColonnesMappings(ids);
-      if (onOrdreChange) onOrdreChange(ids);
-    });
-  });
-
-  bloc.addEventListener("dragover", (e) => {
-    const deplacee = bloc.querySelector(".galerie-colonne.colonne-dragging");
-    if (!deplacee) return;
-    e.preventDefault();
-    const survolee = e.target.closest(".galerie-colonne");
-    if (!survolee || survolee === deplacee) return;
-    // Comparaison HORIZONTALE : la galerie est une grille de colonnes côte à
-    // côte, et c'est de gauche/droite qu'on parle même quand deux colonnes sont
-    // sur deux rangées différentes.
-    const rect = survolee.getBoundingClientRect();
-    const apresMilieu = e.clientX > rect.left + rect.width / 2;
-    bloc.insertBefore(deplacee, apresMilieu ? survolee.nextSibling : survolee);
   });
 }
 
@@ -14104,7 +14153,7 @@ function renderMappingsCategoriesGalerie(mappings) {
     parCategorie.get(m.categorie_id).push(m);
   });
 
-  ordonnerCiblesMappings(ciblesEligiblesImport()).forEach((categorie) => {
+  ordonnerCiblesMappings(ciblesEligiblesImport(), parCategorie).forEach((categorie) => {
     const colonne = document.createElement("div");
     colonne.className = "galerie-colonne";
     colonne.dataset.categorieId = categorie.id;
@@ -14172,11 +14221,7 @@ function renderMappingsCategoriesGalerie(mappings) {
   });
 
   surveillerHauteursGalerie(bloc);
-
-  attacherDragColonnesGalerie(bloc, {
-    onHauteursChangees: () => ajusterHauteursGalerie(bloc),
-    onOrdreChange: () => showMessage(t("Ordre des colonnes enregistré"), "success"),
-  });
+  brancherGelGalerie(bloc);
 
   attacherDragEntreGroupes(bloc, {
     // `.galerie-carte` et non `[draggable='true']` : la carte ne devient
@@ -15062,26 +15107,10 @@ async function loadParametresBdd() {
         )
       );
     }
-    // L'ORDRE COMPTE : sur un build de test, `choix_memorise` est faux PAR
-    // CONSTRUCTION, et annoncer « le choix n'a pas pu être enregistré » ferait
-    // croire à une panne. Le message du build de test dit la même chose, mais
-    // en donnant la raison.
-    if (etat.build_de_test) {
-      // Rien à dire : le message d'un build de test n'est plus affiché. Cette
-      // branche reste VIDE plutôt que supprimée, pour qu'un build de test ne
-      // retombe pas sur « Ce choix n'a pas pu être enregistré » plus bas — il ne
-      // l'est jamais, par construction.
-    } else if (etat.mode_developpement) {
-      // Le serveur de dev : même règle, autre raison (il n'y a pas de bundle à
-      // démarquer). Dire laquelle des deux on est évite de chercher un
-      // BUILD-DE-TEST.txt qui n'existe nulle part.
-      messages.push(
-        t(
-          "Serveur de développement : la base de l'application est celle du dépôt, et rien " +
-            "n'est écrit dans la configuration. Changer de base ne vaut que pour cette session."
-        )
-      );
-    } else if (!etat.choix_memorise) {
+    // Une installation de mise au point retient maintenant SA base, sous sa propre
+    // clé (cf. parametres_base._memoriser) : le message d'avertissement ne
+    // concerne plus que l'écriture ratée, pour elle comme pour une version publiée.
+    if (!etat.choix_memorise) {
       messages.push(
         t("Ce choix n'a pas pu être enregistré : il ne vaudra que pour cette session.")
       );

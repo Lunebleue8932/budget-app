@@ -530,7 +530,10 @@ h4 {
 }
 
 .kpi-valeur.positif { color: var(--positif); }
-.kpi-valeur.negatif { color: var(--negatif); }
+/* LES CARTES NÉGATIVES SONT ORANGE, PAS ROUGES : le gris puis le rouge se lisaient
+   mal (trop discret, ou trop alarmant pour une dépense ordinaire). Même orange
+   que les montants de sortie, `--depense`. */
+.kpi-valeur.negatif { color: var(--depense); }
 
 /* Solde réel et solde projeté sur UNE SEULE LIGNE : le projeté annote le réel
    (même question, deux échéances), il ne mérite ni sa carte ni sa propre
@@ -626,7 +629,7 @@ h4 {
 }
 
 .flux-valeur.positif { color: var(--positif); }
-.flux-valeur.negatif { color: var(--negatif); }
+.flux-valeur.negatif { color: var(--depense); }
 
 /* LA VARIATION BRUTE, EN JAUNE — et elle seule de toute la rangée.
 
@@ -893,11 +896,11 @@ tr.negatif {
 }
 
 .montant.entree { color: var(--positif); }
-/* UNE DÉPENSE EST GRISE, ni rouge ni orange : sortir de l'argent est le geste
-   ordinaire d'un budget, pas une alerte. Le vert des entrées suffit à les
-   distinguer, et les couleurs vives restent aux choses qui demandent un regard
-   (un dépassement, un solde négatif). */
-.montant.sortie { color: var(--text-secondary); }
+/* UNE DÉPENSE EST ORANGE : le gris était trop discret pour se distinguer d'un
+   montant neutre. Le vert des entrées et cet orange disent la direction ; le
+   rouge reste réservé à ce qui demande vraiment un regard (un dépassement, un
+   solde négatif). */
+.montant.sortie { color: var(--depense); }
 .montant.neutre { color: var(--text-secondary); }
 
 /* Liseré latéral : état de règlement d'une dépense remboursable / d'un prêt
@@ -2968,15 +2971,6 @@ button.danger:hover {
    qu'on la déplace dans la galerie. Son corps reste la zone de dépôt des
    cartes — le même geste au même endroit ne peut pas vouloir dire deux
    choses. */
-.galerie-colonne-poignee {
-  cursor: grab;
-  user-select: none;
-}
-
-.galerie-colonne-poignee:active {
-  cursor: grabbing;
-}
-
 /* La colonne en cours de déplacement s'efface, comme une carte qu'on glisse :
    ce qu'on suit du regard, c'est la place qu'elle va prendre. */
 .galerie-colonne.colonne-dragging {
@@ -4321,7 +4315,11 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
 }
 
 .apercu-sens.sortie {
-  color: var(--text-secondary);
+  color: var(--depense);
+}
+
+.apercu-montant-sortie {
+  color: var(--depense);
 }
 
 .apercu-sens.entree {
@@ -6341,4 +6339,13 @@ body input[type="checkbox"]:disabled {
 .import-detection-avertissement {
   margin-top: 0.6rem;
   color: var(--depense);
+}
+
+/* Un champ de filtre rempli écrit sa valeur en bleu : le texte du champ filtré se
+   distingue des champs laissés vides, ouverts ou non sur « Peu importe ». */
+.filtres .filtre-rempli,
+.filtres input.filtre-rempli,
+.filtres select.filtre-rempli {
+  color: var(--accent-light);
+  font-weight: 600;
 }

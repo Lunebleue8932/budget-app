@@ -2732,3 +2732,36 @@ def test_annee_sur_deux_chiffres_et_ordre_iso_avec_barres(valeur, attendu):
     XXe. Les variantes à quatre chiffres restent essayées d'abord, si bien
     qu'aucune ne peut voler une date à l'autre."""
     assert import_bancaire.parser_date(valeur) == attendu
+
+
+def test_un_doublon_reprend_le_type_de_loperation_deja_enregistree(db_session):
+    """LA DÉTECTION NE REGARDE QUE LE BRUT : une opération enregistrée sous un
+    autre type que celui que l'import lui donnerait aujourd'hui est quand même
+    reconnue — et la ligne adopte le type de ce qui est en base, pour ne pas le
+    contredire."""
+    compte = _make_compte(db_session)
+    preset = _make_preset(db_session)
+    categorie_id = get_categorie_id(db_session, "Alimentaire")
+    contenu = _construire_fichier(
+        [
+            {
+                "date": date(2026, 7, 1),
+                "nature": "Courses",
+                "categorie": "Alimentation",
+                "montant": -45.2,
+                "compte": "CC Perso",
+            }
+        ]
+    )
+    overrides = schemas.ImportMappingOverrides(
+        categories={"Alimentation": categorie_id}, comptes={"CC Perso": compte.id}
+    )
+    import_bancaire.confirmer(db_session, preset.id, contenu, overrides)
+
+    operation = db_session.query(models.Operation).one()
+    operation.type_id = get_type_id(db_session, "remboursable")
+    db_session.commit()
+
+    preview = import_bancaire.previsualiser(db_session, preset.id, contenu)
+    assert preview.lignes[0].doublon_de is not None
+    assert preview.lignes[0].type_code == "remboursable"

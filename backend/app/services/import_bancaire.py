@@ -2240,6 +2240,7 @@ def previsualiser(
         )
         ligne_resolue = _resoudre_ligne(db, contexte, brute, compte_id_defaut)
         if doublon is not None:
+            ligne_resolue = _adopter_type_du_doublon(db, ligne_resolue, doublon)
             ligne_resolue = ligne_resolue.model_copy(update={"doublon_de": doublon.id})
             if str(doublon.id) not in lignes_existantes:
                 lignes_existantes[str(doublon.id)] = _resoudre_ligne_existante(
@@ -2704,6 +2705,31 @@ def _erreur_monnaie_compte(
     )
 
 
+def _adopter_type_du_doublon(
+    db, ligne: schemas.ImportLigne, doublon: "models.LigneImportBrute"
+) -> schemas.ImportLigne:
+    """Une ligne reconnue comme doublon prend le TYPE de l'opération déjà
+    enregistrée.
+
+    La détection ne regarde que les lignes BRUTES (cf. detecter_doublon), jamais
+    ce que l'app en a fait : une opération importée en virement interne puis relue
+    comme opération classique (une règle a changé, le compte en face n'est plus
+    connu) est quand même reconnue. Mais la ligne ne doit pas pour autant
+    contredire ce qui est en base : on lui rend le type de l'opération existante,
+    par le même chemin qu'une retouche manuelle (frais réimputés, découpe
+    défaite si le type n'en porte plus)."""
+    if doublon.operation_id is None:
+        return ligne
+    operation = crud.get_operation(db, doublon.operation_id)
+    type_operation = operation.type_operation if operation is not None else None
+    if type_operation is None or type_operation.code == ligne.type_code:
+        return ligne
+    retouchee, _, _ = _retoucher_ligne(
+        ligne, schemas.ImportLigneOverride(type_code=type_operation.code)
+    )
+    return retouchee
+
+
 def _retoucher_ligne(
     ligne: schemas.ImportLigne,
     override: Optional[schemas.ImportLigneOverride],
@@ -2850,6 +2876,7 @@ def confirmer(
         )
         ligne_resolue = _resoudre_ligne(db, contexte, brute, compte_id_defaut)
         if doublon is not None:
+            ligne_resolue = _adopter_type_du_doublon(db, ligne_resolue, doublon)
             ligne_resolue = ligne_resolue.model_copy(update={"doublon_de": doublon.id})
         donnees_par_ligne[brute["ligne"]] = brute["donnees_completes"]
         lignes.append(ligne_resolue)

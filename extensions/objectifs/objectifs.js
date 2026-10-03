@@ -659,7 +659,7 @@ async function loadObjectifs() {
       objMonnaieParDefaut == null ||
       !state.monnaies.some((m) => m.id === objMonnaieParDefaut)
     ) {
-      objMonnaieParDefaut = state.monnaies[0] ? state.monnaies[0].id : null;
+      objMonnaieParDefaut = monnaiePreferee(state.monnaies.map((m) => m.id));
     }
 
     // TOUS LES OBJECTIFS, TOUTES MONNAIES, sur le mois en cours : la requête ne

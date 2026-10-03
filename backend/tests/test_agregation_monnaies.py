@@ -111,8 +111,8 @@ def test_une_monnaie_sans_taux_est_nommee(db_session):
     assert [m.id for m in manquantes] == [yen.id]
 
 
-def test_aucune_chaine_de_conversion(db_session):
-    """Un taux qu'on n'a jamais saisi ne doit pas apparaître comme connu."""
+def test_la_conversion_est_transitive(db_session):
+    """Un taux $->€ et un taux ¥->$ suffisent à convertir le yen en euros."""
     euro = _euro(db_session)
     dollar = creer_monnaie(db_session, "Dollar", "$")
     yen = creer_monnaie(db_session, "Yen", "¥")
@@ -120,8 +120,33 @@ def test_aucune_chaine_de_conversion(db_session):
     _taux(db_session, yen, dollar, 0.007)
 
     coefficients, manquantes = conversion.table_de_conversion(db_session, euro.id)
-    assert yen.id not in coefficients
-    assert [m.id for m in manquantes] == [yen.id]
+    assert coefficients[yen.id] == pytest.approx(0.0063)
+    assert manquantes == []
+
+
+def test_un_taux_direct_l_emporte_sur_un_detour(db_session):
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    yen = creer_monnaie(db_session, "Yen", "¥")
+    _taux(db_session, dollar, euro, 0.9)
+    _taux(db_session, yen, dollar, 0.007)
+    _taux(db_session, yen, euro, 0.01)
+
+    coefficients, _ = conversion.table_de_conversion(db_session, euro.id)
+    assert coefficients[yen.id] == 0.01
+
+
+def test_une_monnaie_sans_aucun_chemin_est_nommee(db_session):
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    yen = creer_monnaie(db_session, "Yen", "¥")
+    franc = creer_monnaie(db_session, "Franc", "F")
+    _taux(db_session, dollar, euro, 0.9)
+    _taux(db_session, franc, yen, 0.05)
+
+    coefficients, manquantes = conversion.table_de_conversion(db_session, euro.id)
+    assert yen.id not in coefficients and franc.id not in coefficients
+    assert {m.id for m in manquantes} == {yen.id, franc.id}
 
 
 def test_un_taux_jamais_relu_compte_comme_absent(db_session):

@@ -66,53 +66,48 @@
     </div>
 
     <h4>Action<i class="info-bulle" tabindex="0" data-info-cle="regles.action">i</i></h4>
-    <div class="regle-champ-ligne">
-      <label for="regle-type">Classer comme</label>
-      <select id="regle-type">
-        <option value="classique">Opération classique</option>
-        <option value="remboursable">Dépense remboursable</option>
-        <option value="remboursements">Remboursement reçu</option>
-        <option value="remboursement_pret">Remboursement de prêt</option>
-        <option value="pret">Prêt reçu</option>
-        <option value="virement">Virement interne</option>
-      </select>
-    </div>
-    <div class="regle-champ-ligne" id="regle-categorie-bloc">
-      <label for="regle-categorie">Dans la catégorie</label>
-      <select id="regle-categorie"><option value="">— ne pas changer —</option></select>
-    </div>
-    <p class="hint" id="regle-categorie-imposee" style="display:none"></p>
-    <!-- DÉCOUPE : la règle ne pose plus une catégorie mais une répartition.
-         Une règle est écrite une fois pour des lignes dont elle ignore le
-         montant : chaque part porte donc une FORMULE et non un nombre. -->
-    <label class="import-option-ligne" id="regle-decoupee-bloc">
-      <input type="checkbox" id="regle-decoupee" />
-      Découper entre plusieurs catégories<i class="info-bulle" tabindex="0" data-info-cle="regles.decouper-entre-plusieurs-categories">i</i>
-    </label>
-    <div id="regle-decoupe-bloc" style="display:none">
-      <div id="regle-decoupe-parts"></div>
-      <div class="actions">
-        <button type="button" id="btn-regle-decoupe-ajouter">+ Ajouter une part</button>
-      </div>
-    </div>
-    <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
-         Sans ce second compte, chaque ligne reconnue par la règle doit
-         être reprise à la main dans l'aperçu avant de pouvoir être
-         importée. -->
-    <div class="regle-champ-ligne" id="regle-compte-autre-bloc" style="display:none">
-      <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info-cle="regles.avec-le-compte-en-face">i</i></label>
-      <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
-    </div>
-    <!-- TOUTES LES AUTRES PROPRIÉTÉS D'UNE LIGNE (migration 0071), sauf ses
-         montants et sa date — ce que le relevé AFFIRME. Chacune est
-         facultative : laissée vide, la règle n'en dit rien.
-
-         MÊME FORME QUE LES SORTIES CONDITIONNELLES : seuls les champs posés
-         s'affichent, un à un, par « + Ajouter un champ » (cf. regles.js,
-         AUTRES_CHAMPS_REGLE). Les cinq lignes toujours visibles n'étaient
-         qu'un inventaire à parcourir pour trouver celle qui compte. -->
-    <h4>Et aussi<i class="info-bulle" tabindex="0" data-info-cle="regles.autres-proprietes">i</i></h4>
+    <!-- TOUT SE POSE CHAMP PAR CHAMP, par « + Ajouter un champ » (cf. regles.js,
+         AUTRES_CHAMPS_REGLE) : seuls les champs posés s'affichent, et retirer un
+         champ le VIDE, ce qui revient exactement à « la règle n'en dit rien ».
+         Le type, la catégorie et la découpe rejoignent ainsi les autres
+         propriétés d'une ligne (migration 0071), sauf ses montants et sa date —
+         ce que le relevé AFFIRME. Les champs vivent ici sous leurs identifiants
+         d'avant : la lecture à l'enregistrement n'a pas changé. -->
     <div id="regle-autres-champs">
+      <div class="champ-ajoute" data-autre="type_code">
+        <span class="champ-ajoute-libelle">Classer comme</span>
+        <select id="regle-type">
+          <option value="classique">Opération classique</option>
+          <option value="remboursable">Dépense remboursable</option>
+          <option value="remboursements">Remboursement reçu</option>
+          <option value="remboursement_pret">Remboursement de prêt</option>
+          <option value="pret">Prêt reçu</option>
+          <option value="virement">Virement interne</option>
+        </select>
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="type_code" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div class="champ-ajoute" data-autre="categorie_id">
+        <span class="champ-ajoute-libelle">Dans la catégorie</span>
+        <select id="regle-categorie"><option value="">— ne pas changer —</option></select>
+        <span class="hint" id="regle-categorie-imposee" style="display:none"></span>
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="categorie_id" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <!-- DÉCOUPE : la règle ne pose plus une catégorie mais une répartition.
+           Une règle est écrite une fois pour des lignes dont elle ignore le
+           montant : chaque part porte donc une FORMULE et non un nombre. La
+           case n'est plus qu'un état interne (cachée) : c'est le champ qui la
+           coche, et le retirer la décoche. -->
+      <div class="champ-ajoute" data-autre="decoupe">
+        <span class="champ-ajoute-libelle">Découper entre plusieurs catégories<i class="info-bulle" tabindex="0" data-info-cle="regles.decouper-entre-plusieurs-categories">i</i></span>
+        <input type="checkbox" id="regle-decoupee" style="display:none" />
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="decoupe" title="Retirer" aria-label="Retirer">×</button>
+      </div>
+      <div id="regle-decoupe-bloc" style="display:none">
+        <div id="regle-decoupe-parts"></div>
+        <div class="actions">
+          <button type="button" id="btn-regle-decoupe-ajouter">+ Ajouter une part</button>
+        </div>
+      </div>
       <div class="champ-ajoute" data-autre="nature">
         <span class="champ-ajoute-libelle">Renommer en</span>
         <input type="text" id="regle-nature" />
@@ -140,6 +135,14 @@
         </label>
         <button type="button" class="champ-ajoute-retirer" data-retirer-autre="imprevue" title="Retirer" aria-label="Retirer">×</button>
       </div>
+    </div>
+    <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
+         Sans ce second compte, chaque ligne reconnue par la règle doit
+         être reprise à la main dans l'aperçu avant de pouvoir être
+         importée. -->
+    <div class="regle-champ-ligne" id="regle-compte-autre-bloc" style="display:none">
+      <label for="regle-compte-autre">Avec le compte en face<i class="info-bulle" tabindex="0" data-info-cle="regles.avec-le-compte-en-face">i</i></label>
+      <select id="regle-compte-autre"><option value="">— à renseigner à l'import —</option></select>
     </div>
     <div id="regle-autres-ajout"></div>
     <!-- LES SORTIES CONDITIONNELLES (migration 0072) : la détection reste

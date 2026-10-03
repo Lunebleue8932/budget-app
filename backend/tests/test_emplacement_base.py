@@ -261,27 +261,26 @@ def test_une_version_publiee_n_est_pas_un_mode_developpement(monkeypatch):
     assert not database.mode_developpement()
 
 
-def test_le_serveur_de_dev_n_ecrit_jamais_dans_le_profil(
+def test_le_serveur_de_dev_n_ecrit_jamais_la_cle_de_la_version_publiee(
     tmp_path, config_temporaire, monkeypatch
 ):
-    """LE TROU QUE ÇA BOUCHE. Le serveur de dev n'est pas « gelé » : il écrivait
-    donc le profil comme une version publiée, alors que
-    `_resoudre_chemin_demarrage` ignore délibérément ce qu'il y écrit. Le chemin
-    retenu ne servait jamais à celui qui l'avait posé — il ne servait qu'à la
-    vraie application, qui n'avait rien demandé."""
+    """LE TROU QUE ÇA BOUCHE. Le profil est partagé par toutes les copies de
+    l'application : une base ouverte pour un essai ne doit jamais faire pointer
+    la VRAIE application ailleurs. Le serveur de dev retient sa base sous SA
+    clé, que la version publiée ne lit pas."""
     monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+    perso = tmp_path / "perso.db"
 
-    assert parametres_base._memoriser(tmp_path / "perso.db") is False
+    assert parametres_base._memoriser(perso) is True
     assert config_utilisateur.chemin_base_memorise() is None
-    assert not config_utilisateur.fichier_config().exists()
+    assert config_utilisateur.chemin_base_memorise(dev=True) == perso
 
 
-def test_le_demarrage_en_mode_developpement_ignore_le_chemin_memorise(
+def test_le_demarrage_en_mode_developpement_ignore_le_chemin_de_la_version_publiee(
     tmp_path, config_temporaire, monkeypatch
 ):
-    """« Quand l'app se ferme / ouvre, la base connectée est celle native » :
-    même un chemin laissé dans le profil par une autre copie de l'application ne
-    doit pas être rouvert ici."""
+    """Même un chemin laissé dans le profil par une autre copie de l'application
+    ne doit pas être rouvert ici."""
     perso = tmp_path / "perso.db"
     perso.write_text("", encoding="utf-8")
     config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(perso)})
@@ -292,6 +291,24 @@ def test_le_demarrage_en_mode_developpement_ignore_le_chemin_memorise(
     assert database._resoudre_chemin_demarrage() == database._DEFAULT_DEV_DB_PATH
 
 
+def test_le_demarrage_en_mode_developpement_rouvre_sa_propre_base(
+    tmp_path, config_temporaire, monkeypatch
+):
+    """Plus de changement de base à chaque lancement : la base retenue sous la clé
+    de mise au point est rouverte — tant que son fichier existe."""
+    perso = tmp_path / "perso.db"
+    perso.write_text("", encoding="utf-8")
+    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE_DEV: str(perso)})
+    monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
+    monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+
+    assert database._resoudre_chemin_demarrage() == perso
+
+    perso.unlink()
+    assert database._resoudre_chemin_demarrage() == database._DEFAULT_DEV_DB_PATH
+
+
 def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
     tmp_path, config_temporaire, monkeypatch, base_restauree
 ):
@@ -299,7 +316,7 @@ def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
     refermer la base personnelle tout de suite, sans quitter l'application."""
     perso = tmp_path / "perso.db"
     database.installer_base(str(perso))
-    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(perso)})
+    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE_DEV: str(perso)})
     assert database.get_chemin_actuel() == perso.resolve()
 
     monkeypatch.setattr(database.sys, "frozen", False, raising=False)
@@ -307,7 +324,7 @@ def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
 
     assert database.get_chemin_actuel() == database.DEV_DB_PATH
     assert etat.est_dev
-    assert config_utilisateur.chemin_base_memorise() is None
+    assert config_utilisateur.chemin_base_memorise(dev=True) is None
 
 
 def test_reinitialiser_est_refuse_a_une_version_publiee(monkeypatch):

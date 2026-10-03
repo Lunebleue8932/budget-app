@@ -680,9 +680,9 @@ TRADUCTIONS.pt = {
     "Existem outros tipos, que só aparecem com a extensão que os abre: despesas reembolsáveis, empréstimos recebidos, transações com títulos. Veja Ajustes → Extensões para saber o que você tem à mão.",
   "Corrige la lecture si besoin : glisse les en-têtes pour remettre chaque propriété en face de la bonne colonne, dis combien de lignes de tête sauter, puis enregistre la configuration dans le preset.":
     "Corrija a leitura se precisar: arraste os cabeçalhos para colocar cada propriedade diante da coluna certa, diga quantas linhas de cabeçalho pular, depois salve a configuração na predefinição.",
-  "Monnaie éteinte":
+  "Monnaie désactivée":
     "Moeda desligada",
-  "Monnaie rallumée":
+  "Monnaie réactivée":
     "Moeda religada",
   "Sans enveloppe":
     "Sem veículo",
@@ -2038,17 +2038,17 @@ TRADUCTIONS.pt = {
     "Desmarque para que esta moeda não seja mais oferecida na entrada de transações nem adivinhada na importação. As transações já registradas continuam no banco.",
   "Le solde de ce compte dans cette monnaie n'est pas nul : vire ce qui reste ailleurs avant d'éteindre.":
     "O saldo desta conta nesta moeda não é zero: transfira o que sobra para outro lugar antes de desligar.",
-  "Éteindre":
-    "Desligar",
-  "Rallumer":
-    "Religar",
-  "Compte éteint":
+  "Désactiver":
+    "Desativar",
+  "Réactiver":
+    "Reativar",
+  "Compte désactivé":
     "Conta desligada",
-  "Compte rallumé":
+  "Compte réactivé":
     "Conta religada",
-  "Catégorie éteinte":
+  "Catégorie désactivée":
     "Categoria desligada",
-  "Catégorie rallumée":
+  "Catégorie réactivée":
     "Categoria religada",
   "Suivi des remboursements":
     "Acompanhamento de reembolsos",
@@ -2642,6 +2642,14 @@ TRADUCTIONS.pt = {
     "1 mês",
   "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches":
     "A tecla que congela a dica nos gráficos. Para mudá-la, clique no campo e pressione a nova tecla ou combinação de teclas",
+  "Permet de changer la monnaie d'affichage par défaut : celle qui s'affiche en premier au lancement de l'app ou d'une page":
+    "Muda a moeda de exibição padrão: a que aparece primeiro ao abrir o app ou uma página",
+  "Monnaie d'affichage par défaut":
+    "Moeda de exibição padrão",
+  "Aucune (la première)":
+    "Nenhuma (a primeira)",
+  "Réglage non enregistré.":
+    "Ajuste não salvo.",
   "La répartition de tes dépenses rapportées à ton budget de la période.":
     "Como suas despesas se distribuem em relação ao seu orçamento do período.",
   "Ce qu'on te doit - Ce que tu dois.":

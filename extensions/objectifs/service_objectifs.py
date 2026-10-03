@@ -13,14 +13,14 @@ DEUX PÉRIMÈTRES, ET C'EST LE SEUL POINT À SAVOIR (cf. constants.MesureObjecti
     croire — d'où l'emprunt du calcul plutôt que sa recopie.
 
   - « COMBIEN DE FOIS, ET DE COMBIEN » (`nombre`, `montant_moyen`) compte des
-    LIGNES DE RELEVÉ : une opération, à sa date, pour ce qu'elle COÛTE. Pas
-    d'étalement — une facture amortie sur douze mois reste UNE dépense faite une
-    fois, au mois où on l'a faite — mais bien le RESTE À CHARGE d'une dépense
-    remboursable : les 60 € d'un repas dont on récupère 45 ne pèsent pas 60 € au
-    budget, et une moyenne qui les compterait entiers dirait ce qu'on a AVANCÉ,
-    pas ce qu'on a dépensé. C'est la même règle que l'histogramme (cf.
-    `soldes._base_imposable`), et les deux périmètres ne diffèrent donc plus que
-    sur l'étalement — le seul point où ils doivent différer.
+    LIGNES DE RELEVÉ : une opération pour ce qu'elle COÛTE. Une dépense amortie
+    n'est comptée que dans les fenêtres que son étalement recoupe — pour la
+    fraction de ses jours qui y tombe quand il s'agit d'une valeur, pour UNE ligne
+    quand on compte (cf. `soldes.part_amortie_fenetre`). On retient aussi le RESTE
+    À CHARGE d'une dépense remboursable : les 60 € d'un repas dont on récupère 45
+    ne pèsent pas 60 € au budget, et une moyenne qui les compterait entiers dirait
+    ce qu'on a AVANCÉ, pas ce qu'on a dépensé. C'est la même règle que
+    l'histogramme (cf. `soldes._base_imposable`).
 
 LA CADENCE EST UNE UNITÉ, PAS UNE PÉRIODE. Le dashboard mesure toujours ce que
 son sélecteur affiche ; la cadence dit seulement dans quelle unité la cible est
@@ -253,10 +253,14 @@ def _lignes_detaillees(
 
     LE MÊME PÉRIMÈTRE DE TYPES QUE L'HISTOGRAMME (classique et remboursable,
     statut réel) : ce sont les opérations qui portent une catégorie, donc les
-    seules qu'un objectif par catégorie puisse compter. Mais la DATE est prise
-    NUE (`filtre_date_periode`), sans l'exclusion des amorties : une dépense
-    étalée sur douze mois reste une ligne du relevé, faite une fois, au mois où
-    on l'a faite.
+    seules qu'un objectif par catégorie puisse compter.
+
+    LA DATE SUIT L'AMORTISSEMENT, comme le drill-through du dashboard : une
+    dépense amortie n'est PAS comptée à sa date de paiement mais dans les
+    fenêtres que son étalement recoupe, pour la fraction de ses jours qui y
+    tombe (`soldes.part_amortie_fenetre`). Le montant retenu est donc au prorata ;
+    la ligne, elle, compte pour UNE dès qu'elle est dans la fenêtre — « combien
+    de fois » ne se divise pas.
 
     LE MONTANT RETENU EST LE RESTE À CHARGE (cf. `_retenu`) : ce qu'une ligne
     coûte, et non ce qu'elle a fait sortir du compte.
@@ -280,9 +284,21 @@ def _lignes_detaillees(
         .filter(
             # LES BORNES EN CLAIR plutôt que `filtre_date_periode` : la même
             # requête sert au mois, à l'année ET à une semaine qui peut chevaucher
-            # deux mois (cf. `semaine_de_lecture`).
-            models.Operation.date >= debut,
-            models.Operation.date <= fin,
+            # deux mois (cf. `semaine_de_lecture`). Une opération amortie n'entre
+            # pas par sa date mais par le chevauchement de son étalement (bornes
+            # au 1er du mois : la fin se compare donc au 1er du mois de début).
+            or_(
+                and_(
+                    models.Operation.amorti.is_(False),
+                    models.Operation.date >= debut,
+                    models.Operation.date <= fin,
+                ),
+                and_(
+                    models.Operation.amorti.is_(True),
+                    models.Operation.amortissement_debut <= fin,
+                    models.Operation.amortissement_fin >= debut.replace(day=1),
+                ),
+            ),
             models.Operation.monnaie_id == monnaie_id,
             models.Operation.statut == Statut.reel,
             models.Operation.sens == Sens.depense,
@@ -317,6 +333,10 @@ def _lignes_detaillees(
             if not part:
                 continue
             retenu = _retenu(operation, code, part)
+        if operation.amorti:
+            retenu *= soldes.part_amortie_fenetre(operation, debut, fin)
+            if not retenu:
+                continue
         if retenu:
             lignes.append((operation, retenu))
     return lignes

@@ -1098,7 +1098,7 @@ function abRemplirContexte() {
 async function abCharger() {
   if (!state.monnaies.length) await refreshMonnaies();
   if (abMonnaieId == null || !state.monnaies.some((m) => m.id === abMonnaieId)) {
-    abMonnaieId = state.monnaies[0] ? state.monnaies[0].id : null;
+    abMonnaieId = monnaiePreferee(state.monnaies.map((m) => m.id));
   }
   if (!abPeriode.annee) {
     const aujourdhui = new Date();

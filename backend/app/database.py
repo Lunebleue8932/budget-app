@@ -134,6 +134,19 @@ def mode_developpement() -> bool:
 BASE_MEMORISEE_INTROUVABLE: Path | None = None
 
 
+def _base_de_mise_au_point() -> Path:
+    """La base d'une installation de mise au point : celle qu'elle a retenue la
+    dernière fois (clé `chemin_base_dev`, que la version publiée ne lit jamais),
+    sinon sa base native. Un fichier disparu ne sert pas de cible, pour la même
+    raison que plus bas : SQLite le recréerait vide."""
+    from . import config_utilisateur
+
+    memorise = config_utilisateur.chemin_base_memorise(dev=True)
+    if memorise is not None and memorise.is_file():
+        return memorise
+    return _DEFAULT_DEV_DB_PATH
+
+
 def _resoudre_chemin_demarrage() -> Path:
     """La base sur laquelle l'application s'ouvre, dans l'ordre de priorité :
     la variable d'environnement, puis le choix mémorisé au dernier passage par
@@ -164,13 +177,14 @@ def _resoudre_chemin_demarrage() -> Path:
     # dans le profil. C'est exactement le genre de bascule implicite que le
     # module refuse depuis toujours.
     if not getattr(sys, "frozen", False) and os.environ.get("BUDGET_FORCER_CHOIX_BASE") != "1":
-        return _DEFAULT_DEV_DB_PATH
-    # UN BUILD DE TEST NE LIT JAMAIS LE CHOIX MÉMORISÉ. Le profil utilisateur
-    # est partagé par toutes les copies de l'application sur la machine : sans
-    # cette ligne, un bundle reconstruit pour essayer trois lignes de code
-    # s'ouvre sur la vraie base personnelle (cf. est_build_de_test).
+        return _base_de_mise_au_point()
+    # UN BUILD DE TEST NE LIT JAMAIS LE CHOIX MÉMORISÉ DE LA VERSION PUBLIÉE. Le
+    # profil utilisateur est partagé par toutes les copies de l'application sur
+    # la machine : sans cette ligne, un bundle reconstruit pour essayer trois
+    # lignes de code s'ouvre sur la vraie base personnelle (cf.
+    # est_build_de_test). Il lit en revanche SA clé à lui.
     if est_build_de_test():
-        return _DEFAULT_DEV_DB_PATH
+        return _base_de_mise_au_point()
     from . import config_utilisateur
 
     memorise = config_utilisateur.chemin_base_memorise()

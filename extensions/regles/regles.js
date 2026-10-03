@@ -578,7 +578,6 @@ function majVisibiliteCategorieRegle() {
   majVisibiliteCompteAutreRegle();
   majVisibiliteDecoupeRegle();
   const type = document.getElementById("regle-type").value;
-  const bloc = document.getElementById("regle-categorie-bloc");
   const info = document.getElementById("regle-categorie-imposee");
   const select = document.getElementById("regle-categorie");
   // La découpe REMPLACE la catégorie unique : montrer les deux laisserait
@@ -588,7 +587,7 @@ function majVisibiliteCategorieRegle() {
   const libre = (!type || TYPES_CATEGORIE_LIBRE.has(type)) && !regleDecoupeEstActive();
 
   if (libre) {
-    bloc.style.display = "";
+    select.style.display = "";
     info.style.display = "none";
     // Restaure le choix précédent, s'il est toujours proposé.
     if (regleCategorieMemorisee && select.querySelector(`option[value="${regleCategorieMemorisee}"]`)) {
@@ -599,7 +598,7 @@ function majVisibiliteCategorieRegle() {
     // façon la catégorie pour ces types (cf. _normaliser_categorie).
     if (select.value) regleCategorieMemorisee = select.value;
     select.value = "";
-    bloc.style.display = "none";
+    select.style.display = "none";
     // Deux raisons de masquer la catégorie, et deux messages : le type n'en
     // porte pas, ou la découpe a pris sa place. Le second n'est pas un
     // avertissement — juste le rappel de ce qui classe la ligne.
@@ -607,6 +606,12 @@ function majVisibiliteCategorieRegle() {
       ? t("La découpe ci-dessous tient lieu de catégorie.")
       : `« ${libelleTypeOperation(type)} » ne porte pas de catégorie : le type est à lui seul la classification.`;
     info.style.display = "";
+  }
+  // Le type a quitté « classique » : la découpe s'est décochée (cf.
+  // majVisibiliteDecoupeRegle), et son champ n'a plus rien à montrer.
+  if (regleAutresAffiches.includes("decoupe") && !regleDecoupeEstActive()) {
+    regleAutresAffiches = regleAutresAffiches.filter((c) => c !== "decoupe");
+    renderAutresChampsRegle();
   }
 }
 
@@ -667,7 +672,6 @@ function majVisibiliteDecoupeRegle() {
   // Décochée dès qu'elle cesse d'être proposée : une case cochée mais invisible
   // enverrait des parts que le serveur refuserait pour ce type (400).
   if (!decoupable) document.getElementById("regle-decoupee").checked = false;
-  document.getElementById("regle-decoupee-bloc").style.display = decoupable ? "" : "none";
   document.getElementById("regle-decoupe-bloc").style.display = regleDecoupeEstActive()
     ? ""
     : "none";
@@ -702,7 +706,7 @@ function ouvrirEditeurRegle(regle = null) {
   // sans y penser (« ma règle décide, point »).
   document.getElementById("regle-arreter-apres").checked = regle ? regle.arreter_apres : true;
   remplirSelecteurTypesRegle();
-  document.getElementById("regle-type").value = regle ? regle.type_code || "" : "classique";
+  document.getElementById("regle-type").value = regle ? regle.type_code || "" : "";
 
   _refillPreservingSelection(document.getElementById("regle-categorie"), (el) =>
     fillCategoriesSelect(
@@ -731,12 +735,6 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-amortissement").value =
     (regle && regle.amortissement_mois) || "";
   document.getElementById("regle-imprevue").checked = !!(regle && regle.imprevue);
-  // Ne s'affichent que les champs qui disent déjà quelque chose.
-  regleAutresAffiches = autresChampsDisponibles()
-    .filter(autreChampRempli)
-    .map((def) => def.cle);
-  renderAutresChampsRegle();
-
   // AVANT majVisibiliteCategorieRegle, qui lit la case pour décider d'afficher
   // les parts ou la catégorie unique.
   const parts = regle && regle.decoupes ? regle.decoupes : [];
@@ -744,6 +742,11 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-decoupee").checked = parts.length > 0;
   parts.forEach((part) => ajouterPartDecoupeRegle(part.categorie_id, part.formule));
 
+  // Ne s'affichent que les champs qui disent déjà quelque chose.
+  regleAutresAffiches = autresChampsDisponibles()
+    .filter(autreChampRempli)
+    .map((def) => def.cle);
+  renderAutresChampsRegle();
   majVisibiliteCategorieRegle();
 
   // Copie profonde : annuler ne doit rien laisser derrière dans la liste.
@@ -756,15 +759,19 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-editeur").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-/* ---------- « ET AUSSI » : LES AUTRES PROPRIÉTÉS, CHAMP PAR CHAMP ----------
+/* ---------- L'ACTION D'UNE RÈGLE, CHAMP PAR CHAMP ----------
  *
- * Même forme que les actions d'une sortie conditionnelle (cf. SORTIE_CHAMPS) :
+ * Type, catégorie, découpe et toutes les autres propriétés : une seule liste,
+ * un seul « + Ajouter un champ ». Même forme que les actions d'une sortie conditionnelle (cf. SORTIE_CHAMPS) :
  * seuls les champs posés s'affichent, et « + Ajouter un champ » en pose un de
  * plus. Les champs vivent dans page.html sous leurs identifiants d'avant — la
  * lecture à l'enregistrement n'a donc pas changé ; retirer un champ le VIDE,
  * ce qui revient exactement à « la règle n'en dit rien ».
  */
 const AUTRES_CHAMPS_REGLE = [
+  { cle: "type_code", libelle: "Classer comme", id: "regle-type" },
+  { cle: "categorie_id", libelle: "Dans la catégorie", id: "regle-categorie" },
+  { cle: "decoupe", libelle: "Découper entre plusieurs catégories", id: "regle-decoupee" },
   { cle: "nature", libelle: "Renommer en", id: "regle-nature" },
   { cle: "compte", libelle: "Sur le compte", id: "regle-compte" },
   { cle: "notes", libelle: "Avec la note", id: "regle-notes" },
@@ -802,10 +809,24 @@ function renderAutresChampsRegle() {
       regleAutresAffiches.push(cle);
       const def = AUTRES_CHAMPS_REGLE.find((d) => d.cle === cle);
       const el = document.getElementById(def.id);
+      if (cle === "decoupe") {
+        // Seul le type « classique » se découpe : on pose le champ du type s'il
+        // manque, et on l'y met.
+        if (!regleAutresAffiches.includes("type_code")) regleAutresAffiches.push("type_code");
+        document.getElementById("regle-type").value = TYPE_REGLE_DECOUPABLE;
+      }
       // Ajouter la case, c'est vouloir l'étiquette : on la coche d'office.
       if (el.type === "checkbox") el.checked = true;
       renderAutresChampsRegle();
-      el.focus();
+      if (cle === "decoupe") {
+        // Le même geste que la case d'avant : deux parts d'emblée.
+        el.dispatchEvent(new Event("change"));
+      } else if (cle === "type_code" || cle === "categorie_id") {
+        // Un champ qui s'affiche sur « ne pas changer » : ce choix doit déjà
+        // compter pour la visibilité de la catégorie et de la découpe.
+        majVisibiliteCategorieRegle();
+      }
+      if (el.type !== "checkbox") el.focus();
     },
   });
 }
@@ -818,7 +839,15 @@ document.querySelectorAll("#regle-autres-champs [data-retirer-autre]").forEach((
     if (el.type === "checkbox") el.checked = false;
     else el.value = "";
     regleAutresAffiches = regleAutresAffiches.filter((c) => c !== cle);
+    if (cle === "categorie_id") regleCategorieMemorisee = "";
+    // Sans type, plus de découpe (cf. majVisibiliteDecoupeRegle) : son champ
+    // part avec lui.
+    if (cle === "type_code") {
+      document.getElementById("regle-decoupee").checked = false;
+      regleAutresAffiches = regleAutresAffiches.filter((c) => c !== "decoupe");
+    }
     renderAutresChampsRegle();
+    if (["type_code", "categorie_id", "decoupe"].includes(cle)) majVisibiliteCategorieRegle();
   });
 });
 

@@ -36,6 +36,20 @@ _NOM_FICHIER = "config.json"
 # trois endroits qui la lisent : renommer un jour reste alors une seule ligne.
 CLE_CHEMIN_BASE = "chemin_base"
 
+# LA BASE D'UNE INSTALLATION DE MISE AU POINT (serveur de dev, build de test), à
+# part de la précédente. Le profil est partagé par toutes les copies de
+# l'application : une base ouverte pour un essai ne doit JAMAIS faire pointer la
+# vraie application ailleurs — mais rien n'empêche une copie de mise au point de
+# retenir la sienne, sous SA clé, que la version publiée ne lit pas. C'est ce qui
+# évite à celui qui développe de rouvrir la même base à chaque lancement.
+CLE_CHEMIN_BASE_DEV = "chemin_base_dev"
+
+# La langue de l'interface, doublon du `localStorage` de la fenêtre : celui-ci
+# est rangé par origine (port compris) et peut repartir vide, alors que ce
+# fichier-ci survit à tout. Un code de langue, jamais une donnée du budget.
+CLE_LANGUE = "langue"
+LANGUES_ADMISES = ("fr", "en", "pt")
+
 
 def dossier_config() -> Path:
     """Le dossier de configuration de l'utilisateur, selon les conventions du
@@ -99,7 +113,7 @@ def ecrire(**valeurs) -> bool:
         return False
 
 
-def chemin_base_memorise() -> Path | None:
+def chemin_base_memorise(dev: bool = False) -> Path | None:
     """Le chemin retenu au dernier choix de l'utilisateur, ou None.
 
     LE FICHIER N'EST PAS VÉRIFIÉ ICI. Qu'il ait disparu (disque externe
@@ -107,7 +121,7 @@ def chemin_base_memorise() -> Path | None:
     avaler en silence en retombant sur la base par défaut : retomber
     donnerait une application vide, sans un mot, exactement le scénario que
     tout ceci existe pour éviter."""
-    valeur = lire().get(CLE_CHEMIN_BASE)
+    valeur = lire().get(CLE_CHEMIN_BASE_DEV if dev else CLE_CHEMIN_BASE)
     if not isinstance(valeur, str) or not valeur.strip():
         return None
     try:
@@ -116,11 +130,11 @@ def chemin_base_memorise() -> Path | None:
         return None
 
 
-def oublier_chemin_base() -> bool:
+def oublier_chemin_base(dev: bool = False) -> bool:
     """Retire le chemin mémorisé : l'application repartira sur son emplacement
     par défaut, et redemandera où ranger la base au prochain lancement."""
     contenu = lire()
-    contenu.pop(CLE_CHEMIN_BASE, None)
+    contenu.pop(CLE_CHEMIN_BASE_DEV if dev else CLE_CHEMIN_BASE, None)
     try:
         dossier_config().mkdir(parents=True, exist_ok=True)
         fichier_config().write_text(
@@ -129,3 +143,9 @@ def oublier_chemin_base() -> bool:
         return True
     except OSError:
         return False
+
+
+def langue_memorisee() -> str | None:
+    """La langue retenue au dernier choix de l'utilisateur, ou None."""
+    valeur = lire().get(CLE_LANGUE)
+    return valeur if valeur in LANGUES_ADMISES else None

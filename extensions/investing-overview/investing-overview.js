@@ -381,7 +381,7 @@ async function loadInvestingOverview() {
     // La monnaie regardée survit à un rechargement tant qu'elle a encore
     // quelque chose à montrer.
     if (!ioExpositions.enveloppe.some((b) => b.monnaie_id === ioMonnaieId)) {
-      ioMonnaieId = ioExpositions.enveloppe[0].monnaie_id;
+      ioMonnaieId = monnaiePreferee(ioExpositions.enveloppe.map((b) => b.monnaie_id));
     }
     ioRenderOnglets();
     ioRenderMonnaieActive();

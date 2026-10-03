@@ -24,7 +24,10 @@ UN CHEMIN À RISQUE N'EST JAMAIS MÉMORISÉ : le retenir reviendrait à graver l
 problème qu'on cherche à résoudre. Revenir à la base de test OUBLIE au
 contraire le choix, et le prochain démarrage redemandera où ranger la base.
 """
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from .. import config_utilisateur, database, schemas
 
@@ -37,13 +40,14 @@ def _memoriser(chemin) -> bool:
     l'écriture a échoué (profil en lecture seule) : la bascule ne vaut alors
     que pour la session, et l'écran le dit.
 
-    UNE INSTALLATION DE MISE AU POINT N'ÉCRIT JAMAIS DANS LE PROFIL — ni le
-    bundle construit localement, ni le serveur de dev lancé depuis le dépôt. Le
-    fichier de configuration est partagé par toutes les copies de l'application
-    présentes sur la machine : laisser l'une d'elles y écrire reviendrait à faire
-    pointer la VRAIE application sur la base qu'on venait d'ouvrir pour un essai.
-    Elles se comportent donc comme l'ancienne extension développeur — la bascule
-    vaut pour la session, et rien au-delà (cf. database.mode_developpement).
+    UNE INSTALLATION DE MISE AU POINT N'ÉCRIT JAMAIS LA CLÉ DE LA VERSION
+    PUBLIÉE — ni le bundle construit localement, ni le serveur de dev lancé
+    depuis le dépôt. Le fichier de configuration est partagé par toutes les
+    copies de l'application présentes sur la machine : écrire `chemin_base`
+    reviendrait à faire pointer la VRAIE application sur la base qu'on venait
+    d'ouvrir pour un essai. Elle retient en revanche sa base sous sa PROPRE clé
+    (`chemin_base_dev`, que la version publiée ne lit pas) : celui qui développe
+    n'a plus à rouvrir la même base à chaque lancement.
 
     LE SERVEUR DE DEV ÉTAIT LE TROU. Il n'est pas « gelé », donc
     `est_build_de_test` répondait faux pour lui et il écrivait le profil comme
@@ -52,11 +56,44 @@ def _memoriser(chemin) -> bool:
     celui qui l'avait posé, et servait à la seule installation qui n'avait rien
     demandé."""
     if database.mode_developpement():
-        return False
+        # UNE INSTALLATION DE MISE AU POINT RETIENT SA BASE, sous sa propre clé :
+        # la version publiée ne la lit jamais, donc la vraie application n'est
+        # redirigée nulle part, et on n'a plus à rouvrir la même base à chaque
+        # lancement. Retourner à la base native (ou ouvrir la sienne) l'oublie.
+        if Path(chemin).resolve() == Path(database.DEV_DB_PATH).resolve():
+            return config_utilisateur.oublier_chemin_base(dev=True)
+        return config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE_DEV: str(chemin)})
     if database.chemin_a_risque(chemin):
         config_utilisateur.oublier_chemin_base()
         return True
     return config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(chemin)})
+
+
+class _LangueEcriture(BaseModel):
+    langue: str
+
+
+@router.get("/langue")
+def get_langue():
+    """La langue retenue sur ce poste (cf. config_utilisateur.CLE_LANGUE), ou
+    `null`. Le serveur de dev et un build de test ne lisent JAMAIS le profil :
+    ils rendent toujours `null`, comme pour le chemin de la base."""
+    if database.mode_developpement():
+        return {"langue": None}
+    return {"langue": config_utilisateur.langue_memorisee()}
+
+
+@router.put("/langue")
+def set_langue(payload: _LangueEcriture):
+    """Retient la langue pour les prochains lancements. Rend `memorisee: false`
+    quand rien n'a été écrit (mode développement, profil en lecture seule) : le
+    `localStorage` de la fenêtre reste alors la seule mémoire."""
+    if payload.langue not in config_utilisateur.LANGUES_ADMISES:
+        raise HTTPException(status_code=400, detail="Langue inconnue.")
+    if database.mode_developpement():
+        return {"langue": payload.langue, "memorisee": False}
+    ecrit = config_utilisateur.ecrire(**{config_utilisateur.CLE_LANGUE: payload.langue})
+    return {"langue": payload.langue, "memorisee": ecrit}
 
 
 def _lire_etat(migration=None, choix_memorise: bool = True) -> schemas.BaseDonneesRead:
@@ -140,14 +177,14 @@ def reinitialiser_base():
     # ce qui est retenu dans le profil est précisément ce qu'on veut cesser
     # d'ouvrir. (En mode développement `_memoriser` n'écrit plus rien, mais une
     # session antérieure a pu laisser un chemin derrière elle.)
-    config_utilisateur.oublier_chemin_base()
+    config_utilisateur.oublier_chemin_base(dev=True)
     try:
         database.changer_base(str(database.DEV_DB_PATH))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return _lire_etat(database.derniere_migration(), choix_memorise=False)
+    return _lire_etat(database.derniere_migration(), choix_memorise=True)
 
 
 @router.post("/base/installer", response_model=schemas.BaseDonneesRead)

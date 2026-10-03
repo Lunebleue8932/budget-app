@@ -521,6 +521,41 @@ def part_amortie(operation: models.Operation, annee: int, mois: Optional[int]) -
     return mois_couverts / nb_mois
 
 
+def part_amortie_fenetre(
+    operation: models.Operation, debut: date_type, fin: date_type
+) -> float:
+    """La FRACTION d'une opération amortie qui revient à une fenêtre QUELCONQUE
+    (une semaine qui déborde sur deux mois, un mois, une année, tout
+    l'historique) — le pendant de `part_amortie`, qui ne sait lire que des mois
+    entiers.
+
+    L'AMORTISSEMENT OCCUPE LES JOURS DE SES MOIS, du 1er du premier au dernier
+    jour du dernier. La part d'une fenêtre est donc
+    `jours(fenêtre ∩ amortissement) / jours(amortissement)` : l'intersection est
+    ce qui sert quand une semaine de bord de mois déborde sur un mois qui ne fait
+    pas partie de l'amortissement — ces jours-là ne comptent pour rien.
+
+    UNE FENÊTRE DE MOIS ENTIERS REPREND `part_amortie` À L'IDENTIQUE (mois
+    couverts / mois d'amortissement) : un mois de février ne doit pas peser moins
+    qu'un mois de 31 jours, et les objectifs doivent tomber d'accord avec
+    l'histogramme du dashboard."""
+    nb_mois = operation.amortissement_nb_mois
+    if not nb_mois:
+        return 0.0
+    fin_mois_fenetre = fin_de_periode(fin.year, fin.month)
+    if debut.day == 1 and fin == fin_mois_fenetre:
+        mois_couverts = min(_index_mois(operation.amortissement_fin), _index_mois(fin)) - max(
+            _index_mois(operation.amortissement_debut), _index_mois(debut)
+        ) + 1
+        return max(mois_couverts, 0) / nb_mois
+    debut_amort = operation.amortissement_debut.replace(day=1)
+    fin_amort = fin_de_periode(operation.amortissement_fin.year, operation.amortissement_fin.month)
+    jours_communs = (min(fin, fin_amort) - max(debut, debut_amort)).days + 1
+    if jours_communs <= 0:
+        return 0.0
+    return jours_communs / ((fin_amort - debut_amort).days + 1)
+
+
 # UNE OPÉRATION DÉCOUPÉE N'A PAS DE CATÉGORIE, et c'est ce qui rend tout ce
 # fichier juste sans le réécrire : `categorie_id` passe à NULL dès qu'elle porte
 # des parts (cf. models.OperationDecoupe), donc les quatre jointures internes

@@ -28,7 +28,11 @@
  */
 
 const LANGUES = ["fr", "en", "pt"];
-const LANGUE_PAR_DEFAUT = "fr";
+// LE FRANÇAIS RESTE LA LANGUE SOURCE (les clés du dictionnaire sont des phrases
+// françaises : rien à traduire pour elle), mais plus la langue PAR DÉFAUT — un
+// premier lancement s'ouvre en anglais, tant qu'aucun choix n'a été fait.
+const LANGUE_SOURCE = "fr";
+const LANGUE_PAR_DEFAUT = "en";
 const CLE_STOCKAGE = "budget-app-langue";
 
 function langueEnregistree() {
@@ -36,8 +40,8 @@ function langueEnregistree() {
     const valeur = localStorage.getItem(CLE_STOCKAGE);
     return LANGUES.includes(valeur) ? valeur : LANGUE_PAR_DEFAUT;
   } catch (err) {
-    // Stockage indisponible (navigation privée stricte) : le français, et rien
-    // de cassé.
+    // Stockage indisponible (navigation privée stricte) : la langue par défaut,
+    // et rien de cassé.
     return LANGUE_PAR_DEFAUT;
   }
 }
@@ -86,7 +90,7 @@ function t(texte, params) {
  * mauvaise langue qu'une erreur avalée.
  */
 function traduireMessageServeur(message) {
-  if (langueActuelle === LANGUE_PAR_DEFAUT || !message) return message;
+  if (langueActuelle === LANGUE_SOURCE || !message) return message;
   const direct = TRADUCTIONS[langueActuelle][message];
   if (direct) return direct;
   // Plusieurs manques peuvent être concaténés par le serveur (cf.
@@ -124,7 +128,7 @@ const ATTRIBUTS_TRADUISIBLES = ["placeholder", "title", "aria-label", "data-info
  * mégarde — il n'est pas encore là.
  */
 function traduireDomStatique(racine) {
-  if (langueActuelle === LANGUE_PAR_DEFAUT) return;
+  if (langueActuelle === LANGUE_SOURCE) return;
   const table = TRADUCTIONS[langueActuelle];
 
   const parcours = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT, {
@@ -188,8 +192,40 @@ function changerLangue(nouvelle) {
     /* Sans stockage, la langue ne survivra pas au rechargement : tant pis, on
        ne bloque pas le changement pour autant. */
   }
-  window.location.reload();
+  // LE CHOIX EST AUSSI RETENU CÔTÉ POSTE (fichier de configuration de
+  // l'utilisateur, cf. config_utilisateur.CLE_LANGUE) : le `localStorage` est
+  // rangé par origine et peut repartir vide. On attend la réponse avant de
+  // recharger, sans quoi la requête serait coupée avec la page ; un échec ne
+  // bloque rien.
+  fetch("/parametres/langue", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ langue: nouvelle }),
+  })
+    .catch(() => {})
+    .finally(() => window.location.reload());
 }
+
+/**
+ * Au lancement, SI AUCUN CHOIX N'EST LU dans le `localStorage` (stockage vide :
+ * nouvelle origine, profil nettoyé), reprend la langue retenue côté poste et
+ * recharge une fois pour l'appliquer. Silencieux en cas d'échec : on reste sur
+ * la langue par défaut.
+ */
+async function restaurerLangueDuPoste() {
+  try {
+    if (localStorage.getItem(CLE_STOCKAGE)) return;
+    const reponse = await fetch("/parametres/langue");
+    if (!reponse.ok) return;
+    const { langue: retenue } = await reponse.json();
+    if (!LANGUES.includes(retenue) || retenue === langueActuelle) return;
+    localStorage.setItem(CLE_STOCKAGE, retenue);
+    window.location.reload();
+  } catch (err) {
+    /* Rien de cassé : la langue par défaut reste affichée. */
+  }
+}
+restaurerLangueDuPoste();
 
 /**
  * FRANÇAIS → ANGLAIS.
@@ -1198,9 +1234,9 @@ const TRADUCTIONS = {
       "Switching an extension off deletes NO data: its screen disappears, its rows sleep in the database, and everything comes back intact when you switch it on again. That is why you can try one without risking anything.",
 
     /* ===== Les deux axes d'une étiquette de titre (0066) ===== */
-    "Monnaie éteinte":
+    "Monnaie désactivée":
       "Currency switched off",
-    "Monnaie rallumée":
+    "Monnaie réactivée":
       "Currency switched back on",
     "Sans enveloppe":
       "No wrapper",
@@ -2566,12 +2602,12 @@ const TRADUCTIONS = {
     "Le solde de ce compte dans cette monnaie n'est pas nul : vire ce qui reste ailleurs avant d'éteindre.":
       "This account's balance in that currency is not zero: move what is left elsewhere before switching it off.",
     // ----- Un compte ou une catégorie éteints (migration 0063) -----
-    "Éteindre": "Switch off",
-    "Rallumer": "Switch back on",
-    "Compte éteint": "Account switched off",
-    "Compte rallumé": "Account switched back on",
-    "Catégorie éteinte": "Category switched off",
-    "Catégorie rallumée": "Category switched back on",
+    "Désactiver": "Disable",
+    "Réactiver": "Re-enable",
+    "Compte désactivé": "Account switched off",
+    "Compte réactivé": "Account switched back on",
+    "Catégorie désactivée": "Category switched off",
+    "Catégorie réactivée": "Category switched back on",
     "Un compte éteint n'est plus proposé à la saisie ni à l'import. Ses opérations restent en base, et il reparaît sur une période où il portait encore de l'argent.":
       "A switched-off account is no longer offered when entering a transaction or importing. Its transactions stay in the database, and it reappears over any period where it still held money.",
     "Une catégorie éteinte n'est plus proposée à la saisie, ni par les règles d'import, ni sur la page Budget. Ses opérations restent en base et gardent leur barre sur les périodes où elles tombent.":
@@ -3163,6 +3199,15 @@ const TRADUCTIONS = {
     // noyau.touche-gel-infobulle
     "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches":
       "The key that freezes the tooltip on charts. To change it, click the field and press the new key or key combination",
+    // noyau.monnaie-affichage-defaut
+    "Permet de changer la monnaie d'affichage par défaut : celle qui s'affiche en premier au lancement de l'app ou d'une page":
+      "Changes the default display currency: the one shown first when the app or a page starts",
+    "Monnaie d'affichage par défaut":
+      "Default display currency",
+    "Aucune (la première)":
+      "None (the first one)",
+    "Réglage non enregistré.":
+      "Setting not saved.",
     // noyau.camembert-vue-budget
     "La répartition de tes dépenses rapportées à ton budget de la période.":
       "How your spending breaks down against your budget for the period.",

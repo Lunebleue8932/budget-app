@@ -34,6 +34,7 @@ import importlib.util
 import pathlib
 import sys
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -222,10 +223,10 @@ def test_un_objectif_mensuel_lu_sur_une_annee_devient_une_moyenne(db_session, co
     assert mesure["atteint"] is True
 
 
-def test_une_depense_amortie_compte_pour_une_ligne_entiere(db_session, compte):
-    """LE PÉRIMÈTRE « COMBIEN DE FOIS » NE S'ÉTALE PAS. Une facture amortie sur
-    douze mois reste UNE dépense, faite une fois, au mois où on l'a faite — un
-    compte ne se découpe pas en douzièmes."""
+def test_une_depense_amortie_compte_pour_une_ligne_dans_chaque_mois_couvert(db_session, compte):
+    """LE FILTRE DE DATE SUIT L'AMORTISSEMENT (comme le drill-through). Une
+    facture amortie avril 2026 → mars 2027 compte pour UNE ligne dans chacun de
+    ses mois, et pour aucune avant : « combien de fois » ne se divise pas."""
     _depense(
         db_session,
         compte,
@@ -237,11 +238,29 @@ def test_une_depense_amortie_compte_pour_une_ligne_entiere(db_session, compte):
     )
 
     objectif = _objectif(db_session, mesure="nombre", cadence="mois", cible=1.0)
+    mars = service.mesurer(db_session, objectif, 2026, 3, date(2026, 12, 31))
     avril = service.mesurer(db_session, objectif, 2026, 4, date(2026, 12, 31))
     mai = service.mesurer(db_session, objectif, 2026, 5, date(2026, 12, 31))
 
+    assert mars["valeur"] == pytest.approx(0.0)
     assert avril["valeur"] == pytest.approx(1.0)
-    assert mai["valeur"] == pytest.approx(0.0)
+    assert mai["valeur"] == pytest.approx(1.0)
+
+
+def test_une_depense_amortie_pese_au_prorata_des_jours_d_une_fenetre():
+    """UNE SEMAINE QUI DÉBORDE : l'intersection de ses jours avec l'étalement,
+    sur le nombre total de jours de l'étalement. Amortie sur juin 2026 (30 jours),
+    la semaine du lundi 29 juin au dimanche 5 juillet n'en recoupe que 2."""
+    op = SimpleNamespace(
+        amorti=True,
+        amortissement_nb_mois=1,
+        amortissement_debut=date(2026, 6, 1),
+        amortissement_fin=date(2026, 6, 1),
+    )
+    assert soldes.part_amortie_fenetre(op, date(2026, 6, 29), date(2026, 7, 5)) == pytest.approx(2 / 30)
+    # Un mois entier reprend la règle des mois (1/1), une fenêtre sans rapport 0.
+    assert soldes.part_amortie_fenetre(op, date(2026, 6, 1), date(2026, 6, 30)) == pytest.approx(1.0)
+    assert soldes.part_amortie_fenetre(op, date(2026, 7, 6), date(2026, 7, 12)) == 0.0
 
 
 def test_le_montant_moyen_compte_le_reste_a_charge(db_session, compte):

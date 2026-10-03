@@ -45,6 +45,9 @@ const TEXTES = {
   "noyau.touche-gel-infobulle":
     "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches",
 
+  "noyau.monnaie-affichage-defaut":
+    "Permet de changer la monnaie d'affichage par défaut : celle qui s'affiche en premier au lancement de l'app ou d'une page",
+
   /* ----- Le camembert et ses deux vues ----- */
   "noyau.camembert-vue-budget":
     "La répartition de tes dépenses rapportées à ton budget de la période.",

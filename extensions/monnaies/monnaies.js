@@ -85,7 +85,7 @@ function renderMonnaies() {
       url: `/monnaies/${monnaie.id}/etat`,
       corps: { active: monnaie.active === false },
       message:
-        monnaie.active === false ? t("Monnaie rallumée") : t("Monnaie éteinte"),
+        monnaie.active === false ? t("Monnaie réactivée") : t("Monnaie désactivée"),
       apres: loadMonnaies,
     });
   };
