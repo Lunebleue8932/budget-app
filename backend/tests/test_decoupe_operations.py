@@ -168,7 +168,7 @@ def test_le_filtre_par_categorie_retrouve_une_operation_decoupee(db_session):
     )
     ordinaire = crud.create_operation(
         db_session,
-        _payload(db_session, compte, categorie_id=get_categorie_id(db_session, "Loisirs"), nature="Cinéma"),
+        _payload(db_session, compte, categorie_id=get_categorie_id(db_session, "Loisirs & sorties"), nature="Cinéma"),
     )
 
     def ids(categorie):
@@ -179,8 +179,8 @@ def test_le_filtre_par_categorie_retrouve_une_operation_decoupee(db_session):
 
     assert decoupee.id in ids("Alimentaire")
     assert decoupee.id in ids("Charges fixes")
-    assert decoupee.id not in ids("Loisirs")
-    assert ids("Loisirs") == {ordinaire.id}
+    assert decoupee.id not in ids("Loisirs & sorties")
+    assert ids("Loisirs & sorties") == {ordinaire.id}
 
 
 def test_les_parts_disparaissent_avec_l_operation(db_session):

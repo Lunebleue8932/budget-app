@@ -210,14 +210,19 @@ def test_le_marqueur_pose_a_cote_de_l_executable_fait_un_build_de_test(tmp_path,
     assert database.est_build_de_test(), "le marqueur seul doit suffire"
 
 
-def test_un_build_de_test_n_ecrit_jamais_dans_le_profil(tmp_path, config_temporaire, monkeypatch):
-    """LA garantie : laisser un bundle de mise au point écrire dans le profil
-    ferait pointer la VRAIE application sur la base ouverte pour un essai."""
+def test_un_build_de_test_n_ecrit_jamais_la_cle_de_la_version_publiee(
+    tmp_path, config_temporaire, monkeypatch
+):
+    """LA garantie : laisser un bundle de mise au point écrire la clé de la version
+    publiée ferait pointer la VRAIE application sur la base ouverte pour un essai.
+    Il retient en revanche sa base sous SA clé (`chemin_base_dev`), que la version
+    publiée ne lit jamais — cf. `_memoriser`."""
     monkeypatch.setattr(database, "est_build_de_test", lambda: True)
+    essai = tmp_path / "essai.db"
 
-    assert parametres_base._memoriser(tmp_path / "essai.db") is False
+    assert parametres_base._memoriser(essai) is True
     assert config_utilisateur.chemin_base_memorise() is None
-    assert not config_utilisateur.fichier_config().exists()
+    assert config_utilisateur.chemin_base_memorise(dev=True) == essai
 
 
 def test_hors_build_de_test_le_choix_est_bien_memorise(tmp_path, config_temporaire, monkeypatch):

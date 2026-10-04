@@ -452,7 +452,7 @@ def _confirmer_avec(db, preset, contenu, override):
         db,
         preset.id,
         contenu,
-        overrides=schemas.ImportMappingOverrides(lignes={2: override}),
+        overrides=schemas.ImportMappingOverrides(lignes={1: override}),
         nom_fichier="releve.xlsx",
     )
     return db.query(crud.models.Operation).one()
@@ -528,7 +528,7 @@ def test_des_parts_qui_ne_totalisent_pas_le_montant_bloquent_la_ligne(db_session
         contenu,
         overrides=schemas.ImportMappingOverrides(
             lignes={
-                2: schemas.ImportLigneOverride(
+                1: schemas.ImportLigneOverride(
                     decoupes=[
                         schemas.DecoupeInput(categorie_id=get_categorie_id(db_session, "Alimentaire"), montant=10.0),
                         schemas.DecoupeInput(categorie_id=get_categorie_id(db_session, "Loisirs & sorties"), montant=10.0),
