@@ -384,7 +384,31 @@ def main() -> int:
         text_select=True,
         js_api=ApiBureau(),
     )
-    webview.start()
+    # LE STOCKAGE DE LA FENÊTRE DOIT SURVIVRE À SA FERMETURE, et par défaut il ne le
+    # fait pas : pywebview ouvre le navigateur embarqué en `private_mode=True`,
+    # dont le profil est jeté à la sortie. Le port fixe (cf. PORT_PREFERE) donnait
+    # bien la même origine d'un lancement à l'autre, mais sur un stockage VIDE à
+    # chaque fois — la langue, le thème, la touche de gel de l'infobulle semblaient
+    # ne jamais se retenir.
+    #
+    # Le profil vit dans le dossier de configuration de l'utilisateur, avec le
+    # reste de ce qu'aucune mise à jour ne touche (cf. config_utilisateur). Les
+    # builds de test et le serveur de mise au point ont le leur : ils partagent
+    # l'origine (même port) mais ne doivent pas écrire dans le profil de la vraie
+    # application.
+    from app import config_utilisateur, database
+
+    mise_au_point = database.est_build_de_test() or database.mode_developpement()
+    profil = config_utilisateur.dossier_config() / (
+        "fenetre-mise-au-point" if mise_au_point else "fenetre"
+    )
+    try:
+        profil.mkdir(parents=True, exist_ok=True)
+        webview.start(private_mode=False, storage_path=str(profil))
+    except OSError:
+        # Profil en lecture seule : mieux vaut une fenêtre qui ne retient rien
+        # qu'une application qui ne s'ouvre pas.
+        webview.start()
     return 0
 
 

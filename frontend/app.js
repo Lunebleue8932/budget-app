@@ -137,6 +137,10 @@ const state = {
   },
 };
 
+// Le tri d'une page Opérations qu'on vient d'ouvrir (et celui que « Réinitialiser »
+// rend) : du plus récent au plus ancien, la date servant de séparateur de journée.
+const TRI_PAR_DEFAUT_OPERATIONS = "date-desc";
+
 const CATEGORIE_AUTRES = "Autres";
 // La catégorie d'ENTRÉE livrée (cf. constants.CATEGORIE_ENTREES_ARGENT). Elle se
 // renomme librement — c'est la case « catégorie d'entrée » qui la reconnaît,
@@ -494,7 +498,12 @@ function monnaieParId(monnaieId) {
   return state.monnaies.find((m) => m.id === monnaieId) || null;
 }
 
+// « Aucune monnaie » à passer à formatMontant : le montant s'écrit nu, sans le
+// repli sur la première monnaie de l'app (cf. symboleMonnaie).
+const SANS_MONNAIE = "sans-monnaie";
+
 function symboleMonnaie(monnaieId) {
+  if (monnaieId === SANS_MONNAIE) return "";
   const monnaie = monnaieParId(monnaieId);
   // À défaut (monnaie inconnue, ou montant dont la monnaie n'est pas encore
   // connue — un aperçu d'import avant choix du compte), la première monnaie de
@@ -6957,18 +6966,37 @@ async function fillOperationForm(op) {
   const resteField = document.getElementById("operation-montant-a-rembourser");
   const infoDiv = document.getElementById("operation-rembourse-info");
   const estLie = op.rembourse_par && op.rembourse_par.length > 0;
-  // Dès qu'un remboursement est lié, les trois montants de la dette sont
-  // figés côté serveur (les liens ont été validés contre le montant_du de
-  // l'époque, et rien ne les revalide) : on grise plutôt que de laisser
-  // saisir une valeur qui sera refusée en 400.
+  // DÈS QU'UN REMBOURSEMENT EST LIÉ, le montant de l'opération et le reste restent
+  // figés (les liens ont été validés contre eux). Le MONTANT À REMBOURSER, lui,
+  // peut encore changer — mais jamais sous ce qui est déjà remboursé : c'est la
+  // seule borne qui garde les liens valides (cf. routers/operations.update).
+  // Le reste n'est pas saisi, il suit : montant à rembourser moins le déjà
+  // remboursé. On grise ce qui serait refusé en 400 plutôt que de le laisser saisir.
+  const montantDuChamp = document.getElementById("operation-montant-du");
+  const dejaRembourse = estLie
+    ? op.rembourse_par.reduce((somme, r) => somme + (r.montant_lien || 0), 0)
+    : 0;
   resteField.disabled = estLie;
   document.getElementById("operation-montant").disabled = estLie;
-  document.getElementById("operation-montant-du").disabled = estLie;
+  montantDuChamp.disabled = false;
+  montantDuChamp.oninput = null;
+  if (estLie) {
+    montantDuChamp.min = Math.max(Number(montantDuChamp.min) || 0, dejaRembourse);
+    montantDuChamp.oninput = () => {
+      const valeur = parseFloat(montantDuChamp.value);
+      if (Number.isFinite(valeur)) {
+        resteField.value = Math.max(0, valeur - dejaRembourse).toFixed(2);
+      }
+    };
+  }
   if (TYPES_REMBOURSABLES.has(type) && estLie) {
     const details = op.rembourse_par
       .map((r) => `"${r.nature}" (${formatMontant(r.montant_lien, op.monnaie_id)})`)
       .join(", ");
-    infoDiv.textContent = `Remboursé via : ${details}. Les montants sont figés tant que ce lien existe — pour les modifier, délie d'abord l'opération de remboursement correspondante.`;
+    infoDiv.textContent = t(
+      "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.",
+      { details, deja: formatMontant(dejaRembourse, op.monnaie_id) }
+    );
     infoDiv.style.display = "block";
   } else {
     infoDiv.style.display = "none";
@@ -9139,6 +9167,18 @@ document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
         propagerFiltreAuxAutresOnglets(champ, onglet);
       });
     majResumeFiltres(onglet);
+    // « RÉINITIALISER » RAMÈNE À LA VUE DE BASE, tri compris. Un drill-through
+    // pose un tri par montant décroissant, qui fait descendre la date dans une
+    // colonne (cf. colonnesOperations) : retirer les filtres sans lui rendre son
+    // tri laissait l'écran dans la lecture du drill-through, avec sa colonne
+    // Date. Le tri par défaut — chronologique, date en séparateurs de journée —
+    // est celui de `state.triSelections` au chargement.
+    if (state.drillOperations && state.drillOperations.onglet === onglet) {
+      state.drillOperations = null;
+    }
+    state.triSelections[onglet] = TRI_PAR_DEFAUT_OPERATIONS;
+    const menuTri = document.querySelector(`select.tri-select[data-onglet="${onglet}"]`);
+    if (menuTri) menuTri.value = TRI_PAR_DEFAUT_OPERATIONS;
     trierEtRerender(onglet);
   });
 });
@@ -9532,6 +9572,8 @@ function reinitialiserImport() {
   // garder ferait refuser, sur le fichier suivant, des lignes qui portent le
   // même numéro sans rien avoir de commun.
   importRapprochementsRefuses.clear();
+  // Les validations de lecture désignent, elles aussi, des lignes par leur numéro.
+  Object.keys(importJambesValidees).forEach((k) => delete importJambesValidees[k]);
   // Les liaisons aussi : elles désignent des lignes par leur NUMÉRO, lequel ne
   // veut plus rien dire dans le fichier suivant.
   Object.keys(importLignesLiees).forEach((k) => delete importLignesLiees[k]);
@@ -11325,7 +11367,9 @@ function renderImportMappings() {
   monnaieBloc.innerHTML = "";
   monnaiesInconnues.forEach((nomBanque) => {
     monnaieBloc.appendChild(
-      creerLigneMapping(nomBanque, state.monnaies, importMappingMonnaies, () => {
+      // Une monnaie éteinte n'est pas une cible : elle se lit (liste, cours) et
+      // rien d'autre — le serveur ignore d'ailleurs un choix qui la désignerait.
+      creerLigneMapping(nomBanque, state.monnaies.filter((m) => m.active !== false), importMappingMonnaies, () => {
         appliquerMappingsLocalement();
         renderImportApercu();
       })
@@ -11644,10 +11688,19 @@ function monnaieParDefautLigne(ligne) {
 // qui arrive, sa devise, et le sens quand le fichier le déclare à part.
 function montantLigneApercuHtml(ligne) {
   const monnaieDefaut = monnaieParDefautLigne(ligne);
+  // UNE DEVISE LUE MAIS PAS ENCORE MAPPÉE S'AFFICHE SANS DEVISE. Le badge
+  // « devise à mapper » dit déjà ce qui manque ; lui accoler en plus une monnaie
+  // de repli affirmerait une devise que personne n'a choisie.
+  const nonMappee = (champNom, champId) => !!ligne[champNom] && ligne[champId] == null;
   // `monnaie_operation_id` et non `monnaie_id` : sur une sortie à un seul
   // compte, c'est le montant ENVOYÉ qui fait l'opération, dans sa monnaie.
-  const monnaieOperation = ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieDefaut;
-  const monnaieEnvoyeeLigne = ligne.monnaie_envoyee_id ?? ligne.monnaie_id ?? monnaieDefaut;
+  const monnaieOperation = nonMappee("nom_banque_monnaie", "monnaie_id") && ligne.monnaie_operation_id == null
+    ? SANS_MONNAIE
+    : ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieDefaut;
+  const monnaieEnvoyeeLigne = nonMappee("nom_banque_monnaie_envoyee", "monnaie_envoyee_id")
+    ? SANS_MONNAIE
+    : ligne.monnaie_envoyee_id ??
+      (nonMappee("nom_banque_monnaie", "monnaie_id") ? SANS_MONNAIE : ligne.monnaie_id ?? monnaieDefaut);
   // Un virement sortant lu sans colonne de devise ne porte QUE ce qui part :
   // ce qui arrive reste inconnu tant que l'utilisateur ne l'a pas dit (l'app
   // ne convertit rien). La colonne montre alors le seul montant connu.
@@ -11724,7 +11777,10 @@ function montantLigneApercuHtml(ligne) {
   // les rappeler ici est le seul moyen de vérifier qu'ils n'ont pas été
   // comptés deux fois par le relevé.
   if (ligne.frais) {
-    const monnaieFrais = ligne.monnaie_frais_id ?? ligne.monnaie_id ?? monnaieDefaut;
+    const monnaieFrais = nonMappee("nom_banque_monnaie_frais", "monnaie_frais_id")
+      ? SANS_MONNAIE
+      : ligne.monnaie_frais_id ??
+        (nonMappee("nom_banque_monnaie", "monnaie_id") ? SANS_MONNAIE : ligne.monnaie_id ?? monnaieDefaut);
     html += `<span class="apercu-frais">dont frais ${escapeHtml(
       formatMontant(ligne.frais, monnaieFrais)
     )}</span>`;
@@ -11774,6 +11830,13 @@ function statutLigneApercuHtml(ligne) {
     return '<span class="badge-partiel">en attente — importée en prévisionnel</span>';
   }
   if (ligne.compte_id === null) return '<span class="badge-partiel">compte à mapper</span>';
+  const lecture = validationJambe(ligne);
+  if (lecture === null) {
+    return `<span class="badge-partiel">${t("virement déjà connu : à valider")}</span>`;
+  }
+  if (lecture === true) {
+    return `<span class="badge-ecartee">${t("même virement — non importé")}</span>`;
+  }
   if (virementIncomplet(ligne)) {
     return `<span class="badge-partiel">${t("virement : compte en face à renseigner")}</span>`;
   }
@@ -11826,6 +11889,7 @@ function renderImportApercu() {
   document.getElementById("import-apercu-bloc").style.display = "";
   document.getElementById("import-apercu-nombre").textContent = importApercu.lignes.length;
   renderImportPrevisionnelles();
+  renderImportJambes();
 
   // Ni les doublons ni les ressemblances ne rejoignent une des 6 sous-sections
   // par type : elles vivent exclusivement dans leur section dédiée, tant que la
@@ -11844,7 +11908,12 @@ function renderImportApercu() {
   // ressemblance et appelle un autre geste (la supprimer). Elle ne figure donc
   // que dans « Doublons détectés », jamais dans les deux.
   const lignesRessemblances = importApercu.lignes.filter(
-    (l) => l.doublon_de == null && veilleDoublonsParLigne[l.ligne] != null
+    (l) =>
+      l.doublon_de == null &&
+      // La jambe manquante PRIME sur la ressemblance (ordre : doublon de colonnes,
+      // jambe manquante, ressemblance) : la ligne a déjà son panneau de décision.
+      l.jambe_manquante_id == null &&
+      veilleDoublonsParLigne[l.ligne] != null
   );
   document.getElementById("import-apercu-nombre-ressemblances").textContent =
     lignesRessemblances.length;
@@ -11893,6 +11962,125 @@ const importRapprochementsRefuses = new Set();
  * eux-mêmes voyagent dans l'override, comme tout ce qu'on corrige à la main. */
 const importLignesLiees = {};
 
+/* ---------- LA VALIDATION DE LA LECTURE DE L'APP ----------
+ *
+ * Une ligne que le serveur a reconnue comme la description d'une jambe de virement
+ * qu'il a déjà écrite (cf. services/import_bancaire.detecter_jambes_manquantes)
+ * porte `jambe_manquante_id`. Elle adopte le type « virement » et le compte d'en
+ * face de la jambe, mais RIEN n'est décidé : l'utilisateur répond « Oui » (c'est
+ * ce virement : la ligne n'est pas importée) ou « Non » (elle l'est, à part).
+ *
+ * TROIS ÉTATS, et le troisième bloque l'import : « à choisir » (le défaut),
+ * « Oui », « Non ». Si l'utilisateur change le type de la ligne, ou son compte
+ * d'en face pour un autre que celui de la jambe, il a dit que l'app s'était
+ * trompée : le champ passe en « Non » TOUT SEUL (cf. validationJambe). Redevenue
+ * ce que l'app avait lu, la ligne repasse « à choisir » — le choix n'est pas
+ * perdu, il est simplement masqué le temps de la divergence.
+ *
+ * L'ÉTAT VIT ICI ET NON DANS `importApercu`, remplacé à chaque relecture du
+ * fichier (même raison que les refus de rapprochement).
+ */
+const importJambesValidees = {};
+
+function jambeDeLigne(ligne) {
+  if (!importApercu || ligne.jambe_manquante_id == null) return null;
+  return (importApercu.jambes_manquantes || {})[String(ligne.jambe_manquante_id)] || null;
+}
+
+// La ligne est-elle encore ce que l'app a lu : un virement vers le compte d'en
+// face de la jambe ? (même règle que _jambe_en_jeu côté serveur)
+function jambeEnJeu(ligne) {
+  const jambe = jambeDeLigne(ligne);
+  return (
+    jambe != null &&
+    typeOperationLigne(ligne) === "virement" &&
+    jambe.compte_en_face_id != null &&
+    ligne.compte_id_autre === jambe.compte_en_face_id
+  );
+}
+
+// true (Oui) / false (Non) / null (à choisir) ; undefined si la ligne n'a pas de jambe.
+function validationJambe(ligne) {
+  if (jambeDeLigne(ligne) == null) return undefined;
+  if (!jambeEnJeu(ligne)) return false;
+  return importJambesValidees[ligne.ligne] ?? null;
+}
+
+function renderImportJambes() {
+  const bloc = document.getElementById("import-jambes-bloc");
+  const corps = document.getElementById("import-jambes-liste");
+  if (!bloc || !corps) return;
+  const lignes = importApercu.lignes.filter(
+    (l) => jambeDeLigne(l) != null && !ligneRefuseeParStatut(l)
+  );
+  bloc.style.display = lignes.length ? "" : "none";
+  document.getElementById("import-jambes-nombre").textContent = lignes.length;
+  corps.innerHTML = "";
+  lignes.forEach((ligne) => {
+    const jambe = jambeDeLigne(ligne);
+    const enJeu = jambeEnJeu(ligne);
+    const tr = document.createElement("tr");
+
+    const cellChoix = document.createElement("td");
+    const select = document.createElement("select");
+    select.innerHTML =
+      `<option value="">${t("À choisir")}</option>` +
+      `<option value="oui">${t("Oui")}</option>` +
+      `<option value="non">${t("Non")}</option>`;
+    const valeur = validationJambe(ligne);
+    select.value = valeur === true ? "oui" : valeur === false ? "non" : "";
+    // Hors de ce que l'app a lu, le champ est « Non » et ne se discute plus.
+    select.disabled = !enJeu;
+    select.title = enJeu
+      ? ""
+      : t("Le type ou le compte en face a été changé : la ligne n'est plus ce que l'app avait lu.");
+    select.addEventListener("change", () => {
+      if (select.value === "oui") importJambesValidees[ligne.ligne] = true;
+      else if (select.value === "non") importJambesValidees[ligne.ligne] = false;
+      else delete importJambesValidees[ligne.ligne];
+      renderImportApercu();
+    });
+    cellChoix.appendChild(select);
+    tr.appendChild(cellChoix);
+
+    const cellLigne = document.createElement("td");
+    cellLigne.innerHTML = `<strong>${t("ligne")} ${ligne.ligne}</strong> · ${escapeHtml(
+      formatDate(ligne.date)
+    )} · ${escapeHtml(ligne.nature || "")} · ${escapeHtml(
+      formatMontant(
+        ligne.montant,
+        ligne.monnaie_operation_id ||
+          ligne.monnaie_id ||
+          (ligne.nom_banque_monnaie ? SANS_MONNAIE : monnaieParDefautLigne(ligne))
+      )
+    )}`;
+    tr.appendChild(cellLigne);
+
+    const quand =
+      jambe.ecart_jours === 0
+        ? t("le même jour")
+        : t("à {n} jour(s) d'écart", { n: jambe.ecart_jours });
+    const cellJambe = document.createElement("td");
+    cellJambe.innerHTML = `${escapeHtml(formatDate(jambe.date))} · ${escapeHtml(
+      jambe.nature || ""
+    )} · ${escapeHtml(FORMAT_NOMBRE.format(jambe.montant))} ${escapeHtml(
+      jambe.monnaie_symbole
+    )} · <strong>${escapeHtml(jambe.compte_en_face_nom || "?")}</strong> → <strong>${escapeHtml(
+      jambe.compte_nom
+    )}</strong> <span class="hint">(${quand})</span>`;
+    tr.appendChild(cellJambe);
+    corps.appendChild(tr);
+  });
+}
+
+document.getElementById("btn-import-jambes-tout-oui").addEventListener("click", () => {
+  if (!importApercu) return;
+  importApercu.lignes.filter(jambeEnJeu).forEach((l) => {
+    importJambesValidees[l.ligne] = true;
+  });
+  renderImportApercu();
+});
+
 function renderImportPrevisionnelles() {
   const bloc = document.getElementById("import-previsionnelles-bloc");
   const corps = document.getElementById("import-previsionnelles-liste");
@@ -11925,7 +12113,9 @@ function renderImportPrevisionnelles() {
       ligne.date
     )} · ${escapeHtml(ligne.nature || "")} · ${formatMontant(
       ligne.montant,
-      ligne.monnaie_operation_id || ligne.monnaie_id || monnaieParDefautLigne(ligne)
+      ligne.monnaie_operation_id ||
+        ligne.monnaie_id ||
+        (ligne.nom_banque_monnaie ? SANS_MONNAIE : monnaieParDefautLigne(ligne))
     )}`;
     tr.appendChild(cellLigne);
 
@@ -12030,7 +12220,12 @@ function candidatsDoublonsVirements() {
         // décide plus de rien ici : le serveur rapproche sur l'ENSEMBLE des
         // comptes connus, sans regarder qui émet (cf. _comptes_compatibles).
         l.date &&
-        l.compte_id != null
+        l.compte_id != null &&
+        // Une ligne qui a déjà une jambe reconnue, ou qui est déjà un doublon de
+        // colonnes, n'est plus à comparer : le détecteur le plus fort parle seul
+        // (les autres se taisent, message d'avertissement compris).
+        l.jambe_manquante_id == null &&
+        l.doublon_de == null
     )
     .map((l) => {
       // Même règle que partout ailleurs : le signe du montant bancaire dit qui
@@ -12086,6 +12281,12 @@ function candidatsDoublonsVirements() {
 function renderEtatVeilleVirements(nbCandidats, nbRapprochees) {
   const bloc = document.getElementById("import-veille-virements-etat");
   if (!bloc) return;
+  // La veille est l'extension « Détection des ressemblances » : éteinte, elle n'a
+  // rien regardé, et « aucune ressemblance » affirmerait le contraire.
+  if (!BudgetApp.extensions.estActive("ressemblances")) {
+    bloc.style.display = "none";
+    return;
+  }
   const virements = importApercu
     ? importApercu.lignes.filter((l) => typeOperationLigne(l) === "virement").length
     : 0;
@@ -13830,8 +14031,12 @@ function updateBtnImportConfirmerEtat() {
   // bloque tant qu'il n'est pas désigné, plutôt que de laisser une écriture
   // orpheline à retrouver ensuite (même refus côté serveur, cf. _erreur_ligne).
   const virementsIncomplets = lignesActives.filter((l) => !l.erreur && virementIncomplet(l));
+  // Une jambe reconnue demande « Oui » ou « Non » : l'import est bloqué tant que
+  // l'une reste « à choisir » (même refus côté serveur, cf. confirmer).
+  const jambesAChoisir = lignesActives.filter((l) => validationJambe(l) === null);
   const rienDeSelectionne = importLignesSelectionnees.size === 0;
   btn.disabled = !(
+    jambesAChoisir.length === 0 &&
     categoriesOk &&
     comptesOk &&
     monnaiesOk &&
@@ -13874,6 +14079,10 @@ function updateBtnImportConfirmerEtat() {
       : `${lignesFraisIncoherents.length} ligne(s) portent des frais dans une monnaie qui n'est ` +
         "ni celle du montant reçu ni celle du montant envoyé. Retire la colonne « Frais » de la " +
         "configuration avancée, ou corrige la colonne de devise qui la qualifie.",
+    jambesAChoisir.length === 0
+      ? ""
+      : `${jambesAChoisir.length} ligne(s) ressemblent à un virement déjà connu : réponds ` +
+        "« Oui » (même virement, non importé) ou « Non » dans « Virements déjà connus ».",
     virementsIncomplets.length === 0
       ? ""
       : `${virementsIncomplets.length} virement(s) interne(s) n'ont qu'un seul compte : ouvre ` +
@@ -13937,6 +14146,13 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       // Une LISTE DE REFUS, et non d'acceptations : le rapprochement a lieu par
       // défaut (cf. le panneau « Dépenses prévues reconnues »).
       rapprochements_refuses: [...importRapprochementsRefuses],
+      // Une clé par ligne que l'écran a montrée comme reconnue (null = à choisir) :
+      // c'est ce qui dit au serveur quelles questions ont été VUES.
+      jambes_validees: Object.fromEntries(
+        importApercu.lignes
+          .filter((l) => jambeDeLigne(l) != null)
+          .map((l) => [l.ligne, validationJambe(l)])
+      ),
     })
   );
 

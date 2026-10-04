@@ -88,6 +88,14 @@
       "description": "Les règles qu'on se donne et que le budget ne sait pas écrire. Une enveloppe dit « combien puis-je encore dépenser là », un objectif de répartition « quelle part doit y aller » : ni l'un ni l'autre ne sait dire « pas plus de quatre sorties par semaine », « mes courses ne devraient pas dépasser 40 € en moyenne » ou « les voyages, c'est 10 % du budget ». On crée ici autant d'indicateurs qu'on veut — un nombre de dépenses, un montant total, un montant moyen ou une part des dépenses — chacun avec sa cadence (par semaine ou par mois), son sens (un plafond à ne pas dépasser ou un plancher à atteindre) et sa cible. Chacun se suit sur la page, et ceux qu'on choisit s'affichent directement sous les graphes du dashboard, sur la période qu'on y regarde. L'extension ne crée, ne modifie et ne supprime AUCUNE opération et ne refuse jamais rien : elle constate. Nécessite « Budget », dont elle est la page voisine — les objectifs sont du même ordre que ce qu'on y décide d'avance.",
       "version": "1.0.0",
       "type": "standard"
+    },
+    {
+      "id": "ressemblances",
+      "numero": 13,
+      "nom": "Détection des ressemblances",
+      "description": "Repère à l'import les virements internes que l'application connaît déjà. Quand tu importes un virement depuis un compte, l'app écrit aussi la jambe de l'autre compte : quand le relevé de cet autre compte arrive, la ligne qui décrit le même virement est reconnue — même si elle n'est pas classée en virement interne — et l'app te demande de valider sa lecture (« Oui » : c'est le même virement, la ligne n'est pas importée ; « Non » : elle l'est). Elle compare aussi les virements entre eux (deux comptes, un montant, une date voisine) pour signaler un doublon possible, même quand le compte en face manque. Sans cette extension, l'import ne cherche plus ces ressemblances ; seule la détection de doublons par colonnes reste active. Éteindre ne supprime rien : les lignes déjà validées continuent de servir de doublons.",
+      "version": "1.0.0",
+      "type": "standard"
     }
   ]
 }

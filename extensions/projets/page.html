@@ -59,6 +59,13 @@
          Rempli par projets.js, une section par monnaie (l'app n'en additionne
          jamais deux). Vide tant que le projet n'a aucune sortie : un cadre sans
          barre n'apprendrait rien. -->
+    <!-- LA CASCADE DU PROJET (waterfall) : les entrées, puis chaque catégorie de
+         dépense qui les entame, puis ce qu'il en reste. C'est la lecture
+         « entrées contre dépenses » que ni le total ni l'histogramme ne donnent
+         d'un coup d'œil. Une section par monnaie, comme l'histogramme. -->
+    <h4 id="projet-waterfall-titre" style="display:none">Entrées et dépenses<i class="info-bulle" tabindex="0" data-info-cle="projets.cascade">i</i></h4>
+    <div id="projet-waterfall"></div>
+
     <h4 id="projet-histogramme-titre" style="display:none">Répartition par catégorie<i class="info-bulle" tabindex="0" data-info-cle="projets.repartition-par-categorie">i</i></h4>
     <div id="projet-histogramme"></div>
 
@@ -81,6 +88,12 @@
         <label for="projet-filtre-compte">Compte
           <select id="projet-filtre-compte"><option value="">— tous —</option></select>
         </label>
+        <label for="projet-filtre-type">Type
+          <select id="projet-filtre-type"><option value="">— tous —</option></select>
+        </label>
+        <label for="projet-filtre-categorie">Catégorie
+          <select id="projet-filtre-categorie"><option value="">— toutes —</option></select>
+        </label>
         <label for="projet-filtre-texte">Nature contient
           <input type="text" id="projet-filtre-texte" placeholder="ex. hôtel" spellcheck="false" />
         </label>
@@ -99,8 +112,8 @@
         <table>
           <thead>
             <tr>
-              <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th>
-              <th>Montant</th><th>Sélection</th>
+              <th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th>
+              <th>Catégorie</th><th>Sélection</th>
             </tr>
           </thead>
           <tbody id="projet-candidats-liste"></tbody>
@@ -113,8 +126,8 @@
     <table>
       <thead>
         <tr>
-          <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th>
-          <th>Montant</th><th>Actions</th>
+          <th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th>
+          <th>Catégorie</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="projet-operations-liste"></tbody>

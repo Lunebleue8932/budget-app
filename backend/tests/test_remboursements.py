@@ -415,6 +415,49 @@ def test_montant_du_non_modifiable_apres_debut_de_remboursement(db_session):
     assert depense.montant_du == 100.0
 
 
+def test_montant_a_rembourser_modifiable_apres_liaison_au_dessus_du_deja_rembourse(db_session):
+    """Dette de 100 déjà remboursée de 40 : on peut ramener le montant à
+    rembourser à 70 (il reste 30 à rendre) ou à 40 (il ne reste rien) — c'est
+    tout ce qui n'a pas encore été remboursé qu'on peut encore changer."""
+    depense = _depense_partiellement_remboursee(db_session)
+
+    resultat = update_operation(depense.id, schemas.OperationUpdate(montant_du=70.0), db_session)
+    assert resultat.montant_du == 70.0
+    assert resultat.montant_a_rembourser == 30.0
+
+    resultat = update_operation(depense.id, schemas.OperationUpdate(montant_du=40.0), db_session)
+    assert resultat.montant_du == 40.0
+    assert resultat.montant_a_rembourser == 0.0
+
+
+def test_montant_a_rembourser_ne_descend_pas_sous_le_deja_rembourse(db_session):
+    depense = _depense_partiellement_remboursee(db_session)
+
+    with pytest.raises(HTTPException) as exc:
+        update_operation(depense.id, schemas.OperationUpdate(montant_du=39.0), db_session)
+
+    assert exc.value.status_code == 400
+    db_session.refresh(depense)
+    assert depense.montant_du == 100.0
+    assert depense.montant_a_rembourser == 60.0
+
+
+def test_le_reste_suit_le_montant_a_rembourser_meme_si_l_ecran_renvoie_l_ancien(db_session):
+    """L'écran renvoie l'objet complet, reste ANCIEN compris : le serveur ne doit
+    ni le refuser (il dépasse le nouveau montant dû) ni le reprendre."""
+    depense = _depense_partiellement_remboursee(db_session)
+    assert depense.montant_a_rembourser == 60.0
+
+    resultat = update_operation(
+        depense.id,
+        schemas.OperationUpdate(montant_du=50.0, montant_a_rembourser=60.0),
+        db_session,
+    )
+
+    assert resultat.montant_du == 50.0
+    assert resultat.montant_a_rembourser == 10.0
+
+
 def test_montant_non_modifiable_apres_debut_de_remboursement(db_session):
     depense = _depense_partiellement_remboursee(db_session)
 

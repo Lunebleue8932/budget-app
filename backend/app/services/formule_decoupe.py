@@ -21,6 +21,14 @@ la formule entière d'une part, et vaut ce que les autres n'ont pas pris.
 quand on pense « la valeur totale de l'opération », et refuser un synonyme
 évident n'apprend rien à personne.
 
+`montant_recu` ET `montant_envoye` sont les DEUX GRANDEURS d'une ligne qui
+décrit un mouvement entre deux devises : ce qui arrive, ce qui part. Les accents
+sont admis (`montant_reçu`, `montant_envoyé`). Sans autre information, les deux
+valent le montant de la ligne — un relevé qui n'écrit qu'un montant le dit des
+deux côtés. Une grandeur INCONNUE (None) refuse la formule au moment de
+l'évaluer : une règle qui compare un montant envoyé que le relevé ne donne pas
+ne doit pas deviner.
+
 `30%` VAUT 30 % DU MONTANT, pas 0,3. Une part de découpe se rapporte toujours au
 montant de l'opération : c'est la seule lecture possible ici, et c'est la façon
 dont un pourcentage se dit à voix haute (« la moitié en Courses, 30 % en
@@ -41,6 +49,19 @@ MOT_RESTE = "reste"
 
 #: Les noms qui désignent le montant de l'opération.
 _VARIABLES = {"montant", "total"}
+
+#: Les deux grandeurs d'un mouvement (cf. l'en-tête), sans accent : c'est la
+#: forme sous laquelle le parseur les reconnaît et sous laquelle l'appelant les
+#: fournit.
+GRANDEUR_RECU = "montant_recu"
+GRANDEUR_ENVOYE = "montant_envoye"
+_GRANDEURS = {GRANDEUR_RECU, GRANDEUR_ENVOYE}
+
+
+def _sans_accents(mot: str) -> str:
+    return (
+        mot.replace("é", "e").replace("è", "e").replace("É", "E").replace("ç", "c")
+    )
 
 _JETONS = re.compile(
     r"""
@@ -82,10 +103,18 @@ class _Lecteur:
     """Descente récursive sur la liste de jetons. Une instance par formule ;
     elle n'est pas réutilisable, et n'a pas à l'être."""
 
-    def __init__(self, jetons: list[tuple[str, str]], montant: float):
+    def __init__(
+        self,
+        jetons: list[tuple[str, str]],
+        montant: float,
+        grandeurs: Optional[dict] = None,
+    ):
         self.jetons = jetons
         self.position = 0
         self.montant = montant
+        # Sans autre information, ce qui arrive et ce qui part valent le montant.
+        self.grandeurs = {GRANDEUR_RECU: montant, GRANDEUR_ENVOYE: montant}
+        self.grandeurs.update(grandeurs or {})
 
     # -- outillage --
 
@@ -168,6 +197,13 @@ class _Lecteur:
             mot = valeur.casefold()
             if mot in _VARIABLES:
                 return self.montant
+            if _sans_accents(mot) in _GRANDEURS:
+                grandeur = self.grandeurs[_sans_accents(mot)]
+                if grandeur is None:
+                    raise FormuleInvalide(
+                        f"« {valeur} » est inconnu sur cette ligne : le relevé ne le donne pas"
+                    )
+                return grandeur
             if mot in ("min", "max"):
                 return self._fonction(mot)
             if mot == MOT_RESTE:
@@ -210,8 +246,11 @@ def est_reste(formule: str) -> bool:
     return (formule or "").strip().casefold() == MOT_RESTE
 
 
-def evaluer_formule(formule: str, montant: float) -> float:
+def evaluer_formule(formule: str, montant: float, grandeurs: Optional[dict] = None) -> float:
     """Ce que la formule vaut pour une opération de ce montant.
+
+    `grandeurs` fournit `montant_recu` / `montant_envoye` quand ils diffèrent
+    du montant (cf. l'en-tête du module).
 
     `reste` n'est PAS évaluable ici : il ne se calcule qu'en connaissant les
     autres parts (cf. repartir). L'appeler dessus est une erreur de programme,
@@ -224,7 +263,16 @@ def evaluer_formule(formule: str, montant: float) -> float:
     texte = (formule or "").strip()
     if not texte:
         raise FormuleInvalide("la formule est vide")
-    return _Lecteur(_decouper_en_jetons(texte), montant).lire()
+    return _Lecteur(_decouper_en_jetons(texte), montant, grandeurs).lire()
+
+
+def valider_expression(formule: str) -> None:
+    """Pour la VALEUR d'une condition de règle : une expression, jamais `reste`
+    (qui n'a de sens que dans une découpe). Même lecture que `valider_formule`,
+    mais « reste » est refusé plutôt que toléré."""
+    if est_reste(formule):
+        raise FormuleInvalide("« reste » n'a de sens que dans une découpe")
+    evaluer_formule(formule, 100.0)
 
 
 def valider_formule(formule: str) -> None:
@@ -241,7 +289,9 @@ def valider_formule(formule: str) -> None:
     evaluer_formule(formule, 100.0)
 
 
-def repartir(formules: list[str], montant: float) -> list[float]:
+def repartir(
+    formules: list[str], montant: float, grandeurs: Optional[dict] = None
+) -> list[float]:
     """Les montants des parts, dans l'ordre, pour une opération de ce montant.
 
     L'INVARIANT EST TENU ICI, ET NULLE PART AILLEURS : la somme des valeurs
@@ -273,7 +323,7 @@ def repartir(formules: list[str], montant: float) -> list[float]:
         if est_reste(formule):
             montants.append(None)
             continue
-        valeur = round(evaluer_formule(formule, montant), 2)
+        valeur = round(evaluer_formule(formule, montant, grandeurs), 2)
         if valeur < 0:
             raise FormuleInvalide(
                 f"la formule « {formule} » donne un montant négatif ({valeur:.2f})"

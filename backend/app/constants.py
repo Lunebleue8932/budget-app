@@ -539,13 +539,26 @@ class ConnecteurRegle(str, enum.Enum):
 # 50 » veut donc dire « plus de 50 € en jeu », quel que soit le sens — et c'est
 # la seule lecture qui permette d'écrire une règle sans savoir à l'avance de
 # quel côté la ligne tombera.
-CHAMPS_REGLE_NUMERIQUES = {"montant"}
+#
+# TROIS MONTANTS. `montant` est celui d'avant (la colonne « Montant » du
+# relevé) ; `montant_recu` et `montant_envoye` disent d'où l'on regarde un
+# mouvement entre deux devises : ce qui ARRIVE et ce qui PART. Sans colonne de
+# montant envoyé, un relevé n'écrit qu'un montant, valable des deux côtés. Leur
+# VALEUR peut être un nombre ou une FORMULE (cf. services/formule_decoupe.py :
+# « montant_envoye * 1,02 », « min(montant_recu; 50) ») — c'est ce qui permet de
+# comparer les deux montants entre eux.
+CHAMPS_REGLE_NUMERIQUES = {"montant", "montant_recu", "montant_envoye"}
+# LES DEVISES DES DEUX MONTANTS : le libellé de devise que le FICHIER porte
+# (« EUR », « $ »), pas la monnaie de l'app — la règle s'évalue avant que la
+# devise soit rattachée. Comparables à du texte, ou à l'autre devise en posant
+# `@devise_recue` / `@devise_envoyee` comme valeur.
+CHAMPS_REGLE_DEVISES = {"devise_recue", "devise_envoyee"}
 CHAMPS_REGLE_VALIDES = {
     "nature",
     "categorie_banque",
     "compte_banque",
     "notes",
-} | CHAMPS_REGLE_NUMERIQUES
+} | CHAMPS_REGLE_NUMERIQUES | CHAMPS_REGLE_DEVISES
 
 
 def operateurs_admis(champ: str) -> set:

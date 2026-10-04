@@ -15,6 +15,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
     true as sa_true,
+    false as sa_false,
 )
 from sqlalchemy.orm import relationship
 
@@ -1291,6 +1292,35 @@ class LigneImportBrute(Base):
     # import à ce qu'il a touché, et l'instantané n'a de sens que le temps où ce
     # lien existe — il disparaît avec lui.
     etat_previsionnel_avant = Column(Text, nullable=True)
+    # CETTE LIGNE N'A CRÉÉ AUCUNE OPÉRATION (migration 0074) : `operation_id`
+    # désigne une opération qui existait AVANT l'import. C'est le TÉMOIN d'un
+    # virement interne déjà connu par son autre compte : l'utilisateur a validé
+    # que la ligne du fichier le décrit (« Oui »), elle n'est donc pas importée,
+    # mais ses colonnes restent au stock — le même relevé est alors reconnu
+    # comme doublon au prochain import, sans nouvelle question.
+    #
+    # Ce que ça change : annuler l'import qui a écrit un témoin ne supprime PAS
+    # l'opération (elle vient d'un autre import), seulement le témoin
+    # (cf. crud.get_operations_d_un_import, annuler_import). Supprimer
+    # l'opération, en revanche, emporte le témoin par le CASCADE habituel.
+    operation_non_creee = Column(
+        Boolean, nullable=False, default=False, server_default=sa_false()
+    )
+    # LA JAMBE QU'AUCUN FICHIER N'A DÉCRITE (migration 0074). Un relevé ne
+    # décrit qu'UN compte : quand il importe un virement, l'application écrit
+    # aussi la jambe de l'autre compte, et c'est elle que le relevé de ce compte
+    # redécrira plus tard. Cette ligne la marque dans le stock, avec l'import
+    # qui l'a écrite (`import_historique_id`) — elle disparaît donc avec lui, ou
+    # avec l'opération (`operation_id` = la jambe, CASCADE).
+    #
+    # `donnees` est VIDE : aucune colonne brute n'existe pour cette jambe, et
+    # une comparaison de colonnes la prendrait pour le doublon de toute ligne.
+    # `crud.list_lignes_import_brutes` l'écarte donc du stock comparé, et elle
+    # ne sert qu'à la détection de jambe manquante (cf.
+    # services/import_bancaire.detecter_jambes_manquantes).
+    jambe_manquante = Column(
+        Boolean, nullable=False, default=False, server_default=sa_false()
+    )
     date_creation = Column(DateTime, nullable=False)
 
     __table_args__ = (

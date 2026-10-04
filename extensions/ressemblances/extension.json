@@ -1,0 +1,6 @@
+{
+  "numero": 13,
+  "nom": "Détection des ressemblances",
+  "description": "Repère à l'import les virements internes que l'application connaît déjà. Quand tu importes un virement depuis un compte, l'app écrit aussi la jambe de l'autre compte : quand le relevé de cet autre compte arrive, la ligne qui décrit le même virement est reconnue — même si elle n'est pas classée en virement interne — et l'app te demande de valider sa lecture (« Oui » : c'est le même virement, la ligne n'est pas importée ; « Non » : elle l'est). Elle compare aussi les virements entre eux (deux comptes, un montant, une date voisine) pour signaler un doublon possible, même quand le compte en face manque. Sans cette extension, l'import ne cherche plus ces ressemblances ; seule la détection de doublons par colonnes reste active. Éteindre ne supprime rien : les lignes déjà validées continuent de servir de doublons.",
+  "version": "1.0.0"
+}

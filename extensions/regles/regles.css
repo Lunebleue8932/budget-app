@@ -147,6 +147,90 @@
   font-size: 0.9rem;
 }
 
+/* ---------- L'aide à l'écriture des formules ---------- */
+/* L'icône ƒ, À GAUCHE du champ, ouvre un menu défilant à deux catégories
+   (Fonctions, Grandeurs). Le champ et l'icône forment une seule rangée, comme
+   les autres champs de la condition. */
+.regle-condition-formule {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.regle-condition-formule input[type="text"] {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.aide-formule {
+  position: relative;
+  flex: none;
+}
+
+.aide-formule-bouton {
+  min-width: 0;
+  padding: 0.3rem 0.55rem;
+  line-height: 1;
+  font-style: italic;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.aide-formule-menu {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  min-width: 11rem;
+  max-height: 13rem;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow-flottant);
+}
+
+.aide-formule-menu[hidden] {
+  display: none;
+}
+
+.aide-formule-categorie {
+  padding: 0.3rem 0.75rem 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Deux catégories dans une même liste : un filet sépare la seconde de la
+   première. */
+.aide-formule-categorie:not(:first-child) {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.aide-formule-option {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-weight: 400;
+}
+
+.aide-formule-option:hover,
+.aide-formule-option:focus-visible {
+  background: var(--bg-surface-hover);
+}
+
 /* ---------- Les mots-clés d'une condition ---------- */
 /*
  * C'EST L'ÉDITEUR DE MOTS-CLÉS DU NOYAU, celui du vocabulaire des colonnes

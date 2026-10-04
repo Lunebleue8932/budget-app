@@ -468,19 +468,23 @@ def update_operation(
         montant,
         updates.decoupes if updates.decoupes is not None else db_operation.decoupes,
     )
-    if montant_a_rembourser > montant_du:
+    liens_actifs = crud.get_remboursements_lies(db, operation_id)
+    # AVEC DES LIENS, LE RESTE N'EST PAS SAISI : il se recalcule (montant dû moins ce
+    # qui est déjà remboursé, cf. crud.update_operation). Le comparer ici au
+    # nouveau montant dû refuserait de réduire une dette dont le reste, ancien,
+    # dépasse la nouvelle valeur.
+    if montant_a_rembourser > montant_du and not liens_actifs:
         raise HTTPException(
             status_code=400, detail="montant_a_rembourser ne peut pas dépasser montant_du"
         )
 
-    # Une fois qu'un remboursement a commencé, les montants de la dette sont
-    # figés : les liens déjà posés ont été validés contre le montant_du de
-    # l'époque (cf. _valider_operations_remboursees), et rien ne les
-    # revalide si ce montant change ensuite — une dette de 100 réglée à 100
-    # puis ramenée à 20 laisserait un lien qui sur-rembourse de 80.
-    # Se délier d'abord (depuis l'opération de remboursement) est le seul
-    # chemin sûr, et il recalcule correctement le reste dû.
-    liens_actifs = crud.get_remboursements_lies(db, operation_id)
+    # Une fois qu'un remboursement a commencé, le MONTANT de l'opération reste
+    # figé : les liens déjà posés ont été validés contre lui, et rien ne les
+    # revalide s'il change. Le MONTANT À REMBOURSER, lui, peut encore bouger, mais
+    # jamais sous ce qui est déjà remboursé — c'est la seule borne qui garde les
+    # liens valides : une dette de 100 réglée à 60 peut être ramenée à 60 (reste
+    # nul) ou relevée, jamais à 20, qui laisserait un lien sur-remboursant de 40.
+    # Son plafond habituel (cf. erreur_montant_du) s'applique toujours.
     if liens_actifs:
         message_verrou = (
             "Cette opération a déjà commencé à être remboursée : {champ} n'est plus "
@@ -494,23 +498,18 @@ def update_operation(
                 status_code=400, detail=message_verrou.format(champ="le montant")
             )
         if updates.montant_du is not None and updates.montant_du != db_operation.montant_du:
-            raise HTTPException(
-                status_code=400,
-                detail=message_verrou.format(champ="le montant à rembourser"),
-            )
-        if (
-            updates.montant_a_rembourser is not None
-            and updates.montant_a_rembourser != 0
-            and updates.montant_a_rembourser != db_operation.montant_a_rembourser
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Cette opération est marquée comme remboursée via un remboursement lié ; "
-                    "déliez-la d'abord (depuis l'opération de remboursement) pour modifier "
-                    "ce montant manuellement."
-                ),
-            )
+            deja_rembourse = crud.total_rembourse(db, operation_id)
+            if updates.montant_du < deja_rembourse - 0.005:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Le montant à rembourser ne peut pas descendre sous ce qui est "
+                        f"déjà remboursé ({deja_rembourse:.2f}). Pour aller plus bas, "
+                        f"déliez d'abord l'opération de remboursement correspondante."
+                    ),
+                )
+        # Le RESTE n'est jamais saisi tant qu'un lien existe : il se déduit du
+        # montant à rembourser et des liens. L'écran le renvoie tel qu'il l'a lu.
 
     if updates.operations_remboursees is not None:
         if TypeOperation(code_final) not in TYPES_REGLEMENT:

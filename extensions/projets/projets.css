@@ -176,3 +176,48 @@
   padding: 0.4rem 0.55rem;
   font-size: 0.85rem;
 }
+
+/* ---------- La cascade (waterfall) ---------- */
+/* Défile à l'horizontale quand il y a beaucoup de catégories, plutôt que de
+   tasser les barres : le SVG garde sa largeur propre. */
+.waterfall-cadre {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.waterfall .wf-entree {
+  fill: var(--positif);
+}
+
+.waterfall .wf-depense {
+  fill: var(--depense);
+}
+
+.waterfall .wf-solde {
+  fill: var(--accent);
+}
+
+.waterfall .wf-deficit {
+  fill: var(--negatif);
+}
+
+.waterfall .wf-zero,
+.waterfall .wf-raccord {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.waterfall .wf-raccord {
+  stroke-dasharray: 3 2;
+}
+
+.waterfall .wf-valeur {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.waterfall .wf-libelle {
+  fill: var(--text-secondary);
+  font-size: 11px;
+}

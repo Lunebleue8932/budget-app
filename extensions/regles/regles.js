@@ -39,8 +39,137 @@ const CHAMPS_REGLE = [
   // (dépense / recette) est une colonne à part, jamais un signe. « supérieur à
   // 50 » veut donc dire « plus de 50 € en jeu », quel que soit le sens.
   ["montant", "Montant"],
+  // CE QUI ARRIVE ET CE QUI PART, pour comparer les deux côtés d'un mouvement
+  // entre devises (cf. constants.CHAMPS_REGLE_NUMERIQUES). Leur valeur est un
+  // nombre ou une formule.
+  ["montant_recu", "Montant reçu"],
+  ["montant_envoye", "Montant envoyé"],
+  // LES DEVISES de ces deux montants, comme le relevé les écrit.
+  ["devise_recue", "Devise du montant reçu"],
+  ["devise_envoyee", "Devise du montant envoyé"],
 ];
-const CHAMPS_REGLE_NUMERIQUES = new Set(["montant"]);
+const CHAMPS_REGLE_NUMERIQUES = new Set(["montant", "montant_recu", "montant_envoye"]);
+const CHAMPS_REGLE_DEVISES = new Set(["devise_recue", "devise_envoyee"]);
+// La devise de l'AUTRE montant, en guise de valeur (cf. regles_categorisation).
+const REFERENCE_DEVISE = { devise_recue: "@devise_envoyee", devise_envoyee: "@devise_recue" };
+const LIBELLE_REFERENCE_DEVISE = {
+  "@devise_envoyee": "la devise du montant envoyé",
+  "@devise_recue": "la devise du montant reçu",
+};
+
+/* ---------- L'aide à l'écriture des formules ---------- */
+/*
+ * UNE ICÔNE À GAUCHE DU CHAMP, un menu défilant en deux catégories : les
+ * FONCTIONS (max, min, et reste quand le champ est une part de découpe) et les
+ * GRANDEURS de la ligne (montant reçu, montant envoyé). Un clic écrit dans le
+ * champ, à la position du curseur, et prévient l'éditeur par un événement
+ * `input` : le brouillon relit le champ comme si on avait tapé.
+ *
+ * `reste` REMPLACE tout le champ : il doit être la formule entière d'une part
+ * (cf. formule_decoupe.MOT_RESTE), jamais un morceau d'expression.
+ */
+function creerAideFormule(champ, { avecReste = false } = {}) {
+  const zone = document.createElement("span");
+  zone.className = "aide-formule";
+
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "aide-formule-bouton";
+  bouton.textContent = "ƒ";
+  bouton.title = t("Insérer une fonction ou une grandeur");
+  bouton.setAttribute("aria-label", t("Insérer une fonction ou une grandeur"));
+  bouton.setAttribute("aria-haspopup", "true");
+
+  const menu = document.createElement("div");
+  menu.className = "aide-formule-menu";
+  menu.hidden = true;
+
+  const inserer = (texte, positionDansTexte) => {
+    const debut = champ.selectionStart ?? champ.value.length;
+    const fin = champ.selectionEnd ?? debut;
+    champ.value = champ.value.slice(0, debut) + texte + champ.value.slice(fin);
+    const position = debut + (positionDansTexte ?? texte.length);
+    champ.focus();
+    champ.setSelectionRange(position, position);
+    champ.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const insererFonction = (nom) => {
+    const debut = champ.selectionStart ?? champ.value.length;
+    const fin = champ.selectionEnd ?? debut;
+    const selection = champ.value.slice(debut, fin);
+    // Le texte sélectionné devient le premier argument, au lieu d'être écrasé.
+    if (selection) inserer(`${nom}(${selection}; )`, nom.length + selection.length + 3);
+    else inserer(`${nom}(; )`, nom.length + 1);
+  };
+
+  const entrees = [
+    {
+      titre: t("Fonctions"),
+      items: [
+        { libelle: "max", action: () => insererFonction("max") },
+        { libelle: "min", action: () => insererFonction("min") },
+        ...(avecReste
+          ? [
+              {
+                libelle: "reste",
+                action: () => {
+                  champ.value = "reste";
+                  champ.focus();
+                  champ.dispatchEvent(new Event("input", { bubbles: true }));
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      titre: t("Grandeurs"),
+      items: [
+        { libelle: t("Montant reçu"), action: () => inserer("montant_recu") },
+        { libelle: t("Montant envoyé"), action: () => inserer("montant_envoye") },
+      ],
+    },
+  ];
+  entrees.forEach((categorie) => {
+    const titre = document.createElement("div");
+    titre.className = "aide-formule-categorie";
+    titre.textContent = categorie.titre;
+    menu.appendChild(titre);
+    categorie.items.forEach((item) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "aide-formule-option";
+      option.textContent = item.libelle;
+      option.addEventListener("click", () => {
+        item.action();
+        menu.hidden = true;
+      });
+      menu.appendChild(option);
+    });
+  });
+
+  bouton.addEventListener("click", () => {
+    const etaitCache = menu.hidden;
+    document.querySelectorAll(".aide-formule-menu").forEach((m) => (m.hidden = true));
+    menu.hidden = !etaitCache;
+  });
+  zone.append(bouton, menu);
+  return zone;
+}
+
+// Un menu d'aide se ferme dès qu'on clique ailleurs, ou sur Échap. Un seul
+// écouteur pour tous : les rangées sont reconstruites à chaque rendu, et un
+// écouteur par menu se serait empilé.
+document.addEventListener("click", (e) => {
+  document.querySelectorAll(".aide-formule-menu").forEach((menu) => {
+    if (!menu.parentElement.contains(e.target)) menu.hidden = true;
+  });
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".aide-formule-menu").forEach((menu) => (menu.hidden = true));
+  }
+});
 
 function operateursAdmis(champ) {
   return CHAMPS_REGLE_NUMERIQUES.has(champ) ? OPERATEURS_NOMBRE : OPERATEURS_TEXTE;
@@ -159,7 +288,9 @@ function libelleConditionRegle(condition) {
   // TOUS LES MOTS-CLÉS, séparés par « et » : une condition qui en porte trois
   // et n'en montrerait qu'un ferait passer une règle pour plus large qu'elle.
   const mots = motsClesCondition(condition)
-    .map((mot) => `« ${mot} »`)
+    .map((mot) =>
+      LIBELLE_REFERENCE_DEVISE[mot] ? t(LIBELLE_REFERENCE_DEVISE[mot]) : `« ${mot} »`
+    )
     .join(` ${t("et")} `);
   return `${t(libelle)} ${t(condition.operateur)} ${mots}`;
 }
@@ -424,7 +555,7 @@ function renderRegleGroupes(
             <input type="radio" name="${nomGroupeRadio}" value="${valeur}" ${
           condition.champ === valeur ? "checked" : ""
         } />
-            ${label}
+            ${t(label)}
           </label>`
       ).join("");
 
@@ -449,11 +580,32 @@ function renderRegleGroupes(
       //     n'ajoutait qu'une ligne de formulaire — à cinq mots-clés, le
       //     groupe devenait illisible.
       const idJetons = `regle-mots-${prefixe}${iGroupe}-${iCondition}`;
+      // UNE DEVISE SE COMPARE À UN LIBELLÉ OU À L'AUTRE DEVISE de la ligne
+      // (« la devise reçue est la devise envoyée »). Dans le second cas, plus
+      // de mots-clés : la valeur est la référence, posée par le menu.
+      const estDevise = CHAMPS_REGLE_DEVISES.has(condition.champ);
+      const referenceDevise = estDevise
+        ? motsClesCondition(condition).find((mot) => LIBELLE_REFERENCE_DEVISE[mot]) || ""
+        : "";
+      const infoBulle = (cle) =>
+        `<i class="info-bulle" tabindex="0" data-info="${escapeHtml(t(TEXTES[cle]))}">i</i>`;
       const saisieValeur = estNumerique
-        ? `<input type="number" step="0.01" min="0" data-role="valeur"
-                  placeholder="${t("ex. 50")}"
-                  value="${(condition.valeur || "").replace(/"/g, "&quot;")}" />`
-        : `<div class="regle-condition-mots" data-role="mots">
+        ? `<span class="regle-condition-formule">
+             <input type="text" inputmode="decimal" spellcheck="false" data-role="valeur"
+                    placeholder="${t("ex. 50 ou montant_envoye * 1,02")}"
+                    value="${(condition.valeur || "").replace(/"/g, "&quot;")}" />
+             ${infoBulle("regles.valeur-montant")}
+           </span>`
+        : `${
+            estDevise
+              ? `<select data-role="devise-reference">
+                   <option value="" ${referenceDevise ? "" : "selected"}>${t("un libellé de devise")}</option>
+                   <option value="${REFERENCE_DEVISE[condition.champ]}" ${
+                     referenceDevise ? "selected" : ""
+                   }>${t(LIBELLE_REFERENCE_DEVISE[REFERENCE_DEVISE[condition.champ]])}</option>
+                 </select>${infoBulle("regles.devise-montant")}`
+              : ""
+          }<div class="regle-condition-mots" data-role="mots" ${referenceDevise ? "hidden" : ""}>
              <div class="import-vocabulaire-champ" data-vocabulaire="mots">
                <div class="import-vocabulaire-entete">
                  <div class="import-vocabulaire-saisie">
@@ -504,15 +656,21 @@ function renderRegleGroupes(
             condition.valeur = mots[0] || "";
           },
         });
-        chargerMotsCles(idJetons, { mots: motsClesCondition(condition) });
+        chargerMotsCles(idJetons, {
+          mots: motsClesCondition(condition).filter((mot) => !LIBELLE_REFERENCE_DEVISE[mot]),
+        });
       }
 
       ligne.querySelectorAll(".regle-condition-champs input").forEach((radio) => {
         radio.addEventListener("change", () => {
           if (!radio.checked) return;
+          // Passer d'un libellé de relevé à une devise (ou l'inverse) change
+          // aussi ce que « la valeur » veut dire : « PRET » n'est pas une
+          // devise, et « @devise_envoyee » n'est pas un libellé.
           const changeDeFamille =
             CHAMPS_REGLE_NUMERIQUES.has(radio.value) !==
-            CHAMPS_REGLE_NUMERIQUES.has(condition.champ);
+              CHAMPS_REGLE_NUMERIQUES.has(condition.champ) ||
+            CHAMPS_REGLE_DEVISES.has(radio.value) !== CHAMPS_REGLE_DEVISES.has(condition.champ);
           condition.champ = radio.value;
           if (changeDeFamille) {
             // L'opérateur d'avant n'existe plus dans la nouvelle famille :
@@ -523,10 +681,35 @@ function renderRegleGroupes(
             condition.operateur = operateursAdmis(radio.value)[0];
             condition.valeur = "";
             condition.valeurs = [];
+            condition.champ = radio.value;
+            rendre();
+          } else if (CHAMPS_REGLE_DEVISES.has(radio.value)) {
+            // D'une devise à l'autre, la référence s'inverse : « la devise
+            // reçue est la devise ENVOYÉE », jamais elle-même.
+            const motsActuels = motsClesCondition(condition);
+            if (motsActuels.some((mot) => LIBELLE_REFERENCE_DEVISE[mot])) {
+              condition.valeurs = [REFERENCE_DEVISE[radio.value]];
+              condition.valeur = condition.valeurs[0];
+            }
+            // Redessiné dans tous les cas : le menu de référence nomme l'AUTRE
+            // devise, et ce nom suit le champ choisi.
             rendre();
           }
         });
       });
+      // L'ICÔNE ƒ à gauche du champ numérique : cf. creerAideFormule.
+      const champFormule = ligne.querySelector("input[data-role='valeur']");
+      if (champFormule) {
+        champFormule.parentElement.insertBefore(creerAideFormule(champFormule), champFormule);
+      }
+      const menuDevise = ligne.querySelector("[data-role='devise-reference']");
+      if (menuDevise) {
+        menuDevise.addEventListener("change", () => {
+          condition.valeurs = menuDevise.value ? [menuDevise.value] : [];
+          condition.valeur = menuDevise.value || "";
+          rendre();
+        });
+      }
       ligne.querySelector("[data-role='operateur']").addEventListener("change", (e) => {
         condition.operateur = e.target.value;
       });
@@ -651,11 +834,20 @@ function ajouterPartDecoupeRegle(categorieId = null, formule = "") {
   ligne.className = "regle-decoupe-part";
   ligne.innerHTML = `
     <select class="regle-decoupe-categorie"></select>
-    <input type="text" class="regle-decoupe-formule" placeholder="ex. min(montant; 50)"
-           value="${(formule || "").replace(/"/g, "&quot;")}" />
+    <span class="regle-condition-formule">
+      <input type="text" class="regle-decoupe-formule" placeholder="ex. min(montant; 50)"
+             value="${(formule || "").replace(/"/g, "&quot;")}" />
+    </span>
     <button type="button" class="danger" data-role="supprimer-part">×</button>
   `;
   conteneur.appendChild(ligne);
+  // L'icône ƒ propose ici `reste` en plus : dans une découpe, c'est la part qui
+  // prend ce que les autres n'ont pas pris.
+  const champFormule = ligne.querySelector(".regle-decoupe-formule");
+  champFormule.parentElement.insertBefore(
+    creerAideFormule(champFormule, { avecReste: true }),
+    champFormule
+  );
   const select = ligne.querySelector(".regle-decoupe-categorie");
   // UNE CATÉGORIE ÉTEINTE NE CLASSE PLUS RIEN (cf. categoriesProposables du
   // noyau) : elle quitte le menu, sauf si cette part la désigne déjà — auquel

@@ -333,8 +333,14 @@ const TEXTES = {
     "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.",
   "projets.repartition-par-categorie":
     "Les sorties du projet, réparties par catégorie — virements sortants compris, comme dans le total ci-dessus. Les entrées n'y figurent pas : elles se lisent dans le total des entrées.",
+  "projets.cascade":
+    "Les entrées du projet, puis chaque catégorie de dépense qui les entame (de la plus lourde à la plus légère), puis ce qu'il en reste. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.",
   "projets.ajouter-des-operations":
     "Ajouter une opération ici ne la retire d'aucun autre projet, et ne change ni sa catégorie ni son compte.",
+
+  /* ----- Extension « Détection des ressemblances » ----- */
+  "ressemblances.validation-lecture":
+    "Quand tu as importé ce virement depuis l'autre compte, l'app a aussi écrit la jambe de celui-ci : la ligne ci-dessous lui ressemble (même compte, même sens, même montant, date voisine). « Oui » = c'est le même virement : la ligne n'est pas importée, et ses colonnes sont retenues pour que le prochain relevé la reconnaisse sans te redemander. « Non » = c'est une autre opération, elle est importée. Si tu changes le type de la ligne ou son compte en face, le choix passe en « Non » tout seul. L'import est bloqué tant qu'un choix reste « à choisir ».",
 
   /* ----- Extension « Règles » ----- */
   "regles.regles-de-categorisation":
@@ -380,6 +386,10 @@ const TEXTES = {
   "regles.conditions":
 
     "Les groupes se combinent entre eux ; à l'intérieur d'un groupe, les conditions se combinent selon leur propre connecteur. Deux niveaux suffisent à écrire « (A ou B) et C ».",
+  "regles.valeur-montant":
+    "Un nombre, ou une formule qui compare ce montant à un autre : « montant_envoye * 1,02 », « min(montant_recu; 50) ». L'icône ƒ à gauche du champ propose les fonctions (max, min, et reste dans une découpe) et les grandeurs de la ligne : le montant reçu (ce qui arrive) et le montant envoyé (ce qui part). Quand le relevé n'a pas de colonne de montant envoyé, les deux valent le montant de la ligne.",
+  "regles.devise-montant":
+    "Le libellé de devise tel que le relevé l'écrit (« EUR », « $ »), pas la monnaie de l'app : une règle se lit avant que la devise soit rattachée. Compare-la à un libellé, ou à la devise de l'autre montant pour repérer un mouvement entre deux devises différentes.",
   "regles.action":
     "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.",
 

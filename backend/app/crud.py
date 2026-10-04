@@ -1322,6 +1322,13 @@ def update_operation(
     for depense_id in depenses_a_recalculer:
         _recalculer_montant_a_rembourser(db, depense_id)
 
+    # LE MONTANT À REMBOURSER PEUT CHANGER APRÈS LIAISON (cf. la route) : le reste
+    # n'est alors plus « le nouveau montant dû » mais ce qui manque encore une fois
+    # les liens déduits. Recalculé depuis eux, jamais repris de la saisie.
+    if est_remboursable and montant_du_fourni and get_remboursements_lies(db, db_operation.id):
+        _recalculer_montant_a_rembourser(db, db_operation.id)
+        db.refresh(db_operation)
+
     if updates.operations_remboursees is not None:
         montants = {item.operation_id: item.montant for item in updates.operations_remboursees}
         set_operations_remboursees(db, db_operation, montants)
@@ -1745,16 +1752,22 @@ def set_operations_remboursees(
         _recalculer_montant_a_rembourser(db, depense_id)
 
 
-def _recalculer_montant_a_rembourser(db: Session, operation_depense_id: int) -> None:
-    depense = get_operation(db, operation_depense_id)
-    if depense is None:
-        return
-    total_rembourse = (
+def total_rembourse(db: Session, operation_depense_id: int) -> float:
+    """Ce qui a DÉJÀ été remboursé sur cette opération : la somme de ses liens."""
+    return (
         db.query(func.sum(models.RemboursementLien.montant))
         .filter(models.RemboursementLien.operation_depense_id == operation_depense_id)
         .scalar()
     ) or 0.0
-    depense.montant_a_rembourser = max(0.0, depense.montant_du - total_rembourse)
+
+
+def _recalculer_montant_a_rembourser(db: Session, operation_depense_id: int) -> None:
+    depense = get_operation(db, operation_depense_id)
+    if depense is None:
+        return
+    depense.montant_a_rembourser = max(
+        0.0, depense.montant_du - total_rembourse(db, operation_depense_id)
+    )
     db.commit()
 
 
@@ -2751,10 +2764,18 @@ def get_import_historique(db: Session, preset_id: int) -> list[models.ImportHist
 def list_lignes_import_brutes(db: Session, preset_id: int) -> list[models.LigneImportBrute]:
     """Stock de lignes déjà importées SOUS CE PRESET (format brut), pour
     comparaison lors d'un nouvel import (voir services.import_bancaire.
-    detecter_doublon)."""
+    detecter_doublon).
+
+    LES JAMBES MANQUANTES EN SONT ÉCARTÉES (cf. LigneImportBrute.jambe_manquante) :
+    elles n'ont aucune colonne brute, et une comparaison de colonnes sans colonne
+    est toujours vraie — chaque ligne du fichier serait leur doublon. Les TÉMOINS,
+    eux, y restent : ils portent de vraies colonnes, c'est tout leur objet."""
     return (
         db.query(models.LigneImportBrute)
-        .filter(models.LigneImportBrute.preset_id == preset_id)
+        .filter(
+            models.LigneImportBrute.preset_id == preset_id,
+            models.LigneImportBrute.jambe_manquante.is_(False),
+        )
         .all()
     )
 
@@ -2796,6 +2817,8 @@ def create_ligne_import_brute(
     import_historique_id: Optional[int] = None,
     operation_id: Optional[int] = None,
     etat_previsionnel_avant: Optional[str] = None,
+    operation_non_creee: bool = False,
+    jambe_manquante: bool = False,
 ) -> models.LigneImportBrute:
     ligne = models.LigneImportBrute(
         preset_id=preset_id,
@@ -2803,6 +2826,8 @@ def create_ligne_import_brute(
         import_historique_id=import_historique_id,
         operation_id=operation_id,
         etat_previsionnel_avant=etat_previsionnel_avant,
+        operation_non_creee=operation_non_creee,
+        jambe_manquante=jambe_manquante,
         date_creation=datetime.now(),
     )
     db.add(ligne)
@@ -3460,6 +3485,11 @@ def get_operations_d_un_import(
         .filter(
             models.LigneImportBrute.import_historique_id == historique_id,
             models.LigneImportBrute.operation_id.isnot(None),
+            # UN TÉMOIN NE DÉSIGNE PAS UNE OPÉRATION DE CET IMPORT : elle existait
+            # avant, venue d'un autre fichier (cf. LigneImportBrute.
+            # operation_non_creee). L'inclure ferait supprimer, en annulant cet
+            # import-ci, le virement de l'import précédent.
+            models.LigneImportBrute.operation_non_creee.is_(False),
         )
         .all()
     ]
@@ -3523,6 +3553,61 @@ def compter_operations_annulables(db: Session, preset_id: int) -> dict[int, dict
         historique_id: {"annulables": nb_operations, "sans_lien": nb_lignes - nb_operations}
         for historique_id, nb_operations, nb_lignes in rows
     }
+
+
+def supprimer_temoins_d_un_import(db: Session, historique_id: int) -> int:
+    """Retire les TÉMOINS que cet import a posés, SANS toucher aux opérations
+    qu'ils désignent (cf. LigneImportBrute.operation_non_creee).
+
+    Appelé par l'annulation avant de supprimer l'historique : le
+    `ON DELETE SET NULL` de `import_historique_id` les aurait sinon laissés au
+    stock, orphelins — et le relevé serait resté « déjà importé » alors que son
+    import n'existe plus. Rend le nombre retiré."""
+    nombre = (
+        db.query(models.LigneImportBrute)
+        .filter(
+            models.LigneImportBrute.import_historique_id == historique_id,
+            models.LigneImportBrute.operation_non_creee.is_(True),
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return nombre
+
+
+def jambes_manquantes_ouvertes(
+    db: Session, compte_ids
+) -> list[tuple[models.LigneImportBrute, models.Operation]]:
+    """Les jambes qu'aucun fichier n'a encore décrites, sur ces comptes : des
+    couples (marque du stock, opération), pour les jambes NON ENCORE VALIDÉES.
+
+    UNE JAMBE EST « FERMÉE » DÈS QU'UN TÉMOIN LA DÉSIGNE : une ligne de fichier
+    l'a reconnue, et la seconde ligne identique du relevé suivant ne doit pas la
+    reprendre (une jambe, un seul rapprochement). C'est calculé ici, à la lecture,
+    et non marqué sur la jambe : annuler l'import qui a posé le témoin rouvre
+    donc la jambe toute seule."""
+    compte_ids = {c for c in compte_ids if c is not None}
+    if not compte_ids:
+        return []
+    fermees = {
+        identifiant
+        for (identifiant,) in db.query(models.LigneImportBrute.operation_id)
+        .filter(
+            models.LigneImportBrute.operation_non_creee.is_(True),
+            models.LigneImportBrute.operation_id.isnot(None),
+        )
+        .all()
+    }
+    couples = (
+        db.query(models.LigneImportBrute, models.Operation)
+        .join(models.Operation, models.Operation.id == models.LigneImportBrute.operation_id)
+        .filter(
+            models.LigneImportBrute.jambe_manquante.is_(True),
+            models.Operation.compte_id.in_(compte_ids),
+        )
+        .all()
+    )
+    return [(marque, operation) for marque, operation in couples if operation.id not in fermees]
 
 
 def delete_import_historique(db: Session, entree: models.ImportHistorique) -> None:

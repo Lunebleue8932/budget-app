@@ -2030,6 +2030,56 @@ TRADUCTIONS.pt = {
     "Voltar ao banco do aplicativo",
   "Revenir à la base de l'application ? La base actuellement ouverte est simplement refermée — aucun fichier n'est modifié ni supprimé.":
     "Voltar ao banco do aplicativo? O banco atualmente aberto é simplesmente fechado — nenhum arquivo é modificado nem excluído.",
+  "Insérer une fonction ou une grandeur": "Inserir uma função ou uma grandeza",
+  "Fonctions": "Funções",
+  "Grandeurs": "Grandezas",
+  "Montant reçu": "Valor recebido",
+  "Montant envoyé": "Valor enviado",
+  "Devise du montant reçu": "Moeda do valor recebido",
+  "Devise du montant envoyé": "Moeda do valor enviado",
+  "un libellé de devise": "um rótulo de moeda",
+  "la devise du montant envoyé": "a moeda do valor enviado",
+  "la devise du montant reçu": "a moeda do valor recebido",
+  "ex. 50 ou montant_envoye * 1,02": "ex. 50 ou montant_envoye * 1,02",
+  "Un nombre, ou une formule qui compare ce montant à un autre : « montant_envoye * 1,02 », « min(montant_recu; 50) ». L'icône ƒ à gauche du champ propose les fonctions (max, min, et reste dans une découpe) et les grandeurs de la ligne : le montant reçu (ce qui arrive) et le montant envoyé (ce qui part). Quand le relevé n'a pas de colonne de montant envoyé, les deux valent le montant de la ligne.":
+    "Um número, ou uma fórmula que compara este valor a outro: “montant_envoye * 1,02”, “min(montant_recu; 50)”. O ícone ƒ à esquerda do campo oferece as funções (max, min, e reste numa divisão) e as grandezas da linha: o valor recebido (o que chega) e o valor enviado (o que sai). Quando o extrato não tem coluna de valor enviado, os dois valem o valor da linha.",
+  "Le libellé de devise tel que le relevé l'écrit (« EUR », « $ »), pas la monnaie de l'app : une règle se lit avant que la devise soit rattachée. Compare-la à un libellé, ou à la devise de l'autre montant pour repérer un mouvement entre deux devises différentes.":
+    "O rótulo de moeda como o extrato o escreve (“EUR”, “$”), não a moeda do app: uma regra é lida antes de a moeda ser associada. Compare-o a um rótulo, ou à moeda do outro valor para identificar um movimento entre duas moedas diferentes.",
+  "À choisir":
+    "A escolher",
+  "à {n} jour(s) d'écart":
+    "com {n} dia(s) de diferença",
+  "virement déjà connu : à valider":
+    "transferência já conhecida: a validar",
+  "même virement — non importé":
+    "mesma transferência — não importada",
+  "Le type ou le compte en face a été changé : la ligne n'est plus ce que l'app avait lu.":
+    "O tipo ou a conta de contrapartida foi alterado: a linha não é mais o que o app tinha lido.",
+  "Tout valider : « Oui »":
+    "Validar tudo: “Sim”",
+  "Virements déjà connus":
+    "Transferências já conhecidas",
+  "Même virement ?":
+    "Mesma transferência?",
+  "Virement déjà connu":
+    "Transferência já conhecida",
+  "Ligne du relevé":
+    "Linha do extrato",
+  "Quand tu as importé ce virement depuis l'autre compte, l'app a aussi écrit la jambe de celui-ci : la ligne ci-dessous lui ressemble (même compte, même sens, même montant, date voisine). « Oui » = c'est le même virement : la ligne n'est pas importée, et ses colonnes sont retenues pour que le prochain relevé la reconnaisse sans te redemander. « Non » = c'est une autre opération, elle est importée. Si tu changes le type de la ligne ou son compte en face, le choix passe en « Non » tout seul. L'import est bloqué tant qu'un choix reste « à choisir ».":
+    "Quando você importou esta transferência a partir da outra conta, o app também registrou a perna desta conta: a linha abaixo se parece com ela (mesma conta, mesmo sentido, mesmo valor, data próxima). “Sim” = é a mesma transferência: a linha não é importada, e suas colunas são guardadas para que o próximo extrato a reconheça sem perguntar de novo. “Não” = é outra transação, e ela é importada. Se você mudar o tipo da linha ou sua conta de contrapartida, a escolha passa para “Não” sozinha. A importação fica bloqueada enquanto uma escolha estiver “a escolher”.",
+  "Entrées et dépenses":
+    "Entradas e despesas",
+  "Entrées et dépenses du projet":
+    "Entradas e despesas do projeto",
+  "Entrées":
+    "Entradas",
+  "Solde":
+    "Saldo",
+  "Les entrées du projet, puis chaque catégorie de dépense qui les entame (de la plus lourde à la plus légère), puis ce qu'il en reste. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.":
+    "As entradas do projeto, depois cada categoria de despesa que as reduz (da maior à menor), depois o que sobra. Abaixo de zero, o projeto custou mais do que rendeu. Uma cascata por moeda.",
+  "— toutes —": "— todas —",
+  "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.":
+    "Reembolsado via: {details}. O valor da transação fica congelado enquanto esse vínculo existir. O valor a reembolsar ainda pode mudar, sem ficar abaixo do que já foi reembolsado ({deja}) — para ir mais baixo, desvincule primeiro a transação de reembolso correspondente.",
   "Active":
     "Ativa",
   "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

@@ -6349,3 +6349,18 @@ body input[type="checkbox"]:disabled {
   color: var(--accent-light);
   font-weight: 600;
 }
+
+/* DANS UNE LISTE DÉROULANTE, SEUL LE NOM CHOISI EST COLORÉ. La couleur du champ se
+   transmet aux lignes de la liste : une fois dépliée, toutes les valeurs
+   s'écrivaient en bleu, et celle qui était choisie ne se distinguait plus des
+   autres. Les lignes reprennent donc la couleur ordinaire, et la seule qui est
+   cochée garde le bleu. */
+.filtres select.filtre-rempli option {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.filtres select.filtre-rempli option:checked {
+  color: var(--accent-light);
+  font-weight: 600;
+}

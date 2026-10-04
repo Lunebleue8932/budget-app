@@ -33,13 +33,20 @@ from types import SimpleNamespace
 from typing import NamedTuple, Optional
 
 from ..constants import (
+    CHAMPS_REGLE_DEVISES,
     OPERATEURS_NOMBRE,
     TYPES_AVEC_CATEGORIE_LIBRE,
     ConnecteurRegle,
     OperateurRegle,
     TypeOperation,
 )
-from .formule_decoupe import FormuleInvalide, repartir
+from .formule_decoupe import (
+    GRANDEUR_ENVOYE,
+    GRANDEUR_RECU,
+    FormuleInvalide,
+    evaluer_formule,
+    repartir,
+)
 
 
 @dataclass
@@ -121,13 +128,40 @@ def _en_nombre(valeur) -> Optional[float]:
         return None
 
 
-def _comparer_nombres(valeur_champ, operateur: str, valeur_regle: str) -> bool:
+def _valeur_numerique(valeur_regle, brute: Optional[dict]) -> Optional[float]:
+    """La valeur d'une condition numérique : un nombre, ou une FORMULE qui
+    s'évalue sur la ligne (« montant_envoye * 1,02 »). None si elle ne se lit
+    pas — grandeur absente du relevé, division par zéro : la condition ne
+    correspond alors à rien, comme un montant illisible."""
+    nombre = _en_nombre(valeur_regle)
+    if nombre is not None:
+        return nombre
+    brute = brute or {}
+    montant = brute.get("montant")
+    if montant is None:
+        montant = brute.get("montant_recu")
+    try:
+        return evaluer_formule(
+            str(valeur_regle),
+            montant if montant is not None else 0.0,
+            {
+                GRANDEUR_RECU: brute.get("montant_recu", montant),
+                GRANDEUR_ENVOYE: brute.get("montant_envoye", montant),
+            },
+        )
+    except FormuleInvalide:
+        return None
+
+
+def _comparer_nombres(
+    valeur_champ, operateur: str, valeur_regle: str, brute: Optional[dict] = None
+) -> bool:
     """Les six opérateurs numériques. Un champ illisible ou absent ne
     correspond à AUCUN d'eux, « différent de » compris : une ligne dont on
     ignore le montant n'est pas une ligne dont le montant diffère de 50, c'est
     une ligne sur laquelle la règle n'a rien à dire."""
     gauche = _en_nombre(valeur_champ)
-    droite = _en_nombre(valeur_regle)
+    droite = _valeur_numerique(valeur_regle, brute)
     if gauche is None or droite is None:
         return False
     if operateur == OperateurRegle.egal.value:
@@ -147,13 +181,21 @@ def _comparer_nombres(valeur_champ, operateur: str, valeur_regle: str) -> bool:
     return False
 
 
-def _comparer(valeur_champ, operateur: str, valeur_regle: str) -> bool:
+def _comparer(valeur_champ, operateur: str, valeur_regle: str, brute: Optional[dict] = None) -> bool:
     # L'OPÉRATEUR CHOISIT LA FAMILLE, pas le champ : c'est lui qui est stocké
     # dans la condition, et le schéma a déjà vérifié à l'écriture qu'il va bien
     # avec son champ. Se fier ici au nom du champ aurait demandé de rejouer
     # cette vérification, et d'échouer autrement en cas de désaccord.
     if operateur in {o.value for o in OPERATEURS_NOMBRE}:
-        return _comparer_nombres(valeur_champ, operateur, valeur_regle)
+        return _comparer_nombres(valeur_champ, operateur, valeur_regle, brute)
+    # `@devise_envoyee` : l'AUTRE devise de la ligne en guise de valeur. Une
+    # devise que le relevé ne donne pas ne correspond à rien (« n'est pas »
+    # compris), comme un montant illisible.
+    reference = str(valeur_regle).strip()
+    if reference.startswith("@") and reference[1:] in CHAMPS_REGLE_DEVISES:
+        valeur_regle = (brute or {}).get(reference[1:])
+        if not _normaliser(valeur_champ) or not _normaliser(valeur_regle):
+            return False
     champ = _normaliser(valeur_champ)
     attendu = _normaliser(valeur_regle)
     if operateur == OperateurRegle.est.value:
@@ -198,9 +240,9 @@ def evaluer_condition(condition: dict, brute: dict) -> bool:
     mots = _mots_cles(condition)
     if "champ" in condition:
         valeur_champ = brute.get(condition["champ"])
-        return all(_comparer(valeur_champ, operateur, mot) for mot in mots)
+        return all(_comparer(valeur_champ, operateur, mot, brute) for mot in mots)
     return any(
-        all(_comparer(brute.get(champ), operateur, mot) for mot in mots)
+        all(_comparer(brute.get(champ), operateur, mot, brute) for mot in mots)
         for champ in condition.get("champs") or []
     )
 
@@ -393,7 +435,9 @@ def _completer(resultat: ResultatRegle, regle) -> bool:
 
 
 def resoudre_decoupes(
-    decoupes: Optional[list[tuple[int, str]]], montant: float
+    decoupes: Optional[list[tuple[int, str]]],
+    montant: float,
+    grandeurs: Optional[dict] = None,
 ) -> tuple[Optional[list[tuple[int, float]]], Optional[str]]:
     """Transforme les formules d'une règle en montants, pour un montant donné.
 
@@ -413,7 +457,7 @@ def resoudre_decoupes(
     if montant is None:
         return None, "montant inconnu : la découpe ne peut pas être calculée"
     try:
-        montants = repartir([formule for _, formule in decoupes], abs(montant))
+        montants = repartir([formule for _, formule in decoupes], abs(montant), grandeurs)
     except FormuleInvalide as erreur:
         return None, f"découpe impossible ({erreur})"
     return [

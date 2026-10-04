@@ -42,6 +42,7 @@ async function loadProjets() {
     await refreshComptes();
     await refreshCategories();
     await refreshMonnaies();
+    await refreshTypesOperation();
     projets = await apiFetch(PROJETS_BASE);
     // Rouvrir le projet qu'on regardait : revenir d'un autre onglet ne doit pas
     // le refermer sans qu'on l'ait demandé.
@@ -135,6 +136,113 @@ function renderHistogrammeProjet(totaux) {
     // fixer la largeur du SVG, et un élément détaché la donne à zéro.
     renderHistogrammeDepenses(total.depenses_par_categorie, total.monnaie_id, cadre);
   });
+}
+
+/* ---------- La cascade (waterfall) : entrées contre dépenses ----------
+ *
+ * UNE SECTION PAR MONNAIE (l'app n'en additionne jamais deux). Les barres :
+ * « Entrées » monte de zéro au total reçu, chaque catégorie de dépense descend
+ * d'autant, et « Solde » dit ce qu'il reste — au-dessous de zéro quand le projet
+ * a coûté plus qu'il n'a rapporté. Les catégories vont de la plus lourde à la plus
+ * légère : la première marche est celle qui explique le plus.
+ *
+ * Dessiné en SVG à la main, sans bibliothèque : cinq formes (rectangle, trait,
+ * texte) ne justifient pas une dépendance.
+ */
+function renderWaterfallProjet(totaux) {
+  const bloc = document.getElementById("projet-waterfall");
+  const titre = document.getElementById("projet-waterfall-titre");
+  bloc.innerHTML = "";
+  const avecMouvements = totaux.filter((total) => total.entrees > 0 || total.depenses > 0);
+  titre.style.display = avecMouvements.length > 0 ? "" : "none";
+  avecMouvements.forEach((total) => {
+    const section = document.createElement("div");
+    section.className = "projet-histo-bloc";
+    if (avecMouvements.length > 1) {
+      const etiquette = document.createElement("div");
+      etiquette.className = "projet-histo-monnaie";
+      etiquette.textContent = total.monnaie_nom;
+      section.appendChild(etiquette);
+    }
+    section.insertAdjacentHTML("beforeend", waterfallSvg(total));
+    bloc.appendChild(section);
+  });
+}
+
+function waterfallSvg(total) {
+  const categories = [...(total.depenses_par_categorie || [])]
+    .filter((c) => c.total_reel > 0)
+    .sort((a, b) => b.total_reel - a.total_reel);
+  // Chaque marche : de où à où (en valeur), et de quelle sorte.
+  const marches = [];
+  let niveau = 0;
+  if (total.entrees > 0) {
+    marches.push({ libelle: t("Entrées"), de: 0, a: total.entrees, genre: "entree" });
+    niveau = total.entrees;
+  }
+  categories.forEach((c) => {
+    marches.push({
+      libelle: c.categorie,
+      de: niveau,
+      a: niveau - c.total_reel,
+      genre: "depense",
+      // LA COULEUR DE LA CATÉGORIE sur le dashboard (cf. couleurCategorie, portée par
+      // la catégorie elle-même) : une dépense se reconnaît d'un graphe à l'autre.
+      couleur: couleurCategorie(c.couleur_index ?? 0),
+    });
+    niveau -= c.total_reel;
+  });
+  marches.push({ libelle: t("Solde"), de: 0, a: niveau, genre: niveau < 0 ? "deficit" : "solde" });
+
+  const largeur = Math.max(420, marches.length * 64 + 70);
+  const hauteur = 280;
+  const marge = { g: 8, d: 8, h: 22, b: 78 };
+  const valeurs = marches.flatMap((m) => [m.de, m.a]).concat(0);
+  const haut = Math.max(...valeurs);
+  const bas = Math.min(...valeurs);
+  const etendue = haut - bas || 1;
+  const y = (v) => marge.h + ((haut - v) / etendue) * (hauteur - marge.h - marge.b);
+  const pas = (largeur - marge.g - marge.d) / marches.length;
+  const epaisseur = Math.min(40, pas * 0.62);
+
+  const barres = marches
+    .map((m, i) => {
+      const x = marge.g + i * pas + (pas - epaisseur) / 2;
+      const y1 = y(Math.max(m.de, m.a));
+      const y2 = y(Math.min(m.de, m.a));
+      const cx = x + epaisseur / 2;
+      const delta = m.genre === "depense" ? -(m.de - m.a) : m.a;
+      const texte = `${delta < 0 ? "−" : m.genre === "entree" ? "+" : ""}${formatMontant(
+        Math.abs(delta),
+        total.monnaie_id
+      )}`;
+      const etiquette = m.libelle.length > 12 ? `${m.libelle.slice(0, 11)}…` : m.libelle;
+      // Le raccord avec la marche suivante : un trait fin au niveau d'arrivée.
+      const raccord =
+        i < marches.length - 1 && m.genre !== "solde" && m.genre !== "deficit"
+          ? `<line class="wf-raccord" x1="${x + epaisseur}" x2="${x + pas}" y1="${y(m.a)}" y2="${y(m.a)}" />`
+          : "";
+      return `
+        <g>
+          <title>${escapeHtml(m.libelle)} : ${escapeHtml(texte)}</title>
+          <rect class="wf-${m.genre}" x="${x}" y="${y1}" width="${epaisseur}"
+                height="${Math.max(1, y2 - y1)}" rx="2"
+                ${m.couleur ? `style="fill:${m.couleur}"` : ""} />
+          ${raccord}
+          <text class="wf-valeur" x="${cx}" y="${y1 - 4}" text-anchor="middle">${escapeHtml(texte)}</text>
+          <text class="wf-libelle" transform="translate(${cx} ${hauteur - marge.b + 12}) rotate(40)">${escapeHtml(etiquette)}</text>
+        </g>`;
+    })
+    .join("");
+
+  return `
+    <div class="waterfall-cadre">
+      <svg class="waterfall" viewBox="0 0 ${largeur} ${hauteur}" width="${largeur}" height="${hauteur}"
+           role="img" aria-label="${escapeHtml(t("Entrées et dépenses du projet"))}">
+        <line class="wf-zero" x1="${marge.g}" x2="${largeur - marge.d}" y1="${y(0)}" y2="${y(0)}" />
+        ${barres}
+      </svg>
+    </div>`;
 }
 
 function renderProjets() {
@@ -242,6 +350,7 @@ async function ouvrirProjet(projet) {
   description.textContent = projetOuvert.description;
   description.style.display = projetOuvert.description ? "" : "none";
   document.getElementById("projet-detail-totaux").innerHTML = totauxHtml(projetOuvert.totaux);
+  renderWaterfallProjet(projetOuvert.totaux);
   renderHistogrammeProjet(projetOuvert.totaux);
   document.getElementById("projet-detail-nombre").textContent = t("{n} opération(s)", {
     n: projetOperations.length,
@@ -258,13 +367,16 @@ function fermerProjet() {
 }
 
 /** Les colonnes communes aux deux tableaux : le projet ouvert et le sélecteur. */
+// MÊME ORDRE QUE LA PAGE OPÉRATIONS : nature, montant, compte, date, catégorie.
+// Deux écrans qui rangent les mêmes champs autrement obligent à réapprendre l'un
+// après l'autre.
 function cellulesOperationHtml(operation) {
   return `
-    <td>${formatDate(operation.date)}</td>
     <td>${escapeHtml(operation.nature)}</td>
-    <td>${escapeHtml(nomCompte(operation.compte_id))}</td>
-    <td>${escapeHtml(nomCategorie(operation.categorie_id))}</td>
     <td>${montantHtml(operation.montant, operation.sens, operation.monnaie_id)}</td>
+    <td>${escapeHtml(nomCompte(operation.compte_id))}</td>
+    <td>${formatDate(operation.date)}</td>
+    <td>${escapeHtml(nomCategorie(operation.categorie_id))}</td>
   `;
 }
 
@@ -314,6 +426,13 @@ function ouvrirSelecteurProjet() {
   const select = document.getElementById("projet-filtre-compte");
   const premier = select.firstElementChild;
   fillComptesSelect(select, state.comptes, { keepFirst: Boolean(premier) });
+  remplirFiltreTypeProjet();
+  // Toutes les catégories, éteintes comprises : une opération déjà écrite peut en
+  // porter une, et le sélecteur sert justement à retrouver des opérations.
+  const categorie = document.getElementById("projet-filtre-categorie");
+  const choisie = categorie.value;
+  fillCategoriesSelect(categorie, state.categories, { keepFirst: true });
+  categorie.value = choisie;
   chercherCandidatsProjet();
 }
 
@@ -322,6 +441,22 @@ function fermerSelecteurProjet() {
   projetCandidats = [];
   projetSelection = new Set();
   majSelectionProjet();
+}
+
+// Le menu « Type » du sélecteur : les types d'opération de l'application, sauf les
+// internes (achats/ventes de titres) qui ne se versent pas dans un projet comme une
+// dépense. Rempli une fois, le choix en cours est conservé.
+function remplirFiltreTypeProjet() {
+  const select = document.getElementById("projet-filtre-type");
+  const precedent = select.value;
+  select.innerHTML =
+    `<option value="">${t("— tous —")}</option>` +
+    (state.typesOperation || [])
+      .filter((type) => !type.interne)
+      .map((type) => `<option value="${type.id}">${escapeHtml(type.nom)}</option>`)
+      .join("");
+  select.value = precedent;
+  select.classList.toggle("filtre-rempli", select.value !== "");
 }
 
 async function chercherCandidatsProjet() {
@@ -333,6 +468,9 @@ async function chercherCandidatsProjet() {
   if (debut) parametres.set("date_debut", debut);
   if (fin) parametres.set("date_fin", fin);
   if (compte) parametres.set("compte_id", compte);
+  // PAR CATÉGORIE : la route sait filtrer, contrairement au type.
+  const categorie = document.getElementById("projet-filtre-categorie").value;
+  if (categorie) parametres.set("categorie_id", categorie);
 
   try {
     const operations = await apiFetch(`/operations?${parametres.toString()}`);
@@ -349,6 +487,11 @@ async function chercherCandidatsProjet() {
         // Déjà dans le projet : la proposer inviterait à un geste sans effet
         // (le serveur ignore les doublons, mais l'écran ne doit pas les
         // suggérer).
+        // PAR TYPE : la route ne filtre pas sur le type, c'est donc fait ici — avec
+        // « Tout sélectionner », c'est le geste pour verser d'un coup toutes les
+        // dépenses remboursables, ou tous les virements, d'une période.
+        (!document.getElementById("projet-filtre-type").value ||
+          String(operation.type_id) === document.getElementById("projet-filtre-type").value) &&
         !deja.has(operation.id) &&
         (!texte || operation.nature.toLowerCase().includes(texte))
     );

@@ -2012,6 +2012,26 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </table>
       </div>
 
+      <!-- LA VALIDATION DE LA LECTURE DE L'APP : un panneau de décision, comme
+           celui des dépenses prévues. La ligne reste dans sa section de type ; ce
+           qui se décide ici est autre chose — est-ce le virement que l'app
+           connaît déjà ? « Oui » n'importe rien, « Non » importe la ligne. L'import
+           est bloqué tant qu'une ligne reste « à choisir ». -->
+      <div id="import-jambes-bloc" style="display:none">
+        <h3>Virements déjà connus — <span id="import-jambes-nombre"></span><i class="info-bulle" tabindex="0" data-info-cle="ressemblances.validation-lecture">i</i></h3>
+        <div class="actions">
+          <button type="button" id="btn-import-jambes-tout-oui">Tout valider : « Oui »</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Même virement ?</th><th>Ligne du relevé</th><th>Virement déjà connu</th>
+            </tr>
+          </thead>
+          <tbody id="import-jambes-liste"></tbody>
+        </table>
+      </div>
+
       <div id="import-apercu-bloc" style="display:none">
         <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.apercu-import">i</i></h3>
         <!-- LE BOUTON D'IMPORT EST EN TÊTE, au-dessus des lignes et non

@@ -1200,7 +1200,10 @@ def detecter_doublons_virements(
     `_virements_en_base`). L'import bancaire ne s'en sert pas — un relevé peut y
     nommer plusieurs comptes ; l'import de placements lui passe le compte de son
     preset, qui est le seul que son relevé décrive."""
-    if not candidats:
+    # LA DÉTECTION DES RESSEMBLANCES EST UNE EXTENSION (cf. _ressemblances_actives) :
+    # éteinte, la veille ne répond rien — ni ici, ni pour l'import de placements
+    # qui passe par la même fonction.
+    if not candidats or not _ressemblances_actives():
         return []
 
     marge = timedelta(days=FENETRE_DOUBLON_VIREMENT_JOURS)
@@ -1291,6 +1294,203 @@ def _nom_compte(db, compte_id: Optional[int]) -> str:
         return "?"
     compte = crud.get_compte(db, compte_id)
     return compte.nom if compte else "?"
+
+
+# ---------- La jambe qu'aucun fichier n'a décrite ----------
+#
+# L'extension qui porte la détection des ressemblances (cf. _ressemblances_actives).
+EXTENSION_RESSEMBLANCES = "ressemblances"
+
+# Même fenêtre que les ressemblances de virements : c'est l'ordre de grandeur du
+# décalage entre les dates de valeur de deux banques (cf.
+# FENETRE_DOUBLON_VIREMENT_JOURS).
+FENETRE_JAMBE_MANQUANTE_JOURS = FENETRE_DOUBLON_VIREMENT_JOURS
+
+
+def _ressemblances_actives() -> bool:
+    """La détection des ressemblances est une EXTENSION : éteinte, l'import ne
+    cherche plus de jambe manquante, n'en marque plus (cf. confirmer) et la veille
+    des virements ne répond plus. Les marques et témoins déjà écrits restent au
+    stock — les témoins continuent d'y servir de doublons ordinaires, ce sont de
+    vraies lignes brutes."""
+    return extensions.est_active(EXTENSION_RESSEMBLANCES)
+
+
+class JambeReconnue(NamedTuple):
+    """Une jambe de virement qu'une ligne du fichier semble décrire."""
+
+    marque: "models.LigneImportBrute"
+    operation: "models.Operation"
+    compte_en_face_id: Optional[int]
+    ecart_jours: int
+
+
+def _compte_en_face_de(db, jambe: "models.Operation") -> Optional[int]:
+    """Le compte de l'AUTRE jambe du même virement."""
+    if jambe.virement_id is None:
+        return None
+    autre = (
+        db.query(models.Operation)
+        .filter(
+            models.Operation.virement_id == jambe.virement_id,
+            models.Operation.id != jambe.id,
+        )
+        .first()
+    )
+    return autre.compte_id if autre is not None else None
+
+
+def detecter_jambes_manquantes(
+    db, lignes: list[schemas.ImportLigne]
+) -> dict[int, JambeReconnue]:
+    """Pour chaque ligne de l'aperçu, la jambe de virement déjà en base qu'elle
+    semble décrire : numéro de ligne -> jambe.
+
+    CE QUE C'EST. Importer un virement depuis le compte A écrit aussi la jambe du
+    compte B (cf. confirmer), que le relevé de B redécrira plus tard. Aucune
+    colonne brute ne la représente : elle se reconnaît par ce que l'opération
+    est — le COMPTE que le fichier décrit, le SENS, le MONTANT et la DATE. Le type
+    de la ligne n'y entre pas : un virement lu comme une dépense classique est
+    justement le cas pour lequel ça existe.
+
+    LES TROIS DÉTECTEURS ONT UN ORDRE, et seul le plus fort parle (cf. le point
+    de départ de cette fonction dans previsualiser) : le doublon de colonnes, puis
+    cette jambe, puis la ressemblance de virements. Une ligne qui a déjà un
+    `doublon_de` n'est donc pas regardée ici, ni une ligne refusée par la banque.
+
+    UNE JAMBE, UN SEUL RAPPROCHEMENT : deux lignes de 50 € du même fichier ne
+    décrivent pas toutes les deux la même jambe. La première (dans l'ordre du
+    fichier) la prend, la plus proche en date si plusieurs conviennent. Une jambe
+    déjà validée par un témoin n'est plus candidate (cf.
+    crud.jambes_manquantes_ouvertes).
+
+    LE SENS DOIT ÊTRE CONNU : une ligne qui n'en a pas (montant corrigé à la main)
+    ne se rapproche de rien, plutôt que de se rapprocher de n'importe quoi."""
+    if not _ressemblances_actives():
+        return {}
+    candidates = [
+        ligne
+        for ligne in lignes
+        if ligne.doublon_de is None
+        and ligne.statut_import != StatutImport.refuse.value
+        and ligne.compte_id is not None
+        and ligne.date is not None
+        and ligne.montant_signe not in (None, 0)
+    ]
+    ouvertes = crud.jambes_manquantes_ouvertes(db, {l.compte_id for l in candidates})
+    if not ouvertes:
+        return {}
+
+    marge = timedelta(days=FENETRE_JAMBE_MANQUANTE_JOURS)
+    prises: set[int] = set()
+    trouvees: dict[int, JambeReconnue] = {}
+    for ligne in candidates:
+        sens_attendu = Sens.transfert_entrant if ligne.montant_signe > 0 else Sens.transfert_sortant
+        montants = {
+            abs(valeur)
+            for valeur in (
+                ligne.montant,
+                ligne.montant_envoye,
+                ligne.montant_hors_frais,
+                ligne.montant_envoye_hors_frais,
+            )
+            if valeur is not None
+        }
+        monnaies = {
+            identifiant
+            for identifiant in (
+                ligne.monnaie_operation_id,
+                ligne.monnaie_id,
+                ligne.monnaie_envoyee_id,
+            )
+            if identifiant is not None
+        }
+        meilleure: Optional[tuple[int, int, "models.LigneImportBrute", "models.Operation"]] = None
+        for marque, jambe in ouvertes:
+            if marque.id in prises or jambe.compte_id != ligne.compte_id:
+                continue
+            if jambe.sens != sens_attendu:
+                continue
+            ecart = abs((jambe.date - ligne.date).days)
+            if ecart > marge.days:
+                continue
+            if not any(abs(montant - jambe.montant) < 0.01 for montant in montants):
+                continue
+            # Une devise lue sur la ligne doit être celle de la jambe ; sans
+            # devise lue, la ligne est dans une monnaie du compte — la seule que
+            # la jambe puisse porter.
+            if monnaies and jambe.monnaie_id not in monnaies:
+                continue
+            if not monnaies:
+                compte = crud.get_compte(db, ligne.compte_id)
+                if compte is None or jambe.monnaie_id not in compte.monnaie_ids_toutes:
+                    continue
+            if meilleure is None or (ecart, marque.id) < (meilleure[0], meilleure[1]):
+                meilleure = (ecart, marque.id, marque, jambe)
+        if meilleure is not None:
+            ecart, _, marque, jambe = meilleure
+            prises.add(marque.id)
+            trouvees[ligne.ligne] = JambeReconnue(
+                marque=marque,
+                operation=jambe,
+                compte_en_face_id=_compte_en_face_de(db, jambe),
+                ecart_jours=ecart,
+            )
+    return trouvees
+
+
+def _jambe_lisible(db, reconnue: JambeReconnue) -> schemas.JambeManquanteLue:
+    """La jambe reconnue, telle que l'écran la montre."""
+    jambe = reconnue.operation
+    monnaie = crud.get_monnaie(db, jambe.monnaie_id) if jambe.monnaie_id else None
+    return schemas.JambeManquanteLue(
+        id=reconnue.marque.id,
+        date=jambe.date,
+        nature=jambe.nature or "",
+        montant=jambe.montant,
+        monnaie_symbole=monnaie.symbole if monnaie else "",
+        compte_id=jambe.compte_id,
+        compte_nom=_nom_compte(db, jambe.compte_id),
+        compte_en_face_id=reconnue.compte_en_face_id,
+        compte_en_face_nom=(
+            _nom_compte(db, reconnue.compte_en_face_id)
+            if reconnue.compte_en_face_id is not None
+            else ""
+        ),
+        ecart_jours=reconnue.ecart_jours,
+    )
+
+
+def _adopter_la_jambe(
+    ligne: schemas.ImportLigne, reconnue: JambeReconnue
+) -> schemas.ImportLigne:
+    """La ligne reconnue prend le TYPE de la jambe (virement interne) et son
+    compte d'en face — comme une ligne reconnue en doublon adopte le type de
+    l'opération déjà en base (cf. _adopter_type_du_doublon). Rien n'est décidé
+    pour autant : la ligne porte `jambe_manquante_id`, et c'est l'utilisateur qui
+    tranche (cf. ImportMappingOverrides.jambes_validees)."""
+    override = schemas.ImportLigneOverride(
+        type_code=TypeOperation.virement.value,
+        compte_id_autre=reconnue.compte_en_face_id,
+    )
+    retouchee, _, _ = _retoucher_ligne(ligne, override)
+    return retouchee.model_copy(update={"jambe_manquante_id": reconnue.marque.id})
+
+
+def _jambe_en_jeu(ligne: schemas.ImportLigne, reconnue: JambeReconnue) -> bool:
+    """La ligne est-elle encore ce que l'app a lu : un virement interne vers le
+    compte d'en face de la jambe ?
+
+    C'est la règle du champ « Validation de la lecture » : si l'utilisateur change
+    le type, ou le compte d'en face pour un autre que celui auquel la ligne
+    ressemble, il a dit que l'app s'était trompée — le champ passe en « Non » de
+    lui-même et plus rien n'est à valider. Si la ligne est restée ce que l'app
+    avait lu, Oui/Non reste à trancher."""
+    return (
+        ligne.type_code == TypeOperation.virement.value
+        and reconnue.compte_en_face_id is not None
+        and ligne.compte_id_autre == reconnue.compte_en_face_id
+    )
 
 
 class PresetAvecColonnes:
@@ -1410,10 +1610,23 @@ def _resoudre_monnaie(db, preset_id: int, libelle: str) -> Optional[int]:
     une monnaie de l'app n'est PAS la même chose qu'un rattachement voulu, et le
     déduire silencieusement libellait des lignes dans une monnaie que personne
     n'avait choisie. C'est le premier rattachement, fait à la main, qui décide —
-    il est mémorisé, et ne se redemande plus."""
+    il est mémorisé, et ne se redemande plus.
+
+    UNE MONNAIE ÉTEINTE (cf. models.Monnaie.active) N'EST PLUS UNE CIBLE : une
+    correspondance posée avant son extinction est ignorée, et le libellé
+    retombe dans `monnaies_inconnues` — l'utilisateur tranche alors vers une
+    monnaie allumée. Éteinte, elle se lit (liste, cours) et rien d'autre : un
+    relevé ne doit pas rouvrir par la porte de derrière ce que les formulaires
+    ferment."""
     if not libelle:
         return None
-    return crud.get_mapping_monnaie(db, preset_id, libelle)
+    monnaie_id = crud.get_mapping_monnaie(db, preset_id, libelle)
+    if monnaie_id is None:
+        return None
+    monnaie = crud.get_monnaie(db, monnaie_id)
+    if monnaie is None or not monnaie.active:
+        return None
+    return monnaie_id
 
 
 class ResultatFrais(NamedTuple):
@@ -1770,6 +1983,20 @@ def _resoudre_ligne(
             # 50 € » compare donc ce qu'on lit sur le relevé, ce qui est aussi
             # la seule valeur que l'utilisateur a sous les yeux en l'écrivant.
             "montant": abs(montant_op) if montant_op is not None else None,
+            # CE QUI ARRIVE ET CE QUI PART, tels que le fichier les donne. Sans
+            # colonne « Montant envoyé », le relevé n'écrit qu'un montant et
+            # il vaut des deux côtés — la même valeur que « montant ».
+            "montant_recu": abs(montant_op) if montant_op is not None else None,
+            "montant_envoye": (
+                abs(montant_envoye)
+                if montant_envoye is not None
+                else (abs(montant_op) if montant_op is not None else None)
+            ),
+            # Les LIBELLÉS de devise du fichier, pas les monnaies de l'app : la
+            # règle passe avant le rattachement. Sans colonne pour la devise du
+            # montant envoyé, c'est celle du montant (même raisonnement).
+            "devise_recue": nom_monnaie_banque or None,
+            "devise_envoyee": nom_monnaie_envoyee_banque or nom_monnaie_banque or None,
         },
     )
     type_code = (
@@ -1846,7 +2073,15 @@ def _resoudre_ligne(
         and TypeOperation(type_code) in TYPES_AVEC_CATEGORIE_LIBRE
     ):
         parts, decoupe_erreur = regles_categorisation.resoudre_decoupes(
-            resultat_regle.decoupes, montant_final
+            resultat_regle.decoupes,
+            montant_final,
+            # `montant_envoye` d'une opération à un seul compte est effacé par
+            # les frais (cf. _appliquer_frais) : on retombe alors sur le
+            # montant, comme partout où le relevé n'en dit pas plus.
+            {
+                "montant_recu": montant_final,
+                "montant_envoye": montant_envoye if montant_envoye is not None else montant_final,
+            },
         )
         decoupes_ligne = [
             schemas.DecoupeInput(categorie_id=categorie, montant=part)
@@ -2248,6 +2483,20 @@ def previsualiser(
                 )
         lignes.append(ligne_resolue)
 
+    # LES JAMBES DE VIREMENT QU'AUCUN FICHIER N'A DÉCRITES — deuxième détecteur
+    # dans l'ordre de priorité (doublon de colonnes > jambe manquante >
+    # ressemblance de virements), donc après le premier et avant le troisième : la
+    # ligne reconnue adopte le type « virement » et le compte d'en face de la
+    # jambe, et la veille des ressemblances ne la regarde plus (cf. app.js).
+    jambes_manquantes = {}
+    reconnues = detecter_jambes_manquantes(db, lignes)
+    for index, ligne_resolue in enumerate(lignes):
+        reconnue = reconnues.get(ligne_resolue.ligne)
+        if reconnue is None:
+            continue
+        lignes[index] = _adopter_la_jambe(ligne_resolue, reconnue)
+        jambes_manquantes[str(reconnue.marque.id)] = _jambe_lisible(db, reconnue)
+
     # LES PRÉVISIONNELLES RECONNUES, une fois toutes les lignes résolues : la
     # recherche a besoin du compte et de la monnaie de la ligne, que `_resoudre_
     # ligne` vient seulement de poser. Les candidates sont chargées EN UN COUP
@@ -2281,6 +2530,7 @@ def previsualiser(
         lignes=lignes,
         lignes_existantes=lignes_existantes,
         previsionnelles=previsionnelles,
+        jambes_manquantes=jambes_manquantes,
         categories_inconnues=categories_inconnues,
         comptes_inconnus=comptes_inconnus,
         monnaies_inconnues=_monnaies_inconnues(lignes),
@@ -2848,6 +3098,11 @@ def confirmer(
     for nom_banque, compte_id in overrides.comptes.items():
         crud.set_mapping_compte(db, preset_id, nom_banque, compte_id)
     for nom_banque, monnaie_id in overrides.monnaies.items():
+        # Une monnaie éteinte ne se mappe plus (cf. _resoudre_monnaie) : le
+        # choix est écarté, le libellé restera à mapper.
+        cible = crud.get_monnaie(db, monnaie_id) if monnaie_id is not None else None
+        if cible is None or not cible.active:
+            continue
         crud.set_mapping_monnaie(db, preset_id, nom_banque, monnaie_id)
 
     preset = crud.get_import_preset(db, preset_id)
@@ -2881,6 +3136,20 @@ def confirmer(
         donnees_par_ligne[brute["ligne"]] = brute["donnees_completes"]
         lignes.append(ligne_resolue)
 
+    # LES JAMBES RECONNUES, relues ici comme à l'aperçu (cf. previsualiser) mais
+    # SEULEMENT pour les lignes que l'écran a montrées comme telles : leur
+    # numéro est une clé de `jambes_validees`. Une jambe que cette relecture
+    # trouverait seule (un compte mappé entre-temps) n'a jamais été proposée à
+    # l'utilisateur — elle ne doit ni bloquer l'import, ni écarter une ligne.
+    reconnues = {
+        numero: jambe
+        for numero, jambe in detecter_jambes_manquantes(db, lignes).items()
+        if numero in overrides.jambes_validees
+    }
+    for index, ligne_resolue in enumerate(lignes):
+        if ligne_resolue.ligne in reconnues:
+            lignes[index] = _adopter_la_jambe(ligne_resolue, reconnues[ligne_resolue.ligne])
+
     # LES RETOUCHES DE L'APERÇU, APPLIQUÉES AVANT TOUT CONTRÔLE. Le blocage
     # ci-dessous lisait la ligne telle que le FICHIER la donnait : corriger à la
     # main la devise des frais de chaque ligne fautive débloquait le bouton de
@@ -2894,6 +3163,29 @@ def confirmer(
         if ligne.statut_import != StatutImport.refuse.value
         and ligne.ligne not in overrides.lignes_supprimees
     }
+
+    # LA VALIDATION DE LA LECTURE DE L'APP EST OBLIGATOIRE. Une ligne reconnue
+    # comme la description d'une jambe existante demande « Oui » ou « Non » : le
+    # défaut n'a pas le droit de décider à sa place, ni d'importer une ligne qui
+    # double peut-être un virement, ni de l'écarter. Ne comptent que les lignes
+    # encore EN JEU — celles que l'utilisateur a retouchées vers autre chose qu'un
+    # virement vers ce compte-là sont passées en « Non » d'elles-mêmes (cf.
+    # _jambe_en_jeu), et les lignes supprimées ou refusées ne sont pas importées.
+    a_valider = [
+        numero
+        for numero, jambe in reconnues.items()
+        if numero in retouchees
+        and _jambe_en_jeu(retouchees[numero][0], jambe)
+        and overrides.jambes_validees.get(numero) is None
+    ]
+    if a_valider:
+        apercu = ", ".join(str(numero) for numero in a_valider[:5])
+        suite = "…" if len(a_valider) > 5 else ""
+        raise ImportBloque(
+            f"Import bloqué : {len(a_valider)} ligne(s) ressemblent à un virement déjà "
+            f"connu et attendent ta validation (ligne {apercu}{suite}). Réponds « Oui » "
+            f"si c'est le même virement, « Non » sinon."
+        )
 
     # Des frais qu'aucun des deux montants de la ligne ne peut porter : c'est la
     # CONFIGURATION du preset qui ne tient pas, pas une ligne isolée. Importer
@@ -2944,6 +3236,13 @@ def confirmer(
     # (données brutes, id de l'opération, instantané d'avant rapprochement) —
     # le troisième vaut None dans le cas ordinaire.
     a_stocker: list[tuple[dict, int, Optional[str]]] = []
+    # (données brutes, id de la jambe existante) : les TÉMOINS des lignes validées
+    # « Oui ». Écrits après l'historique, comme le stock, pour porter son id.
+    a_temoigner: list[tuple[dict, int]] = []
+    # Les jambes que cet import vient d'écrire SANS qu'aucun fichier les décrive :
+    # marquées au stock avec lui, pour que le relevé de l'autre compte les
+    # reconnaisse (cf. detecter_jambes_manquantes).
+    a_marquer: list[int] = []
     for ligne in lignes:
         # Un doublon n'est plus exclu d'office : il est simplement compté pour
         # l'historique, pré-sélectionné côté frontend, et importé si
@@ -2970,6 +3269,23 @@ def confirmer(
             continue
 
         ligne, erreur_frais, liens_remboursement = retouchees[ligne.ligne]
+
+        # « OUI » : la ligne décrit une jambe que l'app connaît déjà. Elle n'est
+        # PAS importée — le virement ne doit exister qu'une fois — mais ses
+        # colonnes entrent au stock, en désignant la jambe existante (un TÉMOIN) :
+        # le même relevé est reconnu comme doublon la fois suivante, sans
+        # nouvelle question. Placé avant le contrôle d'erreur : une ligne qu'on
+        # écarte n'a pas à être complète.
+        jambe_reconnue = reconnues.get(ligne.ligne)
+        if (
+            jambe_reconnue is not None
+            and _jambe_en_jeu(ligne, jambe_reconnue)
+            and overrides.jambes_validees.get(ligne.ligne) is True
+        ):
+            doublons_detectes += 1
+            a_temoigner.append((donnees_par_ligne[ligne.ligne], jambe_reconnue.operation.id))
+            continue
+
         manques = _erreur_ligne(ligne)
         eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes)
         ligne = ligne.model_copy(
@@ -3092,7 +3408,22 @@ def confirmer(
                     )
                 )
                 continue
-            op_sortante, _ = crud.create_virement(db, virement, compte_source, compte_destination)
+            op_sortante, op_entrante = crud.create_virement(
+                db, virement, compte_source, compte_destination
+            )
+            # LA JAMBE QUE CE RELEVÉ NE DÉCRIT PAS : celle de l'autre compte. Le
+            # relevé de ce compte-là la redécrira un jour, et c'est cette marque
+            # qui permettra de la reconnaître (cf. detecter_jambes_manquantes). Rien
+            # n'est marqué quand l'extension est éteinte, ni pour une conversion
+            # d'un compte vers lui-même — il n'y a pas d'« autre » relevé.
+            if _ressemblances_actives():
+                absentes = [
+                    jambe
+                    for jambe in (op_sortante, op_entrante)
+                    if jambe.compte_id != ligne.compte_id
+                ]
+                if len(absentes) == 1:
+                    a_marquer.append(absentes[0].id)
             # Rattaché à la jambe sortante : supprimer le virement supprime
             # les deux opérations, donc le CASCADE libère la ligne du stock
             # quelle que soit la jambe retenue ici.
@@ -3261,6 +3592,31 @@ def confirmer(
             operation_id=operation_id,
             etat_previsionnel_avant=etat_avant,
         )
+    # LES TÉMOINS : de vraies colonnes brutes, qui désignent une opération que cet
+    # import n'a pas créée (`operation_non_creee`) — annuler l'import les retire,
+    # sans toucher à l'opération (cf. annuler_import).
+    for donnees, operation_id in a_temoigner:
+        crud.create_ligne_import_brute(
+            db,
+            preset_id=preset_id,
+            donnees=donnees,
+            import_historique_id=historique.id,
+            operation_id=operation_id,
+            operation_non_creee=True,
+        )
+    # LES JAMBES MANQUANTES, marquées avec l'import qui les a écrites : elles
+    # partent avec lui, ou avec l'opération (CASCADE). Sans colonnes brutes :
+    # `donnees` vide, et c'est `list_lignes_import_brutes` qui les écarte des
+    # comparaisons de colonnes.
+    for operation_id in a_marquer:
+        crud.create_ligne_import_brute(
+            db,
+            preset_id=preset_id,
+            donnees={},
+            import_historique_id=historique.id,
+            operation_id=operation_id,
+            jambe_manquante=True,
+        )
 
     return schemas.ImportResultat(
         operations_creees=operations_creees,
@@ -3394,6 +3750,11 @@ def annuler_import(db, historique_id: int) -> schemas.ImportAnnulationResultat:
         crud.delete_operation(db, operation)
         supprimees += 1
 
+    # LES TÉMOINS DE CET IMPORT PARTENT, SANS RIEN D'AUTRE : ils désignent des
+    # opérations venues d'un autre import (cf. get_operations_d_un_import, qui
+    # ne les compte pas). Sans cette ligne, le `SET NULL` de l'historique les
+    # aurait laissés au stock, et le relevé serait resté « déjà importé ».
+    crud.supprimer_temoins_d_un_import(db, historique_id)
     crud.delete_import_historique(db, entree)
     return schemas.ImportAnnulationResultat(
         operations_supprimees=supprimees,

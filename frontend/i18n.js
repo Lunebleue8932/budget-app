@@ -2593,6 +2593,59 @@ const TRADUCTIONS = {
     "Revenir à la base de l'application": "Back to the application's database",
     "Revenir à la base de l'application ? La base actuellement ouverte est simplement refermée — aucun fichier n'est modifié ni supprimé.":
       "Back to the application's database? The database currently open is simply closed — no file is modified or deleted.",
+    // ----- Règles : montants reçu / envoyé, devises, aide aux formules -----
+    "Insérer une fonction ou une grandeur": "Insert a function or a quantity",
+    "Fonctions": "Functions",
+    "Grandeurs": "Quantities",
+    "Montant reçu": "Amount received",
+    "Montant envoyé": "Amount sent",
+    "Devise du montant reçu": "Currency of the amount received",
+    "Devise du montant envoyé": "Currency of the amount sent",
+    "un libellé de devise": "a currency label",
+    "la devise du montant envoyé": "the currency of the amount sent",
+    "la devise du montant reçu": "the currency of the amount received",
+    "ex. 50 ou montant_envoye * 1,02": "e.g. 50 or montant_envoye * 1.02",
+    "Un nombre, ou une formule qui compare ce montant à un autre : « montant_envoye * 1,02 », « min(montant_recu; 50) ». L'icône ƒ à gauche du champ propose les fonctions (max, min, et reste dans une découpe) et les grandeurs de la ligne : le montant reçu (ce qui arrive) et le montant envoyé (ce qui part). Quand le relevé n'a pas de colonne de montant envoyé, les deux valent le montant de la ligne.":
+      "A number, or a formula comparing this amount to another one: “montant_envoye * 1.02”, “min(montant_recu; 50)”. The ƒ icon to the left of the field offers the functions (max, min, and reste in a split) and the quantities of the row: the amount received (what arrives) and the amount sent (what leaves). When the statement has no amount-sent column, both equal the row's amount.",
+    "Le libellé de devise tel que le relevé l'écrit (« EUR », « $ »), pas la monnaie de l'app : une règle se lit avant que la devise soit rattachée. Compare-la à un libellé, ou à la devise de l'autre montant pour repérer un mouvement entre deux devises différentes.":
+      "The currency label as the statement writes it (“EUR”, “$”), not the app's currency: a rule is read before the currency is matched. Compare it to a label, or to the currency of the other amount to spot a movement between two different currencies.",
+    "À choisir":
+      "To choose",
+    "à {n} jour(s) d'écart":
+      "{n} day(s) apart",
+    "virement déjà connu : à valider":
+      "transfer already known: to validate",
+    "même virement — non importé":
+      "same transfer — not imported",
+    "Le type ou le compte en face a été changé : la ligne n'est plus ce que l'app avait lu.":
+      "The type or the counterpart account was changed: the row is no longer what the app had read.",
+    "Tout valider : « Oui »":
+      "Validate all: “Yes”",
+    "Virements déjà connus":
+      "Transfers already known",
+    "Même virement ?":
+      "Same transfer?",
+    "Virement déjà connu":
+      "Transfer already known",
+    "Ligne du relevé":
+      "Statement row",
+    "Quand tu as importé ce virement depuis l'autre compte, l'app a aussi écrit la jambe de celui-ci : la ligne ci-dessous lui ressemble (même compte, même sens, même montant, date voisine). « Oui » = c'est le même virement : la ligne n'est pas importée, et ses colonnes sont retenues pour que le prochain relevé la reconnaisse sans te redemander. « Non » = c'est une autre opération, elle est importée. Si tu changes le type de la ligne ou son compte en face, le choix passe en « Non » tout seul. L'import est bloqué tant qu'un choix reste « à choisir ».":
+      "When you imported this transfer from the other account, the app also wrote this account's leg: the row below resembles it (same account, same direction, same amount, nearby date). “Yes” = it is the same transfer: the row is not imported, and its columns are kept so the next statement recognises it without asking again. “No” = it is another transaction, and it is imported. If you change the row's type or its counterpart account, the choice switches to “No” by itself. The import is blocked while a choice is still “to choose”.",
+    "Entrées et dépenses":
+      "Income and spending",
+    "Entrées et dépenses du projet":
+      "Project income and spending",
+    "Entrées":
+      "Income",
+    "Solde":
+      "Balance",
+    "— tous —":
+      "— all —",
+    "Les entrées du projet, puis chaque catégorie de dépense qui les entame (de la plus lourde à la plus légère), puis ce qu'il en reste. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.":
+      "The project's income, then each spending category that eats into it (heaviest first), then what is left. Below zero, the project cost more than it brought in. One waterfall per currency.",
+    "— toutes —": "— all —",
+    "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.":
+      "Repaid via: {details}. The transaction's amount is frozen while this link exists. The amount to repay can still change, but not below what is already repaid ({deja}) — to go lower, unlink the matching repayment transaction first.",
     // ----- Une monnaie éteinte sur un compte (migration 0053) -----
     "Active": "Active",
     "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

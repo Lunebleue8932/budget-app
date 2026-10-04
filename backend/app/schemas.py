@@ -1414,6 +1414,37 @@ class ImportLigne(BaseModel):
     # figurer dans ImportMappingOverrides.rapprochements_refuses pour qu'elle
     # crée une opération de plus, comme avant.
     previsionnelle_id: Optional[int] = None
+    # Id de la LigneImportBrute (marquée `jambe_manquante`) dont cette ligne
+    # semble être la description : une jambe de virement que l'application a
+    # écrite en important l'AUTRE compte, et qu'aucun fichier n'a encore décrite
+    # (cf. services/import_bancaire.detecter_jambes_manquantes). None dans le cas
+    # ordinaire — et toujours None quand `doublon_de` est posé, qui est plus fort.
+    #
+    # La ligne adopte alors le type « virement » et le compte d'en face de la
+    # jambe, comme pour un doublon reconnu. L'utilisateur doit TRANCHER (cf.
+    # ImportMappingOverrides.jambes_validees) : « Oui » n'importe rien et pose un
+    # témoin au stock, « Non » importe la ligne comme une opération à part.
+    jambe_manquante_id: Optional[int] = None
+
+
+class JambeManquanteLue(BaseModel):
+    """Le virement connu auquel une ligne ressemble, tel qu'il est EN BASE : ce
+    que l'écran montre pour que « Oui » ne soit pas un acte de foi."""
+
+    id: int
+    date: date_type
+    nature: str = ""
+    montant: float
+    monnaie_symbole: str = ""
+    # Le compte de la jambe (celui que le relevé en cours décrit) et celui de
+    # l'autre jambe — le compte d'en face que la ligne adopte.
+    compte_id: int
+    compte_nom: str = ""
+    compte_en_face_id: Optional[int] = None
+    compte_en_face_nom: str = ""
+    # Écart en jours entre la ligne et la jambe, pour dire POURQUOI elle a été
+    # reconnue.
+    ecart_jours: int = 0
 
 
 class PrevisionnelleRapprochee(BaseModel):
@@ -1520,6 +1551,10 @@ class ImportPreview(BaseModel):
     # Les prévisionnelles reconnues, clé = str(id), référencées par
     # `previsionnelle_id` ci-dessus. Vide dans le cas ordinaire.
     previsionnelles: dict[str, PrevisionnelleRapprochee] = Field(default_factory=dict)
+    # Les virements connus que des lignes semblent décrire, clé = str(id de la
+    # marque du stock), référencés par `jambe_manquante_id`. Vide dans le cas
+    # ordinaire, et quand l'extension « Ressemblances » est éteinte.
+    jambes_manquantes: dict[str, JambeManquanteLue] = Field(default_factory=dict)
     apercu_fichier: ApercuFichier = Field(default_factory=ApercuFichier)
     # Ce que la configuration du preset laisse d'ambigu sans être faux : un
     # montant reçu ou des frais lus sans leur devise (cf. services/
@@ -1611,6 +1646,20 @@ class ImportMappingOverrides(BaseModel):
     # qui est le comportement voulu — et le refuser retombe exactement sur
     # l'ancien comportement, jamais sur une perte.
     rapprochements_refuses: list[int] = Field(default_factory=list)
+    # LA VALIDATION DE LA LECTURE DE L'APP, par numéro de ligne, pour les lignes
+    # qui portent `jambe_manquante_id` : True = « Oui, c'est ce virement » (la
+    # ligne n'est PAS importée, un témoin entre au stock), False = « Non » (elle
+    # s'importe comme une opération à part). Une ligne ABSENTE d'ici est « à
+    # choisir », et l'import entier est refusé tant qu'il en reste une : le défaut
+    # n'a pas le droit de décider à la place de l'utilisateur, dans un sens ni
+    # dans l'autre.
+    #
+    # LA CLÉ EXISTE POUR TOUTE LIGNE QUE L'APERÇU A MONTRÉE comme reconnue, valeur
+    # None = « à choisir » : c'est ce qui dit au serveur quelles lignes l'écran
+    # a VUES. Une jambe qu'il retrouverait seul à la confirmation (un compte
+    # mappé entre-temps) ne doit pas bloquer un import dont personne n'a vu la
+    # question.
+    jambes_validees: dict[int, Optional[bool]] = Field(default_factory=dict)
 
 
 class VirementCandidatDoublon(BaseModel):
@@ -2057,6 +2106,21 @@ def _valider_condition(condition, champs_valides: set[str]):
     # toujours faux : dans les deux cas la règle ne veut rien dire.
     if not condition.valeur.strip():
         raise ValueError("la valeur à comparer ne peut pas être vide")
+    # LA VALEUR D'UNE CONDITION NUMÉRIQUE EST UN NOMBRE OU UNE FORMULE (« montant_envoye
+    # * 1,02 ») : relue par le parseur dès l'écriture, comme les formules de
+    # découpe — une règle qui ne se lirait pas ne correspondrait jamais à rien,
+    # sans que rien ne le dise.
+    if condition.operateur in OPERATEURS_NOMBRE:
+        from .services.formule_decoupe import FormuleInvalide, valider_expression
+
+        texte = condition.valeur.strip().replace(" ", "").replace(",", ".")
+        try:
+            float(texte)
+        except ValueError:
+            try:
+                valider_expression(condition.valeur)
+            except FormuleInvalide as erreur:
+                raise ValueError(f"valeur numérique illisible : {erreur}") from erreur
     return condition
 
 
