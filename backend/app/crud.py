@@ -3584,19 +3584,39 @@ def supprimer_temoins_d_un_import(db: Session, historique_id: int) -> int:
     return nombre
 
 
-def jambes_manquantes_ouvertes(
-    db: Session, compte_ids
-) -> list[tuple[models.LigneImportBrute, models.Operation]]:
-    """Les jambes qu'aucun fichier n'a encore décrites, sur ces comptes : des
-    couples (marque du stock, opération), pour les jambes NON ENCORE VALIDÉES.
+def jambes_candidates(db: Session, compte_ids, preset_id: int) -> list[models.Operation]:
+    """Les jambes de virement qu'une ligne du relevé de CES comptes pourrait décrire :
+    toute jambe d'un virement interne, sur l'un de ces comptes, qui n'est pas déjà
+    « fermée ».
 
-    UNE JAMBE EST « FERMÉE » DÈS QU'UN TÉMOIN LA DÉSIGNE : une ligne de fichier
-    l'a reconnue, et la seconde ligne identique du relevé suivant ne doit pas la
-    reprendre (une jambe, un seul rapprochement). C'est calculé ici, à la lecture,
-    et non marqué sur la jambe : annuler l'import qui a posé le témoin rouvre
-    donc la jambe toute seule."""
+    AUCUNE MARQUE À L'IMPORT N'EST NÉCESSAIRE, et c'est le point : une première version
+    ne reconnaissait que les jambes que l'import écrivait lui-même, et ratait donc
+    tout virement d'avant elle, saisi à la main, ou venu d'un autre outil. Un virement
+    est repérable à ce qu'il EST — deux jambes liées par `virement_id`.
+
+    DEUX FERMETURES :
+      - UN TÉMOIN la désigne (cf. LigneImportBrute.operation_non_creee) : une ligne de
+        fichier l'a déjà reconnue, une jambe ne sert qu'à un seul rapprochement.
+        Calculé à la lecture, donc annuler l'import du témoin la rouvre ;
+      - CE PRESET A DÉJÀ DÉCRIT CE VIREMENT, sur l'une ou l'autre de ses jambes : une
+        ligne brute de ce preset désigne l'une des deux (le stock n'en attache qu'une,
+        la sortante, quelle que soit la jambe que le fichier décrit). Le relevé de ce
+        compte n'a alors rien à « compléter » — le doublon de colonnes parle déjà.
+        Un virement importé par un AUTRE preset, lui, reste candidat : c'est
+        exactement le cas du virement décrit par le relevé de l'autre compte."""
     compte_ids = {c for c in compte_ids if c is not None}
     if not compte_ids:
+        return []
+    jambes = (
+        db.query(models.Operation)
+        .filter(
+            models.Operation.virement_id.isnot(None),
+            models.Operation.sens.in_([Sens.transfert_sortant, Sens.transfert_entrant]),
+            models.Operation.compte_id.in_(compte_ids),
+        )
+        .all()
+    )
+    if not jambes:
         return []
     fermees = {
         identifiant
@@ -3607,16 +3627,27 @@ def jambes_manquantes_ouvertes(
         )
         .all()
     }
-    couples = (
-        db.query(models.LigneImportBrute, models.Operation)
-        .join(models.Operation, models.Operation.id == models.LigneImportBrute.operation_id)
+    decrites = {
+        identifiant
+        for (identifiant,) in db.query(models.LigneImportBrute.operation_id)
         .filter(
-            models.LigneImportBrute.jambe_manquante.is_(True),
-            models.Operation.compte_id.in_(compte_ids),
+            models.LigneImportBrute.preset_id == preset_id,
+            models.LigneImportBrute.jambe_manquante.is_(False),
+            models.LigneImportBrute.operation_id.isnot(None),
         )
         .all()
-    )
-    return [(marque, operation) for marque, operation in couples if operation.id not in fermees]
+    }
+    jambes_par_virement: dict[str, set[int]] = {}
+    for identifiant, virement_id in db.query(
+        models.Operation.id, models.Operation.virement_id
+    ).filter(models.Operation.virement_id.in_({j.virement_id for j in jambes})):
+        jambes_par_virement.setdefault(virement_id, set()).add(identifiant)
+    return [
+        jambe
+        for jambe in jambes
+        if jambe.id not in fermees
+        and not (jambes_par_virement.get(jambe.virement_id, set()) & decrites)
+    ]
 
 
 def delete_import_historique(db: Session, entree: models.ImportHistorique) -> None:

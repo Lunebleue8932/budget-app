@@ -9596,6 +9596,7 @@ function reinitialiserImport() {
   importRapprochementsRefuses.clear();
   // Les validations de lecture désignent, elles aussi, des lignes par leur numéro.
   Object.keys(importJambesValidees).forEach((k) => delete importJambesValidees[k]);
+  Object.keys(importJambesDeclarees).forEach((k) => delete importJambesDeclarees[k]);
   // Les liaisons aussi : elles désignent des lignes par leur NUMÉRO, lequel ne
   // veut plus rien dire dans le fichier suivant.
   Object.keys(importLignesLiees).forEach((k) => delete importLignesLiees[k]);
@@ -11843,10 +11844,18 @@ function statutLigneApercuHtml(ligne) {
   if (ligneRefuseeParStatut(ligne)) {
     return `<span class="badge-ecartee">refusée par la banque — non importée</span>`;
   }
+  // Une ligne déclarée comme un virement déjà connu n'a pas à être complète : elle ne
+  // sera pas importée.
+  if (ligneDeclareeVirementConnu(ligne)) {
+    return `<span class="badge-ecartee">${t("même virement — non importé")}</span>`;
+  }
   // L'erreur est calculée par le serveur, en français (cf. _erreur_ligne) : elle
   // se traduit donc à l'affichage, comme les messages d'API.
   if (ligne.erreur) {
     return `<span class="badge-aucun">${escapeHtml(traduireMessageServeur(ligne.erreur))}</span>`;
+  }
+  if (ligneDeclareeVirementConnu(ligne)) {
+    return `<span class="badge-ecartee">${t("même virement — non importé")}</span>`;
   }
   if (ligne.statut_import === "attente") {
     return '<span class="badge-partiel">en attente — importée en prévisionnel</span>';
@@ -12049,6 +12058,18 @@ const importLignesLiees = {};
  * fichier (même raison que les refus de rapprochement).
  */
 const importJambesValidees = {};
+
+/* LES LIGNES DÉCLARÉES À LA MAIN comme décrivant un virement déjà en base : numéro de
+ * ligne -> identifiant d'une opération de ce virement. Le geste est posé sur une
+ * RESSEMBLANCE (cf. creerLigneSuspectVirement), là où la veille a déjà trouvé le
+ * virement : « c'est le même » dit ce que l'app n'a pas su conclure seule (une
+ * date trop éloignée, des frais qui décalent le montant). Même effet qu'un « Oui » :
+ * la ligne n'est pas importée, et ses colonnes entrent au stock. */
+const importJambesDeclarees = {};
+
+function ligneDeclareeVirementConnu(ligne) {
+  return importJambesDeclarees[ligne.ligne] != null;
+}
 
 function jambeDeLigne(ligne) {
   if (!importApercu || ligne.jambe_manquante_id == null) return null;
@@ -12543,13 +12564,13 @@ function remplirApercuTbodyRessemblances(tbodyId, lignes) {
     tr.classList.add("import-doublon-nouvelle");
     body.appendChild(tr);
     (veilleDoublonsParLigne[ligne.ligne] || []).forEach((suspect) => {
-      body.appendChild(creerLigneSuspectVirement(suspect, nbColonnes));
+      body.appendChild(creerLigneSuspectVirement(suspect, nbColonnes, ligne));
     });
   });
 }
 
 // La rangée « ressemble à … » sous une ligne suspectée de doubler un virement.
-function creerLigneSuspectVirement(suspect, nbColonnes) {
+function creerLigneSuspectVirement(suspect, nbColonnes, ligne = null) {
   const quand =
     suspect.ecart_jours === 0 ? "le même jour" : `à ${suspect.ecart_jours} jour(s) d'écart`;
   const origine =
@@ -12570,8 +12591,28 @@ function creerLigneSuspectVirement(suspect, nbColonnes) {
       <strong>${escapeHtml(suspect.compte_source)}</strong> →
       <strong>${escapeHtml(suspect.compte_destination)}</strong>
       <span class="hint">(${origine}, ${quand})</span>
+      ${
+        // « C'EST LE MÊME VIREMENT » : seulement quand le suspect est une opération
+        // déjà en base — un doublon à l'intérieur du même fichier se règle en
+        // supprimant une des deux lignes.
+        ligne && suspect.source === "base" && suspect.operation_id != null
+          ? `<button type="button" class="primary" data-declarer-virement="${ligne.ligne}">${
+              ligneDeclareeVirementConnu(ligne)
+                ? t("Annuler la déclaration")
+                : t("C'est le même virement (ne pas importer)")
+            }</button>`
+          : ""
+      }
     </td>
   `;
+  const declarer = tr.querySelector("[data-declarer-virement]");
+  if (declarer) {
+    declarer.addEventListener("click", () => {
+      if (ligneDeclareeVirementConnu(ligne)) delete importJambesDeclarees[ligne.ligne];
+      else importJambesDeclarees[ligne.ligne] = suspect.operation_id;
+      renderImportApercu();
+    });
+  }
   return tr;
 }
 
@@ -12599,6 +12640,7 @@ function supprimerLigneApercu(ligne) {
   // La liaison part avec la ligne : la garder ferait rouvrir « liée à 2 » sur
   // une ligne que l'utilisateur vient de retirer de l'import.
   delete importLignesLiees[ligne.ligne];
+  delete importJambesDeclarees[ligne.ligne];
 }
 
 /**
@@ -14074,7 +14116,10 @@ function updateBtnImportConfirmerEtat() {
   // que les lignes de règlement : elles ne seront pas importées, exiger qu'elles
   // soient complètes appellerait des corrections sans objet.
   const lignesActives = importApercu.lignes.filter(
-    (l) => !infoTypeOperationLigne(l).reglement && !ligneRefuseeParStatut(l)
+    (l) =>
+      !infoTypeOperationLigne(l).reglement &&
+      !ligneRefuseeParStatut(l) &&
+      !ligneDeclareeVirementConnu(l)
   );
   if (importApercu.lignes.length === 0) {
     btn.disabled = true;
@@ -14228,6 +14273,18 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       rapprochements_refuses: [...importRapprochementsRefuses],
       // Une clé par ligne que l'écran a montrée comme reconnue (null = à choisir) :
       // c'est ce qui dit au serveur quelles questions ont été VUES.
+      // Les lignes déclarées à la main comme un virement déjà en base (cf.
+      // importJambesDeclarees) : retirées de celles que l'aperçu n'a plus.
+      jambes_declarees: Object.fromEntries(
+        importApercu.lignes
+          .filter((l) => ligneDeclareeVirementConnu(l))
+          .map((l) => [l.ligne, importJambesDeclarees[l.ligne]])
+      ),
+      // LES LIGNES ÉCARTÉES À LA MAIN (bouton « Supprimer ») entrent au stock sans
+      // opération : le prochain relevé qui les contient les reconnaît d'emblée. Les
+      // règlements non liés, ajoutés plus haut aux lignes supprimées le temps de ce
+      // confirm, n'en font PAS partie — ils n'ont pas été écartés.
+      lignes_ecartees: [...importLignesSupprimees],
       jambes_validees: Object.fromEntries(
         importApercu.lignes
           .filter((l) => jambeDeLigne(l) != null)

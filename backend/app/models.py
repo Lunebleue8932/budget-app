@@ -1299,6 +1299,10 @@ class LigneImportBrute(Base):
     # mais ses colonnes restent au stock — le même relevé est alors reconnu
     # comme doublon au prochain import, sans nouvelle question.
     #
+    # Même colonne pour une ligne ÉCARTÉE à la main de l'aperçu : `operation_id` est
+    # alors NULL, elle n'a désigné aucune opération, et n'entre au stock que pour être
+    # reconnue d'emblée au prochain relevé qui la contient.
+    #
     # Ce que ça change : annuler l'import qui a écrit un témoin ne supprime PAS
     # l'opération (elle vient d'un autre import), seulement le témoin
     # (cf. crud.get_operations_d_un_import, annuler_import). Supprimer
@@ -1306,18 +1310,14 @@ class LigneImportBrute(Base):
     operation_non_creee = Column(
         Boolean, nullable=False, default=False, server_default=sa_false()
     )
-    # LA JAMBE QU'AUCUN FICHIER N'A DÉCRITE (migration 0074). Un relevé ne
-    # décrit qu'UN compte : quand il importe un virement, l'application écrit
-    # aussi la jambe de l'autre compte, et c'est elle que le relevé de ce compte
-    # redécrira plus tard. Cette ligne la marque dans le stock, avec l'import
-    # qui l'a écrite (`import_historique_id`) — elle disparaît donc avec lui, ou
-    # avec l'opération (`operation_id` = la jambe, CASCADE).
-    #
-    # `donnees` est VIDE : aucune colonne brute n'existe pour cette jambe, et
-    # une comparaison de colonnes la prendrait pour le doublon de toute ligne.
-    # `crud.list_lignes_import_brutes` l'écarte donc du stock comparé, et elle
-    # ne sert qu'à la détection de jambe manquante (cf.
-    # services/import_bancaire.detecter_jambes_manquantes).
+    # LA JAMBE QU'AUCUN FICHIER N'A DÉCRITE (migration 0074) — MARQUE ABANDONNÉE. Une
+    # première version marquait ainsi, à l'import, la jambe du compte d'en face :
+    # elle ne reconnaissait alors que les virements écrits APRÈS elle, et ratait tous
+    # les autres (anciens, saisis à la main). La détection se fait désormais sur les
+    # virements eux-mêmes (cf. crud.jambes_candidates) et plus rien n'écrit cette
+    # colonne. Elle reste pour les bases qui portent déjà de ces marques, que
+    # `list_lignes_import_brutes` continue d'écarter des comparaisons de colonnes
+    # (leur `donnees` est vide : une comparaison sans colonne est toujours vraie).
     jambe_manquante = Column(
         Boolean, nullable=False, default=False, server_default=sa_false()
     )

@@ -1414,10 +1414,9 @@ class ImportLigne(BaseModel):
     # figurer dans ImportMappingOverrides.rapprochements_refuses pour qu'elle
     # crée une opération de plus, comme avant.
     previsionnelle_id: Optional[int] = None
-    # Id de la LigneImportBrute (marquée `jambe_manquante`) dont cette ligne
-    # semble être la description : une jambe de virement que l'application a
-    # écrite en important l'AUTRE compte, et qu'aucun fichier n'a encore décrite
-    # (cf. services/import_bancaire.detecter_jambes_manquantes). None dans le cas
+    # Id de la JAMBE de virement (une Operation) que cette ligne semble décrire : une
+    # jambe en base que le relevé de ce compte n'a pas encore décrite (cf.
+    # services/import_bancaire.detecter_jambes_manquantes). None dans le cas
     # ordinaire — et toujours None quand `doublon_de` est posé, qui est plus fort.
     #
     # La ligne adopte alors le type « virement » et le compte d'en face de la
@@ -1552,7 +1551,7 @@ class ImportPreview(BaseModel):
     # `previsionnelle_id` ci-dessus. Vide dans le cas ordinaire.
     previsionnelles: dict[str, PrevisionnelleRapprochee] = Field(default_factory=dict)
     # Les virements connus que des lignes semblent décrire, clé = str(id de la
-    # marque du stock), référencés par `jambe_manquante_id`. Vide dans le cas
+    # jambe), référencés par `jambe_manquante_id`. Vide dans le cas
     # ordinaire, et quand l'extension « Ressemblances » est éteinte.
     jambes_manquantes: dict[str, JambeManquanteLue] = Field(default_factory=dict)
     apercu_fichier: ApercuFichier = Field(default_factory=ApercuFichier)
@@ -1660,6 +1659,14 @@ class ImportMappingOverrides(BaseModel):
     # mappé entre-temps) ne doit pas bloquer un import dont personne n'a vu la
     # question.
     jambes_validees: dict[int, Optional[bool]] = Field(default_factory=dict)
+    # Les lignes que l'utilisateur a RETIRÉES de l'aperçu à la main : elles entrent au
+    # stock sans opération (cf. services/import_bancaire.confirmer), pour être
+    # reconnues d'emblée au prochain relevé qui les contient.
+    lignes_ecartees: list[int] = Field(default_factory=list)
+    # Les lignes DÉCLARÉES à la main comme décrivant un virement déjà en base :
+    # numéro de ligne -> identifiant d'une opération de ce virement. Même effet qu'un
+    # « Oui » : la ligne n'est pas importée, un témoin entre au stock.
+    jambes_declarees: dict[int, int] = Field(default_factory=dict)
 
 
 class VirementCandidatDoublon(BaseModel):
