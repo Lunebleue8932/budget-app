@@ -2601,6 +2601,12 @@ def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
         and TypeOperation(ligne.type_code) in TYPES_AVEC_CATEGORIE_LIBRE
     ):
         manques.append("catégorie non résolue")
+    # Une découpe corrigée à la main doit tomber juste : la somme des parts vaut le
+    # montant (cf. crud.erreur_decoupes, le même garde-fou que partout).
+    if ligne.decoupes:
+        erreur_decoupe = crud.erreur_decoupes(ligne.type_code, ligne.montant or 0.0, ligne.decoupes)
+        if erreur_decoupe:
+            manques.append(f"découpe : {erreur_decoupe}")
     if ligne.compte_id is None:
         manques.append("compte non résolu")
     # Une devise lue mais non rattachée décide de la monnaie de l'écriture :
@@ -3045,9 +3051,25 @@ def _retoucher_ligne(
     # classe (cf. _erreur_ligne) : l'aperçu la signale et en redemande
     # une, plutôt que d'importer en silence une ligne dont le classement
     # vient de disparaître.
-    if ligne.decoupes and (
+    #
+    # MAIS SEULEMENT UNE VRAIE RETOUCHE : le formulaire de l'aperçu renvoie TOUJOURS le
+    # montant (et le type), même quand on n'y a touché qu'au libellé — comparer à la
+    # valeur de la ligne évite qu'enregistrer n'importe quel champ d'une ligne
+    # découpée par une règle défasse sa découpe. La catégorie, elle, n'existe pas sur
+    # une ligne découpée (ses parts SONT son classement) : en désigner une est
+    # toujours un choix.
+    #
+    # DES PARTS FOURNIES PAR L'ÉCRAN l'emportent sur tout cela : c'est l'utilisateur
+    # qui a corrigé la découpe de la règle, ou qui l'a défaite (liste vide).
+    if "decoupes" in retouches:
+        retouches["decoupes"] = [schemas.DecoupeInput(**part) for part in retouches["decoupes"]]
+        if retouches["decoupes"]:
+            # Une ligne découpée n'a pas de catégorie propre : ses parts la classent.
+            retouches.pop("categorie_id", None)
+            ligne = ligne.model_copy(update={"categorie_id": None})
+    elif ligne.decoupes and (
         "categorie_id" in retouches
-        or "montant" in retouches
+        or ("montant" in retouches and abs(retouches["montant"] - (ligne.montant or 0)) > 0.005)
         or retouches.get("type_code", ligne.type_code) != ligne.type_code
     ):
         retouches["decoupes"] = []

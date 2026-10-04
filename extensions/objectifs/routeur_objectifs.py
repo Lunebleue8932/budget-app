@@ -296,12 +296,19 @@ def operations_de_l_objectif(
 
     LA SOMME DE `retenu` EST LA VALEUR DE LA CARTE (cf.
     service_objectifs.operations_contribuantes)."""
-    if vue not in ("actuelle", "moyennee"):
-        raise HTTPException(status_code=400, detail="Vue inconnue : « actuelle » ou « moyennee »")
+    if vue not in ("actuelle", "moyennee", "annee"):
+        raise HTTPException(
+            status_code=400, detail="Vue inconnue : « actuelle », « moyennee » ou « annee »"
+        )
     objectif = _objectif_ou_404(db, objectif_id)
     annee = annee if annee is not None else date_type.today().year
     mesure = service.mesurer(db, objectif, annee, mois)
     fenetres = service.fenetres_de_lecture(db, objectif, annee, mois)
+    # La vue « annee » n'existe que pour un objectif hebdomadaire lu depuis un mois :
+    # un choix gardé d'un autre niveau retombe sur la moyennée, qui est alors l'année
+    # (ou, à défaut, sur l'actuelle).
+    if vue not in fenetres:
+        vue = "moyennee"
     lignes = service.operations_contribuantes(db, objectif, fenetres[vue])
     return schemas_obj.ObjectifOperationsRead(
         mesure=schemas_obj.ObjectifMesureRead(**mesure),

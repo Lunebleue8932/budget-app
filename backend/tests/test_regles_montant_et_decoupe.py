@@ -439,6 +439,128 @@ def test_une_regle_decoupe_une_ligne_importee(db_session):
     ]
 
 
+_LIGNE_RESTAURANT = {
+    "date": date(2026, 7, 1),
+    "nature": "RESTAURANT LE PONT",
+    "montant": -120.0,
+    "compte": "CC Perso",
+}
+
+
+def _confirmer_avec(db, preset, contenu, override):
+    import_bancaire.confirmer(
+        db,
+        preset.id,
+        contenu,
+        overrides=schemas.ImportMappingOverrides(lignes={2: override}),
+        nom_fichier="releve.xlsx",
+    )
+    return db.query(crud.models.Operation).one()
+
+
+def test_changer_la_categorie_d_une_ligne_decoupee_par_une_regle_defait_la_decoupe(db_session):
+    """L'action de l'utilisateur prime sur la règle : choisir une catégorie, c'est dire
+    qu'on ne veut plus des parts."""
+    _, preset, contenu = _preparer_import(db_session, [_LIGNE_RESTAURANT])
+    _regle_de_decoupe(db_session)
+
+    operation = _confirmer_avec(
+        db_session,
+        preset,
+        contenu,
+        schemas.ImportLigneOverride(categorie_id=get_categorie_id(db_session, "Loisirs & sorties")),
+    )
+
+    assert not operation.est_decoupee
+    assert operation.categorie_id == get_categorie_id(db_session, "Loisirs & sorties")
+
+
+def test_enregistrer_un_autre_champ_ne_defait_pas_la_decoupe(db_session):
+    """Le formulaire de l'aperçu renvoie TOUJOURS le montant et le type, même quand on
+    n'a touché qu'au libellé : ce n'est pas une retouche du montant."""
+    _, preset, contenu = _preparer_import(db_session, [_LIGNE_RESTAURANT])
+    _regle_de_decoupe(db_session)
+
+    operation = _confirmer_avec(
+        db_session,
+        preset,
+        contenu,
+        schemas.ImportLigneOverride(nature="Resto corrigé", montant=120.0, type_code="classique"),
+    )
+
+    assert operation.nature == "Resto corrigé"
+    assert operation.est_decoupee
+    assert [part.montant for part in operation.decoupes] == [50.0, 70.0]
+
+
+def test_les_parts_corrigees_a_l_apercu_remplacent_celles_de_la_regle(db_session):
+    _, preset, contenu = _preparer_import(db_session, [_LIGNE_RESTAURANT])
+    _regle_de_decoupe(db_session)
+    alimentaire = get_categorie_id(db_session, "Alimentaire")
+    loisirs = get_categorie_id(db_session, "Loisirs & sorties")
+
+    operation = _confirmer_avec(
+        db_session,
+        preset,
+        contenu,
+        schemas.ImportLigneOverride(
+            decoupes=[
+                schemas.DecoupeInput(categorie_id=alimentaire, montant=80.0),
+                schemas.DecoupeInput(categorie_id=loisirs, montant=40.0),
+            ]
+        ),
+    )
+
+    assert operation.est_decoupee
+    assert {part.categorie_id: part.montant for part in operation.decoupes} == {
+        alimentaire: 80.0,
+        loisirs: 40.0,
+    }
+
+
+def test_des_parts_qui_ne_totalisent_pas_le_montant_bloquent_la_ligne(db_session):
+    _, preset, contenu = _preparer_import(db_session, [_LIGNE_RESTAURANT])
+    _regle_de_decoupe(db_session)
+
+    resultat = import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        contenu,
+        overrides=schemas.ImportMappingOverrides(
+            lignes={
+                2: schemas.ImportLigneOverride(
+                    decoupes=[
+                        schemas.DecoupeInput(categorie_id=get_categorie_id(db_session, "Alimentaire"), montant=10.0),
+                        schemas.DecoupeInput(categorie_id=get_categorie_id(db_session, "Loisirs & sorties"), montant=10.0),
+                    ]
+                )
+            }
+        ),
+        nom_fichier="releve.xlsx",
+    )
+
+    assert resultat.operations_creees == 0
+    assert "somme des parts" in resultat.lignes_ignorees[0].erreur
+    assert db_session.query(crud.models.Operation).count() == 0
+
+
+def test_une_liste_vide_defait_la_decoupe(db_session):
+    _, preset, contenu = _preparer_import(db_session, [_LIGNE_RESTAURANT])
+    _regle_de_decoupe(db_session)
+
+    operation = _confirmer_avec(
+        db_session,
+        preset,
+        contenu,
+        schemas.ImportLigneOverride(
+            decoupes=[], categorie_id=get_categorie_id(db_session, "Alimentaire")
+        ),
+    )
+
+    assert not operation.est_decoupee
+    assert operation.categorie_id == get_categorie_id(db_session, "Alimentaire")
+
+
 def test_la_decoupe_survit_a_la_confirmation(db_session):
     """Les parts doivent arriver jusqu'à la table, sinon l'aperçu promet un
     classement que l'import ne tient pas."""

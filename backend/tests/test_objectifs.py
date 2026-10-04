@@ -932,6 +932,62 @@ def test_un_objectif_hebdomadaire_a_aussi_ses_deux_vues_sur_une_annee(db_session
     )
 
 
+def test_un_objectif_hebdomadaire_lu_depuis_un_mois_a_une_troisieme_vue_sur_l_annee(
+    db_session, compte
+):
+    """LA VUE DES SEMAINES SE LIT AUSSI SUR L'ANNÉE : en plus de la semaine et de la
+    moyenne du mois, la moyenne de l'année — le cumul de l'année divisé par les
+    semaines ÉCOULÉES, comptées depuis le premier mois où il y a des dépenses (une
+    application commencée en mars ne dilue pas sa moyenne dans deux mois vides)."""
+    _depense(db_session, compte, 20.0, date(2026, 3, 5))
+    _depense(db_session, compte, 20.0, date(2026, 9, 1))
+    objectif = _objectif(db_session, cadence="semaine", cible=1.0)
+    mesure = service.mesurer(db_session, objectif, 2026, 9, date(2026, 9, 24))
+
+    annee = mesure["annee"]
+    assert annee["kind"] == "annee"
+    assert (annee["debut"], annee["fin"]) == ("2026-01-01", "2026-12-31")
+    assert annee["mode"] == "moyenne"
+    assert annee["valeur"] == 2
+    # Du 1er mars au 24 septembre : 208 jours, soit 208/7 semaines — pas depuis janvier.
+    semaines = ((date(2026, 9, 24) - date(2026, 3, 1)).days + 1) / 7
+    assert annee["unites"] == pytest.approx(semaines)
+    assert annee["valeur_cadence"] == pytest.approx(2 / semaines)
+    # Les deux autres vues sont inchangées.
+    assert mesure["moyennee"]["kind"] == "mois"
+    assert mesure["actuelle"]["kind"] == "semaine"
+
+
+def test_la_vue_annee_n_existe_que_pour_un_objectif_hebdomadaire_lu_depuis_un_mois(
+    db_session, compte
+):
+    hebdomadaire = _objectif(db_session, cadence="semaine")
+    mensuel = _objectif(db_session, cadence="mois", mesure="montant_total", nom="Mensuel")
+
+    assert service.mesurer(db_session, hebdomadaire, 2026, None, date(2026, 9, 24))["annee"] is None
+    assert service.mesurer(db_session, mensuel, 2026, 9, date(2026, 9, 24))["annee"] is None
+
+
+def test_la_page_d_un_objectif_suit_la_vue_annee(db_session, compte):
+    _depense(db_session, compte, 20.0, date(2026, 3, 5))
+    _depense(db_session, compte, 20.0, date(2026, 9, 1))
+    objectif = _objectif(db_session, cadence="semaine")
+
+    reponse = routeur.operations_de_l_objectif(
+        objectif.id, vue="annee", annee=2026, mois=9, db=db_session
+    )
+    assert reponse.vue == "annee"
+    assert reponse.fenetre.kind == "annee"
+    assert len(reponse.operations) == 2
+    # Un choix gardé d'un autre niveau (vue année du dashboard) retombe sur la
+    # moyennée, qui est alors l'année — plutôt que de refuser.
+    repli = routeur.operations_de_l_objectif(
+        objectif.id, vue="annee", annee=2026, mois=None, db=db_session
+    )
+    assert repli.vue == "moyennee"
+    assert repli.fenetre.kind == "annee"
+
+
 def test_un_objectif_mensuel_se_lit_sur_son_mois_puis_sur_l_annee(db_session, compte):
     """AU NIVEAU « MOIS » : le mois d'un côté, l'année de l'autre — c'est elle
     que l'objectif mensuel moyenne."""

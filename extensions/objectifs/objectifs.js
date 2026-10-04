@@ -165,7 +165,16 @@ function objVues() {
 }
 
 function objVue(objectifId) {
-  return objVues()[objectifId] === "moyennee" ? "moyennee" : "actuelle";
+  const choisie = objVues()[objectifId];
+  return choisie === "moyennee" || choisie === "annee" ? choisie : "actuelle";
+}
+
+/** La vue effectivement lisible pour cette mesure : la « moyenne de l'année » n'existe
+ *  que pour un objectif hebdomadaire lu depuis un mois ; un choix gardé d'un autre
+ *  niveau retombe sur la moyennée (qui est alors l'année) plutôt que sur rien. */
+function objVueDisponible(mesure, vue) {
+  if (mesure[vue]) return vue;
+  return vue === "annee" && mesure.moyennee ? "moyennee" : "actuelle";
 }
 
 function objChoisirVue(objectifId, vue) {
@@ -182,6 +191,7 @@ function objChoisirVue(objectifId, vue) {
  *  ses bornes (`fenetre`) — les champs de tête du serveur sont ceux du sélecteur
  *  du dashboard, pas de la vue. */
 function objMesureAffichee(mesure, vue = objVue(mesure.objectif_id)) {
+  vue = objVueDisponible(mesure, vue);
   const fenetre = mesure[vue];
   return {
     ...mesure,
@@ -225,6 +235,8 @@ function objFenetreContientAujourdhui(fenetre) {
  *  contient aujourd'hui, « affiché » quand le sélecteur du dashboard est sur une
  *  autre période. */
 function objLibelleVue(vue, fenetre) {
+  // La moyenne de l'ANNÉE d'un objectif hebdomadaire, à côté de celle du mois.
+  if (vue === "annee") return "Moyenne de l'année";
   if (vue === "actuelle") {
     const courante = objFenetreContientAujourdhui(fenetre);
     if (fenetre.kind === "semaine") {
@@ -357,13 +369,17 @@ function objDetailMesure(mesure) {
 
 /** La bascule posée sur chaque carte : l'actuelle, et la moyennée. */
 function objBasculeVues(mesure) {
-  const vue = objVue(mesure.objectif_id);
+  const vue = objVueDisponible(mesure, objVue(mesure.objectif_id));
   const bouton = (valeur) =>
     `<button type="button" class="${vue === valeur ? "actif" : ""}"
              data-obj-vue="${valeur}" data-obj-id="${mesure.objectif_id}">${t(
       objLibelleVue(valeur, mesure[valeur])
     )}</button>`;
-  return `<div class="obj-bascule">${bouton("actuelle")}${bouton("moyennee")}</div>`;
+  // Trois boutons pour un objectif hebdomadaire lu depuis un mois (la semaine, la
+  // moyenne du mois, la moyenne de l'année), deux partout ailleurs.
+  return `<div class="obj-bascule">${bouton("actuelle")}${bouton("moyennee")}${
+    mesure.annee ? bouton("annee") : ""
+  }</div>`;
 }
 
 function objCarteHtml(mesureServeur, options = {}) {

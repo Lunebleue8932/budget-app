@@ -1572,6 +1572,12 @@ class ImportLigneOverride(BaseModel):
     nature: Optional[str] = None
     montant: Optional[float] = None
     categorie_id: Optional[int] = None
+    # LA DÉCOUPE, corrigée dans l'aperçu : les parts (catégorie, montant) qui
+    # remplacent celles qu'une règle avait posées. `None` = n'y touche pas ; une
+    # liste VIDE = défaire la découpe (la ligne repasse à une catégorie unique). Une
+    # retouche qui désigne une catégorie sans parts défait de toute façon la découpe :
+    # l'action de l'utilisateur prime sur la règle (cf. _retoucher_ligne).
+    decoupes: Optional[list[DecoupeInput]] = None
     compte_id: Optional[int] = None
     compte_id_autre: Optional[int] = None
     type_code: Optional[str] = None

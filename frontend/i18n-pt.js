@@ -2085,6 +2085,7 @@ TRADUCTIONS.pt = {
   "Ajouter un taux de change": "Adicionar uma taxa de câmbio",
   "Annuler la déclaration": "Desfazer a declaração",
   "C'est le même virement (ne pas importer)": "É a mesma transferência (não importar)",
+  "La somme des parts doit valoir le montant de l'opération.": "A soma das partes deve ser igual ao valor da transação.",
   "Active":
     "Ativa",
   "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

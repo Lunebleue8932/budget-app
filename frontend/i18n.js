@@ -2692,6 +2692,7 @@ const TRADUCTIONS = {
     "Ajouter un taux de change": "Add an exchange rate",
     "Annuler la déclaration": "Undo the declaration",
     "C'est le même virement (ne pas importer)": "It is the same transfer (do not import)",
+    "La somme des parts doit valoir le montant de l'opération.": "The parts must add up to the transaction amount.",
     // ----- Une monnaie éteinte sur un compte (migration 0053) -----
     "Active": "Active",
     "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

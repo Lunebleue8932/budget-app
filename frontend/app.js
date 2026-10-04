@@ -13061,6 +13061,18 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   let selectMonnaieFrais = null;
 
   let selectCategorie = null;
+  // LA DÉCOUPE POSÉE PAR UNE RÈGLE s'affiche, et se corrige, comme dans le formulaire
+  // d'une opération : des parts (catégorie, montant) et ce qu'il reste à placer.
+  // `aDecoupeInitiale` dit que la ligne arrive découpée ; décocher la case la défait
+  // et rend la main à la catégorie unique. Rien n'est réécrit tant qu'on n'enregistre
+  // pas : on travaille sur une copie des parts.
+  const aDecoupeInitiale = (ligne.decoupes || []).length > 0;
+  const decoupeEdition = (ligne.decoupes || []).map((part) => ({
+    categorie_id: part.categorie_id,
+    montant: part.montant,
+  }));
+  let caseDecoupe = null;
+  let blocDecoupe = null;
   let compteChamp = null;
   let compteChampEmetteur = null;
   let compteChampRecepteur = null;
@@ -13493,6 +13505,107 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   // selon le type actuellement sélectionné : appelé une fois à l'ouverture, puis
   // à chaque changement du sélecteur de type. Pas de champ Statut : une ligne
   // de relevé bancaire est déjà passée en banque, l'opération est toujours réelle.
+  /**
+   * Le menu de découpage d'une ligne découpée par une règle : la case, les parts, le
+   * compteur. Mêmes classes que celui du formulaire d'opération (`.decoupe-part`…),
+   * pour qu'on y reconnaisse le même geste. `labelCategorie` est le menu de catégorie
+   * unique, masqué tant que la découpe est cochée — les deux répondent à la même
+   * question et s'excluent.
+   */
+  function construireEditeurDecoupeApercu(labelCategorie) {
+    const conteneur = document.createElement("div");
+
+    const labelCase = document.createElement("label");
+    labelCase.className = "decoupe-case";
+    caseDecoupe = document.createElement("input");
+    caseDecoupe.type = "checkbox";
+    caseDecoupe.checked = true;
+    labelCase.appendChild(caseDecoupe);
+    labelCase.appendChild(document.createTextNode(" " + t("Découper entre plusieurs catégories")));
+    conteneur.appendChild(labelCase);
+
+    blocDecoupe = document.createElement("div");
+    const liste = document.createElement("div");
+    const total = document.createElement("div");
+    total.className = "decoupe-total";
+    const ajouter = document.createElement("button");
+    ajouter.type = "button";
+    ajouter.textContent = "+ " + t("Ajouter une part");
+    blocDecoupe.append(liste, total, ajouter);
+    conteneur.appendChild(blocDecoupe);
+
+    const majTotal = () => {
+      const reparti = decoupeEdition.reduce((somme, part) => somme + (part.montant || 0), 0);
+      const montant = parseFloat(inputMontant.value) || 0;
+      const reste = Math.round((montant - reparti) * 100) / 100;
+      const monnaie = ligne.monnaie_operation_id ?? ligne.monnaie_id ?? monnaieParDefautLigne(ligne);
+      total.textContent =
+        reste === 0
+          ? `${t("Réparti")} : ${formatMontant(reparti, monnaie)}`
+          : `${t("Réparti")} : ${formatMontant(reparti, monnaie)} — ${t("reste à placer")} : ${formatMontant(reste, monnaie)}`;
+      total.classList.toggle("erreur", reste !== 0);
+    };
+
+    const rendreParts = () => {
+      liste.innerHTML = "";
+      decoupeEdition.forEach((part, index) => {
+        const rangee = document.createElement("div");
+        rangee.className = "decoupe-part";
+        const choix = document.createElement("select");
+        choix.className = "decoupe-categorie";
+        categoriesProposables(part.categorie_id).forEach((c) => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.nom;
+          choix.appendChild(opt);
+        });
+        choix.value = String(part.categorie_id);
+        choix.addEventListener("change", () => {
+          part.categorie_id = Number(choix.value);
+        });
+        const montant = document.createElement("input");
+        montant.type = "number";
+        montant.step = "0.01";
+        montant.min = "0";
+        montant.className = "decoupe-montant";
+        montant.value = part.montant != null ? part.montant : "";
+        montant.addEventListener("input", () => {
+          part.montant = parseFloat(montant.value) || 0;
+          majTotal();
+        });
+        const retirer = document.createElement("button");
+        retirer.type = "button";
+        retirer.className = "decoupe-retirer danger";
+        retirer.innerHTML = "&times;";
+        retirer.title = t("Retirer cette part");
+        retirer.addEventListener("click", () => {
+          decoupeEdition.splice(index, 1);
+          rendreParts();
+        });
+        rangee.append(choix, montant, retirer);
+        liste.appendChild(rangee);
+      });
+      majTotal();
+    };
+
+    ajouter.addEventListener("click", () => {
+      const premiere = categoriesProposables(null)[0];
+      decoupeEdition.push({ categorie_id: premiere ? premiere.id : null, montant: 0 });
+      rendreParts();
+    });
+    inputMontant.addEventListener("input", majTotal);
+
+    const majVisibilite = () => {
+      const active = caseDecoupe.checked;
+      labelCategorie.style.display = active ? "none" : "";
+      blocDecoupe.style.display = active ? "" : "none";
+    };
+    caseDecoupe.addEventListener("change", majVisibilite);
+    rendreParts();
+    majVisibilite();
+    return conteneur;
+  }
+
   function rerenderChampsSelonType() {
     const info = infoChoisi();
 
@@ -13530,8 +13643,16 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       }
       label.appendChild(selectCategorie);
       categorieWrap.appendChild(label);
+      if (info.cle === "classique" && aDecoupeInitiale) {
+        categorieWrap.appendChild(construireEditeurDecoupeApercu(label));
+      } else {
+        caseDecoupe = null;
+        blocDecoupe = null;
+      }
     } else {
       selectCategorie = null;
+      caseDecoupe = null;
+      blocDecoupe = null;
     }
 
     compteWrap.innerHTML = "";
@@ -13897,7 +14018,38 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     // Les quatre types sans catégorie libre n'en portent aucune : le serveur
     // l'efface de toute façon (cf. _normaliser_categorie_selon_type).
     let categorieId = null;
-    if (info.categorieLibre) {
+    // LA DÉCOUPE : cochée, ses parts remplacent celles de la règle et la catégorie
+    // unique disparaît ; décochée, la ligne n'est plus découpée (liste vide envoyée
+    // explicitement — `undefined` voudrait dire « n'y touche pas »). L'action de
+    // l'utilisateur prime sur la règle.
+    const decoupeActive = !!(caseDecoupe && caseDecoupe.checked && info.cle === "classique");
+    let decoupesSaisies;
+    if (decoupeActive) {
+      const parts = decoupeEdition.filter((part) => part.categorie_id && part.montant > 0);
+      if (parts.length < 2) {
+        showMessage(t("Une découpe compte au moins deux parts remplies."), "error");
+        return;
+      }
+      if (new Set(parts.map((part) => part.categorie_id)).size !== parts.length) {
+        showMessage(t("Une même catégorie ne peut pas apparaître deux fois dans la découpe."), "error");
+        return;
+      }
+      const reparti = parts.reduce((somme, part) => somme + part.montant, 0);
+      if (!ligneAvecFrais && Math.abs(reparti - montantSaisi) > 0.005) {
+        showMessage(
+          t("La somme des parts doit valoir le montant de l'opération."),
+          "error"
+        );
+        return;
+      }
+      decoupesSaisies = parts.map((part) => ({
+        categorie_id: part.categorie_id,
+        montant: part.montant,
+      }));
+    } else if (aDecoupeInitiale) {
+      decoupesSaisies = [];
+    }
+    if (info.categorieLibre && !decoupeActive) {
       if (!selectCategorie.value) {
         showMessage(t("Choisis une catégorie."), "error");
         return;
@@ -13964,6 +14116,9 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
           : ligne.monnaie_frais_id ?? null);
     }
     const typeAvant = typeOperationLigne(ligne);
+    // Seulement quand l'écran a quelque chose à dire des parts : `undefined` ferait
+    // écrire « decoupes: undefined » sur la ligne par Object.assign.
+    if (decoupesSaisies !== undefined) override.decoupes = decoupesSaisies;
     importLigneOverrides[ligne.ligne] = override;
     Object.assign(ligne, override);
 
