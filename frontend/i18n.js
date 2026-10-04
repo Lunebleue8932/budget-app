@@ -2615,6 +2615,7 @@ const TRADUCTIONS = {
     "ann\u00e9e {annee}": "year {annee}",
     "du {debut} au {fin} {mois}": "{mois} {debut} to {fin}",
     "moyenne des {n} semaines de {mois}": "average of the {n} weeks of {mois}",
+    "moyenne des {n} semaines de {annee}": "average of the {n} weeks of {annee}",
     // ----- Les cartes de flux, sous le sélecteur de période -----
     "Total Entr\u00e9es": "Total money in",
     "Total D\u00e9penses": "Total spending",

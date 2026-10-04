@@ -176,6 +176,24 @@ def get_depenses_semaines(
     return soldes.get_depenses_par_semaine(db, annee, mois, monnaie_id)
 
 
+@router.get("/semaines/annee", response_model=schemas.MoyenneAnnuelleDepensesRead)
+def get_moyenne_annee(
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """La moyenne hebdomadaire des dépenses d'une ANNÉE (cf.
+    soldes.get_depenses_moyenne_annee).
+
+    UNE ROUTE À PART de `/dashboard/semaines` : elle parcourt les douze mois, et
+    l'imposer à chaque changement de mois aurait ralenti tout le dépliant pour une
+    moyenne qu'on ne regarde qu'à la demande. L'écran la lit au clic sur l'onglet.
+    Même monnaie obligatoire : l'application n'en additionne jamais deux."""
+    annee = annee if annee is not None else date.today().year
+    crud.generer_occurrences_recurrentes(db)
+    return soldes.get_depenses_moyenne_annee(db, annee, monnaie_id)
+
+
 @router.get("", response_model=schemas.DashboardRead)
 def get_dashboard(
     annee: Optional[int] = None,

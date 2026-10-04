@@ -866,6 +866,18 @@ class DepensesSemainesRead(BaseModel):
     semaines_moyennees: int = 0
 
 
+class MoyenneAnnuelleDepensesRead(BaseModel):
+    """La moyenne hebdomadaire d'une ANNÉE (cf. soldes.get_depenses_moyenne_annee), pour
+    l'onglet « Moyenne de l'année » du dépliant des semaines. Même forme que la
+    moyenne du mois dans `DepensesSemainesRead`, sans les semaines elles-mêmes."""
+
+    annee: int
+    moyenne: list[DepenseParCategorie] = Field(default_factory=list)
+    budget_total_moyen: float = 0.0
+    # Sur combien de semaines elle porte : l'écran l'écrit dans le titre du graphe.
+    semaines_moyennees: int = 0
+
+
 class BudgetTotalUpdate(BaseModel):
     """Le budget de tout un mois, dans une monnaie. Zéro RETIRE le budget : la
     vue « budget » du camembert disparaît alors, plutôt que de rapporter des

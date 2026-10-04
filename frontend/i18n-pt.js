@@ -2022,6 +2022,8 @@ TRADUCTIONS.pt = {
     "de {debut} a {fin} {mois}",
   "moyenne des {n} semaines de {mois}":
     "média das {n} semanas de {mois}",
+  "moyenne des {n} semaines de {annee}":
+    "média das {n} semanas de {annee}",
   "on te doit":
     "devem a você",
   "tu dois":

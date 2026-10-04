@@ -353,3 +353,78 @@ def test_la_moyenne_d_un_mois_passe_reste_celle_de_toutes_ses_semaines(db_sessio
 
     assert resultat["semaines_moyennees"] == 5
     assert _total(resultat["moyenne"]) == pytest.approx(150.0 / 5)
+
+
+# ---------- La moyenne hebdomadaire de l'ANNÉE ----------
+
+
+def _moyenne_annee(db, aujourdhui, annee=2026):
+    return soldes.get_depenses_moyenne_annee(db, annee, get_monnaie_id(db), aujourdhui)
+
+
+def test_la_moyenne_de_l_annee_est_celle_des_semaines_revolues_depuis_la_premiere_depense(
+    db_session,
+):
+    """Comme pour un mois : la somme des semaines divisée par leur nombre. On commence
+    à la première semaine où il y a une dépense, et seules les semaines révolues
+    comptent — les mois à venir ne diluent pas la moyenne."""
+    compte = creer_compte(db_session, "Courant")
+    # Janvier 2026 : 1er jeudi. Semaines : 1-4, 5-11, 12-18, 19-25, 26-31.
+    _depense(db_session, compte, "Courses", 60.0, 6)
+    _depense(db_session, compte, "Courses", 40.0, 14)
+    # Février : 2026-02-01 est un dimanche : 1, 2-8, 9-15, 16-22, 23-28.
+    aujourdhui = date(2026, 2, 12)
+
+    moyenne = _moyenne_annee(db_session, aujourdhui)
+
+    # Semaines révolues depuis la première dépense (5-11 janvier) : 5-11, 12-18,
+    # 19-25, 26-31 janvier, puis 1, 2-8 février = 6 semaines (9-15 février vit encore).
+    assert moyenne["semaines_moyennees"] == 6
+    ligne = next(l for l in moyenne["moyenne"] if l["categorie"] == "Alimentaire")
+    assert ligne["total_reel"] == pytest.approx(100.0 / 6)
+    assert ligne["top_depenses"] == []
+
+
+def test_la_moyenne_de_l_annee_ignore_les_semaines_d_avant_la_premiere_depense(db_session):
+    """Une application commencée en septembre n'a pas huit mois vides à moyenner."""
+    compte = creer_compte(db_session, "Courant")
+    _depense(db_session, compte, "Courses", 30.0, 1, date=date(2026, 9, 8))
+
+    moyenne = _moyenne_annee(db_session, date(2026, 9, 30))
+
+    # Du 8 septembre (semaine 7-13) au 27 : 7-13, 14-20, 21-27 = 3 semaines révolues.
+    assert moyenne["semaines_moyennees"] == 3
+    assert next(l for l in moyenne["moyenne"] if l["categorie"] == "Alimentaire")[
+        "total_reel"
+    ] == pytest.approx(10.0)
+
+
+def test_une_annee_sans_depense_a_une_moyenne_vide(db_session):
+    creer_compte(db_session, "Courant")
+
+    moyenne = _moyenne_annee(db_session, date(2026, 6, 30))
+
+    assert moyenne["semaines_moyennees"] == 0
+    assert moyenne["moyenne"] == []
+    assert moyenne["budget_total_moyen"] == 0
+
+
+def test_la_moyenne_de_l_annee_est_la_moyenne_des_barres_des_semaines(db_session):
+    """Cohérence avec la moyenne du mois : sur une année dont tout le monde est dans
+    un seul mois révolu, les deux moyennes sont les mêmes nombres."""
+    compte = creer_compte(db_session, "Courant")
+    _depense(db_session, compte, "Courses", 60.0, 6)
+    _depense(db_session, compte, "Courses", 90.0, 20)
+
+    du_mois = soldes.get_depenses_par_semaine(db_session, 2026, 1, get_monnaie_id(db_session))
+    # Une date où janvier est révolu et où rien n'a été dépensé depuis : la moyenne de
+    # l'année porte sur les semaines de janvier à partir de la première dépense.
+    de_l_annee = _moyenne_annee(db_session, date(2026, 2, 1))
+
+    semaines_depuis = [s for s in du_mois["semaines"] if s["jour_fin"] >= 6]
+    attendu = sum(
+        _total(s["depenses"]) for s in semaines_depuis
+    ) / len(semaines_depuis)
+    ligne = next(l for l in de_l_annee["moyenne"] if l["categorie"] == "Alimentaire")
+    assert de_l_annee["semaines_moyennees"] == len(semaines_depuis)
+    assert ligne["total_previsionnel"] == pytest.approx(attendu)

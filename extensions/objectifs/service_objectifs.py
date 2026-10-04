@@ -485,16 +485,8 @@ def premier_jour_de_l_historique(
     return date_type(premiere.year, premiere.month, 1)
 
 
-def _fenetre(
-    kind: str, debut: date_type, fin: date_type, annee=None, mois=None, depuis=None
-) -> dict:
-    """`depuis` : le jour d'où l'on COMPTE les unités, quand il diffère du début de la
-    fenêtre (cf. fenetres_de_lecture, la moyenne de l'année). Les opérations, elles,
-    se lisent toujours sur toute la fenêtre."""
-    return {
-        "kind": kind, "debut": debut, "fin": fin, "annee": annee, "mois": mois,
-        "depuis": depuis,
-    }
+def _fenetre(kind: str, debut: date_type, fin: date_type, annee=None, mois=None) -> dict:
+    return {"kind": kind, "debut": debut, "fin": fin, "annee": annee, "mois": mois}
 
 
 def fenetres_de_lecture(
@@ -514,7 +506,6 @@ def fenetres_de_lecture(
     aujourdhui = aujourdhui or date_type.today()
     cadence = _cadence_de_lecture(objectif)
     debut_p, fin_p = bornes_periode(annee, mois)
-    debut_a, fin_a = bornes_periode(annee, None)
 
     if cadence == CadenceObjectif.semaine.value:
         lundi, dimanche = semaine_de_lecture(annee, mois, aujourdhui)
@@ -524,21 +515,7 @@ def fenetres_de_lecture(
             if mois is not None
             else _fenetre("annee", debut_p, fin_p, annee, None)
         )
-        fenetres = {"actuelle": actuelle, "moyennee": moyennee}
-        if mois is not None:
-            # LA VUE DES SEMAINES PEUT AUSSI SE LIRE SUR L'ANNÉE : un objectif
-            # hebdomadaire, vu depuis un mois, se moyenne sur ce mois — ou, d'un
-            # cran plus large, sur l'année entière (une troisième vue, `annee`).
-            # Elle se calcule comme celle du mois : le cumul de l'année divisé par
-            # les semaines ÉCOULÉES. Mais l'année n'est pas toujours « en service »
-            # depuis le 1er janvier : on ne compte les semaines qu'à partir du
-            # premier mois où il y a des dépenses, sans quoi une application commencée
-            # en août afficherait une moyenne annuelle écrasée par sept mois vides.
-            premier = premier_jour_de_l_historique(db, objectif.monnaie_id, aujourdhui)
-            fenetres["annee"] = _fenetre(
-                "annee", debut_a, fin_a, annee, None, depuis=max(debut_a, premier)
-            )
-        return fenetres
+        return {"actuelle": actuelle, "moyennee": moyennee}
 
     # Cadence « mois ». Sur la vue année, le mois de lecture est celui
     # d'aujourd'hui si l'année le contient, sinon son dernier (ou son premier).
@@ -624,12 +601,9 @@ def mesurer_fenetre(
     l'a écrite. Une cible proratisée aurait donné la même inégalité au même
     moment, pour un chiffre de plus à comprendre à l'écran."""
     cadence = _cadence_de_lecture(objectif)
-    # On compte les unités depuis `depuis` quand la fenêtre en pose un (la moyenne de
-    # l'année d'un objectif hebdomadaire), depuis son début sinon.
-    debut_unites = fenetre.get("depuis") or fenetre["debut"]
-    unites = unites_fenetre(cadence, debut_unites, fenetre["fin"], aujourdhui)
+    unites = unites_fenetre(cadence, fenetre["debut"], fenetre["fin"], aujourdhui)
     unites_periode = unites_fenetre(
-        cadence, debut_unites, fenetre["fin"], aujourdhui, ecoulees=False
+        cadence, fenetre["debut"], fenetre["fin"], aujourdhui, ecoulees=False
     )
     semantique = _semantique(objectif, fenetre)
     echantillon = 0
@@ -731,13 +705,6 @@ def mesurer(
         "filtres": list(objectif.filtres or []),
         "actuelle": mesurer_fenetre(db, objectif, fenetres["actuelle"], aujourdhui),
         "moyennee": mesurer_fenetre(db, objectif, fenetres["moyennee"], aujourdhui),
-        # Présente pour un objectif HEBDOMADAIRE lu sur un mois seulement : la moyenne
-        # de l'année, à côté de celle du mois.
-        "annee": (
-            mesurer_fenetre(db, objectif, fenetres["annee"], aujourdhui)
-            if "annee" in fenetres
-            else None
-        ),
     }
 
 

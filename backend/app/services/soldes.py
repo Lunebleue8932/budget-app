@@ -1104,6 +1104,107 @@ def _semaines_revolues(
     return semaines
 
 
+def _semaines_calculees(db: Session, annee: int, mois: int, monnaie_id: int) -> list[dict]:
+    """Les semaines d'un mois, chacune avec ses dépenses par catégorie et son budget."""
+    return [
+        {
+            "numero": rang,
+            "jour_debut": debut,
+            "jour_fin": fin,
+            "budget_total": get_budget_total_periode(
+                db, annee, mois, monnaie_id, semaine=rang
+            ),
+            "depenses": get_depenses_par_categorie(
+                db, annee, mois, monnaie_id, semaine=rang
+            ),
+        }
+        for rang, (debut, fin) in enumerate(semaines_du_mois(annee, mois), start=1)
+    ]
+
+
+def _moyenner_semaines(moyennees: list[dict]) -> tuple[list[dict], float]:
+    """La MOYENNE de ces semaines, catégorie par catégorie : leur somme divisée par leur
+    nombre, et le budget moyen qui va avec. Rien n'est relu en base : c'est ce qui
+    garantit que la barre « Moyenne » est bien la moyenne des barres montrées."""
+    nombre = len(moyennees) or 1
+    moyenne: dict[str, dict] = {}
+    for semaine in moyennees:
+        for ligne in semaine["depenses"]:
+            cumul = moyenne.setdefault(
+                ligne["categorie"],
+                {
+                    "categorie": ligne["categorie"],
+                    "total_reel": 0.0,
+                    "total_previsionnel": 0.0,
+                    "budget_alloue": 0.0,
+                    "couleur_index": ligne["couleur_index"],
+                    # L'OBJECTIF SUIT LA CATÉGORIE, pas la période : il ne se
+                    # moyenne pas, il se recopie. L'oublier ici faisait
+                    # disparaître toutes les cibles de la vue « Moyenne », sans
+                    # erreur ni trace — la valeur par défaut du schéma, 0, se
+                    # lit exactement comme « aucun objectif posé ».
+                    "objectif_pourcentage": ligne.get("objectif_pourcentage", 0.0),
+                    # Le détail par libellé n'a pas de sens sur une moyenne : une
+                    # dépense moyenne n'a pas eu lieu. L'infobulle dira
+                    # simplement qu'il n'y a rien à détailler.
+                    "top_depenses": [],
+                },
+            )
+            for champ in ("total_reel", "total_previsionnel", "budget_alloue"):
+                cumul[champ] += ligne[champ] / nombre
+    return list(moyenne.values()), sum(s["budget_total"] for s in moyennees) / nombre
+
+
+def _semaine_depensiere(semaine: dict) -> bool:
+    """Cette semaine porte-t-elle une dépense, réelle ou prévue ?"""
+    return any(
+        ligne["total_reel"] > 0 or ligne["total_previsionnel"] > ligne["total_reel"]
+        for ligne in semaine["depenses"]
+    )
+
+
+def get_depenses_moyenne_annee(
+    db: Session, annee: int, monnaie_id: int, aujourdhui: Optional[date_type] = None
+) -> dict:
+    """LA MOYENNE HEBDOMADAIRE D'UNE ANNÉE, à côté de celle du mois dans le dépliant des
+    semaines : combien une semaine ordinaire a coûté, par catégorie, sur l'année.
+
+    ELLE SE CALCULE COMME CELLE D'UN MOIS (cf. get_depenses_par_semaine) : la somme des
+    semaines divisée par leur nombre, semaines coupées aux bords du mois comprises —
+    la seule moyenne qui se vérifie à l'œil sur les barres. Deux différences, qui
+    tiennent à l'échelle :
+
+      - SEULES LES SEMAINES RÉVOLUES COMPTENT, sans le repli du mois (« à défaut, la
+        semaine en cours ») : une année a toujours de quoi se passer d'une semaine, et
+        les mois à venir n'ont rien à dire — ils ne diluent pas la moyenne ;
+      - ON COMMENCE À LA PREMIÈRE SEMAINE OÙ IL Y A UNE DÉPENSE. Une application
+        commencée en août ne doit pas voir sa moyenne annuelle écrasée par sept mois
+        vides : la moyenne porte sur les semaines sur lesquelles on a des dépenses à
+        compter, et non sur tout janvier.
+
+    Une année sans aucune dépense rend une moyenne vide, sur zéro semaine."""
+    aujourdhui = aujourdhui or date_type.today()
+    revolues: list[dict] = []
+    for mois in range(1, 13):
+        if date_type(annee, mois, 1) > aujourdhui:
+            break
+        revolues += [
+            s
+            for s in _semaines_calculees(db, annee, mois, monnaie_id)
+            if date_type(annee, mois, s["jour_fin"]) < aujourdhui
+        ]
+    # On écarte les semaines d'avant la première dépense.
+    premiere = next((i for i, s in enumerate(revolues) if _semaine_depensiere(s)), None)
+    revolues = [] if premiere is None else revolues[premiere:]
+    moyenne, budget_total_moyen = _moyenner_semaines(revolues)
+    return {
+        "annee": annee,
+        "moyenne": moyenne,
+        "budget_total_moyen": budget_total_moyen,
+        "semaines_moyennees": len(revolues),
+    }
+
+
 def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int):
     """L'histogramme du mois DÉPLIÉ : une liste de dépenses par catégorie pour
     chaque semaine, plus la moyenne de ces semaines.
@@ -1144,63 +1245,24 @@ def get_depenses_par_semaine(db: Session, annee: int, mois: int, monnaie_id: int
     PASSÉ n'est pas concerné — toutes ses semaines sont révolues — et un mois à
     venir garde les siennes, qui sont de toute façon toutes à zéro.
     """
-    bornes = semaines_du_mois(annee, mois)
-    semaines = [
-        {
-            "numero": rang,
-            "jour_debut": debut,
-            "jour_fin": fin,
-            "budget_total": get_budget_total_periode(
-                db, annee, mois, monnaie_id, semaine=rang
-            ),
-            "depenses": get_depenses_par_categorie(
-                db, annee, mois, monnaie_id, semaine=rang
-            ),
-        }
-        for rang, (debut, fin) in enumerate(bornes, start=1)
-    ]
+    semaines = _semaines_calculees(db, annee, mois, monnaie_id)
 
     # La moyenne, catégorie par catégorie. On repart des lignes déjà calculées
     # plutôt que d'interroger la base une fois de plus : c'est ce qui garantit
     # que la barre « Moyenne » est bien la moyenne des barres montrées, et non
     # un second calcul qui pourrait en différer.
     moyennees = _semaines_revolues(annee, mois, semaines)
-    nombre = len(moyennees) or 1
-    moyenne: dict[str, dict] = {}
-    for semaine in moyennees:
-        for ligne in semaine["depenses"]:
-            cumul = moyenne.setdefault(
-                ligne["categorie"],
-                {
-                    "categorie": ligne["categorie"],
-                    "total_reel": 0.0,
-                    "total_previsionnel": 0.0,
-                    "budget_alloue": 0.0,
-                    "couleur_index": ligne["couleur_index"],
-                    # L'OBJECTIF SUIT LA CATÉGORIE, pas la période : il ne se
-                    # moyenne pas, il se recopie. L'oublier ici faisait
-                    # disparaître toutes les cibles de la vue « Moyenne », sans
-                    # erreur ni trace — la valeur par défaut du schéma, 0, se
-                    # lit exactement comme « aucun objectif posé ».
-                    "objectif_pourcentage": ligne.get("objectif_pourcentage", 0.0),
-                    # Le détail par libellé n'a pas de sens sur une moyenne : une
-                    # dépense moyenne n'a pas eu lieu. L'infobulle dira
-                    # simplement qu'il n'y a rien à détailler.
-                    "top_depenses": [],
-                },
-            )
-            for champ in ("total_reel", "total_previsionnel", "budget_alloue"):
-                cumul[champ] += ligne[champ] / nombre
+    moyenne, budget_total_moyen = _moyenner_semaines(moyennees)
 
     return {
         "annee": annee,
         "mois": mois,
         "semaines": semaines,
-        "moyenne": list(moyenne.values()),
+        "moyenne": moyenne,
         # La moyenne des budgets des semaines MOYENNÉES, et non le budget du
         # mois divisé par quatre : c'est la moyenne des BARRES prises en compte
         # qui doit s'accorder à la barre « Moyenne », découpe des jours comprise.
-        "budget_total_moyen": sum(s["budget_total"] for s in moyennees) / nombre,
+        "budget_total_moyen": budget_total_moyen,
         # SUR COMBIEN DE SEMAINES ELLE PORTE. L'écran l'écrit dans le titre du
         # graphe : une moyenne dont on ne sait pas ce qu'elle recouvre ne se
         # compare à rien, et sur un mois en cours ce nombre n'est plus celui des

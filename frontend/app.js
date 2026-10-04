@@ -3766,6 +3766,8 @@ function bornesPeriodeHistogramme(annee, mois) {
     return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
   }
   const semaine = semaineChoisie();
+  // La moyenne de l'année résume toute l'année, pas un mois.
+  if (semaine && semaine.annuelle) return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
   if (semaine && !semaine.moyenne) {
     return {
       debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
@@ -3971,11 +3973,20 @@ let dashboardDepensesActuels = [];
 // d'une semaine à l'autre, ou vers la moyenne, ne coûte pas un aller-retour.
 let dashboardSemainesDonnees = null;
 
+// LA MOYENNE DE L'ANNÉE, lue à la demande (cf. chargerMoyenneAnnee) : elle parcourt
+// les douze mois, et la calculer à chaque changement de mois aurait ralenti tout le
+// dépliant. Gardée avec l'année et la monnaie qu'elle décrit, pour qu'un changement
+// de l'une ou de l'autre la rende périmée. `chargement` évite deux lectures
+// simultanées quand le rendu se rejoue pendant l'attente.
+let dashboardMoyenneAnnee = { annee: null, monnaieId: null, donnees: null, chargement: false };
+const CHOIX_MOYENNE_ANNEE = "moyenne-annee";
+
 /** La semaine regardée, ou null quand c'est le mois entier. */
 function semaineChoisie() {
   const choix = state.dashboardSemaines.choix;
   if (choix == null || !dashboardSemainesDonnees) return null;
   if (choix === "moyenne") return { moyenne: true };
+  if (choix === CHOIX_MOYENNE_ANNEE) return { moyenne: true, annuelle: true };
   return (dashboardSemainesDonnees.semaines || []).find((s) => s.numero === choix) || null;
 }
 
@@ -3990,12 +4001,17 @@ function semaineChoisie() {
  */
 function contexteGraphesDashboard(depensesDuMois) {
   const semaine = semaineChoisie();
+  // La moyenne de l'ANNÉE vient de sa propre lecture ; tant qu'elle n'est pas arrivée,
+  // le graphe est vide plutôt que de montrer la moyenne du mois sous un autre titre.
+  const moyenneAnnee = dashboardMoyenneAnnee.donnees;
   const depenses =
     semaine === null
       ? depensesDuMois
-      : semaine.moyenne
-        ? dashboardSemainesDonnees.moyenne || []
-        : semaine.depenses || [];
+      : semaine.annuelle
+        ? moyenneAnnee?.moyenne || []
+        : semaine.moyenne
+          ? dashboardSemainesDonnees.moyenne || []
+          : semaine.depenses || [];
 
   // LE BUDGET SUIT LA MÊME PÉRIODE QUE LES BARRES, découpe des semaines
   // comprise (cf. soldes.get_budget_total_periode) : une semaine de dépenses
@@ -4004,9 +4020,11 @@ function contexteGraphesDashboard(depensesDuMois) {
   const budgetTotal =
     semaine === null
       ? dashboardBudgetTotalDuMois
-      : semaine.moyenne
-        ? dashboardSemainesDonnees?.budget_total_moyen || 0
-        : semaine.budget_total || 0;
+      : semaine.annuelle
+        ? moyenneAnnee?.budget_total_moyen || 0
+        : semaine.moyenne
+          ? dashboardSemainesDonnees?.budget_total_moyen || 0
+          : semaine.budget_total || 0;
 
   dashboardDepensesActuels = depenses;
   majPanneauFiltreCategoriesDashboard(depenses);
@@ -4295,6 +4313,10 @@ function libellePeriodeHistogramme(annee, mois) {
   const semaine = semaineChoisie();
   const nomMois = libelleMois(annee, mois).toLowerCase();
   if (semaine === null) return nomMois;
+  if (semaine.annuelle) {
+    const n = dashboardMoyenneAnnee.donnees?.semaines_moyennees ?? 0;
+    return t("moyenne des {n} semaines de {annee}", { n, annee });
+  }
   if (semaine.moyenne) {
     // LE NOMBRE VIENT DU SERVEUR (`semaines_moyennees`), et non de la longueur
     // de la rangée d'onglets : sur un mois en cours, la moyenne ne porte que
@@ -4384,6 +4406,28 @@ async function majDetailSemaines(annee, mois) {
 }
 
 /**
+ * Lit la moyenne hebdomadaire de l'année affichée, si elle n'est pas déjà là pour cette
+ * année et cette monnaie. Une lecture en cours n'est pas relancée.
+ */
+async function chargerMoyenneAnnee(annee) {
+  const monnaieId = state.dashboardMonnaieId;
+  const courante = dashboardMoyenneAnnee;
+  if (courante.donnees && courante.annee === annee && courante.monnaieId === monnaieId) return;
+  if (courante.chargement) return;
+  dashboardMoyenneAnnee = { annee, monnaieId, donnees: null, chargement: true };
+  try {
+    const donnees = await apiFetch(
+      `/dashboard/semaines/annee?annee=${annee}&monnaie_id=${monnaieId}`
+    );
+    dashboardMoyenneAnnee = { annee, monnaieId, donnees, chargement: false };
+  } catch (err) {
+    dashboardMoyenneAnnee = { annee: null, monnaieId: null, donnees: null, chargement: false };
+    state.dashboardSemaines.choix = null;
+    showMessage(err.message, "error");
+  }
+}
+
+/**
  * Les onglets de semaine (plus « Moyenne »), et le graphe du choix courant.
  *
  * L'onglet actif retombe sur le mois entier quand la semaine qu'on regardait
@@ -4395,8 +4439,23 @@ function renderRangeeSemaines(annee, mois) {
   if (!donnees) return;
   const semaines = donnees.semaines || [];
   const choix = state.dashboardSemaines.choix;
-  if (choix !== null && choix !== "moyenne" && !semaines.some((s) => s.numero === choix)) {
+  if (
+    choix !== null &&
+    choix !== "moyenne" &&
+    choix !== CHOIX_MOYENNE_ANNEE &&
+    !semaines.some((s) => s.numero === choix)
+  ) {
     state.dashboardSemaines.choix = null;
+  }
+  // Le choix « moyenne de l'année » survit à un changement de mois, mais pas à celui
+  // de l'année ou de la monnaie : sa lecture est alors à refaire.
+  if (state.dashboardSemaines.choix === CHOIX_MOYENNE_ANNEE) {
+    const perimee =
+      dashboardMoyenneAnnee.annee !== annee ||
+      dashboardMoyenneAnnee.monnaieId !== state.dashboardMonnaieId;
+    if (perimee && !dashboardMoyenneAnnee.chargement) {
+      chargerMoyenneAnnee(annee).then(() => renderRangeeSemaines(annee, mois));
+    }
   }
 
   const rangee = document.getElementById("dashboard-periode-semaines");
@@ -4408,6 +4467,8 @@ function renderRangeeSemaines(annee, mois) {
     libelle: `${semaine.jour_debut} → ${semaine.jour_fin}`,
   }));
   boutons.push({ cle: "moyenne", libelle: t("Moyenne") });
+  // « Moyenne de l'année » : la même moyenne, sur toutes les semaines de l'année.
+  boutons.push({ cle: CHOIX_MOYENNE_ANNEE, libelle: t("Moyenne de l'année") });
 
   boutons.forEach(({ cle, libelle }) => {
     const btn = document.createElement("button");
@@ -4417,12 +4478,14 @@ function renderRangeeSemaines(annee, mois) {
     // « Moyenne » est d'une autre nature que les semaines : elle ne montre pas
     // une période mais leur résumé. Une classe la distingue, sans la sortir de
     // la rangée — c'est bien un des choix possibles.
-    if (cle === "moyenne") btn.classList.add("semaine-moyenne");
-    btn.addEventListener("click", () => {
+    if (cle === "moyenne" || cle === CHOIX_MOYENNE_ANNEE) btn.classList.add("semaine-moyenne");
+    btn.addEventListener("click", async () => {
       // Recliquer le choix actif revient au mois entier : c'est la sortie la
       // plus directe, et elle évite un onglet « Mois » qui ne servirait qu'à ça.
       state.dashboardSemaines.choix =
         state.dashboardSemaines.choix === cle ? null : cle;
+      // La moyenne de l'année se lit à la demande, au premier clic.
+      if (state.dashboardSemaines.choix === CHOIX_MOYENNE_ANNEE) await chargerMoyenneAnnee(annee);
       renderRangeeSemaines(annee, mois);
     });
     rangee.appendChild(btn);

@@ -195,10 +195,6 @@ class ObjectifMesureRead(BaseModel):
     # restent la période du sélecteur, telle que le dashboard la montre.
     actuelle: VueObjectifRead
     moyennee: VueObjectifRead
-    # Une TROISIÈME vue pour un objectif hebdomadaire lu depuis un mois : la moyenne de
-    # l'ANNÉE (cf. service_objectifs.fenetres_de_lecture). None partout ailleurs —
-    # sur la vue année, la moyennée EST déjà l'année.
-    annee: Optional[VueObjectifRead] = None
 
 
 class ObjectifsPeriodeRead(BaseModel):
