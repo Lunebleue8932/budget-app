@@ -12,8 +12,8 @@ qui se comparer. Ces tests verrouillent le mécanisme qui comble ce trou :
     n'est pas classée en virement, et demande « Oui » ou « Non » ;
   - « Oui » n'importe rien et pose un TÉMOIN (`operation_non_creee`) ;
   - annuler l'import du témoin ne supprime que le témoin, jamais l'opération ;
-  - une ligne ÉCARTÉE à la main entre au stock, sans opération, pour être reconnue
-    d'emblée au relevé suivant.
+  - (les lignes refusées par la banque, elles, entrent au stock sans opération :
+    cf. test_import_statut).
 """
 from datetime import date
 
@@ -424,63 +424,3 @@ def test_une_ligne_declaree_a_la_main_pose_un_temoin_sur_la_jambe_de_son_compte(
     assert resultat.doublons_detectes == 1
     (temoin,) = _temoins(db_session)
     assert temoin.operation_id == _jambe_du_livret(db_session).id
-
-
-# ---------- Les lignes écartées à la main entrent au stock ----------
-
-
-def test_une_ligne_ecartee_a_la_main_entre_au_stock_sans_operation(db_session):
-    compte = creer_compte(db_session, "CC Perso")
-    preset = _make_preset(db_session, "Relevé", colonnes=COLONNES)
-    crud.update_import_preset(db_session, preset, compte_id=compte.id)
-    contenu = _construire_fichier(
-        [
-            {"date": date(2026, 7, 1), "nature": "À importer", "montant": -10.0},
-            {"date": date(2026, 7, 2), "nature": "À écarter", "montant": -20.0},
-        ]
-    )
-    categorie_id = crud.get_categories(db_session)[0].id
-    overrides = schemas.ImportMappingOverrides(
-        categories={},
-        lignes={
-            2: schemas.ImportLigneOverride(categorie_id=categorie_id),
-        },
-        lignes_supprimees=[3],
-        lignes_ecartees=[3],
-    )
-
-    resultat = import_bancaire.confirmer(db_session, preset.id, contenu, overrides)
-
-    assert resultat.operations_creees == 1
-    (ecartee,) = _temoins(db_session)
-    assert ecartee.operation_id is None
-    assert ecartee.donnees["4"] == "À écarter"
-    assert ecartee.import_historique_id == resultat.historique_id
-    # Au relevé suivant, elle est reconnue d'emblée comme doublon.
-    apercu = import_bancaire.previsualiser(db_session, preset.id, contenu)
-    par_nature = {l.nature: l for l in apercu.lignes}
-    assert par_nature["À écarter"].doublon_de is not None
-    # La ligne importée l'est aussi, évidemment.
-    assert par_nature["À importer"].doublon_de is not None
-
-
-def test_annuler_l_import_retire_aussi_les_lignes_ecartees(db_session):
-    compte = creer_compte(db_session, "CC Perso")
-    preset = _make_preset(db_session, "Relevé", colonnes=COLONNES)
-    crud.update_import_preset(db_session, preset, compte_id=compte.id)
-    contenu = _construire_fichier(
-        [{"date": date(2026, 7, 2), "nature": "À écarter", "montant": -20.0}]
-    )
-    resultat = import_bancaire.confirmer(
-        db_session,
-        preset.id,
-        contenu,
-        schemas.ImportMappingOverrides(lignes_supprimees=[2], lignes_ecartees=[2]),
-    )
-    assert len(_temoins(db_session)) == 1
-
-    import_bancaire.annuler_import(db_session, resultat.historique_id)
-
-    assert _temoins(db_session) == []
-    apercu = import_bancaire.previsualiser(db_session, preset.id, contenu)
-    assert apercu.lignes[0].doublon_de is None

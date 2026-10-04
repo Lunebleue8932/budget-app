@@ -14280,11 +14280,6 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
           .filter((l) => ligneDeclareeVirementConnu(l))
           .map((l) => [l.ligne, importJambesDeclarees[l.ligne]])
       ),
-      // LES LIGNES ÉCARTÉES À LA MAIN (bouton « Supprimer ») entrent au stock sans
-      // opération : le prochain relevé qui les contient les reconnaît d'emblée. Les
-      // règlements non liés, ajoutés plus haut aux lignes supprimées le temps de ce
-      // confirm, n'en font PAS partie — ils n'ont pas été écartés.
-      lignes_ecartees: [...importLignesSupprimees],
       jambes_validees: Object.fromEntries(
         importApercu.lignes
           .filter((l) => jambeDeLigne(l) != null)

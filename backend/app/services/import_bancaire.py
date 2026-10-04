@@ -3268,12 +3268,10 @@ def confirmer(
         if ligne.doublon_de is not None:
             doublons_detectes += 1
 
-        # Ligne refusée par la banque : rien n'a bougé et rien ne bougera. Elle
-        # ne crée aucune opération et — c'est le point important — n'entre PAS
-        # au stock anti-doublons : l'y mettre la ferait disparaître d'un
-        # prochain import alors qu'aucune opération ne la représente, et si la
-        # banque finit par la repasser (un paiement refusé est souvent
-        # réessayé), la vraie ligne serait alors prise pour un doublon.
+        # Ligne refusée par la banque : rien n'a bougé et rien ne bougera. Elle ne
+        # crée aucune opération. Elle entre en revanche au stock anti-doublons une
+        # fois l'historique créé (cf. plus bas) : celle-là ne sera jamais importée, et
+        # le prochain relevé qui la contient doit la reconnaître d'emblée.
         #
         # Placé avant tout le reste : une ligne refusée n'a pas à être complète
         # pour être écartée (compte non résolu, catégorie à confirmer… on s'en
@@ -3617,31 +3615,25 @@ def confirmer(
             operation_id=operation_id,
             operation_non_creee=True,
         )
-    # LES LIGNES ÉCARTÉES À LA MAIN : l'utilisateur les a retirées de l'aperçu, et c'est
-    # une décision — pas une ligne en erreur, pas un doublon. Elles entrent au stock
-    # comme une ligne ordinaire (sans opération : `operation_non_creee`), pour que le
-    # prochain relevé qui les contient les reconnaisse tout de suite — dans « Doublons
-    # détectés », pré-sélectionnées — au lieu de les redonner comme neuves à écarter
-    # une seconde fois. Ni les lignes refusées par la banque (une banque qui repasse
-    # une ligne refusée ne doit pas la voir prise pour un doublon), ni celles déjà
-    # reconnues comme doublon (elles y sont déjà), ni les règlements non liés qui
-    # attendent hors du confirm (elles n'ont pas été « écartées »).
-    deja_au_stock: set[int] = set()
-    for numero in overrides.lignes_ecartees:
-        ligne_ecartee = next((l for l in lignes if l.ligne == numero), None)
+    # LES LIGNES REFUSÉES PAR LA BANQUE entrent au stock, sans opération
+    # (`operation_non_creee`, `operation_id` NULL) : celles-là ne seront JAMAIS
+    # importées, et c'est justement ce qui les distingue d'une ligne que
+    # l'utilisateur retire de l'aperçu — celle-ci, il voudra peut-être l'importer une
+    # autre fois, et elle n'entre donc nulle part. Le relevé suivant qui contient une
+    # ligne refusée la reconnaît d'emblée en « Doublons détectés » au lieu de la
+    # redonner comme neuve à écarter. Une ligne déjà reconnue comme doublon y est
+    # déjà. Seules les lignes où la colonne « État » est LUE ont un statut refusé.
+    for ligne_refusee in lignes:
         if (
-            ligne_ecartee is None
-            or ligne_ecartee.statut_import == StatutImport.refuse.value
-            or ligne_ecartee.doublon_de is not None
-            or numero not in donnees_par_ligne
-            or numero in deja_au_stock
+            ligne_refusee.statut_import != StatutImport.refuse.value
+            or ligne_refusee.doublon_de is not None
+            or ligne_refusee.ligne not in donnees_par_ligne
         ):
             continue
-        deja_au_stock.add(numero)
         crud.create_ligne_import_brute(
             db,
             preset_id=preset_id,
-            donnees=donnees_par_ligne[numero],
+            donnees=donnees_par_ligne[ligne_refusee.ligne],
             import_historique_id=historique.id,
             operation_non_creee=True,
         )

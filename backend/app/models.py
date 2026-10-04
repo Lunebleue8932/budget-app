@@ -1299,9 +1299,11 @@ class LigneImportBrute(Base):
     # mais ses colonnes restent au stock — le même relevé est alors reconnu
     # comme doublon au prochain import, sans nouvelle question.
     #
-    # Même colonne pour une ligne ÉCARTÉE à la main de l'aperçu : `operation_id` est
-    # alors NULL, elle n'a désigné aucune opération, et n'entre au stock que pour être
-    # reconnue d'emblée au prochain relevé qui la contient.
+    # Même colonne pour une ligne REFUSÉE PAR LA BANQUE (colonne « État » lue) :
+    # `operation_id` est alors NULL, elle n'a désigné aucune opération, et n'entre au
+    # stock que pour être reconnue d'emblée au prochain relevé qui la contient — elle
+    # ne sera jamais importée. Une ligne que l'utilisateur retire lui-même de l'aperçu
+    # n'y entre PAS : il voudra peut-être l'importer une autre fois.
     #
     # Ce que ça change : annuler l'import qui a écrit un témoin ne supprime PAS
     # l'opération (elle vient d'un autre import), seulement le témoin

@@ -6,10 +6,9 @@ attente et les paiements refusés, au milieu des autres.
 
 Ce que ces tests verrouillent : une ligne en attente devient une opération
 PRÉVISIONNELLE (le montant est connu, le passage en banque non), une ligne
-refusée n'est pas importée DU TOUT et n'entre pas au stock anti-doublons — l'y
-mettre la ferait disparaître d'un prochain import alors qu'aucune opération ne
-la représente, et si la banque repasse le paiement, la vraie ligne serait prise
-pour un doublon.
+refusée n'est pas importée DU TOUT, mais entre au stock anti-doublons sans
+opération : elle ne sera jamais importée, et le prochain relevé qui la contient la
+reconnaît d'emblée. Une ligne que l'utilisateur retire lui-même n'y entre pas.
 """
 import io
 from datetime import date
@@ -112,17 +111,62 @@ def test_une_ligne_refusee_nest_pas_importee_du_tout(db_session):
     assert resultat.lignes_ignorees == []
 
 
-def test_une_ligne_refusee_nentre_pas_au_stock_anti_doublons(db_session):
-    """Le point qui compte : si elle y entrait, la ligne disparaîtrait d'un
-    prochain import alors qu'aucune opération ne la représente — et si la banque
-    repasse le paiement, la vraie ligne serait prise pour un doublon."""
+def test_une_ligne_refusee_entre_au_stock_sans_operation(db_session):
+    """Celle-là ne sera JAMAIS importée : le prochain relevé qui la contient doit la
+    reconnaître d'emblée, au lieu de la redonner comme neuve à écarter. Elle entre
+    donc au stock sans opération — ce qui la distingue d'une ligne que l'utilisateur
+    retire lui-même de l'aperçu, qu'il voudra peut-être importer une autre fois et
+    qui n'entre nulle part."""
     compte = creer_compte(db_session, "CC Perso")
     preset = _preset(db_session)
     contenu = _fichier([[date(2026, 7, 1), "Paiement refusé", -80.0, "Refusé"]])
 
-    import_bancaire.confirmer(
+    resultat = import_bancaire.confirmer(
         db_session, preset.id, contenu, _overrides(db_session), compte_id_defaut=compte.id
     )
+
+    assert db_session.query(models.Operation).count() == 0
+    (ligne_stock,) = crud.list_lignes_import_brutes(db_session, preset.id)
+    assert ligne_stock.operation_id is None
+    assert ligne_stock.operation_non_creee is True
+    assert ligne_stock.import_historique_id == resultat.historique_id
+    # Au relevé suivant : un doublon, reconnu d'emblée.
+    apercu = import_bancaire.previsualiser(
+        db_session, preset.id, contenu, compte_id_defaut=compte.id
+    )
+    assert apercu.lignes[0].doublon_de == ligne_stock.id
+
+
+def test_une_ligne_retiree_a_la_main_n_entre_pas_au_stock(db_session):
+    """L'utilisateur qui retire une ligne de l'aperçu voudra peut-être l'importer une
+    autre fois : elle ne doit pas revenir comme « déjà vue »."""
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _preset(db_session)
+    contenu = _fichier([[date(2026, 7, 2), "Courses", -45.2, "Exécuté"]])
+
+    import_bancaire.confirmer(
+        db_session,
+        preset.id,
+        contenu,
+        schemas.ImportMappingOverrides(
+            categories={"": get_categorie_id(db_session, "Autres")}, lignes_supprimees=[1]
+        ),
+        compte_id_defaut=compte.id,
+    )
+
+    assert crud.list_lignes_import_brutes(db_session, preset.id) == []
+
+
+def test_annuler_l_import_retire_aussi_les_lignes_refusees_du_stock(db_session):
+    compte = creer_compte(db_session, "CC Perso")
+    preset = _preset(db_session)
+    contenu = _fichier([[date(2026, 7, 1), "Paiement refusé", -80.0, "Refusé"]])
+    resultat = import_bancaire.confirmer(
+        db_session, preset.id, contenu, _overrides(db_session), compte_id_defaut=compte.id
+    )
+    assert len(crud.list_lignes_import_brutes(db_session, preset.id)) == 1
+
+    import_bancaire.annuler_import(db_session, resultat.historique_id)
 
     assert crud.list_lignes_import_brutes(db_session, preset.id) == []
 

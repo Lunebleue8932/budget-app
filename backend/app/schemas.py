@@ -1659,10 +1659,6 @@ class ImportMappingOverrides(BaseModel):
     # mappé entre-temps) ne doit pas bloquer un import dont personne n'a vu la
     # question.
     jambes_validees: dict[int, Optional[bool]] = Field(default_factory=dict)
-    # Les lignes que l'utilisateur a RETIRÉES de l'aperçu à la main : elles entrent au
-    # stock sans opération (cf. services/import_bancaire.confirmer), pour être
-    # reconnues d'emblée au prochain relevé qui les contient.
-    lignes_ecartees: list[int] = Field(default_factory=list)
     # Les lignes DÉCLARÉES à la main comme décrivant un virement déjà en base :
     # numéro de ligne -> identifiant d'une opération de ce virement. Même effet qu'un
     # « Oui » : la ligne n'est pas importée, un témoin entre au stock.
