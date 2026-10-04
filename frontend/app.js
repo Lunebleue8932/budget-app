@@ -6554,6 +6554,17 @@ function lireDecoupes() {
     .filter((part) => part.categorie_id && part.montant > 0);
 }
 
+/**
+ * La catégorie que le formulaire porte au moment où l'on découpe : c'est elle que
+ * les nouvelles parts proposent d'abord. L'opération avait déjà sa catégorie ;
+ * repartir d'une liste vide obligeait à la retaper à chaque part, alors que la
+ * découpe commence presque toujours par « une partie reste dans celle-là ».
+ */
+function categorieDeLOperation() {
+  const valeur = Number(document.getElementById("operation-categorie").value);
+  return Number.isInteger(valeur) && valeur > 0 ? valeur : null;
+}
+
 function ajouterPartDecoupe(categorieId = null, montant = null) {
   const conteneur = document.getElementById("operation-decoupe-parts");
   const ligne = document.createElement("div");
@@ -6656,15 +6667,17 @@ document.getElementById("operation-decoupee").addEventListener("change", () => {
   // case pour se retrouver devant une liste vide obligerait à deviner le geste
   // suivant.
   if (decoupeEstActive() && lignesDecoupe().length === 0) {
-    ajouterPartDecoupe();
-    ajouterPartDecoupe();
+    // LUE AVANT updateOperationTypeFields, qui range la catégorie unique.
+    const categorie = categorieDeLOperation();
+    ajouterPartDecoupe(categorie);
+    ajouterPartDecoupe(categorie);
   }
   updateOperationTypeFields();
 });
 
 document
   .getElementById("operation-decoupe-ajouter")
-  .addEventListener("click", () => ajouterPartDecoupe());
+  .addEventListener("click", () => ajouterPartDecoupe(categorieDeLOperation()));
 
 // Délégués sur le conteneur : les lignes naissent et meurent au fil de la
 // saisie, et poser un écouteur sur chacune les ferait fuir à chaque retrait.
@@ -8345,7 +8358,16 @@ function operationCorrespondFiltres(op, onglet, f, budget = false) {
   }
   switch (onglet) {
     case "classique": {
-      if (f.categorieId && String(op.categorie_id) !== f.categorieId) return false;
+      // UNE OPÉRATION DÉCOUPÉE N'A PAS DE CATÉGORIE PROPRE (ses parts SONT sa
+      // classification) : elle remonte dès qu'UNE de ses parts est dans la catégorie
+      // filtrée. Comparer seulement `categorie_id`, NULL pour elle, la faisait
+      // disparaître de tout filtre par catégorie.
+      if (f.categorieId) {
+        const dansUnePart = (op.decoupes || []).some(
+          (part) => String(part.categorie_id) === f.categorieId
+        );
+        if (String(op.categorie_id) !== f.categorieId && !dansUnePart) return false;
+      }
       const estDecoupee = (op.decoupes || []).length > 0;
       if (!correspondBool(f.decoupe, estDecoupee)) return false;
       return true;
@@ -11881,6 +11903,17 @@ function statutLigneApercuHtml(ligne) {
 // Affiche/masque une sous-section entière (titre + infos + tableau) plutôt
 // que de la laisser visible avec un tableau vide -- elle n'apparaît que si
 // elle contient au moins une ligne.
+// UN TITRE REPLIABLE (<details class="toggle-titre">) SE REPLIE EN CLIQUANT SON
+// TITRE, pas sa pastille « i » : celle-ci n'ouvre que son infobulle. Posé en
+// capture, avant le comportement natif de <summary>.
+document.addEventListener(
+  "click",
+  (evenement) => {
+    if (evenement.target.closest("summary .info-bulle")) evenement.preventDefault();
+  },
+  true
+);
+
 function toggleSousSection(containerId, nombreLignes) {
   document.getElementById(containerId).style.display = nombreLignes > 0 ? "" : "none";
 }
@@ -11920,10 +11953,45 @@ function renderImportApercu() {
   remplirApercuTbodyRessemblances("import-apercu-liste-ressemblances", lignesRessemblances);
   toggleSousSection("import-apercu-section-ressemblances", lignesRessemblances.length);
 
+  // LES POSSIBLES DOUBLONS DE VIREMENTS INTERNES : la jambe en face identifiée
+  // (panneau de décision) et les ressemblances, sous un seul titre. Les deux
+  // ensembles de lignes sont disjoints — un seul détecteur parle par ligne.
+  const nbJambes = importApercu.lignes.filter(
+    (l) => jambeDeLigne(l) != null && !ligneRefuseeParStatut(l)
+  ).length;
+  document.getElementById("import-apercu-nombre-groupe-virements").textContent =
+    nbJambes + lignesRessemblances.length;
+  toggleSousSection(
+    "import-apercu-groupe-virements-doublons",
+    nbJambes + lignesRessemblances.length
+  );
+
+  // LES DOUBLONS, EN DEUX MISES EN PAGE : un virement interne se lit d'un compte À un
+  // compte, une opération classique par catégorie et compte. Le type est celui que la
+  // ligne a adopté de l'opération déjà en base (cf. _adopter_type_du_doublon).
   const lignesDoublons = importApercu.lignes.filter((l) => l.doublon_de != null);
+  const doublonsVirements = lignesDoublons.filter((l) => typeOperationLigne(l) === "virement");
+  const doublonsClassiques = lignesDoublons.filter((l) => typeOperationLigne(l) !== "virement");
   document.getElementById("import-apercu-nombre-doublons").textContent = lignesDoublons.length;
-  remplirApercuTbodyDoublons("import-apercu-liste-doublons", lignesDoublons);
+  document.getElementById("import-apercu-nombre-doublons-classiques").textContent =
+    doublonsClassiques.length;
+  document.getElementById("import-apercu-nombre-doublons-virements").textContent =
+    doublonsVirements.length;
+  remplirApercuTbodyDoublons("import-apercu-liste-doublons", doublonsClassiques, INFO_TYPE_DOUBLON);
+  remplirApercuTbodyDoublons(
+    "import-apercu-liste-doublons-virements",
+    doublonsVirements,
+    INFO_TYPE_DOUBLON_VIREMENT
+  );
+  toggleSousSection("import-apercu-section-doublons-classiques", doublonsClassiques.length);
+  toggleSousSection("import-apercu-section-doublons-virements", doublonsVirements.length);
   toggleSousSection("import-apercu-section-doublons", lignesDoublons.length);
+
+  // LA COLONNE « COMPTE (BANQUE) » N'EXISTE QUE SI LE PRESET LIT UN COMPTE : quand
+  // aucune ligne n'en porte, elle n'affiche que des tirets (cf. la règle CSS).
+  document
+    .getElementById("import-apercu-bloc")
+    .classList.toggle("sans-compte-banque", importApercu.lignes.every((l) => !l.nom_banque_compte));
 
   updateBtnImportSupprimerSelectionEtat();
   updateBtnImportConfirmerEtat();
@@ -12396,12 +12464,17 @@ function renderVeilleDoublonsVirements(resultats) {
 // récepteur). Modifier permet toujours de reclasser vers n'importe quel type.
 const INFO_TYPE_DOUBLON = { cle: "doublon", categorieLibre: true };
 
+// Le doublon d'un VIREMENT INTERNE : émetteur et récepteur à la place de catégorie et
+// compte (même descripteur que les ressemblances, sans le compte d'en face déduit —
+// le doublon porte déjà les deux comptes de l'opération en base).
+const INFO_TYPE_DOUBLON_VIREMENT = { cle: "doublon", virement: true };
+
 // Chaque ligne doublon est suivie, juste en dessous, de la ligne déjà en base
 // suspectée (importApercu.lignes_existantes, résolue au même format côté
 // serveur) affichée en lecture seule — mêmes colonnes, sans Actions/Sélection,
 // pour une comparaison directe entre les deux lignes. Une liste vide masque
 // toute la section (cf. toggleSousSection, renderImportApercu).
-function remplirApercuTbodyDoublons(tbodyId, lignes) {
+function remplirApercuTbodyDoublons(tbodyId, lignes, infoType = INFO_TYPE_DOUBLON) {
   const body = document.getElementById(tbodyId);
   body.innerHTML = "";
   // Depuis l'en-tête, pas depuis la ligne au-dessus : celle-ci n'a qu'une
@@ -12412,14 +12485,21 @@ function remplirApercuTbodyDoublons(tbodyId, lignes) {
   lignes.forEach((ligne) => {
     const tr =
       ligne.ligne === ligneApercuEnEdition
-        ? creerLigneApercuEdition(ligne, INFO_TYPE_DOUBLON)
-        : creerLigneApercuAffichage(ligne, INFO_TYPE_DOUBLON);
+        ? creerLigneApercuEdition(ligne, infoType)
+        : creerLigneApercuAffichage(ligne, infoType);
     tr.classList.add("import-doublon-nouvelle");
     body.appendChild(tr);
 
     const existante = importApercu.lignes_existantes[String(ligne.doublon_de)];
     if (existante) {
-      const trExistante = creerLigneApercuAffichage(existante, INFO_TYPE_DOUBLON, { lectureSeule: true });
+      // La ligne déjà en base est relue comme un relevé ordinaire : elle ne connaît pas
+      // son compte d'en face. Dans la mise en page d'un virement, on lui prête celui
+      // de la ligne qui la double — c'est la même transaction.
+      const existanteLue =
+        infoType.virement && existante.compte_id_autre == null
+          ? { ...existante, compte_id_autre: ligne.compte_id_autre }
+          : existante;
+      const trExistante = creerLigneApercuAffichage(existanteLue, infoType, { lectureSeule: true });
       trExistante.classList.add("import-doublon-existante");
       body.appendChild(trExistante);
     }

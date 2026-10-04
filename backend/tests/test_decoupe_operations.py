@@ -153,6 +153,36 @@ def test_retirer_les_parts_laisse_l_operation_sans_categorie(db_session):
     assert operation.categorie_id is None
 
 
+def test_le_filtre_par_categorie_retrouve_une_operation_decoupee(db_session):
+    """Une opération découpée n'a pas de catégorie propre (son `categorie_id` est
+    NULL, ses parts sont sa classification) : elle remonte dès qu'UNE de ses parts
+    est dans la catégorie filtrée — et pas dans les autres."""
+    compte = creer_compte(db_session, "Courant")
+    decoupee = crud.create_operation(
+        db_session,
+        _payload(
+            db_session,
+            compte,
+            decoupes=_parts(db_session, ("Alimentaire", 90.0), ("Charges fixes", 30.0)),
+        ),
+    )
+    ordinaire = crud.create_operation(
+        db_session,
+        _payload(db_session, compte, categorie_id=get_categorie_id(db_session, "Loisirs"), nature="Cinéma"),
+    )
+
+    def ids(categorie):
+        return {
+            o.id
+            for o in crud.get_operations(db_session, categorie_id=get_categorie_id(db_session, categorie))
+        }
+
+    assert decoupee.id in ids("Alimentaire")
+    assert decoupee.id in ids("Charges fixes")
+    assert decoupee.id not in ids("Loisirs")
+    assert ids("Loisirs") == {ordinaire.id}
+
+
 def test_les_parts_disparaissent_avec_l_operation(db_session):
     compte = creer_compte(db_session, "Courant")
     operation = crud.create_operation(

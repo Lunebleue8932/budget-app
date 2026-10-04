@@ -2080,6 +2080,9 @@ TRADUCTIONS.pt = {
   "— toutes —": "— todas —",
   "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.":
     "Reembolsado via: {details}. O valor da transação fica congelado enquanto esse vínculo existir. O valor a reembolsar ainda pode mudar, sem ficar abaixo do que já foi reembolsado ({deja}) — para ir mais baixo, desvincule primeiro a transação de reembolso correspondente.",
+  "Possibles doublons de virements internes —": "Possíveis duplicatas de transferências internas —",
+  "Jambe en face identifiée —": "Perna de contrapartida identificada —",
+  "Ajouter un taux de change": "Adicionar uma taxa de câmbio",
   "Active":
     "Ativa",
   "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

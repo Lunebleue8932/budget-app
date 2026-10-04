@@ -6364,3 +6364,91 @@ body input[type="checkbox"]:disabled {
   color: var(--accent-light);
   font-weight: 600;
 }
+
+
+/* ---------- Titres repliables (Toggle Headings) ----------
+ *
+ * Un <details class="toggle-titre toggle-1|toggle-2"> : le titre se clique pour
+ * replier ce qu'il porte. TAILLE 1 pour une section de premier niveau, TAILLE 2
+ * pour celle qui vit DANS un titre de taille 1 (le <h3> et le <h4> existants, que
+ * le repli ne fait que coiffer d'un triangle). Le triangle est dessiné à la main
+ * pour suivre le thème, comme celui des filtres repliables.
+ */
+.toggle-titre {
+  margin: 1.25rem 0 0.5rem;
+}
+
+.toggle-titre > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  user-select: none;
+}
+
+.toggle-titre > summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle-titre > summary::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  border-style: solid;
+  border-width: 0.3em 0 0.3em 0.5em;
+  border-color: transparent transparent transparent var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.toggle-titre[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.toggle-titre > summary:hover::before {
+  border-left-color: var(--text-primary);
+}
+
+.toggle-titre > summary > h3,
+.toggle-titre > summary > h4 {
+  margin: 0;
+}
+
+/* Ce qu'un titre porte se retire d'un cran, avec un filet : on voit d'un regard
+   où il finit, comme dans un document à plans. */
+.toggle-titre > .toggle-contenu {
+  margin: 0.5rem 0 0 0.25rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--border-soft);
+}
+
+/* Le formulaire de CRÉATION d'une catégorie, d'un compte ou d'une monnaie : son titre
+   propre n'a rien à faire sous celui du repli. Il n'est masqué qu'ICI — déplacé sous
+   une ligne éditée (cf. ouvrirFormulaireEnLigne), il reprend sa place visible. */
+.toggle-contenu > h3[id^="form-"][id$="-titre"] {
+  display: none;
+}
+
+/* « Même virement ? » : les champs d'un panneau de décision de l'import suivent le
+   style des autres champs de l'application. */
+#import-jambes-liste select {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}
+
+#import-jambes-liste select:disabled {
+  opacity: 0.6;
+}
+
+/* LA COLONNE « COMPTE (BANQUE) » SE RETIRE quand aucune ligne n'en porte : le preset
+   ne lit pas de colonne de compte, et la colonne n'afficherait que des tirets. Elle
+   est la sixième de tous les tableaux de l'aperçu. Les rangées à une seule cellule
+   (édition, ligne suspecte) ne sont pas touchées : leur cellule est la première. */
+#import-apercu-bloc.sans-compte-banque table th:nth-child(6),
+#import-apercu-bloc.sans-compte-banque table td:nth-child(6) {
+  display: none;
+}

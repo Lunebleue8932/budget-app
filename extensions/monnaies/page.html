@@ -14,6 +14,9 @@
         <!-- Le titre et le formulaire sont DÉPLACÉS sous la ligne éditée au
              double-clic (cf. ouvrirFormulaireEnLigne, dans le noyau) ; ils
              reviennent ici, en bloc de création, dès l'édition terminée. -->
+        <details class="toggle-titre toggle-1" id="creation-monnaie">
+        <summary><h3>Ajouter une monnaie</h3></summary>
+        <div class="toggle-contenu">
         <h3 id="form-monnaie-titre">Ajouter une monnaie</h3>
         <form id="form-monnaie">
           <input type="hidden" id="monnaie-id" />
@@ -33,6 +36,8 @@
             <button type="button" id="monnaie-annuler" style="display:none">Annuler</button>
           </div>
         </form>
+        </div>
+        </details>
 
         <!-- LES TAUX, ET CE QU'ILS PERMETTENT. C'est le seul endroit de
              l'application d'où une conversion peut naître : partout ailleurs,
@@ -53,6 +58,11 @@
 
         <div id="monnaies-taux-liste" class="import-mappings"></div>
 
+        <!-- AJOUTER UN TAUX est replié (Toggle Heading 1) : la liste des taux se lit, le
+             formulaire ne sert que quand on en pose un. -->
+        <details class="toggle-titre toggle-1" id="creation-taux">
+        <summary><h3>Ajouter un taux de change</h3></summary>
+        <div class="toggle-contenu">
         <form id="form-monnaie-taux">
           <!-- La barre des modes de saisie. MASQUÉE TANT QU'IL N'Y EN A QU'UN,
                comme toutes les barres d'onglets de l'application : sans
@@ -74,4 +84,6 @@
             <button type="submit" class="primary" id="monnaie-taux-enregistrer">Enregistrer le taux</button>
           </div>
         </form>
+        </div>
+        </details>
 </div>

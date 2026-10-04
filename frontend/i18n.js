@@ -192,40 +192,81 @@ function changerLangue(nouvelle) {
     /* Sans stockage, la langue ne survivra pas au rechargement : tant pis, on
        ne bloque pas le changement pour autant. */
   }
-  // LE CHOIX EST AUSSI RETENU CÔTÉ POSTE (fichier de configuration de
-  // l'utilisateur, cf. config_utilisateur.CLE_LANGUE) : le `localStorage` est
-  // rangé par origine et peut repartir vide. On attend la réponse avant de
-  // recharger, sans quoi la requête serait coupée avec la page ; un échec ne
-  // bloque rien.
-  fetch("/parametres/langue", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ langue: nouvelle }),
-  })
-    .catch(() => {})
-    .finally(() => window.location.reload());
+  // LE CHOIX EST AUSSI RANGÉ DANS LA BASE, comme la monnaie d'affichage par défaut
+  // (cf. app.js, CLE_MONNAIE_AFFICHAGE) : c'est la seule mémoire qui survive à
+  // tout — fenêtre de bureau recréée, port changé, `localStorage` vidé, build de
+  // test. Le fichier de configuration du poste, qu'on essayait avant, n'était
+  // jamais écrit en mode développement ni dans un build de test, et le
+  // `localStorage` d'une fenêtre embarquée ne survivait pas toujours à sa
+  // fermeture. On attend la réponse avant de recharger, sans quoi la requête serait
+  // coupée avec la page ; un échec ne bloque rien.
+  ecrireLangueEnBase(nouvelle).finally(() => window.location.reload());
+}
+
+const CLE_LANGUE_BASE = "noyau.langue";
+
+async function ecrireLangueEnBase(langue) {
+  try {
+    await fetch(`/preferences/${encodeURIComponent(CLE_LANGUE_BASE)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ valeur: langue }),
+    });
+  } catch (err) {
+    /* Rien de cassé : le localStorage garde le choix pour cette fenêtre. */
+  }
 }
 
 /**
- * Au lancement, SI AUCUN CHOIX N'EST LU dans le `localStorage` (stockage vide :
- * nouvelle origine, profil nettoyé), reprend la langue retenue côté poste et
- * recharge une fois pour l'appliquer. Silencieux en cas d'échec : on reste sur
- * la langue par défaut.
+ * Au lancement, LA BASE FAIT FOI : la langue qu'elle porte l'emporte sur celle du
+ * `localStorage`, et la page se recharge une fois pour l'appliquer. Si la base n'a
+ * jamais rien rangé, c'est l'inverse — la langue de la fenêtre y est écrite, pour
+ * qu'un prochain lancement sur un stockage vide la retrouve. Silencieux en cas
+ * d'échec : on reste sur la langue affichée.
+ *
+ * Lancé une fois la page chargée : app.js, qui suit ce fichier, n'est pas encore là
+ * à cet instant, et rien ici n'en dépend (fetch direct).
  */
-async function restaurerLangueDuPoste() {
+async function restaurerLangueDepuisLaBase() {
   try {
-    if (localStorage.getItem(CLE_STOCKAGE)) return;
-    const reponse = await fetch("/parametres/langue");
+    const reponse = await fetch(`/preferences/${encodeURIComponent(CLE_LANGUE_BASE)}`);
     if (!reponse.ok) return;
-    const { langue: retenue } = await reponse.json();
-    if (!LANGUES.includes(retenue) || retenue === langueActuelle) return;
-    localStorage.setItem(CLE_STOCKAGE, retenue);
+    const { valeur: retenue } = await reponse.json();
+    if (!LANGUES.includes(retenue)) {
+      // Jamais rangée dans cette base. Une version d'avant la retenait dans le
+      // fichier de configuration du poste : on la reprend UNE FOIS, sans quoi la
+      // mise à jour ferait repartir tout le monde sur la langue par défaut.
+      let heritee = null;
+      try {
+        const ancien = await fetch("/parametres/langue");
+        if (ancien.ok) heritee = (await ancien.json()).langue;
+      } catch (err) {
+        /* Pas de fichier lisible : on garde la langue affichée. */
+      }
+      const choix = LANGUES.includes(heritee) ? heritee : langueActuelle;
+      await ecrireLangueEnBase(choix);
+      if (choix !== langueActuelle) {
+        try {
+          localStorage.setItem(CLE_STOCKAGE, choix);
+        } catch (err) {
+          /* La base fera foi au prochain lancement. */
+        }
+        window.location.reload();
+      }
+      return;
+    }
+    if (retenue === langueActuelle) return;
+    try {
+      localStorage.setItem(CLE_STOCKAGE, retenue);
+    } catch (err) {
+      /* Sans stockage, la base fera encore foi au prochain lancement. */
+    }
     window.location.reload();
   } catch (err) {
-    /* Rien de cassé : la langue par défaut reste affichée. */
+    /* Rien de cassé : la langue affichée reste. */
   }
 }
-restaurerLangueDuPoste();
+window.addEventListener("load", restaurerLangueDepuisLaBase);
 
 /**
  * FRANÇAIS → ANGLAIS.
@@ -2646,6 +2687,9 @@ const TRADUCTIONS = {
     "— toutes —": "— all —",
     "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.":
       "Repaid via: {details}. The transaction's amount is frozen while this link exists. The amount to repay can still change, but not below what is already repaid ({deja}) — to go lower, unlink the matching repayment transaction first.",
+    "Possibles doublons de virements internes —": "Possible duplicate internal transfers —",
+    "Jambe en face identifiée —": "Counterpart leg identified —",
+    "Ajouter un taux de change": "Add an exchange rate",
     // ----- Une monnaie éteinte sur un compte (migration 0053) -----
     "Active": "Active",
     "Monnaie éteinte : plus proposée à la saisie ni devinée à l'import. Ses opérations sont toujours en base.":

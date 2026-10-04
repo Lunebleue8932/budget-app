@@ -861,7 +861,16 @@ def get_operations(
     if compte_id is not None:
         query = query.filter(models.Operation.compte_id == compte_id)
     if categorie_id is not None:
-        query = query.filter(models.Operation.categorie_id == categorie_id)
+        # UNE OPÉRATION DÉCOUPÉE N'A PAS DE CATÉGORIE PROPRE (son `categorie_id` est
+        # NULL, ses parts sont sa classification) : elle remonte dès qu'UNE de ses
+        # parts est dans la catégorie filtrée. Comparer seulement `categorie_id` la
+        # faisait disparaître de tout filtre par catégorie.
+        query = query.filter(
+            or_(
+                models.Operation.categorie_id == categorie_id,
+                models.Operation.decoupes.any(models.OperationDecoupe.categorie_id == categorie_id),
+            )
+        )
     if statut is not None:
         query = query.filter(models.Operation.statut == statut)
     if date_debut is not None:
