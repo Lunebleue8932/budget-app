@@ -9,22 +9,58 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 # Sépare l'environnement de développement (données factices, dans le repo) de
 # la production (données réelles, hors du repo). BUDGET_DB_PATH pointe
-# explicitement vers un fichier .db ; sans cette variable, on utilise toujours
-# la base de dev locale — jamais de bascule implicite vers un chemin de prod.
+# explicitement vers un fichier .db ; sans cette variable, le développeur (fichier
+# `MODE-DEV.txt`) utilise toujours sa base de dev locale — jamais de bascule
+# implicite vers un chemin de prod. Un clone sans ce fichier se comporte comme une
+# version publiée : base vide, emplacement choisi par l'utilisateur.
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
+def dossier_application() -> Path:
+    """Le dossier qu'une mise à jour REMPLACE : celui de l'exécutable en
+    application packagée, la racine du dépôt sinon."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return _BACKEND_DIR.parent
+
+
+# Fichier témoin du MODE DÉVELOPPEUR, posé À LA MAIN à la racine du dépôt et
+# ignoré par git : il n'existe donc que sur la machine de celui qui développe.
+NOM_MARQUEUR_DEV = "MODE-DEV.txt"
+
+
+def _marqueur_dev_present() -> bool:
+    """Ce dépôt est-il celui du développeur, et non un simple clone ?
+
+    POURQUOI UN FICHIER, ET PAS « PAS PACKAGÉ ». Avant, tout ce qui n'était pas un
+    exécutable PyInstaller passait pour une installation de mise au point : base
+    de test dans le dépôt, bouton de retour à la base native, reprise du profil
+    de la vraie application désactivée. Quelqu'un qui CLONAIT le dépôt héritait
+    donc des outils du développeur, et d'une base de test là où une version
+    publiée aurait demandé où ranger la sienne. Un clone et une release doivent
+    se comporter de la même façon ; seule la machine où ce fichier a été posé
+    fait exception — et git ne le transporte jamais."""
+    if getattr(sys, "frozen", False):
+        return False
+    return (dossier_application() / NOM_MARQUEUR_DEV).is_file()
+
+
 def _dossier_donnees_par_defaut() -> Path:
-    """Emplacement de la base de test/dev.
+    """Emplacement de la base par défaut.
 
     En application packagée (PyInstaller), le code tourne depuis le bundle,
     qui est remplacé à chaque reconstruction : la base doit donc vivre À CÔTÉ
     de l'exécutable, pas dedans, pour survivre à une mise à jour de l'app.
-    En développement, l'emplacement historique dans le repo est conservé.
+    Depuis un clone, elle vit dans `backend/data/`, au même rang que `data/` à
+    côté de l'exécutable. Seul le développeur (cf. `_marqueur_dev_present`)
+    garde l'emplacement historique `backend/data/dev/`, où se trouvent ses
+    bases de test.
     """
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / "data"
-    return _BACKEND_DIR / "data" / "dev"
+    if _marqueur_dev_present():
+        return _BACKEND_DIR / "data" / "dev"
+    return _BACKEND_DIR / "data"
 
 
 _DEFAULT_DEV_DIR = _dossier_donnees_par_defaut()
@@ -58,14 +94,6 @@ def _chemin_impose_par_environnement() -> Path | None:
     n'ont rien à demander à personne."""
     valeur = os.environ.get("BUDGET_DB_PATH")
     return Path(valeur).expanduser() if valeur else None
-
-
-def dossier_application() -> Path:
-    """Le dossier qu'une mise à jour REMPLACE : celui de l'exécutable en
-    application packagée, la racine du dépôt en développement."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return _BACKEND_DIR.parent
 
 
 # Fichier témoin posé par les scripts de construction LOCAUX
@@ -103,7 +131,10 @@ def est_build_de_test() -> bool:
 
 def mode_developpement() -> bool:
     """Ce processus est-il une installation de MISE AU POINT — serveur de dev
-    lancé depuis le dépôt, ou bundle construit localement ?
+    lancé depuis le dépôt DU DÉVELOPPEUR (fichier `MODE-DEV.txt`, cf.
+    `_marqueur_dev_present`), ou bundle construit localement ?
+
+    UN SIMPLE CLONE NE L'EST PAS : il se comporte comme une version publiée.
 
     C'EST LA CONDITION DU RESET. Les deux cas partagent la même propriété : la
     base qu'ils ouvrent par défaut est une base de test, et la base personnelle
@@ -123,7 +154,7 @@ def mode_developpement() -> bool:
     mémorise (une base qu'on redésigne à chaque lancement n'est pas une base),
     et sa base « native » est justement celle du dossier condamné — lui offrir
     un bouton pour y revenir serait un piège."""
-    return not getattr(sys, "frozen", False) or est_build_de_test()
+    return _marqueur_dev_present() or est_build_de_test()
 
 
 # Renseigné quand un chemin ÉTAIT mémorisé mais que le fichier a disparu :
@@ -169,14 +200,15 @@ def _resoudre_chemin_demarrage() -> Path:
     impose = _chemin_impose_par_environnement()
     if impose is not None:
         return impose
-    # LE CHOIX MÉMORISÉ NE VAUT QUE POUR L'APPLICATION PACKAGÉE. En
-    # développement, la base est celle du dépôt, et `alembic upgrade` lancé à la
-    # main depuis `backend/` doit continuer de la viser — sinon il migrerait la
-    # base PERSONNELLE de la machine de développement, sans le dire et sans
-    # qu'on l'ait demandé, du seul fait qu'un fichier de configuration traîne
-    # dans le profil. C'est exactement le genre de bascule implicite que le
-    # module refuse depuis toujours.
-    if not getattr(sys, "frozen", False) and os.environ.get("BUDGET_FORCER_CHOIX_BASE") != "1":
+    # LE CHOIX MÉMORISÉ DE LA VERSION PUBLIÉE NE VAUT PAS POUR LE DÉVELOPPEUR. Sur
+    # sa machine (fichier `MODE-DEV.txt`), la base est celle du dépôt, et
+    # `alembic upgrade` lancé à la main depuis `backend/` doit continuer de la
+    # viser — sinon il migrerait la base PERSONNELLE, sans le dire et sans qu'on
+    # l'ait demandé, du seul fait qu'un fichier de configuration traîne dans le
+    # profil. C'est exactement le genre de bascule implicite que le module
+    # refuse depuis toujours. UN CLONE ORDINAIRE, lui, suit le chemin d'une
+    # version publiée : choix mémorisé, sinon emplacement par défaut.
+    if _marqueur_dev_present() and os.environ.get("BUDGET_FORCER_CHOIX_BASE") != "1":
         return _base_de_mise_au_point()
     # UN BUILD DE TEST NE LIT JAMAIS LE CHOIX MÉMORISÉ DE LA VERSION PUBLIÉE. Le
     # profil utilisateur est partagé par toutes les copies de l'application sur
@@ -399,13 +431,13 @@ def configuration_requise() -> bool:
     if not force:
         if _chemin_impose_par_environnement() is not None:
             return False
-        if not getattr(sys, "frozen", False):
-            return False
-        # UN BUILD DE TEST N'A RIEN À DEMANDER : sa base de test vit à côté de
-        # l'exécutable, donc « à risque » par construction, et c'est exactement
-        # ce qu'on veut de lui. Poser la question à chaque lancement d'un bundle
-        # qu'on reconstruit dix fois par jour n'aurait aucun sens.
-        if est_build_de_test():
+        # LE DÉVELOPPEUR ET LES BUILDS DE TEST N'ONT RIEN À DEMANDER : leur base
+        # de test est « à risque » par construction, et c'est exactement ce qu'on
+        # veut d'eux. Poser la question à chaque lancement d'un bundle qu'on
+        # reconstruit dix fois par jour n'aurait aucun sens. UN CLONE ORDINAIRE,
+        # lui, la pose comme une version publiée : sa base par défaut est dans
+        # le dossier du dépôt, et rien ne dit qu'il l'a choisie.
+        if mode_developpement():
             return False
     return chemin_a_risque(get_chemin_actuel())
 

@@ -47,6 +47,14 @@ README-dev.md
 # noyau (migration 0044) et ne gênent personne — elles restent vides.
 extensions/taux-epargne/
 
+# ---------- MODE DÉVELOPPEUR ----------
+#
+# Fichier témoin posé à la main sur la machine du développeur : sa présence
+# donne la base de test, les seeds et le retour à la base native. Il ne doit
+# JAMAIS voyager avec le dépôt, sinon un clone cesserait de se comporter comme
+# une version publiée.
+MODE-DEV.txt
+
 # ---------- VERSION DÉVELOPPEUR ----------
 #
 # Extensions réservées au développement : présentes sur cette machine, jamais
@@ -86,3 +94,8 @@ backend/_debug*.py
 # d'opérations à l'écran. Il n'a rien à faire dans un dépôt public — ni le
 # script, ni la tentation de committer une sortie collée à côté.
 backend/diagnostic_ecart_flux.py
+
+# Scripts de seed : ils fabriquent des données FICTIVES (captures du README,
+# jeux de démonstration) et ne servent qu'au développeur. Un utilisateur n'en a
+# aucun usage, et un clone n'a pas à pouvoir remplir sa base avec.
+backend/scripts/

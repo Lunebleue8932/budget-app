@@ -30,6 +30,30 @@ def config_temporaire(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def depot_du_developpeur(tmp_path, monkeypatch):
+    """Un dépôt NON packagé qui porte le fichier `MODE-DEV.txt` : la machine de
+    celui qui développe. C'est le seul cas où le code non packagé est une
+    installation de mise au point (cf. `database._marqueur_dev_present`)."""
+    racine = tmp_path / "depot-dev"
+    racine.mkdir()
+    (racine / database.NOM_MARQUEUR_DEV).write_text("peu importe", encoding="utf-8")
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(database, "dossier_application", lambda: racine)
+    return racine
+
+
+@pytest.fixture
+def clone_ordinaire(tmp_path, monkeypatch):
+    """Un dépôt NON packagé SANS le fichier témoin : ce que reçoit quiconque
+    clone le dépôt. Il doit se comporter comme une version publiée."""
+    racine = tmp_path / "clone"
+    racine.mkdir()
+    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(database, "dossier_application", lambda: racine)
+    return racine
+
+
+@pytest.fixture
 def base_restauree():
     """Rend à l'application la base sur laquelle elle était ouverte.
 
@@ -176,7 +200,7 @@ def test_pas_de_configuration_forcee_quand_l_environnement_impose_la_base(monkey
     assert not database.configuration_requise()
 
 
-def test_pas_de_configuration_forcee_en_developpement(monkeypatch):
+def test_pas_de_configuration_forcee_en_developpement(depot_du_developpeur, monkeypatch):
     """La base du dépôt n'est jamais remplacée par une archive : y forcer un
     choix ne protégerait de rien et casserait le serveur de dev."""
     monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
@@ -249,8 +273,7 @@ def test_hors_build_de_test_le_choix_est_bien_memorise(tmp_path, config_temporai
 # réinitialisation.
 
 
-def test_le_serveur_de_dev_est_un_mode_developpement(monkeypatch):
-    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
+def test_le_serveur_de_dev_est_un_mode_developpement(depot_du_developpeur):
     assert database.mode_developpement()
 
 
@@ -267,13 +290,12 @@ def test_une_version_publiee_n_est_pas_un_mode_developpement(monkeypatch):
 
 
 def test_le_serveur_de_dev_n_ecrit_jamais_la_cle_de_la_version_publiee(
-    tmp_path, config_temporaire, monkeypatch
+    tmp_path, config_temporaire, depot_du_developpeur
 ):
     """LE TROU QUE ÇA BOUCHE. Le profil est partagé par toutes les copies de
     l'application : une base ouverte pour un essai ne doit jamais faire pointer
     la VRAIE application ailleurs. Le serveur de dev retient sa base sous SA
     clé, que la version publiée ne lit pas."""
-    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
     perso = tmp_path / "perso.db"
 
     assert parametres_base._memoriser(perso) is True
@@ -282,7 +304,7 @@ def test_le_serveur_de_dev_n_ecrit_jamais_la_cle_de_la_version_publiee(
 
 
 def test_le_demarrage_en_mode_developpement_ignore_le_chemin_de_la_version_publiee(
-    tmp_path, config_temporaire, monkeypatch
+    tmp_path, config_temporaire, depot_du_developpeur, monkeypatch
 ):
     """Même un chemin laissé dans le profil par une autre copie de l'application
     ne doit pas être rouvert ici."""
@@ -291,13 +313,12 @@ def test_le_demarrage_en_mode_developpement_ignore_le_chemin_de_la_version_publi
     config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(perso)})
     monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
     monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
-    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
 
     assert database._resoudre_chemin_demarrage() == database._DEFAULT_DEV_DB_PATH
 
 
 def test_le_demarrage_en_mode_developpement_rouvre_sa_propre_base(
-    tmp_path, config_temporaire, monkeypatch
+    tmp_path, config_temporaire, depot_du_developpeur, monkeypatch
 ):
     """Plus de changement de base à chaque lancement : la base retenue sous la clé
     de mise au point est rouverte — tant que son fichier existe."""
@@ -306,7 +327,6 @@ def test_le_demarrage_en_mode_developpement_rouvre_sa_propre_base(
     config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE_DEV: str(perso)})
     monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
     monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
-    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
 
     assert database._resoudre_chemin_demarrage() == perso
 
@@ -315,7 +335,7 @@ def test_le_demarrage_en_mode_developpement_rouvre_sa_propre_base(
 
 
 def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
-    tmp_path, config_temporaire, monkeypatch, base_restauree
+    tmp_path, config_temporaire, depot_du_developpeur, base_restauree
 ):
     """Le geste que l'ancienne extension développeur faisait à la fermeture :
     refermer la base personnelle tout de suite, sans quitter l'application."""
@@ -324,7 +344,6 @@ def test_reinitialiser_rouvre_la_base_native_et_oublie_le_chemin(
     config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE_DEV: str(perso)})
     assert database.get_chemin_actuel() == perso.resolve()
 
-    monkeypatch.setattr(database.sys, "frozen", False, raising=False)
     etat = parametres_base.reinitialiser_base()
 
     assert database.get_chemin_actuel() == database.DEV_DB_PATH
@@ -339,6 +358,77 @@ def test_reinitialiser_est_refuse_a_une_version_publiee(monkeypatch):
     monkeypatch.setattr(database.sys, "frozen", True, raising=False)
     monkeypatch.setattr(database, "est_build_de_test", lambda: False)
 
+    with pytest.raises(HTTPException) as erreur:
+        parametres_base.reinitialiser_base()
+    assert erreur.value.status_code == 403
+
+
+# ---------- Un clone se comporte comme une version publiée ----------
+#
+# CE QU'ILS PROTÈGENT : quelqu'un qui clone le dépôt ne doit trouver ni outil de
+# développeur ni base déjà remplie. Avant, « pas packagé » valait « mise au
+# point » : un clone ouvrait la base de test du dépôt, avec le bouton de retour à
+# la base native, et rien ne l'empêchait d'y lancer un seed.
+
+
+def test_un_clone_n_est_pas_un_mode_developpement(clone_ordinaire):
+    assert not database.mode_developpement()
+
+
+def test_le_marqueur_fait_du_depot_celui_du_developpeur(depot_du_developpeur):
+    assert database.mode_developpement()
+
+
+def test_un_marqueur_dans_une_version_publiee_ne_compte_pas(tmp_path, monkeypatch):
+    """Le fichier témoin ne vaut que pour le code non packagé : une release n'a
+    aucune raison de le porter, et s'il y traînait il ne doit rien changer."""
+    (tmp_path / database.NOM_MARQUEUR_DEV).write_text("peu importe", encoding="utf-8")
+    monkeypatch.setattr(database.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database, "dossier_application", lambda: tmp_path)
+    monkeypatch.setattr(database, "est_build_de_test", lambda: False)
+
+    assert not database.mode_developpement()
+
+
+def test_un_clone_ne_prend_pas_la_base_de_test_du_developpeur(clone_ordinaire):
+    """Le dossier par défaut d'un clone n'est pas `data/dev/`, où le développeur
+    range ses bases de test."""
+    assert database._dossier_donnees_par_defaut().name != "dev"
+
+
+def test_un_clone_suit_le_choix_memorise_comme_une_release(
+    tmp_path, config_temporaire, clone_ordinaire, monkeypatch
+):
+    choisie = tmp_path / "mes-documents" / "budget.db"
+    choisie.parent.mkdir()
+    choisie.write_text("", encoding="utf-8")
+    config_utilisateur.ecrire(**{config_utilisateur.CLE_CHEMIN_BASE: str(choisie)})
+    monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
+    monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
+
+    assert database._resoudre_chemin_demarrage() == choisie
+
+
+def test_un_clone_demande_ou_ranger_la_base(clone_ordinaire, monkeypatch):
+    """Sa base par défaut est dans le dossier du dépôt : comme une release, il
+    exige un emplacement choisi avant d'ouvrir quoi que ce soit."""
+    monkeypatch.delenv("BUDGET_DB_PATH", raising=False)
+    monkeypatch.delenv("BUDGET_FORCER_CHOIX_BASE", raising=False)
+    monkeypatch.setattr(
+        database, "get_chemin_actuel", lambda: clone_ordinaire / "backend" / "data" / "budget_dev.db"
+    )
+
+    assert database.configuration_requise()
+
+
+def test_un_clone_memorise_comme_une_release(tmp_path, config_temporaire, clone_ordinaire):
+    cible = tmp_path / "mes-documents" / "budget.db"
+
+    assert parametres_base._memoriser(cible) is True
+    assert config_utilisateur.chemin_base_memorise() == cible
+
+
+def test_un_clone_n_offre_pas_le_retour_a_la_base_native(clone_ordinaire):
     with pytest.raises(HTTPException) as erreur:
         parametres_base.reinitialiser_base()
     assert erreur.value.status_code == 403

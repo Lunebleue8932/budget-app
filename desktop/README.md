@@ -46,7 +46,13 @@ base-là.
 backend\.venv\Scripts\python.exe desktop\app_desktop.py
 ```
 
-Même fenêtre, mais sur la base de développement (`backend/data/dev/`).
+Même fenêtre, et même comportement qu'une version téléchargée : base vide, emplacement
+à choisir au premier lancement, aucun outil de développeur. La base par défaut est créée
+dans `backend/data/`.
+
+Le mode développeur (base de test dans `backend/data/dev/`, retour à la base native,
+scripts de seed) n'existe que sur la machine où un fichier `MODE-DEV.txt` a été posé à
+la racine du dépôt. Git l'ignore : il ne suit jamais un clone.
 
 ## Changer l'icône
 
