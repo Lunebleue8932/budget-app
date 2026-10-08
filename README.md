@@ -1,6 +1,10 @@
 # Budget App
 
-## Qu'est-ce que cette app ?
+## Télécharger l’App 
+
+Pour télécharger l’app, passe par la page Releases https://github.com/Lunebleue8932/budget-app/releases (plus de détails dans la section Téléchargement de ce ReadMe). Ne clone pas le dépôt. ⚠️ 
+
+## Qu'est-ce que cette App ?
 
 Une app de budget qui permet de regrouper tous tes comptes au même endroit et de visualiser comment ton argent est réparti.
 
