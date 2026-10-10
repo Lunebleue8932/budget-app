@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from app.constants import AxeTitre
 from app.database import get_db
 
-from schemas_vue_ensemble import ExpositionMonnaie
-from service_vue_ensemble import exposition_par_axe
+from schemas_vue_ensemble import ExpositionMonnaie, ExpositionTitresMonnaie
+from service_vue_ensemble import exposition_par_axe, exposition_par_titre
 
 router = APIRouter(prefix="/investing-overview", tags=["investing-overview"])
 
@@ -35,3 +35,10 @@ def get_exposition(
     l'état d'un portefeuille neuf, et l'écran le dit avec une phrase plutôt
     qu'avec un camembert à zéro part."""
     return exposition_par_axe(db, axe.value)
+
+
+@router.get("/exposition-titres", response_model=list[ExpositionTitresMonnaie])
+def get_exposition_titres(db: Session = Depends(get_db)):
+    """L'exposition titre par titre : en direct, et à travers la composition des ETF. Ce que
+    les compositions ne décrivent pas forme une part à elle (cf. exposition_par_titre)."""
+    return exposition_par_titre(db)

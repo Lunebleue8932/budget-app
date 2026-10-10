@@ -33,6 +33,8 @@ il y a dix ans ne pèsent plus pareil. Le montant investi voyage quand même dan
 la réponse : il dit ce que la part a coûté, et l'écart entre les deux est la
 plus-value latente.
 """
+import unicodedata
+
 from app import crud
 from app.constants import AxeTitre
 from app.services import exposition, placements
@@ -193,6 +195,129 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     # Les monnaies dans l'ordre où l'application les range partout ailleurs
     # (dashboard, menus) : l'onglet actif doit rester au même endroit d'un écran
     # à l'autre.
+    ordre = {m.id: m.ordre for m in crud.get_monnaies(db)}
+    resultat.sort(key=lambda bloc: ordre.get(bloc["monnaie_id"], 0))
+    return resultat
+
+
+# ---------- Titre par titre : en direct ET à travers les ETF ----------
+
+# Combien de titres le camembert « action par action » nomme un par un ; les suivants
+# se fondent dans une part « Autres titres ». Un ETF World en compte des dizaines, et
+# un disque de cinquante tranches ne se lit plus.
+TITRES_NOMMES = 15
+
+
+def _est_etf(un_titre) -> bool:
+    """Même règle que l'écran (cf. expositions.js, expoEstEtf) : une enveloppe dont le nom
+    commence par « ETF », casse et accents ignorés."""
+    nom = un_titre.type_titre.nom if un_titre and un_titre.type_titre else ""
+    nom = unicodedata.normalize("NFD", nom)
+    nom = "".join(c for c in nom if not unicodedata.combining(c)).strip().lower()
+    return nom.startswith("etf")
+
+
+def exposition_par_titre(db) -> list[dict]:
+    """L'exposition à chaque titre, une entrée par monnaie : ce qu'on détient EN DIRECT, plus
+    ce que chaque ETF détient pour nous d'après sa composition (sa valorisation × le poids du
+    composant). Le même titre tenu des deux façons ne fait qu'une part.
+
+    CE QUE LA COMPOSITION NE DIT PAS — le reste de l'indice, ou un ETF sans composition — se
+    range dans UNE part « Détenu par ETF, non déterminé » (`genre = "non_determine"`), au
+    prorata de la valeur détenue de chaque ETF. Son détail nomme les ETF qui y contribuent
+    (valeur × part non déterminée). `part_determinee` rapporte chaque autre part au seul
+    total déterminé : l'écran s'en sert quand on masque la part non déterminée, sans rien
+    recalculer de son côté.
+
+    Un titre qui n'est pas un ETF et n'a pas de composition est sa propre part, en direct."""
+    par_isin = {
+        exposition.normaliser_isin(t.code_isin): t
+        for t in crud.get_titres(db, inclure_archivees=True)
+        if t.code_isin
+    }
+    # (monnaie_id, clé) -> part ; la clé est l'ISIN, ou l'identifiant d'un titre sans ISIN.
+    parts: dict = {}
+    monnaies: dict = {}
+
+    def ajouter(monnaie_id, cle, nom, genre, valeur, source_cle, source_nom, direct):
+        part = parts.setdefault(
+            (monnaie_id, cle),
+            {"cle": cle, "nom": nom, "genre": genre, "valorisation": 0.0, "sources": {}},
+        )
+        part["valorisation"] += valeur
+        source = part["sources"].setdefault(
+            source_cle, {"nom": source_nom, "direct": direct, "valorisation": 0.0}
+        )
+        source["valorisation"] += valeur
+
+    for compte in placements.get_comptes_placement(db):
+        for ligne in placements.detentions(db, compte.id):
+            un_titre = crud.get_titre(db, ligne["titre_id"])
+            m_id, valeur = ligne["monnaie_id"], ligne["valorisation"]
+            monnaies.setdefault(
+                m_id, {"monnaie_id": m_id, "monnaie_symbole": ligne["monnaie_symbole"]}
+            )
+            source_etf = (f"etf:{un_titre.id}", un_titre.nom_affiche, False)
+            if un_titre.composition:
+                couvert = 0.0
+                for isin, poids in un_titre.composition.items():
+                    isin = exposition.normaliser_isin(isin)
+                    composant = par_isin.get(isin)
+                    nom = composant.nom_affiche if composant else isin
+                    ajouter(m_id, isin, nom, "titre", valeur * poids / 100.0, *source_etf)
+                    couvert += poids
+                reste = valeur * max(0.0, 1.0 - couvert / 100.0)
+                if reste > 1e-9:
+                    ajouter(m_id, "non_determine", None, "non_determine", reste, *source_etf)
+            elif _est_etf(un_titre):
+                ajouter(m_id, "non_determine", None, "non_determine", valeur, *source_etf)
+            else:
+                cle = exposition.normaliser_isin(un_titre.code_isin) or f"titre:{un_titre.id}"
+                ajouter(m_id, cle, un_titre.nom_affiche, "titre", valeur, "direct", None, True)
+
+    resultat = []
+    for m_id, monnaie in monnaies.items():
+        du_bloc = [p for (pm, _), p in parts.items() if pm == m_id]
+        for part in du_bloc:
+            sources = sorted(part.pop("sources").values(), key=lambda s: s["valorisation"], reverse=True)
+            part["nombre_sources"] = len(sources)
+            part["sources"] = sources[:TAILLE_DU_TOP]
+        titres = sorted((p for p in du_bloc if p["genre"] == "titre"), key=lambda p: p["valorisation"], reverse=True)
+        non_determine = [p for p in du_bloc if p["genre"] == "non_determine"]
+        nommes, fondus = titres[:TITRES_NOMMES], titres[TITRES_NOMMES:]
+        if fondus:
+            # LES AUTRES TITRES : leur détail nomme les plus lourds d'entre eux, comme le
+            # détail de n'importe quelle part nomme ce qui la compose.
+            nommes.append(
+                {
+                    "cle": "autres",
+                    "nom": None,
+                    "genre": "autres",
+                    "valorisation": sum(p["valorisation"] for p in fondus),
+                    "nombre_sources": len(fondus),
+                    "sources": [
+                        {"nom": p["nom"], "direct": False, "valorisation": p["valorisation"]}
+                        for p in fondus[:TAILLE_DU_TOP]
+                    ],
+                }
+            )
+        total = sum(p["valorisation"] for p in du_bloc)
+        total_determine = sum(p["valorisation"] for p in titres)
+        for part in nommes:
+            part["part"] = part["valorisation"] / total if total else 0.0
+            part["part_determinee"] = part["valorisation"] / total_determine if total_determine else 0.0
+        for part in non_determine:
+            part["part"] = part["valorisation"] / total if total else 0.0
+            part["part_determinee"] = None
+        resultat.append(
+            {
+                **monnaie,
+                "total": total,
+                "total_determine": total_determine,
+                "parts": nommes + non_determine,
+            }
+        )
+
     ordre = {m.id: m.ordre for m in crud.get_monnaies(db)}
     resultat.sort(key=lambda bloc: ordre.get(bloc["monnaie_id"], 0))
     return resultat

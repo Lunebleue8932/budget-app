@@ -49,3 +49,39 @@ class ExpositionMonnaie(BaseModel):
     total: float
     total_investi: float
     parts: list[PartExposition] = []
+
+
+class SourcePart(BaseModel):
+    """Ce qui apporte de la valeur à une part « titre par titre » : la détention en direct
+    (`direct`, sans nom — l'écran l'écrit dans sa langue), un ETF par sa composition, ou, pour
+    la part « Autres titres », l'un des titres qu'elle regroupe."""
+
+    nom: Optional[str] = None
+    direct: bool = False
+    valorisation: float
+
+
+class PartTitre(BaseModel):
+    """Une part du camembert « action par action ».
+
+    `genre` : `titre` (un titre nommé), `autres` (les titres au-delà des premiers, fondus),
+    `non_determine` (ce que la composition des ETF ne décrit pas)."""
+
+    cle: str
+    nom: Optional[str] = None
+    genre: str
+    valorisation: float
+    part: float
+    #: La part rapportée au seul total déterminé — celle qu'on lit quand on masque la part
+    #: non déterminée. None pour celle-ci.
+    part_determinee: Optional[float] = None
+    nombre_sources: int
+    sources: list[SourcePart] = []
+
+
+class ExpositionTitresMonnaie(BaseModel):
+    monnaie_id: int
+    monnaie_symbole: str
+    total: float
+    total_determine: float
+    parts: list[PartTitre] = []

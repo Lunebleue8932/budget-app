@@ -3596,6 +3596,18 @@ const TRADUCTIONS = {
       "No region",
     "Sans secteur":
       "No sector",
+    "Ton exposition à chaque action, détenue en direct ou à travers un ETF (d'après sa composition). Ce que la composition d'un ETF ne décrit pas tombe dans « Détenu par ETF, non déterminé », au prorata de ce que tu détiens de chaque ETF - le sélecteur la retire pour ne lire que le reste.":
+      "Your exposure to each stock, held directly or through an ETF (based on its composition). Whatever an ETF's composition does not describe falls into “Held through ETFs, undetermined”, in proportion to how much of each ETF you hold - the switch removes it so you only read the rest.",
+    "Action par action":
+      "Stock by stock",
+    "Masquer la part non déterminée des ETF":
+      "Hide the undetermined ETF share",
+    "Détenu par ETF, non déterminé":
+      "Held through ETFs, undetermined",
+    "Autres titres":
+      "Other securities",
+    "En direct":
+      "Held directly",
     // monnaies.taux-de-change
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.":
       "Lets you use the dashboard's convert-all feature for a complete view. Your transactions are never modified, only the dashboard display.",

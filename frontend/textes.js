@@ -316,6 +316,8 @@ const TEXTES = {
     "Où ton portefeuille est exposé dans le monde. Un ETF sans zone renseignée se répartit d'après sa composition, quand elle est connue.",
   "investing-overview.repartition-par-secteur":
     "Dans quels secteurs d'activité ton portefeuille est investi. Un ETF sans secteur renseigné se répartit d'après sa composition, quand elle est connue.",
+  "investing-overview.repartition-par-titre":
+    "Ton exposition à chaque action, détenue en direct ou à travers un ETF (d'après sa composition). Ce que la composition d'un ETF ne décrit pas tombe dans « Détenu par ETF, non déterminé », au prorata de ce que tu détiens de chaque ETF - le sélecteur la retire pour ne lire que le reste.",
 
   /* ----- Extension « Monnaies » ----- */
   "monnaies.taux-de-change":

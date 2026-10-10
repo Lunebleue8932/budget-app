@@ -74,6 +74,22 @@
               <div id="io-legende-secteur" class="io-legende"></div>
             </div>
           </div>
+
+          <!-- ACTION PAR ACTION, sur toute la largeur : ce qu'on détient en direct ET ce que les
+               ETF détiennent pour nous d'après leur composition. Ce que les compositions ne
+               décrivent pas forme sa propre part, que le sélecteur retire pour ne lire que le
+               reste (cf. ioRenderTitres). -->
+          <div class="io-cellule io-cellule-large" data-io-axe="titre">
+            <h3>Action par action<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-titre">i</i></h3>
+            <label class="import-option-ligne io-option" id="io-titres-masquer-bloc">
+              <input type="checkbox" id="io-titres-masquer" />
+              Masquer la part non déterminée des ETF
+            </label>
+            <div class="io-camembert-bloc" data-io-axe="titre">
+              <div id="io-camembert-titre" class="io-camembert"></div>
+              <div id="io-legende-titre" class="io-legende"></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

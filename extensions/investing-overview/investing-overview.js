@@ -55,7 +55,11 @@ const IO_AXES = ["enveloppe", "classe", "zone", "secteur"];
 // le ferait lire comme une catégorie qu'on aurait nommée.
 const IO_COULEUR_SANS_TYPE = "#6b7080";
 
+// LES PARTS « ACTION PAR ACTION » portent elles-mêmes leur couleur, leur nom, leur clé et leur
+// infobulle (cf. ioPartsTitres) : le disque, la légende et le survol sont ceux des quatre
+// autres camemberts, et ces quatre champs sont tout ce qui les distingue.
 function ioCouleurPart(part) {
+  if (part.couleur) return part.couleur;
   if (part.type_titre_id == null) return IO_COULEUR_SANS_TYPE;
   return couleurCategorie(part.type_titre_id);
 }
@@ -71,11 +75,13 @@ const IO_SANS_ETIQUETTE = {
 };
 
 function ioNomPart(part, axe = "enveloppe") {
+  if (part.nom_affiche) return part.nom_affiche;
   return part.type_titre_nom || t(IO_SANS_ETIQUETTE[axe]);
 }
 
 /** La clé qui relie une part du disque à sa ligne de légende (surbrillance). */
 function ioCle(part) {
+  if (part.cle) return part.cle;
   return part.type_titre_id == null ? "sans" : String(part.type_titre_id);
 }
 
@@ -245,9 +251,10 @@ function ioCablerSurvol(bloc, axe) {
   if (!cadre) return;
   cadre.querySelectorAll(".histo-bulle").forEach((ancienne) => ancienne.remove());
   const cibles = [...cadre.querySelectorAll("[data-io-cle]")];
-  attacherInfobulleCategorie(cadre, cibles, (cible) => ({
-    html: ioContenuInfobulle(bloc.parts[Number(cible.dataset.index)], bloc.monnaie_id, axe),
-  }));
+  attacherInfobulleCategorie(cadre, cibles, (cible) => {
+    const part = bloc.parts[Number(cible.dataset.index)];
+    return { html: part.bulle ? part.bulle() : ioContenuInfobulle(part, bloc.monnaie_id, axe) };
+  });
   cibles.forEach((cible) => {
     const jumeaux = () => cadre.querySelectorAll(`[data-io-cle="${cible.dataset.ioCle}"]`);
     cible.addEventListener("mouseenter", () => jumeaux().forEach((el) => el.classList.add("survolee")));
@@ -323,7 +330,112 @@ function ioRenderMonnaieActive() {
     ioRenderLegende(bloc, axe);
     ioCablerSurvol(bloc, axe);
   });
+  ioRenderTitres();
 }
+
+/* ---------- Action par action ----------
+ *
+ * CE QU'ON DÉTIENT EN DIRECT, PLUS CE QUE LES ETF DÉTIENNENT POUR NOUS d'après leur
+ * composition (cf. service_vue_ensemble.exposition_par_titre) : une même action tenue des
+ * deux façons ne fait qu'une part. Le serveur rend les parts déjà calculées — y compris
+ * leur poids sans la part non déterminée — et cet écran ne fait que choisir laquelle lire.
+ *
+ * LA PART « DÉTENU PAR ETF, NON DÉTERMINÉ » regroupe ce que les compositions ne décrivent
+ * pas, au prorata de la valeur de chaque ETF. Le sélecteur la retire du disque : on lit
+ * alors la répartition de ce qui est CONNU, rapportée à son seul total.
+ */
+let ioTitres = [];
+let ioMasquerNonDetermine = false;
+
+// Le gris clair des « Autres titres » : une part qui regroupe, pas un titre de plus — et
+// distinct du gris de la part non déterminée, qui dit tout autre chose.
+const IO_COULEUR_AUTRES = "#9aa0ad";
+
+function ioNomPartTitre(part) {
+  if (part.genre === "non_determine") return t("Détenu par ETF, non déterminé");
+  if (part.genre === "autres") return t("Autres titres");
+  return part.nom;
+}
+
+/** Le détail d'une part : d'où vient sa valeur (en direct, tel ETF) ou, pour la part non
+ *  déterminée, quels ETF y contribuent (valeur × part non déterminée), les trois plus lourds. */
+function ioContenuInfobulleTitre(part, monnaieId, pourcentage) {
+  const lignes = part.sources
+    .map(
+      (source) => `<li>
+        <span class="histo-bulle-nature">${escapeHtml(source.direct ? t("En direct") : source.nom)}</span>
+        <span class="histo-bulle-montant">${formatMontant(source.valorisation, monnaieId)}</span>
+      </li>`
+    )
+    .join("");
+  const reste = part.nombre_sources - part.sources.length;
+  const suite =
+    reste > 0
+      ? `<li class="io-bulle-reste"><span class="histo-bulle-nature">${t("et {n} autre(s)", {
+          n: reste,
+        })}</span></li>`
+      : "";
+  const compte =
+    part.genre === "autres"
+      ? `<div class="io-bulle-compte">${t("{n} titre(s)", { n: part.nombre_sources })}</div>`
+      : "";
+  return `<div class="histo-bulle-titre">${escapeHtml(ioNomPartTitre(part))} —
+      ${formatMontant(part.valorisation, monnaieId)} · ${formatPourcentage(pourcentage * 100)}</div>
+    ${compte}<ul class="histo-bulle-liste">${lignes}${suite}</ul>`;
+}
+
+/** Le bloc de la monnaie active, mis à la forme des quatre autres camemberts. */
+function ioBlocTitres(bloc) {
+  const masquer = ioMasquerNonDetermine;
+  let rang = 0;
+  const parts = bloc.parts
+    .filter((part) => !(masquer && part.genre === "non_determine"))
+    .map((part) => {
+      const pourcentage = masquer ? part.part_determinee : part.part;
+      const couleur =
+        part.genre === "non_determine"
+          ? IO_COULEUR_SANS_TYPE
+          : part.genre === "autres"
+            ? IO_COULEUR_AUTRES
+            : couleurCategorie(rang++);
+      return {
+        cle: part.cle,
+        nom_affiche: ioNomPartTitre(part),
+        couleur,
+        valorisation: part.valorisation,
+        part: pourcentage,
+        bulle: () => ioContenuInfobulleTitre(part, bloc.monnaie_id, pourcentage),
+      };
+    });
+  return {
+    monnaie_id: bloc.monnaie_id,
+    total: masquer ? bloc.total_determine : bloc.total,
+    parts,
+  };
+}
+
+function ioRenderTitres() {
+  const bloc = ioTitres.find((b) => b.monnaie_id === ioMonnaieId);
+  const cellule = document.querySelector('.io-cellule[data-io-axe="titre"]');
+  // Rien de nommé (que des ETF sans composition) : la seule part serait « non déterminé »,
+  // à 100 % — la cellule se retire, comme celle d'un axe sans étiquette.
+  const aQuelqueChose = bloc && bloc.parts.some((part) => part.genre !== "non_determine");
+  if (cellule) cellule.style.display = aQuelqueChose ? "" : "none";
+  if (!aQuelqueChose) return;
+  // Le sélecteur n'a de sens que s'il y a quelque chose à masquer.
+  const aNonDetermine = bloc.parts.some((part) => part.genre === "non_determine");
+  document.getElementById("io-titres-masquer-bloc").style.display = aNonDetermine ? "" : "none";
+  document.getElementById("io-titres-masquer").checked = ioMasquerNonDetermine;
+  const vue = ioBlocTitres(bloc);
+  ioRenderCamembert(vue, "titre");
+  ioRenderLegende(vue, "titre");
+  ioCablerSurvol(vue, "titre");
+}
+
+document.getElementById("io-titres-masquer")?.addEventListener("change", (e) => {
+  ioMasquerNonDetermine = e.target.checked;
+  ioRenderTitres();
+});
 
 /* ---------- Chargement ---------- */
 
@@ -333,10 +445,12 @@ async function loadInvestingOverview() {
     // serveur (cf. routeur_investing_overview), et les demander ensemble évite
     // l'instant où l'un des camemberts décrit une autre lecture que ses
     // voisins.
-    const lus = await Promise.all(
-      IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`))
-    );
+    const [titres, ...lus] = await Promise.all([
+      apiFetch("/investing-overview/exposition-titres"),
+      ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`)),
+    ]);
     ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
+    ioTitres = titres;
 
     const vide = ioExpositions.enveloppe.length === 0;
     document.getElementById("io-vide").style.display = vide ? "" : "none";

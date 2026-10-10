@@ -59,6 +59,17 @@
   align-self: stretch;
 }
 
+/* « Action par action » : une ligne à elle, toute la largeur — sa légende compte souvent une
+   quinzaine de titres, et se replie alors sur plusieurs colonnes. */
+.io-cellule-large {
+  grid-column: 1 / -1;
+}
+
+/* Le sélecteur qui masque la part non déterminée, entre le titre et le disque. */
+.io-option {
+  margin: 0 0 0.75rem;
+}
+
 /* Un léger éclaircissement au survol, en plus de l'infobulle : elle dit ce
    qu'on regarde, celui-ci dit OÙ on regarde — une bulle qui suit le curseur ne
    désigne pas la part à elle seule. `.survolee` vient du survol de la ligne de

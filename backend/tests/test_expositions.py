@@ -336,6 +336,50 @@ def test_un_etf_sans_repartition_s_eclate_selon_sa_composition(db_session):
     assert [(p["type_titre_nom"], p["part"]) for p in bloc["parts"]] == [("Europe", 1.0)]
 
 
+def test_titre_par_titre_le_direct_et_les_etf_se_rejoignent(db_session):
+    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
+    enveloppe_etf = _etiquette(db_session, "ETF", AxeTitre.enveloppe)
+    apple = crud.create_titre(db_session, "Apple", _monnaie(db_session), 100.0, "US0378331005")
+    _acheter(db_session, compte, apple, 3, 100.0)  # 300 € en direct
+    world = crud.create_titre(db_session, "ETF World", _monnaie(db_session), 100.0, "IE00B4L5Y983", enveloppe_etf.id)
+    crud.update_titre(db_session, world, composition={"US0378331005": 40.0, "US5949181045": 20.0})
+    _acheter(db_session, compte, world, 10, 100.0)  # 1 000 €
+    # Un ETF sans composition : entièrement non déterminé.
+    sp500 = crud.create_titre(db_session, "ETF S&P 500", _monnaie(db_session), 100.0, "IE00B5BMR087", enveloppe_etf.id)
+    _acheter(db_session, compte, sp500, 5, 100.0)  # 500 €
+
+    (bloc,) = service_vue.exposition_par_titre(db_session)
+    parts = {p["cle"]: p for p in bloc["parts"]}
+
+    # Apple : 300 € en direct + 400 € par l'ETF World, une seule part.
+    assert parts["US0378331005"]["valorisation"] == pytest.approx(700.0)
+    assert {s["direct"] for s in parts["US0378331005"]["sources"]} == {True, False}
+    # Microsoft, inconnu de la base : nommé par son ISIN.
+    assert parts["US5949181045"]["nom"] == "US5949181045"
+    assert parts["US5949181045"]["valorisation"] == pytest.approx(200.0)
+    # Non déterminé : 40 % de l'ETF World (400 €) + tout l'ETF S&P 500 (500 €).
+    nd = parts["non_determine"]
+    assert nd["valorisation"] == pytest.approx(900.0)
+    assert [s["nom"] for s in nd["sources"]] == ["ETF S&P 500", "ETF World"]
+    assert nd["part_determinee"] is None
+    assert bloc["total"] == pytest.approx(1800.0)
+    assert bloc["total_determine"] == pytest.approx(900.0)
+    assert parts["US0378331005"]["part_determinee"] == pytest.approx(700.0 / 900.0)
+
+
+def test_titre_par_titre_au_dela_des_premiers_les_titres_se_fondent(db_session):
+    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=1e9)
+    for i in range(service_vue.TITRES_NOMMES + 3):
+        titre = crud.create_titre(db_session, f"Titre {i:02d}", _monnaie(db_session), 1.0)
+        _acheter(db_session, compte, titre, 100 + i, 1.0)
+    (bloc,) = service_vue.exposition_par_titre(db_session)
+    genres = [p["genre"] for p in bloc["parts"]]
+    assert genres.count("titre") == service_vue.TITRES_NOMMES
+    autres = bloc["parts"][-1]
+    assert autres["genre"] == "autres" and autres["nombre_sources"] == 3
+    assert sum(p["valorisation"] for p in bloc["parts"]) == pytest.approx(bloc["total"])
+
+
 def test_la_classe_unique_donne_le_meme_camembert_qu_avant(db_session):
     compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
     actions = _etiquette(db_session, "Actions", AxeTitre.classe)
