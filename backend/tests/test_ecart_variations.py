@@ -260,3 +260,83 @@ def test_vue_annuelle(db_session, contexte):
         detail["ecart"], abs=0.01
     )
     assert detail["lignes"] == []
+
+
+# ---------- Les paires liées qui s'annulent sur la période ----------
+
+
+def _lier(db_session, reglement, depense, montant):
+    db_session.add(
+        models.RemboursementLien(
+            operation_remboursement_id=reglement.id,
+            operation_depense_id=depense.id,
+            montant=montant,
+        )
+    )
+    db_session.commit()
+
+
+def test_une_avance_remboursee_dans_le_mois_n_explique_rien(db_session, contexte, monkeypatch):
+    """L'avance (−50 d'écart) et son remboursement (+50), le même mois, s'annulent : ni l'un
+    ni l'autre ne pèse dans la différence des deux variations, aucun ne s'affiche."""
+    monkeypatch.setattr(soldes, "_remboursable_compte", lambda: True)
+    avance = _operation(
+        db_session, contexte, TypeOperation.remboursable.value,
+        montant=80.0, montant_du=50.0, montant_a_rembourser=0.0,
+    )
+    retour = _operation(
+        db_session, contexte, TypeOperation.remboursements.value, montant=50.0, sens=Sens.entree
+    )
+    _lier(db_session, retour, avance, 50.0)
+
+    detail = _verifier_invariant(db_session, contexte)
+    assert detail["lignes"] == []
+
+
+def test_un_remboursement_partiel_reste_affiche(db_session, contexte, monkeypatch):
+    """Seuls 30 des 50 € dus sont revenus : le reste explique bien un écart, la paire reste."""
+    monkeypatch.setattr(soldes, "_remboursable_compte", lambda: True)
+    avance = _operation(
+        db_session, contexte, TypeOperation.remboursable.value,
+        montant=80.0, montant_du=50.0, montant_a_rembourser=20.0,
+    )
+    retour = _operation(
+        db_session, contexte, TypeOperation.remboursements.value, montant=30.0, sens=Sens.entree
+    )
+    _lier(db_session, retour, avance, 30.0)
+
+    detail = _verifier_invariant(db_session, contexte)
+    assert len(detail["lignes"]) == 2
+
+
+def test_un_pret_rembourse_dans_le_mois_n_explique_rien(db_session, contexte):
+    pret = _operation(
+        db_session, contexte, TypeOperation.pret.value,
+        montant=1000.0, montant_du=1000.0, montant_a_rembourser=0.0, sens=Sens.entree,
+    )
+    remboursement = _operation(
+        db_session, contexte, TypeOperation.remboursement_pret.value,
+        montant=1000.0, date_operation=date(ANNEE, MOIS, 25),
+    )
+    _lier(db_session, remboursement, pret, 1000.0)
+
+    detail = _verifier_invariant(db_session, contexte)
+    assert detail["lignes"] == []
+
+
+def test_un_remboursement_sur_un_autre_mois_reste_affiche(db_session, contexte, monkeypatch):
+    """Le remboursement arrive le mois suivant : sur le mois de l'avance, elle seule creuse
+    l'écart, et elle s'affiche."""
+    monkeypatch.setattr(soldes, "_remboursable_compte", lambda: True)
+    avance = _operation(
+        db_session, contexte, TypeOperation.remboursable.value,
+        montant=80.0, montant_du=50.0, montant_a_rembourser=0.0,
+    )
+    retour = _operation(
+        db_session, contexte, TypeOperation.remboursements.value, montant=50.0,
+        sens=Sens.entree, date_operation=date(ANNEE, MOIS + 1, 2),
+    )
+    _lier(db_session, retour, avance, 50.0)
+
+    detail = _verifier_invariant(db_session, contexte)
+    assert [ligne["operation_id"] for ligne in detail["lignes"]] == [avance.id]

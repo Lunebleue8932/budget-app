@@ -2016,6 +2016,8 @@ def get_ecart_variations(
             }
         )
 
+    lignes = _sans_paires_qui_s_annulent(db, lignes)
+
     # DU PLUS GROS ÉCART AU PLUS PETIT, en valeur absolue : on vient voir ce qui
     # explique le chiffre, donc ce qui pèse le plus doit se lire en premier. Un
     # tri par date aurait mis en tête la ligne la plus ancienne, qui n'est
@@ -2030,6 +2032,53 @@ def get_ecart_variations(
         "ecart": brute_totale - flux["variation"],
         "lignes": lignes,
     }
+
+
+def _sans_paires_qui_s_annulent(db: Session, lignes: list[dict]) -> list[dict]:
+    """Retire les opérations LIÉES qui s'annulent sur la période : une dépense remboursable
+    et le remboursement qui la solde, un prêt reçu et son remboursement — quand les deux
+    tombent dans la période affichée.
+
+    Prises séparément, chacune creuse un écart (l'avance de −50 €, le remboursement de
+    +50 €) ; ensemble, elles ne pèsent rien dans la différence des deux variations. Les
+    montrer faisait chercher une explication à un écart qui n'existe pas.
+
+    LE GROUPE PART ENTIER, ET SEULEMENT S'IL S'ANNULE AU CENTIME : c'est ce qui garde
+    l'invariant (la somme des lignes vaut l'écart). Un remboursement PARTIEL laisse un reste,
+    qui explique bien quelque chose — le groupe reste alors affiché. Les liens sont ceux de
+    `RemboursementLien`, qui portent les deux familles (règlement d'une dépense remboursable,
+    remboursement d'un prêt)."""
+    ids = {ligne["operation_id"] for ligne in lignes}
+    if len(ids) < 2:
+        return lignes
+    parent = {identifiant: identifiant for identifiant in ids}
+
+    def racine(identifiant):
+        while parent[identifiant] != identifiant:
+            parent[identifiant] = parent[parent[identifiant]]
+            identifiant = parent[identifiant]
+        return identifiant
+
+    liens = db.query(
+        models.RemboursementLien.operation_remboursement_id,
+        models.RemboursementLien.operation_depense_id,
+    ).filter(
+        models.RemboursementLien.operation_remboursement_id.in_(ids),
+        models.RemboursementLien.operation_depense_id.in_(ids),
+    )
+    for reglement_id, depense_id in liens:
+        parent[racine(reglement_id)] = racine(depense_id)
+
+    groupes: dict[int, list[dict]] = {}
+    for ligne in lignes:
+        groupes.setdefault(racine(ligne["operation_id"]), []).append(ligne)
+    retirees = {
+        id(ligne)
+        for groupe in groupes.values()
+        if len(groupe) > 1 and abs(sum(l["ecart"] for l in groupe)) < 0.005
+        for ligne in groupe
+    }
+    return [ligne for ligne in lignes if id(ligne) not in retirees]
 
 
 def get_variation_previsionnelle(
