@@ -23,20 +23,20 @@
 const IO_ID = "investing-overview";
 const IO_HOTE = "placements";
 
-// LES DEUX AXES du portefeuille (migration 0066), et la monnaie regardée.
+// LES QUATRE AXES du portefeuille (migrations 0066 et 0076), et la monnaie regardée.
 // Gardés pour que rebasculer d'un onglet de monnaie à l'autre ne redemande rien
 // au serveur : toutes les monnaies viennent du même appel.
 //
 // `enveloppe` DÉCIDE DE TOUT CE QUI EST COMMUN — les onglets de monnaie, les
-// KPI, l'état « portefeuille vide » : les deux axes décrivent exactement les
+// KPI, l'état « portefeuille vide » : les quatre axes décrivent exactement les
 // mêmes détentions, seul leur découpage change. Lire les monnaies des deux
 // aurait laissé exister un état où l'un en propose une que l'autre ignore.
-let ioExpositions = { enveloppe: [], classe: [] };
+let ioExpositions = { enveloppe: [], classe: [], zone: [], secteur: [] };
 let ioMonnaieId = null;
 
-// L'ordre des deux blocs à l'écran, et les identifiants qui vont avec. Une seule
-// liste : le rendu, le vidage et l'infobulle la parcourent tous les trois.
-const IO_AXES = ["enveloppe", "classe"];
+// L'ordre des quatre blocs à l'écran (deux par ligne), et les identifiants qui vont avec.
+// Une seule liste : le chargement, le rendu et l'infobulle la parcourent tous.
+const IO_AXES = ["enveloppe", "classe", "zone", "secteur"];
 
 /* ---------- Couleurs ----------
  *
@@ -60,15 +60,23 @@ function ioCouleurPart(part) {
   return couleurCategorie(part.type_titre_id);
 }
 
+// LA PART SANS ÉTIQUETTE SE NOMME DANS LA LANGUE DE SON AXE : « Sans enveloppe » sous un
+// graphe d'enveloppes, « Sans zone » sous celui des zones. Le même mot partout ferait croire
+// à une seule et même part, alors qu'un titre peut très bien porter l'une et pas l'autre.
+const IO_SANS_ETIQUETTE = {
+  enveloppe: "Sans enveloppe",
+  classe: "Sans classe",
+  zone: "Sans zone",
+  secteur: "Sans secteur",
+};
+
 function ioNomPart(part, axe = "enveloppe") {
-  // LA PART SANS ÉTIQUETTE SE NOMME DANS LA LANGUE DE SON AXE : « Sans
-  // enveloppe » sous un graphe d'enveloppes, « Sans classe » sous l'autre. Le
-  // même mot aux deux endroits ferait croire à une seule et même part, alors
-  // qu'un titre peut très bien porter l'une et pas l'autre.
-  return (
-    part.type_titre_nom ||
-    (axe === "classe" ? t("Sans classe") : t("Sans enveloppe"))
-  );
+  return part.type_titre_nom || t(IO_SANS_ETIQUETTE[axe]);
+}
+
+/** La clé qui relie une part du disque à sa ligne de légende (surbrillance). */
+function ioCle(part) {
+  return part.type_titre_id == null ? "sans" : String(part.type_titre_id);
 }
 
 /* ---------- Le camembert ---------- */
@@ -147,55 +155,17 @@ function ioContenuInfobulle(part, monnaieId, axe) {
         )}</span></li>`
       : "";
 
+  // Le montant et le nombre de titres vivent ICI depuis que la légende, passée sous le
+  // disque, ne porte plus que le nom et la part (comme celle du dashboard).
   return `<div class="histo-bulle-titre">${escapeHtml(ioNomPart(part, axe))} —
-      ${(part.part * 100).toFixed(1)} %</div>
+      ${formatMontant(part.valorisation, monnaieId)} · ${formatPourcentage(part.part * 100)}</div>
+    <div class="io-bulle-compte">${t("{n} titre(s)", { n: part.nombre_titres })}</div>
     <ul class="histo-bulle-liste">${lignes}${suite}</ul>`;
-}
-
-/**
- * Place l'infobulle À DROITE DU DISQUE, à la hauteur du curseur.
- *
- * PAS TOUT À FAIT COMME CELLE DE L'HISTOGRAMME, et la différence tient à la
- * forme du graphe. Une barre est haute et étroite : une bulle posée à côté du
- * curseur tombe naturellement dans le vide. Un anneau est large et rond, et le
- * curseur est forcément DESSUS quand on survole une part — une bulle qui le
- * suivrait horizontalement se poserait donc toujours sur le graphe qu'elle
- * commente, quel que soit le sens du recadrage.
- *
- * Elle suit en revanche le curseur EN HAUTEUR, ce qui suffit à la rattacher à
- * la part qu'on regarde, et se recadre vers le haut quand elle déborderait en
- * bas. Le cadre de référence est le bloc entier (graphe + légende) : le seul
- * disque ne fait que 240 pixels et ne laisserait aucune place.
- */
-function ioPlacerInfobulle(bulle, cadreElement, evenement, axe) {
-  const cadre = cadreElement.getBoundingClientRect();
-  const disque = document
-    .getElementById(`io-camembert-${axe}`)
-    .getBoundingClientRect();
-  const marge = 14;
-
-  let x = disque.right - cadre.left + marge;
-  // Le bloc passe en colonne sur un écran étroit (cf. la feuille de style) :
-  // le disque occupe alors toute la largeur, et il ne reste plus de « à côté ».
-  // On revient dans ce cas au bord gauche, sous le graphe.
-  if (x + bulle.offsetWidth > cadre.width) x = 0;
-
-  let y = evenement.clientY - cadre.top + marge;
-  if (y + bulle.offsetHeight > cadre.height) {
-    y = evenement.clientY - cadre.top - bulle.offsetHeight - marge;
-  }
-  bulle.style.left = `${Math.max(0, x)}px`;
-  bulle.style.top = `${Math.max(0, y)}px`;
 }
 
 function ioRenderCamembert(bloc, axe) {
   const conteneur = document.getElementById(`io-camembert-${axe}`);
   conteneur.innerHTML = "";
-  // Le cadre de l'infobulle : tout le bloc, pas le seul disque (cf.
-  // ioPlacerInfobulle). CELUI DE CET AXE — avec deux camemberts sur la page, un
-  // sélecteur non qualifié rapporterait toujours le premier, et la bulle du
-  // second se placerait contre le graphe d'à côté.
-  const cadre = document.querySelector(`.io-camembert-bloc[data-io-axe="${axe}"]`);
 
   const total = bloc.total;
   let angle = 0;
@@ -216,7 +186,7 @@ function ioRenderCamembert(bloc, axe) {
               IO_RAYON - IO_RAYON_INTERIEUR
             }" />`
           : `<path d="${ioArc(angleDebut, angle)}" fill="${ioCouleurPart(part)}" />`;
-      return `<g data-index="${i}" class="io-part">${forme}</g>`;
+      return `<g data-index="${i}" data-io-cle="${ioCle(part)}" class="io-part">${forme}</g>`;
     })
     .join("");
 
@@ -232,59 +202,57 @@ function ioRenderCamembert(bloc, axe) {
             )}</text>
     </svg>
   `;
-
-  // Une seule bulle réutilisée par toutes les parts, posée dans le bloc
-  // (positionné en relatif) : la recréer à chaque survol la ferait réapparaître
-  // sans transition. Réutilisée d'un rendu à l'autre pour la même raison —
-  // seul le disque est redessiné quand on change d'onglet de monnaie.
-  let bulle = cadre.querySelector(".histo-bulle");
-  if (!bulle) {
-    bulle = document.createElement("div");
-    bulle.className = "histo-bulle";
-    bulle.setAttribute("role", "tooltip");
-    cadre.appendChild(bulle);
-  }
-  bulle.classList.remove("visible");
-
-  conteneur.querySelectorAll("svg g[data-index]").forEach((groupe) => {
-    const part = bloc.parts[Number(groupe.dataset.index)];
-    groupe.addEventListener("mouseenter", (e) => {
-      bulle.innerHTML = ioContenuInfobulle(part, bloc.monnaie_id, axe);
-      bulle.classList.add("visible");
-      ioPlacerInfobulle(bulle, cadre, e, axe);
-    });
-    groupe.addEventListener("mousemove", (e) => ioPlacerInfobulle(bulle, cadre, e, axe));
-    groupe.addEventListener("mouseleave", () => bulle.classList.remove("visible"));
-  });
 }
 
 /* ---------- La légende ----------
  *
- * À CÔTÉ DU CAMEMBERT ET NON DEDANS. Écrire les libellés sur les parts oblige à
- * les tronquer dès qu'une part est étroite, et rend illisible tout ce qui pèse
- * moins de quelques pour cent — c'est-à-dire précisément ce qu'on vient
- * vérifier. La légende porte donc le nom, le montant et la part, alignés en
- * colonnes.
+ * SOUS LE CAMEMBERT ET NON DEDANS. Écrire les libellés sur les parts oblige à les
+ * tronquer dès qu'une part est étroite, et rend illisible tout ce qui pèse moins de
+ * quelques pour cent — c'est-à-dire précisément ce qu'on vient vérifier.
+ *
+ * LA LÉGENDE DU DASHBOARD (`.camembert-legende`) : la pastille, le nom et la part. Le
+ * montant et le nombre de titres sont dans l'infobulle, la même que celle du disque.
  */
 function ioRenderLegende(bloc, axe) {
   const legende = document.getElementById(`io-legende-${axe}`);
-  legende.innerHTML = bloc.parts
+  legende.innerHTML = `<ul class="camembert-legende">${bloc.parts
     .map(
-      (part) => `
-      <div class="io-legende-ligne">
-        <span class="io-pastille" style="background:${ioCouleurPart(part)}"></span>
-        <span class="io-legende-nom">${escapeHtml(ioNomPart(part, axe))}</span>
-        <span class="io-legende-nombre">${t("{n} titre(s)", {
-          n: part.nombre_titres,
-        })}</span>
-        <span class="io-legende-montant">${formatMontant(
-          part.valorisation,
-          bloc.monnaie_id
-        )}</span>
-        <span class="io-legende-part">${(part.part * 100).toFixed(1)} %</span>
-      </div>`
+      (part, i) => `
+      <li class="camembert-legende-ligne" data-index="${i}" data-io-cle="${ioCle(part)}">
+        <span class="camembert-pastille" style="background:${ioCouleurPart(part)}"></span>
+        <span class="camembert-legende-nom">${escapeHtml(ioNomPart(part, axe))}</span>
+        <span class="camembert-legende-part">${formatPourcentage(part.part * 100)}</span>
+      </li>`
     )
-    .join("");
+    .join("")}</ul>`;
+}
+
+/**
+ * L'INFOBULLE ET LA SURBRILLANCE, sur le disque ET sur la légende — le fonctionnement des
+ * autres légendes de l'application (cf. renderLegendeCategories, cablerSurbrillanceCategories).
+ *
+ * L'infobulle est celle du noyau (`attacherInfobulleCategorie`) : même placement, même gel
+ * par la touche réglée dans les Paramètres. Une seule pour le bloc, posée sur ses parts et ses
+ * lignes de légende ; celle du rendu précédent est retirée, sans quoi chaque changement
+ * d'onglet de monnaie en ajouterait une.
+ *
+ * La surbrillance relie une part à sa ligne par `data-io-cle`, DANS CE BLOC seulement : deux
+ * camemberts voisins portent des étiquettes différentes, et « Sans zone » n'est pas « Sans
+ * secteur ».
+ */
+function ioCablerSurvol(bloc, axe) {
+  const cadre = document.querySelector(`.io-camembert-bloc[data-io-axe="${axe}"]`);
+  if (!cadre) return;
+  cadre.querySelectorAll(".histo-bulle").forEach((ancienne) => ancienne.remove());
+  const cibles = [...cadre.querySelectorAll("[data-io-cle]")];
+  attacherInfobulleCategorie(cadre, cibles, (cible) => ({
+    html: ioContenuInfobulle(bloc.parts[Number(cible.dataset.index)], bloc.monnaie_id, axe),
+  }));
+  cibles.forEach((cible) => {
+    const jumeaux = () => cadre.querySelectorAll(`[data-io-cle="${cible.dataset.ioCle}"]`);
+    cible.addEventListener("mouseenter", () => jumeaux().forEach((el) => el.classList.add("survolee")));
+    cible.addEventListener("mouseleave", () => jumeaux().forEach((el) => el.classList.remove("survolee")));
+  });
 }
 
 /* ---------- Les chiffres du haut ---------- */
@@ -337,24 +305,23 @@ function ioRenderOnglets() {
 function ioRenderMonnaieActive() {
   const reference = ioExpositions.enveloppe.find((b) => b.monnaie_id === ioMonnaieId);
   if (!reference) return;
-  // Les KPI une seule fois : les deux axes décrivent les mêmes détentions, donc
+  // Les KPI une seule fois : les quatre axes décrivent les mêmes détentions, donc
   // la même valeur, le même investi et la même plus-value.
   ioRenderKpis(reference);
   IO_AXES.forEach((axe) => {
     const bloc = ioExpositions[axe].find((b) => b.monnaie_id === ioMonnaieId);
-    const cadre = document.querySelector(`.io-camembert-bloc[data-io-axe="${axe}"]`);
-    const titre = cadre ? cadre.previousElementSibling : null;
+    const cellule = document.querySelector(`.io-cellule[data-io-axe="${axe}"]`);
     // UN AXE SANS AUCUNE ÉTIQUETTE N'A PAS DE CAMEMBERT À DESSINER, et c'est
-    // l'état ordinaire des classes d'actif le lendemain de la migration. Le
-    // bloc se retire avec son titre plutôt que d'afficher un disque gris
-    // intitulé « Sans classe » à 100 % — qui n'apprendrait rien et donnerait
-    // l'air d'une panne.
+    // l'état ordinaire d'une zone ou d'un secteur tant que rien n'a été importé.
+    // La cellule se retire avec son titre plutôt que d'afficher un disque gris
+    // intitulé « Sans zone » à 100 % — qui n'apprendrait rien et donnerait
+    // l'air d'une panne. Les autres se resserrent dans la grille.
     const aQuelqueChose = bloc && bloc.parts.some((part) => part.type_titre_id != null);
-    if (cadre) cadre.style.display = aQuelqueChose ? "" : "none";
-    if (titre && titre.tagName === "H3") titre.style.display = aQuelqueChose ? "" : "none";
+    if (cellule) cellule.style.display = aQuelqueChose ? "" : "none";
     if (!aQuelqueChose) return;
     ioRenderCamembert(bloc, axe);
     ioRenderLegende(bloc, axe);
+    ioCablerSurvol(bloc, axe);
   });
 }
 
@@ -362,15 +329,14 @@ function ioRenderMonnaieActive() {
 
 async function loadInvestingOverview() {
   try {
-    // DEUX APPELS, EN PARALLÈLE : les deux axes se lisent séparément côté
+    // UN APPEL PAR AXE, EN PARALLÈLE : les axes se lisent séparément côté
     // serveur (cf. routeur_investing_overview), et les demander ensemble évite
-    // l'instant où l'un des deux camemberts décrit une autre lecture que son
-    // voisin.
-    const [enveloppe, classe] = await Promise.all([
-      apiFetch("/investing-overview/exposition?axe=enveloppe"),
-      apiFetch("/investing-overview/exposition?axe=classe"),
-    ]);
-    ioExpositions = { enveloppe, classe };
+    // l'instant où l'un des camemberts décrit une autre lecture que ses
+    // voisins.
+    const lus = await Promise.all(
+      IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`))
+    );
+    ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
 
     const vide = ioExpositions.enveloppe.length === 0;
     document.getElementById("io-vide").style.display = vide ? "" : "none";

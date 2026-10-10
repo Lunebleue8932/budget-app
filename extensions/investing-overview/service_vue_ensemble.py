@@ -35,7 +35,7 @@ plus-value latente.
 """
 from app import crud
 from app.constants import AxeTitre
-from app.services import placements
+from app.services import exposition, placements
 
 # Ce qu'un titre sans étiquette porte comme identifiant de type. `None` plutôt
 # que 0 ou -1 : c'est déjà ce que la colonne vaut en base, et l'écran n'a alors
@@ -48,18 +48,40 @@ TYPE_NON_RENSEIGNE = None
 TAILLE_DU_TOP = 3
 
 
-def _parts_du_titre(un_titre, axe: str) -> list[tuple[object, float]]:
+def _parts_eclatees(un_titre, axe: str, par_isin: dict) -> list[tuple[object, float]]:
+    """L'ETF ÉCLATÉ PAR SA COMPOSITION (migration 0076), quand il n'a pas de répartition à lui
+    sur cet axe : chaque ISIN du dictionnaire apporte sa propre répartition, au prorata de son
+    poids dans l'ETF. Un composant inconnu de la base, ou sans répartition, n'apporte rien ;
+    ce qui manque reste « non renseigné » (cf. `_parts_du_titre`). Un seul niveau : un ETF
+    cité dans la composition d'un autre ne s'éclate pas à son tour."""
+    cumul: dict = {}
+    for isin, poids in (un_titre.composition or {}).items():
+        composant = par_isin.get(exposition.normaliser_isin(isin))
+        if composant is None or composant.id == un_titre.id:
+            continue
+        for e in composant.repartition(axe):
+            etiquette, part = cumul.get(e.type_titre_id, (e.etiquette, 0.0))
+            cumul[e.type_titre_id] = (etiquette, part + (poids / 100.0) * (e.poids_pct / 100.0))
+    return list(cumul.values())
+
+
+def _parts_du_titre(un_titre, axe: str, par_isin: dict | None = None) -> list[tuple[object, float]]:
     """Les `(étiquette, part)` d'un titre sur un axe, la part étant une fraction de 1.
 
     L'enveloppe : une étiquette, 100 %. Les axes d'exposition : une ligne par
     étiquette de la répartition, plus le RÉSIDU (étiquette `None`) quand elle ne
     couvre pas tout. Un titre sans aucune répartition est entièrement « non
-    renseigné » — exactement ce qu'était, avant la 0076, un titre sans classe."""
+    renseigné » — exactement ce qu'était, avant la 0076, un titre sans classe —
+    sauf un ETF qui porte une composition : il s'éclate alors sur ses composants
+    (`_parts_eclatees`). Ce qui est renseigné sur le titre lui-même passe toujours
+    avant : c'est la donnée la plus directe."""
     if un_titre is None:
         return [(None, 1.0)]
     if axe == AxeTitre.enveloppe.value:
         return [(un_titre.type_titre, 1.0)]
     parts = [(e.etiquette, e.poids_pct / 100.0) for e in un_titre.repartition(axe)]
+    if not parts and un_titre.composition and par_isin:
+        parts = _parts_eclatees(un_titre, axe, par_isin)
     residu = 1.0 - sum(part for _, part in parts)
     if residu > 1e-9:
         parts.append((None, residu))
@@ -81,6 +103,13 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     # cloisonne (on n'additionne pas deux devises) et que le type regroupe.
     cases: dict = {}
     monnaies: dict = {}
+    # Les composants d'un ETF se retrouvent par leur ISIN, archivés compris : ce sont
+    # justement des titres qu'on suit sans les détenir (cf. `_parts_eclatees`).
+    par_isin = {
+        exposition.normaliser_isin(t.code_isin): t
+        for t in crud.get_titres(db, inclure_archivees=True)
+        if t.code_isin
+    }
 
     for compte in placements.get_comptes_placement(db):
         for ligne in placements.detentions(db, compte.id):
@@ -101,7 +130,7 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
                 ligne["monnaie_id"],
                 {"monnaie_id": ligne["monnaie_id"], "monnaie_symbole": ligne["monnaie_symbole"]},
             )
-            for etiquette, part in _parts_du_titre(un_titre, axe):
+            for etiquette, part in _parts_du_titre(un_titre, axe, par_isin):
                 type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
                 type_nom = etiquette.nom if etiquette else None
                 case = cases.setdefault(

@@ -312,6 +312,10 @@ const TEXTES = {
     "À quoi ton portefeuille est exposé : actions, obligations, immobilier, monétaire ?",
   "investing-overview.repartition-par-type-de-titre":
     "Comment ton portefeuille est détenu : quelles sont les enveloppes que tu utilises ?",
+  "investing-overview.repartition-par-zone":
+    "Où ton portefeuille est exposé dans le monde. Un ETF sans zone renseignée se répartit d'après sa composition, quand elle est connue.",
+  "investing-overview.repartition-par-secteur":
+    "Dans quels secteurs d'activité ton portefeuille est investi. Un ETF sans secteur renseigné se répartit d'après sa composition, quand elle est connue.",
 
   /* ----- Extension « Monnaies » ----- */
   "monnaies.taux-de-change":

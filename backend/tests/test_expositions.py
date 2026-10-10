@@ -308,6 +308,34 @@ def test_un_titre_sans_repartition_est_entierement_non_renseigne(db_session):
     assert [(p["type_titre_nom"], p["part"]) for p in bloc["parts"]] == [(None, 1.0)]
 
 
+def test_un_etf_sans_repartition_s_eclate_selon_sa_composition(db_session):
+    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
+    usa = _etiquette(db_session, "États-Unis", AxeTitre.zone)
+    europe = _etiquette(db_session, "Europe", AxeTitre.zone)
+    apple = crud.create_titre(db_session, "Apple", _monnaie(db_session), 1.0, "US0378331005")
+    asml = crud.create_titre(db_session, "ASML", _monnaie(db_session), 1.0, "NL0010273215")
+    _repartir(db_session, apple, AxeTitre.zone, [(usa.id, 100.0)])
+    _repartir(db_session, asml, AxeTitre.zone, [(europe.id, 100.0)])
+    etf = _titre(db_session, "ETF World", 100.0)
+    crud.update_titre(
+        db_session, etf, composition={"US0378331005": 40.0, "NL0010273215": 20.0, "US5949181045": 10.0}
+    )
+    _acheter(db_session, compte, etf, 10, 100.0)  # 1 000 €
+
+    (bloc,) = service_vue.exposition_par_axe(db_session, AxeTitre.zone.value)
+    parts = {p["type_titre_nom"]: p["valorisation"] for p in bloc["parts"]}
+
+    assert parts["États-Unis"] == pytest.approx(400.0)
+    assert parts["Europe"] == pytest.approx(200.0)
+    # Le composant inconnu (Microsoft) et le reste de l'indice : non renseignés, jamais étirés.
+    assert parts[None] == pytest.approx(400.0)
+
+    # Une répartition posée sur l'ETF lui-même passe avant sa composition.
+    _repartir(db_session, etf, AxeTitre.zone, [(europe.id, 100.0)])
+    (bloc,) = service_vue.exposition_par_axe(db_session, AxeTitre.zone.value)
+    assert [(p["type_titre_nom"], p["part"]) for p in bloc["parts"]] == [("Europe", 1.0)]
+
+
 def test_la_classe_unique_donne_le_meme_camembert_qu_avant(db_session):
     compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
     actions = _etiquette(db_session, "Actions", AxeTitre.classe)

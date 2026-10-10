@@ -3584,6 +3584,18 @@ const TRADUCTIONS = {
     // investing-overview.repartition-par-type-de-titre
     "Comment ton portefeuille est détenu : quelles sont les enveloppes que tu utilises ?":
       "How your portfolio is held: which wrappers do you use?",
+    "Où ton portefeuille est exposé dans le monde. Un ETF sans zone renseignée se répartit d'après sa composition, quand elle est connue.":
+      "Where your portfolio is exposed around the world. An ETF with no region filled in is split according to its composition, when it is known.",
+    "Dans quels secteurs d'activité ton portefeuille est investi. Un ETF sans secteur renseigné se répartit d'après sa composition, quand elle est connue.":
+      "Which business sectors your portfolio is invested in. An ETF with no sector filled in is split according to its composition, when it is known.",
+    "Où c'est exposé":
+      "Where it is exposed",
+    "Dans quels secteurs":
+      "In which sectors",
+    "Sans zone":
+      "No region",
+    "Sans secteur":
+      "No sector",
     // monnaies.taux-de-change
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.":
       "Lets you use the dashboard's convert-all feature for a complete view. Your transactions are never modified, only the dashboard display.",
