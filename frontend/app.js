@@ -11938,7 +11938,7 @@ function renderColonnesDummy() {
         .map((c) => ({
           cle: String(c.id),
           libelle: c.formats.length
-            ? t("{nom} — lue par {formats}", {
+            ? t("{nom} (lue par {formats})", {
                 nom: c.nom,
                 formats: c.formats.map((f) => f.nom).join(", "),
               })

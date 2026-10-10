@@ -239,7 +239,7 @@ const TEXTES = {
   "noyau.configuration-avancee":
     "Pour les fichiers nécessitant un paramétrage plus complexe.",
   "noyau.colonnes-dummy":
-    "Une colonne de ton fichier que l'app ne lit pour aucune propriété (une référence, un code d'opération…), nommée pour que tes règles d'Imports Avancés puissent s'en servir. Une même colonne dummy peut être lue par plusieurs formats, chacun à son propre numéro de colonne : une seule règle sert alors tous ces fichiers. Le bouton + propose une nouvelle colonne, ou celles déjà déclarées dans tes autres formats.",
+    "Pour lire une colonne que l'app n'utilise pas (une référence, un code d'opération…) et s'en servir dans les règles. Une même colonne dummy peut être lue par plusieurs presets, chacun à son propre numéro de colonne : une seule règle sert alors tous ces fichiers. Le bouton + propose une nouvelle colonne, ou celles déjà créées dans tes autres presets.",
   "noyau.reglages-de-lecture":
     "À régler seulement si le fichier est mal lu : colonnes mélangées, montants illisibles. L'app devine seule dans la plupart des cas.",
   "noyau.detection-colonnes":
@@ -409,7 +409,7 @@ const TEXTES = {
   "regles.formats-restreints":
     "Décoché, la règle s'applique à tous les formats d'import. Coché, elle ne s'applique qu'aux formats choisis : utile quand un même libellé veut dire une chose chez une banque et une autre chez une autre.",
   "regles.colonnes-du-fichier":
-    "« Toute la ligne » cherche dans toutes les colonnes du fichier à la fois. « Colonne n° » vise une seule colonne, comptée comme dans ton tableur (1 = la première) : pratique pour une colonne que le format d'import ne lit pas.",
+    "« Toute la ligne » cherche dans toutes les colonnes du fichier à la fois, y compris celles que le preset ne lit pas. Pour viser une seule de ces colonnes, utilise une colonne dummy.",
   "regles.autres-proprietes":
     "Tout ce qu'une règle peut changer d'autre sur la ligne, sauf ses montants et sa date. Chaque champ est facultatif : laissé vide, la règle n'en dit rien. Le nouveau nom ne change pas ce que les règles comparent — elles lisent toutes le libellé du relevé.",
   "regles.sorties-conditionnelles":
@@ -452,15 +452,15 @@ const TEXTES = {
   "regles.sortie-a-declarer-sans-type":
     "L'application de la règle ne se fera que sur les opérations catégorisées d'office comme entrées d'argent par l'app.",
   "regles.colonnes-dummy":
-    "Une colonne que tes formats d'import déclarent lire, dans Configuration du fichier → Colonnes secondaires. Chaque format la lit à son propre numéro : la condition vise donc la même information d'un fichier à l'autre, même rangée ailleurs. Sur un format qui ne la lit pas, la condition n'est jamais vraie.",
+    "Une colonne déclarée dans les presets d'import (Configuration du fichier → Colonnes secondaires). Chaque preset la lit à son propre numéro : la condition vise la même information d'un fichier à l'autre, même rangée ailleurs. Sur un preset qui ne la lit pas, la condition n'est jamais vraie.",
   "regles.dummy-partie":
-    "Cette partie de la reconnaissance ne s'exécutera que sur les formats qui lisent cette colonne : {formats}. Ailleurs, la règle s'exécute sans elle.",
+    "Cette partie de la reconnaissance ne s'exécutera que sur les presets qui lisent cette colonne : {formats}. Sur les autres, la règle s'exécute sans elle.",
   "regles.dummy-toute-regle":
-    "Toute la règle ne s'exécutera que sur les formats qui lisent cette colonne : {formats}.",
+    "Toute la règle ne s'exécutera que sur les presets qui lisent cette colonne : {formats}.",
   "regles.dummy-toute-sortie":
-    "Cette sortie ne s'appliquera que sur les formats qui lisent cette colonne : {formats}.",
+    "Cette sortie ne s'appliquera que sur les presets qui lisent cette colonne : {formats}.",
   "regles.dummy-aucun-format":
-    "Aucun des formats visés par cette règle ne lit cette colonne : cette condition ne sera vraie nulle part.",
+    "Aucun des presets visés par cette règle ne lit cette colonne : cette condition ne sera jamais vraie.",
 
   /* ----- Extension « Suivi des remboursements » ----- */
   "suivi-remboursements.on-te-doit":
