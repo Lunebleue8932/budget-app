@@ -52,11 +52,8 @@
 
   <div id="sous-section-budget-budget" class="sous-section active">
 
-    <div class="selecteur-contexte ab-contexte">
-      <label for="ab-monnaie">Monnaie
-        <select id="ab-monnaie"></select>
-      </label>
-    </div>
+    <!-- LES MONNAIES EN ONGLETS, comme au dashboard (cf. abMonnaiesProposees). -->
+    <div class="sous-onglets" id="ab-monnaies"></div>
     <!-- LE MOIS SE CHOISIT COMME AU DASHBOARD (creerArbrePeriode, sans les semaines). -->
     <div id="ab-periode" class="ab-periode"></div>
 
@@ -126,31 +123,6 @@
       </div>
     </div>
     <div id="ab-legende" class="histogramme-cadre legende-cadre"></div>
-
-    <!-- LA FENÊTRE D'UNE MONNAIE ÉTEINTE (« en pop-up ») : ouverte depuis une colonne
-         « Conversion vers… » de l'histogramme, les deux graphes de la page pour cette monnaie
-         (cf. abOuvrirFenetreMonnaie). -->
-    <div id="modale-ab-monnaie" class="modale-fond" style="display:none" role="presentation">
-      <div class="modale modale-monnaie-eteinte" role="dialog" aria-modal="true"
-           aria-labelledby="modale-ab-monnaie-titre">
-        <div class="epargne-entete">
-          <h2 id="modale-ab-monnaie-titre"></h2>
-          <button type="button" id="btn-modale-ab-monnaie-fermer" class="epargne-fermer"
-                  title="Fermer" aria-label="Fermer">&times;</button>
-        </div>
-        <p class="hint" id="modale-ab-monnaie-periode"></p>
-        <p class="hint" id="modale-ab-monnaie-vide" style="display:none">Aucune dépense sur la période.</p>
-        <div id="modale-ab-monnaie-graphes">
-          <div class="dashboard-graphes ab-graphes">
-            <div id="modale-ab-monnaie-histogramme" class="histogramme-cadre"></div>
-            <div class="histogramme-cadre camembert-cadre">
-              <div id="modale-ab-monnaie-camembert" class="camembert-zone"></div>
-            </div>
-          </div>
-          <div id="modale-ab-monnaie-legende" class="histogramme-cadre legende-cadre"></div>
-        </div>
-      </div>
-    </div>
 
     <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
     <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
@@ -325,11 +297,7 @@
 
   <div id="sous-section-budget-categories" class="sous-section">
 
-    <div class="selecteur-contexte ab-contexte">
-      <label for="ab-cat-monnaie">Monnaie
-        <select id="ab-cat-monnaie"></select>
-      </label>
-    </div>
+    <div class="sous-onglets" id="ab-cat-monnaies"></div>
     <div id="ab-cat-periode" class="ab-periode"></div>
 
     <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>

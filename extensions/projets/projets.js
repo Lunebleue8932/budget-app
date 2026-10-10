@@ -182,9 +182,14 @@ function renderHistogrammeProjet(totaux) {
         .map((c) =>
           barreConversion(total.monnaie_id, c, { ouvrir: projetOuvrirMonnaie(c.monnaie_autre_id) })
         );
+      // « VOIR TOUTES LES DÉPENSES » d'une catégorie : de sa première à sa dernière opération
+      // dans le projet (cf. service_projets.depenses_par_categorie, drillThroughCategorie).
+      const categories = (total.depenses_par_categorie || []).map((d) =>
+        d.date_premiere ? { ...d, drill_bornes: { debut: d.date_premiere, fin: d.date_derniere } } : d
+      );
       return {
         total,
-        depenses: [...(total.depenses_par_categorie || []), ...frais, ...conversions],
+        depenses: [...categories, ...frais, ...conversions],
       };
     })
     .filter((graphe) => graphe.depenses.length > 0);

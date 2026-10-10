@@ -512,3 +512,28 @@ def test_l_infobulle_fond_les_depenses_de_meme_libelle(db_session):
 def test_un_projet_vide_n_a_aucune_barre(db_session):
     projet = _projet(db_session)
     assert service.lire_sous_filtre(crud.get_sous_filtre(db_session, projet.id))["totaux"] == []
+
+
+def test_une_barre_porte_la_premiere_et_la_derniere_date_de_sa_categorie(db_session):
+    """« Voir toutes les dépenses » d'une catégorie de projet s'ouvre de sa première à sa
+    dernière opération : un projet n'a pas de période à lui."""
+    compte = creer_compte(db_session, "Courant")
+    projet = _projet(db_session)
+    alimentaire = get_categorie_id(db_session, "Alimentaire")
+    crud.ajouter_operations_au_sous_filtre(
+        db_session,
+        projet,
+        [
+            _operation(db_session, compte, date=date(2026, 8, 20), categorie_id=alimentaire).id,
+            _operation(db_session, compte, date=date(2026, 7, 3), categorie_id=alimentaire).id,
+            _operation(db_session, compte, date=date(2026, 9, 1)).id,
+        ],
+    )
+
+    barres = {b["categorie"]: b for b in _barres(db_session, projet)}
+
+    assert (barres["Alimentaire"]["date_premiere"], barres["Alimentaire"]["date_derniere"]) == (
+        date(2026, 7, 3),
+        date(2026, 8, 20),
+    )
+    assert barres["Autres"]["date_premiere"] == barres["Autres"]["date_derniere"] == date(2026, 9, 1)

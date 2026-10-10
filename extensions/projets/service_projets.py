@@ -154,6 +154,13 @@ def depenses_par_categorie(sous_filtre) -> dict[int, list[dict]]:
             barre["total_reel"] += montant
             barre["total_previsionnel"] += montant
             _fondre(barre["top_depenses"], nature, montant)
+            # LA PREMIÈRE ET LA DERNIÈRE DATE de la catégorie dans le projet : « Voir toutes
+            # les dépenses » ouvre la page Opérations sur cet intervalle (un projet n'a pas de
+            # période à lui).
+            if barre.get("date_premiere") is None or operation.date < barre["date_premiere"]:
+                barre["date_premiere"] = operation.date
+            if barre.get("date_derniere") is None or operation.date > barre["date_derniere"]:
+                barre["date_derniere"] = operation.date
 
     return {
         monnaie_id: [

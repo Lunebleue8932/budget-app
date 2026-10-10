@@ -698,6 +698,10 @@ class DepenseParCategorie(BaseModel):
     # « frais_virements » (cf. soldes._barre_frais_virements), peinte du gris des frais
     # et ouvrant leur détail. None pour une catégorie.
     colonne_speciale: Optional[str] = None
+    # LA PREMIÈRE ET LA DERNIÈRE OPÉRATION de la barre, quand la barre n'a pas de période à elle
+    # (un projet) : « Voir toutes les dépenses » s'ouvre sur cet intervalle. None ailleurs.
+    date_premiere: Optional[date_type] = None
+    date_derniere: Optional[date_type] = None
     # Index dans la palette de l'histogramme, porté par la catégorie elle-même
     # (cf. models.Categorie.couleur_index). Envoyé ici plutôt que déduit de la
     # position dans cette liste : la liste est filtrée (catégories éteintes) et

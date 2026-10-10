@@ -2386,7 +2386,10 @@ async function chargerConversionsDashboard(enPopup, annee, mois) {
       .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
       .map((c) =>
         barreConversion(monnaieId, c, {
-          ouvrir: () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id),
+          ouvrir: () =>
+            ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id, {
+              origine: { monnaieId, colonne: c },
+            }),
           voirOperations: () => drillThroughConversion(monnaieId, c),
         })
       );
@@ -2402,10 +2405,16 @@ async function chargerConversionsDashboard(enPopup, annee, mois) {
  * virements, filtrée sur la période affichée et sur le sens du net — de la monnaie de
  * l'onglet vers la monnaie éteinte, ou l'inverse.
  */
-async function drillThroughConversion(monnaieId, colonne) {
-  const { annee, mois } = dashboardAnneeMoisActuel;
-  if (!annee) return;
-  const { debut, fin } = bornesPeriodeHistogramme(annee, mois);
+async function drillThroughConversion(monnaieId, colonne, bornes = null) {
+  // `bornes` : la période de la page Budget ou de la fenêtre d'où l'on vient. Sans elles,
+  // celle du dashboard.
+  if (!bornes) {
+    const { annee, mois } = dashboardAnneeMoisActuel;
+    if (!annee) return;
+    bornes = bornesPeriodeHistogramme(annee, mois);
+  }
+  fermerFenetreMonnaieEteinte();
+  const { debut, fin } = bornes;
   const versAutre = colonne.montant < 0;
   switchSection("operations");
   await loadOperations();
@@ -4691,12 +4700,13 @@ function renderCascade(cascade, container, options = {}) {
  * éteintes s'affichent « en pop-up » (cf. modeMonnaiesEteintes). DEUX FORMES :
  *
  *   - `{ cascade }` (un projet) : la cascade est déjà là, la fenêtre la dessine ;
- *   - `{ dashboard: true }` : la cascade ET le camembert de la monnaie sur la
- *     période du dashboard, avec un sélecteur de période dans la fenêtre — seuls
- *     les mois qui portent une opération dans cette monnaie y sont proposés.
+ *   - `{ periode, origine }` (dashboard et page Budget) : les MÊMES GRAPHES QUE LA PAGE
+ *     d'où l'on vient — histogramme, camembert et légende — pour la monnaie éteinte, avec
+ *     un sélecteur de période (seuls les mois qui portent une opération dans cette
+ *     monnaie y sont proposés) et « Voir les virements », ceux qui relient la monnaie
+ *     d'origine (`origine`) à l'éteinte sur la période de la fenêtre.
  *
- * PAS D'HISTOGRAMME ICI : une monnaie éteinte a un solde nul, et c'est la
- * cascade qui montre le mieux comment ce qui est arrivé en est reparti.
+ * Les drill-throughs des barres s'y font sur la période DE LA FENÊTRE (`drill_bornes`).
  */
 const fenetreMonnaieEteinte = {
   monnaieId: null,
@@ -4706,30 +4716,66 @@ const fenetreMonnaieEteinte = {
   mois: null,
   moisDeplie: true,
   periodes: [],
+  // { monnaieId, colonne } : la colonne de conversion d'où la fenêtre a été ouverte.
+  origine: null,
+  vuePie: null,
 };
 
 function fermerFenetreMonnaieEteinte() {
-  document.getElementById("modale-monnaie-eteinte").style.display = "none";
+  const fond = document.getElementById("modale-monnaie-eteinte");
+  if (!fond || fond.style.display === "none") return;
+  fond.style.display = "none";
   document.body.classList.remove("modale-ouverte");
+}
+
+/**
+ * Les dates d'une période (vue mois, année, tout, et une semaine éventuelle), au format
+ * des filtres de la page Opérations. « Tout » n'a pas de borne à lui : de la première
+ * année qui porte des opérations à la dernière.
+ */
+function bornesPeriode({ vue, annee, mois, semaine = null }) {
+  const pad = (n) => String(n).padStart(2, "0");
+  if (vue === "tout") {
+    const annees = dashboardPeriodesConnues.map((p) => p.annee);
+    const repli = annee || new Date().getFullYear();
+    return {
+      debut: `${annees.length ? Math.min(...annees) : repli}-01-01`,
+      fin: `${annees.length ? Math.max(...annees) : repli}-12-31`,
+    };
+  }
+  if (vue === "annee") return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+  if (semaine && !semaine.moyenne) {
+    return {
+      debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
+      fin: `${annee}-${pad(mois)}-${pad(semaine.jour_fin)}`,
+    };
+  }
+  // `new Date(annee, mois, 0)` : le dernier jour du mois demandé.
+  const dernierJour = new Date(annee, mois, 0).getDate();
+  return { debut: `${annee}-${pad(mois)}-01`, fin: `${annee}-${pad(mois)}-${pad(dernierJour)}` };
 }
 
 async function ouvrirFenetreMonnaieEteinte(
   monnaieId,
-  { cascade = null, sousTitre = "", operationIds = null } = {}
+  { cascade = null, sousTitre = "", operationIds = null, periode = null, origine = null, vuePie = null } = {}
 ) {
   const monnaie = monnaieParId(monnaieId);
   document.getElementById("modale-monnaie-eteinte-titre").textContent = monnaie
     ? `${monnaie.nom} (${monnaie.symbole})`
     : "";
   document.getElementById("modale-monnaie-eteinte-sous-titre").textContent = sousTitre;
-  const periode = document.getElementById("modale-monnaie-eteinte-periode");
-  const blocCamembert = document.getElementById("modale-monnaie-eteinte-camembert-bloc");
+  const selecteur = document.getElementById("modale-monnaie-eteinte-periode");
+  const blocCascade = document.getElementById("modale-monnaie-eteinte-cascade-bloc");
+  const blocGraphes = document.getElementById("modale-monnaie-eteinte-graphes");
   document.getElementById("modale-monnaie-eteinte").style.display = "";
   document.body.classList.add("modale-ouverte");
 
   if (cascade) {
-    periode.style.display = "none";
-    blocCamembert.style.display = "none";
+    selecteur.style.display = "none";
+    blocGraphes.style.display = "none";
+    document.getElementById("modale-monnaie-eteinte-vide").style.display = "none";
+    document.getElementById("btn-monnaie-eteinte-virements").style.display = "none";
+    blocCascade.style.display = "";
     renderCascade(cascade, document.getElementById("modale-monnaie-eteinte-cascade"), {
       // Les frais de cette monnaie : la fenêtre des frais REMPLACE celle-ci.
       ouvrirFrais: () => {
@@ -4741,8 +4787,9 @@ async function ouvrirFenetreMonnaieEteinte(
     return;
   }
 
-  // AU DASHBOARD : la période de départ est celle qu'on regardait.
-  const p = state.dashboardPeriode;
+  // LA PÉRIODE DE DÉPART est celle de la page d'où l'on vient (le dashboard par défaut).
+  blocCascade.style.display = "none";
+  const p = periode || state.dashboardPeriode;
   Object.assign(fenetreMonnaieEteinte, {
     monnaieId,
     niveau: p.vue,
@@ -4750,7 +4797,10 @@ async function ouvrirFenetreMonnaieEteinte(
     annee: p.annee,
     mois: p.mois,
     moisDeplie: p.vue === "mois",
+    origine,
+    vuePie,
   });
+  document.getElementById("btn-monnaie-eteinte-virements").style.display = origine ? "" : "none";
   try {
     fenetreMonnaieEteinte.periodes = await apiFetch(
       `/dashboard/cascade/periodes?monnaie_id=${monnaieId}`
@@ -4758,11 +4808,11 @@ async function ouvrirFenetreMonnaieEteinte(
   } catch (err) {
     fenetreMonnaieEteinte.periodes = [];
   }
-  periode.style.display = "";
+  selecteur.style.display = "";
   // LE SÉLECTEUR DU DASHBOARD, SANS LES SEMAINES (cf. creerArbrePeriode), et seulement
   // les mois où la monnaie a bougé : une période vide n'a rien à montrer.
   const f = fenetreMonnaieEteinte;
-  creerArbrePeriode(periode, {
+  creerArbrePeriode(selecteur, {
     etat: f,
     annees: () => [...new Set(f.periodes.map((x) => x.annee))].sort((a, b) => b - a),
     moisDisponibles: (annee) =>
@@ -4774,53 +4824,75 @@ async function ouvrirFenetreMonnaieEteinte(
 
 async function chargerFenetreMonnaieEteinte() {
   const f = fenetreMonnaieEteinte;
+  const monnaieId = f.monnaieId;
   const requete =
     f.vue === "tout"
       ? "vue=tout"
       : f.vue === "annee"
         ? `vue=annee&annee=${f.annee}`
-        : `vue=mois&annee=${f.annee}&mois=${f.mois}`;
-  const conteneurCascade = document.getElementById("modale-monnaie-eteinte-cascade");
-  const legende = document.getElementById("modale-monnaie-eteinte-legende");
-  const blocCamembert = document.getElementById("modale-monnaie-eteinte-camembert-bloc");
+        : `annee=${f.annee}&mois=${f.mois}`;
+  const blocGraphes = document.getElementById("modale-monnaie-eteinte-graphes");
+  const vide = document.getElementById("modale-monnaie-eteinte-vide");
   try {
-    const [cascade, dashboard] = await Promise.all([
-      apiFetch(`/dashboard/cascade?monnaie_id=${f.monnaieId}&${requete}`),
-      apiFetch(`/dashboard?${requete}`),
-    ]);
-    if (fenetreMonnaieEteinte.monnaieId !== f.monnaieId) return;
-    if ((cascade.colonnes || []).length === 0) {
-      conteneurCascade.innerHTML = `<span class="hint">${t("Aucune opération sur la période.")}</span>`;
-      legende.innerHTML = "";
-    } else {
-      renderCascade(cascade, conteneurCascade, {
-        ouvrirFrais: () => {
-          fermerFenetreMonnaieEteinte();
-          ouvrirFenetreFrais({
-            periode: { niveau: f.niveau, vue: f.vue, annee: f.annee, mois: f.mois },
-            monnaieId: f.monnaieId,
-          });
-        },
-      });
-      renderLegendeCascade(cascade, legende);
-    }
-    const kpis = (dashboard.kpis || []).find((k) => k.monnaie_id === f.monnaieId);
-    const depenses = kpis ? kpis.depenses_par_categorie : [];
-    const parts = partsCategoriesDashboard(depenses, new Set(depenses.map((d) => d.categorie)));
-    blocCamembert.style.display = parts.total > 0 ? "" : "none";
-    if (parts.total > 0) {
-      renderPieChartDepenses(
-        depenses,
-        f.monnaieId,
-        document.getElementById("modale-monnaie-eteinte-camembert"),
-        parts
-      );
-    }
+    const dashboard = await apiFetch(`/dashboard?${requete}`);
+    if (fenetreMonnaieEteinte.monnaieId !== monnaieId) return;
+    const kpis = (dashboard.kpis || []).find((k) => k.monnaie_id === monnaieId);
+    const bornes = bornesPeriode(f);
+    // Chaque barre s'ouvre sur la période DE LA FENÊTRE ; les frais sur leur fenêtre à eux.
+    const depenses = (kpis ? kpis.depenses_par_categorie || [] : []).map((d) =>
+      d.colonne_speciale === "frais_virements"
+        ? {
+            ...d,
+            frais: {
+              ouvrir: () => {
+                fermerFenetreMonnaieEteinte();
+                ouvrirFenetreFrais({
+                  periode: { niveau: f.niveau, vue: f.vue, annee: f.annee, mois: f.mois },
+                  monnaieId,
+                });
+              },
+            },
+          }
+        : { ...d, drill_bornes: bornes }
+    );
+    const parts = partsCategoriesDashboard(
+      depenses,
+      new Set(depenses.map((d) => d.categorie)),
+      f.vuePie ? { vue: f.vuePie, budgetTotal: kpis ? kpis.budget_total || 0 : 0 } : {}
+    );
+    const rien = parts.total <= 0;
+    vide.style.display = rien ? "" : "none";
+    blocGraphes.style.display = rien ? "none" : "";
+    if (rien) return;
+    renderHistogrammeDepenses(
+      parts.retenues,
+      monnaieId,
+      document.getElementById("modale-monnaie-eteinte-histogramme")
+    );
+    renderPieChartDepenses(
+      depenses,
+      monnaieId,
+      document.getElementById("modale-monnaie-eteinte-camembert"),
+      parts
+    );
+    renderLegendeCategories(
+      monnaieId,
+      parts,
+      document.getElementById("modale-monnaie-eteinte-legende-categories")
+    );
     cablerSurbrillanceCategories();
   } catch (err) {
     showMessage(err.message, "error");
   }
 }
+
+// « VOIR LES VIREMENTS » : ceux entre la monnaie d'origine et l'éteinte, dans le sens de la
+// colonne d'où l'on vient, sur la période de la fenêtre.
+document.getElementById("btn-monnaie-eteinte-virements")?.addEventListener("click", () => {
+  const f = fenetreMonnaieEteinte;
+  if (!f.origine) return;
+  drillThroughConversion(f.origine.monnaieId, f.origine.colonne, bornesPeriode(f));
+});
 
 document
   .getElementById("btn-monnaie-eteinte-fermer")
@@ -5052,30 +5124,7 @@ let dashboardAnneeMoisActuel = { annee: null, mois: null };
  * semaine — elle retombe sur l'ensemble qu'elle résume (le mois, l'année ou tout).
  */
 function bornesPeriodeHistogramme(annee, mois) {
-  const pad = (n) => String(n).padStart(2, "0");
-  const vue = state.dashboardPeriode.vue;
-  if (vue === "tout") {
-    // De la première année qui porte des opérations à la dernière : « tout » n'a
-    // pas de borne à lui, et Opérations en demande une.
-    const annees = dashboardPeriodesConnues.map((p) => p.annee);
-    return {
-      debut: `${annees.length ? Math.min(...annees) : annee}-01-01`,
-      fin: `${annees.length ? Math.max(...annees) : annee}-12-31`,
-    };
-  }
-  if (vue === "annee") return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
-  const semaine = semaineChoisie();
-  if (semaine && !semaine.moyenne) {
-    return {
-      debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
-      fin: `${annee}-${pad(mois)}-${pad(semaine.jour_fin)}`,
-    };
-  }
-  // `new Date(annee, mois, 0)` : le jour 0 du mois SUIVANT (index JS, 0-11)
-  // est le dernier jour du mois demandé — pas d'arithmétique de calendrier à
-  // la main (février, années bissextiles...).
-  const dernierJour = new Date(annee, mois, 0).getDate();
-  return { debut: `${annee}-${pad(mois)}-01`, fin: `${annee}-${pad(mois)}-${pad(dernierJour)}` };
+  return bornesPeriode({ vue: state.dashboardPeriode.vue, annee, mois, semaine: semaineChoisie() });
 }
 
 /**
@@ -5092,14 +5141,22 @@ function bornesPeriodeHistogramme(annee, mois) {
  * `categorie`) : il n'y a alors rien vers quoi filtrer.
  */
 async function drillThroughCategorie(depense) {
-  const { annee, mois } = dashboardAnneeMoisActuel;
-  if (!annee) return;
+  // LES BORNES VIENNENT DE LA PAGE QUI A DESSINÉ LA BARRE (`drill_bornes`) : la période de
+  // la page Budget, celle d'une fenêtre, ou — dans un projet — de la première à la dernière
+  // opération de la catégorie. Sans elles, la période du dashboard.
+  let bornes = depense.drill_bornes || null;
+  if (!bornes) {
+    const { annee, mois } = dashboardAnneeMoisActuel;
+    if (!annee) return;
+    bornes = bornesPeriodeHistogramme(annee, mois);
+  }
+  fermerFenetreMonnaieEteinte();
   // Peut être vide si l'utilisateur n'a encore ouvert ni Opérations ni
   // Catégories cette session : le dashboard, lui, ne charge pas `state.categories`.
   if (state.categories.length === 0) await refreshCategories();
   const categorie = state.categories.find((c) => c.nom === depense.categorie);
   if (!categorie) return;
-  const { debut, fin } = bornesPeriodeHistogramme(annee, mois);
+  const { debut, fin } = bornes;
 
   // LA BARRE DU HAUT SUIT LA PAGE, et c'est la seule règle qui vaille ici.
   // Ce bouton-ci part vers un écran qui A son propre onglet : forcer

@@ -399,6 +399,7 @@ async function abDepensesDe(p, monnaieId = abMonnaieId) {
       depenses: semaine ? semaine.depenses : [],
       budgetTotal: semaine ? semaine.budget_total || 0 : 0,
       libelle: abLibellePeriode(p, semaine),
+      bornes: semaine ? bornesPeriode({ vue: "mois", annee: p.annee, mois: p.mois, semaine }) : null,
     };
   }
   const url =
@@ -411,6 +412,7 @@ async function abDepensesDe(p, monnaieId = abMonnaieId) {
     depenses: kpis ? kpis.depenses_par_categorie || [] : [],
     budgetTotal: kpis ? kpis.budget_total || 0 : 0,
     libelle: abLibellePeriode(p),
+    bornes: bornesPeriode({ vue: p.vue, annee: p.annee, mois: p.mois }),
   };
 }
 
@@ -519,7 +521,16 @@ async function abConversions(p) {
       .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
       .map((c) =>
         barreConversion(abMonnaieId, c, {
-          ouvrir: () => abOuvrirFenetreMonnaie(c.monnaie_autre_id, p),
+          // LA FENÊTRE DU DASHBOARD (cf. ouvrirFenetreMonnaieEteinte), ouverte sur la période
+          // des graphes et le camembert de cette page.
+          ouvrir: () =>
+            ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id, {
+              periode: { vue: p.vue, annee: p.annee, mois: p.mois },
+              origine: { monnaieId: abMonnaieId, colonne: c },
+              vuePie: VUE_PIE_BUDGET,
+            }),
+          voirOperations: () =>
+            drillThroughConversion(abMonnaieId, c, bornesPeriode({ vue: p.vue, annee: p.annee, mois: p.mois })),
         })
       );
   } catch (err) {
@@ -530,22 +541,20 @@ async function abConversions(p) {
 
 /** LES FRAIS (virements internes, épargne, placements), TOUJOURS là : le serveur les rend avec
  *  les catégories (cf. soldes._barre_frais_virements). Ici, leur fenêtre s'ouvre sur la période
- *  des graphes et la monnaie de la page. */
-function abAvecFrais(depenses, p, monnaieId) {
-  return depenses.map((d) =>
-    d.colonne_speciale === "frais_virements"
-      ? {
-          ...d,
-          frais: {
-            ouvrir: () =>
-              ouvrirFenetreFrais({
-                periode: { vue: p.vue === "annee" ? "annee" : "mois", annee: p.annee, mois: p.mois },
-                monnaieId,
-              }),
-          },
-        }
-      : d
-  );
+ *  des graphes et la monnaie de la page — et « Voir toutes les dépenses » d'une catégorie sur
+ *  cette même période (`drill_bornes`, cf. drillThroughCategorie). */
+function abAvecFrais(depenses, p, monnaieId, bornes = null) {
+  return depenses.map((d) => {
+    if (d.colonne_speciale !== "frais_virements") return bornes ? { ...d, drill_bornes: bornes } : d;
+    const vue = p.vue === "annee" ? "annee" : "mois";
+    return {
+      ...d,
+      frais: {
+        ouvrir: () =>
+          ouvrirFenetreFrais({ periode: { vue, annee: p.annee, mois: p.mois }, monnaieId }),
+      },
+    };
+  });
 }
 
 async function abRenderGraphes() {
@@ -557,7 +566,10 @@ async function abRenderGraphes() {
     const lue = await abDepensesDe(p);
     const principale = {
       ...lue,
-      depenses: [...abAvecFrais(lue.depenses, p, abMonnaieId), ...(await abConversions(p))],
+      depenses: [
+        ...abAvecFrais(lue.depenses, p, abMonnaieId, lue.bornes),
+        ...(await abConversions(p)),
+      ],
     };
     const comparee = abGraphes.comparer
       ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp })
@@ -1117,8 +1129,8 @@ function abAnneesProposees() {
  * fausse : la troisième page — « Projets », apportée par son extension — n'a ni
  * mois ni monnaie, et y aurait vu trois listes sans effet. */
 const AB_CONTEXTES = [
-  { monnaie: "ab-monnaie", periode: "ab-periode" },
-  { monnaie: "ab-cat-monnaie", periode: "ab-cat-periode" },
+  { monnaie: "ab-monnaies", periode: "ab-periode" },
+  { monnaie: "ab-cat-monnaies", periode: "ab-cat-periode" },
 ];
 
 /**
@@ -1127,7 +1139,7 @@ const AB_CONTEXTES = [
  *   - « sur la page » : toutes, éteintes comprises ;
  *   - « en pop-up » : les allumées seulement. Ce qui part vers une éteinte devient alors une
  *     colonne grise « Conversion vers… » de l'histogramme, qui ouvre ses graphiques dans une
- *     fenêtre (cf. abConversions, abOuvrirFenetreMonnaie).
+ *     fenêtre (cf. abConversions, ouvrirFenetreMonnaieEteinte).
  */
 function abMonnaiesProposees() {
   const enPopup = modeMonnaiesEteintes() === "popup";
@@ -1137,17 +1149,13 @@ function abMonnaiesProposees() {
 function abRemplirContexte() {
   const proposees = abMonnaiesProposees();
   AB_CONTEXTES.forEach((ids) => {
-    const monnaie = document.getElementById(ids.monnaie);
-    if (!monnaie) return;
-    fillSelect(
-      monnaie,
-      proposees.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
-    );
-    monnaie.value = String(abMonnaieId);
-    // UNE SEULE MONNAIE : la liste n'a rien à demander. On la laisse en place
-    // plutôt que de la masquer — un champ qui apparaît le jour où l'on crée une
-    // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
-    monnaie.disabled = proposees.length <= 1;
+    // LES ONGLETS DU DASHBOARD (cf. renderOngletsMonnaies) : une monnaie se choisit ici
+    // comme là-bas, et la barre disparaît quand il n'y en a qu'une.
+    if (!document.getElementById(ids.monnaie)) return;
+    renderOngletsMonnaies(ids.monnaie, proposees, abMonnaieId, (choisie) => {
+      abMonnaieId = choisie;
+      abCharger();
+    });
 
     // L'ANNÉE ET LE MOIS, COMME AU DASHBOARD : le même arbre de période, sans « Tout » ni
     // semaines, et TOUS les douze mois — un budget se pose aussi sur un mois vide.
@@ -1390,13 +1398,6 @@ document.getElementById("budget-sous-nav")?.addEventListener("click", (e) => {
   if (btn) abChargerSousPage(btn.dataset.sousSection);
 });
 
-AB_CONTEXTES.forEach((ids) => {
-  document.getElementById(ids.monnaie)?.addEventListener("change", (e) => {
-    abMonnaieId = Number(e.target.value);
-    abCharger();
-  });
-});
-
 document.getElementById("btn-ab-matelas")?.addEventListener("click", abEnregistrerMatelas);
 document.getElementById("btn-ab-budget-total")?.addEventListener("click", abEnregistrerBudgetTotal);
 // Entrée valide, comme dans n'importe quel champ de l'application. Le champ
@@ -1492,63 +1493,3 @@ window.loadComptesGlobale = async function loadComptesGlobaleAvecMatelas(...args
 // s'affiche nulle part. Le nom visible, lui, est dans le manifeste.
 BudgetApp.extensions.enregistrer("analyse-budget", { chargeur: abOuvrirPage });
 
-
-/* ---------- LA FENÊTRE D'UNE MONNAIE ÉTEINTE, PAGE BUDGET ----------
- *
- * Ouverte depuis une colonne « Conversion vers… » (« en pop-up », cf. abConversions) : les
- * DEUX GRAPHES DE LA PAGE — histogramme et camembert — et leur légende, pour la monnaie
- * éteinte, sur la période des graphes. Les mêmes que ceux de la page, pour qu'on lise
- * l'éteinte exactement comme on lirait une allumée. Sans comparaison : elle se règle sur la
- * page, pour la monnaie de la page.
- */
-async function abOuvrirFenetreMonnaie(monnaieId, p) {
-  const monnaie = monnaieParId(monnaieId);
-  document.getElementById("modale-ab-monnaie-titre").textContent = monnaie
-    ? `${monnaie.nom} (${monnaie.symbole})`
-    : "";
-  document.getElementById("modale-ab-monnaie-periode").textContent = abLibellePeriode(p);
-  document.getElementById("modale-ab-monnaie").style.display = "";
-  document.body.classList.add("modale-ouverte");
-  try {
-    const lue = await abDepensesDe(p, monnaieId);
-    const depenses = abAvecFrais(lue.depenses, p, monnaieId);
-    const parts = partsCategoriesDashboard(depenses, new Set(depenses.map((x) => x.categorie)), {
-      vue: VUE_PIE_BUDGET,
-      budgetTotal: lue.budgetTotal,
-    });
-    const vide = parts.total <= 0;
-    document.getElementById("modale-ab-monnaie-vide").style.display = vide ? "" : "none";
-    document.getElementById("modale-ab-monnaie-graphes").style.display = vide ? "none" : "";
-    if (vide) return;
-    renderHistogrammeDepenses(
-      parts.retenues,
-      monnaieId,
-      document.getElementById("modale-ab-monnaie-histogramme")
-    );
-    renderPieChartDepenses(
-      depenses,
-      monnaieId,
-      document.getElementById("modale-ab-monnaie-camembert"),
-      parts
-    );
-    renderLegendeCategories(monnaieId, parts, document.getElementById("modale-ab-monnaie-legende"));
-    cablerSurbrillanceCategories();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-}
-
-function abFermerFenetreMonnaie() {
-  document.getElementById("modale-ab-monnaie").style.display = "none";
-  document.body.classList.remove("modale-ouverte");
-}
-
-document.getElementById("btn-modale-ab-monnaie-fermer")?.addEventListener("click", abFermerFenetreMonnaie);
-document.getElementById("modale-ab-monnaie")?.addEventListener("click", (e) => {
-  if (e.target.id === "modale-ab-monnaie") abFermerFenetreMonnaie();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape") return;
-  const fenetre = document.getElementById("modale-ab-monnaie");
-  if (fenetre && fenetre.style.display !== "none") abFermerFenetreMonnaie();
-});

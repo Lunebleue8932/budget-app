@@ -240,13 +240,26 @@
       <p class="hint" id="modale-monnaie-eteinte-sous-titre"></p>
       <!-- Le sélecteur de période du dashboard, sans les semaines (creerArbrePeriode). -->
       <div id="modale-monnaie-eteinte-periode" class="modale-periode" style="display:none"></div>
-      <h4>Entrées et sorties<i class="info-bulle" tabindex="0" data-info-cle="noyau.cascade">i</i></h4>
-      <div id="modale-monnaie-eteinte-cascade"></div>
-      <!-- LA LÉGENDE ENTRE LES DEUX GRAPHES : elle nomme les couleurs de l'un et de l'autre. -->
-      <div id="modale-monnaie-eteinte-legende" class="histogramme-cadre legende-cadre"></div>
-      <div id="modale-monnaie-eteinte-camembert-bloc" style="display:none">
-        <h4>Dépenses par catégorie</h4>
-        <div class="histogramme-cadre" id="modale-monnaie-eteinte-camembert"></div>
+      <!-- DEPUIS UN PROJET : la cascade de la monnaie et sa légende. -->
+      <div id="modale-monnaie-eteinte-cascade-bloc" style="display:none">
+        <h4>Entrées et sorties<i class="info-bulle" tabindex="0" data-info-cle="noyau.cascade">i</i></h4>
+        <div id="modale-monnaie-eteinte-cascade"></div>
+        <div id="modale-monnaie-eteinte-legende" class="histogramme-cadre legende-cadre"></div>
+      </div>
+      <!-- DEPUIS LE DASHBOARD OU LA PAGE BUDGET : les graphes de la page d'où l'on vient,
+           pour la monnaie éteinte, et les virements qui l'ont alimentée. -->
+      <p class="hint" id="modale-monnaie-eteinte-vide" style="display:none">Aucune dépense sur la période.</p>
+      <div id="modale-monnaie-eteinte-graphes" style="display:none">
+        <div class="dashboard-graphes">
+          <div id="modale-monnaie-eteinte-histogramme" class="histogramme-cadre"></div>
+          <div class="histogramme-cadre camembert-cadre">
+            <div id="modale-monnaie-eteinte-camembert" class="camembert-zone"></div>
+          </div>
+        </div>
+        <div id="modale-monnaie-eteinte-legende-categories" class="histogramme-cadre legende-cadre"></div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-monnaie-eteinte-virements" style="display:none">Voir les virements</button>
       </div>
     </div>
   </div>
