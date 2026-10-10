@@ -789,7 +789,8 @@ COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
 #  - `code_isin` : la clé du fichier, et la seule propriété obligatoire. Un titre se
 #    reconnaît d'un import à l'autre par son ISIN (le nom du courtier change, pas lui) ;
 #  - `nom` : le libellé à donner à un titre CRÉÉ par le fichier. Jamais appliqué à un
-#    titre existant : le nom du courtier identifie (cf. models.TitrePossede.nom) ;
+#    titre existant : son nom de courtier ne change pas (l'identité d'un titre est le
+#    couple (nom, ISIN), l'ISIN tranchant — cf. services/identite_titre.py) ;
 #  - `monnaie` : la monnaie de cotation, par son nom ou son symbole, pour un titre créé ;
 #  - `enveloppe` : comment le titre est détenu — UNE étiquette ;
 #  - `classe_actif`, `zone`, `secteur` : les trois répartitions. Une cellule vaut un

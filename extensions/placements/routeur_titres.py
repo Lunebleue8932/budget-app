@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, object_session
 from app import crud, schemas
 from app.constants import AXES_EXPOSITION, AxeTitre
 from app.database import get_db
-from app.services import exposition, placements
+from app.services import exposition, identite_titre, placements
 
 router = APIRouter(prefix="/titres", tags=["placements"])
 
@@ -142,8 +142,11 @@ def list_titres(inclure_archivees: bool = False, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.TitreRead, status_code=status.HTTP_201_CREATED)
 def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
-    if crud.get_titre_by_nom(db, payload.nom):
-        raise HTTPException(status_code=409, detail="Un titre avec ce nom existe déjà")
+    # LE COUPLE (NOM, ISIN) IDENTIFIE (cf. services/identite_titre.py) : un homonyme sous un
+    # autre ISIN est un autre titre, et se crée.
+    conflit = identite_titre.conflit_identite(db, payload.nom, payload.code_isin)
+    if conflit:
+        raise HTTPException(status_code=409, detail=conflit)
     _valider_monnaie(db, payload.monnaie_id)
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
@@ -179,12 +182,12 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
     titre = crud.get_titre(db, titre_id)
     if titre is None:
         raise HTTPException(status_code=404, detail="Titre introuvable")
-    if (
-        payload.nom is not None
-        and payload.nom != titre.nom
-        and crud.get_titre_by_nom(db, payload.nom)
-    ):
-        raise HTTPException(status_code=409, detail="Un titre avec ce nom existe déjà")
+    nom_vise = payload.nom if payload.nom is not None else titre.nom
+    isin_vise = payload.code_isin if payload.code_isin is not None else titre.code_isin
+    if (nom_vise, isin_vise) != (titre.nom, titre.code_isin):
+        conflit = identite_titre.conflit_identite(db, nom_vise, isin_vise, sauf_id=titre.id)
+        if conflit:
+            raise HTTPException(status_code=409, detail=conflit)
     _valider_monnaie(db, payload.monnaie_id)
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)

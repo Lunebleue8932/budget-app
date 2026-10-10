@@ -12,6 +12,7 @@ from sqlalchemy import (
     Table,
     Text,
     CheckConstraint,
+    text,
     Index,
     UniqueConstraint,
     true as sa_true,
@@ -932,7 +933,11 @@ class TitrePossede(Base):
     # que l'import suivant ne le retrouverait plus et scinderait la position en
     # deux titres. Il se lit comme l'ISIN — une donnée du relevé, pas un
     # libellé.
-    nom = Column(String, nullable=False, unique=True)
+    #
+    # PLUS UNIQUE SEUL (migration 0080) : c'est le couple (nom, ISIN) qui identifie, et
+    # l'ISIN tranche (cf. services/identite_titre.py) — deux ETF que le courtier abrège
+    # pareil sont deux titres. Restent uniques : l'ISIN, et le nom des titres SANS ISIN.
+    nom = Column(String, nullable=False)
     # CE QU'ON LIT À L'ÉCRAN (migration 0045), quand le nom du courtier est
     # illisible (« AMUNDI IDX SOL MSC WLD-IE-C », tronqué par un export). NULL
     # = pas renommé, et c'est alors `nom` qui s'affiche. Sans unicité : deux
@@ -1036,6 +1041,13 @@ class TitrePossede(Base):
     __table_args__ = (
         CheckConstraint("valeur >= 0", name="ck_titre_possede_valeur_positive"),
         Index("ix_titre_possede_code_isin", "code_isin", unique=True),
+        # Deux titres sans ISIN ne peuvent pas porter le même nom : rien ne les distinguerait.
+        Index(
+            "ux_titre_possede_nom_sans_isin",
+            "nom",
+            unique=True,
+            sqlite_where=text("code_isin IS NULL"),
+        ),
     )
 
 

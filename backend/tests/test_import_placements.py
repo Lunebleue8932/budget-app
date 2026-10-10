@@ -390,38 +390,99 @@ def test_lisin_du_fichier_complete_un_titre_qui_nen_avait_pas(db_session):
     assert existant.code_isin == "FR0000120073"
 
 
-def test_un_isin_different_pour_le_meme_nom_met_la_ligne_en_erreur(db_session):
-    """Deux valeurs distinctes portent le même nom chez ce courtier : deviner
-    laquelle mélangerait deux portefeuilles."""
+def test_un_isin_different_pour_le_meme_nom_est_un_autre_titre(db_session):
+    """L'ISIN TRANCHE (migration 0080) : deux valeurs que le courtier abrège pareil sont deux
+    titres. La seconde est créée sous le même nom, l'import ne s'arrête plus en route."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    crud.create_titre(
+    total = crud.create_titre(
         db_session,
         nom="Total",
         monnaie_id=get_monnaie_id(db_session),
         code_isin="FR0000120271",
     )
-
-    apercu = service.previsualiser(
-        db_session,
-        preset.id,
-        _fichier(
-            [
-                {
-                    "date": "12/03/2026",
-                    "type": "Achat",
-                    "valeur": "Total",
-                    "isin": "US89832Q1094",
-                    "montant": 500.0,
-                    "quantite": 10,
-                }
-            ]
-        ),
+    contenu = _fichier(
+        [
+            {
+                "date": "12/03/2026",
+                "type": "Achat",
+                "valeur": "Total",
+                "isin": "US89832Q1094",
+                "montant": 500.0,
+                "quantite": 10,
+            }
+        ]
     )
 
-    assert "FR0000120271" in apercu.lignes[0].erreur
-    assert _mouvements(db_session) == []
+    ligne = service.previsualiser(db_session, preset.id, contenu).lignes[0]
+    assert ligne.erreur is None
+    assert ligne.titre_a_creer is True
 
+    resultat = _confirmer(db_session, preset, contenu)
+
+    assert resultat.titres_crees == ["Total"]
+    nouveau = crud.get_titre_by_isin(db_session, "US89832Q1094")
+    assert nouveau.id != total.id
+    assert _mouvements(db_session)[0].titre_id == nouveau.id
+
+
+def test_deux_homonymes_d_isin_differents_dans_le_meme_fichier(db_session):
+    """Le cas qui faisait échouer l'import en plein milieu : « SS SPDR MSCI EUR. » pour deux
+    ETF distincts."""
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    lignes = [
+        {"date": "12/03/2026", "type": "Achat", "valeur": "SS SPDR MSCI EUR.",
+         "isin": "IE00BKWQ0P07", "montant": 2533.10, "quantite": 10},
+        {"date": "13/03/2026", "type": "Achat", "valeur": "SS SPDR MSCI EUR.",
+         "isin": "IE00BKWQ0G16", "montant": 900.0, "quantite": 3},
+    ]
+
+    resultat = _confirmer(db_session, preset, _fichier(lignes))
+
+    assert resultat.operations_creees == 2
+    assert resultat.lignes_ignorees == []
+    titres = {t.code_isin for t in crud.get_titres(db_session)}
+    assert titres == {"IE00BKWQ0P07", "IE00BKWQ0G16"}
+
+
+def test_un_nom_seul_retrouve_le_titre_et_ne_devine_pas_entre_homonymes(db_session):
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    monnaie = get_monnaie_id(db_session)
+    unique = crud.create_titre(db_session, "Air Liquide", monnaie, code_isin="FR0000120073")
+    crud.create_titre(db_session, "SPDR", monnaie, code_isin="IE00BKWQ0P07")
+    crud.create_titre(db_session, "SPDR", monnaie, code_isin="IE00BKWQ0G16")
+    contenu = _fichier(
+        [
+            {"date": "12/03/2026", "type": "Achat", "valeur": "Air Liquide",
+             "montant": 500.0, "quantite": 5},
+            {"date": "12/03/2026", "type": "Achat", "valeur": "SPDR",
+             "montant": 500.0, "quantite": 5},
+        ]
+    )
+
+    air, spdr = service.previsualiser(db_session, preset.id, contenu).lignes
+
+    assert air.titre_id == unique.id and air.erreur is None
+    assert spdr.titre_id is None
+    assert "plusieurs titres" in spdr.erreur
+
+
+def test_un_isin_seul_retrouve_le_titre(db_session):
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    titre = crud.create_titre(
+        db_session, "Air Liquide", get_monnaie_id(db_session), code_isin="FR0000120073"
+    )
+    contenu = _fichier(
+        [{"date": "12/03/2026", "type": "Achat", "isin": "FR0000120073",
+          "montant": 500.0, "quantite": 5}]
+    )
+
+    ligne = service.previsualiser(db_session, preset.id, contenu).lignes[0]
+
+    assert ligne.titre_id == titre.id
 
 def test_lisin_est_normalise_avant_rapprochement(db_session):
     """Le même titre exporté « fr0000120073 » d'un côté et « FR0000120073 » de

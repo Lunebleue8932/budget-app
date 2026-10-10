@@ -496,3 +496,32 @@ def test_un_titre_sans_mouvement_se_supprime_toujours(db_session):
     routeur_titres.delete_titre(titre.id, db_session)
 
     assert crud.get_titre(db_session, titre.id) is None
+
+
+# ---------- L'identité d'un titre : (nom, ISIN) ----------
+
+
+def test_creer_un_homonyme_n_est_permis_que_sous_un_autre_isin(db_session):
+    """Deux titres peuvent porter le même nom s'ils ont des ISIN différents ; deux titres
+    SANS ISIN, non (rien ne les distinguerait) ; et un ISIN ne désigne qu'un titre."""
+    from app.services import identite_titre
+
+    monnaie = crud.get_monnaies(db_session)[0].id
+    crud.create_titre(db_session, "SPDR", monnaie, code_isin="IE00BKWQ0P07")
+    assert identite_titre.conflit_identite(db_session, "SPDR", "IE00BKWQ0G16") is None
+    assert identite_titre.conflit_identite(db_session, "SPDR", None) is None
+    assert "ISIN" in identite_titre.conflit_identite(db_session, "Autre", "ie00 bkwq0p07")
+    crud.create_titre(db_session, "SPDR", monnaie)
+    assert "sans ISIN" in identite_titre.conflit_identite(db_session, "SPDR", None)
+
+
+def test_la_base_refuse_deux_titres_sans_isin_de_meme_nom(db_session):
+    import sqlalchemy
+
+    monnaie = crud.get_monnaies(db_session)[0].id
+    crud.create_titre(db_session, "Doublon", monnaie)
+    with pytest.raises(sqlalchemy.exc.IntegrityError):
+        crud.create_titre(db_session, "Doublon", monnaie)
+    db_session.rollback()
+    crud.create_titre(db_session, "Doublon", monnaie, code_isin="FR0000120073")
+

@@ -270,11 +270,14 @@ def test_le_meme_isin_deux_fois_dans_le_fichier_est_une_erreur_sur_la_seconde(db
     assert "ligne 2" in apercu.lignes[1].erreurs[0] or "déjà" in apercu.lignes[1].erreurs[0]
 
 
-def test_un_nom_pris_par_un_autre_isin_met_la_ligne_en_erreur(db_session, preset):
-    _titre(db_session, isin="FR0000120271", nom="ETF World")
+def test_un_nom_pris_par_un_autre_isin_est_un_autre_titre(db_session, preset):
+    """L'ISIN TRANCHE (migration 0080) : même nom, autre ISIN, autre titre — créé."""
+    autre = _titre(db_session, isin="FR0000120271", nom="ETF World")
     apercu = _apercu(db_session, preset, _fichier((ISIN_ETF, "ETF World")))
-    assert apercu.lignes[0].statut == "erreur"
-    assert "mélangerait" in apercu.lignes[0].erreurs[0]
+    assert apercu.lignes[0].statut == "cree"
+    _confirmer(db_session, preset, _fichier((ISIN_ETF, "ETF World")))
+    nouveau = crud.get_titre_by_isin(db_session, ISIN_ETF)
+    assert (nouveau.nom, nouveau.id != autre.id) == ("ETF World", True)
 
 
 def test_un_titre_sans_isin_retrouve_par_son_nom_recoit_celui_du_fichier(db_session, preset):

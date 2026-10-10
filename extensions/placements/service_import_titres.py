@@ -40,7 +40,7 @@ from app.constants import (
     PROPRIETES_IMPORT_TITRE,
     AxeTitre,
 )
-from app.services import exposition, import_bancaire, placements
+from app.services import exposition, identite_titre, import_bancaire, placements
 
 import schemas_import_titres as schemas_t
 
@@ -108,7 +108,11 @@ class _Contexte:
         self.db = db
         self.titres = crud.get_titres(db, inclure_archivees=True)
         self.par_isin = {t.code_isin: t for t in self.titres if t.code_isin}
-        self.par_nom = {_cle(t.nom): t for t in self.titres}
+        # (nom, ISIN), l'ISIN tranche : la règle de toute l'application.
+        self.index = identite_titre.IndexTitres(self.titres)
+        # Les titres sans ISIN qu'une ligne du fichier a déjà revendiqués (elle va leur
+        # donner SON ISIN) : un homonyme plus bas, sous un autre ISIN, est un autre titre.
+        self.revendiques: set[int] = set()
         self.etiquettes = {
             axe.value: {_cle(e.nom): e for e in crud.get_types_titre(db, axe.value)}
             for axe in AxeTitre
@@ -162,20 +166,16 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
 
     titre = None
     if isin and not erreurs:
-        titre = ctx.par_isin.get(isin)
-        if titre is None and nom:
-            candidat = ctx.par_nom.get(_cle(nom))
-            if candidat is not None:
-                if candidat.code_isin and candidat.code_isin != isin:
-                    erreurs.append(
-                        f"« {nom} » existe déjà sous l'ISIN {candidat.code_isin} : "
-                        "deviner mélangerait deux titres"
-                    )
-                else:
-                    # Rapproché par le nom alors que le titre n'a pas d'ISIN : le fichier le complète.
-                    titre = candidat
-                    plan["isin_a_completer"] = isin
-                    changements.append({"champ": "code_isin", "avant": None, "apres": isin})
+        # L'ISIN TRANCHE (cf. services/identite_titre.py) : un homonyme sous un autre ISIN
+        # est un autre titre, à créer ; un homonyme SANS ISIN est celui-ci, que le fichier
+        # complète.
+        titre, _ = ctx.index.identifier(nom, isin)
+        if titre is not None and not titre.code_isin and titre.id in ctx.revendiques:
+            titre = None
+        if titre is not None and not titre.code_isin:
+            ctx.revendiques.add(titre.id)
+            plan["isin_a_completer"] = isin
+            changements.append({"champ": "code_isin", "avant": None, "apres": isin})
 
     existe = titre is not None
     plan["titre_id"] = titre.id if existe else None
@@ -188,8 +188,6 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
         else:
             plan["nom"] = isin
             avertissements.append("nom absent : l'ISIN sert de nom au titre créé")
-        if _cle(plan["nom"]) in ctx.par_nom:
-            erreurs.append(f"un titre nommé « {plan['nom']} » existe déjà")
 
     # ---- La monnaie ----
     monnaie_cellule = brute.get("monnaie_brut")
@@ -456,7 +454,7 @@ def confirmer(
                 db, plan["nom"], plan["monnaie_id"], 0.0, plan["isin"], enveloppe_id
             )
             ctx.par_isin[plan["isin"]] = titre
-            ctx.par_nom[_cle(titre.nom)] = titre
+            ctx.index.ajouter(titre)
             resultat.crees += 1
         else:
             titre = crud.get_titre(db, plan["titre_id"])

@@ -101,7 +101,7 @@ from app.constants import (
     Statut,
     TypeOperationPlacement,
 )
-from app.services import import_bancaire, placements, regles_categorisation
+from app.services import identite_titre, import_bancaire, placements, regles_categorisation
 
 from schemas_import_placements import (
     ApercuPlacements,
@@ -358,10 +358,7 @@ class ContextePresetPlacement:
         # dénominations. Un relevé qui rouvre une position sur un titre rangé
         # doit retomber sur celui-là, pas en créer un second.
         titres = crud.get_titres(db, inclure_archivees=True)
-        self.par_isin = {t.code_isin: t for t in titres if t.code_isin}
-        self.par_nom = {
-            import_bancaire.normaliser_libelle(t.nom): t for t in titres if t.nom
-        }
+        self.titres = identite_titre.IndexTitres(titres)
 
     @property
     def monnaie_compte_id(self) -> Optional[int]:
@@ -373,34 +370,11 @@ def _texte(valeur) -> str:
 
 
 def _rapprocher_titre(contexte: ContextePresetPlacement, nom: str, isin: str):
-    """Le titre en base que (nom, ISIN) désignent, et ce qui cloche s'il y a
-    lieu : (action, erreur).
-
-    L'ISIN d'abord — cf. l'en-tête du module. Un désaccord entre les deux
-    dénominations n'est signalé que dans le sens qui pose vraiment problème :
-    un nom différent pour le même ISIN est ordinaire (chaque courtier abrège à
-    sa façon) et le nom en base l'emporte sans un mot ; un ISIN différent pour
-    le même nom veut dire deux valeurs distinctes, et là rien ne peut être
-    deviné.
-    """
-    if isin:
-        titre = contexte.par_isin.get(isin)
-        if titre is not None:
-            return titre, None
-
-    if nom:
-        titre = contexte.par_nom.get(import_bancaire.normaliser_libelle(nom))
-        if titre is not None:
-            if isin and titre.code_isin and titre.code_isin != isin:
-                return None, (
-                    f"« {titre.nom_affiche} » porte déjà le code ISIN {titre.code_isin}, "
-                    f"le fichier annonce {isin} : ce sont deux valeurs "
-                    "différentes. Renomme l'une des deux, ou choisis le titre "
-                    "à la main sur cette ligne."
-                )
-            return titre, None
-
-    return None, None
+    """Le titre en base que (nom, ISIN) désignent, et ce qui empêche de trancher s'il y a
+    lieu : (titre, erreur). LA RÈGLE EST CELLE DE TOUTE L'APPLICATION, l'ISIN tranche (cf.
+    services/identite_titre.py) : deux titres de même nom et d'ISIN différents sont deux
+    titres, et un nom sans ISIN qui en désigne plusieurs ne se devine pas."""
+    return contexte.titres.identifier(nom, isin)
 
 
 def _nom_du_titre_a_creer(nom: str, isin: str) -> str:
@@ -993,8 +967,8 @@ def _titre_pour_ligne(
     AVANT que la première ligne du fichier ne crée le sien. Un titre acheté
     trois fois dans le même relevé serait sans cela créé trois fois — et les
     deux dernières fois refusées par l'unicité de l'ISIN, ce qui ferait échouer
-    tout l'import. Le contexte est tenu à jour au fil des créations
-    (`par_isin` / `par_nom`), c'est lui qui répond aux lignes suivantes.
+    tout l'import. L'index du contexte est tenu à jour au fil des créations,
+    c'est lui qui répond aux lignes suivantes.
     """
     if ligne.titre_id is not None:
         titre = crud.get_titre(db, ligne.titre_id)
@@ -1007,21 +981,16 @@ def _titre_pour_ligne(
         return existant, None
 
     nom = _nom_du_titre_a_creer(ligne.nom_valeur, ligne.code_isin)
-    # DERNIÈRE VÉRIFICATION EN BASE, au nom EXACT et à l'ISIN, juste avant d'écrire : le
-    # contexte a été lu au début du fichier, et la base a pu bouger depuis (un autre écran,
-    # une confirmation précédente). Créer à l'aveugle se heurtait alors à l'unicité du nom et
-    # faisait échouer TOUT l'import, au milieu, ce qui était déjà écrit restant écrit.
-    deja = crud.get_titre_by_isin(db, ligne.code_isin) or crud.get_titre_by_nom(db, nom)
+    # DERNIÈRE VÉRIFICATION EN BASE, juste avant d'écrire, avec la même règle : le contexte
+    # a été lu au début du fichier, et la base a pu bouger depuis (un autre écran, une
+    # confirmation précédente). Créer à l'aveugle se heurtait alors à une unicité et faisait
+    # échouer TOUT l'import, au milieu, ce qui était déjà écrit restant écrit.
+    frais = identite_titre.IndexTitres(crud.get_titres(db, inclure_archivees=True))
+    deja, erreur = frais.identifier(ligne.nom_valeur or nom, ligne.code_isin)
+    if erreur:
+        return None, erreur
     if deja is not None:
-        if ligne.code_isin and deja.code_isin and deja.code_isin != ligne.code_isin:
-            return None, (
-                f"« {deja.nom_affiche} » porte déjà le code ISIN {deja.code_isin}, "
-                f"le fichier annonce {ligne.code_isin} : choisis le titre à la main sur "
-                "cette ligne."
-            )
-        if deja.code_isin:
-            contexte.par_isin[deja.code_isin] = deja
-        contexte.par_nom[import_bancaire.normaliser_libelle(deja.nom)] = deja
+        contexte.titres.ajouter(deja)
         return deja, None
 
     titre = crud.create_titre(
@@ -1044,9 +1013,7 @@ def _titre_pour_ligne(
     # n'a pas encore de renommage, les deux coïncident donc — mais la règle
     # doit être la même partout, sans quoi le prochain lecteur hésitera.
     crees.append(titre.nom_affiche)
-    if titre.code_isin:
-        contexte.par_isin[titre.code_isin] = titre
-    contexte.par_nom[import_bancaire.normaliser_libelle(titre.nom)] = titre
+    contexte.titres.ajouter(titre)
     return titre, None
 
 
@@ -1079,10 +1046,9 @@ def _type_titre_a_poser(db, contexte, ligne) -> Optional[int]:
 def _completer_isin(db, titre: models.TitrePossede, code_isin: str) -> None:
     """Complète l'ISIN d'un titre qui n'en avait pas.
 
-    Ne l'ÉCRASE jamais : un titre qui porte déjà un ISIN différent a été traité
-    bien avant, comme une erreur de ligne (cf. `_rapprocher_titre`). Ici, il
-    s'agit seulement d'un titre saisi à la main avant que cette extension
-    n'existe, que le premier relevé importé vient enrichir.
+    Ne l'ÉCRASE jamais : un titre qui porte déjà un ISIN différent est un AUTRE titre
+    (cf. services/identite_titre.py), la ligne n'a pas pu être rattachée à lui. Ici, il
+    s'agit d'un titre saisi sans ISIN, que le premier relevé importé vient enrichir.
     """
     # UN ISIN DÉJÀ PORTÉ PAR UN AUTRE TITRE ne se recopie pas : la ligne a été rattachée à
     # celui-ci à la main, et l'unicité de l'ISIN ferait échouer tout l'import.
@@ -1243,6 +1209,7 @@ def confirmer(
             )
             continue
         _completer_isin(db, titre, ligne.code_isin)
+        contexte.titres.ajouter(titre)
         # LE COURS ACTUEL, sur une photographie seulement. C'est le seul usage de
         # la colonne « valeur totale » : elle ne crée aucune détention, elle dit
         # ce que le titre vaut aujourd'hui. Ailleurs, `cours` est le prix annoncé
