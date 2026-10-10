@@ -385,8 +385,9 @@ function abLibellePeriode(p, semaine = null) {
   return mois;
 }
 
-/** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page. */
-async function abDepensesDe(p) {
+/** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page — ou dans
+ *  `monnaieId` (la fenêtre d'une monnaie éteinte, qui ne s'ouvre jamais sur une semaine). */
+async function abDepensesDe(p, monnaieId = abMonnaieId) {
   if (p.vue === "semaine") {
     const donnees = await abSemainesDe(p.annee, p.mois);
     const semaines = donnees.semaines || [];
@@ -405,7 +406,7 @@ async function abDepensesDe(p) {
       ? `/dashboard?annee=${p.annee}&vue=annee`
       : `/dashboard?annee=${p.annee}&mois=${p.mois}`;
   const data = await apiFetch(url);
-  const kpis = (data.kpis || []).find((k) => k.monnaie_id === abMonnaieId);
+  const kpis = (data.kpis || []).find((k) => k.monnaie_id === monnaieId);
   return {
     depenses: kpis ? kpis.depenses_par_categorie || [] : [],
     budgetTotal: kpis ? kpis.budget_total || 0 : 0,
@@ -499,12 +500,65 @@ async function abRemplirControlesGraphes() {
   }
 }
 
+/**
+ * LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE, « en pop-up » seulement — la règle du dashboard
+ * (cf. chargerConversionsDashboard) : l'éteinte n'a plus sa place dans la liste des monnaies,
+ * et sans cette colonne l'argent parti vers elle ne se verrait nulle part. « Sur la page »,
+ * on peut la choisir : la colonne serait un doublon. Lues dans la cascade de la monnaie de la
+ * page, sur le mois ou l'année des graphes — pas sur une semaine, qu'une cascade ne découpe
+ * pas. Le drill-through ouvre les graphiques de l'éteinte sur la même période.
+ */
+async function abConversions(p) {
+  if (modeMonnaiesEteintes() !== "popup" || p.vue === "semaine") return [];
+  if (!state.monnaies.some((m) => m.active === false)) return [];
+  const requete =
+    p.vue === "annee" ? `vue=annee&annee=${p.annee}` : `vue=mois&annee=${p.annee}&mois=${p.mois}`;
+  try {
+    const cascade = await apiFetch(`/dashboard/cascade?monnaie_id=${abMonnaieId}&${requete}`);
+    return (cascade.colonnes || [])
+      .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
+      .map((c) =>
+        barreConversion(abMonnaieId, c, {
+          ouvrir: () => abOuvrirFenetreMonnaie(c.monnaie_autre_id, p),
+        })
+      );
+  } catch (err) {
+    // Un supplément en panne ne doit pas avaler les graphes des catégories.
+    return [];
+  }
+}
+
+/** LES FRAIS (virements internes, épargne, placements), TOUJOURS là : le serveur les rend avec
+ *  les catégories (cf. soldes._barre_frais_virements). Ici, leur fenêtre s'ouvre sur la période
+ *  des graphes et la monnaie de la page. */
+function abAvecFrais(depenses, p, monnaieId) {
+  return depenses.map((d) =>
+    d.colonne_speciale === "frais_virements"
+      ? {
+          ...d,
+          frais: {
+            ouvrir: () =>
+              ouvrirFenetreFrais({
+                periode: { vue: p.vue === "annee" ? "annee" : "mois", annee: p.annee, mois: p.mois },
+                monnaieId,
+              }),
+          },
+        }
+      : d
+  );
+}
+
 async function abRenderGraphes() {
   const histo = document.getElementById("ab-histogramme");
   if (!histo || abMonnaieId == null) return;
   try {
     await abRemplirControlesGraphes();
-    const principale = await abDepensesDe(abPeriodeGraphes());
+    const p = abPeriodeGraphes();
+    const lue = await abDepensesDe(p);
+    const principale = {
+      ...lue,
+      depenses: [...abAvecFrais(lue.depenses, p, abMonnaieId), ...(await abConversions(p))],
+    };
     const comparee = abGraphes.comparer
       ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp })
       : null;
@@ -1067,19 +1121,33 @@ const AB_CONTEXTES = [
   { monnaie: "ab-cat-monnaie", periode: "ab-cat-periode" },
 ];
 
+/**
+ * LES MONNAIES QU'ON PEUT CHOISIR SUR CETTE PAGE, selon le réglage des monnaies éteintes
+ * (cf. modeMonnaiesEteintes, app.js) — la même règle que les onglets du dashboard :
+ *   - « sur la page » : toutes, éteintes comprises ;
+ *   - « en pop-up » : les allumées seulement. Ce qui part vers une éteinte devient alors une
+ *     colonne grise « Conversion vers… » de l'histogramme, qui ouvre ses graphiques dans une
+ *     fenêtre (cf. abConversions, abOuvrirFenetreMonnaie).
+ */
+function abMonnaiesProposees() {
+  const enPopup = modeMonnaiesEteintes() === "popup";
+  return state.monnaies.filter((m) => !(enPopup && m.active === false));
+}
+
 function abRemplirContexte() {
+  const proposees = abMonnaiesProposees();
   AB_CONTEXTES.forEach((ids) => {
     const monnaie = document.getElementById(ids.monnaie);
     if (!monnaie) return;
     fillSelect(
       monnaie,
-      state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
+      proposees.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
     );
     monnaie.value = String(abMonnaieId);
     // UNE SEULE MONNAIE : la liste n'a rien à demander. On la laisse en place
     // plutôt que de la masquer — un champ qui apparaît le jour où l'on crée une
     // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
-    monnaie.disabled = state.monnaies.length <= 1;
+    monnaie.disabled = proposees.length <= 1;
 
     // L'ANNÉE ET LE MOIS, COMME AU DASHBOARD : le même arbre de période, sans « Tout » ni
     // semaines, et TOUS les douze mois — un budget se pose aussi sur un mois vide.
@@ -1101,8 +1169,11 @@ function abRemplirContexte() {
 
 async function abCharger() {
   if (!state.monnaies.length) await refreshMonnaies();
-  if (abMonnaieId == null || !state.monnaies.some((m) => m.id === abMonnaieId)) {
-    abMonnaieId = monnaiePreferee(state.monnaies.map((m) => m.id));
+  // Une monnaie éteinte entre-temps (ou le réglage passé « en pop-up ») : on retombe sur la
+  // préférée parmi celles qu'on peut encore choisir.
+  const proposees = abMonnaiesProposees();
+  if (abMonnaieId == null || !proposees.some((m) => m.id === abMonnaieId)) {
+    abMonnaieId = monnaiePreferee(proposees.map((m) => m.id));
   }
   if (!abPeriode.annee) {
     const aujourdhui = new Date();
@@ -1420,3 +1491,64 @@ window.loadComptesGlobale = async function loadComptesGlobaleAvecMatelas(...args
 // noyau connaît, lui que porte l'état d'activation déjà enregistré, et il ne
 // s'affiche nulle part. Le nom visible, lui, est dans le manifeste.
 BudgetApp.extensions.enregistrer("analyse-budget", { chargeur: abOuvrirPage });
+
+
+/* ---------- LA FENÊTRE D'UNE MONNAIE ÉTEINTE, PAGE BUDGET ----------
+ *
+ * Ouverte depuis une colonne « Conversion vers… » (« en pop-up », cf. abConversions) : les
+ * DEUX GRAPHES DE LA PAGE — histogramme et camembert — et leur légende, pour la monnaie
+ * éteinte, sur la période des graphes. Les mêmes que ceux de la page, pour qu'on lise
+ * l'éteinte exactement comme on lirait une allumée. Sans comparaison : elle se règle sur la
+ * page, pour la monnaie de la page.
+ */
+async function abOuvrirFenetreMonnaie(monnaieId, p) {
+  const monnaie = monnaieParId(monnaieId);
+  document.getElementById("modale-ab-monnaie-titre").textContent = monnaie
+    ? `${monnaie.nom} (${monnaie.symbole})`
+    : "";
+  document.getElementById("modale-ab-monnaie-periode").textContent = abLibellePeriode(p);
+  document.getElementById("modale-ab-monnaie").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  try {
+    const lue = await abDepensesDe(p, monnaieId);
+    const depenses = abAvecFrais(lue.depenses, p, monnaieId);
+    const parts = partsCategoriesDashboard(depenses, new Set(depenses.map((x) => x.categorie)), {
+      vue: VUE_PIE_BUDGET,
+      budgetTotal: lue.budgetTotal,
+    });
+    const vide = parts.total <= 0;
+    document.getElementById("modale-ab-monnaie-vide").style.display = vide ? "" : "none";
+    document.getElementById("modale-ab-monnaie-graphes").style.display = vide ? "none" : "";
+    if (vide) return;
+    renderHistogrammeDepenses(
+      parts.retenues,
+      monnaieId,
+      document.getElementById("modale-ab-monnaie-histogramme")
+    );
+    renderPieChartDepenses(
+      depenses,
+      monnaieId,
+      document.getElementById("modale-ab-monnaie-camembert"),
+      parts
+    );
+    renderLegendeCategories(monnaieId, parts, document.getElementById("modale-ab-monnaie-legende"));
+    cablerSurbrillanceCategories();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+function abFermerFenetreMonnaie() {
+  document.getElementById("modale-ab-monnaie").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+}
+
+document.getElementById("btn-modale-ab-monnaie-fermer")?.addEventListener("click", abFermerFenetreMonnaie);
+document.getElementById("modale-ab-monnaie")?.addEventListener("click", (e) => {
+  if (e.target.id === "modale-ab-monnaie") abFermerFenetreMonnaie();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const fenetre = document.getElementById("modale-ab-monnaie");
+  if (fenetre && fenetre.style.display !== "none") abFermerFenetreMonnaie();
+});

@@ -127,6 +127,31 @@
     </div>
     <div id="ab-legende" class="histogramme-cadre legende-cadre"></div>
 
+    <!-- LA FENÊTRE D'UNE MONNAIE ÉTEINTE (« en pop-up ») : ouverte depuis une colonne
+         « Conversion vers… » de l'histogramme, les deux graphes de la page pour cette monnaie
+         (cf. abOuvrirFenetreMonnaie). -->
+    <div id="modale-ab-monnaie" class="modale-fond" style="display:none" role="presentation">
+      <div class="modale modale-monnaie-eteinte" role="dialog" aria-modal="true"
+           aria-labelledby="modale-ab-monnaie-titre">
+        <div class="epargne-entete">
+          <h2 id="modale-ab-monnaie-titre"></h2>
+          <button type="button" id="btn-modale-ab-monnaie-fermer" class="epargne-fermer"
+                  title="Fermer" aria-label="Fermer">&times;</button>
+        </div>
+        <p class="hint" id="modale-ab-monnaie-periode"></p>
+        <p class="hint" id="modale-ab-monnaie-vide" style="display:none">Aucune dépense sur la période.</p>
+        <div id="modale-ab-monnaie-graphes">
+          <div class="dashboard-graphes ab-graphes">
+            <div id="modale-ab-monnaie-histogramme" class="histogramme-cadre"></div>
+            <div class="histogramme-cadre camembert-cadre">
+              <div id="modale-ab-monnaie-camembert" class="camembert-zone"></div>
+            </div>
+          </div>
+          <div id="modale-ab-monnaie-legende" class="histogramme-cadre legende-cadre"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
     <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
 

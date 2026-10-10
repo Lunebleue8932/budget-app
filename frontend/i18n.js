@@ -3941,6 +3941,7 @@ const TRADUCTIONS = {
     "Donne un nom à chaque nouvelle colonne dummy.": "Give a name to each new dummy column.",
     "Colonne dummy : lue par les règles, ignorée par l'import": "Dummy column: read by rules, ignored by the import",
     "Entrées : {entrees} · Sorties : {sorties}": "Income: {entrees} · Spending: {sorties}",
+    "Aucune dépense sur la période.": "No spending over the period.",
   },
 };
 

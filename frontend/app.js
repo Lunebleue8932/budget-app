@@ -2353,12 +2353,12 @@ async function loadDashboardData(annee, mois) {
 
 /* ---------- Les conversions vers les monnaies éteintes, au dashboard ----------
  *
- * DANS LES DEUX MODES, comme dans un projet (cf. modeMonnaiesEteintes) : l'argent parti vers
- * une monnaie éteinte ne doit pas disparaître de l'histogramme de celle d'où il part — un
- * virement interne n'y laisse sinon aucune trace. Lues dans la cascade de la monnaie de
- * l'onglet sur la période affichée (cf. services/cascade.py), au net des deux sens et aux
- * montants enregistrés, avec deux drill-throughs — les virements, et, « en pop-up »
- * seulement, le détail de la monnaie éteinte (« sur la page », elle a son propre onglet). `contexteGraphesDashboard` les ajoute aux barres de
+ * « EN POP-UP » SEULEMENT (cf. modeMonnaiesEteintes) : une monnaie éteinte n'y a plus
+ * d'onglet, et sans cette colonne l'argent parti vers elle ne se verrait NULLE PART. « Sur
+ * la page », elle a son onglet : l'argent s'y voit arriver, la colonne serait un doublon.
+ * Lues dans la cascade de la monnaie de l'onglet sur la période affichée (cf.
+ * services/cascade.py), au net des deux sens et aux montants enregistrés, avec deux
+ * drill-throughs — les virements, et le détail de la monnaie éteinte. `contexteGraphesDashboard` les ajoute aux barres de
  * la période entière — pas à une semaine ni à une moyenne, qu'elles ne découpent pas.
  *
  * LES FRAIS DE VIREMENTS, EUX, VIENNENT DU SERVEUR avec les autres barres (cf.
@@ -2370,7 +2370,7 @@ let dashboardConversions = [];
 async function chargerConversionsDashboard(enPopup, annee, mois) {
   dashboardConversions = [];
   const monnaieId = state.dashboardMonnaieId;
-  if (monnaieId == null) return;
+  if (!enPopup || monnaieId == null) return;
   if (!(state.monnaies || []).some((m) => m.active === false)) return;
   const vue = state.dashboardPeriode.vue;
   const requete =
@@ -2386,7 +2386,7 @@ async function chargerConversionsDashboard(enPopup, annee, mois) {
       .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
       .map((c) =>
         barreConversion(monnaieId, c, {
-          ouvrir: enPopup ? () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id) : null,
+          ouvrir: () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id),
           voirOperations: () => drillThroughConversion(monnaieId, c),
         })
       );
@@ -5320,7 +5320,8 @@ function contexteGraphesDashboard(depensesDuMois) {
   // graphe est vide plutôt que de montrer la période entière sous un titre qui
   // annonce une moyenne.
   const moyenne = semaine?.moyenne && semaine.pret ? dashboardMoyenneDonnees : null;
-  // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (cf. chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
+  // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (« en pop-up », cf.
+  // chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
   // seulement : elles ne se découpent ni en semaines ni en moyenne. Ni quand tout
   // est converti dans une seule monnaie (extension « Monnaies ») : la monnaie
   // éteinte y est déjà fondue, la compter encore en conversion la doublerait.

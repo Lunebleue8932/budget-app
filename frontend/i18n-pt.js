@@ -3300,3 +3300,4 @@ TRADUCTIONS.pt["Donne un nom à chaque nouvelle colonne dummy."] = "Dê um nome 
 TRADUCTIONS.pt["— aucune —"] = "— nenhuma —";
 TRADUCTIONS.pt["Colonne dummy : lue par les règles, ignorée par l'import"] = "Coluna dummy: lida pelas regras, ignorada pela importação";
 TRADUCTIONS.pt["Entrées : {entrees} · Sorties : {sorties}"] = "Entradas: {entrees} · Saídas: {sorties}";
+TRADUCTIONS.pt["Aucune dépense sur la période."] = "Nenhuma despesa no período.";
