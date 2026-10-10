@@ -248,9 +248,17 @@
 
 .objectif-detail-entete {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 0.8rem;
+}
+
+/* Le retour, et sous lui la carte du total retenu, alignés à droite. */
+.objectif-detail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
 }
 
 .objectif-detail-entete h3 {
@@ -258,9 +266,12 @@
   margin-right: auto;
 }
 
-/* Le total sous le tableau, aligné sur la colonne qu'il somme. */
+/* La carte du total retenu : celle des KPI du dashboard, en plus compact. */
 .objectif-detail-total {
   text-align: right;
-  margin-top: 0.6rem;
-  color: var(--text-secondary);
+  min-width: 11rem;
+}
+
+.objectif-detail-total .kpi-valeur {
+  font-size: 1.35rem;
 }

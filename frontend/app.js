@@ -600,7 +600,7 @@ async function appliquerGestePeriode(geste) {
  *   - `annees()` et `moisDisponibles(annee)` disent ce qu'on peut choisir (la page Budget
  *     propose les douze mois, une fenêtre seulement ceux qui ont des opérations) ;
  *   - `avecTout` : la ligne « Tout » existe ou non ;
- *   - `niveauFixe` : le niveau ne bouge pas (la page Budget parle toujours d'un MOIS) —
+ *   - `niveauFixe` : le niveau ne bouge pas (les budgets de catégorie parlent d'un MOIS) —
  *     les pastilles disparaissent alors, l'année et le mois restent cliquables.
  *
  * `etat` ({niveau, vue, annee, mois, moisDeplie}) est modifié EN PLACE ; `surChangement`

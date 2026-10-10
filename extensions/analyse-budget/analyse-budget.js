@@ -621,6 +621,8 @@ document.getElementById("ab-graphes-vue")?.addEventListener("change", (e) => {
   // Changer de granularité change la question : la comparaison repart de la
   // période précédente, dans la nouvelle unité.
   abGraphes.cmp = { annee: null, mois: null, semaine: null };
+  // Les pastilles du haut suivent (une semaine est vue depuis son mois).
+  abRemplirContexte();
   abRenderGraphes();
 });
 document.getElementById("ab-graphes-semaine")?.addEventListener("change", (e) => {
@@ -1161,14 +1163,38 @@ function abRemplirContexte() {
     // semaines, et TOUS les douze mois — un budget se pose aussi sur un mois vide.
     const hote = document.getElementById(ids.periode);
     if (hote) {
+      // LES PASTILLES MOIS / ANNÉE, comme au dashboard, sur l'onglet « Budget » : elles
+      // choisissent ce que les graphes regardent (le mois, ou toute son année — cf.
+      // abGraphes.vue, que la liste « Période » choisit aussi). Le budget du mois et les
+      // budgets de catégorie restent propres au MOIS choisi : l'onglet des catégories garde
+      // donc un niveau fixe, et sa propre copie de l'état pour ne pas imposer « mois » à
+      // celui d'à côté.
+      const graphes = ids.periode === "ab-periode";
+      if (graphes) {
+        abPeriode.niveau = abGraphes.vue === "annee" ? "annee" : "mois";
+        abPeriode.moisDeplie = true;
+      }
+      const etat = graphes ? abPeriode : { ...abPeriode, niveau: "mois", vue: "mois" };
       creerArbrePeriode(hote, {
-        etat: abPeriode,
+        etat,
         annees: abAnneesProposees,
         moisDisponibles: () => Array.from({ length: 12 }, (_, i) => i + 1),
         avecTout: false,
-        niveauFixe: "mois",
-        surChangement: (etat, avant) => {
-          if (etat.annee !== avant.annee || etat.mois !== avant.mois) abCharger();
+        niveauFixe: graphes ? null : "mois",
+        surChangement: (nouvel, avant) => {
+          if (!graphes) {
+            abPeriode.annee = nouvel.annee;
+            abPeriode.mois = nouvel.mois;
+          }
+          const niveauChange = graphes && nouvel.niveau !== avant.niveau;
+          if (niveauChange) {
+            // Changer de granularité change la question : la comparaison repart de la
+            // période précédente, dans la nouvelle unité (comme la liste « Période »).
+            abGraphes.vue = nouvel.niveau === "annee" ? "annee" : "mois";
+            abGraphes.cmp = { annee: null, mois: null, semaine: null };
+          }
+          if (nouvel.annee !== avant.annee || nouvel.mois !== avant.mois) abCharger();
+          else if (niveauChange) abRenderGraphes();
         },
       });
     }

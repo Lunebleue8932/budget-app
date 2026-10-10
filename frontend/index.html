@@ -1447,6 +1447,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
     <!-- IMPORT -->
     <section id="section-parametres">
+      <!-- L'EN-TÊTE RESTE EN HAUT quand on défile (cf. .parametres-entete) : les pages de
+           réglages sont longues, et revenir en haut pour changer d'onglet coûtait un écran
+           de défilement à chaque fois. -->
+      <div class="parametres-entete">
       <h2>Paramètres</h2>
 
       <!-- DEUX GROUPES, aux deux bouts de la barre. À gauche ce que
@@ -1491,6 +1495,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <button type="button" data-sous-section="parametres-import"><img class="onglet-logo" src="/img/import_logo.svg" alt="" width="15" height="15" />Import</button>
           <button type="button" data-sous-section="parametres-extensions"><img class="onglet-logo" src="/img/extensions_logo.svg" alt="" width="15" height="15" />Extensions</button>
         </div>
+      </div>
       </div>
 
       <!-- PARAMÈTRES GÉNÉRAUX -->

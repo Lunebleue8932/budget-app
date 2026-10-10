@@ -149,7 +149,15 @@
   <div id="objectif-detail" style="display:none">
     <div class="objectif-detail-entete">
       <h3 id="objectif-detail-titre"></h3>
-      <button type="button" id="btn-objectif-fermer">&larr; Retour aux objectifs</button>
+      <!-- LE TOTAL RETENU EN HAUT À DROITE, sous le retour, dans une carte : c'est le
+           chiffre qu'on vient chercher, il ne doit pas attendre le bas d'une longue liste. -->
+      <div class="objectif-detail-actions">
+        <button type="button" id="btn-objectif-fermer">&larr; Retour aux objectifs</button>
+        <div class="kpi-card objectif-detail-total" id="objectif-detail-total" hidden>
+          <div class="kpi-label">Total retenu</div>
+          <div class="kpi-valeur" id="objectif-detail-total-valeur"></div>
+        </div>
+      </div>
     </div>
 
     <!-- LA CARTE, telle qu'on vient de la quitter, avec sa bascule : la liste
@@ -166,6 +174,5 @@
       </thead>
       <tbody id="objectif-detail-liste"></tbody>
     </table>
-    <p class="objectif-detail-total" id="objectif-detail-total"></p>
   </div>
 </div>

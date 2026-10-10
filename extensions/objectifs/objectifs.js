@@ -788,8 +788,9 @@ function objRenderDetail(data) {
       </tr>`;
     })
     .join("");
-  document.getElementById("objectif-detail-total").innerHTML = operations.length
-    ? `${t("Total retenu")} : <strong>${formatMontant(data.total_retenu, mesure.monnaie_id)}</strong>`
+  document.getElementById("objectif-detail-total").hidden = operations.length === 0;
+  document.getElementById("objectif-detail-total-valeur").textContent = operations.length
+    ? formatMontant(data.total_retenu, mesure.monnaie_id)
     : "";
 }
 

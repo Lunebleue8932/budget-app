@@ -6492,9 +6492,10 @@ body input[type="checkbox"]:disabled {
   display: none;
 }
 
-/* « Même virement ? » : les champs d'un panneau de décision de l'import suivent le
-   style des autres champs de l'application. */
-#import-jambes-liste select {
+/* « Même virement ? » (import bancaire et import de placements) : les champs d'un panneau
+   de décision de l'import suivent le style des autres champs de l'application. */
+#import-jambes-liste select,
+#impl-apercu-liste-jambe select {
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -6503,7 +6504,8 @@ body input[type="checkbox"]:disabled {
   font: inherit;
 }
 
-#import-jambes-liste select:disabled {
+#import-jambes-liste select:disabled,
+#impl-apercu-liste-jambe select:disabled {
   opacity: 0.6;
 }
 
@@ -6680,5 +6682,27 @@ body input[type="checkbox"]:disabled {
 
 .apercu-fichier-defilement td.col-dummy {
   color: var(--text-secondary);
+}
+
+/* L'EN-TÊTE DES PARAMÈTRES (titre et onglets) RESTE EN HAUT quand on défile : le fond de
+   la page masque ce qui passe dessous. Sous la barre latérale (z-index 50), jamais devant. */
+.parametres-entete {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg-page);
+  padding-top: 0.75rem;
+  margin-top: -0.75rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 1rem;
+}
+
+/* SUR UN ÉCRAN ÉTROIT, la barre de navigation est déjà collée en haut : l'en-tête se
+   glisserait dessous. Il redevient ordinaire. */
+@media (max-width: 860px) {
+  .parametres-entete {
+    position: static;
+  }
 }
 
