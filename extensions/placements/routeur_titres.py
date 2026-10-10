@@ -39,7 +39,15 @@ def _avertissements(titre) -> list[str]:
     return messages
 
 
-def _titre_read(titre) -> schemas.TitreRead:
+def _titre_read(titre, detenus: set[int] | None = None) -> schemas.TitreRead:
+    """`detenus` : les titres détenus aujourd'hui, calculés UNE fois par la liste ; à défaut
+    (un seul titre relu après une modification), sa quantité est recomptée ici."""
+    db = object_session(titre)
+    detenu = (
+        titre.id in detenus
+        if detenus is not None
+        else placements.quantite_detenue_totale(db, titre.id) > placements.EPSILON_QUANTITE
+    )
     return schemas.TitreRead(
         id=titre.id,
         # Les trois dénominations, et elles ne servent pas à la même chose :
@@ -57,6 +65,7 @@ def _titre_read(titre) -> schemas.TitreRead:
         monnaie_id=titre.monnaie_id,
         monnaie_symbole=titre.monnaie.symbole,
         archivee=titre.archivee,
+        detenu=detenu,
         code_isin=titre.code_isin,
         # Le libellé voyage à côté de l'identifiant : les tableaux l'affichent
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
@@ -134,8 +143,9 @@ def list_titres(inclure_archivees: bool = False, db: Session = Depends(get_db)):
     """Les titres en service. `inclure_archivees=true` rend aussi ceux qu'on a
     rangés — l'écran s'en sert pour la case « Afficher les titres archivés »,
     qui est le seul endroit d'où l'on peut en remettre un en service."""
+    detenus = placements.titres_detenus(db)
     return [
-        _titre_read(titre)
+        _titre_read(titre, detenus)
         for titre in crud.get_titres(db, inclure_archivees=inclure_archivees)
     ]
 

@@ -3049,6 +3049,7 @@ MOTIFS_PAR_LANGUE.pt = [
   [/^ISIN manquant$/, "ISIN ausente"],
   [/^cet ISIN figure déjà à la ligne (.+)$/, "este ISIN já aparece na linha $1"],
   [/^monnaie « (.+) » inconnue$/, "moeda “$1” desconhecida"],
+  [/^cours « (.+) » illisible : un nombre positif est attendu$/, "cotação “$1” ilegível: um número positivo é esperado"],
   [/^ce titre a des mouvements : sa monnaie de cotation ne peut plus changer$/, "este título tem transações: sua moeda de cotação não pode mais mudar"],
   [/^« (.+) » existe déjà sous l'ISIN (.+) : deviner mélangerait deux titres$/, "“$1” já existe com o ISIN $2: adivinhar misturaria dois títulos"],
   [/^un titre nommé « (.+) » existe déjà$/, "já existe um título chamado “$1”"],
@@ -3309,3 +3310,8 @@ TRADUCTIONS.pt["Oui pour toutes"] = "Sim para todas";
 TRADUCTIONS.pt["Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s)."] = "Responda « Mesma transferência? » para as {n} transferência(s) reconhecida(s).";
 TRADUCTIONS.pt["Des mouvements portent ce titre : archive-le plutôt."] = "Há movimentações neste título: arquive-o em vez disso.";
 TRADUCTIONS.pt["Ce titre figure dans la composition de : {etf}."] = "Este título faz parte da composição de: {etf}.";
+TRADUCTIONS.pt["Titres possédés"] = "Títulos detidos";
+TRADUCTIONS.pt["Titres non possédés"] = "Títulos não detidos";
+TRADUCTIONS.pt["Aucun titre détenu aujourd'hui."] = "Nenhum título detido hoje.";
+TRADUCTIONS.pt["Tous tes titres suivis sont détenus."] = "Todos os seus títulos acompanhados estão detidos.";
+TRADUCTIONS.pt["Demander aussi les cours"] = "Pedir também as cotações";

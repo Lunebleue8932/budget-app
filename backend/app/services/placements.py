@@ -132,6 +132,17 @@ def quantite_detenue_totale(db: Session, titre_id: int) -> float:
     )
 
 
+def titres_detenus(db: Session) -> set[int]:
+    """Les titres dont on détient aujourd'hui une quantité non nulle, TOUS COMPTES
+    CONFONDUS. C'est ce qui sépare, dans « Titres suivis », les titres possédés de ceux
+    qu'on suit sans les détenir (vendus, ou composants d'un ETF), et la définition du « possédé » : une seule, partout."""
+    return {
+        ligne["titre_id"]
+        for compte in get_comptes_placement(db)
+        for ligne in detentions(db, compte.id)
+    }
+
+
 def valorisation_compte(db: Session, compte_id: int) -> dict:
     """Valeur du portefeuille d'un compte, PAR MONNAIE de cotation : deux titres
     cotés en euros et en dollars ne s'additionnent pas."""

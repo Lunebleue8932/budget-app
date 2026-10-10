@@ -44,7 +44,7 @@ ISIN_APPLE = "US0378331005"
 
 ENTETE = [
     "ISIN", "Nom", "Monnaie", "Enveloppe", "Classe d'actif", "Zone géographique",
-    "Secteur", "Couverture", "Composition",
+    "Secteur", "Couverture", "Composition", "Cours",
 ]
 
 
@@ -388,8 +388,8 @@ def test_les_presets_de_titres_ne_se_melangent_pas_aux_autres(db_session):
 # ---------- Préparer le fichier ----------
 
 
-def test_le_modele_est_un_classeur_relisible_avec_les_colonnes_du_preset_par_defaut():
-    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx()), data_only=True)
+def test_le_modele_est_un_classeur_relisible_avec_les_colonnes_du_preset_par_defaut(db_session):
+    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
     assert classeur.sheetnames == ["Titres", "Notice"]
     # La feuille ACTIVE est celle que l'import lit : c'est la feuille des données.
     assert classeur.active.title == "Titres"
@@ -399,10 +399,40 @@ def test_le_modele_est_un_classeur_relisible_avec_les_colonnes_du_preset_par_def
     assert classeur["Titres"].max_row == 1
 
 
-def test_l_apercu_du_modele_montre_trois_lignes_dont_les_en_tetes_du_classeur():
+def test_la_colonne_cours_n_est_posee_que_demandee_et_avec_lecture_de_cours(db_session, monkeypatch):
+    from app import extensions
+
+    def entetes(cours):
+        return routeur.apercu_modele(cours=cours)["lignes"][0]
+
+    assert entetes(True)[-1] == "Cours"
+    assert "Cours" not in entetes(False)
+    monkeypatch.setattr(extensions, "est_active", lambda extension_id: extension_id != "lecture-de-cours")
+    assert "Cours" not in entetes(True)
+
+
+def test_la_notice_donne_les_valeurs_de_l_application(db_session):
+    crud.create_type_titre(db_session, "ETF", AxeTitre.enveloppe.value)
+    crud.create_type_titre(db_session, "Luxe", AxeTitre.secteur.value)
+    eteinte = crud.create_monnaie(db_session, "Peso", "MXN")
+    eteinte.active = False
+    db_session.commit()
+
+    notice = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session)), data_only=True)["Notice"]
+    valeurs = {ligne[0]: ligne[1] for ligne in notice.iter_rows(values_only=True) if ligne[0]}
+
+    euro = crud.get_monnaies(db_session)[0]
+    assert valeurs["Monnaies"] == f"{euro.nom} ({euro.symbole})"
+    assert "ETF" in valeurs["Enveloppes"].split(" ; ")
+    assert "Luxe" in valeurs["Secteurs"].split(" ; ")
+    for intitule in ("Classes d'actif", "Zones géographiques"):
+        assert valeurs[intitule]
+
+
+def test_l_apercu_du_modele_montre_trois_lignes_dont_les_en_tetes_du_classeur(db_session):
     """L'aperçu affiché dans l'app lit la même source que le classeur : il ne peut pas diverger."""
-    apercu = routeur.apercu_modele()
-    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx()), data_only=True)
+    apercu = routeur.apercu_modele(cours=True)
+    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
     entetes = [c.value for c in classeur["Titres"][1]]
 
     assert apercu["feuille"] == "Titres"
@@ -414,5 +444,83 @@ def test_l_apercu_du_modele_montre_trois_lignes_dont_les_en_tetes_du_classeur():
 
 
 def test_le_modele_s_importe_tel_quel_sans_rien_creer(db_session, preset):
-    resultat = _confirmer(db_session, preset, routeur.modele_xlsx())
+    resultat = _confirmer(db_session, preset, routeur.modele_xlsx(db_session, avec_cours=True))
     assert (resultat.crees, resultat.mis_a_jour, resultat.ignores) == (0, 0, 0)
+
+
+def test_la_feuille_titres_est_lue_meme_si_une_autre_est_active(db_session, preset):
+    """Un classeur avec une feuille de remarques peut être enregistré ouvert sur elle."""
+    classeur = load_workbook(io.BytesIO(_fichier((ISIN_MSFT, "Microsoft"))))
+    classeur.active.title = "Titres"
+    remarques = classeur.create_sheet("Remarques")
+    remarques.append(["Sources : sites des émetteurs"])
+    classeur.active = classeur.sheetnames.index("Remarques")
+    tampon = io.BytesIO()
+    classeur.save(tampon)
+
+    assert _confirmer(db_session, preset, tampon.getvalue()).crees == 1
+    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).nom == "Microsoft"
+
+
+# ---------- Le cours (extension « Lecture de cours ») ----------
+
+
+def _avec_cours(*valeurs):
+    """Une ligne du fichier réduite à son ISIN et à son cours (dernière colonne)."""
+    isin, cours = valeurs
+    return (isin,) + (None,) * (len(ENTETE) - 2) + (cours,)
+
+
+def test_le_cours_du_fichier_remplace_celui_du_titre(db_session, preset):
+    titre = _titre(db_session, ISIN_ETF)
+
+    apercu = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "104,52 €")))
+    (ligne,) = apercu.lignes
+    assert ligne.statut == "maj"
+    assert [(c.champ, c.avant, c.apres) for c in ligne.changements] == [("cours", "100", "104.52")]
+
+    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52)))
+    db_session.refresh(titre)
+    assert titre.valeur == 104.52
+    # Ce n'est pas une lecture en ligne : rien ne la date.
+    assert titre.cours_maj_le is None
+
+
+def test_un_titre_cree_par_le_fichier_prend_son_cours(db_session, preset):
+    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_MSFT, 410)))
+    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).valeur == 410.0
+
+
+def test_un_cours_illisible_met_la_ligne_en_erreur(db_session, preset):
+    _titre(db_session, ISIN_ETF)
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "n.d."))).lignes
+    assert ligne.statut == "erreur"
+    assert any("cours" in e for e in ligne.erreurs)
+
+
+def test_sans_lecture_de_cours_la_colonne_cours_est_ignoree(db_session, preset, monkeypatch):
+    from app import extensions
+
+    monkeypatch.setattr(extensions, "est_active", lambda extension_id: extension_id != "lecture-de-cours")
+    titre = _titre(db_session, ISIN_ETF)
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52))).lignes
+    assert ligne.statut == "inchange"
+    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52)))
+    db_session.refresh(titre)
+    assert titre.valeur == 100.0
+
+
+def test_les_titres_suivis_se_rangent_en_possedes_et_non_possedes(db_session):
+    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
+    gardee, soldee = _titre(db_session, ISIN_ETF, "Gardée"), _titre(db_session, ISIN_MSFT, "Soldée")
+    _titre(db_session, ISIN_APPLE, "Jamais achetée")
+    for titre, sens, quantite in (
+        (gardee, SensTitre.achat, 5), (soldee, SensTitre.achat, 3), (soldee, SensTitre.vente, 3),
+    ):
+        crud.create_operation_titre(
+            db_session, compte_id=compte.id, titre=titre, sens=sens, quantite=quantite,
+            prix_unitaire=100.0, date_operation=date(2026, 1, 5),
+        )
+    routeur_titres = charger_module_extension("placements", "routeur_titres.py")
+    detenus = {t.nom: t.detenu for t in routeur_titres.list_titres(db=db_session)}
+    assert detenus == {"Gardée": True, "Soldée": False, "Jamais achetée": False}

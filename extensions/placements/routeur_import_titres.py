@@ -23,6 +23,7 @@ from app import crud, models, schemas
 from app.constants import (
     PROPRIETES_IMPORT_TITRE,
     PROPRIETES_IMPORT_TITRE_OBLIGATOIRES,
+    AxeTitre,
     DomaineImport,
 )
 from app.database import get_db
@@ -160,7 +161,8 @@ async def confirmer(
 # ---------- Préparer le fichier : modèle et listes d'ISIN ----------
 
 # L'en-tête du modèle, dans l'ordre de PROPRIETES_IMPORT_TITRE (celui d'un preset sans
-# configuration). Le texte des titres est celui qu'on lit dans Excel.
+# configuration). Le texte des titres est celui qu'on lit dans Excel. « Cours », la dernière,
+# n'est posée que pour qui a « Lecture de cours » ET l'a demandée (cf. `entetes_modele`).
 ENTETES_MODELE = [
     "ISIN",
     "Nom",
@@ -171,6 +173,7 @@ ENTETES_MODELE = [
     "Secteur",
     "Couverture de la composition (%)",
     "Composition (ISIN ; poids en %)",
+    "Cours",
 ]
 
 NOTICE_MODELE = [
@@ -187,10 +190,54 @@ NOTICE_MODELE = [
     ("Poids", "Toujours en pourcentage : 65 pour 65 %. Les poids ne sont jamais ramenés à 100 : une répartition qui s'arrête à 80 % laisse 20 % « non renseigné »."),
 ]
 
+NOTICE_COURS = (
+    "Cours",
+    "Le dernier cours unitaire du titre, dans sa monnaie de cotation, en nombre seul : 104,52. Il remplace le cours enregistré dans l'application.",
+)
 
-def modele_xlsx() -> bytes:
+# LES VALEURS DE L'APPLICATION, sous la notice des colonnes : celles que l'utilisateur a
+# aujourd'hui, et non une liste figée. Un libellé inconnu est créé à l'import ; les avoir
+# sous les yeux évite d'en inventer un quand l'un d'eux convient (un
+# secteur non couvert, une région particulière).
+NOTICE_VALEURS_PRINCIPE = (
+    "Les valeurs que l'application connaît aujourd'hui. Emploie-les telles quelles : un libellé "
+    "qui n'y figure pas sera créé à l'import, à ne proposer que si aucun ne convient vraiment."
+)
+NOTICE_AXES = (
+    ("Enveloppes", AxeTitre.enveloppe.value),
+    ("Classes d'actif", AxeTitre.classe.value),
+    ("Zones géographiques", AxeTitre.zone.value),
+    ("Secteurs", AxeTitre.secteur.value),
+)
+
+
+def entetes_modele(avec_cours: bool) -> list[str]:
+    return ENTETES_MODELE if avec_cours else ENTETES_MODELE[:-1]
+
+
+def avec_cours_demande(cours: bool) -> bool:
+    """La colonne « Cours » : demandée par l'écran, et seulement si l'extension tourne."""
+    return bool(cours) and service.cours_disponible()
+
+
+def valeurs_application(db: Session) -> list[tuple[str, str]]:
+    """(intitulé, valeurs séparées par « ; ») : les monnaies allumées, puis les étiquettes
+    de chaque axe. Une monnaie s'écrit par son nom ou son symbole, les deux sont reconnus."""
+    monnaies = " ; ".join(
+        f"{m.nom} ({m.symbole})" for m in crud.get_monnaies(db) if m.active
+    )
+    lignes = [("Monnaies", monnaies or "—")]
+    for intitule, axe in NOTICE_AXES:
+        noms = " ; ".join(e.nom for e in crud.get_types_titre(db, axe))
+        lignes.append((intitule, noms or "—"))
+    return lignes
+
+
+def modele_xlsx(db: Session, avec_cours: bool = False) -> bytes:
     """Le classeur modèle : une feuille « Titres » (seulement l'en-tête, c'est la feuille
-    active, la seule que l'import lit) et une feuille « Notice » qui explique chaque colonne.
+    active, la seule que l'import lit) et une feuille « Notice » qui explique chaque colonne
+    puis donne les valeurs que l'application connaît (monnaies, enveloppes, classes, zones,
+    secteurs).
 
     AUCUNE LIGNE D'EXEMPLE dans la feuille de données : elle se retrouverait importée par
     celui qui oublie de l'effacer. Les exemples vivent dans la notice. AUCUNE FORMULE non
@@ -201,11 +248,11 @@ def modele_xlsx() -> bytes:
     classeur = Workbook()
     feuille = classeur.active
     feuille.title = "Titres"
-    feuille.append(ENTETES_MODELE)
+    feuille.append(entetes_modele(avec_cours))
     for cellule in feuille[1]:
         cellule.font = Font(bold=True)
         cellule.alignment = Alignment(wrap_text=True, vertical="top")
-    for lettre, largeur in zip("ABCDEFGHI", (16, 34, 12, 16, 22, 34, 30, 18, 44)):
+    for lettre, largeur in zip("ABCDEFGHIJ", (16, 34, 12, 16, 22, 34, 30, 18, 44, 12)):
         feuille.column_dimensions[lettre].width = largeur
     feuille.freeze_panes = "A2"
 
@@ -213,9 +260,21 @@ def modele_xlsx() -> bytes:
     for colonne, titre in (("A", "Colonne"), ("B", "Ce qu'elle contient")):
         notice[f"{colonne}1"] = titre
         notice[f"{colonne}1"].font = Font(bold=True)
-    for i, (colonne, texte) in enumerate(NOTICE_MODELE, start=2):
+    lignes_notice = NOTICE_MODELE[:-1] + ([NOTICE_COURS] if avec_cours else []) + NOTICE_MODELE[-1:]
+    for i, (colonne, texte) in enumerate(lignes_notice, start=2):
         notice[f"A{i}"] = colonne if texte is not None else "Principe"
         notice[f"B{i}"] = texte if texte is not None else colonne
+        notice[f"B{i}"].alignment = Alignment(wrap_text=True, vertical="top")
+
+    # Les valeurs de l'application, après une ligne vide.
+    depart = len(lignes_notice) + 3
+    notice[f"A{depart}"] = "Valeurs de l'application"
+    notice[f"A{depart}"].font = Font(bold=True)
+    notice[f"B{depart}"] = NOTICE_VALEURS_PRINCIPE
+    notice[f"B{depart}"].alignment = Alignment(wrap_text=True, vertical="top")
+    for i, (intitule, valeurs) in enumerate(valeurs_application(db), start=depart + 1):
+        notice[f"A{i}"] = intitule
+        notice[f"B{i}"] = valeurs
         notice[f"B{i}"].alignment = Alignment(wrap_text=True, vertical="top")
     notice.column_dimensions["A"].width = 34
     notice.column_dimensions["B"].width = 110
@@ -230,22 +289,24 @@ LIGNES_APERCU_MODELE = 3
 
 
 @router.get("/modele/apercu")
-def apercu_modele():
+def apercu_modele(cours: bool = False):
     """Les premières lignes de la feuille « Titres » du modèle, pour les montrer dans l'app avant
-    de le télécharger. Lues dans la MÊME source que le classeur (`ENTETES_MODELE`) : l'aperçu ne
+    de le télécharger. Lues dans la MÊME source que le classeur (`entetes_modele`) : l'aperçu ne
     peut pas diverger du fichier."""
-    vide = [""] * len(ENTETES_MODELE)
+    entetes = entetes_modele(avec_cours_demande(cours))
+    vide = [""] * len(entetes)
     return {
         "feuille": "Titres",
-        "lignes": [list(ENTETES_MODELE)] + [list(vide) for _ in range(LIGNES_APERCU_MODELE - 1)],
+        "lignes": [list(entetes)] + [list(vide) for _ in range(LIGNES_APERCU_MODELE - 1)],
     }
 
 
 @router.get("/modele")
-def telecharger_modele():
-    """Le modèle Excel qui structure le fichier."""
+def telecharger_modele(cours: bool = False, db: Session = Depends(get_db)):
+    """Le modèle Excel qui structure le fichier. `cours=true` y ajoute la
+    colonne « Cours » (extension « Lecture de cours » seulement)."""
     return Response(
-        content=modele_xlsx(),
+        content=modele_xlsx(db, avec_cours_demande(cours)),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="modele-titres.xlsx"'},
     )

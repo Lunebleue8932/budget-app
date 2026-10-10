@@ -31,11 +31,12 @@ l'aperçu le dit.
 L'APERÇU ET LA CONFIRMATION CALCULENT LA MÊME CHOSE (`_resoudre`) : l'aperçu doit montrer
 exactement ce que la confirmation fera, et deux calculs séparés finiraient par diverger.
 """
+import re
 import unicodedata
 from datetime import date as date_type
 from typing import Optional
 
-from app import crud
+from app import crud, extensions
 from app.constants import (
     PROPRIETES_IMPORT_TITRE,
     AxeTitre,
@@ -65,7 +66,21 @@ NOMS_CHAMPS = {
     "composition": "Composition",
     "couverture_pct": "Couverture",
     "code_isin": "ISIN",
+    "cours": "Cours",
 }
+
+# La feuille que l'import lit dans un classeur : celle du modèle. Par son NOM, et non la
+# feuille active — un classeur qui porte une feuille de remarques peut très bien être
+# enregistré ouvert sur celle-là. Un fichier sans feuille de ce nom retombe sur l'active.
+FEUILLE_TITRES = "Titres"
+
+EXTENSION_COURS = "lecture-de-cours"
+
+
+def cours_disponible() -> bool:
+    """La colonne « Cours » n'existe que pour qui a « Lecture de cours » : sans elle, le
+    modèle ne la porte pas et l'import ne la lit pas."""
+    return extensions.est_active(EXTENSION_COURS)
 
 
 def _vide(valeur) -> bool:
@@ -93,7 +108,17 @@ def lire(contenu: bytes, preset, delimiteur: Optional[str]) -> list[dict]:
         preset.lignes_entete,
         delimiteur,
         propriete_vers_cle=PROPRIETE_VERS_CLE,
+        feuille=FEUILLE_TITRES,
     )
+
+
+def _lire_cours(valeur) -> Optional[float]:
+    """Un cours en nombre, ou None s'il est illisible. Tolère le symbole ou le code de la
+    monnaie qu'un tableur ou un copier-coller ajoute volontiers (« 104,52 € », « USD 104.52 »)."""
+    if isinstance(valeur, (int, float)) and not isinstance(valeur, bool):
+        return float(valeur)
+    texte = re.sub(r"[^\d,.\-]", "", str(valeur))
+    return import_bancaire.parser_montant(texte) if texte else None
 
 
 # ---------- Ce que la base connaît ----------
@@ -118,6 +143,7 @@ class _Contexte:
             for axe in AxeTitre
         }
         self.monnaies = crud.get_monnaies(db)
+        self.cours_lu = cours_disponible()
         self.par_monnaie = {}
         for monnaie in self.monnaies:
             self.par_monnaie[_cle(monnaie.nom)] = monnaie
@@ -299,6 +325,24 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
                         "apres": f"{len(composition)} ISIN, {sum(composition.values()):g} %",
                     }
                 )
+    # ---- Le cours (extension « Lecture de cours » seulement) ----
+    cours_cellule = brute.get("cours_brut")
+    if ctx.cours_lu and not _vide(cours_cellule) and not erreurs:
+        cours = _lire_cours(cours_cellule)
+        if cours is None or cours <= 0:
+            erreurs.append(f"cours « {_texte(cours_cellule)} » illisible : un nombre positif est attendu")
+        else:
+            plan["cours"] = cours
+            avant_v = titre.valeur if existe else None
+            if avant_v is None or round(avant_v, 6) != round(cours, 6):
+                changements.append(
+                    {
+                        "champ": "cours",
+                        "avant": f"{avant_v:g}" if avant_v else None,
+                        "apres": f"{cours:g}",
+                    }
+                )
+
     if couverture is not None and not erreurs:
         plan["couverture"] = couverture
         avant_c = titre.composition_couverture_pct if existe else None
@@ -385,6 +429,7 @@ def previsualiser(db, preset_id: int, contenu: bytes, delimiteur: Optional[str] 
         preset.lignes_entete,
         delimiteur,
         propriete_vers_cle=PROPRIETE_VERS_CLE,
+        feuille=FEUILLE_TITRES,
     )
     return schemas_t.ApercuTitres(
         lignes=[
@@ -451,7 +496,7 @@ def confirmer(
 
         if plan["titre_id"] is None:
             titre = crud.create_titre(
-                db, plan["nom"], plan["monnaie_id"], 0.0, plan["isin"], enveloppe_id
+                db, plan["nom"], plan["monnaie_id"], plan.get("cours", 0.0), plan["isin"], enveloppe_id
             )
             ctx.par_isin[plan["isin"]] = titre
             ctx.index.ajouter(titre)
@@ -464,6 +509,9 @@ def confirmer(
                 code_isin=plan.get("isin_a_completer"),
                 monnaie_id=plan.get("monnaie_id"),
                 type_titre_id=enveloppe_id,
+                # Comme une saisie à la main : `cours_maj_le` date une lecture EN LIGNE,
+                # que ce fichier n'est pas.
+                valeur=plan.get("cours"),
             )
             resultat.mis_a_jour += 1
 

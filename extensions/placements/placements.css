@@ -18,6 +18,14 @@
   opacity: 0.6;
 }
 
+/* Le nombre de titres de chaque bloc repliable de « Titres suivis » : lu en passant,
+   il ne doit pas peser autant que le titre qu'il accompagne. */
+.placements-titres-compte {
+  color: var(--text-muted);
+  font-weight: normal;
+  font-size: 0.85em;
+}
+
 /* L'étiquette « archivé » elle-même est écrite par placements.js, pas par un
    `content:` : elle doit passer par `t()` comme le reste de l'interface, et le
    CSS est le seul endroit de l'app que la traduction ne traverse pas. */

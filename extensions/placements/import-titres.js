@@ -28,7 +28,13 @@ const IMT_PROPRIETES = [
   { cle: "secteur", libelle: "Secteur" },
   { cle: "couverture_pct", libelle: "Couverture de la composition (%)" },
   { cle: "composition", libelle: "Composition (ISIN ; poids en %)" },
+  // EN DERNIER, comme au serveur : les formats enregistrés avant elle lisent toujours les
+  // mêmes colonnes. Seulement pour qui a « Lecture de cours ».
+  { cle: "cours", libelle: "Cours", extension: "lecture-de-cours" },
 ];
+
+// Le nombre de colonnes du modèle d'avant la colonne « Cours » (cf. imtCompleterFormats).
+const IMT_NB_COLONNES_SANS_COURS = 9;
 
 const IMT = {
   presets: [],
@@ -41,6 +47,17 @@ const IMT = {
 function imtEl(id) {
   return document.getElementById(id);
 }
+
+function imtCoursDisponible() {
+  return BudgetApp.extensions.estActive("lecture-de-cours");
+}
+
+/** Les propriétés qu'une colonne peut porter ICI : sans « Lecture de cours », pas de « Cours ». */
+function imtProprietes() {
+  return IMT_PROPRIETES.filter((p) => !p.extension || BudgetApp.extensions.estActive(p.extension));
+}
+
+
 
 /* ---------- Les volets ---------- */
 
@@ -91,10 +108,12 @@ async function imtChargerPresets() {
       method: "POST",
       body: JSON.stringify({
         nom: t("Modèle de l'application"),
-        colonnes: IMT_PROPRIETES.map((p, i) => ({ index: i + 1, propriete: p.cle })),
+        colonnes: imtProprietes().map((p, i) => ({ index: i + 1, propriete: p.cle })),
         lignes_entete: 1,
       }),
     });
+    presets = await apiFetch("/import-titres/presets");
+  } else if (await imtCompleterFormats(presets)) {
     presets = await apiFetch("/import-titres/presets");
   }
   IMT.presets = presets;
@@ -103,6 +122,37 @@ async function imtChargerPresets() {
     ? memorise
     : (imtPresetCourant() || presets[0]).id;
   imtRenderPresets();
+}
+
+/**
+ * LA COLONNE « COURS » ARRIVÉE APRÈS COUP. Un format qui lit EXACTEMENT les colonnes du modèle
+ * d'avant (les neuf premières, dans l'ordre) est celui que l'écran a créé, ou sa copie : il
+ * apprend à lire la dixième, que le modèle porte désormais quand on demande les cours. Sans
+ * cela, la colonne ne serait lue par personne. Un format composé à la main
+ * n'est pas touché. Rend true si un format a été complété.
+ */
+async function imtCompleterFormats(presets) {
+  if (!imtCoursDisponible()) return false;
+  const modele = IMT_PROPRIETES.slice(0, IMT_NB_COLONNES_SANS_COURS);
+  const aCompleter = presets.filter(
+    (p) =>
+      p.colonnes.length === modele.length &&
+      modele.every((prop, i) => p.colonnes.some((c) => c.index === i + 1 && c.propriete === prop.cle))
+  );
+  for (const preset of aCompleter) {
+    await apiFetch(`/import-titres/presets/${preset.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        nom: preset.nom,
+        colonnes: [
+          ...preset.colonnes.map(({ index, propriete }) => ({ index, propriete })),
+          { index: IMT_NB_COLONNES_SANS_COURS + 1, propriete: "cours" },
+        ],
+        lignes_entete: preset.lignes_entete ?? 0,
+      }),
+    });
+  }
+  return aCompleter.length > 0;
 }
 
 function imtRenderPresets() {
@@ -120,7 +170,7 @@ function imtRenderConfig() {
   imtEl("imt-config-nom").value = preset.nom;
   imtEl("imt-config-entete").value = preset.lignes_entete ?? 0;
   const parPropriete = Object.fromEntries(preset.colonnes.map((c) => [c.propriete, c.index]));
-  imtEl("imt-config-colonnes").innerHTML = IMT_PROPRIETES.map((p) => {
+  imtEl("imt-config-colonnes").innerHTML = imtProprietes().map((p) => {
     const index = parPropriete[p.cle];
     return `
       <label class="imt-colonne" data-propriete="${p.cle}">

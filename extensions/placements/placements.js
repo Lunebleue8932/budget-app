@@ -258,12 +258,26 @@ async function refreshTitres() {
 
 function renderTitresSuivis() {
   const bloc = document.getElementById("placements-titres-liste");
-  bloc.innerHTML = "";
+  // DEUX BLOCS REPLIABLES (cf. page.html) : seuls leurs contenus sont redessinés, pour que
+  // le repli choisi survive à un cours modifié ou à un panneau « Détail » ouvert.
+  const possedes = document.getElementById("placements-titres-liste-possedes");
+  const nonPossedes = document.getElementById("placements-titres-liste-non-possedes");
+  possedes.innerHTML = "";
+  nonPossedes.innerHTML = "";
+  const nbPossedes = state.titres.filter((titre) => titre.detenu).length;
+  document.getElementById("placements-titres-possedes-nb").textContent = `(${nbPossedes})`;
+  document.getElementById("placements-titres-non-possedes-nb").textContent =
+    `(${state.titres.length - nbPossedes})`;
+  if (nbPossedes === 0) {
+    possedes.innerHTML = `<span class="hint">${t("Aucun titre détenu aujourd'hui.")}</span>`;
+  }
   if (state.titres.length === 0) {
-    bloc.innerHTML = `<span class="hint">${t("Aucun titre. Ajoute-en un ci-dessous.")}</span>`;
-    return;
+    nonPossedes.innerHTML = `<span class="hint">${t("Aucun titre. Ajoute-en un ci-dessous.")}</span>`;
+  } else if (nbPossedes === state.titres.length) {
+    nonPossedes.innerHTML = `<span class="hint">${t("Tous tes titres suivis sont détenus.")}</span>`;
   }
   state.titres.forEach((titre) => {
+    const cible = titre.detenu ? possedes : nonPossedes;
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     // LE NOM DU COURTIER EN INFOBULLE quand le titre a été renommé : c'est lui
@@ -329,8 +343,8 @@ function renderTitresSuivis() {
       </button>
     `;
     if (titre.archivee) row.classList.add("titre-archive");
-    bloc.appendChild(row);
-    expoPanneauSousLigne(bloc, titre);
+    cible.appendChild(row);
+    expoPanneauSousLigne(cible, titre);
   });
 
   // Le cours est enregistré à la validation du champ (change), pas à chaque
@@ -819,6 +833,8 @@ function renderMouvementsTitres(operations) {
         await apiFetch(`/placements/operations/${btn.dataset.id}`, { method: "DELETE" });
         showMessage(t("Mouvement supprimé"), "success");
         await loadPlacementDetail(state.placementCompteId);
+        // Le titre peut repasser de « possédés » à « non possédés », ou l'inverse.
+        await refreshTitres();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -904,6 +920,9 @@ document.getElementById("form-achat-vente").addEventListener("submit", async (e)
     document.getElementById("operation-titre-quantite").value = "";
     document.getElementById("operation-titre-prix").value = "";
     await loadPlacementDetail(state.placementCompteId);
+    // Un premier achat ou une vente qui solde la ligne change le bloc du titre dans
+    // « Titres suivis » (possédés / non possédés).
+    await refreshTitres();
   } catch (err) {
     showMessage(err.message, "error");
   }

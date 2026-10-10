@@ -668,17 +668,23 @@ def _lire_lignes_csv(contenu: bytes, delimiteur: Optional[str] = None) -> list[t
     return [tuple(ligne) for ligne in csv.reader(io.StringIO(texte), delimiter=delimiteur)]
 
 
-def _lire_lignes_xlsx(contenu: bytes) -> list[tuple]:
+def _lire_lignes_xlsx(contenu: bytes, feuille: Optional[str] = None) -> list[tuple]:
+    """`feuille` : le NOM de la feuille à lire, quand le classeur en porte une de ce nom
+    (l'import de titres lit « Titres », quelle que soit la feuille ouverte à
+    l'enregistrement). Sinon, et par défaut, la feuille active."""
     classeur = openpyxl.load_workbook(io.BytesIO(contenu), data_only=True)
-    feuille = classeur.active
-    return list(feuille.iter_rows(values_only=True))
+    lue = classeur[feuille] if feuille and feuille in classeur.sheetnames else classeur.active
+    return list(lue.iter_rows(values_only=True))
 
 
-def _lire_toutes_les_lignes(contenu: bytes, delimiteur: Optional[str] = None) -> list[tuple]:
+def _lire_toutes_les_lignes(
+    contenu: bytes, delimiteur: Optional[str] = None, feuille: Optional[str] = None
+) -> list[tuple]:
     # `delimiteur` ne concerne que le CSV (un xlsx n'a pas de délimiteur, ses
-    # colonnes sont déjà structurées) : ignoré sans effet pour ce format.
+    # colonnes sont déjà structurées) : ignoré sans effet pour ce format. `feuille`,
+    # à l'inverse, ne concerne que le xlsx.
     return (
-        _lire_lignes_xlsx(contenu)
+        _lire_lignes_xlsx(contenu, feuille)
         if _est_xlsx(contenu)
         else _lire_lignes_csv(contenu, delimiteur)
     )
@@ -699,6 +705,7 @@ def lire_lignes_brutes(
     lignes_entete: int = 0,
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
+    feuille: Optional[str] = None,
 ) -> list[dict]:
     """`lignes_entete` (ImportPreset) : combien de lignes de TÊTE ne sont pas
     des données. Zéro pour les formats qui commencent par une opération — les
@@ -709,6 +716,7 @@ def lire_lignes_brutes(
     directement comparable à ce que l'utilisateur voit dans Excel.
 
     `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis.
+    `feuille` : cf. _lire_lignes_xlsx.
 
     `propriete_vers_cle` : quelles propriétés lire, et sous quel nom les ranger.
     None = celles d'un relevé bancaire (_PROPRIETE_VERS_CLE). L'extension
@@ -720,7 +728,7 @@ def lire_lignes_brutes(
     propriete_vers_cle = (
         _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
     )
-    toutes = _lire_toutes_les_lignes(contenu, delimiteur)
+    toutes = _lire_toutes_les_lignes(contenu, delimiteur, feuille)
     # Un nombre négatif, ou plus grand que le fichier, ne décrit rien : la
     # tranche s'en accommode d'elle-même (`toutes[0:]`, `toutes[999:]` = vide),
     # et le numéro de départ doit suivre exactement le même calcul, sans quoi
@@ -2345,6 +2353,7 @@ def construire_apercu_fichier(
     lignes_entete: int,
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
+    feuille: Optional[str] = None,
 ) -> schemas.ApercuFichier:
     """Le fichier tel quel (lignes non vides), INTÉGRAL, avec la propriété
     affectée à chaque colonne — de quoi vérifier visuellement que la
@@ -2365,7 +2374,7 @@ def construire_apercu_fichier(
     propriete_vers_cle = (
         _PROPRIETE_VERS_CLE if propriete_vers_cle is None else propriete_vers_cle
     )
-    brutes = _lire_toutes_les_lignes(contenu, delimiteur)
+    brutes = _lire_toutes_les_lignes(contenu, delimiteur, feuille)
 
     def porte_quelque_chose(ligne):
         return ligne is not None and not all(v is None or v == "" for v in ligne)

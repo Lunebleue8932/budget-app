@@ -795,7 +795,10 @@ COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
 #  - `enveloppe` : comment le titre est détenu — UNE étiquette ;
 #  - `classe_actif`, `zone`, `secteur` : les trois répartitions. Une cellule vaut un
 #    libellé seul (100 %) ou « Libellé 70 ; Libellé 30 » (cf. services/exposition) ;
-#  - `couverture_pct` et `composition` : le dictionnaire d'un ETF.
+#  - `couverture_pct` et `composition` : le dictionnaire d'un ETF ;
+#  - `cours` : le dernier cours unitaire, dans la monnaie de cotation. EN DERNIER, pour
+#    que les presets enregistrés avant elle lisent toujours les mêmes colonnes ; lue
+#    seulement quand l'extension « Lecture de cours » tourne (cf. service_import_titres).
 # Une cellule VIDE ne change rien : le fichier complète, il n'efface pas.
 PROPRIETES_IMPORT_TITRE = (
     "code_isin",
@@ -807,6 +810,7 @@ PROPRIETES_IMPORT_TITRE = (
     "secteur",
     "couverture_pct",
     "composition",
+    "cours",
 )
 
 PROPRIETES_IMPORT_TITRE_OBLIGATOIRES = {"code_isin"}

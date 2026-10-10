@@ -1097,6 +1097,10 @@ class TitreRead(BaseModel):
     # Un titre archivé n'est rendu que sur demande explicite (cf. list_titres) :
     # le drapeau voyage quand même, pour que l'écran sache dire lequel il montre.
     archivee: bool = False
+    # Une quantité non nulle est détenue aujourd'hui, tous comptes confondus (cf.
+    # services/placements.titres_detenus) : « Titres suivis » range les titres en
+    # possédés / non possédés d'après ce seul drapeau.
+    detenu: bool = False
     code_isin: Optional[str] = None
     # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
     # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs. Et la
