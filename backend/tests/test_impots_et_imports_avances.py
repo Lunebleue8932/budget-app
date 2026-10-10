@@ -414,25 +414,57 @@ def test_ligne_entiere_cherche_dans_toutes_les_colonnes():
     )
 
 
-def test_colonne_n_lit_la_colonne_numero_n():
-    brute = {"donnees_completes": {"4": "VIR", "12": "REF-ABC"}}
-    assert regles_categorisation.evaluer_regle(
-        _conditions(_condition("colonne_12", "contient", "abc")), brute
-    )
-    # Une colonne absente de la ligne ne correspond à rien (« ne contient pas » y compris, car
-    # un champ illisible n'est ni vrai ni faux).
-    assert not regles_categorisation.evaluer_regle(
-        _conditions(_condition("colonne_7", "contient", "abc")), brute
-    )
-
-
 def test_les_colonnes_se_trient_comme_des_nombres():
     """« 10 » vient après « 9 » : la ligne entière se lit dans l'ordre du tableur."""
     brute = {"donnees_completes": {"10": "dix", "9": "neuf", "2": "deux"}}
     assert regles_categorisation.valeur_du_champ(brute, "ligne_entiere") == "deux neuf dix"
 
 
-@pytest.mark.parametrize("champ", ["colonne_0", "colonne_1000", "colonne_a", "colonne_", "autre"])
+# ---------- Les colonnes dummy (migration 0079) ----------
+
+
+def test_une_colonne_dummy_lit_la_cellule_que_son_format_lui_rattache():
+    brute = {"nature": "VIR", "colonnes_dummy": {5: "REF-ABC"}}
+    assert regles_categorisation.evaluer_regle(
+        _conditions(_condition("dummy_5", "contient", "abc")), brute
+    )
+    assert not regles_categorisation.evaluer_regle(
+        _conditions(_condition("dummy_5", "contient", "xyz")), brute
+    )
+
+
+def test_une_colonne_dummy_que_le_format_ne_lit_pas_ne_correspond_a_rien_meme_en_negatif():
+    brute = {"nature": "VIR", "colonnes_dummy": {}}
+    assert not regles_categorisation.evaluer_regle(
+        _conditions(_condition("dummy_5", "ne contient pas", "abc")), brute
+    )
+    # Une cellule VIDE d'une colonne lue, elle, reste une valeur : « ne contient pas » y est vrai.
+    assert regles_categorisation.evaluer_regle(
+        _conditions(_condition("dummy_5", "ne contient pas", "abc")),
+        {"nature": "VIR", "colonnes_dummy": {5: None}},
+    )
+
+
+def test_sans_la_colonne_un_ou_s_execute_sur_le_reste_et_un_et_ne_s_execute_pas():
+    brute = {"nature": "VIR LOYER", "colonnes_dummy": {}}
+    en_ou = {
+        "operateur": "ET",
+        "groupes": [
+            {
+                "operateur": "OU",
+                "conditions": [
+                    _condition("dummy_5", "contient", "LOYER"),
+                    _condition("nature", "contient", "LOYER"),
+                ],
+            }
+        ],
+    }
+    en_et = {**en_ou, "groupes": [{**en_ou["groupes"][0], "operateur": "ET"}]}
+    assert regles_categorisation.evaluer_regle(en_ou, brute)
+    assert not regles_categorisation.evaluer_regle(en_et, brute)
+
+
+@pytest.mark.parametrize("champ", ["dummy_0", "dummy_a", "dummy_", "colonne_3", "autre"])
 def test_un_champ_de_colonne_mal_forme_est_refuse(champ):
     with pytest.raises(ValidationError):
         schemas.RegleCategorisationCreate(
@@ -441,23 +473,32 @@ def test_un_champ_de_colonne_mal_forme_est_refuse(champ):
         )
 
 
-def test_une_colonne_se_compare_comme_du_texte_jamais_comme_un_nombre():
+def test_une_colonne_dummy_se_compare_comme_du_texte_jamais_comme_un_nombre():
     with pytest.raises(ValidationError):
         schemas.RegleCategorisationCreate(
             nom="R",
             conditions=schemas.ConditionsRegle(
-                **_conditions(_condition("colonne_3", "supérieur à", "5"))
+                **_conditions(_condition("dummy_3", "supérieur à", "5"))
             ),
         )
 
 
-def test_une_regle_sur_une_colonne_que_le_format_ne_lit_pas_classe_la_ligne(db_session):
+def _preset_avec_dummy(db, nom, index, dummy_id=None, dummy_nom="Référence"):
+    preset = crud.create_import_preset(db, nom, COLONNES_IMPORT_PAR_DEFAUT)
+    entree = {"colonne_dummy_id": dummy_id, "nom": None if dummy_id else dummy_nom, "index": index}
+    return crud.remplacer_colonnes_dummy(db, preset, [entree])
+
+
+def test_une_regle_sur_une_colonne_dummy_sert_deux_formats_qui_la_rangent_ailleurs(db_session):
     creer_compte(db_session, "CC Perso")
-    preset = crud.create_import_preset(db_session, "Défaut", COLONNES_IMPORT_PAR_DEFAUT)
+    a = _preset_avec_dummy(db_session, "A", 12)
+    dummy_id = a.lectures_dummy[0].colonne_dummy_id
+    b = _preset_avec_dummy(db_session, "B", 11, dummy_id=dummy_id)
+    sans = crud.create_import_preset(db_session, "Sans", COLONNES_IMPORT_PAR_DEFAUT)
     _regle(
         db_session,
         "Par la référence",
-        _conditions(_condition("colonne_12", "contient", "LOYER")),
+        _conditions(_condition(f"dummy_{dummy_id}", "contient", "LOYER")),
         type_id=get_type_id(db_session, "pret"),
     )
     _regle(
@@ -470,15 +511,107 @@ def test_une_regle_sur_une_colonne_que_le_format_ne_lit_pas_classe_la_ligne(db_s
         [
             {"date": date(2026, 7, 1), "nature": "Virement", "montant": 100.0,
              "compte": "CC Perso", "reference": "LOYER-07"},
-            {"date": date(2026, 7, 2), "nature": "Virement", "montant": -100.0,
+            {"date": date(2026, 7, 2), "nature": "Virement", "montant": 100.0,
+             "compte": "CC Perso", "libre": "LOYER-08"},
+            {"date": date(2026, 7, 3), "nature": "Virement", "montant": -100.0,
              "compte": "CC Perso", "libre": "Dépôt de caution"},
-            {"date": date(2026, 7, 3), "nature": "Virement", "montant": 10.0, "compte": "CC Perso"},
         ]
     )
 
-    lignes = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes
+    def appliquees(preset):
+        return [
+            ligne.regle_appliquee
+            for ligne in import_bancaire.previsualiser(db_session, preset.id, contenu).lignes
+        ]
 
-    assert [l.regle_appliquee for l in lignes] == ["Par la référence", "Par la ligne", None]
+    # A lit la référence en 12, B en 11 : la même règle reconnaît la ligne de chacun.
+    assert appliquees(a) == ["Par la référence", None, "Par la ligne"]
+    assert appliquees(b) == [None, "Par la référence", "Par la ligne"]
+    # Un format qui ne lit pas la colonne : la règle ne s'y exécute pas.
+    assert appliquees(sans) == [None, None, "Par la ligne"]
+
+
+def test_un_meme_nom_designe_la_meme_colonne_dummy(db_session):
+    a = _preset_avec_dummy(db_session, "A", 12, dummy_nom="Référence")
+    b = _preset_avec_dummy(db_session, "B", 3, dummy_nom="  référence ")
+    assert a.lectures_dummy[0].colonne_dummy_id == b.lectures_dummy[0].colonne_dummy_id
+    assert len(crud.list_colonnes_dummy(db_session)) == 1
+
+
+def test_une_colonne_dummy_vit_tant_qu_un_format_la_lit_ou_qu_une_regle_la_cite(db_session):
+    a = _preset_avec_dummy(db_session, "A", 12)
+    dummy_id = a.lectures_dummy[0].colonne_dummy_id
+    regle = _regle(
+        db_session, "R", _conditions(_condition(f"dummy_{dummy_id}", "contient", "x"))
+    )
+    crud.remplacer_colonnes_dummy(db_session, a, [])
+    # Plus aucun format ne la lit, mais la règle la cite : elle reste.
+    assert crud.get_colonne_dummy(db_session, dummy_id) is not None
+    crud.delete_regle_categorisation(db_session, regle)
+    assert crud.get_colonne_dummy(db_session, dummy_id) is None
+
+
+def test_supprimer_un_format_retire_ses_colonnes_dummy(db_session):
+    crud.create_import_preset(db_session, "Autre", COLONNES_IMPORT_PAR_DEFAUT)
+    a = _preset_avec_dummy(db_session, "A", 12)
+    dummy_id = a.lectures_dummy[0].colonne_dummy_id
+    crud.delete_import_preset(db_session, a)
+    assert crud.get_colonne_dummy(db_session, dummy_id) is None
+
+
+def test_la_route_des_presets_valide_et_liste_les_colonnes_dummy(db_session):
+    from app.routers import import_bancaire as routeur_import
+
+    preset = crud.create_import_preset(db_session, "A", COLONNES_IMPORT_PAR_DEFAUT)
+
+    def payload(colonnes_dummy):
+        return schemas.ImportPresetUpdate(
+            nom="A",
+            colonnes=[schemas.ColonneImportConfig(**c) for c in COLONNES_IMPORT_PAR_DEFAUT],
+            colonnes_dummy=colonnes_dummy,
+        )
+
+    def refus(colonnes_dummy):
+        with pytest.raises(HTTPException) as erreur:
+            routeur_import.update_preset(preset.id, payload(colonnes_dummy), db=db_session)
+        return erreur.value.status_code
+
+    # Sans nom, une colonne neuve est refusée ; la même colonne deux fois aussi.
+    assert refus([schemas.ColonneDummyConfig(nom=" ", index=3)]) == 400
+    assert refus(
+        [
+            schemas.ColonneDummyConfig(nom="Réf", index=3),
+            schemas.ColonneDummyConfig(nom="réf", index=4),
+        ]
+    ) == 400
+    assert refus([schemas.ColonneDummyConfig(colonne_dummy_id=999, index=3)]) == 404
+
+    # Une colonne dummy peut partager le numéro d'une propriété (ici la nature, en 4).
+    lu = routeur_import.update_preset(
+        preset.id, payload([schemas.ColonneDummyConfig(nom="Réf", index=4)]), db=db_session
+    )
+    assert [(c["nom"], c["index"]) for c in lu.colonnes_dummy] == [("Réf", 4)]
+    # None = ne pas y toucher.
+    lu = routeur_import.update_preset(preset.id, payload(None), db=db_session)
+    assert len(lu.colonnes_dummy) == 1
+
+    listees = routeur_import.list_colonnes_dummy(db=db_session)
+    assert [(c.nom, [(f.nom, f.index) for f in c.formats]) for c in listees] == [
+        ("Réf", [("A", 4)])
+    ]
+
+
+def test_une_regle_ne_peut_citer_qu_une_colonne_dummy_existante(db_session):
+    payload = schemas.RegleCategorisationCreate(
+        nom="R",
+        conditions=schemas.ConditionsRegle(
+            **_conditions(_condition("dummy_999", "contient", "x"))
+        ),
+        type_id=get_type_id(db_session, "classique"),
+    )
+    with pytest.raises(HTTPException) as erreur:
+        routeur_regles.create_regle(payload, db=db_session)
+    assert erreur.value.status_code == 404
 
 
 # ---------- La fusion « Imports Avancés » ----------

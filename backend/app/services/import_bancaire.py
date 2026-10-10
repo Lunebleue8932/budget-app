@@ -1573,6 +1573,7 @@ class ContextePreset:
         "lit_la_monnaie_frais",
         "lit_montant_scinde",
         "separateur_decimal",
+        "index_dummy",
     )
 
     def __init__(self, db, preset, separateur_decimal: Optional[str] = None):
@@ -1604,6 +1605,14 @@ class ContextePreset:
             if extensions.est_active("regles")
             else []
         )
+        # LES COLONNES DUMMY QUE CE FORMAT LIT (migration 0079) : {colonne: numéro dans le
+        # fichier}. Celles qu'il ne lit pas sont absentes, et une condition qui les vise ne
+        # correspond à rien (cf. regles_categorisation.evaluer_condition). `getattr` : les
+        # masques de preset des tests et de l'aperçu à colonnes d'essai passent par ici.
+        self.index_dummy = {
+            lecture.colonne_dummy_id: lecture.index
+            for lecture in getattr(preset, "lectures_dummy", None) or []
+        }
         # Le preset lit-il une colonne « Sens » ? Distingue une cellule vide
         # (erreur : la ligne ne dit pas son sens alors que le format l'annonce)
         # d'un preset qui ne lit simplement pas cette colonne (cas ordinaire,
@@ -2030,9 +2039,14 @@ def _resoudre_ligne(
             # montant envoyé, c'est celle du montant (même raisonnement).
             "devise_recue": nom_monnaie_banque or None,
             "devise_envoyee": nom_monnaie_envoyee_banque or nom_monnaie_banque or None,
-            # TOUTES LES COLONNES DU FICHIER (migration 0077), pour les conditions « ligne
-            # entière » et « colonne N » : la règle peut viser ce que le format ne lit pas.
+            # TOUTES LES COLONNES DU FICHIER (migration 0077), pour la condition « toute la
+            # ligne » : la règle peut viser ce que le format ne rattache à rien.
             "donnees_completes": brute["donnees_completes"],
+            # LES COLONNES DUMMY QUE CE FORMAT LIT (migration 0079), lues à SON numéro.
+            regles_categorisation.CLE_COLONNES_DUMMY: {
+                identifiant: (brute["donnees_completes"] or {}).get(str(index))
+                for identifiant, index in contexte.index_dummy.items()
+            },
         },
     )
     type_code = (

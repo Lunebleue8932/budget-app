@@ -1,5 +1,6 @@
 import enum
 import re
+from typing import Optional
 
 
 class Sens(str, enum.Enum):
@@ -566,14 +567,18 @@ CHAMPS_REGLE_NUMERIQUES = {"montant", "montant_recu", "montant_envoye"}
 # devise soit rattachée. Comparables à du texte, ou à l'autre devise en posant
 # `@devise_recue` / `@devise_envoyee` comme valeur.
 CHAMPS_REGLE_DEVISES = {"devise_recue", "devise_envoyee"}
-# LES COLONNES QUE LE FORMAT NE LIT PAS (migration 0077, « Imports Avancés ») : une règle peut
-# viser n'importe quelle colonne du fichier, pas seulement celles que le format a rattachées à
-# une propriété. Deux champs, tous deux lus dans la ligne brute intégrale
-# (`donnees_completes`, clé = numéro de colonne, 1-based, comme dans le tableur) :
-#   - « ligne_entiere » : le texte de TOUTES les colonnes, mises bout à bout ;
-#   - « colonne_N » : la colonne n° N, dont le numéro est libre (d'où un motif, pas une liste).
+# LES COLONNES QUE LE FORMAT NE RATTACHE À AUCUNE PROPRIÉTÉ (« Imports Avancés ») : une règle
+# peut viser plus que les champs nommés d'une ligne. Deux champs :
+#   - « ligne_entiere » (migration 0077) : le texte de TOUTES les colonnes du fichier, mises
+#     bout à bout, lues dans la ligne brute intégrale (`donnees_completes`) ;
+#   - « dummy_<id> » (migration 0079) : une COLONNE DUMMY (models.ColonneDummy), qu'un format
+#     déclare lire à SON numéro de colonne. C'est ce qui permet à une même règle de viser la
+#     même information dans deux fichiers qui ne la rangent pas au même endroit — là où le
+#     « colonne_N » de 0077 désignait un numéro, qui ne voulait dire la même chose que dans un
+#     seul format. Une condition sur une colonne dummy que le format ne lit pas n'est JAMAIS
+#     vraie (cf. regles_categorisation.evaluer_condition).
 CHAMP_REGLE_LIGNE_ENTIERE = "ligne_entiere"
-MOTIF_CHAMP_REGLE_COLONNE = re.compile(r"^colonne_([1-9][0-9]{0,2})$")
+MOTIF_CHAMP_REGLE_DUMMY = re.compile(r"^dummy_([1-9][0-9]*)$")
 
 CHAMPS_REGLE_VALIDES = {
     "nature",
@@ -584,8 +589,10 @@ CHAMPS_REGLE_VALIDES = {
 } | CHAMPS_REGLE_NUMERIQUES | CHAMPS_REGLE_DEVISES
 
 
-def est_champ_colonne_regle(champ: str) -> bool:
-    return bool(MOTIF_CHAMP_REGLE_COLONNE.match(champ or ""))
+def id_colonne_dummy_regle(champ: str) -> Optional[int]:
+    """L'identifiant de la colonne dummy qu'un champ de condition désigne, ou None."""
+    trouve = MOTIF_CHAMP_REGLE_DUMMY.match(champ or "")
+    return int(trouve.group(1)) if trouve else None
 
 
 def operateurs_admis(champ: str) -> set:

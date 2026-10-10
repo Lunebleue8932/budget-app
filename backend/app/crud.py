@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .constants import (
+    id_colonne_dummy_regle,
     COULEUR_INDEX_ENTREE,
     CATEGORIE_AUTRES,
     CIBLE_PAR_TYPE_REGLEMENT,
@@ -2708,6 +2709,107 @@ def update_import_preset(
     return preset
 
 
+# ---------- Colonnes dummy (migration 0079) ----------
+
+
+def list_colonnes_dummy(db: Session) -> list[models.ColonneDummy]:
+    return db.query(models.ColonneDummy).order_by(models.ColonneDummy.nom).all()
+
+
+def get_colonne_dummy(db: Session, colonne_dummy_id: int) -> Optional[models.ColonneDummy]:
+    return db.get(models.ColonneDummy, colonne_dummy_id)
+
+
+def lectures_colonne_dummy(db: Session) -> dict[int, list[dict]]:
+    """{colonne dummy: [{id, nom, index} des formats qui la lisent]}, ordonnés par nom de format."""
+    lignes = (
+        db.query(models.LectureColonneDummy, models.ImportPreset)
+        .join(models.ImportPreset, models.ImportPreset.id == models.LectureColonneDummy.preset_id)
+        .order_by(models.ImportPreset.nom)
+        .all()
+    )
+    par_colonne: dict[int, list[dict]] = {}
+    for lecture, preset in lignes:
+        par_colonne.setdefault(lecture.colonne_dummy_id, []).append(
+            {"id": preset.id, "nom": preset.nom, "index": lecture.index}
+        )
+    return par_colonne
+
+
+def _champs_des_conditions(conditions) -> set[str]:
+    return {
+        condition.get("champ")
+        for groupe in (conditions or {}).get("groupes") or []
+        for condition in groupe.get("conditions") or []
+    }
+
+
+def colonnes_dummy_citees(regle: models.RegleCategorisation) -> set[int]:
+    """Les colonnes dummy qu'une règle lit, dans sa détection comme dans ses sorties."""
+    champs = _champs_des_conditions(regle.conditions)
+    for sortie in regle.sorties or []:
+        champs |= _champs_des_conditions(sortie.get("conditions"))
+    return {
+        identifiant
+        for identifiant in (id_colonne_dummy_regle(champ) for champ in champs)
+        if identifiant is not None
+    }
+
+
+def nettoyer_colonnes_dummy(db: Session) -> None:
+    """Supprime les colonnes dummy que plus aucun format ne lit ET que plus aucune règle ne cite.
+
+    Une colonne dummy n'existe que par ce qui s'en sert : la liste « + Colonne dummy » d'un
+    format doit proposer celles des AUTRES formats, pas tous les noms tapés un jour puis
+    abandonnés. Une règle qui la cite la garde en vie, même sans format pour la lire : sa
+    condition doit continuer d'afficher un nom, et la colonne de pouvoir être reprise."""
+    gardees = {
+        identifiant
+        for (identifiant,) in db.query(models.LectureColonneDummy.colonne_dummy_id).distinct()
+    }
+    for regle in db.query(models.RegleCategorisation):
+        gardees |= colonnes_dummy_citees(regle)
+    orphelines = db.query(models.ColonneDummy).filter(models.ColonneDummy.id.notin_(gardees))
+    if orphelines.count():
+        orphelines.delete(synchronize_session=False)
+        db.commit()
+
+
+def remplacer_colonnes_dummy(
+    db: Session, preset: models.ImportPreset, colonnes: list[dict]
+) -> models.ImportPreset:
+    """Les colonnes dummy que lit le format, remplacées d'un bloc : [{colonne_dummy_id, nom,
+    index}], où une entrée SANS identifiant est une colonne neuve à créer sous ce nom.
+
+    UN NOM DÉJÀ PRIS DÉSIGNE LA COLONNE EXISTANTE (comparaison sans casse ni espaces autour) :
+    taper « Référence » dans un second format, c'est vouloir la même colonne que le premier —
+    la liste l'aurait proposée, et deux colonnes du même nom seraient indiscernables dans
+    l'éditeur de règles. Le routeur a vérifié le reste (identifiants, doublons, numéros)."""
+    existantes = {c.nom.strip().casefold(): c for c in list_colonnes_dummy(db)}
+    preset.lectures_dummy.clear()
+    db.flush()
+    for entree in colonnes:
+        identifiant = entree.get("colonne_dummy_id")
+        if identifiant is None:
+            nom = entree["nom"].strip()
+            colonne = existantes.get(nom.casefold())
+            if colonne is None:
+                colonne = models.ColonneDummy(nom=nom)
+                db.add(colonne)
+                db.flush()
+                existantes[nom.casefold()] = colonne
+            identifiant = colonne.id
+        if any(l.colonne_dummy_id == identifiant for l in preset.lectures_dummy):
+            continue
+        preset.lectures_dummy.append(
+            models.LectureColonneDummy(colonne_dummy_id=identifiant, index=entree["index"])
+        )
+    db.commit()
+    nettoyer_colonnes_dummy(db)
+    db.refresh(preset)
+    return preset
+
+
 def delete_import_preset(db: Session, preset: models.ImportPreset) -> None:
     # LES RÈGLES QUI VISAIENT CE FORMAT l'oublient (migration 0077). Une règle dont c'était le
     # seul format ne s'appliquerait plus nulle part : elle redevient une règle de TOUS les
@@ -2723,6 +2825,7 @@ def delete_import_preset(db: Session, preset: models.ImportPreset) -> None:
             regle.presets = restants or None
     db.delete(preset)
     db.commit()
+    nettoyer_colonnes_dummy(db)
 
 
 def get_mapping_categorie(db: Session, preset_id: int, nom_banque: str) -> Optional[int]:
@@ -3458,6 +3561,9 @@ def update_regle_categorisation(
         if nom_champ in champs:
             setattr(regle, nom_champ, champs[nom_champ])
     db.commit()
+    # Une condition sur une colonne dummy a pu disparaître : celle-ci ne vit peut-être plus que
+    # par cette règle.
+    nettoyer_colonnes_dummy(db)
     db.refresh(regle)
     return regle
 
@@ -3465,6 +3571,7 @@ def update_regle_categorisation(
 def delete_regle_categorisation(db: Session, regle: models.RegleCategorisation) -> None:
     db.delete(regle)
     db.commit()
+    nettoyer_colonnes_dummy(db)
 
 
 def reordonner_regles_categorisation(db: Session, ids_ordonnes: list[int]) -> None:

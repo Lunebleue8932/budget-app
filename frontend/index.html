@@ -1791,6 +1791,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </summary>
         <div id="import-config-colonnes-avancees"></div>
 
+        <!-- LES COLONNES DUMMY (migration 0079) : des colonnes que l'app ne rattache à aucune
+             propriété, nommées pour que les règles d'« Imports Avancés » puissent les lire.
+             Partagées entre les formats — le menu « + » propose celles des autres — et donc
+             sans objet tant que l'extension est éteinte. -->
+        <div id="import-colonnes-dummy-bloc" data-extension-greffe="regles" style="display:none">
+          <h4>Colonnes dummy<i class="info-bulle" tabindex="0" data-info-cle="noyau.colonnes-dummy">i</i></h4>
+          <div id="import-config-colonnes-dummy"></div>
+          <div id="import-colonnes-dummy-ajout"></div>
+        </div>
+
         <!-- N'apparaît que si une colonne « Sens » est configurée : sans elle,
              ces mots-clés ne servent à rien. -->
         <div id="import-sens-libelles-bloc" style="display:none">

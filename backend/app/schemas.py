@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .constants import (
     CHAMPS_REGLE_PLACEMENT_VALIDES,
     CHAMPS_REGLE_VALIDES,
-    est_champ_colonne_regle,
+    id_colonne_dummy_regle,
     MAX_LIGNES_ENTETE,
     NB_MAX_PARTS_DECOUPE,
     OPERATEURS_NOMBRE,
@@ -1947,6 +1947,37 @@ class ColonneImportConfig(BaseModel):
     propriete: str
 
 
+class ColonneDummyConfig(BaseModel):
+    """Une colonne dummy que le format lit (migration 0079). `colonne_dummy_id` désigne une
+    colonne existante (lue par un autre format, ou citée par une règle) ; sans lui, `nom` en
+    crée une — ou retrouve celle qui porte déjà ce nom (cf. crud.remplacer_colonnes_dummy)."""
+
+    colonne_dummy_id: Optional[int] = None
+    nom: Optional[str] = None
+    index: int = Field(ge=1)
+
+
+class ColonneDummyLue(BaseModel):
+    colonne_dummy_id: int
+    nom: str
+    index: int
+
+
+class FormatLisantColonneDummy(BaseModel):
+    id: int
+    nom: str
+    index: int
+
+
+class ColonneDummyRead(BaseModel):
+    """Une colonne dummy et les formats qui la lisent : la liste « + Colonne dummy » de l'import
+    et les avertissements de l'éditeur de règles se lisent ici."""
+
+    id: int
+    nom: str
+    formats: list[FormatLisantColonneDummy] = Field(default_factory=list)
+
+
 class ImportPresetRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -1960,6 +1991,8 @@ class ImportPresetRead(BaseModel):
     # bancaire » ni les correspondances mémorisées.
     compte_id: Optional[int] = None
     colonnes: list[ColonneImportConfig]
+    # Les colonnes dummy que ce format lit (migration 0079), pour les règles.
+    colonnes_dummy: list[ColonneDummyLue] = Field(default_factory=list)
     # Index de colonnes (1-based, format brut) désignées pour la comparaison de
     # doublons ; `mode_comparaison` dit si ce sont celles à ignorer ou les
     # seules à comparer (cf. constants.ModeComparaison).
@@ -2012,6 +2045,9 @@ class ImportPresetCreate(BaseModel):
     nom: str = Field(min_length=1)
     compte_id: Optional[int] = None
     colonnes: list[ColonneImportConfig]
+    # Les colonnes dummy lues (migration 0079). None = ne pas y toucher : les appelants qui ne
+    # les connaissent pas (l'import de placements) n'effacent rien.
+    colonnes_dummy: Optional[list[ColonneDummyConfig]] = None
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
@@ -2040,6 +2076,9 @@ class ImportPresetUpdate(BaseModel):
     # None = preset non lié (le compte vient du fichier), comme à la création.
     compte_id: Optional[int] = None
     colonnes: list[ColonneImportConfig]
+    # Les colonnes dummy lues (migration 0079). None = ne pas y toucher : les appelants qui ne
+    # les connaissent pas (l'import de placements) n'effacent rien.
+    colonnes_dummy: Optional[list[ColonneDummyConfig]] = None
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
@@ -2183,10 +2222,12 @@ def _valider_condition(condition, champs_valides: set[str]):
     """Le contrôle commun aux deux domaines de règles : un champ connu, un
     opérateur de la bonne famille, une valeur non vide. Seule la liste des
     champs change de l'un à l'autre."""
-    # « colonne_N » a un numéro libre : il ne peut pas figurer dans l'ensemble des champs, et ne
-    # vaut que pour les règles bancaires (le seul domaine dont les lignes gardent leurs colonnes).
-    est_colonne = champs_valides is CHAMPS_REGLE_VALIDES and est_champ_colonne_regle(
-        condition.champ
+    # « dummy_<id> » a un identifiant libre : il ne peut pas figurer dans l'ensemble des champs,
+    # et ne vaut que pour les règles bancaires (le seul domaine qui a des colonnes dummy). Que la
+    # colonne existe, c'est le routeur qui le vérifie : il a la base, pas le schéma.
+    est_colonne = (
+        champs_valides is CHAMPS_REGLE_VALIDES
+        and id_colonne_dummy_regle(condition.champ) is not None
     )
     if condition.champ not in champs_valides and not est_colonne:
         raise ValueError(

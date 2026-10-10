@@ -270,6 +270,56 @@ def _valider_configuration(
     valider_comparaison(colonnes_comparaison, mode_comparaison)
 
 
+def _colonnes_dummy_validees(
+    db: Session, colonnes: Optional[list[schemas.ColonneDummyConfig]]
+) -> Optional[list[dict]]:
+    """Les colonnes dummy d'un format (migration 0079), vérifiées. None = ne pas y toucher.
+
+    Une colonne existante doit exister ; une neuve doit avoir un nom. Une même colonne ne se lit
+    qu'une fois par format — la lire à deux numéros, ce serait demander à une règle laquelle
+    des deux cellules comparer. Deux colonnes dummy PEUVENT en revanche partager un numéro,
+    et partager celui d'une propriété : rien ne s'y oppose, et c'est ce qui permet à une règle
+    écrite pour un autre format de servir ici (cf. models.LectureColonneDummy)."""
+    if colonnes is None:
+        return None
+    vues: set = set()
+    retenues = []
+    for colonne in colonnes:
+        if colonne.colonne_dummy_id is not None:
+            existante = crud.get_colonne_dummy(db, colonne.colonne_dummy_id)
+            if existante is None:
+                raise HTTPException(status_code=404, detail="Colonne dummy introuvable")
+            cle = existante.nom.strip().casefold()
+        else:
+            nom = (colonne.nom or "").strip()
+            if not nom:
+                raise HTTPException(
+                    status_code=400, detail="Donne un nom à la nouvelle colonne dummy."
+                )
+            cle = nom.casefold()
+        if cle in vues:
+            raise HTTPException(
+                status_code=400,
+                detail="Une colonne dummy ne se lit qu'une fois par format.",
+            )
+        vues.add(cle)
+        retenues.append(colonne.model_dump())
+    return retenues
+
+
+# ---------- Colonnes dummy ----------
+
+
+@router.get("/colonnes-dummy", response_model=list[schemas.ColonneDummyRead])
+def list_colonnes_dummy(db: Session = Depends(get_db)):
+    """Toutes les colonnes dummy, chacune avec les formats qui la lisent."""
+    lectures = crud.lectures_colonne_dummy(db)
+    return [
+        schemas.ColonneDummyRead(id=c.id, nom=c.nom, formats=lectures.get(c.id, []))
+        for c in crud.list_colonnes_dummy(db)
+    ]
+
+
 # ---------- Presets ----------
 
 
@@ -289,7 +339,8 @@ def create_preset(payload: schemas.ImportPresetCreate, db: Session = Depends(get
     _valider_configuration(
         payload.colonnes, payload.colonnes_comparaison, payload.mode_comparaison
     )
-    return crud.create_import_preset(
+    colonnes_dummy = _colonnes_dummy_validees(db, payload.colonnes_dummy)
+    preset = crud.create_import_preset(
         db,
         payload.nom,
         [c.model_dump() for c in payload.colonnes],
@@ -299,6 +350,9 @@ def create_preset(payload: schemas.ImportPresetCreate, db: Session = Depends(get
         mode_comparaison=payload.mode_comparaison.value,
         **_vocabulaires_nettoyes(payload),
     )
+    if colonnes_dummy:
+        crud.remplacer_colonnes_dummy(db, preset, colonnes_dummy)
+    return preset
 
 
 @router.get("/presets/{preset_id}", response_model=schemas.ImportPresetRead)
@@ -313,7 +367,8 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
     _valider_configuration(
         payload.colonnes, payload.colonnes_comparaison, payload.mode_comparaison
     )
-    return crud.update_import_preset(
+    colonnes_dummy = _colonnes_dummy_validees(db, payload.colonnes_dummy)
+    preset = crud.update_import_preset(
         db,
         preset,
         nom=payload.nom,
@@ -324,6 +379,9 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
         compte_id=payload.compte_id,
         **_vocabulaires_nettoyes(payload),
     )
+    if colonnes_dummy is not None:
+        crud.remplacer_colonnes_dummy(db, preset, colonnes_dummy)
+    return preset
 
 
 @router.delete("/presets/{preset_id}")

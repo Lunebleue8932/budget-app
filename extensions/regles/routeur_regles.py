@@ -9,6 +9,7 @@ from app.constants import (
     TYPES_INTERNES,
     DomaineImport,
     TypeOperation,
+    id_colonne_dummy_regle,
 )
 from app.database import get_db
 
@@ -148,6 +149,20 @@ def _presets_valides(db: Session, presets):
     return retenus
 
 
+def _verifier_colonnes_dummy(db: Session, payload) -> None:
+    """Toute colonne dummy citée — détection et sorties — doit exister (migration 0079).
+
+    Qu'un format la LISE n'est pas exigé : l'éditeur le dit sous la condition, et une colonne
+    se déclare dans un format avant ou après la règle, dans l'ordre qu'on veut."""
+    blocs = [payload.conditions] + [sortie.conditions for sortie in payload.sorties]
+    for bloc in blocs:
+        for groupe in bloc.groupes:
+            for condition in groupe.conditions:
+                identifiant = id_colonne_dummy_regle(condition.champ)
+                if identifiant is not None and crud.get_colonne_dummy(db, identifiant) is None:
+                    raise HTTPException(status_code=404, detail="Colonne dummy introuvable")
+
+
 def _sortie_validee(db: Session, sortie) -> dict:
     """Une sortie conditionnelle, vérifiée et prête à ranger (migration 0072).
 
@@ -188,6 +203,7 @@ def list_regles(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.RegleCategorisationRead, status_code=201)
 def create_regle(payload: schemas.RegleCategorisationCreate, db: Session = Depends(get_db)):
+    _verifier_colonnes_dummy(db, payload)
     categorie_id, decoupes, compte_autre_id = _valider_action(
         db,
         payload.type_id,
@@ -227,6 +243,7 @@ def update_regle(
     regle_id: int, payload: schemas.RegleCategorisationUpdate, db: Session = Depends(get_db)
 ):
     regle = _get_regle_ou_404(db, regle_id)
+    _verifier_colonnes_dummy(db, payload)
     categorie_id, decoupes, compte_autre_id = _valider_action(
         db,
         payload.type_id,

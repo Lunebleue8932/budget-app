@@ -10625,6 +10625,13 @@ let ligneApercuEnEdition = null;
 // côté serveur (ImportPreset.colonnes). Seul l'affichage les sépare, selon le
 // groupe auquel leur propriété appartient.
 let importConfigColonnes = []; // [{index, propriete}]
+// LES COLONNES DUMMY que le preset lit (migration 0079) : [{colonne_dummy_id, nom, index}].
+// `colonne_dummy_id` null = une colonne neuve, créée sous son nom à l'enregistrement. À part de
+// `importConfigColonnes` : elles n'ont pas de propriété, et peuvent partager un numéro avec une.
+let importConfigColonnesDummy = [];
+// Toutes les colonnes dummy existantes, chacune avec les formats qui la lisent
+// (GET /import/colonnes-dummy) : ce que le menu « + » propose.
+let colonnesDummyConnues = [];
 // [index, ...] -- les colonnes que la détection de doublons regarde. Ce que la
 // liste désigne dépend du mode : les colonnes à ignorer ("exclusion", défaut)
 // ou les seules à comparer ("selection"). Cf. constants.ModeComparaison.
@@ -11187,6 +11194,8 @@ function signatureColonnesImport(colonnes) {
 function signatureApercu(config) {
   return JSON.stringify({
     colonnes: config.colonnes,
+    // Les colonnes dummy changent ce que les règles reconnaissent : l'aperçu se relit.
+    colonnes_dummy: (config.colonnes_dummy || []).map((c) => `${c.colonne_dummy_id}:${c.index}`),
     colonnes_comparaison: config.colonnes_comparaison || [],
     mode_comparaison: config.mode_comparaison,
     lignes_entete: lignesEnteteDe(config),
@@ -11207,6 +11216,8 @@ async function loadImportConfiguration() {
   importSignatureApercuEnregistree = signatureApercu(config);
   importSignatureColonnesEnregistrees = signatureColonnesImport(config.colonnes);
   importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
+  importConfigColonnesDummy = (config.colonnes_dummy || []).map((c) => ({ ...c }));
+  await chargerColonnesDummyConnues();
   importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
   document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
@@ -11852,10 +11863,104 @@ function renderImportConfig() {
       });
   });
 
+  renderColonnesDummy();
   updateResumeConfigAvancee();
   updateResumeConfigFichier();
   updateImportSensLibellesVisibilite();
   updateImportStatutLibellesVisibilite();
+}
+
+/* ----- Colonnes dummy (migration 0079) ----- */
+
+async function chargerColonnesDummyConnues() {
+  try {
+    colonnesDummyConnues = await apiFetch("/import/colonnes-dummy");
+  } catch {
+    // La liste ne sert qu'au menu « + » : sans elle, on peut toujours créer une colonne neuve.
+    colonnesDummyConnues = [];
+  }
+}
+
+/**
+ * Une ligne par colonne dummy lue — son nom, son numéro, la croix qui la retire — puis le
+ * bouton « + », dont le menu propose une colonne NEUVE en tête, et en dessous toutes celles
+ * des autres formats que celui-ci ne lit pas encore. Reprendre une colonne existante, c'est
+ * ce qui permet à une règle écrite pour un format de servir aussi à celui-ci.
+ *
+ * RIEN N'EST ÉCRIT AVANT « Enregistrer la configuration », comme pour les autres colonnes :
+ * une colonne neuve n'a pas encore d'identifiant, le serveur le lui donne à ce moment-là.
+ */
+function renderColonnesDummy() {
+  const bloc = document.getElementById("import-config-colonnes-dummy");
+  if (!bloc) return;
+  bloc.innerHTML = "";
+  importConfigColonnesDummy.forEach((colonne) => {
+    const neuve = colonne.colonne_dummy_id == null;
+    const row = document.createElement("div");
+    row.className = "import-mapping-row import-config-ligne import-config-dummy";
+    row.innerHTML = `
+      <span class="import-config-propriete">${
+        neuve
+          ? `<input type="text" data-role="nom" spellcheck="false"
+                    placeholder="${escapeHtml(t("Nom de la colonne"))}"
+                    value="${escapeHtml(colonne.nom || "")}" />`
+          : escapeHtml(colonne.nom)
+      }</span>
+      <label class="import-config-index">${t("Colonne n°")}
+        <input type="number" min="1" data-role="index" value="${colonne.index || ""}" />
+      </label>
+      <button type="button" class="champ-ajoute-retirer" data-role="retirer"
+              title="${escapeHtml(t("Ne plus lire cette colonne"))}"
+              aria-label="${escapeHtml(t("Ne plus lire cette colonne"))}">×</button>
+    `;
+    row.querySelector("[data-role='nom']")?.addEventListener("input", (e) => {
+      colonne.nom = e.target.value;
+    });
+    row.querySelector("[data-role='index']").addEventListener("input", (e) => {
+      colonne.index = Number(e.target.value) || 0;
+    });
+    row.querySelector("[data-role='retirer']").addEventListener("click", () => {
+      importConfigColonnesDummy.splice(importConfigColonnesDummy.indexOf(colonne), 1);
+      renderColonnesDummy();
+      updateResumeConfigAvancee();
+    });
+    bloc.appendChild(row);
+  });
+
+  const lues = new Set(importConfigColonnesDummy.map((c) => c.colonne_dummy_id));
+  const NOUVELLE = "nouvelle";
+  creerMenuAjoutChamp(document.getElementById("import-colonnes-dummy-ajout"), {
+    libelle: t("Ajouter une colonne dummy"),
+    options: [
+      { cle: NOUVELLE, libelle: t("Nouvelle colonne") },
+      ...colonnesDummyConnues
+        .filter((c) => !lues.has(c.id))
+        .map((c) => ({
+          cle: String(c.id),
+          libelle: c.formats.length
+            ? t("{nom} — lue par {formats}", {
+                nom: c.nom,
+                formats: c.formats.map((f) => f.nom).join(", "),
+              })
+            : c.nom,
+        })),
+    ],
+    onChoix: (cle) => {
+      const existante = colonnesDummyConnues.find((c) => String(c.id) === cle);
+      importConfigColonnesDummy.push({
+        colonne_dummy_id: existante ? existante.id : null,
+        nom: existante ? existante.nom : "",
+        index: prochainIndexLibre(),
+      });
+      renderColonnesDummy();
+      updateResumeConfigAvancee();
+      // Une colonne neuve attend son nom : le curseur y va directement.
+      if (!existante) {
+        const champs = document.querySelectorAll("#import-config-colonnes-dummy [data-role='nom']");
+        champs[champs.length - 1]?.focus();
+      }
+    },
+  });
 }
 
 /**
@@ -11912,9 +12017,11 @@ function updateResumeLignesEntete() {
 // active serait invisible tant qu'on n'ouvre pas la section — et des frais
 // ajoutés au montant sont bien trop surprenants pour rester cachés.
 function updateResumeConfigAvancee() {
-  const avancees = importConfigColonnes.filter((c) => estProprieteAvancee(c.propriete));
+  const avancees =
+    importConfigColonnes.filter((c) => estProprieteAvancee(c.propriete)).length +
+    importConfigColonnesDummy.length;
   document.getElementById("import-config-avancee-resume").textContent =
-    avancees.length > 0 ? `${avancees.length} colonne(s)` : "inactive";
+    avancees > 0 ? `${avancees} colonne(s)` : "inactive";
 }
 
 function modeComparaisonChoisi() {
@@ -12000,6 +12107,21 @@ async function enregistrerConfigurationImport({
     );
     return false;
   }
+  // Même chose pour les colonnes dummy : une neuve sans nom, ou sans numéro, se nomme ici.
+  if (importConfigColonnesDummy.some((c) => c.colonne_dummy_id == null && !(c.nom || "").trim())) {
+    showMessage(t("Donne un nom à chaque nouvelle colonne dummy."), "error");
+    return false;
+  }
+  const dummySansNumero = importConfigColonnesDummy.filter((c) => !c.index || c.index < 1);
+  if (dummySansNumero.length > 0) {
+    showMessage(
+      t("Renseigne le numéro de colonne de : {proprietes}.", {
+        proprietes: dummySansNumero.map((c) => c.nom || t("Nouvelle colonne")).join(", "),
+      }),
+      "error"
+    );
+    return false;
+  }
   try {
     const config = await apiFetch(importUrl(""), {
       method: "PUT",
@@ -12009,6 +12131,11 @@ async function enregistrerConfigurationImport({
         // Une seule liste côté serveur : la séparation base / avancée n'existe
         // qu'à l'affichage, et une propriété éteinte n'y figure simplement pas.
         colonnes: importConfigColonnes,
+        colonnes_dummy: importConfigColonnesDummy.map((c) => ({
+          colonne_dummy_id: c.colonne_dummy_id ?? null,
+          nom: c.colonne_dummy_id == null ? (c.nom || "").trim() : null,
+          index: c.index,
+        })),
         colonnes_comparaison: importConfigColonnesComparaison,
         mode_comparaison: modeComparaisonChoisi(),
         lignes_entete: lignesEnteteSaisies(),
@@ -12022,6 +12149,10 @@ async function enregistrerConfigurationImport({
     importSignatureApercuEnregistree = signatureApercu(config);
     importSignatureColonnesEnregistrees = signatureColonnesImport(config.colonnes);
     importConfigColonnes = config.colonnes.map((c) => ({ ...c }));
+    // Relues depuis la réponse : une colonne neuve y a gagné son identifiant, ou retrouvé
+    // celle d'un autre format qui portait déjà ce nom.
+    importConfigColonnesDummy = (config.colonnes_dummy || []).map((c) => ({ ...c }));
+    await chargerColonnesDummyConnues();
     importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
     document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
     document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);

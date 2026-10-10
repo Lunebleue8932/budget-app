@@ -1263,6 +1263,24 @@ class ImportPreset(Base):
     # migration 0026 : ces deux montants ont désormais leur propre propriété.
 
     compte = relationship("Compte")
+    # LES COLONNES DUMMY que ce format lit (migration 0079), chacune à son numéro de colonne.
+    lectures_dummy = relationship(
+        "LectureColonneDummy",
+        cascade="all, delete-orphan",
+        order_by="LectureColonneDummy.id",
+    )
+
+    @property
+    def colonnes_dummy(self) -> list[dict]:
+        """Les colonnes dummy lues, sous la forme que l'API rend : identifiant, nom, numéro."""
+        return [
+            {
+                "colonne_dummy_id": lecture.colonne_dummy_id,
+                "nom": lecture.colonne_dummy.nom,
+                "index": lecture.index,
+            }
+            for lecture in self.lectures_dummy
+        ]
 
     # L'unicité du nom porte sur le COUPLE (domaine, nom) et non sur le nom seul
     # (migration 0041) : « Boursorama » désigne légitimement un relevé bancaire
@@ -1270,6 +1288,57 @@ class ImportPreset(Base):
     # cloisonner jusque dans les noms aurait obligé à inventer des suffixes.
     __table_args__ = (
         UniqueConstraint("domaine", "nom", name="uq_import_preset_domaine_nom"),
+    )
+
+
+class ColonneDummy(Base):
+    """UNE COLONNE QUE LE FICHIER PORTE ET QUE L'APP NE SAIT PAS NOMMER (migration 0079,
+    « Imports Avancés ») : une référence de virement, un code d'opération, un commentaire de
+    la banque. Elle n'a pas de propriété — l'import n'en fait rien — mais une RÈGLE peut la lire
+    (champ de condition « dummy_<id> », cf. constants.MOTIF_CHAMP_REGLE_DUMMY).
+
+    GLOBALE, et non propre à un format : c'est tout son intérêt. Deux banques qui rangent la
+    même information dans des colonnes différentes déclarent chacune LA MÊME colonne dummy, à
+    son numéro (LectureColonneDummy) ; une seule règle sert alors les deux fichiers. Le
+    « colonne_N » qu'elle remplace désignait un NUMÉRO, qui ne voulait dire la même chose que
+    dans un seul format.
+
+    Elle vit tant qu'un format la lit ou qu'une règle la cite (crud.nettoyer_colonnes_dummy) :
+    une règle qui la cite alors qu'aucun format ne la lit garde son nom à l'écran, et
+    l'éditeur dit que la condition ne s'exécutera nulle part."""
+
+    __tablename__ = "colonne_dummy"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nom = Column(String, nullable=False, unique=True)
+
+
+class LectureColonneDummy(Base):
+    """Un format lit une colonne dummy, à tel numéro de colonne de SON fichier.
+
+    Le numéro peut être celui d'une colonne que le format lit déjà pour une propriété : lire le
+    libellé comme « Nature » ET comme la colonne dummy « Référence », c'est ce qui permet à une
+    règle écrite pour un autre format, où la référence a sa colonne à elle, de servir ici
+    aussi."""
+
+    __tablename__ = "import_preset_colonne_dummy"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    preset_id = Column(
+        Integer, ForeignKey("import_preset.id", ondelete="CASCADE"), nullable=False
+    )
+    colonne_dummy_id = Column(
+        Integer, ForeignKey("colonne_dummy.id", ondelete="CASCADE"), nullable=False
+    )
+    index = Column(Integer, nullable=False)
+
+    colonne_dummy = relationship("ColonneDummy")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "preset_id", "colonne_dummy_id", name="uq_import_preset_colonne_dummy"
+        ),
+        CheckConstraint("\"index\" >= 1", name="ck_import_preset_colonne_dummy_index"),
     )
 
 

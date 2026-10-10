@@ -6651,3 +6651,11 @@ body input[type="checkbox"]:disabled {
   letter-spacing: 0.04em;
   color: var(--text-muted);
 }
+
+/* Une colonne dummy de l'import (cf. app.js, renderColonnesDummy) : un nom à la place de
+   l'interrupteur, et la croix qui la retire en bout de ligne. */
+.import-config-dummy .import-config-propriete input[type="text"] {
+  width: 100%;
+  max-width: 14rem;
+}
+

@@ -238,6 +238,8 @@ const TEXTES = {
     "Clique sur l'œil pour indiquer à l'app de lire ou d'ignorer une information.",
   "noyau.configuration-avancee":
     "Pour les fichiers nécessitant un paramétrage plus complexe.",
+  "noyau.colonnes-dummy":
+    "Une colonne de ton fichier que l'app ne lit pour aucune propriété (une référence, un code d'opération…), nommée pour que tes règles d'Imports Avancés puissent s'en servir. Une même colonne dummy peut être lue par plusieurs formats, chacun à son propre numéro de colonne : une seule règle sert alors tous ces fichiers. Le bouton + propose une nouvelle colonne, ou celles déjà déclarées dans tes autres formats.",
   "noyau.reglages-de-lecture":
     "À régler seulement si le fichier est mal lu : colonnes mélangées, montants illisibles. L'app devine seule dans la plupart des cas.",
   "noyau.detection-colonnes":
@@ -449,6 +451,16 @@ const TEXTES = {
     "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.",
   "regles.sortie-a-declarer-sans-type":
     "L'application de la règle ne se fera que sur les opérations catégorisées d'office comme entrées d'argent par l'app.",
+  "regles.colonnes-dummy":
+    "Une colonne que tes formats d'import déclarent lire, dans Configuration du fichier → Colonnes secondaires. Chaque format la lit à son propre numéro : la condition vise donc la même information d'un fichier à l'autre, même rangée ailleurs. Sur un format qui ne la lit pas, la condition n'est jamais vraie.",
+  "regles.dummy-partie":
+    "Cette partie de la reconnaissance ne s'exécutera que sur les formats qui lisent cette colonne : {formats}. Ailleurs, la règle s'exécute sans elle.",
+  "regles.dummy-toute-regle":
+    "Toute la règle ne s'exécutera que sur les formats qui lisent cette colonne : {formats}.",
+  "regles.dummy-toute-sortie":
+    "Cette sortie ne s'appliquera que sur les formats qui lisent cette colonne : {formats}.",
+  "regles.dummy-aucun-format":
+    "Aucun des formats visés par cette règle ne lit cette colonne : cette condition ne sera vraie nulle part.",
 
   /* ----- Extension « Suivi des remboursements » ----- */
   "suivi-remboursements.on-te-doit":

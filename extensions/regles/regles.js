@@ -17,6 +17,12 @@
  * et « le montant contient 12 » non plus. Le serveur refuse la combinaison
  * (cf. constants.operateurs_admis) ; le menu ci-dessous ne la propose même pas.
  */
+/* LES COLONNES DUMMY DE L'IMPORT (« Colonnes secondaires ») sont écrites dans index.html avec
+ * `display:none` et `data-extension-greffe="regles"` : elles ne servent qu'aux règles, et ce
+ * fichier n'est chargé QUE si l'extension est active — sa seule exécution vaut « allume-les »
+ * (cf. impots.js, même patron). */
+BudgetApp.extensions.majVisibilite("regles", true);
+
 const OPERATEURS_TEXTE = ["est", "n'est pas", "contient", "ne contient pas"];
 const OPERATEURS_NOMBRE = [
   "égal à",
@@ -36,8 +42,8 @@ const CHAMPS_REGLE = [
   // La colonne « Notes » du relevé, quand le preset la lit.
   ["notes", "Notes"],
   // TOUTE LA LIGNE du fichier (migration 0077) : tous les textes des colonnes mis bout à bout,
-  // pour viser un mot où qu'il soit. « Colonne n° N » (cf. COLONNE_REGLE) vise une colonne que le
-  // format ne lit pas.
+  // pour viser un mot où qu'il soit. Une COLONNE DUMMY (cf. DUMMY_REGLE) vise une colonne que
+  // chaque format déclare lire à son propre numéro.
   ["ligne_entiere", "Toute la ligne"],
   // LE MONTANT EST TOUJOURS POSITIF, comme partout dans l'app : le sens
   // (dépense / recette) est une colonne à part, jamais un signe. « supérieur à
@@ -52,13 +58,28 @@ const CHAMPS_REGLE = [
   ["devise_recue", "Devise du montant reçu"],
   ["devise_envoyee", "Devise du montant envoyé"],
 ];
-// Le champ « colonne_N » (N libre) : un choix du formulaire, pas un élément de CHAMPS_REGLE.
-const MOTIF_COLONNE_REGLE = /^colonne_([1-9][0-9]{0,2})$/;
-const COLONNE_REGLE = "colonne";
-const numeroColonneRegle = (champ) => {
-  const trouve = MOTIF_COLONNE_REGLE.exec(champ || "");
+// Le champ « dummy_<id> » (migration 0079) : une COLONNE DUMMY, qu'un format d'import déclare
+// lire dans ses « Colonnes secondaires ». Un choix du formulaire (une case et un menu), pas un
+// élément de CHAMPS_REGLE : la liste vient de la base (GET /import/colonnes-dummy).
+const MOTIF_DUMMY_REGLE = /^dummy_([1-9][0-9]*)$/;
+const DUMMY_REGLE = "dummy";
+const idDummyRegle = (champ) => {
+  const trouve = MOTIF_DUMMY_REGLE.exec(champ || "");
   return trouve ? Number(trouve[1]) : null;
 };
+// [{id, nom, formats: [{id, nom, index}]}] : relue à chaque ouverture de l'écran et de l'éditeur,
+// un format a pu en déclarer une entre-temps.
+let colonnesDummyRegles = [];
+
+async function chargerColonnesDummyRegles() {
+  try {
+    colonnesDummyRegles = await apiFetch("/import/colonnes-dummy");
+  } catch {
+    colonnesDummyRegles = [];
+  }
+}
+
+const colonneDummyRegle = (id) => colonnesDummyRegles.find((c) => c.id === id) || null;
 const CHAMPS_REGLE_NUMERIQUES = new Set(["montant", "montant_recu", "montant_envoye"]);
 const CHAMPS_REGLE_DEVISES = new Set(["devise_recue", "devise_envoyee"]);
 // La devise de l'AUTRE montant, en guise de valeur (cf. regles_categorisation).
@@ -259,6 +280,8 @@ async function loadRegles() {
     // données »). Le lire une fois au chargement du script aurait affiché, après
     // une bascule, les dossiers de la base précédente.
     await chargerDossiersRegles();
+    // Les libellés des conditions sur une colonne dummy en ont besoin (cf. libelleConditionRegle).
+    await chargerColonnesDummyRegles();
     renderRegles();
   } catch (err) {
     showMessage(err.message, "error");
@@ -295,8 +318,8 @@ function libelleConditionRegle(condition) {
   const champs = condition.champ ? [condition.champ] : condition.champs || [];
   const libelle = champs
     .map((c) =>
-      numeroColonneRegle(c) != null
-        ? t("Colonne n° {n}", { n: numeroColonneRegle(c) })
+      idDummyRegle(c) != null
+        ? colonneDummyRegle(idDummyRegle(c))?.nom ?? t("Colonne dummy supprimée")
         : t((CHAMPS_REGLE.find(([v]) => v === c) || [c, c])[1])
     )
     .join(` ${t("ou")} `);
@@ -527,10 +550,17 @@ async function deposerRegle(depuis, cible) {
 function renderRegleGroupes(
   bloc = document.getElementById("regle-groupes"),
   groupes = regleBrouillonGroupes,
-  prefixe = ""
+  prefixe = "",
+  // Le connecteur qui combine les groupes : il décide, avec ceux des groupes, si la règle peut
+  // s'exécuter sans une colonne dummy (cf. majInfosColonnesDummy).
+  lireConnecteur = () => document.getElementById("regle-connecteur").value
 ) {
-  const rendre = () => renderRegleGroupes(bloc, groupes, prefixe);
+  const rendre = () => renderRegleGroupes(bloc, groupes, prefixe, lireConnecteur);
   bloc.innerHTML = "";
+  // Ce que majInfosColonnesDummy relit, pour la détection comme pour chaque sortie.
+  bloc.dataset.blocConditions = prefixe ? "sortie" : "regle";
+  bloc._groupes = groupes;
+  bloc._lireConnecteur = lireConnecteur;
 
   groupes.forEach((groupe, iGroupe) => {
     const carte = document.createElement("div");
@@ -552,6 +582,7 @@ function renderRegleGroupes(
     `;
     entete.querySelector("[data-role='connecteur']").addEventListener("change", (e) => {
       groupe.operateur = e.target.value;
+      majInfosColonnesDummy();
     });
     entete.querySelector("[data-role='supprimer-groupe']").addEventListener("click", () => {
       groupes.splice(iGroupe, 1);
@@ -569,6 +600,7 @@ function renderRegleGroupes(
       // `name` unique par condition, sinon toutes les lignes du formulaire
       // partageraient le même groupe radio.
       const nomGroupeRadio = `regle-champ-${prefixe}${iGroupe}-${iCondition}`;
+      const dummyChoisie = idDummyRegle(condition.champ);
       const champsHtml = CHAMPS_REGLE.map(
         ([valeur, label]) => `
           <label class="regle-champ-case">
@@ -578,16 +610,19 @@ function renderRegleGroupes(
             ${t(label)}
           </label>`
       ).join("") + `
+          <i class="info-bulle" tabindex="0"
+             data-info="${escapeHtml(t(TEXTES["regles.colonnes-du-fichier"]))}">i</i>
           <label class="regle-champ-case regle-champ-colonne">
-            <input type="radio" name="${nomGroupeRadio}" value="${COLONNE_REGLE}" ${
-        numeroColonneRegle(condition.champ) != null ? "checked" : ""
-      } />
-            ${t("Colonne n°")}
-            <input type="number" min="1" max="999" step="1" data-role="numero-colonne"
-                   value="${numeroColonneRegle(condition.champ) ?? ""}" placeholder="1" />
+            <input type="radio" name="${nomGroupeRadio}" value="${DUMMY_REGLE}" ${
+        dummyChoisie != null ? "checked" : ""
+      } ${colonnesDummyRegles.length || dummyChoisie != null ? "" : "disabled"} />
+            ${t("Colonne dummy")}
+            <select data-role="colonne-dummy" ${
+              colonnesDummyRegles.length || dummyChoisie != null ? "" : "disabled"
+            }>${optionsColonnesDummy(dummyChoisie)}</select>
           </label>
           <i class="info-bulle" tabindex="0"
-             data-info="${escapeHtml(t(TEXTES["regles.colonnes-du-fichier"]))}">i</i>`;
+             data-info="${escapeHtml(t(TEXTES["regles.colonnes-dummy"]))}">i</i>`;
 
       // Le menu d'opérateurs et le champ de valeur SUIVENT le champ choisi :
       // texte ou nombre, ce ne sont ni les mêmes comparaisons ni la même
@@ -701,10 +736,10 @@ function renderRegleGroupes(
             CHAMPS_REGLE_NUMERIQUES.has(radio.value) !==
               CHAMPS_REGLE_NUMERIQUES.has(condition.champ) ||
             CHAMPS_REGLE_DEVISES.has(radio.value) !== CHAMPS_REGLE_DEVISES.has(condition.champ);
-          // « Colonne n° » : le champ réel porte le numéro saisi à côté (1 par défaut).
+          // « Colonne dummy » : le champ réel porte la colonne choisie dans le menu d'à côté.
           const champChoisi =
-            radio.value === COLONNE_REGLE
-              ? `colonne_${Number(ligne.querySelector("[data-role='numero-colonne']").value) || 1}`
+            radio.value === DUMMY_REGLE
+              ? `dummy_${ligne.querySelector("[data-role='colonne-dummy']").value}`
               : radio.value;
           condition.champ = champChoisi;
           if (changeDeFamille) {
@@ -716,7 +751,7 @@ function renderRegleGroupes(
             condition.operateur = operateursAdmis(radio.value)[0];
             condition.valeur = "";
             condition.valeurs = [];
-            condition.champ = radio.value;
+            condition.champ = champChoisi;
             rendre();
           } else if (CHAMPS_REGLE_DEVISES.has(radio.value)) {
             // D'une devise à l'autre, la référence s'inverse : « la devise
@@ -730,21 +765,21 @@ function renderRegleGroupes(
             // devise, et ce nom suit le champ choisi.
             rendre();
           }
+          majInfosColonnesDummy();
         });
       });
-      // LE NUMÉRO DE COLONNE : le saisir choisit la case « Colonne n° » d'office, et le champ de
-      // la condition suit le numéro (1 à 999, comme le serveur l'accepte).
-      const champNumeroColonne = ligne.querySelector("[data-role='numero-colonne']");
-      champNumeroColonne.addEventListener("input", () => {
-        const numero = Number(champNumeroColonne.value);
-        if (!Number.isInteger(numero) || numero < 1 || numero > 999) return;
-        const radioColonne = ligne.querySelector(`input[type='radio'][value='${COLONNE_REGLE}']`);
-        radioColonne.checked = true;
-        if (numeroColonneRegle(condition.champ) == null) {
-          // On vient d'un champ nommé : même opération que le changement de radio.
-          radioColonne.dispatchEvent(new Event("change"));
+      // LA COLONNE DUMMY : la choisir coche la case « Colonne dummy » d'office, et le champ de la
+      // condition suit le menu.
+      const menuDummy = ligne.querySelector("[data-role='colonne-dummy']");
+      menuDummy.addEventListener("change", () => {
+        const radioDummy = ligne.querySelector(`input[type='radio'][value='${DUMMY_REGLE}']`);
+        radioDummy.checked = true;
+        if (idDummyRegle(condition.champ) == null) {
+          // On vient d'un champ nommé : même opération que le changement de case.
+          radioDummy.dispatchEvent(new Event("change"));
         } else {
-          condition.champ = `colonne_${numero}`;
+          condition.champ = `dummy_${menuDummy.value}`;
+          majInfosColonnesDummy();
         }
       });
       // L'ICÔNE ƒ à gauche du champ numérique : cf. creerAideFormule.
@@ -778,6 +813,14 @@ function renderRegleGroupes(
       });
 
       carte.appendChild(ligne);
+      // OÙ CETTE CONDITION S'EXÉCUTE, quand elle lit une colonne dummy : rempli par
+      // majInfosColonnesDummy, qui a besoin de toute la règle pour le dire.
+      const info = document.createElement("p");
+      info.className = "hint regle-dummy-info";
+      info.dataset.groupe = iGroupe;
+      info.dataset.condition = iCondition;
+      info.hidden = true;
+      carte.appendChild(info);
     });
 
     const ajout = document.createElement("div");
@@ -791,7 +834,81 @@ function renderRegleGroupes(
 
     bloc.appendChild(carte);
   });
+  majInfosColonnesDummy();
 }
+
+/** Le menu des colonnes dummy d'une condition. Une colonne disparue depuis (plus aucun format ne
+ *  la lit, plus aucune autre règle ne la cite) reste choisie, sous un libellé qui le dit. */
+function optionsColonnesDummy(choisie) {
+  const options = colonnesDummyRegles.map(
+    (c) =>
+      `<option value="${c.id}" ${c.id === choisie ? "selected" : ""}>${escapeHtml(c.nom)}</option>`
+  );
+  if (choisie != null && !colonneDummyRegle(choisie)) {
+    options.unshift(
+      `<option value="${choisie}" selected>${escapeHtml(t("Colonne dummy supprimée"))}</option>`
+    );
+  }
+  if (!options.length) options.push(`<option value="">${escapeHtml(t("— aucune —"))}</option>`);
+  return options.join("");
+}
+
+/**
+ * La règle (ou la sortie) peut-elle encore correspondre quand la colonne dummy `id` manque ?
+ *
+ * Sur un format qui ne la lit pas, TOUTE condition sur elle est fausse (cf.
+ * regles_categorisation.evaluer_condition) ; les autres peuvent être vraies. Un groupe en OU
+ * survit s'il lui reste une condition, un groupe en ET non — puis la même chose entre groupes.
+ */
+function executableSansColonneDummy(groupes, connecteur, id) {
+  const possibles = groupes.map((groupe) => {
+    const sans = groupe.conditions.map((c) => idDummyRegle(c.champ) !== id);
+    if (!sans.length) return false;
+    return groupe.operateur === "OU" ? sans.some(Boolean) : sans.every(Boolean);
+  });
+  return connecteur === "OU" ? possibles.some(Boolean) : possibles.every(Boolean);
+}
+
+/**
+ * LE MESSAGE GRIS SOUS CHAQUE CONDITION QUI LIT UNE COLONNE DUMMY : sur quels formats elle
+ * s'exécute, et si c'est toute la règle (ET) ou seulement cette partie de la reconnaissance (OU)
+ * qui en dépend. Les formats sont ceux qui lisent la colonne — parmi ceux que la règle vise,
+ * quand elle n'en vise que certains.
+ *
+ * Recalculé à chaque geste qui peut le changer : la colonne, un connecteur, les formats visés.
+ * D'où une fonction qui relit tout l'éditeur plutôt qu'un calcul fait au rendu de la ligne.
+ */
+function majInfosColonnesDummy() {
+  const restreint = document.getElementById("regle-formats-restreints")?.checked;
+  document.querySelectorAll("#regle-editeur [data-bloc-conditions]").forEach((bloc) => {
+    const groupes = bloc._groupes || [];
+    const connecteur = bloc._lireConnecteur ? bloc._lireConnecteur() : "ET";
+    const estSortie = bloc.dataset.blocConditions === "sortie";
+    bloc.querySelectorAll(".regle-dummy-info").forEach((info) => {
+      const condition = groupes[info.dataset.groupe]?.conditions[info.dataset.condition];
+      const id = idDummyRegle(condition?.champ);
+      info.hidden = id == null;
+      if (id == null) return;
+      const formats = (colonneDummyRegle(id)?.formats || []).filter(
+        (f) => !restreint || regleFormatsChoisis.has(f.id)
+      );
+      if (!formats.length) {
+        info.textContent = t(texteAide("regles.dummy-aucun-format"));
+        return;
+      }
+      const cle = executableSansColonneDummy(groupes, connecteur, id)
+        ? "regles.dummy-partie"
+        : estSortie
+          ? "regles.dummy-toute-sortie"
+          : "regles.dummy-toute-regle";
+      info.textContent = t(texteAide(cle), {
+        formats: formats.map((f) => f.nom).join(", "),
+      });
+    });
+  });
+}
+
+document.getElementById("regle-connecteur").addEventListener("change", majInfosColonnesDummy);
 
 // Le type pilote la liste des catégories : les types à catégorie imposée n'en
 // proposent aucune. La valeur choisie est conservée en mémoire le temps de la
@@ -947,6 +1064,7 @@ function renderFormatsRegle() {
   const restreint = document.getElementById("regle-formats-restreints").checked;
   const menu = document.getElementById("regle-formats-menu");
   menu.style.display = restreint ? "" : "none";
+  majInfosColonnesDummy();
   if (!restreint) return;
   creerMenuCases(menu, {
     libelle: t("Formats d'import"),
@@ -954,6 +1072,7 @@ function renderFormatsRegle() {
     coches: regleFormatsChoisis,
     onChange: (choisis) => {
       regleFormatsChoisis = choisis;
+      majInfosColonnesDummy();
     },
   });
 }
@@ -972,6 +1091,7 @@ async function ouvrirEditeurRegle(regle = null) {
   } catch (err) {
     regleFormatsDisponibles = [];
   }
+  await chargerColonnesDummyRegles();
   document.getElementById("regle-editeur").style.display = "";
   document.getElementById("regle-editeur-titre").textContent = regle
     ? "Modifier la règle"
@@ -1324,6 +1444,7 @@ function renderRegleSorties() {
     majAvisADeclarerSortie(carte, sortie);
     carte.querySelector('[data-role="connecteur"]').addEventListener("change", (e) => {
       sortie.conditions.operateur = e.target.value;
+      majInfosColonnesDummy();
     });
     carte.querySelector('[data-role="supprimer-sortie"]').addEventListener("click", () => {
       regleBrouillonSorties.splice(i, 1);
@@ -1334,7 +1455,12 @@ function renderRegleSorties() {
       renderRegleSorties();
     });
     bloc.appendChild(carte);
-    renderRegleGroupes(carte.querySelector('[data-role="groupes"]'), sortie.conditions.groupes, `s${i}-`);
+    renderRegleGroupes(
+      carte.querySelector('[data-role="groupes"]'),
+      sortie.conditions.groupes,
+      `s${i}-`,
+      () => sortie.conditions.operateur
+    );
   });
 }
 

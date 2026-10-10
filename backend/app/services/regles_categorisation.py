@@ -35,12 +35,12 @@ from typing import NamedTuple, Optional
 from ..constants import (
     CHAMP_REGLE_LIGNE_ENTIERE,
     CHAMPS_REGLE_DEVISES,
-    MOTIF_CHAMP_REGLE_COLONNE,
     OPERATEURS_NOMBRE,
     TYPES_AVEC_CATEGORIE_LIBRE,
     ConnecteurRegle,
     OperateurRegle,
     TypeOperation,
+    id_colonne_dummy_regle,
 )
 from .formule_decoupe import (
     GRANDEUR_ENVOYE,
@@ -229,16 +229,31 @@ def _mots_cles(condition: dict) -> list:
     return [condition.get("valeur", "")]
 
 
+# Ce que la ligne apporte de ses colonnes dummy : {identifiant: valeur de la cellule}, pour
+# CELLES QUE SON FORMAT LIT seulement (cf. import_bancaire._resoudre_ligne). Une colonne absente
+# de ce dict n'est pas une cellule vide : c'est une colonne que le format ne lit pas.
+CLE_COLONNES_DUMMY = "colonnes_dummy"
+
+
+def colonne_dummy_non_lue(brute: dict, champ: str) -> bool:
+    """La condition vise-t-elle une colonne dummy que le format de cette ligne ne lit pas ?"""
+    identifiant = id_colonne_dummy_regle(champ)
+    return identifiant is not None and identifiant not in (brute.get(CLE_COLONNES_DUMMY) or {})
+
+
 def valeur_du_champ(brute: dict, champ: str):
-    """La valeur qu'une condition lit : un champ nommé de la ligne, ou — migration 0077 — une
-    colonne du fichier que le format ne rattache à aucune propriété.
+    """La valeur qu'une condition lit : un champ nommé de la ligne, toute la ligne (migration
+    0077), ou une colonne dummy (migration 0079).
 
     « ligne_entiere » met bout à bout toutes les colonnes non vides, dans l'ordre du fichier,
-    séparées d'une espace : c'est ce qui permet de viser un mot où qu'il soit. « colonne_N » lit
-    la colonne n° N (1-based, comme dans le tableur). Une colonne absente de cette ligne vaut
-    None, ce que `_comparer` traite comme un champ illisible."""
+    séparées d'une espace : c'est ce qui permet de viser un mot où qu'il soit. « dummy_<id> »
+    lit la cellule que le format de la ligne a rattachée à cette colonne dummy. Une cellule vide
+    vaut None, ce que `_comparer` traite comme un champ illisible."""
     if champ in brute:
         return brute[champ]
+    identifiant = id_colonne_dummy_regle(champ)
+    if identifiant is not None:
+        return (brute.get(CLE_COLONNES_DUMMY) or {}).get(identifiant)
     donnees = brute.get("donnees_completes")
     if not donnees:
         return None
@@ -248,9 +263,6 @@ def valeur_du_champ(brute: dict, champ: str):
         return " ".join(
             str(donnees[cle]) for cle in sorted(donnees, key=lambda c: int(c))
         ) or None
-    trouve = MOTIF_CHAMP_REGLE_COLONNE.match(champ)
-    if trouve:
-        return donnees.get(trouve.group(1))
     return None
 
 
@@ -261,6 +273,12 @@ def evaluer_condition(condition: dict, brute: dict) -> bool:
     « ne contient pas A ni B » est ce qu'on veut dire en les écrivant tous les
     deux, et c'est ce que le ET donne.
 
+    UNE COLONNE DUMMY QUE LE FORMAT NE LIT PAS NE CORRESPOND À RIEN, opérateurs négatifs
+    compris : « la référence ne contient pas LOYER » ne dit rien d'un fichier qui n'a pas de
+    référence. La condition est donc fausse, ce qui fait d'elle, selon la règle, une branche
+    d'un OU qui s'efface ou un ET qui empêche toute la règle — exactement ce que l'éditeur
+    annonce sous la condition.
+
     Tolère l'ancienne forme `champs: [...]` (avant le passage au champ unique) :
     une règle enregistrée avant ce changement reste évaluable, ses champs
     multiples étant combinés en OU comme à l'origine.
@@ -268,6 +286,8 @@ def evaluer_condition(condition: dict, brute: dict) -> bool:
     operateur = condition.get("operateur")
     mots = _mots_cles(condition)
     if "champ" in condition:
+        if colonne_dummy_non_lue(brute, condition["champ"]):
+            return False
         valeur_champ = valeur_du_champ(brute, condition["champ"])
         return all(_comparer(valeur_champ, operateur, mot, brute) for mot in mots)
     return any(
