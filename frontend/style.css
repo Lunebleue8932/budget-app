@@ -6684,9 +6684,12 @@ body input[type="checkbox"]:disabled {
   color: var(--text-secondary);
 }
 
-/* L'EN-TÊTE DES PARAMÈTRES (titre et onglets) RESTE EN HAUT quand on défile : le fond de
-   la page masque ce qui passe dessous. Sous la barre latérale (z-index 50), jamais devant. */
-.parametres-entete {
+/* L'EN-TÊTE D'UNE PAGE RESTE EN HAUT quand on défile : son titre et sa PREMIÈRE rangée
+   d'onglets, jamais les suivantes (les monnaies d'un onglet, les comptes de Placements) —
+   figer deux ou trois rangées mangerait l'écran qu'on fait justement défiler. Né sur les
+   Paramètres, étendu à toutes les pages. Le fond de la page masque ce qui passe dessous.
+   Sous la barre latérale (z-index 50), jamais devant. */
+.page-entete {
   position: sticky;
   top: 0;
   z-index: 40;
@@ -6701,7 +6704,7 @@ body input[type="checkbox"]:disabled {
 /* SUR UN ÉCRAN ÉTROIT, la barre de navigation est déjà collée en haut : l'en-tête se
    glisserait dessous. Il redevient ordinaire. */
 @media (max-width: 860px) {
-  .parametres-entete {
+  .page-entete {
     position: static;
   }
 }

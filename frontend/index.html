@@ -291,6 +291,8 @@
   <main>
     <!-- DASHBOARD -->
     <section id="section-dashboard" class="active">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <!-- TIPS & TRICKS : une ampoule au bord droit du titre, dont la bulle porte le message du
            moment (cf. textes.js, `noyau.astuces`). Une pastille d'info comme les autres — même
            bulle, même placement — habillée d'un emoji plutôt que d'un « i ». -->
@@ -302,6 +304,7 @@
            les cartes de compte plus bas : seuls les comptes portant cette
            monnaie s'y affichent, avec ce seul solde. -->
       <div class="sous-onglets" id="dashboard-monnaies"></div>
+      </div>
 
       <div class="kpi-grid">
         <!-- Solde réel et solde prévisionnel vivent dans la MÊME carte : ils
@@ -628,11 +631,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
          aurait laissé exister un état où les totaux affichés ne sont pas ceux
          dont on lit les causes. -->
     <section id="section-ecart-variations">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <h2>D'où vient l'écart ?<i class="info-bulle" tabindex="0" data-info-cle="noyau.ecart-explication">i</i>
         <span class="ecart-titre-actions">
           <button type="button" id="btn-ecart-retour">← Retour au dashboard</button>
         </span>
       </h2>
+      </div>
 
       <div class="flux-periode ecart-kpis">
         <div class="flux-carte">
@@ -670,6 +676,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
     </section>
 
     <section id="section-comptes-globale">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <h2 id="titre-comptes-globale">Vue globale des comptes</h2>
 
       <!-- LA BARRE RESTE MASQUÉE TANT QU'ELLE EST SEULE (cf.
@@ -680,6 +688,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            serait écrit deux fois l'un sous l'autre. -->
       <div class="sous-onglets" id="comptes-globale-sous-nav" style="display:none">
         <button type="button" data-sous-section="comptes-globale-vue" class="active">Comptes</button>
+      </div>
       </div>
 
       <div id="sous-section-comptes-globale-vue" class="sous-section active">
@@ -719,13 +728,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
     <!-- OPERATIONS -->
     <section id="section-operations">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <h2>Opérations</h2>
-      <div class="actions">
-        <button type="button" id="btn-supprimer-toutes-operations" class="danger">
-          Supprimer toutes les opérations
-        </button>
-      </div>
-
       <div class="sous-onglets" id="operations-sous-nav">
         <button data-sous-section="classique" class="active">Opérations classiques</button>
         <!-- Les deux onglets remboursables appartiennent à l'extension « Suivi
@@ -739,6 +744,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              `data-extension` suffit sur un BOUTON, le noyau les connaît. -->
         <button data-sous-section="prets" data-extension="prets" style="display:none">Prêts reçus</button>
         <button data-sous-section="remboursement-prets" data-extension="prets" style="display:none">Remboursements de prêts</button>
+      </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="btn-supprimer-toutes-operations" class="danger">
+          Supprimer toutes les opérations
+        </button>
       </div>
 
       <div id="sous-section-classique" class="sous-section active">
@@ -1447,10 +1459,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
     <!-- IMPORT -->
     <section id="section-parametres">
-      <!-- L'EN-TÊTE RESTE EN HAUT quand on défile (cf. .parametres-entete) : les pages de
+      <!-- L'EN-TÊTE RESTE EN HAUT quand on défile (cf. .page-entete) : les pages de
            réglages sont longues, et revenir en haut pour changer d'onglet coûtait un écran
            de défilement à chaque fois. -->
-      <div class="parametres-entete">
+      <div class="page-entete">
       <h2>Paramètres</h2>
 
       <!-- DEUX GROUPES, aux deux bouts de la barre. À gauche ce que
@@ -2439,6 +2451,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
          elles ne pèsent rien, et elles vieillissent avec l'application au lieu
          de vieillir contre elle. -->
     <section id="section-notice">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <h2>Notice d'utilisation
         <span class="notice-titre-actions">
           <button type="button" id="btn-notice-retour">← Retour aux paramètres</button>
@@ -2451,6 +2465,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <button type="button" data-notice-chapitre="types">Les types d'opération</button>
         <button type="button" data-notice-chapitre="import">Importer un relevé</button>
         <button type="button" data-notice-chapitre="extensions">Les extensions</button>
+      </div>
       </div>
 
       <!-- ---------- POUR COMMENCER ---------- -->

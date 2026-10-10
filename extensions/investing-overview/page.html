@@ -8,20 +8,23 @@
      Placements, on en ressort par celui de son propre en-tête — exactement le
      chemin de l'écran d'import. -->
     <section id="section-investing-overview">
+      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
+      <div class="page-entete">
       <h2 class="io-titre">
         Vue d'ensemble des placements
         <button type="button" id="btn-io-retour">Retour aux placements</button>
       </h2>
 
-      <p class="hint" id="io-vide" style="display:none">
-        Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page
-        Placements financiers, et la répartition apparaîtra ici.
-      </p>
-
       <!-- Un onglet par monnaie de cotation, comme le dashboard : rien ne permet
            d'additionner des euros et des dollars, et un camembert qui les
            mélangerait donnerait des parts fausses avec l'air d'être juste. -->
       <div class="sous-onglets" id="io-monnaies"></div>
+      </div>
+
+      <p class="hint" id="io-vide" style="display:none">
+        Aucun titre détenu pour le moment. Achète ou importe des titres depuis la page
+        Placements financiers, et la répartition apparaîtra ici.
+      </p>
 
       <div id="io-contenu" style="display:none">
         <div class="io-kpis" id="io-kpis"></div>
