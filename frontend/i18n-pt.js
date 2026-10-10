@@ -3298,3 +3298,5 @@ TRADUCTIONS.pt["Nom de la colonne"] = "Nome da coluna";
 TRADUCTIONS.pt["{nom} (lue par {formats})"] = "{nom} (lida por {formats})";
 TRADUCTIONS.pt["Donne un nom à chaque nouvelle colonne dummy."] = "Dê um nome a cada nova coluna dummy.";
 TRADUCTIONS.pt["— aucune —"] = "— nenhuma —";
+TRADUCTIONS.pt["Colonne dummy : lue par les règles, ignorée par l'import"] = "Coluna dummy: lida pelas regras, ignorada pela importação";
+TRADUCTIONS.pt["Entrées : {entrees} · Sorties : {sorties}"] = "Entradas: {entrees} · Saídas: {sorties}";

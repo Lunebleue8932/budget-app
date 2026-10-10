@@ -6659,3 +6659,26 @@ body input[type="checkbox"]:disabled {
   max-width: 14rem;
 }
 
+/* UNE COLONNE DUMMY DANS LE TABLEAU DU FICHIER (cf. app.js, renderApercuFichier) : une carte
+   d'en-tête comme les propriétés, mais HACHURÉE — l'import n'en fait rien, seules les règles la
+   lisent. Sous une propriété, elle se pose juste en dessous de sa carte. */
+.apercu-carte.apercu-carte-dummy {
+  color: var(--text-secondary);
+  border-style: dashed;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    var(--border-soft) 4px,
+    var(--border-soft) 5px
+  );
+}
+
+.apercu-carte + .apercu-carte-dummy {
+  margin-top: 0.25rem;
+}
+
+.apercu-fichier-defilement td.col-dummy {
+  color: var(--text-secondary);
+}
+

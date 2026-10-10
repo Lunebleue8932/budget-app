@@ -88,14 +88,10 @@
    — elle ne fait que peindre en alarme un voyage qu'on est content d'avoir
    fait. Le mot « dépensé » et le signe « − » disent déjà le sens ; la graisse
    suffit à désigner le chiffre principal. */
-.projet-total-depenses {
-  color: var(--text-primary);
+/* La différence entrées / sorties d'une monnaie : colorée comme tout montant signé (`.montant
+   .entree` / `.sortie`, blanc quand elle est nulle). */
+.projet-total-solde {
   font-weight: 600;
-}
-
-.projet-total-entrees {
-  color: var(--text-secondary);
-  font-size: 0.9em;
 }
 
 /* MÊME RÈGLE POUR LES LIGNES D'OPÉRATION des deux tableaux du projet. Elles

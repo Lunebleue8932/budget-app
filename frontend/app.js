@@ -2353,10 +2353,12 @@ async function loadDashboardData(annee, mois) {
 
 /* ---------- Les conversions vers les monnaies éteintes, au dashboard ----------
  *
- * « EN POP-UP » SEULEMENT (cf. modeMonnaiesEteintes) : lues dans la cascade de la
- * monnaie de l'onglet sur la période affichée (cf. services/cascade.py), au net des
- * deux sens et aux montants enregistrés, avec deux drill-throughs — les virements, et
- * le détail de la monnaie éteinte. `contexteGraphesDashboard` les ajoute aux barres de
+ * DANS LES DEUX MODES, comme dans un projet (cf. modeMonnaiesEteintes) : l'argent parti vers
+ * une monnaie éteinte ne doit pas disparaître de l'histogramme de celle d'où il part — un
+ * virement interne n'y laisse sinon aucune trace. Lues dans la cascade de la monnaie de
+ * l'onglet sur la période affichée (cf. services/cascade.py), au net des deux sens et aux
+ * montants enregistrés, avec deux drill-throughs — les virements, et, « en pop-up »
+ * seulement, le détail de la monnaie éteinte (« sur la page », elle a son propre onglet). `contexteGraphesDashboard` les ajoute aux barres de
  * la période entière — pas à une semaine ni à une moyenne, qu'elles ne découpent pas.
  *
  * LES FRAIS DE VIREMENTS, EUX, VIENNENT DU SERVEUR avec les autres barres (cf.
@@ -2368,7 +2370,7 @@ let dashboardConversions = [];
 async function chargerConversionsDashboard(enPopup, annee, mois) {
   dashboardConversions = [];
   const monnaieId = state.dashboardMonnaieId;
-  if (!enPopup || monnaieId == null) return;
+  if (monnaieId == null) return;
   if (!(state.monnaies || []).some((m) => m.active === false)) return;
   const vue = state.dashboardPeriode.vue;
   const requete =
@@ -2380,17 +2382,14 @@ async function chargerConversionsDashboard(enPopup, annee, mois) {
   try {
     const cascade = await apiFetch(`/dashboard/cascade?monnaie_id=${monnaieId}&${requete}`);
     const colonnes = cascade.colonnes || [];
-    const conversions = enPopup
-      ? colonnes
-          .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
-          .map((c) =>
-            barreConversion(monnaieId, c, {
-              ouvrir: () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id),
-              voirOperations: () => drillThroughConversion(monnaieId, c),
-            })
-          )
-      : [];
-    dashboardConversions = conversions;
+    dashboardConversions = colonnes
+      .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
+      .map((c) =>
+        barreConversion(monnaieId, c, {
+          ouvrir: enPopup ? () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id) : null,
+          voirOperations: () => drillThroughConversion(monnaieId, c),
+        })
+      );
   } catch (err) {
     // UN SUPPLÉMENT QUI TOMBE EN PANNE NE DOIT PAS AVALER LE DASHBOARD : les barres
     // des catégories restent justes sans lui.
@@ -5321,8 +5320,7 @@ function contexteGraphesDashboard(depensesDuMois) {
   // graphe est vide plutôt que de montrer la période entière sous un titre qui
   // annonce une moyenne.
   const moyenne = semaine?.moyenne && semaine.pret ? dashboardMoyenneDonnees : null;
-  // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (« en pop-up », cf.
-  // chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
+  // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (cf. chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
   // seulement : elles ne se découpent ni en semaines ni en moyenne. Ni quand tout
   // est converti dans une seule monnaie (extension « Monnaies ») : la monnaie
   // éteinte y est déjà fondue, la compter encore en conversion la doublerait.
@@ -11916,13 +11914,17 @@ function renderColonnesDummy() {
     row.querySelector("[data-role='nom']")?.addEventListener("input", (e) => {
       colonne.nom = e.target.value;
     });
+    row.querySelector("[data-role='nom']")?.addEventListener("change", renderApercuFichier);
     row.querySelector("[data-role='index']").addEventListener("input", (e) => {
       colonne.index = Number(e.target.value) || 0;
     });
+    // À la validation seulement, comme les numéros des propriétés (cf. creerLigneConfigColonne).
+    row.querySelector("[data-role='index']").addEventListener("change", renderApercuFichier);
     row.querySelector("[data-role='retirer']").addEventListener("click", () => {
       importConfigColonnesDummy.splice(importConfigColonnesDummy.indexOf(colonne), 1);
       renderColonnesDummy();
       updateResumeConfigAvancee();
+      renderApercuFichier();
     });
     bloc.appendChild(row);
   });
@@ -11954,6 +11956,7 @@ function renderColonnesDummy() {
       });
       renderColonnesDummy();
       updateResumeConfigAvancee();
+      renderApercuFichier();
       // Une colonne neuve attend son nom : le curseur y va directement.
       if (!existante) {
         const champs = document.querySelectorAll("#import-config-colonnes-dummy [data-role='nom']");
@@ -12469,15 +12472,22 @@ function renderApercuFichier() {
   // qu'on cherche à remettre en face. Elles ne contiennent rien, ne se
   // colorent pas, et disparaissent d'elles-mêmes dès que la propriété
   // redescend dans le fichier.
-  const largeurConfiguree = importConfigColonnes.reduce(
+  const largeurConfiguree = [...importConfigColonnes, ...importConfigColonnesDummy].reduce(
     (max, c) => Math.max(max, c.index || 0),
     0
   );
   const largeur = Math.max(largeurFichier, largeurConfiguree);
+  // LES COLONNES DUMMY ont leur carte comme les propriétés, HACHURÉE : l'import n'en fait rien,
+  // seules les règles les lisent. Une colonne peut en porter plusieurs, et une propriété en plus.
+  const dummiesParColonne = {};
+  importConfigColonnesDummy
+    .filter((c) => c.index >= 1)
+    .forEach((c) => (dummiesParColonne[c.index] = [...(dummiesParColonne[c.index] || []), c]));
 
   const classeColonne = (i) => {
     const propriete = proprietes[String(i)];
-    return propriete ? classeColonneApercu(propriete) : "col-ignoree";
+    if (propriete) return classeColonneApercu(propriete);
+    return dummiesParColonne[i] ? "col-dummy" : "col-ignoree";
   };
 
   // DEUX RANGÉES D'EN-TÊTE, ET ELLES NE DISENT PAS LA MÊME CHOSE. En haut, les
@@ -12504,8 +12514,16 @@ function renderApercuFichier() {
                draggable="true" data-colonne="${i}" title="${titre}"
           >${escapeHtml(APERCU_PROPRIETES[propriete] || propriete)}</span>`
       : "";
+    // Pas déplaçables : leur numéro se règle dans « Colonnes secondaires ».
+    const cartesDummy = (dummiesParColonne[i] || [])
+      .map(
+        (c) => `<span class="apercu-carte apercu-carte-dummy"
+                      title="${escapeHtml(t("Colonne dummy : lue par les règles, ignorée par l'import"))}"
+                 >${escapeHtml(c.nom || t("Nouvelle colonne"))}</span>`
+      )
+      .join("");
     emplacements.push(
-      `<th class="apercu-emplacement${horsFichier}" data-colonne="${i}">${carte}</th>`
+      `<th class="apercu-emplacement${horsFichier}" data-colonne="${i}">${carte}${cartesDummy}</th>`
     );
     numeros.push(`<th class="apercu-col-num${horsFichier}">n°${i}</th>`);
   }

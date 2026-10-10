@@ -66,24 +66,27 @@ function totauxHtml(totaux) {
   }
   // Une ligne PAR MONNAIE : l'app ne stocke aucun taux de change et
   // n'additionne jamais deux monnaies (cf. service_projets.py).
+  //
+  // LA DIFFÉRENCE ENTRÉES / SORTIES, et non les deux bruts côte à côte : un virement aller-retour
+  // ou un remboursement gonflait les deux, et « −2 400 € +1 900 € » ne disait plus ce que le
+  // projet avait coûté. Le détail reste au survol.
   return totaux
-    .map(
-      (total) => `
-      <div class="projet-total">
-        <span class="projet-total-depenses">−${formatMontant(
-          total.depenses,
+    .map((total) => {
+      const solde = total.solde ?? (total.entrees || 0) - (total.depenses || 0);
+      const signe = montantEstNul(solde) ? "" : solde < 0 ? "−" : "+";
+      const classe = classeMontant(solde, solde < 0 ? "sortie" : "entree");
+      const detail = t("Entrées : {entrees} · Sorties : {sorties}", {
+        entrees: formatMontant(total.entrees || 0, total.monnaie_id),
+        sorties: formatMontant(total.depenses || 0, total.monnaie_id),
+      });
+      return `
+      <div class="projet-total" title="${escapeHtml(detail)}">
+        <span class="projet-total-solde montant ${classe}">${signe}${formatMontant(
+          Math.abs(solde),
           total.monnaie_id
         )}</span>
-        ${
-          total.entrees
-            ? `<span class="projet-total-entrees">+${formatMontant(
-                total.entrees,
-                total.monnaie_id
-              )}</span>`
-            : ""
-        }
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
 }
 
