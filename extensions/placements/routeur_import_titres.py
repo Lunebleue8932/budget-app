@@ -177,11 +177,11 @@ ENTETES_MODELE = [
 ]
 
 NOTICE_MODELE = [
-    ("Un titre par ligne, repéré par son ISIN. Une cellule laissée vide ne change rien à ce que l'application sait déjà du titre : le fichier complète, il n'efface jamais.", None),
+    ("Un titre par ligne, repéré par son ISIN. Une cellule laissée vide veut dire « inconnu » : elle n'efface rien de ce qui est déjà connu du titre.", None),
     ("ISIN", "Obligatoire. Douze caractères, par exemple IE00B4L5Y983."),
-    ("Nom", "Le nom donné à un titre qui n'existe pas encore dans l'application. Sans effet sur un titre déjà connu."),
-    ("Monnaie", "La monnaie de cotation d'un nouveau titre, par son nom ou son symbole (Euro, €…). À défaut, la monnaie principale de l'application."),
-    ("Enveloppe", "Comment le titre est détenu : ETF, Action en direct, SCPI… Une seule valeur."),
+    ("Nom", "Le nom du titre. Il ne sert qu'à nommer un titre nouveau : un titre déjà connu garde le sien."),
+    ("Monnaie", "La monnaie de cotation du titre, par son nom ou son symbole, parmi celles listées plus bas. Laissée vide : la monnaie principale, par défaut."),
+    ("Enveloppe", "Comment le titre est détenu, parmi les enveloppes listées plus bas (ETF, ETN, Action en direct…). Une seule valeur. « Actions » est une classe d'actif, pas une enveloppe."),
     ("Classe d'actif", "À quoi le titre expose : Actions, Obligations, Immobilier… Une seule valeur (= 100 %) ou une répartition : « Actions 60 ; Obligations 40 »."),
     ("Zone géographique", "Même principe. Les zones sont exclusives : « Asie (hors Chine) » et non « Asie ». Exemple : « États-Unis 65 ; Europe 15 ; Asie (hors Chine) 10 »."),
     ("Secteur", "Même principe. Exemple : « Technologies de l'information 25 ; Finance 15 »."),
@@ -192,16 +192,16 @@ NOTICE_MODELE = [
 
 NOTICE_COURS = (
     "Cours",
-    "Le dernier cours unitaire du titre, dans sa monnaie de cotation, en nombre seul : 104,52. Il remplace le cours enregistré dans l'application.",
+    "Le dernier cours unitaire du titre, dans sa monnaie de cotation, en nombre seul : 104,52. Il remplace le cours déjà connu.",
 )
 
-# LES VALEURS DE L'APPLICATION, sous la notice des colonnes : celles que l'utilisateur a
+# LES VALEURS EN USAGE, sous la notice des colonnes : celles que l'utilisateur a
 # aujourd'hui, et non une liste figée. Un libellé inconnu est créé à l'import ; les avoir
 # sous les yeux évite d'en inventer un quand l'un d'eux convient (un
 # secteur non couvert, une région particulière).
 NOTICE_VALEURS_PRINCIPE = (
-    "Les valeurs que l'application connaît aujourd'hui. Emploie-les telles quelles : un libellé "
-    "qui n'y figure pas sera créé à l'import, à ne proposer que si aucun ne convient vraiment."
+    "Les valeurs déjà en usage. Emploie-les telles quelles : un libellé nouveau ne se propose "
+    "que si aucun ne convient vraiment."
 )
 NOTICE_AXES = (
     ("Enveloppes", AxeTitre.enveloppe.value),
@@ -268,7 +268,7 @@ def modele_xlsx(db: Session, avec_cours: bool = False) -> bytes:
 
     # Les valeurs de l'application, après une ligne vide.
     depart = len(lignes_notice) + 3
-    notice[f"A{depart}"] = "Valeurs de l'application"
+    notice[f"A{depart}"] = "Valeurs en usage"
     notice[f"A{depart}"].font = Font(bold=True)
     notice[f"B{depart}"] = NOTICE_VALEURS_PRINCIPE
     notice[f"B{depart}"].alignment = Alignment(wrap_text=True, vertical="top")

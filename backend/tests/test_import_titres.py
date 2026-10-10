@@ -429,6 +429,21 @@ def test_la_notice_donne_les_valeurs_de_l_application(db_session):
         assert valeurs[intitule]
 
 
+def test_le_modele_ne_nomme_ni_l_outil_ni_un_budget(db_session):
+    """Le classeur décrit des titres, rien de ce qui les range."""
+    import re
+
+    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
+    textes = [
+        str(cellule)
+        for feuille in classeur.worksheets
+        for ligne in feuille.iter_rows(values_only=True)
+        for cellule in ligne
+        if cellule
+    ]
+    assert not [t for t in textes if re.search(r"appli|import|budget|\bapp\b", t, re.IGNORECASE)]
+
+
 def test_l_apercu_du_modele_montre_trois_lignes_dont_les_en_tetes_du_classeur(db_session):
     """L'aperçu affiché dans l'app lit la même source que le classeur : il ne peut pas diverger."""
     apercu = routeur.apercu_modele(cours=True)
