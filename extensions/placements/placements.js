@@ -312,7 +312,13 @@ function renderTitresSuivis() {
               }">
         ${titre.archivee ? t("Remettre en service") : t("Archiver")}
       </button>
-      <button type="button" data-action="supprimer-titre" data-id="${titre.id}" class="danger">
+      <button type="button" data-action="supprimer-titre" data-id="${titre.id}" class="danger"
+              ${titre.supprimable === false ? "disabled" : ""}
+              title="${
+                titre.supprimable === false
+                  ? t("Des mouvements portent ce titre : archive-le plutôt.")
+                  : ""
+              }">
         ${t("Supprimer")}
       </button>
     `;

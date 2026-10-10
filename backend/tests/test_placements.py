@@ -231,8 +231,8 @@ def test_supprimer_lecriture_despeces_emporte_le_mouvement(db_session):
     crud.delete_operation(db_session, crud.get_operation(db_session, mouvement.operation_id))
 
     assert db_session.query(models.OperationTitre).count() == 0
-    # Le titre lui-même reste : ce n'est pas une opération.
-    assert crud.get_titre(db_session, titre.id) is not None
+    # LE TITRE PART AVEC SON DERNIER MOUVEMENT (cf. crud.supprimer_titres_sans_mouvement).
+    assert crud.get_titre(db_session, titre.id) is None
 
 
 def test_placement_hors_kpi_courants_mais_dans_les_avoirs(db_session):

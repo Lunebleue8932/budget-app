@@ -15,7 +15,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.constants import TypeOperationPlacement
-from app.schemas import ApercuFichier
+from app.schemas import ApercuFichier, JambeManquanteLue
 
 
 class LignePlacement(BaseModel):
@@ -121,6 +121,11 @@ class LignePlacement(BaseModel):
     # opération. Comme côté bancaire : la ligne reste ordinaire, elle est
     # simplement pré-sélectionnée dans l'aperçu, et l'utilisateur tranche.
     doublon_de: Optional[int] = None
+    # LA JAMBE DE VIREMENT DÉJÀ EN BASE qu'un transfert semble décrire (cf.
+    # import_bancaire.detecter_jambes_manquantes) : le virement a été écrit depuis le relevé
+    # de l'autre compte. L'utilisateur répond « Même virement ? » — Oui, la ligne n'est pas
+    # importée et un témoin entre au stock ; Non, elle l'est.
+    jambe_manquante: Optional[JambeManquanteLue] = None
 
 
 class ApercuPlacements(BaseModel):
@@ -174,6 +179,11 @@ class OverridesPlacements(BaseModel):
     # Correspondances « nom du fichier -> compte de l'app » à mémoriser pour les
     # imports suivants (le second compte d'un transfert, typiquement).
     comptes: dict[str, int] = Field(default_factory=dict)
+    # « Même virement ? » pour chaque transfert que l'aperçu a reconnu comme une jambe
+    # déjà en base : True (Oui), False (Non), None (pas encore tranché — l'import est
+    # refusé). Une clé par ligne que l'écran a MONTRÉE comme reconnue, comme côté bancaire
+    # (cf. app.schemas.ImportMappingOverrides.jambes_validees).
+    jambes_validees: dict[int, Optional[bool]] = Field(default_factory=dict)
 
 
 class ResultatPlacements(BaseModel):

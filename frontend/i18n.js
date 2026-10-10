@@ -3942,6 +3942,13 @@ const TRADUCTIONS = {
     "Colonne dummy : lue par les règles, ignorée par l'import": "Dummy column: read by rules, ignored by the import",
     "Entrées : {entrees} · Sorties : {sorties}": "Income: {entrees} · Spending: {sorties}",
     "Aucune dépense sur la période.": "No spending over the period.",
+    "Ces transferts décrivent un virement que l'app connaît déjà : il a été enregistré depuis le relevé de l'autre compte, avec ce montant et ces comptes, à quelques jours près. Réponds « Oui » si c'est le même virement : la ligne n'est pas importée, et le prochain import de ce relevé la reconnaîtra tout seul. « Non » l'importe comme un nouveau virement.": "These transfers describe a transfer the app already knows: it was recorded from the other account's statement, with this amount and these accounts, give or take a few days. Answer “Yes” if it is the same transfer: the row is not imported, and the next import of this statement will recognise it on its own. “No” imports it as a new transfer.",
+    "Virements reconnus — ": "Recognised transfers — ",
+    "Même virement ?": "Same transfer?",
+    "Virement connu": "Known transfer",
+    "Oui pour toutes": "Yes to all",
+    "Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s).": "Answer “Same transfer?” for the {n} recognised transfer(s).",
+    "Des mouvements portent ce titre : archive-le plutôt.": "Movements use this holding: archive it instead.",
   },
 };
 

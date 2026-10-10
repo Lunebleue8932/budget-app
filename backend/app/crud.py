@@ -1712,6 +1712,12 @@ def delete_operation(db: Session, db_operation: models.Operation) -> None:
     ).delete(synchronize_session=False)
     # Idem pour le versant titres d'un achat/vente : les deux lignes ne
     # survivent jamais l'une sans l'autre.
+    titres_touches = [
+        titre_id
+        for (titre_id,) in db.query(models.OperationTitre.titre_id).filter(
+            models.OperationTitre.operation_id == db_operation.id
+        )
+    ]
     db.query(models.OperationTitre).filter(
         models.OperationTitre.operation_id == db_operation.id
     ).delete(synchronize_session=False)
@@ -1719,6 +1725,7 @@ def delete_operation(db: Session, db_operation: models.Operation) -> None:
     db.commit()
     for depense_id in depense_ids_a_recalculer:
         _recalculer_montant_a_rembourser(db, depense_id)
+    supprimer_titres_sans_mouvement(db, titres_touches)
 
 
 def delete_all_operations(db: Session) -> int:
@@ -2463,6 +2470,26 @@ def enregistrer_cours_en_ligne(
     return titre
 
 
+def supprimer_titres_sans_mouvement(db: Session, titre_ids) -> list[str]:
+    """Supprime ceux de ces titres qui n'ont plus AUCUN mouvement, et rend leurs noms.
+
+    LE TITRE PART AVEC SON DERNIER MOUVEMENT : supprimer l'achat (ou annuler l'import qui
+    l'avait écrit) défait aussi la ligne de « Titres suivis » qu'il avait fait naître —
+    sans quoi chaque essai d'import laissait derrière lui un titre vide, et le suivant
+    retombait dessus. Tant qu'il en reste un, rien ne bouge : un titre qui a une ligne
+    active ne se supprime pas (cf. titre_est_utilise)."""
+    supprimes = []
+    for titre_id in set(titre_ids or []):
+        titre = get_titre(db, titre_id)
+        if titre is None or titre_est_utilise(db, titre_id):
+            continue
+        supprimes.append(titre.nom_affiche)
+        db.delete(titre)
+    if supprimes:
+        db.commit()
+    return supprimes
+
+
 def titre_est_utilise(db: Session, titre_id: int) -> bool:
     return (
         db.query(models.OperationTitre)
@@ -2549,10 +2576,12 @@ def delete_operation_titre(db: Session, operation_titre: models.OperationTitre) 
     """Supprime le mouvement de titres ET son écriture d'espèces : laisser
     l'une sans l'autre fausserait soit le portefeuille, soit le solde."""
     operation = get_operation(db, operation_titre.operation_id)
+    titre_id = operation_titre.titre_id
     db.delete(operation_titre)
     if operation is not None:
         db.delete(operation)
     db.commit()
+    supprimer_titres_sans_mouvement(db, [titre_id])
 
 
 # ---------- Import bancaire ----------

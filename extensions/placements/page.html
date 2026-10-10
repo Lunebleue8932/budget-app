@@ -652,6 +652,26 @@
                  le même mouvement figure sur le relevé du courtier et sur celui du
                  compte courant. Même forme que « Ressemblances » côté bancaire —
                  la ligne, puis ce à quoi elle ressemble juste en dessous. -->
+            <!-- LES VIREMENTS RECONNUS : un transfert qui décrit une jambe de virement déjà
+                 en base (écrite depuis le relevé de l'autre compte). « Même virement ? »
+                 doit être tranché avant de confirmer (cf. implJambeEnJeu). -->
+            <div id="impl-apercu-section-jambe" style="display:none">
+              <h4>Virements reconnus — <span id="impl-apercu-nombre-jambe"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.virements-reconnus">i</i></h4>
+              <div class="actions">
+                <button type="button" id="btn-impl-jambes-tout-oui">Oui pour toutes</button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Même virement ?</th><th>Ligne</th><th>Date</th><th>Montant</th>
+                    <th>Compte émetteur</th><th>Compte récepteur</th><th>Virement connu</th>
+                    <th>Actions</th><th>Sélection</th>
+                  </tr>
+                </thead>
+                <tbody id="impl-apercu-liste-jambe"></tbody>
+              </table>
+            </div>
+
             <div id="impl-apercu-section-ressemblance" style="display:none">
               <h4>Transferts déjà connus — <span id="impl-apercu-nombre-ressemblance"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="import-placements.transferts-deja-connus-ligne-s">i</i></h4>
               <table>

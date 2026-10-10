@@ -87,7 +87,10 @@ extension ne fait donc perdre ni un preset, ni un historique, ni une ligne du
 stock anti-doublons — tout revient intact à la réactivation.
 """
 from datetime import date as date_type
+from types import SimpleNamespace
 from typing import Optional
+
+from fastapi import HTTPException
 
 from app import crud, models, schemas
 from app.constants import (
@@ -802,6 +805,8 @@ def previsualiser(
                 )
         lignes.append(ligne)
 
+    lignes = _avec_jambes(contexte, lignes, preset_id)
+
     return ApercuPlacements(
         lignes=lignes,
         titres_a_creer=_titres_a_creer(lignes),
@@ -819,6 +824,86 @@ def previsualiser(
         ),
         avertissements=avertissements_configuration(preset, lignes),
     )
+
+
+# ---------- Les jambes de virement déjà en base ----------
+#
+# LE MÊME SYSTÈME QUE L'IMPORT BANCAIRE (cf. import_bancaire.detecter_jambes_manquantes) :
+# un virement du compte courant vers le compte-titres, importé depuis le relevé BANCAIRE, a
+# déjà ses deux jambes. Le relevé du compte-titres redécrit ensuite la sienne. Sans ce
+# rapprochement, il n'était qu'une « ressemblance » consultative, et la même question
+# revenait à chaque import du même relevé. Répondre « Oui » pose un TÉMOIN au stock : la
+# ligne devient un doublon ordinaire pour les imports suivants.
+
+
+def _comme_ligne_bancaire(ligne: LignePlacement) -> SimpleNamespace:
+    """Un transfert sous la forme que le détecteur du noyau lit : il ne regarde que le
+    compte, la date, le sens, le montant et la monnaie — un relevé de compte-titres n'en
+    donne qu'une, et aucun montant « envoyé » à côté."""
+    return SimpleNamespace(
+        ligne=ligne.ligne,
+        doublon_de=ligne.doublon_de,
+        statut_import=None,
+        compte_id=ligne.compte_id,
+        date=ligne.date,
+        montant_signe=ligne.montant_signe,
+        montant=ligne.montant,
+        montant_envoye=None,
+        montant_hors_frais=None,
+        montant_envoye_hors_frais=None,
+        monnaie_operation_id=None,
+        monnaie_id=ligne.monnaie_id,
+        monnaie_envoyee_id=None,
+    )
+
+
+def _jambes_reconnues(db, lignes: list[LignePlacement], preset_id: int) -> dict:
+    """numéro de ligne -> jambe reconnue, pour les TRANSFERTS seulement : un achat ou une
+    vente n'est pas un virement entre deux comptes."""
+    transferts = [
+        _comme_ligne_bancaire(ligne)
+        for ligne in lignes
+        if ligne.type_placement is TypeOperationPlacement.transfert
+    ]
+    if not transferts:
+        return {}
+    return import_bancaire.detecter_jambes_manquantes(db, transferts, preset_id)
+
+
+def _adopter_la_jambe(
+    contexte: ContextePresetPlacement, ligne: LignePlacement, reconnue
+) -> LignePlacement:
+    """La ligne reconnue prend le compte d'en face de la jambe s'il n'a pas été choisi à la
+    main — c'est l'information que le relevé ne donne jamais — et porte la jambe pour
+    l'écran. Rien n'est décidé : c'est « Même virement ? » qui tranche."""
+    if ligne.compte_id_autre is None and reconnue.compte_en_face_id is not None:
+        ligne = _completer_ligne(
+            contexte, ligne.model_copy(update={"compte_id_autre": reconnue.compte_en_face_id})
+        )
+    return ligne.model_copy(
+        update={"jambe_manquante": import_bancaire._jambe_lisible(contexte.db, reconnue)}
+    )
+
+
+def _jambe_en_jeu(ligne: LignePlacement, reconnue) -> bool:
+    """La ligne est-elle encore ce que l'app a lu : un transfert vers le compte d'en face de
+    la jambe ? Sinon l'utilisateur a dit que l'app s'était trompée — « Non » d'office (même
+    règle que import_bancaire._jambe_en_jeu)."""
+    return (
+        ligne.type_placement is TypeOperationPlacement.transfert
+        and reconnue.compte_en_face_id is not None
+        and ligne.compte_id_autre == reconnue.compte_en_face_id
+    )
+
+
+def _avec_jambes(contexte: ContextePresetPlacement, lignes, preset_id: int):
+    reconnues = _jambes_reconnues(contexte.db, lignes, preset_id)
+    return [
+        _adopter_la_jambe(contexte, ligne, reconnues[ligne.ligne])
+        if ligne.ligne in reconnues
+        else ligne
+        for ligne in lignes
+    ]
 
 
 def _lecture_du_fichier(contexte, preset, contenu, delimiteur):
@@ -897,8 +982,8 @@ def _appliquer_override(
 
 def _titre_pour_ligne(
     db, contexte: ContextePresetPlacement, ligne: LignePlacement, crees: list[str]
-) -> models.TitrePossede:
-    """Le titre de cette ligne, CRÉÉ s'il n'existe pas encore.
+) -> tuple[Optional[models.TitrePossede], Optional[str]]:
+    """(le titre de cette ligne, CRÉÉ s'il n'existe pas encore ; ou None et pourquoi).
 
     La création se fait ici et pas à l'aperçu : un aperçu qu'on abandonne ne
     doit laisser aucun titre orphelin dans la liste.
@@ -912,13 +997,33 @@ def _titre_pour_ligne(
     (`par_isin` / `par_nom`), c'est lui qui répond aux lignes suivantes.
     """
     if ligne.titre_id is not None:
-        return crud.get_titre(db, ligne.titre_id)
+        titre = crud.get_titre(db, ligne.titre_id)
+        return titre, (None if titre is not None else "titre introuvable")
 
-    existant, _ = _rapprocher_titre(contexte, ligne.nom_valeur, ligne.code_isin)
+    existant, erreur = _rapprocher_titre(contexte, ligne.nom_valeur, ligne.code_isin)
+    if erreur:
+        return None, erreur
     if existant is not None:
-        return existant
+        return existant, None
 
     nom = _nom_du_titre_a_creer(ligne.nom_valeur, ligne.code_isin)
+    # DERNIÈRE VÉRIFICATION EN BASE, au nom EXACT et à l'ISIN, juste avant d'écrire : le
+    # contexte a été lu au début du fichier, et la base a pu bouger depuis (un autre écran,
+    # une confirmation précédente). Créer à l'aveugle se heurtait alors à l'unicité du nom et
+    # faisait échouer TOUT l'import, au milieu, ce qui était déjà écrit restant écrit.
+    deja = crud.get_titre_by_isin(db, ligne.code_isin) or crud.get_titre_by_nom(db, nom)
+    if deja is not None:
+        if ligne.code_isin and deja.code_isin and deja.code_isin != ligne.code_isin:
+            return None, (
+                f"« {deja.nom_affiche} » porte déjà le code ISIN {deja.code_isin}, "
+                f"le fichier annonce {ligne.code_isin} : choisis le titre à la main sur "
+                "cette ligne."
+            )
+        if deja.code_isin:
+            contexte.par_isin[deja.code_isin] = deja
+        contexte.par_nom[import_bancaire.normaliser_libelle(deja.nom)] = deja
+        return deja, None
+
     titre = crud.create_titre(
         db,
         nom=nom,
@@ -942,7 +1047,7 @@ def _titre_pour_ligne(
     if titre.code_isin:
         contexte.par_isin[titre.code_isin] = titre
     contexte.par_nom[import_bancaire.normaliser_libelle(titre.nom)] = titre
-    return titre
+    return titre, None
 
 
 def _type_titre_a_poser(db, contexte, ligne) -> Optional[int]:
@@ -979,7 +1084,9 @@ def _completer_isin(db, titre: models.TitrePossede, code_isin: str) -> None:
     s'agit seulement d'un titre saisi à la main avant que cette extension
     n'existe, que le premier relevé importé vient enrichir.
     """
-    if code_isin and not titre.code_isin:
+    # UN ISIN DÉJÀ PORTÉ PAR UN AUTRE TITRE ne se recopie pas : la ligne a été rattachée à
+    # celui-ci à la main, et l'unicité de l'ISIN ferait échouer tout l'import.
+    if code_isin and not titre.code_isin and crud.get_titre_by_isin(db, code_isin) is None:
         crud.update_titre(db, titre, code_isin=code_isin)
 
 
@@ -1033,10 +1140,58 @@ def confirmer(
         donnees_par_ligne[brute["ligne"]] = brute["donnees_completes"]
         lignes.append(ligne)
 
+    # LES RETOUCHES D'ABORD, puis les jambes reconnues — relues comme à l'aperçu, mais
+    # SEULEMENT pour les lignes que l'écran a montrées comme telles (une clé de
+    # `jambes_validees`) : une jambe que cette relecture trouverait seule n'a jamais été
+    # proposée, elle ne doit ni bloquer l'import ni écarter une ligne.
+    lignes = [
+        _appliquer_override(contexte, ligne, overrides.lignes.get(ligne.ligne))
+        if ligne.ligne not in overrides.lignes_supprimees
+        else ligne
+        for ligne in lignes
+    ]
+    reconnues = {
+        numero: jambe
+        for numero, jambe in _jambes_reconnues(
+            db,
+            [l for l in lignes if l.ligne not in overrides.lignes_supprimees],
+            preset_id,
+        ).items()
+        if numero in overrides.jambes_validees
+    }
+    lignes = [
+        _adopter_la_jambe(contexte, ligne, reconnues[ligne.ligne])
+        if ligne.ligne in reconnues
+        else ligne
+        for ligne in lignes
+    ]
+    # « MÊME VIREMENT ? » EST OBLIGATOIRE tant que la ligne est restée ce que l'app a lu :
+    # le défaut n'a le droit ni d'importer un virement qui existe peut-être déjà, ni de
+    # l'écarter. Vérifié AVANT toute écriture.
+    a_valider = [
+        ligne.ligne
+        for ligne in lignes
+        if ligne.ligne in reconnues
+        and _jambe_en_jeu(ligne, reconnues[ligne.ligne])
+        and overrides.jambes_validees.get(ligne.ligne) is None
+    ]
+    if a_valider:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Import bloqué : {len(a_valider)} transfert(s) ressemblent à un virement "
+                f"déjà connu et attendent ta validation (ligne "
+                f"{', '.join(str(n) for n in a_valider[:5])}{'…' if len(a_valider) > 5 else ''}). "
+                "Réponds « Oui » si c'est le même virement, « Non » sinon."
+            ),
+        )
+
     operations_creees = 0
     doublons_detectes = 0
     lignes_ignorees: list[LignePlacement] = []
     titres_crees: list[str] = []
+    # (données brutes, jambe existante) : les TÉMOINS des transferts reconnus (« Oui »).
+    a_temoigner: list[tuple[dict, int]] = []
     # (données brutes, id de l'opération créée) : le stock anti-doublons n'est
     # alimenté qu'APRÈS création réussie, pour que chaque ligne stockée pointe
     # vers une opération réelle. Une ligne supprimée à la main ou en erreur n'y
@@ -1053,7 +1208,18 @@ def confirmer(
         if ligne.ligne in overrides.lignes_supprimees:
             continue
 
-        ligne = _appliquer_override(contexte, ligne, overrides.lignes.get(ligne.ligne))
+        # « OUI » : la ligne décrit une jambe déjà en base. Pas d'opération — le virement
+        # ne doit exister qu'une fois —, un témoin au stock.
+        reconnue = reconnues.get(ligne.ligne)
+        if (
+            reconnue is not None
+            and _jambe_en_jeu(ligne, reconnue)
+            and overrides.jambes_validees.get(ligne.ligne) is True
+        ):
+            doublons_detectes += 1
+            a_temoigner.append((donnees_par_ligne[ligne.ligne], reconnue.operation.id))
+            continue
+
         if ligne.erreur:
             lignes_ignorees.append(ligne)
             continue
@@ -1070,9 +1236,11 @@ def confirmer(
             operations_creees += 2
             continue
 
-        titre = _titre_pour_ligne(db, contexte, ligne, titres_crees)
+        titre, erreur_titre = _titre_pour_ligne(db, contexte, ligne, titres_crees)
         if titre is None:
-            lignes_ignorees.append(ligne.model_copy(update={"erreur": "titre introuvable"}))
+            lignes_ignorees.append(
+                ligne.model_copy(update={"erreur": erreur_titre or "titre introuvable"})
+            )
             continue
         _completer_isin(db, titre, ligne.code_isin)
         # LE COURS ACTUEL, sur une photographie seulement. C'est le seul usage de
@@ -1144,6 +1312,18 @@ def confirmer(
             donnees=donnees,
             import_historique_id=historique.id,
             operation_id=operation_id,
+        )
+    # LES TÉMOINS : de vraies colonnes brutes, qui désignent une jambe que cet import n'a
+    # pas créée (`operation_non_creee`) — annuler l'import les retire sans toucher au
+    # virement (cf. import_bancaire.annuler_import).
+    for donnees, operation_id in a_temoigner:
+        crud.create_ligne_import_brute(
+            db,
+            preset_id=preset_id,
+            donnees=donnees,
+            import_historique_id=historique.id,
+            operation_id=operation_id,
+            operation_non_creee=True,
         )
 
     return ResultatPlacements(

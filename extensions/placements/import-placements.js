@@ -182,6 +182,35 @@ let implReglageSeparateurDecimal = null;
 // Retouches de l'aperçu, par numéro de ligne.
 const implOverrides = {};
 const implLignesSupprimees = new Set();
+/* « MÊME VIREMENT ? » pour chaque transfert reconnu comme une jambe déjà en base (cf.
+ * service_import_placements._avec_jambes) : true (Oui), false (Non), absent (à choisir).
+ * Même mécanique que l'import bancaire (cf. app.js, importJambesValidees) : si la ligne
+ * n'est plus un transfert vers le compte d'en face de la jambe, c'est « Non » d'office. */
+const implJambesValidees = {};
+
+function implJambeEnJeu(ligne) {
+  const jambe = ligne.jambe_manquante;
+  return (
+    jambe != null &&
+    ligne.type_placement === "transfert" &&
+    jambe.compte_en_face_id != null &&
+    ligne.compte_id_autre === jambe.compte_en_face_id
+  );
+}
+
+// true / false / null (à choisir) ; undefined si la ligne n'a pas de jambe.
+function implValidationJambe(ligne) {
+  if (ligne.jambe_manquante == null) return undefined;
+  if (!implJambeEnJeu(ligne)) return false;
+  return implJambesValidees[ligne.ligne] ?? null;
+}
+
+function implJambesAChoisir() {
+  if (!implApercu) return 0;
+  return implApercu.lignes.filter(
+    (l) => !implLignesSupprimees.has(l.ligne) && implValidationJambe(l) === null
+  ).length;
+}
 const implLignesSelectionnees = new Set();
 let implLigneEnEdition = null;
 
@@ -571,6 +600,7 @@ function reinitialiserImpl() {
   implApercu = null;
   Object.keys(implOverrides).forEach((k) => delete implOverrides[k]);
   implLignesSupprimees.clear();
+  Object.keys(implJambesValidees).forEach((k) => delete implJambesValidees[k]);
   implLignesSelectionnees.clear();
   implLigneEnEdition = null;
   implReglageDelimiteur = null;
@@ -646,6 +676,7 @@ async function analyserFichierImpl() {
   // du précédent ne veulent plus rien dire (les numéros peuvent avoir changé).
   Object.keys(implOverrides).forEach((k) => delete implOverrides[k]);
   implLignesSupprimees.clear();
+  Object.keys(implJambesValidees).forEach((k) => delete implJambesValidees[k]);
   implLignesSelectionnees.clear();
   implLigneEnEdition = null;
   try {
@@ -864,6 +895,7 @@ function implGroupes() {
     vente: [],
     transfert: [],
     doublon: [],
+    jambe: [],
     ressemblance: [],
     erreur: [],
   };
@@ -884,6 +916,9 @@ function implGroupes() {
         // détachent, comme partout ailleurs.
         if (ligne.erreur) groupes.erreur.push(ligne);
         else groupes.position.push(ligne);
+      } else if (ligne.jambe_manquante) {
+        // Une décision à prendre AVANT la ressemblance : l'app a reconnu le virement.
+        groupes.jambe.push(ligne);
       } else if (implSuspectsParLigne[ligne.ligne]) {
         groupes.ressemblance.push(ligne);
       } else if (transfertACompleter(ligne)) groupes.transfert.push(ligne);
@@ -1065,6 +1100,39 @@ function rendreSectionImpl(cle, lignes) {
           ${implCaseSelection(ligne)}
         </tr>${suspects}`;
       }
+      if (cle === "jambe") {
+        const jambe = ligne.jambe_manquante;
+        const emetteurJ = (ligne.montant_signe || 0) < 0;
+        const iciJ = implNomCompte(ligne.compte_id);
+        const faceJ = ligne.compte_id_autre
+          ? escapeHtml(implNomCompte(ligne.compte_id_autre))
+          : `<span class="badge-partiel">${t("à renseigner")}</span>`;
+        const valeur = implValidationJambe(ligne);
+        const enJeu = implJambeEnJeu(ligne);
+        const quand =
+          jambe.ecart_jours === 0
+            ? t("le même jour")
+            : t("à {n} jour(s) d'écart", { n: jambe.ecart_jours });
+        return `<tr class="import-doublon-nouvelle">
+          <td><select data-jambe="${ligne.ligne}" ${enJeu ? "" : "disabled"}
+                      title="${enJeu ? "" : escapeHtml(t("Le type ou le compte en face a été changé : la ligne n'est plus ce que l'app avait lu."))}">
+            <option value="" ${valeur === null ? "selected" : ""}>${t("À choisir")}</option>
+            <option value="oui" ${valeur === true ? "selected" : ""}>${t("Oui")}</option>
+            <option value="non" ${valeur === false ? "selected" : ""}>${t("Non")}</option>
+          </select></td>
+          <td>${ligne.ligne}</td>
+          <td>${escapeHtml(formatDate(ligne.date))}</td>
+          <td>${formatMontant(ligne.montant, ligne.monnaie_id)}</td>
+          <td>${emetteurJ ? escapeHtml(iciJ) : faceJ}</td>
+          <td>${emetteurJ ? faceJ : escapeHtml(iciJ)}</td>
+          <td>${escapeHtml(formatDate(jambe.date))} · ${escapeHtml(jambe.nature || "")} ·
+            <strong>${escapeHtml(jambe.compte_en_face_nom || "?")}</strong> → <strong>${escapeHtml(
+              jambe.compte_nom
+            )}</strong> <span class="hint">(${quand})</span></td>
+          ${implBoutonsLigne(ligne)}
+          ${implCaseSelection(ligne)}
+        </tr>`;
+      }
       if (cle === "transfert") {
         const emetteur = (ligne.montant_signe || 0) < 0;
         const ici = implNomCompte(ligne.compte_id);
@@ -1231,6 +1299,15 @@ function brancherEcouteursApercuImpl() {
       await rafraichirDoublonsTransferts();
     });
   });
+  bloc.querySelectorAll("select[data-jambe]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const numero = Number(select.dataset.jambe);
+      if (select.value === "oui") implJambesValidees[numero] = true;
+      else if (select.value === "non") implJambesValidees[numero] = false;
+      else delete implJambesValidees[numero];
+      updateBoutonsSelectionImpl();
+    });
+  });
   bloc.querySelectorAll("[data-selection]").forEach((input) => {
     input.addEventListener("change", () => {
       const numero = Number(input.dataset.selection);
@@ -1312,11 +1389,15 @@ function updateBoutonsSelectionImpl() {
   // La confirmation reste bloquée tant qu'une ligne est sélectionnée : c'est
   // ce qui force à trancher sur les doublons plutôt qu'à les importer par
   // inadvertance.
-  bouton.disabled = nb > 0;
+  // ET TANT QU'UN « MÊME VIREMENT ? » RESTE À CHOISIR : le serveur refuserait l'import.
+  const aChoisir = implJambesAChoisir();
+  bouton.disabled = nb > 0 || aChoisir > 0 || bouton.dataset.envoi === "1";
   blocage.textContent =
     nb > 0
       ? t("Supprime ou décoche les lignes sélectionnées pour pouvoir confirmer.")
-      : "";
+      : aChoisir > 0
+        ? t("Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s).", { n: aChoisir })
+        : "";
 }
 
 /* ---------- Confirmation ---------- */
@@ -1333,14 +1414,28 @@ async function confirmerImportImpl() {
       lignes: implOverrides,
       lignes_supprimees: [...implLignesSupprimees],
       comptes: {},
+      // Une clé par ligne que l'écran a montrée comme reconnue (null = à choisir).
+      jambes_validees: Object.fromEntries(
+        (implApercu?.lignes || [])
+          .filter((l) => l.jambe_manquante != null)
+          .map((l) => [l.ligne, implValidationJambe(l)])
+      ),
     })
   );
+  // UN SEUL ENVOI À LA FOIS : un double clic importait le fichier deux fois.
+  const bouton = document.getElementById("btn-impl-confirmer");
+  if (bouton.dataset.envoi === "1") return;
+  bouton.dataset.envoi = "1";
+  bouton.disabled = true;
   let resultat;
   try {
     resultat = await apiFetchForm(implUrl("/confirmer"), formData);
   } catch (err) {
     showMessage(err.message, "error");
     return;
+  } finally {
+    delete bouton.dataset.envoi;
+    updateBoutonsSelectionImpl();
   }
   afficherResultatImpl(resultat);
   reinitialiserImpl();
@@ -2390,3 +2485,11 @@ poserBoutonImportPlacements();
 document
   .getElementById("btn-impl-retour")
   .addEventListener("click", fermerImportPlacements);
+
+document.getElementById("btn-impl-jambes-tout-oui")?.addEventListener("click", () => {
+  if (!implApercu) return;
+  implApercu.lignes.filter(implJambeEnJeu).forEach((l) => {
+    implJambesValidees[l.ligne] = true;
+  });
+  renderImplApercu();
+});

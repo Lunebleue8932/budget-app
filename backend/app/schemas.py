@@ -1082,6 +1082,9 @@ class TitreRead(BaseModel):
     # Le nom du COURTIER, non modifiable : c'est lui qui identifie le titre d'un
     # import à l'autre. L'écran affiche `nom_affiche`.
     nom: str
+    # False dès qu'un mouvement le porte (cf. crud.titre_est_utilise) : l'écran grise
+    # alors « Supprimer » — le serveur refuse de toute façon.
+    supprimable: bool = True
     nom_affichage: Optional[str] = None
     # Le renommage s'il existe, le nom du courtier sinon : les écrans lisent
     # celui-ci et n'ont pas à refaire le choix chacun de leur côté.

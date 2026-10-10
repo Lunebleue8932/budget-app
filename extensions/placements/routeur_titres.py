@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app import crud, schemas
 from app.constants import AXES_EXPOSITION, AxeTitre
@@ -46,6 +46,7 @@ def _titre_read(titre) -> schemas.TitreRead:
         # `nom` identifie (c'est lui que l'import rapproche), `nom_affiche` se
         # lit, `code_isin` identifie mieux encore quand le fichier le porte.
         nom=titre.nom,
+        supprimable=not crud.titre_est_utilise(object_session(titre), titre.id),
         nom_affichage=titre.nom_affichage,
         nom_affiche=titre.nom_affiche,
         valeur=titre.valeur,

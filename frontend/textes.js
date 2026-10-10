@@ -565,6 +565,8 @@ const TEXTES = {
     "Chaque ligne jugée identique (hors colonnes exclues, cf. Configuration du fichier) à une ligne déjà importée sous ce preset est affichée ici, suivie en lecture seule de celle qu'elle double. Elles sont pré-sélectionnées pour être supprimées d'un clic — décoche-en une pour l'importer quand même (deux achats identiques le même jour sont un doublon détecté légitime).",
   "import-placements.transferts-deja-connus-ligne-s":
     "Ces transferts ressemblent à un virement déjà enregistré : même montant, mêmes comptes, à quelques jours près. C'est normal — le même mouvement figure sur le relevé du courtier et sur celui du compte courant. Seuls les virements qui touchent le compte de ce preset sont comparés. Rien n'est bloqué ni pré-sélectionné : toi seul sais si tu as vraiment fait deux fois le mouvement. Chaque ligne est suivie de ce à quoi elle ressemble.",
+  "import-placements.virements-reconnus":
+    "Ces transferts décrivent un virement que l'app connaît déjà : il a été enregistré depuis le relevé de l'autre compte, avec ce montant et ces comptes, à quelques jours près. Réponds « Oui » si c'est le même virement : la ligne n'est pas importée, et le prochain import de ce relevé la reconnaîtra tout seul. « Non » l'importe comme un nouveau virement.",
   "import-placements.lignes-en-erreur-ligne-s":
     "Ces lignes ne seront pas importées telles quelles. Corrige-les avec « Modifier », ou supprime-les de l'aperçu — le reste du fichier s'importe normalement.",
   "import-placements.conditions":

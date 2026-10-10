@@ -747,9 +747,10 @@ def test_un_transfert_se_rapproche_dun_virement_deja_en_base(db_session):
     suspect = reponse.resultats[0].suspects[0]
     assert suspect.source == "base"
     assert suspect.ecart_jours == 2
-    # Le compte d'en face est DÉDUIT du virement retrouvé : c'est ce qui évite
-    # de le ressaisir à la main.
-    assert suspect.compte_en_face == "CC Perso"
+    # Le compte d'en face est DÉDUIT du virement retrouvé, et c'est désormais la JAMBE
+    # reconnue qui le pose sur la ligne (cf. test_un_transfert_reconnait_la_jambe_deja_en_base) :
+    # la ressemblance n'a plus rien à proposer.
+    assert apercu.lignes[0].compte_id_autre == courant.id
 
 
 def test_un_achat_nest_jamais_candidat_au_rapprochement_de_virements(db_session):
@@ -970,10 +971,9 @@ def test_annuler_un_import_defait_mouvements_et_virements(db_session):
     assert db_session.query(models.Operation).all() == []
     assert _mouvements(db_session) == []
     assert crud.list_lignes_import_brutes(db_session, preset.id) == []
-    # Le TITRE créé reste : il ne porte plus aucun mouvement, mais l'effacer
-    # dépasserait ce qu'annuler un import veut dire (et la page Placements sait
-    # l'archiver).
-    assert len(crud.get_titres(db_session)) == 1
+    # LE TITRE PART AVEC SON DERNIER MOUVEMENT : l'import l'avait fait naître, l'annuler
+    # le défait (cf. crud.supprimer_titres_sans_mouvement).
+    assert crud.get_titres(db_session, inclure_archivees=True) == []
 
 
 def test_lhistorique_dun_preset_ne_montre_que_ses_imports(db_session):
@@ -1362,3 +1362,164 @@ def test_un_nom_daffichage_vide_rend_son_nom_au_titre(db_session):
     crud.update_titre(db_session, titre, nom_affichage="   ")
     assert titre.nom_affichage is None
     assert titre.nom_affiche == "TOTALENERGIES SE"
+
+
+# ---------- Le titre suit ses mouvements ----------
+
+
+ACHAT_SPDR = {
+    "date": "12/03/2026", "type": "Achat", "valeur": "SS SPDR MSCI EUR.",
+    "isin": "IE00BKWQ0P07", "montant": 2533.10, "quantite": 10, "cours": 253.31,
+}
+VENTE_SPDR = {
+    "date": "20/03/2026", "type": "Vente", "valeur": "SS SPDR MSCI EUR.",
+    "isin": "IE00BKWQ0P07", "montant": 1300.0, "quantite": 5, "cours": 260.0,
+}
+
+
+def test_supprimer_le_dernier_mouvement_supprime_le_titre(db_session):
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    _confirmer(db_session, preset, _fichier([ACHAT_SPDR]))
+
+    crud.delete_operation_titre(db_session, _mouvements(db_session)[0])
+
+    assert crud.get_titre_by_isin(db_session, "IE00BKWQ0P07") is None
+
+
+def test_un_titre_qui_garde_un_mouvement_reste_et_ne_se_supprime_pas(db_session):
+    """La vente supprimée (ou son import annulé), l'achat demeure : le titre a encore une
+    ligne active, il reste, et il ne se supprime pas à la main."""
+    routeur_titres = charger_module_extension("placements", "routeur_titres.py")
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    _confirmer(db_session, preset, _fichier([ACHAT_SPDR]))
+    vente = _confirmer(db_session, preset, _fichier([VENTE_SPDR]))
+
+    routeur.annuler_import(preset.id, vente.historique_id, db=db_session)
+
+    titre = crud.get_titre_by_isin(db_session, "IE00BKWQ0P07")
+    assert titre is not None
+    lu = [t for t in routeur_titres.list_titres(db=db_session) if t.id == titre.id][0]
+    assert lu.supprimable is False
+    with pytest.raises(HTTPException) as erreur:
+        routeur_titres.delete_titre(titre.id, db=db_session)
+    assert erreur.value.status_code == 409
+
+
+def test_un_isin_deja_porte_nest_pas_recopie_sur_le_titre_choisi_a_la_main(db_session):
+    """Rattacher une ligne à un AUTRE titre que celui de son ISIN ne doit pas lui coller cet
+    ISIN : l'unicité faisait échouer tout l'import, au milieu."""
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    autre = crud.create_titre(db_session, "Autre", compte.monnaie_principale_id)
+    crud.create_titre(
+        db_session, "SS SPDR MSCI EUR.", compte.monnaie_principale_id, code_isin="IE00BKWQ0P07"
+    )
+    overrides = schemas_pl.OverridesPlacements(
+        lignes={2: schemas_pl.LignePlacementOverride(titre_id=autre.id)}
+    )
+
+    resultat = _confirmer(db_session, preset, _fichier([ACHAT_SPDR]), overrides)
+
+    assert resultat.operations_creees == 1
+    assert crud.get_titre(db_session, autre.id).code_isin is None
+
+
+def test_un_titre_apparu_depuis_la_lecture_du_contexte_est_reutilise(db_session, monkeypatch):
+    """Le contexte est lu au début du fichier : un titre apparu depuis (même nom exact) est
+    retrouvé en base au lieu d'être recréé — l'INSERT se heurtait à l'unicité du nom."""
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    deja = crud.create_titre(db_session, "SS SPDR MSCI EUR.", compte.monnaie_principale_id)
+    reel = service.ContextePresetPlacement.__init__
+
+    def sans_titres(self, *args, **kwargs):
+        reel(self, *args, **kwargs)
+        self.par_nom = {}
+        self.par_isin = {}
+
+    monkeypatch.setattr(service.ContextePresetPlacement, "__init__", sans_titres)
+
+    resultat = _confirmer(db_session, preset, _fichier([ACHAT_SPDR]))
+
+    assert resultat.operations_creees == 1
+    assert resultat.titres_crees == []
+    assert _mouvements(db_session)[0].titre_id == deja.id
+
+
+# ---------- Les jambes de virement déjà en base ----------
+
+
+def _virement_depuis_le_courant(db, courant, compte, jour=date(2026, 3, 1), montant=2000.0):
+    crud.create_virement(
+        db,
+        schemas.VirementCreate(
+            date=jour,
+            compte_source_id=courant.id,
+            compte_destination_id=compte.id,
+            montant=montant,
+            monnaie_id=get_monnaie_id(db),
+        ),
+        courant,
+        compte,
+    )
+
+
+def _versement_reconnu(db):
+    compte = _compte_titres(db, solde_initial=0.0)
+    courant = creer_compte(db, "CC Perso", solde_initial=5000.0)
+    _virement_depuis_le_courant(db, courant, compte)
+    preset = _preset(db, compte)
+    contenu = _fichier([{"date": "03/03/2026", "type": "Versement", "montant": 2000.0}])
+    return courant, preset, contenu
+
+
+def test_un_transfert_reconnait_la_jambe_deja_en_base(db_session):
+    courant, preset, contenu = _versement_reconnu(db_session)
+
+    ligne = service.previsualiser(db_session, preset.id, contenu).lignes[0]
+
+    assert ligne.jambe_manquante is not None
+    assert ligne.jambe_manquante.ecart_jours == 2
+    # Le compte d'en face vient de la jambe : rien à ressaisir.
+    assert ligne.compte_id_autre == courant.id
+    assert ligne.erreur is None
+
+
+def test_sans_reponse_le_transfert_reconnu_bloque_l_import(db_session):
+    _, preset, contenu = _versement_reconnu(db_session)
+
+    with pytest.raises(HTTPException) as erreur:
+        _confirmer(
+            db_session, preset, contenu, schemas_pl.OverridesPlacements(jambes_validees={2: None})
+        )
+    assert erreur.value.status_code == 400
+    assert db_session.query(models.Operation).count() == 2
+
+
+def test_oui_n_importe_rien_et_le_prochain_import_reconnait_la_ligne(db_session):
+    """LE BUT : la même question ne revient pas à chaque import du même relevé."""
+    _, preset, contenu = _versement_reconnu(db_session)
+
+    resultat = _confirmer(
+        db_session, preset, contenu, schemas_pl.OverridesPlacements(jambes_validees={2: True})
+    )
+
+    assert resultat.operations_creees == 0
+    assert resultat.doublons_detectes == 1
+    assert db_session.query(models.Operation).count() == 2
+    relu = service.previsualiser(db_session, preset.id, contenu).lignes[0]
+    assert relu.doublon_de is not None
+    assert relu.jambe_manquante is None
+
+
+def test_non_importe_le_transfert_comme_un_nouveau_virement(db_session):
+    _, preset, contenu = _versement_reconnu(db_session)
+
+    resultat = _confirmer(
+        db_session, preset, contenu, schemas_pl.OverridesPlacements(jambes_validees={2: False})
+    )
+
+    assert resultat.operations_creees == 2
+    assert db_session.query(models.Operation).count() == 4
