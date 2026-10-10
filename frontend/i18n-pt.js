@@ -3308,3 +3308,4 @@ TRADUCTIONS.pt["Virement connu"] = "Transferência conhecida";
 TRADUCTIONS.pt["Oui pour toutes"] = "Sim para todas";
 TRADUCTIONS.pt["Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s)."] = "Responda « Mesma transferência? » para as {n} transferência(s) reconhecida(s).";
 TRADUCTIONS.pt["Des mouvements portent ce titre : archive-le plutôt."] = "Há movimentações neste título: arquive-o em vez disso.";
+TRADUCTIONS.pt["Ce titre figure dans la composition de : {etf}."] = "Este título faz parte da composição de: {etf}.";

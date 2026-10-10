@@ -316,7 +316,13 @@ function renderTitresSuivis() {
               ${titre.supprimable === false ? "disabled" : ""}
               title="${
                 titre.supprimable === false
-                  ? t("Des mouvements portent ce titre : archive-le plutôt.")
+                  ? (titre.cite_par || []).length
+                    ? escapeHtml(
+                        t("Ce titre figure dans la composition de : {etf}.", {
+                          etf: titre.cite_par.join(", "),
+                        })
+                      )
+                    : t("Des mouvements portent ce titre : archive-le plutôt.")
                   : ""
               }">
         ${t("Supprimer")}

@@ -2470,6 +2470,21 @@ def enregistrer_cours_en_ligne(
     return titre
 
 
+def etf_qui_citent(db: Session, titre: models.TitrePossede) -> list[models.TitrePossede]:
+    """Les AUTRES titres dont la composition (un ETF, migration 0076) cite celui-ci par son
+    ISIN. Filtré en Python : une colonne JSON écrite à None est un « null » JSON, pas un NULL
+    SQL, et la clé se compare normalisée (sans espaces, en capitales)."""
+    normaliser = lambda texte: str(texte or "").replace(" ", "").replace("\u00a0", "").upper()
+    isin = normaliser(titre.code_isin)
+    if not isin:
+        return []
+    return [
+        autre
+        for autre in db.query(models.TitrePossede).filter(models.TitrePossede.id != titre.id)
+        if autre.composition and any(normaliser(cle) == isin for cle in autre.composition)
+    ]
+
+
 def supprimer_titres_sans_mouvement(db: Session, titre_ids) -> list[str]:
     """Supprime ceux de ces titres qui n'ont plus AUCUN mouvement, et rend leurs noms.
 
@@ -2477,11 +2492,12 @@ def supprimer_titres_sans_mouvement(db: Session, titre_ids) -> list[str]:
     l'avait écrit) défait aussi la ligne de « Titres suivis » qu'il avait fait naître —
     sans quoi chaque essai d'import laissait derrière lui un titre vide, et le suivant
     retombait dessus. Tant qu'il en reste un, rien ne bouge : un titre qui a une ligne
-    active ne se supprime pas (cf. titre_est_utilise)."""
+    active ne se supprime pas (cf. titre_est_utilise). Ni un titre que la composition d'un
+    ETF cite (cf. etf_qui_citent) : l'éclatement de l'ETF dans les graphes le lit."""
     supprimes = []
     for titre_id in set(titre_ids or []):
         titre = get_titre(db, titre_id)
-        if titre is None or titre_est_utilise(db, titre_id):
+        if titre is None or titre_est_utilise(db, titre_id) or etf_qui_citent(db, titre):
             continue
         supprimes.append(titre.nom_affiche)
         db.delete(titre)

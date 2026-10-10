@@ -46,7 +46,11 @@ def _titre_read(titre) -> schemas.TitreRead:
         # `nom` identifie (c'est lui que l'import rapproche), `nom_affiche` se
         # lit, `code_isin` identifie mieux encore quand le fichier le porte.
         nom=titre.nom,
-        supprimable=not crud.titre_est_utilise(object_session(titre), titre.id),
+        supprimable=(
+            not crud.titre_est_utilise(object_session(titre), titre.id)
+            and not crud.etf_qui_citent(object_session(titre), titre)
+        ),
+        cite_par=[etf.nom_affiche for etf in crud.etf_qui_citent(object_session(titre), titre)],
         nom_affichage=titre.nom_affichage,
         nom_affiche=titre.nom_affiche,
         valeur=titre.valeur,
@@ -295,6 +299,18 @@ def delete_titre(titre_id: int, db: Session = Depends(get_db)):
                 f"« {titre.nom_affiche} » a des mouvements enregistrés : il ne peut pas être "
                 "supprimé sans réécrire les soldes du compte. Archive-le plutôt — il "
                 "quitte les listes, son historique et ses plus-values restent."
+            ),
+        )
+    # NI UN TITRE QU'UN ETF CITE : sa composition le lit pour éclater l'ETF dans les graphes
+    # (exposition par action), et l'effacer y laisserait un ISIN sans nom.
+    citants = crud.etf_qui_citent(db, titre)
+    if citants:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {titre.nom_affiche} » figure dans la composition de "
+                f"{', '.join(f'« {etf.nom_affiche} »' for etf in citants)} : retire-le de cette "
+                "composition avant de le supprimer."
             ),
         )
     crud.delete_titre(db, titre)

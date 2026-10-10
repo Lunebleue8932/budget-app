@@ -3949,6 +3949,7 @@ const TRADUCTIONS = {
     "Oui pour toutes": "Yes to all",
     "Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s).": "Answer “Same transfer?” for the {n} recognised transfer(s).",
     "Des mouvements portent ce titre : archive-le plutôt.": "Movements use this holding: archive it instead.",
+    "Ce titre figure dans la composition de : {etf}.": "This holding is part of the composition of: {etf}.",
   },
 };
 

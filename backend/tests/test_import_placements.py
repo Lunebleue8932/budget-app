@@ -1523,3 +1523,27 @@ def test_non_importe_le_transfert_comme_un_nouveau_virement(db_session):
 
     assert resultat.operations_creees == 2
     assert db_session.query(models.Operation).count() == 4
+
+
+def test_un_titre_cite_par_un_etf_ne_part_pas_avec_son_dernier_mouvement(db_session):
+    """La composition d'un ETF cite le titre par son ISIN : il reste, même sans mouvement,
+    et ne se supprime pas à la main tant qu'elle le cite."""
+    routeur_titres = charger_module_extension("placements", "routeur_titres.py")
+    compte = _compte_titres(db_session)
+    preset = _preset(db_session, compte)
+    _confirmer(db_session, preset, _fichier([ACHAT_SPDR]))
+    etf = crud.create_titre(db_session, "Mon ETF", compte.monnaie_principale_id)
+    crud.update_titre(
+        db_session, etf, composition={"ie00 bkwq0p07": 12.5}, composition_couverture_pct=60
+    )
+
+    crud.delete_operation_titre(db_session, _mouvements(db_session)[0])
+
+    titre = crud.get_titre_by_isin(db_session, "IE00BKWQ0P07")
+    assert titre is not None
+    lu = [t for t in routeur_titres.list_titres(db=db_session) if t.id == titre.id][0]
+    assert (lu.supprimable, lu.cite_par) == (False, ["Mon ETF"])
+    with pytest.raises(HTTPException) as erreur:
+        routeur_titres.delete_titre(titre.id, db=db_session)
+    assert erreur.value.status_code == 409
+    assert "Mon ETF" in erreur.value.detail
