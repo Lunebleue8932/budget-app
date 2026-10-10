@@ -82,23 +82,15 @@
          ses traits rouges, l'enveloppe de chaque catégorie) et le camembert en
          vue « Budget ». La vue « État actuel » n'a rien à faire ici.
 
-         UNE COMPARAISON, ET SUR LES MÊMES GRAPHES : deux mois, deux années ou
-         deux semaines. La période comparée est dessinée PAR-DESSUS, hachurée
-         et grisée — barres superposées, anneau dans l'anneau (cf. app.js,
-         « LA PÉRIODE COMPARÉE »). La période principale est celle de la barre
-         du haut de page ; seule la comparée a ses propres listes. -->
+         UNE COMPARAISON, ET SUR LES MÊMES GRAPHES : deux mois ou deux années.
+         La période comparée est dessinée PAR-DESSUS, hachurée et grisée — barres
+         superposées, anneau dans l'anneau (cf. app.js, « LA PÉRIODE COMPARÉE »).
+         La période principale est celle de la barre du haut de page, mois OU
+         année selon sa pastille : plus de liste « Période » qui redisait la même
+         chose (et la comparaison de deux semaines, peu utile, est partie avec
+         elle). Seule la comparée a ses propres listes. -->
     <h3>Tes dépenses face au budget<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.graphes">i</i></h3>
     <div class="selecteur-contexte ab-contexte ab-graphes-periode">
-      <label for="ab-graphes-vue">Période
-        <select id="ab-graphes-vue">
-          <option value="mois">Mois</option>
-          <option value="annee">Année</option>
-          <option value="semaine">Semaine</option>
-        </select>
-      </label>
-      <label for="ab-graphes-semaine" id="ab-graphes-semaine-bloc" style="display:none">Semaine
-        <select id="ab-graphes-semaine"></select>
-      </label>
       <label class="ab-comparer" for="ab-comparer">
         <input type="checkbox" id="ab-comparer" />
         Comparer avec
@@ -108,9 +100,6 @@
       </label>
       <label for="ab-cmp-mois" id="ab-cmp-mois-bloc" style="display:none">Mois
         <select id="ab-cmp-mois"></select>
-      </label>
-      <label for="ab-cmp-semaine" id="ab-cmp-semaine-bloc" style="display:none">Semaine
-        <select id="ab-cmp-semaine"></select>
       </label>
     </div>
     <!-- CE QUI EST PLEIN ET CE QUI EST HACHURÉ, en toutes lettres : sans cette

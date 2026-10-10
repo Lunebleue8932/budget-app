@@ -344,64 +344,30 @@ function abRenderImprevues(donnees) {
  * traits rouges des enveloppes sur les barres, et le camembert en vue
  * « Budget ». La vue « État actuel » reste au dashboard.
  *
- * TROIS GRANULARITÉS : le mois (celui de la barre du haut), son année, ou une
- * de ses semaines — les mêmes que sait découper le serveur (`/dashboard`,
- * `/dashboard?vue=annee`, `/dashboard/semaines`).
+ * DEUX GRANULARITÉS : le mois de la barre du haut, ou toute son année — c'est la
+ * pastille de cette barre qui choisit (cf. abRemplirContexte), comme au dashboard.
+ * Une liste « Période » le redisait juste en dessous : elle est partie, et avec
+ * elle la vue d'une semaine, dont la comparaison servait peu.
  *
  * UNE COMPARAISON FACULTATIVE, avec une période de la MÊME granularité : deux
- * mois, deux années, deux semaines. La seconde est dessinée PAR-DESSUS,
- * hachurée et grisée (cf. app.js, « LA PÉRIODE COMPARÉE »). Par défaut, la
- * période précédente — c'est la comparaison qu'on fait neuf fois sur dix.
+ * mois ou deux années. La seconde est dessinée PAR-DESSUS, hachurée et grisée
+ * (cf. app.js, « LA PÉRIODE COMPARÉE »). Par défaut, la période précédente —
+ * c'est la comparaison qu'on fait neuf fois sur dix.
  */
 const abGraphes = {
   vue: "mois",
-  semaine: null,
   comparer: false,
-  cmp: { annee: null, mois: null, semaine: null },
+  cmp: { annee: null, mois: null },
 };
-// Les semaines d'un mois, par « monnaie-année-mois » : la liste des semaines
-// d'un mois sert à la fois aux menus et aux barres, et ne change pas tant
-// qu'on ne recharge pas la page.
-let abSemainesCache = {};
 
-async function abSemainesDe(annee, mois) {
-  const cle = `${abMonnaieId}-${annee}-${mois}`;
-  if (!abSemainesCache[cle]) {
-    abSemainesCache[cle] = apiFetch(
-      `/dashboard/semaines?monnaie_id=${abMonnaieId}&annee=${annee}&mois=${mois}`
-    );
-  }
-  return abSemainesCache[cle];
-}
-
-function abLibelleSemaine(semaine) {
-  return `${semaine.jour_debut} → ${semaine.jour_fin}`;
-}
-
-function abLibellePeriode(p, semaine = null) {
+function abLibellePeriode(p) {
   if (p.vue === "annee") return String(p.annee);
-  const mois = `${MOIS_COURTS_FR[p.mois - 1]} ${p.annee}`;
-  if (p.vue === "semaine" && semaine) return `${mois}, ${abLibelleSemaine(semaine)}`;
-  return mois;
+  return `${MOIS_COURTS_FR[p.mois - 1]} ${p.annee}`;
 }
 
 /** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page — ou dans
- *  `monnaieId` (la fenêtre d'une monnaie éteinte, qui ne s'ouvre jamais sur une semaine). */
+ *  `monnaieId` (la fenêtre d'une monnaie éteinte). */
 async function abDepensesDe(p, monnaieId = abMonnaieId) {
-  if (p.vue === "semaine") {
-    const donnees = await abSemainesDe(p.annee, p.mois);
-    const semaines = donnees.semaines || [];
-    // `semaine` null = la dernière du mois (défaut de « la semaine d'avant »
-    // quand on est en première semaine).
-    const semaine =
-      semaines.find((s) => s.numero === p.semaine) || semaines[semaines.length - 1] || null;
-    return {
-      depenses: semaine ? semaine.depenses : [],
-      budgetTotal: semaine ? semaine.budget_total || 0 : 0,
-      libelle: abLibellePeriode(p, semaine),
-      bornes: semaine ? bornesPeriode({ vue: "mois", annee: p.annee, mois: p.mois, semaine }) : null,
-    };
-  }
   const url =
     p.vue === "annee"
       ? `/dashboard?annee=${p.annee}&vue=annee`
@@ -416,27 +382,20 @@ async function abDepensesDe(p, monnaieId = abMonnaieId) {
   };
 }
 
-/** La période principale : celle de la barre du haut, à la granularité choisie. */
+/** La période principale : celle de la barre du haut, à la granularité de sa pastille. */
 function abPeriodeGraphes() {
   return {
     vue: abGraphes.vue,
     annee: abPeriode.annee,
     mois: abPeriode.mois,
-    semaine: abGraphes.semaine,
   };
 }
 
 /* LA PÉRIODE PRÉCÉDENTE, défaut de la comparaison. */
 function abComparaisonParDefaut() {
   const p = abPeriodeGraphes();
-  if (p.vue === "annee") return { annee: p.annee - 1, mois: p.mois, semaine: null };
-  const precedent = p.mois === 1 ? { annee: p.annee - 1, mois: 12 } : { annee: p.annee, mois: p.mois - 1 };
-  if (p.vue === "semaine" && p.semaine > 1) {
-    return { annee: p.annee, mois: p.mois, semaine: p.semaine - 1 };
-  }
-  // En semaine 1, la précédente est la DERNIÈRE du mois d'avant (null, cf.
-  // abDepensesDe).
-  return { ...precedent, semaine: null };
+  if (p.vue === "annee") return { annee: p.annee - 1, mois: p.mois };
+  return p.mois === 1 ? { annee: p.annee - 1, mois: 12 } : { annee: p.annee, mois: p.mois - 1 };
 }
 
 function abAfficher(id, visible) {
@@ -446,38 +405,13 @@ function abAfficher(id, visible) {
 
 async function abRemplirControlesGraphes() {
   const vue = abGraphes.vue;
-  document.getElementById("ab-graphes-vue").value = vue;
   document.getElementById("ab-comparer").checked = abGraphes.comparer;
 
-  // La semaine principale : celles du mois de la barre du haut.
-  abAfficher("ab-graphes-semaine-bloc", vue === "semaine");
-  if (vue === "semaine") {
-    const semaines = (await abSemainesDe(abPeriode.annee, abPeriode.mois)).semaines || [];
-    if (!semaines.some((s) => s.numero === abGraphes.semaine)) {
-      // Par défaut la semaine d'aujourd'hui quand on regarde le mois en cours,
-      // la première sinon.
-      const aujourdhui = new Date();
-      const courante =
-        aujourdhui.getFullYear() === abPeriode.annee && aujourdhui.getMonth() + 1 === abPeriode.mois
-          ? semaines.find((s) => s.jour_debut <= aujourdhui.getDate() && aujourdhui.getDate() <= s.jour_fin)
-          : null;
-      abGraphes.semaine = (courante || semaines[0] || {}).numero ?? null;
-    }
-    fillSelect(
-      document.getElementById("ab-graphes-semaine"),
-      semaines.map((s) => ({ value: s.numero, label: abLibelleSemaine(s) }))
-    );
-    document.getElementById("ab-graphes-semaine").value = String(abGraphes.semaine);
-  }
-
-  // LE DÉFAUT DE LA COMPARAISON SE CALCULE ICI, une fois la semaine principale
-  // connue : « la semaine d'avant » n'a pas de sens avant.
   if (abGraphes.comparer && abGraphes.cmp.annee == null) abGraphes.cmp = abComparaisonParDefaut();
   // La période comparée : ses listes n'existent que si l'on compare.
   const cmp = abGraphes.cmp;
   abAfficher("ab-cmp-annee-bloc", abGraphes.comparer);
   abAfficher("ab-cmp-mois-bloc", abGraphes.comparer && vue !== "annee");
-  abAfficher("ab-cmp-semaine-bloc", abGraphes.comparer && vue === "semaine");
   if (!abGraphes.comparer) return;
   fillSelect(
     document.getElementById("ab-cmp-annee"),
@@ -489,17 +423,6 @@ async function abRemplirControlesGraphes() {
     MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
   );
   document.getElementById("ab-cmp-mois").value = String(cmp.mois);
-  if (vue === "semaine") {
-    const semaines = (await abSemainesDe(cmp.annee, cmp.mois)).semaines || [];
-    if (!semaines.some((s) => s.numero === cmp.semaine)) {
-      cmp.semaine = (semaines[semaines.length - 1] || {}).numero ?? null;
-    }
-    fillSelect(
-      document.getElementById("ab-cmp-semaine"),
-      semaines.map((s) => ({ value: s.numero, label: abLibelleSemaine(s) }))
-    );
-    document.getElementById("ab-cmp-semaine").value = String(cmp.semaine);
-  }
 }
 
 /**
@@ -507,11 +430,11 @@ async function abRemplirControlesGraphes() {
  * (cf. chargerConversionsDashboard) : l'éteinte n'a plus sa place dans la liste des monnaies,
  * et sans cette colonne l'argent parti vers elle ne se verrait nulle part. « Sur la page »,
  * on peut la choisir : la colonne serait un doublon. Lues dans la cascade de la monnaie de la
- * page, sur le mois ou l'année des graphes — pas sur une semaine, qu'une cascade ne découpe
- * pas. Le drill-through ouvre les graphiques de l'éteinte sur la même période.
+ * page, sur le mois ou l'année des graphes. Le drill-through ouvre les graphiques de l'éteinte
+ * sur la même période.
  */
 async function abConversions(p) {
-  if (modeMonnaiesEteintes() !== "popup" || p.vue === "semaine") return [];
+  if (modeMonnaiesEteintes() !== "popup") return [];
   if (!state.monnaies.some((m) => m.active === false)) return [];
   const requete =
     p.vue === "annee" ? `vue=annee&annee=${p.annee}` : `vue=mois&annee=${p.annee}&mois=${p.mois}`;
@@ -616,19 +539,6 @@ async function abRenderGraphes() {
   }
 }
 
-document.getElementById("ab-graphes-vue")?.addEventListener("change", (e) => {
-  abGraphes.vue = e.target.value;
-  // Changer de granularité change la question : la comparaison repart de la
-  // période précédente, dans la nouvelle unité.
-  abGraphes.cmp = { annee: null, mois: null, semaine: null };
-  // Les pastilles du haut suivent (une semaine est vue depuis son mois).
-  abRemplirContexte();
-  abRenderGraphes();
-});
-document.getElementById("ab-graphes-semaine")?.addEventListener("change", (e) => {
-  abGraphes.semaine = Number(e.target.value);
-  abRenderGraphes();
-});
 document.getElementById("ab-comparer")?.addEventListener("change", (e) => {
   abGraphes.comparer = e.target.checked;
   abRenderGraphes();
@@ -639,10 +549,6 @@ document.getElementById("ab-cmp-annee")?.addEventListener("change", (e) => {
 });
 document.getElementById("ab-cmp-mois")?.addEventListener("change", (e) => {
   abGraphes.cmp.mois = Number(e.target.value);
-  abRenderGraphes();
-});
-document.getElementById("ab-cmp-semaine")?.addEventListener("change", (e) => {
-  abGraphes.cmp.semaine = Number(e.target.value);
   abRenderGraphes();
 });
 
@@ -1165,7 +1071,7 @@ function abRemplirContexte() {
     if (hote) {
       // LES PASTILLES MOIS / ANNÉE, comme au dashboard, sur l'onglet « Budget » : elles
       // choisissent ce que les graphes regardent (le mois, ou toute son année — cf.
-      // abGraphes.vue, que la liste « Période » choisit aussi). Le budget du mois et les
+      // abGraphes.vue — c'est le SEUL sélecteur de granularité des graphes). Le budget du mois et les
       // budgets de catégorie restent propres au MOIS choisi : l'onglet des catégories garde
       // donc un niveau fixe, et sa propre copie de l'état pour ne pas imposer « mois » à
       // celui d'à côté.
@@ -1189,9 +1095,9 @@ function abRemplirContexte() {
           const niveauChange = graphes && nouvel.niveau !== avant.niveau;
           if (niveauChange) {
             // Changer de granularité change la question : la comparaison repart de la
-            // période précédente, dans la nouvelle unité (comme la liste « Période »).
+            // période précédente, dans la nouvelle unité.
             abGraphes.vue = nouvel.niveau === "annee" ? "annee" : "mois";
-            abGraphes.cmp = { annee: null, mois: null, semaine: null };
+            abGraphes.cmp = { annee: null, mois: null };
           }
           if (nouvel.annee !== avant.annee || nouvel.mois !== avant.mois) abCharger();
           else if (niveauChange) abRenderGraphes();
@@ -1268,9 +1174,7 @@ async function abCharger() {
     abRenderMatelas(matelas);
     abRenderImprevues(imprevues);
     // LES GRAPHES EN DERNIER : ils demandent leurs propres périodes, et ne
-    // doivent pas retarder les chiffres qu'on vient régler. Les semaines sont
-    // relues à chaque chargement — une opération a pu changer depuis.
-    abSemainesCache = {};
+    // doivent pas retarder les chiffres qu'on vient régler.
     abRenderGraphes();
 
   } catch (err) {
