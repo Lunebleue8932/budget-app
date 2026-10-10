@@ -96,20 +96,18 @@ const state = {
   // plus le type d'une catégorie et d'un booléen, il le lit. `code` est la clé
   // technique stable ; `nom` n'est qu'un libellé, renommable par l'utilisateur.
   typesOperation: [],
-  // Placements financiers : les titres suivis (table `action`, communs à tous
+  // Placements financiers : les titres suivis (table `titre_possede`, communs à tous
   // les comptes) et l'onglet de compte actuellement affiché.
-  actions: [],
+  titres: [],
   placementCompteId: null,
-  // {annee, mois, vue} -- `vue` ("mois" | "annee") est le niveau de
-  // l'arborescence des filtres qui pilote la période, piloté par les flèches du
-  // sélecteur (cf. initPeriodeSelector).
-  dashboardPeriode: { vue: "mois" },
-  // Le détail par semaine de l'histogramme, sous le sélecteur de mois.
-  // `ouvert` : la rangée de semaines est-elle dépliée. `choix` : le rang de la
-  // semaine regardée (1 pour la première du mois), la chaîne "moyenne", ou
-  // NULL — et null veut dire « le mois entier », l'état où l'histogramme est
-  // celui que le dashboard a toujours montré.
-  dashboardSemaines: { ouvert: false, choix: null },
+  // L'ARBRE DE PÉRIODE (cf. « L'arbre de période du dashboard ») : `niveau` dit
+  // ce que désigne la pastille (tout | annee | mois | semaine), `annee` / `mois` /
+  // `semaine` sont les références, `moyenne` l'interrupteur de la moyenne
+  // hebdomadaire, et `moisDeplie` / `semainesDeplie` les deux chevrons. `vue`
+  // (tout | annee | mois) est DÉRIVÉ du niveau : c'est la seule chose que le
+  // serveur, les objectifs et les monnaies connaissent — une semaine y est un
+  // mois dont on regarde une tranche.
+  dashboardPeriode: periodeInitialeDashboard(),
   // Les catégories DESSINÉES par l'histogramme et le camembert du dashboard —
   // `null` veut dire « toutes » (l'état par défaut, celui d'avant ce filtre).
   // Un Set de NOMS de catégorie, pas d'ids : c'est ce que porte chaque ligne
@@ -389,16 +387,6 @@ function appliquerVeillePeriode(elAnnees, elMois, vue) {
   if (elMois) elMois.classList.toggle("en-veille", vue === "annee" || vue === "tout");
 }
 
-// Sélecteur à deux niveaux (année puis mois), réutilisé sur le dashboard et la
-// page Catégories. `courant` est un objet mutable {annee, mois, vue} partagé
-// avec l'appelant : rempli au premier appel (dernière période connue, qui inclut
-// toujours le mois en cours côté backend), mis à jour aux clics.
-//
-// `elFleches` est facultatif : là où il est fourni (dashboard), le filtre peut
-// monter d'un cran et couvrir l'année entière, et `courant.vue` dit lequel des
-// deux niveaux pilote. Là où il ne l'est pas (page Catégories), il n'y a rien à
-// remonter — un budget est mensuel par nature — et le sélecteur se comporte
-// exactement comme avant.
 /**
  * La période sur laquelle une page s'ouvre : LE MOIS COURANT, et le plus récent
  * disponible seulement s'il manque à la liste.
@@ -418,73 +406,483 @@ function periodeParDefaut(periodes) {
   return periodes.find((p) => p.annee === annee && p.mois === mois) || periodes[0];
 }
 
-async function initPeriodeSelector(elAnnees, elMois, courant, onSelect, elFleches = null) {
-  const periodes = await apiFetch("/meta/periodes"); // triées desc par (année, mois)
-  if (periodes.length === 0) return;
-  if (!courant.annee) {
-    const defaut = periodeParDefaut(periodes);
-    courant.annee = defaut.annee;
-    courant.mois = defaut.mois;
+/* ---------- L'ARBRE DE PÉRIODE DU DASHBOARD : Tout > année > mois > semaines ----------
+ *
+ * QUATRE NIVEAUX, UNE SEULE PASTILLE. `etat.niveau` dit lequel pilote le
+ * dashboard — c'est la pastille bleue de la ligne correspondante. `annee`,
+ * `mois` et `semaine` sont des RÉFÉRENCES : l'année et le mois à partir
+ * desquels le niveau actif se lit. Tant qu'on était sur deux niveaux, les deux
+ * notions se confondaient et on ne savait plus dire pourquoi un clic en changeait
+ * un sans toucher à l'autre.
+ *
+ * LES TROIS GESTES, ET RIEN D'AUTRE (cf. `transitionPeriode`) :
+ *   - cliquer un élément PLUS BAS que la pastille (une semaine alors qu'elle est
+ *     sur le mois) fait DESCENDRE la pastille dessus ;
+ *   - cliquer un élément PLUS HAUT (une autre année alors qu'elle est sur le
+ *     mois) ne change QUE la référence : la pastille reste où elle est ;
+ *   - cliquer la PASTILLE d'une ligne y amène le niveau. Vers le haut, la
+ *     référence est gardée ; vers le bas, on arrive sur le mois ou la semaine EN
+ *     COURS — c'est ce que « descendre » veut dire quand on n'a rien choisi.
+ *
+ * LES CHEVRONS DÉPLIENT, ILS NE FILTRENT PAS : l'un montre les mois sous l'année,
+ * l'autre les semaines sous le mois. Replier une ligne qui porte la pastille la
+ * remonte d'un cran — on ne reste pas coincé sur un niveau qu'on ne voit plus.
+ *
+ * `vue` EST CE QUE LE SERVEUR CONNAÎT (« tout », « annee », « mois ») : la semaine
+ * n'est pas une vue de plus, c'est un mois dont on regarde une tranche, et le
+ * reste de l'application (objectifs, monnaies, conversion) n'a pas à le savoir.
+ */
+const NIVEAUX_PERIODE = ["tout", "annee", "mois", "semaine"];
+
+function rangNiveauPeriode(niveau) {
+  return NIVEAUX_PERIODE.indexOf(niveau);
+}
+
+function vueDuNiveau(niveau) {
+  return niveau === "semaine" ? "mois" : niveau;
+}
+
+/**
+ * Les semaines d'un mois, découpées comme le fait le serveur
+ * (soldes.semaines_du_mois) : du lundi au dimanche, coupées aux bords du mois.
+ * Recalculées ici parce qu'un geste doit savoir quelle est la semaine EN COURS
+ * sans attendre une réponse.
+ */
+function semainesDuMoisLocal(annee, mois) {
+  const dernier = new Date(annee, mois, 0).getDate();
+  const semaines = [];
+  let debut = 1;
+  while (debut <= dernier) {
+    const jourSemaine = (new Date(annee, mois - 1, debut).getDay() + 6) % 7; // lundi = 0
+    const fin = Math.min(debut + (6 - jourSemaine), dernier);
+    semaines.push({ numero: semaines.length + 1, debut, fin });
+    debut = fin + 1;
   }
-  if (elFleches && !courant.vue) courant.vue = "mois";
+  return semaines;
+}
 
-  function moisDisponibles(annee) {
-    return periodes
-      .filter((p) => p.annee === annee)
-      .map((p) => p.mois)
-      .sort((a, b) => a - b);
+function rangSemaineDuJour(annee, mois, jour) {
+  const semaine = semainesDuMoisLocal(annee, mois).find((s) => s.debut <= jour && jour <= s.fin);
+  return semaine ? semaine.numero : 1;
+}
+
+function periodeInitialeDashboard() {
+  return {
+    niveau: "mois",
+    vue: "mois",
+    annee: null,
+    mois: null,
+    semaine: null,
+    moyenne: false,
+    // Le dashboard s'ouvre sur le mois : sa ligne doit être là, sans quoi la
+    // pastille bleue n'aurait aucune ligne où se poser.
+    moisDeplie: true,
+    semainesDeplie: false,
+  };
+}
+
+/**
+ * L'état suivant, pour un geste. PURE : aucun accès au DOM ni au réseau, pour
+ * qu'on puisse la vérifier seule.
+ *
+ * `contexte` : `aujourdhui` (un Date) et `moisDisponibles(annee)`, les mois qui
+ * portent des opérations.
+ */
+function transitionPeriode(etat, geste, contexte) {
+  const suivant = { ...etat };
+  const { aujourdhui, moisDisponibles } = contexte;
+  const rang = () => rangNiveauPeriode(suivant.niveau);
+
+  switch (geste.type) {
+    case "annee": {
+      suivant.annee = geste.annee;
+      const dispo = moisDisponibles(geste.annee);
+      if (dispo.length && !dispo.includes(suivant.mois)) suivant.mois = dispo[dispo.length - 1];
+      // « Tout » est plus haut que l'année : l'année choisie fait descendre.
+      if (suivant.niveau === "tout") suivant.niveau = "annee";
+      break;
+    }
+    case "mois":
+      suivant.mois = geste.mois;
+      if (rang() < rangNiveauPeriode("mois")) suivant.niveau = "mois";
+      break;
+    case "semaine":
+      suivant.semaine = geste.semaine;
+      suivant.niveau = "semaine";
+      break;
+    case "pastille": {
+      const cible = rangNiveauPeriode(geste.niveau);
+      if (cible === rang()) break;
+      if (cible > rang() && (geste.niveau === "mois" || geste.niveau === "semaine")) {
+        // DESCENDRE PAR LA PASTILLE amène sur le mois et la semaine EN COURS.
+        suivant.annee = aujourdhui.getFullYear();
+        suivant.mois = aujourdhui.getMonth() + 1;
+        suivant.semaine = rangSemaineDuJour(suivant.annee, suivant.mois, aujourdhui.getDate());
+      }
+      suivant.niveau = geste.niveau;
+      break;
+    }
+    case "deplier":
+      if (geste.ligne === "mois") {
+        suivant.moisDeplie = !etat.moisDeplie;
+        if (!suivant.moisDeplie) {
+          suivant.semainesDeplie = false;
+          // La ligne qui porte la pastille se replie : elle remonte d'un cran.
+          if (rang() >= rangNiveauPeriode("mois")) suivant.niveau = "annee";
+        }
+      } else {
+        suivant.semainesDeplie = !etat.semainesDeplie;
+        if (suivant.semainesDeplie) suivant.moisDeplie = true;
+        else if (suivant.niveau === "semaine") suivant.niveau = "mois";
+      }
+      break;
+    case "moyenne":
+      // UNE MOYENNE PORTE SUR UN ENSEMBLE, pas sur une semaine : activée alors
+      // qu'on regarde une semaine, elle remonte la pastille au mois.
+      suivant.moyenne = !!geste.actif;
+      if (suivant.moyenne && suivant.niveau === "semaine") suivant.niveau = "mois";
+      break;
   }
 
-  function render() {
-    const annees = [...new Set(periodes.map((p) => p.annee))].sort((a, b) => b - a);
-    elAnnees.innerHTML = "";
-    annees.forEach((a) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = a;
-      if (a === courant.annee) btn.classList.add("active");
-      btn.addEventListener("click", () => {
-        courant.annee = a;
-        const dispo = moisDisponibles(a);
-        if (!dispo.includes(courant.mois)) courant.mois = dispo[dispo.length - 1];
-        render();
-        onSelect(courant.annee, courant.mois);
-      });
-      elAnnees.appendChild(btn);
-    });
+  // Les invariants, une fois pour toutes.
+  suivant.vue = vueDuNiveau(suivant.niveau);
+  if (rang() >= rangNiveauPeriode("mois")) suivant.moisDeplie = true;
+  if (suivant.niveau === "semaine") {
+    suivant.semainesDeplie = true;
+    suivant.moyenne = false;
+    const nombre = semainesDuMoisLocal(suivant.annee, suivant.mois).length;
+    suivant.semaine = Math.min(Math.max(suivant.semaine || 1, 1), nombre);
+  }
+  return suivant;
+}
 
-    elMois.innerHTML = "";
-    moisDisponibles(courant.annee).forEach((m) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = MOIS_COURTS_FR[m - 1];
-      if (m === courant.mois) btn.classList.add("active");
-      btn.addEventListener("click", () => {
-        courant.mois = m;
-        // Cliquer un mois grisé redescend au mois : c'est le geste naturel
-        // pour désigner celui qu'on veut voir, et il évite d'imposer un
-        // aller-retour par la flèche.
-        if (elFleches) courant.vue = "mois";
-        render();
-        onSelect(courant.annee, courant.mois);
-      });
-      elMois.appendChild(btn);
-    });
+// Les périodes qui portent des opérations (`/meta/periodes`), triées par
+// (année, mois) décroissant. Lues une fois par ouverture du dashboard.
+let dashboardPeriodesConnues = [];
 
-    if (elFleches) {
-      renderFlechesPeriode(elFleches, courant.vue, (vue) => {
-        if (vue === courant.vue) return;
-        courant.vue = vue;
-        render();
-        onSelect(courant.annee, courant.mois);
+function moisDisponiblesDashboard(annee) {
+  return dashboardPeriodesConnues
+    .filter((p) => p.annee === annee)
+    .map((p) => p.mois)
+    .sort((a, b) => a - b);
+}
+
+/** Ce qui change les DONNÉES du serveur : changer de semaine ne relit rien. */
+function cleDonneesPeriode(etat) {
+  if (etat.vue === "tout") return "tout";
+  if (etat.vue === "annee") return `annee:${etat.annee}`;
+  return `mois:${etat.annee}-${etat.mois}`;
+}
+
+async function appliquerGestePeriode(geste) {
+  const avant = { ...state.dashboardPeriode };
+  const apres = transitionPeriode(avant, geste, {
+    aujourdhui: new Date(),
+    moisDisponibles: moisDisponiblesDashboard,
+  });
+  Object.assign(state.dashboardPeriode, apres);
+  renderArbrePeriode();
+  if (cleDonneesPeriode(avant) !== cleDonneesPeriode(apres)) {
+    await loadDashboardData(apres.annee, apres.mois);
+  } else {
+    await majDetailSemaines(apres.annee, apres.mois);
+  }
+}
+
+/* ---------- L'ARBRE DE PÉRIODE, AILLEURS QU'AU DASHBOARD ----------
+ *
+ * LE MÊME SÉLECTEUR, SANS LES SEMAINES : la page Budget et les fenêtres (détail d'une
+ * monnaie éteinte, frais) choisissent leur période comme le dashboard — Tout, l'année, le
+ * mois, une pastille sur le niveau actif — plutôt qu'avec deux listes déroulantes. Un même
+ * geste se fait de la même façon partout.
+ *
+ * MÊME LOGIQUE (`transitionPeriode`), MÊMES CLASSES. Ce qui change :
+ *   - `annees()` et `moisDisponibles(annee)` disent ce qu'on peut choisir (la page Budget
+ *     propose les douze mois, une fenêtre seulement ceux qui ont des opérations) ;
+ *   - `avecTout` : la ligne « Tout » existe ou non ;
+ *   - `niveauFixe` : le niveau ne bouge pas (la page Budget parle toujours d'un MOIS) —
+ *     les pastilles disparaissent alors, l'année et le mois restent cliquables.
+ *
+ * `etat` ({niveau, vue, annee, mois, moisDeplie}) est modifié EN PLACE ; `surChangement`
+ * est appelé après chaque geste, avec l'état d'avant.
+ */
+function creerArbrePeriode(
+  hote,
+  { etat, annees, moisDisponibles, avecTout = true, niveauFixe = null, surChangement }
+) {
+  hote.innerHTML = "";
+  const cadre = document.createElement("div");
+  cadre.className = "periode-selecteur periode-selecteur-arbre periode-arbre-simple";
+  const racine = document.createElement("div");
+  racine.className = "periode-arbre";
+  racine.setAttribute("role", "radiogroup");
+  cadre.appendChild(racine);
+  hote.appendChild(cadre);
+
+  const normaliser = () => {
+    if (niveauFixe) etat.niveau = niveauFixe;
+    if (!avecTout && etat.niveau === "tout") etat.niveau = "annee";
+    const liste = annees();
+    if (liste.length && !liste.includes(etat.annee)) etat.annee = liste[0];
+    const dispo = moisDisponibles(etat.annee);
+    if (dispo.length && !dispo.includes(etat.mois)) etat.mois = dispo[dispo.length - 1];
+    etat.vue = vueDuNiveau(etat.niveau);
+    if (rangNiveauPeriode(etat.niveau) >= rangNiveauPeriode("mois")) etat.moisDeplie = true;
+  };
+
+  const geste = (g) => {
+    const avant = { ...etat };
+    const apres = transitionPeriode(
+      { ...etat, semaine: null, semainesDeplie: false, moyenne: false },
+      g,
+      { aujourdhui: new Date(), moisDisponibles }
+    );
+    Object.assign(etat, {
+      niveau: apres.niveau,
+      annee: apres.annee,
+      mois: apres.mois,
+      moisDeplie: apres.moisDeplie,
+    });
+    normaliser();
+    rendre();
+    surChangement(etat, avant);
+  };
+
+  const bouton = (texte, actif, onClick, classe = "") => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = texte;
+    if (classe) b.className = classe;
+    if (actif) b.classList.add("active");
+    b.addEventListener("click", onClick);
+    return b;
+  };
+
+  const ligne = (niveau, contenu, chevronEl = null) => {
+    const l = document.createElement("div");
+    l.className = `periode-ligne periode-ligne-${niveau}`;
+    const pastille = document.createElement("button");
+    pastille.type = "button";
+    pastille.className = "periode-pastille";
+    pastille.setAttribute("role", "radio");
+    const active = etat.niveau === niveau;
+    pastille.setAttribute("aria-checked", String(active));
+    if (active) pastille.classList.add("active");
+    pastille.title = t(LIBELLES_NIVEAU_PERIODE[niveau]);
+    pastille.setAttribute("aria-label", pastille.title);
+    pastille.addEventListener("click", () => geste({ type: "pastille", niveau }));
+    // UN NIVEAU FIXE n'a rien à choisir : la place de la pastille reste, vide, pour
+    // que les lignes gardent l'alignement du dashboard.
+    if (niveauFixe) pastille.style.visibility = "hidden";
+    l.appendChild(pastille);
+    const emplacement = document.createElement("span");
+    emplacement.className = "periode-chevron-place";
+    if (chevronEl) emplacement.appendChild(chevronEl);
+    l.appendChild(emplacement);
+    l.appendChild(contenu);
+    racine.appendChild(l);
+  };
+
+  function rendre() {
+    racine.innerHTML = "";
+    if (avecTout) {
+      const tout = document.createElement("div");
+      tout.className = "sous-onglets";
+      tout.appendChild(
+        bouton(t("Tout"), etat.niveau === "tout", () => geste({ type: "pastille", niveau: "tout" }), "periode-tout")
+      );
+      ligne("tout", tout);
+    }
+    const contenuAnnees = document.createElement("div");
+    contenuAnnees.className = "sous-onglets";
+    annees().forEach((a) => {
+      contenuAnnees.appendChild(
+        bouton(String(a), a === etat.annee && etat.niveau !== "tout", () => geste({ type: "annee", annee: a }))
+      );
+    });
+    let chevronEl = null;
+    if (!niveauFixe) {
+      chevronEl = document.createElement("button");
+      chevronEl.type = "button";
+      chevronEl.className = "periode-chevron";
+      chevronEl.innerHTML = etat.moisDeplie ? ICONE_CHEVRON_HAUT : ICONE_CHEVRON_BAS;
+      chevronEl.setAttribute("aria-expanded", String(!!etat.moisDeplie));
+      chevronEl.title = etat.moisDeplie ? t("Replier les mois") : t("Détailler par mois");
+      chevronEl.setAttribute("aria-label", chevronEl.title);
+      chevronEl.addEventListener("click", () => geste({ type: "deplier", ligne: "mois" }));
+    }
+    ligne("annee", contenuAnnees, chevronEl);
+    if (etat.moisDeplie || niveauFixe) {
+      const contenuMois = document.createElement("div");
+      contenuMois.className = "sous-onglets sous-onglets-mois";
+      moisDisponibles(etat.annee).forEach((m) => {
+        contenuMois.appendChild(
+          bouton(MOIS_COURTS_FR[m - 1], m === etat.mois && etat.niveau === "mois", () =>
+            geste({ type: "mois", mois: m })
+          )
+        );
       });
-      appliquerVeillePeriode(elAnnees, elMois, courant.vue);
+      ligne("mois", contenuMois);
     }
   }
 
-  render();
-  await onSelect(courant.annee, courant.mois);
+  normaliser();
+  rendre();
+  return { rendre: () => { normaliser(); rendre(); } };
 }
+
+const LIBELLES_NIVEAU_PERIODE = {
+  tout: "Afficher tout l'historique",
+  annee: "Afficher l'année",
+  mois: "Afficher le mois",
+  semaine: "Afficher la semaine",
+};
+
+/**
+ * Dessine l'arbre d'après `state.dashboardPeriode`, et rien d'autre. Appelée à
+ * chaque geste et à chaque chargement : le DOM est une image de l'état, jamais
+ * l'inverse.
+ */
+function renderArbrePeriode() {
+  const racine = document.getElementById("dashboard-periode-arbre");
+  if (!racine) return;
+  const p = state.dashboardPeriode;
+  racine.innerHTML = "";
+
+  const bouton = (texte, { actif = false, classe = "", titre = "", onClick }) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = texte;
+    if (classe) b.className = classe;
+    if (actif) b.classList.add("active");
+    if (titre) b.title = titre;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+
+  const pastille = (niveau, libelle) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "periode-pastille";
+    b.setAttribute("role", "radio");
+    const active = p.niveau === niveau;
+    b.setAttribute("aria-checked", String(active));
+    if (active) b.classList.add("active");
+    b.title = libelle;
+    b.setAttribute("aria-label", libelle);
+    b.addEventListener("click", () => appliquerGestePeriode({ type: "pastille", niveau }));
+    return b;
+  };
+
+  const chevron = (ligneCible, ouvert, libelleOuvrir, libelleReplier) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "periode-chevron";
+    b.innerHTML = ouvert ? ICONE_CHEVRON_HAUT : ICONE_CHEVRON_BAS;
+    b.setAttribute("aria-expanded", String(ouvert));
+    b.title = ouvert ? libelleReplier : libelleOuvrir;
+    b.setAttribute("aria-label", b.title);
+    b.addEventListener("click", () => appliquerGestePeriode({ type: "deplier", ligne: ligneCible }));
+    return b;
+  };
+
+  const ligne = (niveau, { chevronEl = null, contenu }) => {
+    const l = document.createElement("div");
+    l.className = `periode-ligne periode-ligne-${niveau}`;
+    l.dataset.niveau = niveau;
+    l.appendChild(pastille(niveau, t(LIBELLES_NIVEAU_PERIODE[niveau])));
+    // Un emplacement fixe pour le chevron, vide ou non : les pastilles restent
+    // alignées d'une ligne à l'autre.
+    const emplacement = document.createElement("span");
+    emplacement.className = "periode-chevron-place";
+    if (chevronEl) emplacement.appendChild(chevronEl);
+    l.appendChild(emplacement);
+    l.appendChild(contenu);
+    racine.appendChild(l);
+  };
+
+  // --- Tout ---
+  const contenuTout = document.createElement("div");
+  contenuTout.className = "sous-onglets";
+  contenuTout.appendChild(
+    bouton(t("Tout"), {
+      actif: p.niveau === "tout",
+      classe: "periode-tout",
+      titre: t("Toutes les périodes, sans borne de date"),
+      onClick: () => appliquerGestePeriode({ type: "pastille", niveau: "tout" }),
+    })
+  );
+  ligne("tout", { contenu: contenuTout });
+
+  // --- Années ---
+  const annees = [...new Set(dashboardPeriodesConnues.map((x) => x.annee))].sort((a, b) => b - a);
+  const contenuAnnees = document.createElement("div");
+  contenuAnnees.className = "sous-onglets";
+  annees.forEach((a) => {
+    contenuAnnees.appendChild(
+      bouton(String(a), {
+        actif: a === p.annee,
+        onClick: () => appliquerGestePeriode({ type: "annee", annee: a }),
+      })
+    );
+  });
+  ligne("annee", {
+    chevronEl: chevron("mois", p.moisDeplie, t("Détailler par mois"), t("Replier les mois")),
+    contenu: contenuAnnees,
+  });
+
+  // --- Mois (de l'année de référence) ---
+  if (p.moisDeplie) {
+    const contenuMois = document.createElement("div");
+    contenuMois.className = "sous-onglets sous-onglets-mois";
+    moisDisponiblesDashboard(p.annee).forEach((m) => {
+      contenuMois.appendChild(
+        bouton(MOIS_COURTS_FR[m - 1], {
+          actif: m === p.mois,
+          onClick: () => appliquerGestePeriode({ type: "mois", mois: m }),
+        })
+      );
+    });
+    ligne("mois", {
+      chevronEl: chevron(
+        "semaines",
+        p.semainesDeplie,
+        t("Détailler par semaine"),
+        t("Replier les semaines")
+      ),
+      contenu: contenuMois,
+    });
+  }
+
+  // --- Semaines (du mois de référence) ---
+  if (p.moisDeplie && p.semainesDeplie) {
+    const contenuSemaines = document.createElement("div");
+    contenuSemaines.className = "sous-onglets sous-onglets-mois";
+    // Les JOURS et non « S1 » : c'est la date qu'on a en tête en cherchant un
+    // achat, pas le rang de la semaine dans le mois.
+    semainesDuMoisLocal(p.annee, p.mois).forEach((s) => {
+      contenuSemaines.appendChild(
+        bouton(`${s.debut} → ${s.fin}`, {
+          actif: p.niveau === "semaine" && p.semaine === s.numero,
+          onClick: () => appliquerGestePeriode({ type: "semaine", semaine: s.numero }),
+        })
+      );
+    });
+    ligne("semaine", { contenu: contenuSemaines });
+  }
+
+  // L'interrupteur de moyenne : sans objet quand on regarde UNE semaine.
+  const caseMoyenne = document.getElementById("dashboard-periode-moyenne");
+  if (caseMoyenne) {
+    caseMoyenne.checked = !!p.moyenne;
+    caseMoyenne.disabled = p.niveau === "semaine";
+    caseMoyenne.closest("label")?.classList.toggle("desactive", p.niveau === "semaine");
+  }
+}
+
+document.getElementById("dashboard-periode-moyenne")?.addEventListener("change", (e) => {
+  appliquerGestePeriode({ type: "moyenne", actif: e.target.checked });
+});
 
 // Le symbole vient de la table `monnaie` (saisi par l'utilisateur, pas un code
 // ISO) : on formate le nombre à la française et on accole le symbole, plutôt
@@ -559,28 +957,7 @@ const ICONE_POUBELLE = `
   </svg>
 `;
 
-// Œil ouvert / barré : une colonne lue, ou ignorée. Même famille de tracé que
-// la poubelle ci-dessus, pour que les deux se ressemblent.
-const ICONE_OEIL = `
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
-       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-`;
-
-const ICONE_OEIL_BARRE = `
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
-       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M9.9 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a18.5 18.5 0 0 1-3 4.1" />
-    <path d="M6.6 6.6A18.5 18.5 0 0 0 2 12s3.5 7 10 7a10.8 10.8 0 0 0 5.4-1.4" />
-    <path d="M14.1 14.1a3 3 0 0 1-4.2-4.2" />
-    <path d="M3 3l18 18" />
-  </svg>
-`;
-
-// Loupe et chevrons de la recherche. Même famille que la poubelle et l'œil
-// ci-dessus — viewBox 24, trait de 2, bouts arrondis, `currentColor` — pour que
+// Loupe et chevrons de la recherche. Même famille que la poubelle ci-dessus — viewBox 24, trait de 2, bouts arrondis, `currentColor` — pour que
 // la barre du haut ne soit pas le seul endroit de l'app à porter un emoji, dont
 // la couleur et le dessin changent d'une plateforme à l'autre. En gris (la
 // couleur vient du bouton, cf. `.recherche button`), comme les deux autres.
@@ -1591,10 +1968,51 @@ document.getElementById("reglage-monnaie-defaut")?.addEventListener("change", as
   }
 });
 
+/* ---------- LES MONNAIES ÉTEINTES DANS LES GRAPHIQUES ----------
+ *
+ * DEUX FAÇONS DE LES MONTRER, au choix (Paramètres généraux), et le choix n'existe
+ * que si l'extension « Monnaies » tourne — sans elle, aucune monnaie ne s'éteint :
+ *
+ *   - « SUR LA PAGE » (le défaut) : un graphique par monnaie, comme toujours —
+ *     un par monnaie dans un projet, un onglet par monnaie au dashboard ;
+ *   - « EN POP-UP » : seules les monnaies ALLUMÉES ont leur graphique. Ce qui a
+ *     été converti vers (ou depuis) une monnaie éteinte y devient une colonne
+ *     grise « Conversion vers… », et cette colonne ouvre le détail de la monnaie
+ *     éteinte dans une fenêtre (cf. ouvrirFenetreMonnaieEteinte). Une monnaie
+ *     éteinte a par définition un solde nul : sa cascade se lit d'un bloc, de ce
+ *     qui est arrivé à ce qui en est reparti.
+ *
+ * DANS LE localStorage, comme le thème et la touche de gel : c'est une façon de
+ * regarder, propre au poste, et elle ne désigne aucune ligne de la base. */
+const CLE_MONNAIES_ETEINTES = "budget-app.graphes.monnaies-eteintes";
+
+function modeMonnaiesEteintes() {
+  if (!BudgetApp.extensions.estActive("monnaies")) return "page";
+  try {
+    return localStorage.getItem(CLE_MONNAIES_ETEINTES) === "popup" ? "popup" : "page";
+  } catch (err) {
+    return "page";
+  }
+}
+
+function monnaieEstEteinte(monnaieId) {
+  return (state.monnaies || []).some((m) => m.id === monnaieId && m.active === false);
+}
+
+document.getElementById("reglage-monnaies-eteintes")?.addEventListener("change", (e) => {
+  try {
+    localStorage.setItem(CLE_MONNAIES_ETEINTES, e.target.value);
+  } catch (err) {
+    // Stockage indisponible : le réglage vaut pour la session, rien de cassé.
+  }
+});
+
 function loadParametresGeneraux() {
   majAffichageTheme();
   majAffichageMonnaieDefaut();
   majAffichageToucheGel();
+  const choixMonnaiesEteintes = document.getElementById("reglage-monnaies-eteintes");
+  if (choixMonnaiesEteintes) choixMonnaiesEteintes.value = modeMonnaiesEteintes();
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
   if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();
@@ -1712,6 +2130,10 @@ function monnaiePreferee(ids) {
 
 async function refreshMonnaies() {
   state.monnaies = await apiFetch("/monnaies");
+  if (state.couleursConversions === undefined) {
+    const attributions = await lirePreference(CLE_COULEURS_CONVERSIONS);
+    state.couleursConversions = attributions && typeof attributions === "object" ? attributions : {};
+  }
   if (state.monnaieAffichageDefautId === undefined) {
     const valeur = await lirePreference(CLE_MONNAIE_AFFICHAGE);
     state.monnaieAffichageDefautId = Number.isInteger(valeur) ? valeur : null;
@@ -1852,22 +2274,22 @@ function renderComptesCards(
   });
 }
 
-// La vue du dashboard n'est plus une paire de boutons "Mois"/"Année" à part :
-// c'est le même couple de flèches que la page Opérations, porté par le
-// sélecteur de période lui-même (cf. initPeriodeSelector). La rangée de mois
-// n'est plus masquée en vue année, seulement grisée : elle continue de montrer
-// ce que l'année recouvre, et un clic dessus redescend au mois.
+// LA PÉRIODE SE CHOISIT DANS L'ARBRE (cf. renderArbrePeriode) : Tout, l'année, le
+// mois, les semaines — une seule pastille dit lequel pilote le dashboard.
 async function loadDashboard() {
   try {
     await refreshMonnaies();
     await loadNoteDashboard();
-    await initPeriodeSelector(
-      document.getElementById("dashboard-periode-annees"),
-      document.getElementById("dashboard-periode-mois"),
-      state.dashboardPeriode,
-      loadDashboardData,
-      document.getElementById("dashboard-periode-fleches")
-    );
+    dashboardPeriodesConnues = await apiFetch("/meta/periodes"); // triées desc par (année, mois)
+    if (dashboardPeriodesConnues.length === 0) return;
+    const p = state.dashboardPeriode;
+    if (!p.annee) {
+      const defaut = periodeParDefaut(dashboardPeriodesConnues);
+      p.annee = defaut.annee;
+      p.mois = defaut.mois;
+    }
+    renderArbrePeriode();
+    await loadDashboardData(p.annee, p.mois);
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -1878,23 +2300,39 @@ async function loadDashboardData(annee, mois) {
   // la requête est en vol doit déjà voir la BONNE période (cf.
   // dashboardAnneeMoisActuel, drillThroughCategorie).
   dashboardAnneeMoisActuel = { annee, mois };
+  // Les semaines et la moyenne se relisent avec le reste : une opération a pu
+  // changer depuis. Seul un geste de l'arbre qui ne change pas de données (une
+  // autre semaine du même mois) garde ce qu'on a déjà.
+  dashboardSemainesDonnees = null;
+  dashboardMoyenneDonnees = null;
   try {
+    const vue = state.dashboardPeriode.vue;
     const url =
-      state.dashboardPeriode.vue === "annee"
-        ? `/dashboard?annee=${annee}&vue=annee`
-        : `/dashboard?annee=${annee}&mois=${mois}`;
+      vue === "tout"
+        ? "/dashboard?vue=tout"
+        : vue === "annee"
+          ? `/dashboard?annee=${annee}&vue=annee`
+          : `/dashboard?annee=${annee}&mois=${mois}`;
     const data = await apiFetch(url);
+
+    // LES MONNAIES ÉTEINTES « EN POP-UP » (cf. modeMonnaiesEteintes) : seules les
+    // allumées ont un onglet ; ce qui a été converti vers une éteinte devient une
+    // colonne grise de l'histogramme et du camembert, qui ouvre son détail.
+    const enPopup = modeMonnaiesEteintes() === "popup";
+    const ongletPossible = (monnaieId) => !(enPopup && monnaieEstEteinte(monnaieId));
+    const kpisOnglets = data.kpis.filter((k) => ongletPossible(k.monnaie_id));
 
     // Un onglet par monnaie pilote tout le dashboard : les KPI et
     // l'histogramme. La sélection survit d'un rechargement à l'autre tant que
     // la monnaie existe encore.
-    if (!data.kpis.some((k) => k.monnaie_id === state.dashboardMonnaieId)) {
-      state.dashboardMonnaieId = monnaiePreferee(data.kpis.map((k) => k.monnaie_id));
+    if (!kpisOnglets.some((k) => k.monnaie_id === state.dashboardMonnaieId)) {
+      state.dashboardMonnaieId = monnaiePreferee(kpisOnglets.map((k) => k.monnaie_id));
     }
+    await chargerConversionsDashboard(enPopup, annee, mois);
 
     renderOngletsMonnaies(
       "dashboard-monnaies",
-      data.monnaies,
+      data.monnaies.filter((m) => ongletPossible(m.id)),
       state.dashboardMonnaieId,
       (choisie) => {
         state.dashboardMonnaieId = choisie;
@@ -1911,6 +2349,79 @@ async function loadDashboardData(annee, mois) {
   } catch (err) {
     showMessage(err.message, "error");
   }
+}
+
+/* ---------- Les conversions vers les monnaies éteintes, au dashboard ----------
+ *
+ * « EN POP-UP » SEULEMENT (cf. modeMonnaiesEteintes) : lues dans la cascade de la
+ * monnaie de l'onglet sur la période affichée (cf. services/cascade.py), au net des
+ * deux sens et aux montants enregistrés, avec deux drill-throughs — les virements, et
+ * le détail de la monnaie éteinte. `contexteGraphesDashboard` les ajoute aux barres de
+ * la période entière — pas à une semaine ni à une moyenne, qu'elles ne découpent pas.
+ *
+ * LES FRAIS DE VIREMENTS, EUX, VIENNENT DU SERVEUR avec les autres barres (cf.
+ * soldes._barre_frais_virements) : ils comptent dans « Total Dépenses », l'histogramme
+ * doit donc les porter lui-même, semaines comprises.
+ */
+let dashboardConversions = [];
+
+async function chargerConversionsDashboard(enPopup, annee, mois) {
+  dashboardConversions = [];
+  const monnaieId = state.dashboardMonnaieId;
+  if (!enPopup || monnaieId == null) return;
+  if (!(state.monnaies || []).some((m) => m.active === false)) return;
+  const vue = state.dashboardPeriode.vue;
+  const requete =
+    vue === "tout"
+      ? "vue=tout"
+      : vue === "annee"
+        ? `vue=annee&annee=${annee}`
+        : `vue=mois&annee=${annee}&mois=${mois}`;
+  try {
+    const cascade = await apiFetch(`/dashboard/cascade?monnaie_id=${monnaieId}&${requete}`);
+    const colonnes = cascade.colonnes || [];
+    const conversions = enPopup
+      ? colonnes
+          .filter((c) => c.genre === "conversion" && monnaieEstEteinte(c.monnaie_autre_id))
+          .map((c) =>
+            barreConversion(monnaieId, c, {
+              ouvrir: () => ouvrirFenetreMonnaieEteinte(c.monnaie_autre_id),
+              voirOperations: () => drillThroughConversion(monnaieId, c),
+            })
+          )
+      : [];
+    dashboardConversions = conversions;
+  } catch (err) {
+    // UN SUPPLÉMENT QUI TOMBE EN PANNE NE DOIT PAS AVALER LE DASHBOARD : les barres
+    // des catégories restent justes sans lui.
+    dashboardConversions = [];
+  }
+}
+
+/**
+ * « Voir les virements » d'une colonne de conversion : la page Opérations, onglet des
+ * virements, filtrée sur la période affichée et sur le sens du net — de la monnaie de
+ * l'onglet vers la monnaie éteinte, ou l'inverse.
+ */
+async function drillThroughConversion(monnaieId, colonne) {
+  const { annee, mois } = dashboardAnneeMoisActuel;
+  if (!annee) return;
+  const { debut, fin } = bornesPeriodeHistogramme(annee, mois);
+  const versAutre = colonne.montant < 0;
+  switchSection("operations");
+  await loadOperations();
+  document.querySelector('#operations-sous-nav button[data-sous-section="virements"]')?.click();
+  const panneau = document.getElementById("filtres-virements");
+  panneau.querySelector('[data-filtre="monnaieEnvoyeeId"]').value = String(
+    versAutre ? monnaieId : colonne.monnaie_autre_id
+  );
+  panneau.querySelector('[data-filtre="monnaieRecueId"]').value = String(
+    versAutre ? colonne.monnaie_autre_id : monnaieId
+  );
+  panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
+  panneau.querySelector('[data-filtre="dateFin"]').value = fin;
+  ouvrirFiltresOnglet("virements");
+  if (!synchroniserPeriodeAvecFiltres("virements")) trierEtRerender("virements");
 }
 
 /* ---------- Répartition des avoirs, page Vue globale des comptes ---------- */
@@ -2116,16 +2627,14 @@ function renderKpisDashboard(kpis) {
   // exact, lui, se lit dans le sélecteur de période juste en dessous.
   // `firstChild` et non `textContent` : la carte porte une pastille « i » que
   // réécrire tout le libellé emporterait.
-  const surLAnnee = state.dashboardPeriode.vue === "annee";
-  document.getElementById("kpi-variation-label").firstChild.nodeValue = surLAnnee
-    ? t("Variation sur l'année brute")
-    : t("Variation sur le mois brute");
+  const vueKpi = state.dashboardPeriode.vue;
+  document.getElementById("kpi-variation-label").firstChild.nodeValue =
+    LIBELLES_VARIATION[vueKpi].brute();
   // Le libellé de l'attribuée suit la même vue, pour la même raison : « au
   // mois » au-dessus d'un total ANNUEL n'est pas seulement imprécis, il annonce
   // le mauvais ordre de grandeur.
-  document.getElementById("kpi-variation-attribuee-label").firstChild.nodeValue = surLAnnee
-    ? t("Variation attribuée à l'année")
-    : t("Variation attribuée au mois");
+  document.getElementById("kpi-variation-attribuee-label").firstChild.nodeValue =
+    LIBELLES_VARIATION[vueKpi].attribuee();
 
   renderResteARembourser(kpis, monnaieId);
   renderFluxPeriode(kpis, monnaieId);
@@ -2133,6 +2642,23 @@ function renderKpisDashboard(kpis) {
   dashboardBudgetTotalDuMois = kpis.budget_total || 0;
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
+
+// Les deux libellés des variations, selon la vue : « au mois » au-dessus d'un total
+// ANNUEL — ou de toute l'histoire — annoncerait le mauvais ordre de grandeur.
+const LIBELLES_VARIATION = {
+  mois: {
+    brute: () => t("Variation sur le mois brute"),
+    attribuee: () => t("Variation attribuée au mois"),
+  },
+  annee: {
+    brute: () => t("Variation sur l'année brute"),
+    attribuee: () => t("Variation attribuée à l'année"),
+  },
+  tout: {
+    brute: () => t("Variation sur tout l'historique brute"),
+    attribuee: () => t("Variation attribuée à tout l'historique"),
+  },
+};
 
 /**
  * Total Entrées et Total Dépenses — deux des trois chiffres posés sous le
@@ -2309,21 +2835,20 @@ async function loadEcartVariations() {
   //
   // LA VUE ANNUELLE PASSE `mois` À VIDE, exactement comme le dashboard : les
   // deux variations s'y calculent sur douze mois, leur écart aussi.
-  const enAnnee = state.dashboardPeriode.vue === "annee";
+  const vue = state.dashboardPeriode.vue;
   const params = new URLSearchParams({ monnaie_id: monnaieId, annee });
-  if (!enAnnee) params.set("mois", mois);
+  if (vue === "tout") params.set("tout", "true");
+  else if (vue === "mois") params.set("mois", mois);
 
   try {
     const detail = await apiFetch(`/dashboard/ecart-variations?${params}`);
 
     // Les libellés suivent la vue, comme sur le dashboard : « au mois » au-dessus
     // d'un total annuel annoncerait le mauvais ordre de grandeur.
-    document.getElementById("ecart-attribuee-label").firstChild.nodeValue = enAnnee
-      ? t("Variation attribuée à l'année")
-      : t("Variation attribuée au mois");
-    document.getElementById("ecart-brute-label").firstChild.nodeValue = enAnnee
-      ? t("Variation sur l'année brute")
-      : t("Variation sur le mois brute");
+    document.getElementById("ecart-attribuee-label").firstChild.nodeValue =
+      LIBELLES_VARIATION[vue].attribuee();
+    document.getElementById("ecart-brute-label").firstChild.nodeValue =
+      LIBELLES_VARIATION[vue].brute();
 
     const ecrire = (id, valeur, colorer = true) => {
       const el = document.getElementById(id);
@@ -2580,8 +3105,204 @@ const PALETTE_CATEGORIES = [
  * les barres voisines : une couleur n'est reprise que si la catégorie qui la
  * portait a disparu.
  */
+// LA COULEUR DES ENTRÉES (cf. constants.COULEUR_INDEX_ENTREE, migration 0078) : un index
+// hors palette, écrit en base sur chaque catégorie d'entrée. Blanc sur le thème sombre,
+// noir sur le clair — la variable CSS suit le thème (cf. style.css, --couleur-entree).
+const COULEUR_INDEX_ENTREE = -1;
+
 function couleurCategorie(couleurIndex) {
-  return PALETTE_CATEGORIES[couleurIndex % PALETTE_CATEGORIES.length];
+  if (couleurIndex === COULEUR_INDEX_ENTREE) return "var(--couleur-entree)";
+  return PALETTE_CATEGORIES[Math.abs(couleurIndex) % PALETTE_CATEGORIES.length];
+}
+
+/** La couleur d'une barre, d'une tranche ou d'une ligne de légende : la sienne
+ *  quand elle en porte une (une conversion, cf. barreConversion), celle de sa
+ *  catégorie sinon. */
+function couleurBarre(d, i) {
+  if (d.colonne_speciale === "frais_virements") return GRIS_FRAIS;
+  return d.couleur || couleurCategorie(d.couleur_index ?? i);
+}
+
+/* ---------- LES CONVERSIONS VERS UNE AUTRE MONNAIE ----------
+ *
+ * LE GRIS LEUR EST RÉSERVÉ, dans toute l'application : aucune catégorie n'en
+ * porte (la palette ci-dessus n'en a pas), et une colonne grise se lit donc
+ * d'emblée comme « de l'argent parti dans une autre monnaie », jamais comme une
+ * dépense. UN GRIS PAR COUPLE DE MONNAIES, le même des deux côtés : la
+ * conversion « vers le franc » du graphique en euros et la conversion « depuis
+ * l'euro » du graphique en francs sont le même argent, vu des deux bouts, et se
+ * reconnaissent d'un graphique à l'autre.
+ *
+ * Des gris assez éloignés les uns des autres pour se distinguer côte à côte, et
+ * assez moyens pour se voir sur les deux thèmes. */
+const GRIS_CONVERSIONS = ["#9aa0a8", "#bcc0c6", "#858b93", "#cbced3", "#a9aeb5", "#777d85"];
+// LES FRAIS DE VIREMENTS INTERNES, gris eux aussi — de l'argent parti dans un
+// virement, pas une dépense — mais d'un gris plus SOMBRE qu'aucune conversion,
+// pour ne se confondre avec aucune.
+const GRIS_FRAIS = "#575c63";
+
+/* L'ATTRIBUTION EST PERMANENTE, ET RANGÉE EN BASE (`PreferenceInterface`, clé
+ * CLE_COULEURS_CONVERSIONS) : {"<id>-<id>": rang de gris}. Un couple reçoit, la première
+ * fois qu'on le dessine, le premier gris que personne n'a pris, et le garde — créer ou
+ * éteindre une monnaie ne repeint pas les conversions déjà vues. En base et non dans le
+ * navigateur : la clé désigne des identifiants de monnaie (cf. « Les rangements
+ * d'écran »). Lue avec les monnaies (refreshMonnaies). */
+const CLE_COULEURS_CONVERSIONS = "noyau.couleurs-conversions";
+
+function couleurConversion(monnaieA, monnaieB) {
+  const [bas, haut] = monnaieA < monnaieB ? [monnaieA, monnaieB] : [monnaieB, monnaieA];
+  const attributions = state.couleursConversions;
+  if (attributions && typeof attributions === "object") {
+    const cle = `${bas}-${haut}`;
+    if (attributions[cle] === undefined) {
+      const prises = new Set(Object.values(attributions));
+      let rang = 0;
+      while (prises.has(rang) && rang < GRIS_CONVERSIONS.length) rang++;
+      attributions[cle] = rang < GRIS_CONVERSIONS.length ? rang : prises.size;
+      ecrirePreference(CLE_COULEURS_CONVERSIONS, attributions);
+    }
+    return GRIS_CONVERSIONS[attributions[cle] % GRIS_CONVERSIONS.length];
+  }
+  // PAS ENCORE LUE (premier rendu) : le rang du couple parmi tous les couples, dans
+  // l'ordre des monnaies — rien n'est écrit tant que l'attribution n'est pas connue.
+  const ids = (state.monnaies || []).map((m) => m.id);
+  let rang = 0;
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const [x, y] = ids[i] < ids[j] ? [ids[i], ids[j]] : [ids[j], ids[i]];
+      if (x === bas && y === haut) return GRIS_CONVERSIONS[rang % GRIS_CONVERSIONS.length];
+      rang++;
+    }
+  }
+  return GRIS_CONVERSIONS[(bas + haut) % GRIS_CONVERSIONS.length];
+}
+
+/** « Conversion vers X » quand l'argent est parti (net négatif), « depuis X »
+ *  quand il est revenu. */
+function libelleConversion(montant, monnaieAutreId) {
+  const nom = monnaieParId(monnaieAutreId)?.nom || "?";
+  return montant < 0
+    ? t("Conversion vers {monnaie}", { monnaie: nom })
+    : t("Conversion depuis {monnaie}", { monnaie: nom });
+}
+
+/**
+ * Une colonne de conversion (cf. services/cascade.py) DANS LA FORME D'UNE BARRE
+ * D'HISTOGRAMME (`DepenseParCategorie`) : c'est ce qui permet à l'histogramme, au
+ * camembert et à la légende du noyau de la dessiner sans rien savoir d'elle, à sa
+ * couleur près.
+ *
+ * `ouvrir` ouvre le détail de la monnaie d'en face dans une fenêtre ;
+ * `voirOperations` (dashboard seulement) mène aux virements de la page
+ * Opérations. Ce sont les deux drill-throughs de son infobulle.
+ */
+function barreConversion(monnaieId, colonne, { ouvrir = null, voirOperations = null } = {}) {
+  const montant = Math.abs(colonne.montant);
+  return {
+    categorie: libelleConversion(colonne.montant, colonne.monnaie_autre_id),
+    total_reel: montant,
+    total_previsionnel: montant,
+    budget_alloue: 0,
+    objectif_pourcentage: 0,
+    // Les lignes DANS LE SENS DE LA BARRE : ce qui va dans le sens du net est positif,
+    // un change en sens inverse (de l'argent revenu) se lit en négatif.
+    top_depenses: (colonne.top || []).map((ligne) => ({
+      ...ligne,
+      montant: colonne.montant < 0 ? -ligne.montant : ligne.montant,
+    })),
+    couleur: couleurConversion(monnaieId, colonne.monnaie_autre_id),
+    conversion: {
+      monnaie_autre_id: colonne.monnaie_autre_id,
+      sens: colonne.montant < 0 ? "vers" : "depuis",
+      ouvrir,
+      voirOperations,
+    },
+  };
+}
+
+/**
+ * La colonne des FRAIS DE VIREMENTS INTERNES (cf. services/cascade.py), dans la
+ * forme d'une barre d'histogramme, comme une conversion. `ouvrir` ouvre la
+ * fenêtre qui les détaille, virement par virement (cf. ouvrirFenetreFrais).
+ */
+function barreFrais(colonne, { ouvrir = null } = {}) {
+  const montant = Math.abs(colonne.montant);
+  return {
+    categorie: t("Frais de virements internes"),
+    total_reel: montant,
+    total_previsionnel: montant,
+    budget_alloue: 0,
+    objectif_pourcentage: 0,
+    top_depenses: (colonne.top || []).map((ligne) => ({ ...ligne, montant: -ligne.montant })),
+    couleur: GRIS_FRAIS,
+    frais: { ouvrir },
+  };
+}
+
+/** Une colonne grise — conversion ou frais — porte sa propre infobulle. */
+function estColonneGrise(d) {
+  return Boolean(d.conversion || d.frais || d.colonne_speciale === "frais_virements");
+}
+
+/** L'infobulle d'une colonne grise : son total, ses plus grosses lignes, et ses
+ *  drill-throughs — le rendu partagé l'appelle à la place de celle d'une
+ *  catégorie (cf. attacherInfobulleCategorie, champ `actions`). */
+function contenuInfobulleConversion(d, monnaieId) {
+  // LA BARRE DE FRAIS QUE REND LE SERVEUR (cf. soldes._barre_frais_virements) : sans
+  // geste fourni par l'écran qui la dessine, elle ouvre le détail de toute la période.
+  if (d.colonne_speciale === "frais_virements" && !d.frais) {
+    d = { ...d, frais: { ouvrir: () => ouvrirFenetreFrais({ monnaieId }) } };
+  }
+  if (d.frais) {
+    return {
+      depense: d,
+      html: `<div class="histo-bulle-titre">${escapeHtml(d.categorie)}</div>
+        <ul class="histo-bulle-chiffres"><li><span class="histo-bulle-nature">${escapeHtml(
+          t("Total")
+        )}</span><span class="histo-bulle-montant">${formatMontant(
+          d.total_previsionnel,
+          monnaieId
+        )}</span></li></ul>
+        ${listeTopHtml(d.top_depenses, monnaieId)}
+        ${
+          d.frais.ouvrir
+            ? `<button type="button" class="histo-bulle-lien" data-action-bulle="ouvrir">${escapeHtml(
+                t("Voir le détail des frais")
+              )}</button>`
+            : ""
+        }`,
+      actions: { ouvrir: d.frais.ouvrir },
+    };
+  }
+  const { ouvrir, voirOperations, monnaie_autre_id: autre } = d.conversion;
+  const boutons = [];
+  if (voirOperations) {
+    boutons.push(
+      `<button type="button" class="histo-bulle-lien" data-action-bulle="operations">${t(
+        "Voir les virements"
+      )}</button>`
+    );
+  }
+  if (ouvrir) {
+    boutons.push(
+      `<button type="button" class="histo-bulle-lien" data-action-bulle="ouvrir">${escapeHtml(
+        t("Ouvrir le détail : {monnaie}", { monnaie: monnaieParId(autre)?.nom || "?" })
+      )}</button>`
+    );
+  }
+  return {
+    depense: d,
+    html: `<div class="histo-bulle-titre">${escapeHtml(d.categorie)}</div>
+      <ul class="histo-bulle-chiffres"><li><span class="histo-bulle-nature">${escapeHtml(
+        t("Total")
+      )}</span><span class="histo-bulle-montant">${formatMontant(
+        d.total_previsionnel,
+        monnaieId
+      )}</span></li></ul>
+      ${listeTopHtml(d.top_depenses, monnaieId)}
+      ${boutons.join("")}`,
+    actions: { operations: voirOperations, ouvrir },
+  };
 }
 
 /* LES DEUX VUES DU CAMEMBERT. Elles ne diffèrent que par leur DÉNOMINATEUR, et
@@ -2636,7 +3357,12 @@ function partsCategoriesDashboard(depenses, visibles, options = {}) {
   // Une catégorie à zéro ne DESSINE pas de tranche (un arc de longueur nulle
   // n'existe pas) mais garde sa barre et sa ligne de légende : elle a quelque
   // chose à dire — « aucune dépense sur la période ».
-  const tranches = retenues.filter((d) => d.total_previsionnel > 0);
+  // UNE CONVERSION « DEPUIS » une autre monnaie est de l'argent REVENU : elle a
+  // sa barre (son montant se lit) mais pas de tranche dans une répartition de ce
+  // qui est sorti.
+  const tranches = retenues.filter(
+    (d) => d.total_previsionnel > 0 && d.conversion?.sens !== "depuis"
+  );
   const total = tranches.reduce((somme, d) => somme + d.total_previsionnel, 0);
 
   // PAS DE BUDGET, PAS DE VUE BUDGET. Zéro veut dire « aucun budget posé » (cf.
@@ -2990,14 +3716,26 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
       if (infobulleGelee) return;
       annulerFermeture();
       derniereBulleInfobulle = bulle;
-      const { depense, html } = contenuPour(cible);
+      const { depense, html, actions } = contenuPour(cible);
       bulle.innerHTML = html;
-      // Le bouton est recréé avec le contenu, son écouteur aussi : c'est ce qui
-      // permet de capturer `depense` sans table de correspondance.
-      bulle.querySelector("[data-drill-through]")?.addEventListener("click", () => {
+      const fermerPuis = (geste) => () => {
         degelerInfobulle();
         bulle.classList.remove("visible");
-        drillThroughCategorie(depense);
+        geste();
+      };
+      // Le bouton est recréé avec le contenu, son écouteur aussi : c'est ce qui
+      // permet de capturer `depense` sans table de correspondance.
+      bulle
+        .querySelector("[data-drill-through]")
+        ?.addEventListener("click", fermerPuis(() => drillThroughCategorie(depense)));
+      // DES ACTIONS À ELLE, pour une bulle qui n'est pas celle d'une catégorie
+      // (une conversion vers une autre monnaie, cf. contenuInfobulleConversion) :
+      // chaque bouton `data-action-bulle` appelle la fonction du même nom.
+      Object.entries(actions || {}).forEach(([cle, geste]) => {
+        if (!geste) return;
+        bulle
+          .querySelector(`[data-action-bulle="${cle}"]`)
+          ?.addEventListener("click", fermerPuis(geste));
       });
       bulle.classList.add("visible");
       placerInfobulleHistogramme(bulle, container, e);
@@ -3166,12 +3904,16 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
 
   const largeurBande = (largeur - margeCote * 2) / depenses.length;
   const largeurBarre = Math.min(60, largeurBande * 0.55);
+  // LES NOMS SOUS LES BARRES DISPARAISSENT QUAND ILS SE MARCHERAIENT DESSUS : un nom de
+  // douze lettres demande environ 64 px. En dessous, la légende (posée sous chaque
+  // histogramme) nomme seule les couleurs — des noms empilés ne nomment plus rien.
+  const avecNoms = largeurBande >= 64;
 
   const barres = depenses
     .map((d, i) => {
       // `d.couleur_index`, pas `i` : la position dans cette liste change dès
       // qu'une catégorie est éteinte ou réordonnée, la couleur non.
-      const couleur = couleurCategorie(d.couleur_index ?? i);
+      const couleur = couleurBarre(d, i);
       const centreX = margeCote + largeurBande * i + largeurBande / 2;
       const x = centreX - largeurBarre / 2;
 
@@ -3242,7 +3984,11 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
           ${barrePrevisionnel}
           ${barreComparee}
           ${tickBudget}
-          <text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${label}</text>
+          ${
+            avecNoms
+              ? `<text x="${centreX}" y="${hauteur - margeBas + 18}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${label}</text>`
+              : ""
+          }
           <text class="histo-valeur" x="${centreX}" y="${yHaut - 6}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${d.total_previsionnel.toFixed(0)}</text>
         </g>
       `;
@@ -3268,6 +4014,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
     [...container.querySelectorAll("svg g[data-index]")],
     (groupe) => {
       const depense = depenses[Number(groupe.dataset.index)];
+      if (estColonneGrise(depense)) return contenuInfobulleConversion(depense, monnaieId);
       return {
         depense,
         html: contenuInfobulleCategorie(depense, monnaieId, {
@@ -3467,7 +4214,7 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts, options =
     .map((d, i) => {
       const fraction = d.total_previsionnel / reference;
       const longueur = fraction * circonference;
-      const couleur = couleurCategorie(d.couleur_index ?? i);
+      const couleur = couleurBarre(d, i);
       // LA TRANCHE SE COLORE LE LONG DE L'ANNEAU (cf. .camembert-part) : son
       // tiret part de zéro et s'allonge jusqu'à sa longueur, après le temps
       // qu'ont mis les tranches précédentes. Les deux valeurs voyagent en
@@ -3548,7 +4295,7 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts, options =
         .map((d, i) => {
           const fraction = d.total_previsionnel / refCompare;
           const longueur = fraction * circCompare;
-          const motif = motifHachure(couleurCategorie(d.couleur_index ?? i), "hachure-pie");
+          const motif = motifHachure(couleurBarre(d, i), "hachure-pie");
           motifs.push(motif.def);
           const cercle = `<circle class="camembert-part camembert-comparaison" data-index-compare="${i}" data-categorie="${escapeHtml(d.categorie)}" cx="${PIE_CENTRE_X}" cy="${PIE_CENTRE_Y}" r="${rayonCompare}"
             fill="none" stroke="url(#${motif.id})" stroke-width="${epaisseurCompare}"
@@ -3618,6 +4365,7 @@ function renderPieChartDepenses(depenses, monnaieId, container, parts, options =
         };
       }
       const depense = tranches[Number(cercle.dataset.index)];
+      if (estColonneGrise(depense)) return contenuInfobulleConversion(depense, monnaieId);
       const comparee = partsCompare?.retenues.find((d) => d.categorie === depense.categorie);
       return {
         depense,
@@ -3673,11 +4421,11 @@ function renderLegendeCategories(monnaieId, parts, container = null) {
       .map(
         (d, i) => `
         <li class="camembert-legende-ligne" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}">
-          <span class="camembert-pastille" style="background:${couleurCategorie(
-            d.couleur_index ?? i
-          )}"></span>
+          <span class="camembert-pastille" style="background:${couleurBarre(d, i)}"></span>
           <span class="camembert-legende-nom">${escapeHtml(libelleCategorie(d.categorie))}</span>
-          <span class="camembert-legende-part">${formatPourcentage(parts.part(d))}</span>
+          <span class="camembert-legende-part">${
+            d.conversion?.sens === "depuis" ? "" : formatPourcentage(parts.part(d))
+          }</span>
         </li>`
       )
       .join("")}</ul>
@@ -3688,6 +4436,7 @@ function renderLegendeCategories(monnaieId, parts, container = null) {
     [...container.querySelectorAll(".camembert-legende-ligne")],
     (ligne) => {
       const depense = lignes[Number(ligne.dataset.index)];
+      if (estColonneGrise(depense)) return contenuInfobulleConversion(depense, monnaieId);
       return {
         depense,
         html: contenuInfobulleCategorie(depense, monnaieId, {
@@ -3743,6 +4492,549 @@ function cablerSurbrillanceCategories() {
   });
 }
 
+/* ---------- LA CASCADE (waterfall) d'une monnaie ----------
+ *
+ * LE SERVEUR DÉCIDE DES MARCHES (services/cascade.py) : catégories au net,
+ * épargne, frais de virements internes, conversions. L'écran ne fait que les
+ * nommer — dans sa langue — et les dessiner, puis ajoute la dernière marche,
+ * « Solde », qui part de zéro.
+ *
+ * LES COULEURS SONT CELLES DU RESTE DE L'APPLICATION : toutes les catégories
+ * d'entrée dans le même vert, chaque catégorie de dépense dans la couleur de sa
+ * barre d'histogramme, le gris des conversions (cf. couleurConversion), le violet
+ * des comptes d'épargne.
+ *
+ * DEUX APPELANTS : la page d'un projet (une cascade par monnaie) et la fenêtre
+ * de détail d'une monnaie éteinte. `options.ouvrirConversion(monnaieAutreId)`
+ * rend, s'il y a lieu, le geste qui ouvre le détail de la monnaie d'en face.
+ */
+function libelleColonneCascade(colonne) {
+  if (colonne.genre === "epargne") {
+    return colonne.montant < 0
+      ? t("Vers l'épargne ou les placements")
+      : t("Depuis l'épargne ou les placements");
+  }
+  if (colonne.genre === "frais") return t("Frais de virements internes");
+  if (colonne.genre === "conversion") {
+    return libelleConversion(colonne.montant, colonne.monnaie_autre_id);
+  }
+  return libelleCategorie(colonne.libelle);
+}
+
+/** La couleur d'une marche : celle de sa catégorie (les entrées ont la leur, écrite en
+ *  base, cf. COULEUR_INDEX_ENTREE), le violet des comptes d'épargne, et les gris réservés
+ *  aux frais et aux conversions. Une seule fonction pour le graphe et sa légende. */
+function couleurColonneCascade(cascade, colonne) {
+  if (colonne.genre === "conversion") {
+    return couleurConversion(cascade.monnaie_id, colonne.monnaie_autre_id);
+  }
+  if (colonne.genre === "epargne") return "var(--compte-epargne)";
+  if (colonne.genre === "frais") return GRIS_FRAIS;
+  if (colonne.est_entree && (colonne.couleur_index ?? COULEUR_INDEX_ENTREE) >= 0) {
+    // Une ligne d'entrée qui n'est pas une catégorie (un prêt reçu, un remboursement) :
+    // la couleur des entrées, comme une catégorie d'entrée.
+    return couleurCategorie(COULEUR_INDEX_ENTREE);
+  }
+  return couleurCategorie(colonne.couleur_index ?? 0);
+}
+
+/**
+ * LA LÉGENDE D'UNE CASCADE : chaque marche, sa couleur et son montant. Posée entre la
+ * cascade et le camembert de la fenêtre d'une monnaie éteinte — elle nomme les couleurs
+ * des deux, et c'est la seule légende de la fenêtre quand elle s'ouvre depuis un projet.
+ */
+function renderLegendeCascade(cascade, container) {
+  if (!container) return;
+  const colonnes = cascade.colonnes || [];
+  container.innerHTML = colonnes.length
+    ? `<ul class="camembert-legende">${colonnes
+        .map(
+          (c) => `
+        <li class="camembert-legende-ligne"${
+          c.genre === "entree" || c.genre === "depense"
+            ? ` data-categorie="${escapeHtml(c.libelle)}"`
+            : ""
+        }>
+          <span class="camembert-pastille" style="background:${couleurColonneCascade(cascade, c)}"></span>
+          <span class="camembert-legende-nom">${escapeHtml(libelleColonneCascade(c))}</span>
+          <span class="camembert-legende-part">${formatMontant(c.montant, cascade.monnaie_id)}</span>
+        </li>`
+        )
+        .join("")}</ul>`
+    : "";
+}
+
+function renderCascade(cascade, container, options = {}) {
+  container.innerHTML = "";
+  const marches = [];
+  let niveau = 0;
+  (cascade.colonnes || []).forEach((colonne) => {
+    const marche = {
+      colonne,
+      libelle: libelleColonneCascade(colonne),
+      de: niveau,
+      a: niveau + colonne.montant,
+    };
+    marche.couleur = couleurColonneCascade(cascade, colonne);
+    marches.push(marche);
+    niveau += colonne.montant;
+  });
+  marches.push({
+    libelle: t("Solde"),
+    de: 0,
+    a: niveau,
+    classe: niveau < 0 ? "wf-deficit" : "wf-solde",
+    solde: true,
+  });
+
+  const largeur = Math.max(420, marches.length * 64 + 70);
+  // Une marge basse pour des libellés penchés assez longs pour garder le nom de la
+  // monnaie d'une conversion (« Conversion vers Franc s… » ne dirait plus rien).
+  const hauteur = 300;
+  const marge = { g: 8, d: 8, h: 22, b: 98 };
+  const valeurs = marches.flatMap((m) => [m.de, m.a]).concat(0);
+  const haut = Math.max(...valeurs);
+  const bas = Math.min(...valeurs);
+  const etendue = haut - bas || 1;
+  const y = (v) => marge.h + ((haut - v) / etendue) * (hauteur - marge.h - marge.b);
+  const pas = (largeur - marge.g - marge.d) / marches.length;
+  const epaisseur = Math.min(40, pas * 0.62);
+
+  const barres = marches
+    .map((m, i) => {
+      const x = marge.g + i * pas + (pas - epaisseur) / 2;
+      const y1 = y(Math.max(m.de, m.a));
+      const y2 = y(Math.min(m.de, m.a));
+      const cx = x + epaisseur / 2;
+      const delta = m.solde ? m.a : m.a - m.de;
+      const texte = `${delta < 0 ? "−" : m.solde ? "" : "+"}${formatMontant(
+        Math.abs(delta),
+        cascade.monnaie_id
+      )}`;
+      const etiquette = m.libelle.length > 20 ? `${m.libelle.slice(0, 19)}…` : m.libelle;
+      // Le raccord avec la marche suivante : un trait fin au niveau d'arrivée.
+      const raccord =
+        i < marches.length - 1 && !m.solde
+          ? `<line class="wf-raccord" x1="${x + epaisseur}" x2="${x + pas}" y1="${y(m.a)}" y2="${y(m.a)}" />`
+          : "";
+      // Toute la bande est survolable : une marche de 3 € fait un pixel de haut.
+      return `
+        <g class="wf-marche" data-index="${i}">
+          <rect x="${marge.g + i * pas}" y="${marge.h}" width="${pas}" height="${hauteur - marge.h - marge.b}" fill="transparent" />
+          <rect class="${m.classe || ""}" x="${x}" y="${y1}" width="${epaisseur}"
+                height="${Math.max(1, y2 - y1)}" rx="2"
+                ${m.couleur ? `style="fill:${m.couleur}"` : ""} />
+          ${raccord}
+          <text class="wf-valeur" x="${cx}" y="${y1 - 4}" text-anchor="middle">${escapeHtml(texte)}</text>
+          <text class="wf-libelle" transform="translate(${cx} ${hauteur - marge.b + 12}) rotate(40)">${escapeHtml(etiquette)}</text>
+        </g>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="waterfall-cadre">
+      <svg class="waterfall" viewBox="0 0 ${largeur} ${hauteur}" width="${largeur}" height="${hauteur}"
+           role="img" aria-label="${escapeHtml(t("Entrées et sorties"))}">
+        <line class="wf-zero" x1="${marge.g}" x2="${largeur - marge.d}" y1="${y(0)}" y2="${y(0)}" />
+        ${barres}
+      </svg>
+    </div>`;
+
+  // L'INFOBULLE DES MARCHES : le montant, et les plus grosses lignes qui le
+  // font. Celle d'une conversion porte en plus le geste qui ouvre le détail de
+  // la monnaie d'en face, quand l'appelant en fournit un.
+  // La bulle s'ancre sur le CONTENEUR et non sur le cadre qui défile : celui-ci
+  // la couperait à sa hauteur.
+  container.style.position = "relative";
+  attacherInfobulleCategorie(
+    container,
+    [...container.querySelectorAll("g.wf-marche")],
+    (groupe) => {
+      const m = marches[Number(groupe.dataset.index)];
+      const colonne = m.colonne;
+      const montant = m.solde ? m.a : colonne.montant;
+      const ouvrir =
+        colonne?.genre === "conversion" && options.ouvrirConversion
+          ? options.ouvrirConversion(colonne.monnaie_autre_id)
+          : colonne?.genre === "frais"
+            ? options.ouvrirFrais || null
+            : null;
+      return {
+        depense: null,
+        html: `<div class="histo-bulle-titre">${escapeHtml(m.libelle)}</div>
+          <ul class="histo-bulle-chiffres"><li><span class="histo-bulle-nature">${escapeHtml(
+            t("Total")
+          )}</span><span class="histo-bulle-montant">${formatMontant(
+            montant,
+            cascade.monnaie_id
+          )}</span></li></ul>
+          ${colonne ? listeTopHtml(colonne.top, cascade.monnaie_id) : ""}
+          ${
+            ouvrir
+              ? `<button type="button" class="histo-bulle-lien" data-action-bulle="ouvrir">${escapeHtml(
+                  colonne.genre === "frais"
+                    ? t("Voir le détail des frais")
+                    : t("Ouvrir le détail : {monnaie}", {
+                        monnaie: monnaieParId(colonne.monnaie_autre_id)?.nom || "?",
+                      })
+                )}</button>`
+              : ""
+          }`,
+        actions: { ouvrir },
+      };
+    }
+  );
+}
+
+/* ---------- LA FENÊTRE DE DÉTAIL D'UNE MONNAIE ÉTEINTE ----------
+ *
+ * Ouverte depuis une colonne grise « Conversion vers… » quand les monnaies
+ * éteintes s'affichent « en pop-up » (cf. modeMonnaiesEteintes). DEUX FORMES :
+ *
+ *   - `{ cascade }` (un projet) : la cascade est déjà là, la fenêtre la dessine ;
+ *   - `{ dashboard: true }` : la cascade ET le camembert de la monnaie sur la
+ *     période du dashboard, avec un sélecteur de période dans la fenêtre — seuls
+ *     les mois qui portent une opération dans cette monnaie y sont proposés.
+ *
+ * PAS D'HISTOGRAMME ICI : une monnaie éteinte a un solde nul, et c'est la
+ * cascade qui montre le mieux comment ce qui est arrivé en est reparti.
+ */
+const fenetreMonnaieEteinte = {
+  monnaieId: null,
+  niveau: "mois",
+  vue: "mois",
+  annee: null,
+  mois: null,
+  moisDeplie: true,
+  periodes: [],
+};
+
+function fermerFenetreMonnaieEteinte() {
+  document.getElementById("modale-monnaie-eteinte").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+}
+
+async function ouvrirFenetreMonnaieEteinte(
+  monnaieId,
+  { cascade = null, sousTitre = "", operationIds = null } = {}
+) {
+  const monnaie = monnaieParId(monnaieId);
+  document.getElementById("modale-monnaie-eteinte-titre").textContent = monnaie
+    ? `${monnaie.nom} (${monnaie.symbole})`
+    : "";
+  document.getElementById("modale-monnaie-eteinte-sous-titre").textContent = sousTitre;
+  const periode = document.getElementById("modale-monnaie-eteinte-periode");
+  const blocCamembert = document.getElementById("modale-monnaie-eteinte-camembert-bloc");
+  document.getElementById("modale-monnaie-eteinte").style.display = "";
+  document.body.classList.add("modale-ouverte");
+
+  if (cascade) {
+    periode.style.display = "none";
+    blocCamembert.style.display = "none";
+    renderCascade(cascade, document.getElementById("modale-monnaie-eteinte-cascade"), {
+      // Les frais de cette monnaie : la fenêtre des frais REMPLACE celle-ci.
+      ouvrirFrais: () => {
+        fermerFenetreMonnaieEteinte();
+        ouvrirFenetreFrais({ operationIds, sousTitre, monnaieId });
+      },
+    });
+    renderLegendeCascade(cascade, document.getElementById("modale-monnaie-eteinte-legende"));
+    return;
+  }
+
+  // AU DASHBOARD : la période de départ est celle qu'on regardait.
+  const p = state.dashboardPeriode;
+  Object.assign(fenetreMonnaieEteinte, {
+    monnaieId,
+    niveau: p.vue,
+    vue: p.vue,
+    annee: p.annee,
+    mois: p.mois,
+    moisDeplie: p.vue === "mois",
+  });
+  try {
+    fenetreMonnaieEteinte.periodes = await apiFetch(
+      `/dashboard/cascade/periodes?monnaie_id=${monnaieId}`
+    );
+  } catch (err) {
+    fenetreMonnaieEteinte.periodes = [];
+  }
+  periode.style.display = "";
+  // LE SÉLECTEUR DU DASHBOARD, SANS LES SEMAINES (cf. creerArbrePeriode), et seulement
+  // les mois où la monnaie a bougé : une période vide n'a rien à montrer.
+  const f = fenetreMonnaieEteinte;
+  creerArbrePeriode(periode, {
+    etat: f,
+    annees: () => [...new Set(f.periodes.map((x) => x.annee))].sort((a, b) => b - a),
+    moisDisponibles: (annee) =>
+      f.periodes.filter((x) => x.annee === annee).map((x) => x.mois).sort((a, b) => a - b),
+    surChangement: () => chargerFenetreMonnaieEteinte(),
+  });
+  await chargerFenetreMonnaieEteinte();
+}
+
+async function chargerFenetreMonnaieEteinte() {
+  const f = fenetreMonnaieEteinte;
+  const requete =
+    f.vue === "tout"
+      ? "vue=tout"
+      : f.vue === "annee"
+        ? `vue=annee&annee=${f.annee}`
+        : `vue=mois&annee=${f.annee}&mois=${f.mois}`;
+  const conteneurCascade = document.getElementById("modale-monnaie-eteinte-cascade");
+  const legende = document.getElementById("modale-monnaie-eteinte-legende");
+  const blocCamembert = document.getElementById("modale-monnaie-eteinte-camembert-bloc");
+  try {
+    const [cascade, dashboard] = await Promise.all([
+      apiFetch(`/dashboard/cascade?monnaie_id=${f.monnaieId}&${requete}`),
+      apiFetch(`/dashboard?${requete}`),
+    ]);
+    if (fenetreMonnaieEteinte.monnaieId !== f.monnaieId) return;
+    if ((cascade.colonnes || []).length === 0) {
+      conteneurCascade.innerHTML = `<span class="hint">${t("Aucune opération sur la période.")}</span>`;
+      legende.innerHTML = "";
+    } else {
+      renderCascade(cascade, conteneurCascade, {
+        ouvrirFrais: () => {
+          fermerFenetreMonnaieEteinte();
+          ouvrirFenetreFrais({
+            periode: { niveau: f.niveau, vue: f.vue, annee: f.annee, mois: f.mois },
+            monnaieId: f.monnaieId,
+          });
+        },
+      });
+      renderLegendeCascade(cascade, legende);
+    }
+    const kpis = (dashboard.kpis || []).find((k) => k.monnaie_id === f.monnaieId);
+    const depenses = kpis ? kpis.depenses_par_categorie : [];
+    const parts = partsCategoriesDashboard(depenses, new Set(depenses.map((d) => d.categorie)));
+    blocCamembert.style.display = parts.total > 0 ? "" : "none";
+    if (parts.total > 0) {
+      renderPieChartDepenses(
+        depenses,
+        f.monnaieId,
+        document.getElementById("modale-monnaie-eteinte-camembert"),
+        parts
+      );
+    }
+    cablerSurbrillanceCategories();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+document
+  .getElementById("btn-monnaie-eteinte-fermer")
+  ?.addEventListener("click", fermerFenetreMonnaieEteinte);
+document.getElementById("modale-monnaie-eteinte")?.addEventListener("click", (e) => {
+  // Un clic sur le fond (hors de la fenêtre) la referme, comme Échap.
+  if (e.target.id === "modale-monnaie-eteinte") fermerFenetreMonnaieEteinte();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const fond = document.getElementById("modale-monnaie-eteinte");
+  if (fond && fond.style.display !== "none" && !infobulleGelee) fermerFenetreMonnaieEteinte();
+});
+
+/* ---------- LA FENÊTRE DES FRAIS DE VIREMENTS INTERNES ----------
+ *
+ * Ouverte depuis une colonne grise « Frais de virements internes » (histogramme d'un
+ * projet ou du dashboard, cascade). Les virements qui ont coûté des frais, GROUPÉS
+ * PAR COUPLE DE MONNAIES — euros → francs et francs → euros ensemble, c'est le même
+ * change dans les deux sens —, chaque ligne mettant ses FRAIS en avant (dans leur
+ * monnaie) et rappelant en retrait les deux montants du virement.
+ *
+ * LES FILTRES SONT CEUX DE LA PAGE OPÉRATIONS : la période, les monnaies, les comptes.
+ * Tout est filtré ici, sur la liste que `/dashboard/frais-virements` rend en une fois.
+ * Depuis un projet, la fenêtre ne regarde que les virements du projet
+ * (`operationIds`).
+ */
+const fenetreFrais = {
+  tous: [],
+  operationIds: null,
+  niveau: "tout",
+  moisDeplie: false,
+  vue: "tout",
+  annee: null,
+  mois: null,
+  monnaies: null,
+  comptes: null,
+};
+
+function fraisDansPortee() {
+  const ids = fenetreFrais.operationIds;
+  return fenetreFrais.tous.filter(
+    (v) => !ids || ids.has(v.sortante.operation_id) || (v.entrante && ids.has(v.entrante.operation_id))
+  );
+}
+
+/** Les écritures d'une ligne de frais : les deux jambes d'un virement, ou l'opération
+ *  seule d'un compte d'épargne ou de placements. */
+function jambesFrais(v) {
+  return v.entrante ? [v.sortante, v.entrante] : [v.sortante];
+}
+
+function fermerFenetreFrais() {
+  document.getElementById("modale-frais-virements").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+}
+
+async function ouvrirFenetreFrais({ operationIds = null, sousTitre = "", periode = null, monnaieId = null } = {}) {
+  try {
+    fenetreFrais.tous = await apiFetch("/dashboard/frais-virements");
+    if (!state.comptes || state.comptes.length === 0) await refreshComptes();
+  } catch (err) {
+    showMessage(err.message, "error");
+    return;
+  }
+  Object.assign(fenetreFrais, {
+    operationIds: operationIds ? new Set(operationIds) : null,
+    niveau: periode ? periode.vue : "tout",
+    vue: periode ? periode.vue : "tout",
+    annee: periode ? periode.annee : null,
+    mois: periode ? periode.mois : null,
+    moisDeplie: !!periode && periode.vue === "mois",
+    monnaies: monnaieId != null ? new Set([monnaieId]) : null,
+    comptes: null,
+  });
+  document.getElementById("modale-frais-sous-titre").textContent = sousTitre;
+  document.getElementById("modale-frais-virements").style.display = "";
+  document.body.classList.add("modale-ouverte");
+
+  // Les menus ne proposent que ce que les virements de la portée touchent.
+  const portee = fraisDansPortee();
+  const monnaies = [...new Set(portee.flatMap((v) => jambesFrais(v).map((j) => j.monnaie_id)))];
+  const comptes = [...new Set(portee.flatMap((v) => jambesFrais(v).map((j) => j.compte_id)))];
+  const poserMenu = (conteneurId, cle, libelle, options) => {
+    creerMenuCases(document.getElementById(conteneurId), {
+      libelle,
+      options,
+      coches: fenetreFrais[cle] ? [...fenetreFrais[cle]] : options.map((o) => o.cle),
+      toutSelectionner: true,
+      onChange: (choisies) => {
+        fenetreFrais[cle] = choisies.size === options.length ? null : choisies;
+        renderFenetreFrais();
+      },
+    });
+  };
+  poserMenu(
+    "modale-frais-monnaies",
+    "monnaies",
+    t("Monnaies"),
+    (state.monnaies || [])
+      .filter((m) => monnaies.includes(m.id))
+      .map((m) => ({ cle: m.id, libelle: `${m.nom} (${m.symbole})` }))
+  );
+  poserMenu(
+    "modale-frais-comptes",
+    "comptes",
+    t("Comptes"),
+    state.comptes.filter((c) => comptes.includes(c.id)).map((c) => ({ cle: c.id, libelle: c.nom }))
+  );
+  majPeriodeFenetreFrais();
+  renderFenetreFrais();
+}
+
+/* LA PÉRIODE : le sélecteur du dashboard sans les semaines (cf. creerArbrePeriode), et
+ * seulement les mois où un virement de la portée a coûté des frais. */
+function majPeriodeFenetreFrais() {
+  const f = fenetreFrais;
+  const dates = () => fraisDansPortee().map((v) => v.date);
+  creerArbrePeriode(document.getElementById("modale-frais-periode"), {
+    etat: f,
+    annees: () => [...new Set(dates().map((d) => Number(d.slice(0, 4))))].sort((a, b) => b - a),
+    moisDisponibles: (annee) =>
+      [
+        ...new Set(
+          dates().filter((d) => Number(d.slice(0, 4)) === annee).map((d) => Number(d.slice(5, 7)))
+        ),
+      ].sort((a, b) => a - b),
+    surChangement: () => renderFenetreFrais(),
+  });
+}
+
+function renderFenetreFrais() {
+  const f = fenetreFrais;
+  const pad = (n) => String(n).padStart(2, "0");
+  const prefixe =
+    f.vue === "tout" ? "" : f.vue === "annee" ? `${f.annee}-` : `${f.annee}-${pad(f.mois)}-`;
+  const lignes = fraisDansPortee().filter(
+    (v) =>
+      v.date.startsWith(prefixe) &&
+      (!f.monnaies || jambesFrais(v).some((j) => f.monnaies.has(j.monnaie_id))) &&
+      (!f.comptes || jambesFrais(v).some((j) => f.comptes.has(j.compte_id)))
+  );
+  const conteneur = document.getElementById("modale-frais-liste");
+  if (lignes.length === 0) {
+    conteneur.innerHTML = `<p class="hint">${escapeHtml(t("Aucun frais de virement sur la période."))}</p>`;
+    return;
+  }
+
+  // UN GROUPE PAR COUPLE DE MONNAIES, dans les deux sens : la clé est le couple trié.
+  const groupes = new Map();
+  lignes.forEach((v) => {
+    const couple = [v.sortante.monnaie_id, (v.entrante || v.sortante).monnaie_id].sort((a, b) => a - b);
+    const cle = couple.join("-");
+    if (!groupes.has(cle)) groupes.set(cle, { couple, virements: [] });
+    groupes.get(cle).virements.push(v);
+  });
+  const nom = (id) => monnaieParId(id)?.nom || "?";
+  conteneur.innerHTML = [...groupes.values()]
+    .map(({ couple, virements }) => {
+      const titre = couple[0] === couple[1] ? nom(couple[0]) : `${nom(couple[0])} ↔ ${nom(couple[1])}`;
+      // Le total des frais du groupe, PAR MONNAIE : deux devises ne s'additionnent pas.
+      const totaux = new Map();
+      virements.forEach((v) => totaux.set(v.monnaie_frais_id, (totaux.get(v.monnaie_frais_id) || 0) + v.frais));
+      const total = [...totaux.entries()].map(([m, montant]) => formatMontant(montant, m)).join(" · ");
+      const rangees = virements
+        .map(
+          (v) => `
+          <tr>
+            <td>${formatDate(v.date)}</td>
+            <td class="frais-montant">${formatMontant(v.frais, v.monnaie_frais_id)}</td>
+            <td class="frais-virement">${
+              v.entrante
+                ? `${formatMontant(v.sortante.montant, v.sortante.monnaie_id)} → ${formatMontant(
+                    v.entrante.montant,
+                    v.entrante.monnaie_id
+                  )}
+              <span class="frais-comptes">${escapeHtml(nomCompte(v.sortante.compte_id))} → ${escapeHtml(
+                nomCompte(v.entrante.compte_id)
+              )}</span>`
+                : `${formatMontant(v.sortante.montant, v.sortante.monnaie_id)}
+              <span class="frais-comptes">${escapeHtml(nomCompte(v.sortante.compte_id))}</span>`
+            }</td>
+            <td class="frais-nature">${escapeHtml(v.nature)}</td>
+          </tr>`
+        )
+        .join("");
+      return `
+        <div class="frais-groupe">
+          <div class="frais-groupe-entete">
+            <span class="frais-groupe-titre">${escapeHtml(titre)}</span>
+            <span class="frais-groupe-total">${escapeHtml(t("Frais : {montant}", { montant: total }))}</span>
+          </div>
+          <table class="frais-table">
+            <thead><tr><th>${escapeHtml(t("Date"))}</th><th>${escapeHtml(t("Frais"))}</th><th>${escapeHtml(
+              t("Opération")
+            )}</th><th>${escapeHtml(t("Nature"))}</th></tr></thead>
+            <tbody>${rangees}</tbody>
+          </table>
+        </div>`;
+    })
+    .join("");
+}
+
+document.getElementById("btn-frais-fermer")?.addEventListener("click", fermerFenetreFrais);
+document.getElementById("modale-frais-virements")?.addEventListener("click", (e) => {
+  if (e.target.id === "modale-frais-virements") fermerFenetreFrais();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const fond = document.getElementById("modale-frais-virements");
+  if (fond && fond.style.display !== "none" && !infobulleGelee) fermerFenetreFrais();
+});
+
 /**
  * Année/mois RÉELLEMENT affichés par le dashboard, posés au moment même du
  * chargement plutôt que dérivés de `dashboardSemainesDonnees` (pas encore
@@ -3758,16 +5050,22 @@ let dashboardAnneeMoisActuel = { annee: null, mois: null };
  * Opérations.
  *
  * LA MOYENNE N'A PAS DE BORNES À ELLE : c'est une moyenne de semaines, pas une
- * semaine — retombe sur le mois entier qu'elle résume.
+ * semaine — elle retombe sur l'ensemble qu'elle résume (le mois, l'année ou tout).
  */
 function bornesPeriodeHistogramme(annee, mois) {
   const pad = (n) => String(n).padStart(2, "0");
-  if (state.dashboardPeriode.vue === "annee") {
-    return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+  const vue = state.dashboardPeriode.vue;
+  if (vue === "tout") {
+    // De la première année qui porte des opérations à la dernière : « tout » n'a
+    // pas de borne à lui, et Opérations en demande une.
+    const annees = dashboardPeriodesConnues.map((p) => p.annee);
+    return {
+      debut: `${annees.length ? Math.min(...annees) : annee}-01-01`,
+      fin: `${annees.length ? Math.max(...annees) : annee}-12-31`,
+    };
   }
+  if (vue === "annee") return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
   const semaine = semaineChoisie();
-  // La moyenne de l'année résume toute l'année, pas un mois.
-  if (semaine && semaine.annuelle) return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
   if (semaine && !semaine.moyenne) {
     return {
       debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
@@ -3890,7 +5188,7 @@ function majPanneauFiltreCategoriesDashboard(depenses) {
     case_.checked = visibles.has(d.categorie);
     const couleur = document.createElement("span");
     couleur.className = "filtre-categories-couleur";
-    couleur.style.background = couleurCategorie(d.couleur_index ?? i);
+    couleur.style.background = couleurBarre(d, i);
     label.appendChild(case_);
     label.appendChild(couleur);
     label.appendChild(document.createTextNode(libelleCategorie(d.categorie)));
@@ -3957,37 +5255,55 @@ let dashboardDepensesActuels = [];
  * dessous montre le niveau choisi. Deux graphes l'un sous l'autre auraient
  * demandé de comparer deux échelles pour lire une seule chose.
  *
- * REPLIÉ D'ORIGINE : on regarde un mois neuf fois sur dix. La flèche déplie,
- * recliquer la semaine active rend l'histogramme au mois entier, et replier
- * fait la même chose — on ne peut pas rester coincé dans une semaine.
+ * REPLIÉ D'ORIGINE : on regarde un mois neuf fois sur dix. Le chevron du mois
+ * déplie la rangée ; on en sort en remontant la pastille ou en repliant.
  *
- * LA BASCULE « MOYENNE » répond à ce qu'une semaine seule laisse ouvert :
- * celle-ci est-elle une semaine ordinaire ? C'est la moyenne des semaines
- * affichées, bouts de mois compris.
- *
- * EN VUE ANNÉE, RIEN : les semaines découpent un mois.
+ * L'INTERRUPTEUR « MOYENNE PAR SEMAINE » répond à ce qu'une semaine seule laisse
+ * ouvert : celle-ci est-elle une semaine ordinaire ? SA FENÊTRE EST LE NIVEAU OÙ
+ * L'ON SE TROUVE — le mois, l'année ou tout l'historique —, comme la moyennée
+ * d'une carte d'objectifs : un seul réglage, donc un seul endroit où se tromper
+ * de période. Ce sont les semaines du calendrier, bouts de mois compris.
  */
 
-// La réponse de /dashboard/semaines pour la période et la monnaie affichées.
-// Relue à chaque changement de l'une ou de l'autre ; gardée pour que basculer
-// d'une semaine à l'autre, ou vers la moyenne, ne coûte pas un aller-retour.
+// La réponse de /dashboard/semaines pour le mois et la monnaie affichés, avec la
+// clé qui les décrit : un geste qui change de semaine sans changer de mois ne
+// coûte pas un aller-retour, et un changement de mois ou de monnaie rend la
+// lecture périmée (cf. cleSemainesDashboard).
 let dashboardSemainesDonnees = null;
 
-// LA MOYENNE DE L'ANNÉE, lue à la demande (cf. chargerMoyenneAnnee) : elle parcourt
-// les douze mois, et la calculer à chaque changement de mois aurait ralenti tout le
-// dépliant. Gardée avec l'année et la monnaie qu'elle décrit, pour qu'un changement
-// de l'une ou de l'autre la rende périmée. `chargement` évite deux lectures
-// simultanées quand le rendu se rejoue pendant l'attente.
-let dashboardMoyenneAnnee = { annee: null, monnaieId: null, donnees: null, chargement: false };
-const CHOIX_MOYENNE_ANNEE = "moyenne-annee";
+// LA MOYENNE HEBDOMADAIRE de l'ensemble que le niveau désigne (cf.
+// /dashboard/semaines/moyenne), lue à la demande : elle parcourt toutes les
+// semaines de son ensemble, et la recalculer à chaque changement de mois
+// ralentirait tout le dépliant pour une moyenne qu'on ne regarde que sur
+// demande. Gardée avec sa clé, comme les semaines.
+let dashboardMoyenneDonnees = null;
 
-/** La semaine regardée, ou null quand c'est le mois entier. */
+function cleSemainesDashboard() {
+  const p = state.dashboardPeriode;
+  return `${p.annee}-${p.mois}-${state.dashboardMonnaieId}`;
+}
+
+function cleMoyenneDashboard() {
+  const p = state.dashboardPeriode;
+  const ensemble =
+    p.vue === "tout" ? "tout" : p.vue === "annee" ? `annee:${p.annee}` : `mois:${p.annee}-${p.mois}`;
+  return `${ensemble}-${state.dashboardMonnaieId}`;
+}
+
+/**
+ * Ce que l'histogramme regarde en plus du mois entier : la semaine choisie
+ * (l'objet de /dashboard/semaines), `{ moyenne: true, pret }` pour la moyenne
+ * hebdomadaire, ou null — et null veut dire « la période entière », l'état où
+ * l'histogramme est celui que le dashboard a toujours montré.
+ */
 function semaineChoisie() {
-  const choix = state.dashboardSemaines.choix;
-  if (choix == null || !dashboardSemainesDonnees) return null;
-  if (choix === "moyenne") return { moyenne: true };
-  if (choix === CHOIX_MOYENNE_ANNEE) return { moyenne: true, annuelle: true };
-  return (dashboardSemainesDonnees.semaines || []).find((s) => s.numero === choix) || null;
+  const p = state.dashboardPeriode;
+  if (p.moyenne) {
+    return { moyenne: true, pret: dashboardMoyenneDonnees?.cle === cleMoyenneDashboard() };
+  }
+  if (p.niveau !== "semaine") return null;
+  if (dashboardSemainesDonnees?.cle !== cleSemainesDashboard()) return null;
+  return (dashboardSemainesDonnees.semaines || []).find((s) => s.numero === p.semaine) || null;
 }
 
 /**
@@ -4001,17 +5317,40 @@ function semaineChoisie() {
  */
 function contexteGraphesDashboard(depensesDuMois) {
   const semaine = semaineChoisie();
-  // La moyenne de l'ANNÉE vient de sa propre lecture ; tant qu'elle n'est pas arrivée,
-  // le graphe est vide plutôt que de montrer la moyenne du mois sous un autre titre.
-  const moyenneAnnee = dashboardMoyenneAnnee.donnees;
-  const depenses =
+  // LA MOYENNE VIENT DE SA PROPRE LECTURE ; tant qu'elle n'est pas arrivée, le
+  // graphe est vide plutôt que de montrer la période entière sous un titre qui
+  // annonce une moyenne.
+  const moyenne = semaine?.moyenne && semaine.pret ? dashboardMoyenneDonnees : null;
+  // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (« en pop-up », cf.
+  // chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
+  // seulement : elles ne se découpent ni en semaines ni en moyenne. Ni quand tout
+  // est converti dans une seule monnaie (extension « Monnaies ») : la monnaie
+  // éteinte y est déjà fondue, la compter encore en conversion la doublerait.
+  const toutConverti = typeof agregationActive !== "undefined" && agregationActive;
+  const conversions = toutConverti ? [] : dashboardConversions;
+  const brutes =
     semaine === null
-      ? depensesDuMois
-      : semaine.annuelle
-        ? moyenneAnnee?.moyenne || []
-        : semaine.moyenne
-          ? dashboardSemainesDonnees.moyenne || []
-          : semaine.depenses || [];
+      ? [...depensesDuMois, ...conversions]
+      : semaine.moyenne
+        ? moyenne?.moyenne || []
+        : semaine.depenses || [];
+  // LA BARRE DES FRAIS DE VIREMENTS (rendue par le serveur, cf.
+  // soldes._barre_frais_virements) ouvre leur détail SUR LA PÉRIODE AFFICHÉE.
+  const p = state.dashboardPeriode;
+  const depenses = brutes.map((d) =>
+    d.colonne_speciale === "frais_virements"
+      ? {
+          ...d,
+          frais: {
+            ouvrir: () =>
+              ouvrirFenetreFrais({
+                periode: { vue: p.vue, annee: p.annee, mois: p.mois },
+                monnaieId: state.dashboardMonnaieId,
+              }),
+          },
+        }
+      : d
+  );
 
   // LE BUDGET SUIT LA MÊME PÉRIODE QUE LES BARRES, découpe des semaines
   // comprise (cf. soldes.get_budget_total_periode) : une semaine de dépenses
@@ -4020,11 +5359,9 @@ function contexteGraphesDashboard(depensesDuMois) {
   const budgetTotal =
     semaine === null
       ? dashboardBudgetTotalDuMois
-      : semaine.annuelle
-        ? moyenneAnnee?.budget_total_moyen || 0
-        : semaine.moyenne
-          ? dashboardSemainesDonnees?.budget_total_moyen || 0
-          : semaine.budget_total || 0;
+      : semaine.moyenne
+        ? moyenne?.budget_total_moyen || 0
+        : semaine.budget_total || 0;
 
   dashboardDepensesActuels = depenses;
   majPanneauFiltreCategoriesDashboard(depenses);
@@ -4309,24 +5646,23 @@ async function appliquerAccordBudget(quoi, index) {
  * onglets : il est déjà là, il est déjà lu, et c'est exactement ce qu'il dit.
  */
 function libellePeriodeHistogramme(annee, mois) {
-  if (state.dashboardPeriode.vue === "annee") return t("année {annee}", { annee });
+  const vue = state.dashboardPeriode.vue;
   const semaine = semaineChoisie();
   const nomMois = libelleMois(annee, mois).toLowerCase();
-  if (semaine === null) return nomMois;
-  if (semaine.annuelle) {
-    const n = dashboardMoyenneAnnee.donnees?.semaines_moyennees ?? 0;
-    return t("moyenne des {n} semaines de {annee}", { n, annee });
-  }
-  if (semaine.moyenne) {
+  if (semaine?.moyenne) {
     // LE NOMBRE VIENT DU SERVEUR (`semaines_moyennees`), et non de la longueur
-    // de la rangée d'onglets : sur un mois en cours, la moyenne ne porte que
-    // sur les semaines RÉVOLUES (cf. soldes._semaines_revolues). Compter les
-    // barres affichées aurait annoncé cinq semaines pour une moyenne qui en
-    // résume deux — c'est-à-dire exactement l'erreur que ce calcul corrige.
-    const n = dashboardSemainesDonnees.semaines_moyennees
-      || (dashboardSemainesDonnees.semaines || []).length;
+    // d'une rangée : sur un mois en cours, la moyenne ne porte que sur les
+    // semaines RÉVOLUES (cf. soldes._semaines_revolues). Compter les barres
+    // affichées aurait annoncé cinq semaines pour une moyenne qui en résume
+    // deux — c'est-à-dire exactement l'erreur que ce calcul corrige.
+    const n = semaine.pret ? dashboardMoyenneDonnees.semaines_moyennees : 0;
+    if (vue === "tout") return t("moyenne des {n} semaines sur tout l'historique", { n });
+    if (vue === "annee") return t("moyenne des {n} semaines de {annee}", { n, annee });
     return t("moyenne des {n} semaines de {mois}", { n, mois: nomMois });
   }
+  if (vue === "tout") return t("tout l'historique");
+  if (vue === "annee") return t("année {annee}", { annee });
+  if (semaine === null) return nomMois;
   return t("du {debut} au {fin} {mois}", {
     debut: semaine.jour_debut,
     fin: semaine.jour_fin,
@@ -4340,175 +5676,55 @@ function majTitrePeriodeHistogramme(annee, mois) {
 }
 
 /**
- * Dessine la flèche et montre (ou cache) la rangée, d'après le seul
- * `state.dashboardSemaines.ouvert`.
+ * Lit (si besoin) ce que le niveau demande au serveur EN PLUS du dashboard — les
+ * semaines du mois quand on en regarde une, la moyenne hebdomadaire quand
+ * l'interrupteur est levé — puis redessine l'arbre, le titre et l'histogramme.
  *
- * UN SEUL ENDROIT qui touche à l'apparence de la flèche : elle change à trois
- * occasions — au chargement de la page, au clic, et quand la vue année la fait
- * disparaître — et trois recopies de la même paire de lignes auraient fini par
- * ne plus dire la même chose.
- */
-function majBoutonSemaines() {
-  const ouvert = state.dashboardSemaines.ouvert;
-  const bouton = document.getElementById("btn-dashboard-semaines");
-  bouton.innerHTML = ouvert ? ICONE_CHEVRON_HAUT : ICONE_CHEVRON_BAS;
-  bouton.setAttribute("aria-expanded", String(ouvert));
-  bouton.title = ouvert ? t("Replier les semaines") : t("Détailler par semaine");
-  bouton.setAttribute("aria-label", bouton.title);
-  document.getElementById("dashboard-periode-semaines").hidden = !ouvert;
-}
-
-/** Replie la rangée et rend l'histogramme au mois entier. */
-function replierSemaines() {
-  state.dashboardSemaines.ouvert = false;
-  state.dashboardSemaines.choix = null;
-  majBoutonSemaines();
-}
-
-/**
- * Charge (si besoin) les semaines et redessine la rangée. Appelée à chaque
- * chargement du dashboard : c'est elle qui décide si la flèche a lieu d'être,
- * et qui relit les semaines quand le mois ou la monnaie ont changé sous une
- * rangée déjà dépliée.
+ * APPELÉE À CHAQUE CHARGEMENT ET À CHAQUE GESTE QUI NE CHANGE PAS DE DONNÉES :
+ * passer d'une semaine à l'autre, ou lever l'interrupteur, ne relit pas le
+ * dashboard. Les lectures déjà faites pour la même clé sont gardées.
  */
 async function majDetailSemaines(annee, mois) {
-  const ligne = document.getElementById("dashboard-periode-semaines-ligne");
+  const p = state.dashboardPeriode;
   const monnaieId = state.dashboardMonnaieId;
+  renderArbrePeriode();
 
-  // Vue année, ou aucune monnaie en jeu (base sans compte) : rien à déplier.
-  if (state.dashboardPeriode.vue === "annee" || monnaieId == null) {
-    ligne.style.display = "none";
+  // Aucune monnaie en jeu (base sans compte) : rien à détailler.
+  if (monnaieId == null) {
     dashboardSemainesDonnees = null;
-    replierSemaines();
-    majTitrePeriodeHistogramme(annee, mois);
-    return;
-  }
-  ligne.style.display = "";
-  // La flèche est redessinée à chaque chargement : au premier, le bouton du
-  // HTML est encore vide.
-  majBoutonSemaines();
-  if (!state.dashboardSemaines.ouvert) {
+    dashboardMoyenneDonnees = null;
     majTitrePeriodeHistogramme(annee, mois);
     return;
   }
 
   try {
-    dashboardSemainesDonnees = await apiFetch(
-      `/dashboard/semaines?annee=${annee}&mois=${mois}&monnaie_id=${monnaieId}`
-    );
-  } catch (err) {
-    showMessage(err.message, "error");
-    replierSemaines();
-    majTitrePeriodeHistogramme(annee, mois);
-    return;
-  }
-  renderRangeeSemaines(annee, mois);
-}
-
-/**
- * Lit la moyenne hebdomadaire de l'année affichée, si elle n'est pas déjà là pour cette
- * année et cette monnaie. Une lecture en cours n'est pas relancée.
- */
-async function chargerMoyenneAnnee(annee) {
-  const monnaieId = state.dashboardMonnaieId;
-  const courante = dashboardMoyenneAnnee;
-  if (courante.donnees && courante.annee === annee && courante.monnaieId === monnaieId) return;
-  if (courante.chargement) return;
-  dashboardMoyenneAnnee = { annee, monnaieId, donnees: null, chargement: true };
-  try {
-    const donnees = await apiFetch(
-      `/dashboard/semaines/annee?annee=${annee}&monnaie_id=${monnaieId}`
-    );
-    dashboardMoyenneAnnee = { annee, monnaieId, donnees, chargement: false };
-  } catch (err) {
-    dashboardMoyenneAnnee = { annee: null, monnaieId: null, donnees: null, chargement: false };
-    state.dashboardSemaines.choix = null;
-    showMessage(err.message, "error");
-  }
-}
-
-/**
- * Les onglets de semaine (plus « Moyenne »), et le graphe du choix courant.
- *
- * L'onglet actif retombe sur le mois entier quand la semaine qu'on regardait
- * n'existe plus : février n'a pas le même nombre de semaines que mars, et
- * passer de l'un à l'autre laissait sinon un onglet actif sans graphe derrière.
- */
-function renderRangeeSemaines(annee, mois) {
-  const donnees = dashboardSemainesDonnees;
-  if (!donnees) return;
-  const semaines = donnees.semaines || [];
-  const choix = state.dashboardSemaines.choix;
-  if (
-    choix !== null &&
-    choix !== "moyenne" &&
-    choix !== CHOIX_MOYENNE_ANNEE &&
-    !semaines.some((s) => s.numero === choix)
-  ) {
-    state.dashboardSemaines.choix = null;
-  }
-  // Le choix « moyenne de l'année » survit à un changement de mois, mais pas à celui
-  // de l'année ou de la monnaie : sa lecture est alors à refaire.
-  if (state.dashboardSemaines.choix === CHOIX_MOYENNE_ANNEE) {
-    const perimee =
-      dashboardMoyenneAnnee.annee !== annee ||
-      dashboardMoyenneAnnee.monnaieId !== state.dashboardMonnaieId;
-    if (perimee && !dashboardMoyenneAnnee.chargement) {
-      chargerMoyenneAnnee(annee).then(() => renderRangeeSemaines(annee, mois));
+    if (p.niveau === "semaine" && dashboardSemainesDonnees?.cle !== cleSemainesDashboard()) {
+      const cle = cleSemainesDashboard();
+      const donnees = await apiFetch(
+        `/dashboard/semaines?annee=${annee}&mois=${mois}&monnaie_id=${monnaieId}`
+      );
+      dashboardSemainesDonnees = { ...donnees, cle };
     }
+    if (p.moyenne && dashboardMoyenneDonnees?.cle !== cleMoyenneDashboard()) {
+      const cle = cleMoyenneDashboard();
+      const parametres = new URLSearchParams({ monnaie_id: monnaieId, vue: p.vue });
+      if (p.vue !== "tout") parametres.set("annee", annee);
+      if (p.vue === "mois") parametres.set("mois", mois);
+      const donnees = await apiFetch(`/dashboard/semaines/moyenne?${parametres}`);
+      dashboardMoyenneDonnees = { ...donnees, cle };
+    }
+  } catch (err) {
+    showMessage(err.message, "error");
+    // Ce qu'on n'a pas pu lire ne doit pas rester allumé : on rend la période
+    // entière plutôt qu'un graphe vide sous un titre qui promet une moyenne.
+    p.moyenne = false;
+    if (p.niveau === "semaine") p.niveau = "mois";
+    p.vue = vueDuNiveau(p.niveau);
+    renderArbrePeriode();
   }
-
-  const rangee = document.getElementById("dashboard-periode-semaines");
-  rangee.innerHTML = "";
-  const boutons = semaines.map((semaine) => ({
-    cle: semaine.numero,
-    // Les JOURS et non « S1 » : c'est la date qu'on a en tête en cherchant un
-    // achat, pas le rang de la semaine dans le mois.
-    libelle: `${semaine.jour_debut} → ${semaine.jour_fin}`,
-  }));
-  boutons.push({ cle: "moyenne", libelle: t("Moyenne") });
-  // « Moyenne de l'année » : la même moyenne, sur toutes les semaines de l'année.
-  boutons.push({ cle: CHOIX_MOYENNE_ANNEE, libelle: t("Moyenne de l'année") });
-
-  boutons.forEach(({ cle, libelle }) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = libelle;
-    if (cle === state.dashboardSemaines.choix) btn.classList.add("active");
-    // « Moyenne » est d'une autre nature que les semaines : elle ne montre pas
-    // une période mais leur résumé. Une classe la distingue, sans la sortir de
-    // la rangée — c'est bien un des choix possibles.
-    if (cle === "moyenne" || cle === CHOIX_MOYENNE_ANNEE) btn.classList.add("semaine-moyenne");
-    btn.addEventListener("click", async () => {
-      // Recliquer le choix actif revient au mois entier : c'est la sortie la
-      // plus directe, et elle évite un onglet « Mois » qui ne servirait qu'à ça.
-      state.dashboardSemaines.choix =
-        state.dashboardSemaines.choix === cle ? null : cle;
-      // La moyenne de l'année se lit à la demande, au premier clic.
-      if (state.dashboardSemaines.choix === CHOIX_MOYENNE_ANNEE) await chargerMoyenneAnnee(annee);
-      renderRangeeSemaines(annee, mois);
-    });
-    rangee.appendChild(btn);
-  });
-
   majTitrePeriodeHistogramme(annee, mois);
-  renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
+  renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
 }
-
-document.getElementById("btn-dashboard-semaines").addEventListener("click", async () => {
-  const { annee, mois } = state.dashboardPeriode;
-  if (state.dashboardSemaines.ouvert) {
-    // Replier rend l'histogramme au mois : on ne peut pas rester coincé dans
-    // une semaine qu'on ne voit plus.
-    replierSemaines();
-    majTitrePeriodeHistogramme(annee, mois);
-    renderHistogrammeDashboard(dashboardDepensesDuMois, state.dashboardMonnaieId);
-    return;
-  }
-  state.dashboardSemaines.ouvert = true;
-  majBoutonSemaines();
-  await majDetailSemaines(annee, mois);
-});
 
 /* ---------- Bloc-notes du dashboard ---------- */
 
@@ -4805,7 +6021,7 @@ document.addEventListener("click", (evenement) => {
  * appelant. Ce que les deux PARTAGENT — le bouton, le panneau, la façon de se
  * refermer — est dans la feuille de style, où c'est déjà commun.
  */
-function creerMenuCases(conteneur, { libelle, options, coches, onChange }) {
+function creerMenuCases(conteneur, { libelle, options, coches, onChange, toutSelectionner = false }) {
   conteneur.innerHTML = "";
   conteneur.classList.add("filtre-menu");
 
@@ -4821,7 +6037,46 @@ function creerMenuCases(conteneur, { libelle, options, coches, onChange }) {
   panneau.hidden = true;
 
   const choisies = new Set(coches);
-  options.forEach(({ cle, libelle: texte, verrouillee }) => {
+  const cases = [];
+  // DES INTERTITRES (`{ titre }`) peuvent ranger les options en groupes — les comptes
+  // par type, dans le sélecteur des projets. Ils ne se cochent pas et ne comptent pas.
+  const toutes = options;
+  options = options.filter((o) => !o.titre);
+  // « TOUT SÉLECTIONNER », ET LE BOUTON QUI BLEUIT QUAND ON FILTRE — les deux
+  // choses que le filtre de catégories du dashboard faisait seul. Un FILTRE en a
+  // besoin (une case décochée puis repliée est ce qu'on oublie) ; un choix de
+  // colonnes, non : d'où l'option.
+  let caseTout = null;
+  const majEtat = () => {
+    if (!toutSelectionner) return;
+    caseTout.checked = choisies.size === options.length;
+    caseTout.indeterminate = choisies.size > 0 && choisies.size < options.length;
+    bouton.classList.toggle("filtre-actif", choisies.size < options.length);
+  };
+  if (toutSelectionner) {
+    const ligne = document.createElement("label");
+    ligne.className = "filtre-categories-tout";
+    caseTout = document.createElement("input");
+    caseTout.type = "checkbox";
+    caseTout.addEventListener("change", () => {
+      choisies.clear();
+      if (caseTout.checked) options.forEach(({ cle }) => choisies.add(cle));
+      cases.forEach(([caseACocher, cle]) => (caseACocher.checked = choisies.has(cle)));
+      majEtat();
+      onChange(new Set(choisies));
+    });
+    ligne.appendChild(caseTout);
+    ligne.appendChild(document.createTextNode(t("Tout sélectionner")));
+    panneau.appendChild(ligne);
+  }
+  toutes.forEach(({ cle, libelle: texte, verrouillee, couleur, titre }) => {
+    if (titre) {
+      const intertitre = document.createElement("div");
+      intertitre.className = "filtre-menu-intertitre";
+      intertitre.textContent = titre;
+      panneau.appendChild(intertitre);
+      return;
+    }
     const ligne = document.createElement("label");
     const caseACocher = document.createElement("input");
     caseACocher.type = "checkbox";
@@ -4833,12 +6088,23 @@ function creerMenuCases(conteneur, { libelle, options, coches, onChange }) {
     caseACocher.addEventListener("change", () => {
       if (caseACocher.checked) choisies.add(cle);
       else choisies.delete(cle);
+      majEtat();
       onChange(new Set(choisies));
     });
+    cases.push([caseACocher, cle]);
     ligne.appendChild(caseACocher);
+    // LA PASTILLE DE COULEUR, comme dans le filtre du dashboard : une catégorie
+    // se reconnaît à sa teinte d'un écran à l'autre.
+    if (couleur) {
+      const pastille = document.createElement("span");
+      pastille.className = "filtre-categories-couleur";
+      pastille.style.background = couleur;
+      ligne.appendChild(pastille);
+    }
     ligne.appendChild(document.createTextNode(texte));
     panneau.appendChild(ligne);
   });
+  if (caseTout) majEtat();
 
   bouton.addEventListener("click", () => {
     const ouvrir = panneau.hidden;
@@ -5878,31 +7144,22 @@ function majBlocRapprochement() {
   const bloc = document.getElementById("operation-rapprochement-bloc");
   if (!bloc) return;
   assurerEditeurRapprochement();
+  // PLUS DE CASE À COCHER : la reconnaissance est RATTACHÉE À « PRÉVISIONNELLE ».
+  // Une prévisionnelle était déjà reconnaissable sans rien cocher (fenêtre NULL =
+  // le jour même) ; la case ne faisait que montrer les champs facultatifs, qui
+  // paraissent désormais d'eux-mêmes sous la rangée.
   const proposable = rapprochementEstProposable();
-  // LA CASE RESTE DANS LA RANGÉE, éteinte quand il n'y a rien à reconnaître —
-  // une opération réelle et ponctuelle n'attend plus rien. Elle y était
-  // auparavant absente puis présente selon le statut : une cinquième case qui
-  // surgit sous les quatre autres décale tout ce qui l'entoure, au moment
-  // précis où l'on vient de cocher « Prévisionnelle » et où l'on regarde
-  // ailleurs.
-  eteindreCaseOperation("operation-rapprochement-case", "operation-rapprochement-actif", !proposable);
-  const actif = document.getElementById("operation-rapprochement-actif");
-  // Le bloc de champs, lui, paraît bien en dessous et seulement s'il a quelque
-  // chose à montrer.
-  bloc.style.display = proposable && actif.checked ? "" : "none";
-  document.getElementById("operation-rapprochement-champs").style.display =
-    proposable && actif.checked ? "" : "none";
+  bloc.style.display = proposable ? "" : "none";
+  document.getElementById("operation-rapprochement-champs").style.display = proposable ? "" : "none";
 }
 
 /** La fenêtre et les mots-clés, prêts à partir au serveur.
  *
- *  CASE DÉCOCHÉE = ON EFFACE, et non « on ne touche à rien » : décocher est un
- *  geste, et il doit défaire ce que cocher avait fait. D'où des `null` et une
- *  liste vide explicites plutôt qu'une clé absente. */
+ *  HORS PÉRIMÈTRE = ON EFFACE, et non « on ne touche à rien » : une opération
+ *  repassée en réelle n'attend plus rien. D'où des `null` et une liste vide
+ *  explicites plutôt qu'une clé absente. */
 function lireRapprochementFormulaire() {
-  const actif =
-    rapprochementEstProposable() &&
-    document.getElementById("operation-rapprochement-actif").checked;
+  const actif = rapprochementEstProposable();
   if (!actif) {
     return {
       rapprochement_debut: null,
@@ -5923,9 +7180,6 @@ function lireRapprochementFormulaire() {
 /** Remet le bloc dans l'état décrit par une opération (ou vide, sans argument). */
 function remplirRapprochement(op) {
   assurerEditeurRapprochement();
-  const actif = Boolean(op && (op.rapprochement_debut || op.rapprochement_fin));
-  document.getElementById("operation-rapprochement-actif").checked =
-    actif || Boolean(op && (op.rapprochement_mots_cles || []).length);
   document.getElementById("operation-rapprochement-debut").value =
     (op && op.rapprochement_debut) || "";
   document.getElementById("operation-rapprochement-fin").value =
@@ -5979,12 +7233,12 @@ function assurerEditeurRapprochement() {
     libelles: { mots: t("Mots-clés") },
     vide: t("Aucun mot-clé : le compte, le montant et la date suffisent à reconnaître la dépense."),
   });
+  // LE STATUT PILOTE DEUX CHOSES : le bloc de reconnaissance, et la case
+  // « Récurrente », qui ne s'allume qu'avec « Prévisionnelle » —
+  // updateOperationTypeFields fait les deux (il rappelle majBlocRapprochement).
   document
-    .getElementById("operation-rapprochement-actif")
-    .addEventListener("change", majBlocRapprochement);
-  // La visibilité du bloc dépend du STATUT et de la RÉCURRENCE : les deux
-  // peuvent changer sans passer par updateOperationTypeFields.
-  document.getElementById("operation-previsionnelle").addEventListener("change", majBlocRapprochement);
+    .getElementById("operation-previsionnelle")
+    .addEventListener("change", updateOperationTypeFields);
 }
 
 /**
@@ -6005,6 +7259,32 @@ function eteindreCaseOperation(idBloc, idCase, eteinte) {
   document.getElementById(idBloc).classList.toggle("champ-hors-sujet", eteinte);
   if (eteinte && idCase) document.getElementById(idCase).checked = false;
 }
+
+/* « À DÉCLARER » (extension « Impôts », migration 0077) ne vaut que sur UNE ENTRÉE D'ARGENT de
+ * type classique : un remboursement reçu, un prêt reçu ou un virement ne sont pas des revenus.
+ * Jugé sur le type et la catégorie du formulaire (une catégorie « entrée »), comme le serveur le
+ * juge sur le sens final. Une opération découpée entre plusieurs catégories n'est pas proposée :
+ * elle n'a pas UNE catégorie dont on puisse dire qu'elle est une entrée.
+ *
+ * Hors périmètre, la case s'éteint sur place (`.champ-hors-sujet`, comme les voisines) et se
+ * décoche : une case cochée mais grisée enverrait au serveur une étiquette qu'il écarterait. */
+function operationADeclarerPossible() {
+  if (document.getElementById("operation-type").value !== TYPE_DECOUPABLE) return false;
+  if (decoupeEstActive()) return false;
+  const categorie = state.categories.find(
+    (c) => c.id === Number(document.getElementById("operation-categorie").value)
+  );
+  return !!(categorie && categorie.est_entree);
+}
+
+function majADeclarerOperation() {
+  const possible = operationADeclarerPossible();
+  if (!possible) document.getElementById("operation-a-declarer").checked = false;
+  document
+    .getElementById("operation-a-declarer-bloc")
+    .classList.toggle("champ-hors-sujet", !possible);
+}
+document.getElementById("operation-categorie").addEventListener("change", majADeclarerOperation);
 
 function updateOperationTypeFields() {
   const type = document.getElementById("operation-type").value;
@@ -6054,8 +7334,16 @@ function updateOperationTypeFields() {
   // l'une quand on coche l'autre laissait croire qu'elle n'existe pas sur ce
   // type d'opération, alors qu'il suffit de décocher sa voisine — et la rangée
   // se décalait sous le curseur au passage. Éteinte, elle dit « pas les deux ».
+  // RÉCURRENTE NE S'ALLUME QU'AVEC PRÉVISIONNELLE : la reconnaissance à l'import
+  // est rattachée au statut prévisionnel, et une récurrence est une suite de
+  // dépenses attendues. SAUF SUR UN MODÈLE RÉCURRENT QU'ON MODIFIE : le décocher de
+  // « Prévisionnelle », c'est dire « ce mois-ci est payé », et le serveur dédouble
+  // alors le modèle — le passé réel d'un côté, la récurrence qui continue de l'autre
+  // (cf. crud.scinder_modele_recurrent). Éteindre la case aurait arrêté la récurrence.
+  const sansPrevision =
+    statutOperationSaisi() !== STATUT_PREVISIONNEL && !operationEditionModeleRecurrent;
   const recurrenceEteinte =
-    !estRecurrenceEligible || operationEditionEstOccurrenceGeneree || estAmortie;
+    !estRecurrenceEligible || operationEditionEstOccurrenceGeneree || estAmortie || sansPrevision;
   eteindreCaseOperation("operation-recurrente-bloc", "operation-recurrente", recurrenceEteinte);
   recurrenceInfo.style.display =
     estRecurrenceEligible && operationEditionEstOccurrenceGeneree ? "" : "none";
@@ -6099,6 +7387,7 @@ function updateOperationTypeFields() {
   const imprevuePossible = TYPES_CATEGORIE_LIBRE.has(type);
   if (!imprevuePossible) document.getElementById("operation-imprevue").checked = false;
   blocImprevue.classList.toggle("champ-hors-sujet", !imprevuePossible);
+  majADeclarerOperation();
   document.getElementById("operation-remboursements-bloc").style.display = estReglement ? "" : "none";
   document.getElementById("operation-remboursements-titre").textContent = estRemboursementPret
     ? t("Prêts réglés")
@@ -6294,6 +7583,10 @@ let operationEditionEstOccurrenceGeneree = false;
 // classique ; comparer ce champ au type prévisualisé est ce qui distingue les
 // deux cas.
 let operationEditionTypeOriginal = null;
+
+// UN MODÈLE RÉCURRENT EN ÉDITION (cf. updateOperationTypeFields) : sa case
+// « Récurrente » reste allumée même sans « Prévisionnelle ».
+let operationEditionModeleRecurrent = false;
 
 document.getElementById("operation-recurrente").addEventListener("change", () => {
   updateOperationTypeFields();
@@ -6957,6 +8250,7 @@ function resetOperationForm() {
   document.getElementById("operation-annuler").style.display = "none";
   montantDuAutoSync = true;
   operationEditionEstOccurrenceGeneree = false;
+  operationEditionModeleRecurrent = false;
   operationEditionTypeOriginal = null;
   virementEnEdition = null;
   document.getElementById("operation-recurrente").checked = false;
@@ -6971,6 +8265,7 @@ function resetOperationForm() {
   remplirDecoupe(null);
   remplirRapprochement(null);
   document.getElementById("operation-imprevue").checked = false;
+  document.getElementById("operation-a-declarer").checked = false;
   setOperationType("classique");
 }
 
@@ -6982,7 +8277,11 @@ async function fillOperationForm(op) {
   document.getElementById("operation-id").value = op.id;
   montantDuAutoSync = false;
   operationEditionEstOccurrenceGeneree = op.recurrence_parent_id != null;
+  operationEditionModeleRecurrent = !!op.recurrente && op.recurrence_parent_id == null;
   operationEditionTypeOriginal = type;
+  // LE STATUT AVANT LE TYPE : chaque appel à updateOperationTypeFields (dont
+  // setOperationType) décocherait sinon la récurrence.
+  poserStatutOperation(op.statut);
   setOperationType(type);
 
   document.getElementById("operation-recurrente").checked = !!op.recurrente;
@@ -7029,6 +8328,10 @@ async function fillOperationForm(op) {
   majTotalDecoupe();
   poserStatutOperation(op.statut);
   document.getElementById("operation-imprevue").checked = !!op.imprevue;
+  // Après la catégorie ET le type : l'éligibilité se lit sur eux (cf. majADeclarerOperation),
+  // qui décoche la case si l'opération n'en relève plus.
+  document.getElementById("operation-a-declarer").checked = !!op.a_declarer;
+  majADeclarerOperation();
   // APRÈS le statut et la récurrence : le bloc n'est visible que si l'un des
   // deux le demande.
   remplirRapprochement(op);
@@ -8521,10 +9824,11 @@ function trierEtRerender(onglet) {
 // type), mais tous pilotent le même état : changer de mois dans un onglet le
 // change partout, sinon revenir sur un onglet afficherait un autre mois.
 //
-// Implémentation dédiée plutôt que initPeriodeSelector : celui-ci gère un
-// couple d'éléments unique et déclenche onSelect à l'initialisation, ce qui
-// provoquerait ici six rendus en cascade et laisserait les cinq autres
-// sélecteurs désynchronisés au changement d'année.
+// Implémentation dédiée plutôt que l'arbre de période du dashboard
+// (renderArbrePeriode) : celui-ci gère une rangée unique d'éléments et
+// recharge les données à chaque geste, ce qui provoquerait ici six rendus en
+// cascade et laisserait les cinq autres sélecteurs désynchronisés au
+// changement d'année.
 let periodesOperations = [];
 
 async function initSelecteursPeriodeOperations() {
@@ -9074,6 +10378,9 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         // Toujours false sur un type qui ne peut pas la porter (cf.
         // updateOperationTypeFields).
         imprevue: document.getElementById("operation-imprevue").checked,
+        // Même raison : décocher « à déclarer » doit la retirer. Toujours false hors d'une
+        // entrée de type classique (cf. majADeclarerOperation) — le serveur le garantit aussi.
+        a_declarer: document.getElementById("operation-a-declarer").checked,
       };
       if (type === "remboursable") {
         payload.montant_du = parseFloat(document.getElementById("operation-montant-du").value || "0");
@@ -10387,8 +11694,8 @@ function renderImportVocabulairesDefauts() {
 const importIndexMemorises = {};
 
 /**
- * Une ligne de configuration : la propriété, son numéro de colonne, et l'œil
- * qui l'active ou l'éteint.
+ * Une ligne de configuration : l'interrupteur qui active ou éteint la propriété, son nom, et son
+ * numéro de colonne. (C'était un œil ; un interrupteur se lit d'un coup d'œil, allumé ou éteint.)
  *
  * Toutes les propriétés ont leur ligne, activée ou non — il n'y a plus rien à
  * « ajouter ». Chacune ne peut de toute façon être lue qu'une fois (le serveur
@@ -10413,23 +11720,23 @@ function creerLigneConfigColonne(propriete, libelle, { actif }) {
   const row = document.createElement("div");
   row.className = `import-mapping-row import-config-ligne${actif ? "" : " inactive"}`;
   row.innerHTML = `
+    <input type="checkbox" class="import-config-interrupteur" data-action="basculer"
+           title="${
+             obligatoire
+               ? t("Cette propriété est obligatoire : elle ne peut pas être désactivée.")
+               : actif
+                 ? t("Ne plus lire cette colonne")
+                 : t("Lire cette colonne")
+           }"
+           aria-label="${escapeHtml(libelle)}"
+           ${actif ? "checked" : ""} ${obligatoire ? "disabled" : ""} />
     <span class="import-config-propriete">${escapeHtml(t(libelle))}${bulle}</span>
     <label class="import-config-index">${t("Colonne n°")}
       <input type="number" min="1" value="${index}" ${actif ? "" : "disabled"} />
     </label>
-    <button type="button" class="import-config-oeil" data-action="basculer"
-            title="${
-              obligatoire
-                ? t("Cette propriété est obligatoire : elle ne peut pas être désactivée.")
-                : actif
-                  ? t("Ne plus lire cette colonne")
-                  : t("Lire cette colonne")
-            }"
-            aria-label="${actif ? "Désactiver" : "Activer"} ${escapeHtml(libelle)}"
-            ${obligatoire ? "disabled" : ""}>${actif ? ICONE_OEIL : ICONE_OEIL_BARRE}</button>
   `;
 
-  row.querySelector("input").addEventListener("input", (e) => {
+  row.querySelector("input[type='number']").addEventListener("input", (e) => {
     if (!colonne) return;
     colonne.index = Number(e.target.value) || 0;
     // MÊME ÉTAT QU'UN EN-TÊTE DÉPLACÉ : le tableau du fichier ne montre plus ce
@@ -10441,11 +11748,11 @@ function creerLigneConfigColonne(propriete, libelle, { actif }) {
   // À la VALIDATION seulement (sortie du champ) : redessiner tout le tableau du
   // fichier à chaque frappe coûterait cher sur un relevé de plusieurs centaines
   // de lignes, pour un numéro qu'on est encore en train de taper.
-  row.querySelector("input").addEventListener("change", () => {
+  row.querySelector("input[type='number']").addEventListener("change", () => {
     if (colonne) renderApercuFichier();
   });
 
-  row.querySelector("button[data-action='basculer']").addEventListener("click", () => {
+  row.querySelector("input[data-action='basculer']").addEventListener("change", () => {
     basculerProprieteImport(propriete, !actif);
     renderImportConfig();
     updateImportPresetCompteAvertissement();
@@ -12433,9 +13740,9 @@ function candidatsDoublonsVirements() {
 function renderEtatVeilleVirements(nbCandidats, nbRapprochees) {
   const bloc = document.getElementById("import-veille-virements-etat");
   if (!bloc) return;
-  // La veille est l'extension « Détection des ressemblances » : éteinte, elle n'a
+  // La veille fait partie de l'extension « Imports Avancés » (id `regles`) : éteinte, elle n'a
   // rien regardé, et « aucune ressemblance » affirmerait le contraire.
-  if (!BudgetApp.extensions.estActive("ressemblances")) {
+  if (!BudgetApp.extensions.estActive("regles")) {
     bloc.style.display = "none";
     return;
   }
@@ -13014,6 +14321,19 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   checklistWrap.className = "ligne-edition-champ";
   const amortissementWrap = document.createElement("div");
   amortissementWrap.className = "ligne-edition-champ ligne-edition-amortissement";
+  // « À DÉCLARER » (extension « Impôts », migration 0077) : la case part avec la ligne, déjà
+  // cochée si une règle l'a posée. Proposée sur un type classique seulement — le serveur écarte
+  // de toute façon l'étiquette d'une ligne qui n'est pas une entrée (cf. crud.operation_declarable).
+  const impotsActif = BudgetApp.extensions.estActive("impots");
+  const declarerWrap = document.createElement("div");
+  declarerWrap.className = "ligne-edition-champ";
+  const checkboxADeclarer = document.createElement("input");
+  checkboxADeclarer.type = "checkbox";
+  checkboxADeclarer.checked = !!ligne.a_declarer;
+  const labelADeclarer = document.createElement("label");
+  labelADeclarer.className = "case-a-cocher";
+  labelADeclarer.append(checkboxADeclarer, document.createTextNode(` ${t("À déclarer")}`));
+  declarerWrap.appendChild(labelADeclarer);
 
   /**
    * NOTES ET AMORTISSEMENT, DÈS L'IMPORT.
@@ -13810,6 +15130,10 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     if (!amortissementEligible) checkboxAmorti.checked = false;
     amortissementWrap.style.display = amortissementEligible ? "" : "none";
     majBlocAmortissement();
+    // Décochée dès qu'elle cesse d'être proposée, pour la même raison que l'amortissement.
+    const declarerEligible = impotsActif && info.cle === "classique";
+    if (!declarerEligible) checkboxADeclarer.checked = false;
+    declarerWrap.style.display = declarerEligible ? "" : "none";
 
     majEtatReglement();
   }
@@ -13861,6 +15185,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     montantDuWrap,
     checklistWrap,
     amortissementWrap,
+    declarerWrap,
     labelNotes
   );
 
@@ -14148,6 +15473,8 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       amorti: amortiCoche,
       amortissement_debut: amortiCoche ? `${champsAmortissement.debutEl.value}-01` : null,
       amortissement_fin: amortiCoche ? `${champsAmortissement.finEl.value}-01` : null,
+      // Extension éteinte : le champ ne part pas, et ce qu'une règle a posé reste tel quel.
+      ...(impotsActif ? { a_declarer: checkboxADeclarer.checked } : {}),
     };
 
     // Les frais accompagnent TOUJOURS des montants saisis hors frais, même

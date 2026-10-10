@@ -1,4 +1,11 @@
-"""Les étiquettes qu'on pose sur un titre, sur DEUX AXES (migration 0066).
+"""Les étiquettes qu'on pose sur un titre, sur QUATRE AXES (migrations 0066 et 0076) :
+enveloppe, classe d'actif, zone géographique et secteur.
+
+Les trois derniers sont des axes d'EXPOSITION : un titre y porte une répartition en %
+(cf. `exposition_titre`), pas une étiquette unique. Le routeur ne les distingue pas —
+créer, renommer, supprimer une zone est le même geste que pour une enveloppe.
+
+Ce qui suit décrit les deux premiers axes, tels que la 0066 les a posés.
 
 L'ENVELOPPE dit comment le titre est détenu — « ETF », « Action en direct »,
 « SCPI » — et la CLASSE D'ACTIF dit à quoi il expose — « Actions »,
@@ -41,12 +48,16 @@ def _read(type_titre, nb_titres: int = 0) -> schemas.TypeTitreRead:
     )
 
 
+_DOUBLONS = {
+    AxeTitre.enveloppe.value: "Ce type de titre existe déjà",
+    AxeTitre.classe.value: "Cette classe d'actif existe déjà",
+    AxeTitre.zone.value: "Cette zone géographique existe déjà",
+    AxeTitre.secteur.value: "Ce secteur existe déjà",
+}
+
+
 def _doublon(axe: str) -> str:
-    return (
-        "Cette classe d'actif existe déjà"
-        if axe == AxeTitre.classe.value
-        else "Ce type de titre existe déjà"
-    )
+    return _DOUBLONS.get(axe, "Cette étiquette existe déjà")
 
 
 @router.get("", response_model=list[schemas.TypeTitreRead])

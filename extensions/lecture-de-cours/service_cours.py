@@ -1,7 +1,7 @@
 """Rafraîchir les cours : quels titres, dans quel ordre, et que faire du résultat.
 
 CE QUI EST ÉCRIT EN BASE, ET CE QUI NE L'EST PAS. Un rafraîchissement ne touche
-qu'`action.valeur` et `action.cours_maj_le`. Il ne recalcule AUCUN solde, ne
+qu'`titre.valeur` et `titre.cours_maj_le`. Il ne recalcule AUCUN solde, ne
 crée AUCUNE opération et ne modifie AUCUN prix payé : le cours ne sert qu'à
 valoriser un portefeuille à l'écran, exactement comme quand il était saisi à la
 main (cf. models.Action). Brancher Internet ne change donc rien à la
@@ -163,8 +163,8 @@ def ecart_de_devise(cours: Cours, monnaie: models.Monnaie) -> Optional[str]:
 class Resultat:
     """Ce qu'un titre a donné. Un par titre suivi, réussite ou échec."""
 
-    action_id: int
-    action_nom: str
+    titre_id: int
+    titre_nom: str
     ok: bool
     cours: Optional[float] = None
     ancien_cours: Optional[float] = None
@@ -189,25 +189,25 @@ class Resume:
         return sum(1 for r in self.resultats if not r.ok)
 
 
-def titres_suivis(db: Session) -> list[models.Action]:
+def titres_suivis(db: Session) -> list[models.TitrePossede]:
     """Les titres qui portent un lien : les seuls que le web peut rafraîchir.
 
     Les autres ne sont pas des échecs, ils ne sont simplement pas concernés —
     un cours saisi à la main reste parfaitement légitime, l'extension ne le
     remplace pas, elle s'y ajoute."""
-    return [action for action in crud.get_actions(db) if action.url_cours]
+    return [titre for titre in crud.get_titres(db) if titre.url_cours]
 
 
-def rafraichir(db: Session, actions: list[models.Action]) -> Resume:
+def rafraichir(db: Session, titres: list[models.TitrePossede]) -> Resume:
     """Relit le cours de ces titres et écrit ceux qui ont pu être lus."""
-    if not actions:
+    if not titres:
         return Resume(resultats=[], horodatage=None)
 
     # Tout ce dont les threads ont besoin est extrait ICI, dans le thread qui
     # possède la session : ils ne reçoivent que des chaînes et des nombres, et
     # ne peuvent donc pas déclencher un chargement paresseux depuis un autre
     # thread (ce que SQLAlchemy ne garantit pas).
-    plan = [(action.id, action.url_cours) for action in actions]
+    plan = [(titre.id, titre.url_cours) for titre in titres]
 
     with ThreadPoolExecutor(max_workers=LECTURES_SIMULTANEES) as executeur:
         lus = list(executeur.map(lambda tache: _lire(*tache), plan))
@@ -218,27 +218,27 @@ def rafraichir(db: Session, actions: list[models.Action]) -> Resume:
     # information dont personne n'a l'usage.
     maintenant = datetime.now()
     resume = Resume(horodatage=maintenant)
-    par_id = {action.id: action for action in actions}
+    par_id = {titre.id: titre for titre in titres}
 
-    for action_id, cours, erreur in lus:
-        action = par_id[action_id]
+    for titre_id, cours, erreur in lus:
+        titre = par_id[titre_id]
         if erreur is not None:
             resume.resultats.append(
-                Resultat(action.id, action.nom_affiche, ok=False, erreur=erreur)
+                Resultat(titre.id, titre.nom_affiche, ok=False, erreur=erreur)
             )
             continue
-        conflit = ecart_de_devise(cours, action.monnaie)
+        conflit = ecart_de_devise(cours, titre.monnaie)
         if conflit is not None:
             resume.resultats.append(
-                Resultat(action.id, action.nom_affiche, ok=False, erreur=conflit)
+                Resultat(titre.id, titre.nom_affiche, ok=False, erreur=conflit)
             )
             continue
-        ancien = action.valeur
-        crud.enregistrer_cours_en_ligne(db, action, cours.valeur, maintenant)
+        ancien = titre.valeur
+        crud.enregistrer_cours_en_ligne(db, titre, cours.valeur, maintenant)
         resume.resultats.append(
             Resultat(
-                action.id,
-                action.nom_affiche,
+                titre.id,
+                titre.nom_affiche,
                 ok=True,
                 cours=cours.valeur,
                 ancien_cours=ancien,
@@ -249,12 +249,12 @@ def rafraichir(db: Session, actions: list[models.Action]) -> Resume:
     return resume
 
 
-def _lire(action_id: int, url: str):
+def _lire(titre_id: int, url: str):
     """Une lecture, dans un thread. Ne lève jamais : toute erreur revient comme
     un message, sinon un site en panne ferait échouer le lot entier."""
     try:
-        return action_id, lire_cours(url), None
+        return titre_id, lire_cours(url), None
     except CoursIllisible as exc:
-        return action_id, None, str(exc)
+        return titre_id, None, str(exc)
     except Exception as exc:  # noqa: BLE001 — un site hostile ne casse pas l'app
-        return action_id, None, f"Lecture impossible ({type(exc).__name__})"
+        return titre_id, None, f"Lecture impossible ({type(exc).__name__})"

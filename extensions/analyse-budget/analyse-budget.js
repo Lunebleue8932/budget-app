@@ -54,7 +54,9 @@ let abMonnaieId = null;
 // catégorie sont propres à un MOIS, les trois lectures du bas portent sur son
 // ANNÉE. Un second sélecteur pour ces dernières aurait laissé exister un état
 // où le haut de la page parle de mars et le bas de l'année dernière.
-const abPeriode = { annee: null, mois: null };
+// LA PÉRIODE DE LA PAGE, au format de l'arbre de période du noyau (cf. creerArbrePeriode) :
+// toujours un MOIS — le budget est propre au mois — d'où le niveau fixe.
+const abPeriode = { annee: null, mois: null, niveau: "mois", vue: "mois", moisDeplie: true };
 // Les périodes qui portent des opérations (`/meta/periodes`), lues une fois.
 // Elles ne servent qu'à PROPOSER des années : celles qu'on peut budgéter
 // débordent largement — on pose un budget sur un mois où l'on n'a rien dépensé.
@@ -1061,8 +1063,8 @@ function abAnneesProposees() {
  * fausse : la troisième page — « Projets », apportée par son extension — n'a ni
  * mois ni monnaie, et y aurait vu trois listes sans effet. */
 const AB_CONTEXTES = [
-  { monnaie: "ab-monnaie", annee: "ab-annee", mois: "ab-mois" },
-  { monnaie: "ab-cat-monnaie", annee: "ab-cat-annee", mois: "ab-cat-mois" },
+  { monnaie: "ab-monnaie", periode: "ab-periode" },
+  { monnaie: "ab-cat-monnaie", periode: "ab-cat-periode" },
 ];
 
 function abRemplirContexte() {
@@ -1079,19 +1081,21 @@ function abRemplirContexte() {
     // seconde devise se cherche, là où un champ toujours là ne surprend jamais.
     monnaie.disabled = state.monnaies.length <= 1;
 
-    const annee = document.getElementById(ids.annee);
-    fillSelect(
-      annee,
-      abAnneesProposees().map((a) => ({ value: a, label: String(a) }))
-    );
-    annee.value = String(abPeriode.annee);
-
-    const mois = document.getElementById(ids.mois);
-    fillSelect(
-      mois,
-      MOIS_COURTS_FR.map((nom, index) => ({ value: index + 1, label: nom }))
-    );
-    mois.value = String(abPeriode.mois);
+    // L'ANNÉE ET LE MOIS, COMME AU DASHBOARD : le même arbre de période, sans « Tout » ni
+    // semaines, et TOUS les douze mois — un budget se pose aussi sur un mois vide.
+    const hote = document.getElementById(ids.periode);
+    if (hote) {
+      creerArbrePeriode(hote, {
+        etat: abPeriode,
+        annees: abAnneesProposees,
+        moisDisponibles: () => Array.from({ length: 12 }, (_, i) => i + 1),
+        avecTout: false,
+        niveauFixe: "mois",
+        surChangement: (etat, avant) => {
+          if (etat.annee !== avant.annee || etat.mois !== avant.mois) abCharger();
+        },
+      });
+    }
   });
 }
 
@@ -1164,7 +1168,6 @@ async function abCharger() {
     abSemainesCache = {};
     abRenderGraphes();
 
-
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -1182,6 +1185,118 @@ async function abCharger() {
  * de CHARGER les données de celui qu'on ouvre — exactement ce que fait
  * `chargerSousPageComptesGlobale` pour la page des comptes.
  */
+/* ---------- L'onglet « Prévisions » ----------
+ *
+ * LA COURBE DU SOLDE PRÉVISIONNEL (solde-previsionnel.js, sa monnaie est `abMonnaieId`,
+ * la même que celle du budget) et TOUTES LES OPÉRATIONS PRÉVISIONNELLES, en deux listes :
+ * celles dont la date est PASSÉE (au-dessus : elles attendent d'être reconnues au
+ * prochain import, ou passées en réelles à la main) et celles À VENIR. Les listes
+ * portent toutes les monnaies, chaque montant dans la sienne.
+ *
+ * UN VIREMENT EST UNE LIGNE, pas deux : sa jambe sortante, avec le compte d'en face
+ * dans la colonne Catégorie.
+ */
+async function abChargerPrevisions() {
+  if (!state.monnaies.length) await refreshMonnaies();
+  if (abMonnaieId == null || !state.monnaies.some((m) => m.id === abMonnaieId)) {
+    abMonnaieId = monnaiePreferee(state.monnaies.map((m) => m.id));
+  }
+  const choix = document.getElementById("ab-prev-monnaie");
+  if (choix) {
+    fillSelect(
+      choix,
+      state.monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
+    );
+    choix.value = String(abMonnaieId);
+    choix.disabled = state.monnaies.length <= 1;
+  }
+  if (typeof abSpCharger === "function") abSpCharger();
+  try {
+    if (!state.comptes || !state.comptes.length) await refreshComptes();
+    if (!state.categories || !state.categories.length) await refreshCategories();
+    const operations = await apiFetch(`/operations?statut=${encodeURIComponent(STATUT_PREVISIONNEL)}`);
+    abRenderPrevisions(operations);
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+function abRenderPrevisions(operations) {
+  const parVirement = new Map();
+  operations.forEach((op) => {
+    if (op.virement_id) {
+      if (!parVirement.has(op.virement_id)) parVirement.set(op.virement_id, []);
+      parVirement.get(op.virement_id).push(op);
+    }
+  });
+  const lignes = operations.filter(
+    (op) => !(op.virement_id && op.sens === "transfert_entrant" && parVirement.get(op.virement_id).length > 1)
+  );
+  const aujourdhui = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const jour = `${aujourdhui.getFullYear()}-${pad(aujourdhui.getMonth() + 1)}-${pad(aujourdhui.getDate())}`;
+  const parDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id);
+  const passees = lignes.filter((op) => op.date < jour).sort(parDate);
+  const futures = lignes.filter((op) => op.date >= jour).sort(parDate);
+
+  const remplir = (idCorps, idNombre, liste, prefixe, vide) => {
+    const corps = document.getElementById(idCorps);
+    document.getElementById(idNombre).textContent = liste.length;
+    corps.innerHTML = "";
+    if (liste.length === 0) {
+      corps.innerHTML = `<tr><td colspan="5" class="hint">${escapeHtml(vide)}</td></tr>`;
+      return;
+    }
+    liste.forEach((op) => {
+      let categorie;
+      if (op.virement_id) {
+        const enFace = parVirement.get(op.virement_id).find((j) => j.id !== op.id);
+        categorie = enFace ? `→ ${escapeHtml(nomCompte(enFace.compte_id))}` : "-";
+      } else if (op.decoupes && op.decoupes.length > 0) {
+        // Ids préfixés : la page Opérations pose déjà ses lignes `decoupe-<id>`.
+        categorie = celluleCategorieOperation(op).replaceAll(
+          `"decoupe-${op.id}"`,
+          `"${prefixe}-decoupe-${op.id}"`
+        );
+      } else {
+        categorie = escapeHtml(nomCategorie(op.categorie_id));
+      }
+      const ligne = document.createElement("tr");
+      ligne.innerHTML = `
+        <td>${escapeHtml(op.nature)}</td>
+        <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
+        <td>${escapeHtml(nomCompte(op.compte_id))}</td>
+        <td>${formatDate(op.date)}</td>
+        <td>${categorie}</td>`;
+      corps.appendChild(ligne);
+      if (!op.virement_id && op.decoupes && op.decoupes.length > 0) {
+        const detail = ligneDetailDecoupe(op, 5);
+        detail.id = `${prefixe}-decoupe-${op.id}`;
+        corps.appendChild(detail);
+      }
+    });
+  };
+  remplir(
+    "ab-prev-passees",
+    "ab-prev-passees-nombre",
+    passees,
+    "ab-prev-p",
+    t("Aucune opération prévisionnelle en retard.")
+  );
+  remplir(
+    "ab-prev-futures",
+    "ab-prev-futures-nombre",
+    futures,
+    "ab-prev-f",
+    t("Aucune opération prévisionnelle à venir.")
+  );
+}
+
+document.getElementById("ab-prev-monnaie")?.addEventListener("change", (e) => {
+  abMonnaieId = Number(e.target.value);
+  if (typeof abSpCharger === "function") abSpCharger();
+});
+
 function abChargerSousPage(page) {
   // LES DEUX ONGLETS DU NOYAU DE CETTE PAGE LISENT LA MÊME CHOSE : le budget du
   // mois est le dénominateur des parts d'à côté, et les deux viennent du même
@@ -1189,6 +1304,7 @@ function abChargerSousPage(page) {
   // exister un instant où le tableau des catégories rapporte ses pourcentages
   // à un total que l'autre onglet a déjà changé.
   if (page === "budget-budget" || page === "budget-categories") return abCharger();
+  if (page === "budget-previsions") return abChargerPrevisions();
   // Onglet apporté par une autre extension : le noyau sait à qui le demander.
   return BudgetApp.extensions.ouvrirSousPage(page);
 }
@@ -1206,14 +1322,6 @@ document.getElementById("budget-sous-nav")?.addEventListener("click", (e) => {
 AB_CONTEXTES.forEach((ids) => {
   document.getElementById(ids.monnaie)?.addEventListener("change", (e) => {
     abMonnaieId = Number(e.target.value);
-    abCharger();
-  });
-  document.getElementById(ids.annee)?.addEventListener("change", (e) => {
-    abPeriode.annee = Number(e.target.value);
-    abCharger();
-  });
-  document.getElementById(ids.mois)?.addEventListener("change", (e) => {
-    abPeriode.mois = Number(e.target.value);
     abCharger();
   });
 });

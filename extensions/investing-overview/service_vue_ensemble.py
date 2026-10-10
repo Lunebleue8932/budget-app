@@ -48,6 +48,24 @@ TYPE_NON_RENSEIGNE = None
 TAILLE_DU_TOP = 3
 
 
+def _parts_du_titre(un_titre, axe: str) -> list[tuple[object, float]]:
+    """Les `(étiquette, part)` d'un titre sur un axe, la part étant une fraction de 1.
+
+    L'enveloppe : une étiquette, 100 %. Les axes d'exposition : une ligne par
+    étiquette de la répartition, plus le RÉSIDU (étiquette `None`) quand elle ne
+    couvre pas tout. Un titre sans aucune répartition est entièrement « non
+    renseigné » — exactement ce qu'était, avant la 0076, un titre sans classe."""
+    if un_titre is None:
+        return [(None, 1.0)]
+    if axe == AxeTitre.enveloppe.value:
+        return [(un_titre.type_titre, 1.0)]
+    parts = [(e.etiquette, e.poids_pct / 100.0) for e in un_titre.repartition(axe)]
+    residu = 1.0 - sum(part for _, part in parts)
+    if residu > 1e-9:
+        parts.append((None, residu))
+    return parts
+
+
 def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     """La répartition du portefeuille sur un axe, une entrée par monnaie.
 
@@ -64,52 +82,56 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     cases: dict = {}
     monnaies: dict = {}
 
-    classe = axe == AxeTitre.classe.value
     for compte in placements.get_comptes_placement(db):
         for ligne in placements.detentions(db, compte.id):
-            action = crud.get_action(db, ligne["action_id"])
-            # LE SEUL ENDROIT OÙ LES DEUX AXES DIFFÈRENT : la colonne lue. Tout
-            # le reste du calcul — le repli par monnaie, la somme des
-            # détentions, le top des titres, la part — est identique, et c'est
-            # pour ça qu'il n'est pas écrit deux fois.
-            etiquette = None
-            if action is not None:
-                etiquette = action.classe_actif if classe else action.type_titre
-            type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
-            type_nom = etiquette.nom if etiquette else None
-
+            un_titre = crud.get_titre(db, ligne["titre_id"])
+            # LE SEUL ENDROIT OÙ LES AXES DIFFÈRENT : les parts d'un titre (`_parts_du_titre`).
+            # Tout le reste — le repli par monnaie, la somme des détentions, le top des
+            # titres, la part — est identique, et c'est pour ça qu'il n'est pas écrit
+            # plusieurs fois.
+            # UN TITRE PEUT TOUCHER PLUSIEURS PARTS D'UN MÊME AXE (migration 0076) : sur
+            # les axes d'exposition il porte une RÉPARTITION, et sa valorisation se
+            # distribue au prorata de ses poids — un ETF World à 1 000 € pèse 650 € sur
+            # « États-Unis » et 150 € sur « Europe ». Le résidu (100 % moins ce qu'on
+            # connaît) tombe dans la part « non renseigné » : RIEN N'EST RENORMALISÉ, et
+            # la lire pour complète serait lire une répartition de 30 % du titre comme
+            # si c'était tout. Seule l'enveloppe est une étiquette unique, donc une part
+            # de 100 %.
             monnaies.setdefault(
                 ligne["monnaie_id"],
                 {"monnaie_id": ligne["monnaie_id"], "monnaie_symbole": ligne["monnaie_symbole"]},
             )
-            case = cases.setdefault(
-                (ligne["monnaie_id"], type_id),
-                {
-                    "type_titre_id": type_id,
-                    "type_titre_nom": type_nom,
-                    "valorisation": 0.0,
-                    "montant_investi": 0.0,
-                    "titres": {},
-                },
-            )
-            case["valorisation"] += ligne["valorisation"]
-            case["montant_investi"] += ligne["montant_investi"]
+            for etiquette, part in _parts_du_titre(un_titre, axe):
+                type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
+                type_nom = etiquette.nom if etiquette else None
+                case = cases.setdefault(
+                    (ligne["monnaie_id"], type_id),
+                    {
+                        "type_titre_id": type_id,
+                        "type_titre_nom": type_nom,
+                        "valorisation": 0.0,
+                        "montant_investi": 0.0,
+                        "titres": {},
+                    },
+                )
+                case["valorisation"] += ligne["valorisation"] * part
+                case["montant_investi"] += ligne["montant_investi"] * part
 
-            # UN MÊME TITRE PEUT ÊTRE DÉTENU SUR PLUSIEURS COMPTES (c'est même
-            # le cas ordinaire d'un ETF large). Il ne doit apparaître qu'une
-            # fois dans le détail d'une part, avec la somme de ses lignes — deux
-            # entrées du même nom se liraient comme une erreur.
-            titre = case["titres"].setdefault(
-                ligne["action_id"],
-                {
-                    "action_id": ligne["action_id"],
-                    "action_nom": ligne["action_nom"],
-                    "valorisation": 0.0,
-                    "nombre_comptes": 0,
-                },
-            )
-            titre["valorisation"] += ligne["valorisation"]
-            titre["nombre_comptes"] += 1
+                # UN MÊME TITRE PEUT ÊTRE DÉTENU SUR PLUSIEURS COMPTES (c'est même
+                # le cas ordinaire d'un ETF large). Il ne doit apparaître qu'une
+                # fois dans le détail d'une part, avec la somme de ses lignes — deux
+                # entrées du même nom se liraient comme une erreur.
+                titre = case["titres"].setdefault(
+                    ligne["titre_id"],
+                    {
+                        "titre_id": ligne["titre_id"],
+                        "titre_nom": ligne["titre_nom"],
+                        "valorisation": 0.0,
+                        "nombre_comptes": 0,
+                    },
+                )
+                titre["valorisation"] += ligne["valorisation"] * part
+                titre["nombre_comptes"] += 1
 
     resultat = []
     for monnaie_id, monnaie in monnaies.items():

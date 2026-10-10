@@ -23,7 +23,7 @@ empêche le geste en amont. `cours` est le seul facultatif sans condition.
 TROIS TYPES DE LIGNE, TROIS TRAITEMENTS
 
   - `achat` / `vente` : un mouvement de titres. Il crée le couple habituel
-    (OperationAction + Operation de type `action`) par crud.create_operation_action,
+    (OperationTitre + Operation de type `action`) par crud.create_operation_titre,
     exactement comme l'onglet Placements le fait à la main ;
   - `transfert` : un mouvement d'ESPÈCES entre ce compte-titres et un autre
     compte (l'alimentation d'un PEA, un retrait vers le compte courant). Aucun
@@ -94,7 +94,7 @@ from app.constants import (
     ECART_COURS_TOLERE,
     LIBELLES_TYPE_PLACEMENT_DEFAUT,
     ModeLecturePlacement,
-    SensAction,
+    SensTitre,
     Statut,
     TypeOperationPlacement,
 )
@@ -354,7 +354,7 @@ class ContextePresetPlacement:
         # Les titres en base, ARCHIVÉS COMPRIS, indexés par les deux
         # dénominations. Un relevé qui rouvre une position sur un titre rangé
         # doit retomber sur celui-là, pas en créer un second.
-        titres = crud.get_actions(db, inclure_archivees=True)
+        titres = crud.get_titres(db, inclure_archivees=True)
         self.par_isin = {t.code_isin: t for t in titres if t.code_isin}
         self.par_nom = {
             import_bancaire.normaliser_libelle(t.nom): t for t in titres if t.nom
@@ -486,7 +486,7 @@ def _resoudre_ligne_position(
 
     LE PRIX DE REVIENT EST UNITAIRE (PRU). C'est ce qu'écrivent la plupart des
     courtiers, et c'est déjà la forme que la base attend
-    (OperationAction.prix_unitaire) : le montant investi s'en déduit, jamais
+    (OperationTitre.prix_unitaire) : le montant investi s'en déduit, jamais
     l'inverse.
 
     LA DATE N'EST PAS DANS LE FICHIER : une photo ne dit pas quand elle a été
@@ -559,23 +559,23 @@ def _completer_ligne(
     maj: dict = {}
 
     # ---------- Le titre ----------
-    action = None
+    titre = None
     erreur_titre = None
     if ligne.type_placement in (TypeOperationPlacement.achat, TypeOperationPlacement.vente):
-        if ligne.action_id is not None:
+        if ligne.titre_id is not None:
             # Titre choisi à la main dans l'aperçu : il tranche, sans
             # rapprochement ni contrôle de cohérence à faire.
-            action = crud.get_action(contexte.db, ligne.action_id)
+            titre = crud.get_titre(contexte.db, ligne.titre_id)
         else:
-            action, erreur_titre = _rapprocher_titre(
+            titre, erreur_titre = _rapprocher_titre(
                 contexte, ligne.nom_valeur, ligne.code_isin
             )
-    maj["action_id"] = action.id if action else None
+    maj["titre_id"] = titre.id if titre else None
     # Le nom AFFICHÉ : c'est celui qu'on relira dans l'aperçu. Le nom du
     # courtier, lui, reste dans `nom_valeur` — celui que le fichier porte.
-    maj["action_nom"] = action.nom_affiche if action else ""
+    maj["titre_nom"] = titre.nom_affiche if titre else ""
     maj["titre_a_creer"] = (
-        action is None
+        titre is None
         and erreur_titre is None
         and ligne.type_placement in (TypeOperationPlacement.achat, TypeOperationPlacement.vente)
         and bool(ligne.nom_valeur or ligne.code_isin)
@@ -606,8 +606,8 @@ def _completer_ligne(
     # ---------- La monnaie de l'écriture ----------
     # Celle de cotation du titre pour un mouvement de titres (c'est dans
     # celle-là que le prix a été payé), celle du compte pour un transfert.
-    if action is not None:
-        maj["monnaie_id"] = action.monnaie_id
+    if titre is not None:
+        maj["monnaie_id"] = titre.monnaie_id
     else:
         compte = crud.get_compte(contexte.db, ligne.compte_id)
         maj["monnaie_id"] = compte.monnaie_principale_id if compte else None
@@ -620,10 +620,10 @@ def _completer_ligne(
     # moyen de savoir laquelle des deux lectures est la bonne.
     if (
         contexte.mode is ModeLecturePlacement.position
-        and action is not None
+        and titre is not None
         and ligne.compte_id is not None
     ):
-        deja = placements.quantite_detenue(contexte.db, ligne.compte_id, action.id)
+        deja = placements.quantite_detenue(contexte.db, ligne.compte_id, titre.id)
         maj["quantite_deja_detenue"] = deja if abs(deja) > placements.EPSILON_QUANTITE else None
 
     ligne = ligne.model_copy(update=maj)
@@ -670,7 +670,7 @@ def _erreur_ligne(
         return "quantité absente ou nulle"
     if ligne.quantite < 0:
         return "quantité négative"
-    if ligne.action_id is None and not (ligne.nom_valeur or ligne.code_isin):
+    if ligne.titre_id is None and not (ligne.nom_valeur or ligne.code_isin):
         return "ni nom de valeur ni code ISIN : impossible de savoir quel titre"
 
     # La monnaie de cotation du titre décide du compte depuis lequel il peut
@@ -683,7 +683,7 @@ def _erreur_ligne(
         monnaie = crud.get_monnaie(contexte.db, ligne.monnaie_id)
         nom_monnaie = monnaie.nom if monnaie else "cette monnaie"
         return (
-            f"« {ligne.action_nom or ligne.nom_valeur or ligne.code_isin} » est coté "
+            f"« {ligne.titre_nom or ligne.nom_valeur or ligne.code_isin} » est coté "
             f"en {nom_monnaie}, que le compte « {compte.nom} » ne porte pas"
         )
     return None
@@ -883,7 +883,7 @@ def _appliquer_override(
         return ligne
     # Un titre choisi à la main efface le rapprochement automatique : c'est
     # justement pour cela qu'on le choisit, et `_completer_ligne` le voit à
-    # `action_id` renseigné.
+    # `titre_id` renseigné.
     retouches = override.model_dump(exclude_none=True)
     if "montant" in retouches:
         # Le signe du montant oriente les transferts : une correction manuelle
@@ -897,7 +897,7 @@ def _appliquer_override(
 
 def _titre_pour_ligne(
     db, contexte: ContextePresetPlacement, ligne: LignePlacement, crees: list[str]
-) -> models.Action:
+) -> models.TitrePossede:
     """Le titre de cette ligne, CRÉÉ s'il n'existe pas encore.
 
     La création se fait ici et pas à l'aperçu : un aperçu qu'on abandonne ne
@@ -911,15 +911,15 @@ def _titre_pour_ligne(
     tout l'import. Le contexte est tenu à jour au fil des créations
     (`par_isin` / `par_nom`), c'est lui qui répond aux lignes suivantes.
     """
-    if ligne.action_id is not None:
-        return crud.get_action(db, ligne.action_id)
+    if ligne.titre_id is not None:
+        return crud.get_titre(db, ligne.titre_id)
 
     existant, _ = _rapprocher_titre(contexte, ligne.nom_valeur, ligne.code_isin)
     if existant is not None:
         return existant
 
     nom = _nom_du_titre_a_creer(ligne.nom_valeur, ligne.code_isin)
-    action = crud.create_action(
+    titre = crud.create_titre(
         db,
         nom=nom,
         monnaie_id=contexte.monnaie_compte_id,
@@ -938,11 +938,11 @@ def _titre_pour_ligne(
     # `nom_affiche` comme partout ailleurs : un titre qu'on vient de créer
     # n'a pas encore de renommage, les deux coïncident donc — mais la règle
     # doit être la même partout, sans quoi le prochain lecteur hésitera.
-    crees.append(action.nom_affiche)
-    if action.code_isin:
-        contexte.par_isin[action.code_isin] = action
-    contexte.par_nom[import_bancaire.normaliser_libelle(action.nom)] = action
-    return action
+    crees.append(titre.nom_affiche)
+    if titre.code_isin:
+        contexte.par_isin[titre.code_isin] = titre
+    contexte.par_nom[import_bancaire.normaliser_libelle(titre.nom)] = titre
+    return titre
 
 
 def _type_titre_a_poser(db, contexte, ligne) -> Optional[int]:
@@ -971,7 +971,7 @@ def _type_titre_a_poser(db, contexte, ligne) -> Optional[int]:
     return connu.id
 
 
-def _completer_isin(db, action: models.Action, code_isin: str) -> None:
+def _completer_isin(db, titre: models.TitrePossede, code_isin: str) -> None:
     """Complète l'ISIN d'un titre qui n'en avait pas.
 
     Ne l'ÉCRASE jamais : un titre qui porte déjà un ISIN différent a été traité
@@ -979,8 +979,8 @@ def _completer_isin(db, action: models.Action, code_isin: str) -> None:
     s'agit seulement d'un titre saisi à la main avant que cette extension
     n'existe, que le premier relevé importé vient enrichir.
     """
-    if code_isin and not action.code_isin:
-        crud.update_action(db, action, code_isin=code_isin)
+    if code_isin and not titre.code_isin:
+        crud.update_titre(db, titre, code_isin=code_isin)
 
 
 def confirmer(
@@ -1070,32 +1070,32 @@ def confirmer(
             operations_creees += 2
             continue
 
-        action = _titre_pour_ligne(db, contexte, ligne, titres_crees)
-        if action is None:
+        titre = _titre_pour_ligne(db, contexte, ligne, titres_crees)
+        if titre is None:
             lignes_ignorees.append(ligne.model_copy(update={"erreur": "titre introuvable"}))
             continue
-        _completer_isin(db, action, ligne.code_isin)
+        _completer_isin(db, titre, ligne.code_isin)
         # LE COURS ACTUEL, sur une photographie seulement. C'est le seul usage de
         # la colonne « valeur totale » : elle ne crée aucune détention, elle dit
         # ce que le titre vaut aujourd'hui. Ailleurs, `cours` est le prix annoncé
         # d'une transaction passée — l'écrire comme cours du jour vieillirait le
         # portefeuille à chaque import d'historique.
         if contexte.mode is ModeLecturePlacement.position and ligne.cours is not None:
-            crud.update_action(db, action, valeur=ligne.cours)
+            crud.update_titre(db, titre, valeur=ligne.cours)
 
         sens = (
-            SensAction.achat
+            SensTitre.achat
             if ligne.type_placement is TypeOperationPlacement.achat
-            else SensAction.vente
+            else SensTitre.vente
         )
-        cle_position = (ligne.compte_id, action.id)
+        cle_position = (ligne.compte_id, titre.id)
         if cle_position not in detenu:
             detenu[cle_position] = placements.quantite_detenue(
-                db, ligne.compte_id, action.id
+                db, ligne.compte_id, titre.id
             )
-        if sens is SensAction.vente:
+        if sens is SensTitre.vente:
             # UNE POSITION NE DEVIENT PAS NÉGATIVE. C'est la règle du noyau
-            # (cf. routeur_placements.create_operation_action) et elle vaut
+            # (cf. routeur_placements.create_operation_titre) et elle vaut
             # ici : une vente à découvert est presque toujours un relevé lu à
             # l'envers, ou une position ouverte avant l'app et jamais saisie.
             #
@@ -1107,7 +1107,7 @@ def confirmer(
                     ligne.model_copy(
                         update={
                             "erreur": (
-                                f"vente de {ligne.quantite:g} « {action.nom_affiche} » alors que "
+                                f"vente de {ligne.quantite:g} « {titre.nom_affiche} » alors que "
                                 f"{detenu[cle_position]:g} sont détenus sur ce compte à "
                                 "ce stade du fichier"
                             )
@@ -1116,16 +1116,16 @@ def confirmer(
                 )
                 continue
 
-        mouvement = crud.create_operation_action(
+        mouvement = crud.create_operation_titre(
             db,
             compte_id=ligne.compte_id,
-            action=action,
+            titre=titre,
             sens=sens,
             quantite=ligne.quantite,
             prix_unitaire=ligne.prix_unitaire,
             date_operation=ligne.date,
         )
-        detenu[cle_position] += ligne.quantite if sens is SensAction.achat else -ligne.quantite
+        detenu[cle_position] += ligne.quantite if sens is SensTitre.achat else -ligne.quantite
         a_stocker.append((donnees_par_ligne[ligne.ligne], mouvement.operation_id))
         operations_creees += 1
 

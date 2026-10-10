@@ -1298,8 +1298,10 @@ def _nom_compte(db, compte_id: Optional[int]) -> str:
 
 # ---------- La jambe qu'aucun fichier n'a décrite ----------
 #
-# L'extension qui porte la détection des ressemblances (cf. _ressemblances_actives).
-EXTENSION_RESSEMBLANCES = "ressemblances"
+# L'extension qui porte la détection des ressemblances (cf. _ressemblances_actives). Fusionnée avec
+# les règles dans « Imports Avancés » (dossier `regles`) : l'ancien identifiant « ressemblances » est
+# dans extensions.EXTENSIONS_RETIREES.
+EXTENSION_RESSEMBLANCES = "regles"
 
 # Même fenêtre que les ressemblances de virements : c'est l'ordre de grandeur du
 # décalage entre les dates de valeur de deux banques (cf.
@@ -1589,8 +1591,18 @@ class ContextePreset:
         # c'est de s'en servir. Une liste vide plutôt qu'un `if` plus bas : tout
         # le reste de la résolution continue de s'écrire sans se demander si
         # l'extension est là.
+        #
+        # ET SEULEMENT CELLES QUI VISENT CE FORMAT (migration 0077) : `presets` NULL = tous les
+        # formats, sinon la liste des identifiants visés. Filtré ici, une fois par fichier, plutôt
+        # que dans le moteur qui n'a pas à connaître la notion de format.
         self.regles = (
-            crud.list_regles_categorisation(db) if extensions.est_active("regles") else []
+            [
+                regle
+                for regle in crud.list_regles_categorisation(db)
+                if regle.presets is None or preset.id in regle.presets
+            ]
+            if extensions.est_active("regles")
+            else []
         )
         # Le preset lit-il une colonne « Sens » ? Distingue une cellule vide
         # (erreur : la ligne ne dit pas son sens alors que le format l'annonce)
@@ -2018,6 +2030,9 @@ def _resoudre_ligne(
             # montant envoyé, c'est celle du montant (même raisonnement).
             "devise_recue": nom_monnaie_banque or None,
             "devise_envoyee": nom_monnaie_envoyee_banque or nom_monnaie_banque or None,
+            # TOUTES LES COLONNES DU FICHIER (migration 0077), pour les conditions « ligne
+            # entière » et « colonne N » : la règle peut viser ce que le format ne lit pas.
+            "donnees_completes": brute["donnees_completes"],
         },
     )
     type_code = (
@@ -2190,6 +2205,7 @@ def _resoudre_ligne(
     # exprès pour cette ligne, la colonne ne dit que ce que la banque y a mis.
     notes_regle = notes_fichier
     imprevue_regle = False
+    a_declarer_regle = False
     amorti_regle = False
     debut_regle = fin_regle = None
     if resultat_regle is not None:
@@ -2197,6 +2213,7 @@ def _resoudre_ligne(
             nature = resultat_regle.nature
         notes_regle = resultat_regle.notes or notes_fichier
         imprevue_regle = bool(resultat_regle.imprevue)
+        a_declarer_regle = bool(resultat_regle.a_declarer)
         # Un amortissement part du mois de la ligne ; sans date lisible, il n'y
         # a pas de mois de départ, et la ligne part déjà en erreur.
         if resultat_regle.amortissement_mois and date_op is not None:
@@ -2255,6 +2272,7 @@ def _resoudre_ligne(
         statut_import=statut_import.value if statut_import is not None else None,
         notes=notes_regle,
         imprevue=imprevue_regle,
+        a_declarer=a_declarer_regle,
         amorti=amorti_regle,
         amortissement_debut=debut_regle,
         amortissement_fin=fin_regle,
@@ -3570,6 +3588,17 @@ def confirmer(
         # qu'aucun calcul ne lit (cf. models.Operation.imprevue).
         if ligne.imprevue and not operation.imprevue:
             operation.imprevue = True
+            db.commit()
+        # L'ÉTIQUETTE « À DÉCLARER » (migration 0077), avec sa garde d'éligibilité : la case de
+        # l'aperçu et la règle peuvent la demander sur n'importe quelle ligne, mais elle ne
+        # vaut que sur une entrée de type classique. Et une prévisionnelle rapprochée qui
+        # n'en est plus une la perd — c'est le sens FINAL de l'opération qui décide.
+        if not crud.operation_declarable(operation):
+            if operation.a_declarer:
+                operation.a_declarer = False
+                db.commit()
+        elif ligne.a_declarer and not operation.a_declarer:
+            operation.a_declarer = True
             db.commit()
         # CE QUE CETTE LIGNE SOLDE, posé maintenant : l'opération vient d'exister,
         # et c'est la première seconde où un lien peut la désigner. Les cibles,

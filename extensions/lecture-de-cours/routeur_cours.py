@@ -1,6 +1,6 @@
 """Les routes de l'extension : associer un lien à un titre, et relire les cours.
 
-TOUT VIT SOUS `/cours`, et rien ne touche à `/actions` ni à `/placements` —
+TOUT VIT SOUS `/cours`, et rien ne touche à `/titres` ni à `/placements` —
 les routes de l'extension « placements », qui continue de fonctionner seule et
 sans réseau. Les deux extensions cohabitent au lieu de se remplacer : celle-ci
 n'ajoute qu'une provenance possible pour un nombre que l'autre savait déjà
@@ -24,14 +24,14 @@ import source_cours
 router = APIRouter(prefix="/cours", tags=["placements"])
 
 
-def _titre_read(action: models.Action) -> schemas.CoursTitreRead:
+def _titre_read(titre: models.TitrePossede) -> schemas.CoursTitreRead:
     return schemas.CoursTitreRead(
-        action_id=action.id,
-        action_nom=action.nom_affiche,
-        url_cours=action.url_cours,
-        cours=action.valeur,
-        monnaie_symbole=action.monnaie.symbole,
-        cours_maj_le=action.cours_maj_le,
+        titre_id=titre.id,
+        titre_nom=titre.nom_affiche,
+        url_cours=titre.url_cours,
+        cours=titre.valeur,
+        monnaie_symbole=titre.monnaie.symbole,
+        cours_maj_le=titre.cours_maj_le,
     )
 
 
@@ -48,15 +48,15 @@ def _reponse(db: Session, resume: service_cours.Resume) -> schemas.Rafraichissem
         resultats=[
             schemas.ResultatCoursRead(**vars(resultat)) for resultat in resume.resultats
         ],
-        titres=[_titre_read(action) for action in crud.get_actions(db)],
+        titres=[_titre_read(titre) for titre in crud.get_titres(db)],
     )
 
 
-def _get_action_ou_404(db: Session, action_id: int) -> models.Action:
-    action = crud.get_action(db, action_id)
-    if action is None:
+def _get_titre_ou_404(db: Session, titre_id: int) -> models.TitrePossede:
+    titre = crud.get_titre(db, titre_id)
+    if titre is None:
         raise HTTPException(status_code=404, detail="Titre introuvable")
-    return action
+    return titre
 
 
 @router.get("/sources", response_model=list[schemas.SourceCoursRead])
@@ -73,12 +73,12 @@ def list_sources():
 def list_titres(db: Session = Depends(get_db)):
     """TOUS les titres, pas seulement ceux qui ont un lien : l'écran doit
     proposer d'en ajouter un là où il manque."""
-    return [_titre_read(action) for action in crud.get_actions(db)]
+    return [_titre_read(titre) for titre in crud.get_titres(db)]
 
 
-@router.put("/titres/{action_id}", response_model=schemas.RafraichissementRead)
+@router.put("/titres/{titre_id}", response_model=schemas.RafraichissementRead)
 def definir_url(
-    action_id: int, payload: schemas.UrlCoursUpdate, db: Session = Depends(get_db)
+    titre_id: int, payload: schemas.UrlCoursUpdate, db: Session = Depends(get_db)
 ):
     """Associe une page à un titre — et la lit tout de suite.
 
@@ -92,26 +92,26 @@ def definir_url(
     message le dit (« Site injoignable »), et il suffit de recommencer plus
     tard — rien n'est perdu entre-temps, le cours saisi à la main reste.
     """
-    action = _get_action_ou_404(db, action_id)
+    titre = _get_titre_ou_404(db, titre_id)
     try:
         cours = source_cours.lire_cours(payload.url)
     except source_cours.CoursIllisible as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    conflit = service_cours.ecart_de_devise(cours, action.monnaie)
+    conflit = service_cours.ecart_de_devise(cours, titre.monnaie)
     if conflit is not None:
         raise HTTPException(status_code=400, detail=conflit)
 
-    ancien = action.valeur
+    ancien = titre.valeur
     maintenant = datetime.now()
-    crud.definir_url_cours(db, action, payload.url.strip())
-    crud.enregistrer_cours_en_ligne(db, action, cours.valeur, maintenant)
+    crud.definir_url_cours(db, titre, payload.url.strip())
+    crud.enregistrer_cours_en_ligne(db, titre, cours.valeur, maintenant)
     resume = service_cours.Resume(
         horodatage=maintenant,
         resultats=[
             service_cours.Resultat(
-                action.id,
-                action.nom_affiche,
+                titre.id,
+                titre.nom_affiche,
                 ok=True,
                 cours=cours.valeur,
                 ancien_cours=ancien,
@@ -123,12 +123,12 @@ def definir_url(
     return _reponse(db, resume)
 
 
-@router.delete("/titres/{action_id}", status_code=status.HTTP_204_NO_CONTENT)
-def retirer_url(action_id: int, db: Session = Depends(get_db)):
+@router.delete("/titres/{titre_id}", status_code=status.HTTP_204_NO_CONTENT)
+def retirer_url(titre_id: int, db: Session = Depends(get_db)):
     """Détache la page du titre. Le dernier cours lu RESTE : il ne devient pas
     faux parce qu'on cesse de le rafraîchir, et le titre retombe simplement
     dans le régime de l'extension « placements » — un cours saisi à la main."""
-    crud.definir_url_cours(db, _get_action_ou_404(db, action_id), None)
+    crud.definir_url_cours(db, _get_titre_ou_404(db, titre_id), None)
 
 
 @router.post("/rafraichir", response_model=schemas.RafraichissementRead)
@@ -140,12 +140,12 @@ def rafraichir_tout(db: Session = Depends(get_db)):
     return _reponse(db, service_cours.rafraichir(db, service_cours.titres_suivis(db)))
 
 
-@router.post("/titres/{action_id}/rafraichir", response_model=schemas.RafraichissementRead)
-def rafraichir_titre(action_id: int, db: Session = Depends(get_db)):
-    action = _get_action_ou_404(db, action_id)
-    if not action.url_cours:
+@router.post("/titres/{titre_id}/rafraichir", response_model=schemas.RafraichissementRead)
+def rafraichir_titre(titre_id: int, db: Session = Depends(get_db)):
+    titre = _get_titre_ou_404(db, titre_id)
+    if not titre.url_cours:
         raise HTTPException(
             status_code=400,
-            detail=f"« {action.nom_affiche} » n'a pas de lien : ajoute-en un d'abord.",
+            detail=f"« {titre.nom_affiche} » n'a pas de lien : ajoute-en un d'abord.",
         )
-    return _reponse(db, service_cours.rafraichir(db, [action]))
+    return _reponse(db, service_cours.rafraichir(db, [titre]))

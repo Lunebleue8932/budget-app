@@ -33,7 +33,9 @@ from types import SimpleNamespace
 from typing import NamedTuple, Optional
 
 from ..constants import (
+    CHAMP_REGLE_LIGNE_ENTIERE,
     CHAMPS_REGLE_DEVISES,
+    MOTIF_CHAMP_REGLE_COLONNE,
     OPERATEURS_NOMBRE,
     TYPES_AVEC_CATEGORIE_LIBRE,
     ConnecteurRegle,
@@ -81,6 +83,8 @@ class ResultatRegle:
     compte_id: Optional[int] = None
     notes: Optional[str] = None
     imprevue: Optional[bool] = None
+    #: L'étiquette « à déclarer » (migration 0077) — None = personne n'en a rien dit.
+    a_declarer: Optional[bool] = None
     amortissement_mois: Optional[int] = None
 
     @property
@@ -225,6 +229,31 @@ def _mots_cles(condition: dict) -> list:
     return [condition.get("valeur", "")]
 
 
+def valeur_du_champ(brute: dict, champ: str):
+    """La valeur qu'une condition lit : un champ nommé de la ligne, ou — migration 0077 — une
+    colonne du fichier que le format ne rattache à aucune propriété.
+
+    « ligne_entiere » met bout à bout toutes les colonnes non vides, dans l'ordre du fichier,
+    séparées d'une espace : c'est ce qui permet de viser un mot où qu'il soit. « colonne_N » lit
+    la colonne n° N (1-based, comme dans le tableur). Une colonne absente de cette ligne vaut
+    None, ce que `_comparer` traite comme un champ illisible."""
+    if champ in brute:
+        return brute[champ]
+    donnees = brute.get("donnees_completes")
+    if not donnees:
+        return None
+    if champ == CHAMP_REGLE_LIGNE_ENTIERE:
+        # Les clés sont des numéros écrits en texte : triées comme des nombres, pas comme du
+        # texte (« 10 » après « 9 »).
+        return " ".join(
+            str(donnees[cle]) for cle in sorted(donnees, key=lambda c: int(c))
+        ) or None
+    trouve = MOTIF_CHAMP_REGLE_COLONNE.match(champ)
+    if trouve:
+        return donnees.get(trouve.group(1))
+    return None
+
+
 def evaluer_condition(condition: dict, brute: dict) -> bool:
     """Une condition porte sur un seul champ, et sur UN OU PLUSIEURS mots-clés.
 
@@ -239,10 +268,10 @@ def evaluer_condition(condition: dict, brute: dict) -> bool:
     operateur = condition.get("operateur")
     mots = _mots_cles(condition)
     if "champ" in condition:
-        valeur_champ = brute.get(condition["champ"])
+        valeur_champ = valeur_du_champ(brute, condition["champ"])
         return all(_comparer(valeur_champ, operateur, mot, brute) for mot in mots)
     return any(
-        all(_comparer(brute.get(champ), operateur, mot, brute) for mot in mots)
+        all(_comparer(valeur_du_champ(brute, champ), operateur, mot, brute) for mot in mots)
         for champ in condition.get("champs") or []
     )
 
@@ -334,6 +363,7 @@ _CHAMPS_SORTIE = (
     "nature_remplacement",
     "notes",
     "imprevue",
+    "a_declarer",
     "amortissement_mois",
 )
 
@@ -425,6 +455,7 @@ def _completer(resultat: ResultatRegle, regle) -> bool:
         ("compte_id", "compte_id"),
         ("notes", "notes"),
         ("imprevue", "imprevue"),
+        ("a_declarer", "a_declarer"),
         ("amortissement_mois", "amortissement_mois"),
     ):
         valeur = getattr(regle, champ_regle, None)

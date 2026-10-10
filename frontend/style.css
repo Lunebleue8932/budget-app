@@ -16,6 +16,9 @@
   --danger-hover: #dc2626;
   --negatif: #f87171;
   --positif: #4ade80;
+  /* La couleur des catégories d'entrée (cf. app.js, COULEUR_INDEX_ENTREE) : blanc ici,
+     noir sur le thème clair. */
+  --couleur-entree: #f1f3f5;
   --depense: #fb923c;
   --budget-line: #ef4444;
   /* L'interrupteur allumé (cf. « LES CASES SONT DES INTERRUPTEURS »). */
@@ -98,6 +101,7 @@
   --danger-hover: #b91c1c;
   --negatif: #c62828;
   --positif: #15803d;
+  --couleur-entree: #16181c;
   --depense: #c2410c;
   --budget-line: #dc2626;
   --interrupteur-on: #34c759;
@@ -297,7 +301,7 @@ header h1 {
 /* Deux drapeaux carrés aux coins arrondis, comme deux boutons-icônes ordinaires
    de l'app : pas de fond ni de bordure au repos, un liseré au survol, et un
    contour plus marqué + une légère mise à l'échelle pour la langue active —
-   le même langage que les autres boutons à bascule (cf. .import-config-oeil). */
+   le même langage que les autres boutons à bascule. */
 .langue {
   display: flex;
   gap: 0.3rem;
@@ -3123,7 +3127,7 @@ button.danger:hover {
 }
 
 /* Une ligne de configuration : la propriété d'abord (c'est elle qu'on cherche
-   du regard), puis le numéro de colonne qu'on lui affecte, puis l'œil. Le sens
+   du regard), puis le numéro de colonne qu'on lui affecte, précédés de l'interrupteur. Le sens
    de lecture suit la question posée — « la Date, je la prends où ? » — au lieu
    de commencer par un numéro qui ne veut encore rien dire. */
 .import-config-ligne .import-config-propriete {
@@ -3155,47 +3159,16 @@ button.danger:hover {
   color: var(--text-muted);
 }
 
-.import-config-ligne.inactive .import-config-index,
-.import-config-ligne.inactive .import-config-oeil {
-  opacity: 0.55;
-}
-
 .import-config-ligne.inactive .import-config-index {
+  opacity: 0.55;
   color: var(--text-muted);
 }
 
-/* L'œil remplace le couple "+ Ajouter" / "Supprimer" : toutes les propriétés
-   ont leur ligne, il n'y a plus qu'à dire lesquelles sont lues. Discret par
-   défaut, il s'éclaire au survol — c'est le seul geste de cette liste. */
-/* `.bouton-oeil` est la forme générique, `.import-config-oeil` le premier
-   endroit qui s'en est servi : l'œil de l'onglet Catégories (visibilité sur le
-   dashboard) doit être exactement le même bouton, sans quoi deux gestes
-   identiques n'auraient pas la même tête d'un écran à l'autre. */
-.import-config-oeil,
-.bouton-oeil {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.3rem;
-  min-width: auto;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.import-config-oeil:hover:not(:disabled),
-.bouton-oeil:hover:not(:disabled) {
-  color: var(--text-primary);
-  background: var(--bg-surface-alt);
-  border-color: var(--border);
-}
-
-.import-config-oeil:disabled,
-.bouton-oeil:disabled {
-  opacity: 0.35;
-  cursor: default;
+/* L'INTERRUPTEUR remplace le couple "+ Ajouter" / "Supprimer" : toutes les propriétés ont leur
+   ligne, il n'y a plus qu'à dire lesquelles sont lues. Son dessin vient de la règle commune des
+   cases (« LES CASES SONT DES INTERRUPTEURS ») : ici, seulement sa place, avant le nom. */
+.import-config-ligne .import-config-interrupteur {
+  flex: none;
 }
 
 /* Ligne écartée de l'import sans que rien ne soit à corriger (refusée par la
@@ -4432,6 +4405,32 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
   outline: none;
 }
 
+/* L'AMPOULE « TIPS & TRICKS », au bord droit du titre du dashboard : la même pastille que les autres
+   (même bulle, même placement), sans cercle ni bordure — un emoji se lit seul. */
+.dashboard-titre {
+  display: flex;
+  align-items: center;
+}
+
+.info-bulle.info-bulle-astuce {
+  width: auto;
+  height: auto;
+  margin-left: auto;
+  padding: 0.15rem 0.3rem;
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  filter: grayscale(0.6);
+  opacity: 0.75;
+  transition: opacity 0.15s, filter 0.15s;
+}
+
+.info-bulle.info-bulle-astuce:hover,
+.info-bulle.info-bulle-astuce:focus-visible {
+  filter: none;
+  opacity: 1;
+}
+
 /* LA BULLE ELLE-MÊME EST PLACÉE PAR JAVASCRIPT (cf. app.js, « Infobulles ») :
    un seul nœud, enfant de <body>, en `position: fixed`, dont les coordonnées
    sont recalculées à chaque ouverture d'après la place réellement disponible.
@@ -5471,25 +5470,76 @@ body.modale-ouverte {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
-/* ---------- Le troisième cran du sélecteur : les semaines du mois ---------- */
-
-/* La flèche à gauche, les semaines à sa droite — sur la même ligne, un cran
-   sous les mois. Repliée, il ne reste que la flèche : une rangée d'onglets
-   qu'on n'ouvre qu'une fois sur dix ne doit pas occuper la place en
-   permanence. */
-.periode-semaines {
+/* ---------- L'arbre de période du dashboard : Tout > année > mois > semaines ----------
+ *
+ * UNE LIGNE PAR NIVEAU, la pastille à gauche. Bleue pleine quand elle désigne le
+ * niveau qui pilote le dashboard, grise et creuse ailleurs : c'est le seul
+ * indice qui dit lequel des quatre niveaux filtre, ce que la mise en veille des
+ * rangées disait jusque-là par un gris sur le niveau qui ne filtrait pas.
+ * Les rangées gardent donc toutes leur aspect — la pastille décide.
+ */
+.periode-arbre {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 0.15rem;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 
-/* PETITE, ET SANS CADRE, contrairement aux flèches ▲▼ de gauche : celles-ci
-   changent le niveau qui FILTRE, celle-ci ne fait qu'ouvrir un tiroir. Un
-   bouton de même poids aurait laissé croire à un troisième niveau de filtre
-   permanent. */
-.periode-chevron {
+.periode-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.periode-ligne .sous-onglets {
+  flex: 1;
+  min-width: 0;
+}
+
+/* L'arbre et son interrupteur s'empilent : la rangée de gestes à gauche des
+   niveaux, utile à la page Opérations, n'existe plus ici. */
+.periode-selecteur.periode-selecteur-arbre {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+/* LA PASTILLE : un petit cercle, rempli en bleu quand il est choisi, gris sinon. */
+.periode-pastille {
   flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.periode-pastille:hover {
+  border-color: var(--accent-light);
+}
+
+.periode-pastille.active {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* L'emplacement du chevron existe même sans chevron : sans lui, les pastilles
+   des lignes qui n'en portent pas ne seraient pas alignées sur les autres. */
+.periode-chevron-place {
+  flex: none;
+  width: 1.4rem;
+  display: inline-flex;
+  justify-content: center;
+}
+
+/* PETIT, ET SANS CADRE, contrairement aux flèches de la page Opérations : il ne
+   change rien à ce qui filtre, il ouvre un tiroir. Un bouton de même poids
+   aurait laissé croire à un niveau de filtre de plus. */
+.periode-chevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5505,23 +5555,36 @@ body.modale-ouverte {
   color: var(--accent-light);
 }
 
-/* Dépliée, elle prend la couleur d'accent : c'est le seul indice, une fois la
-   rangée ouverte, que c'est elle qui l'a ouverte. */
+/* Déplié, il prend la couleur d'accent : c'est le seul indice, une fois la
+   ligne ouverte, que c'est lui qui l'a ouverte. */
 .periode-chevron[aria-expanded="true"] {
   color: var(--accent-light);
 }
 
-#dashboard-periode-semaines {
-  margin: 0;
+/* « Tout » est le premier de sa rangée, et le seul : plus de filet pour le
+   séparer d'années qui ne le suivent plus dans la même ligne. */
+.periode-ligne-tout .sous-onglets button.periode-tout {
+  margin-right: 0;
+  padding-right: 0.5rem;
+  border-right: none;
 }
 
-/* « Moyenne » ferme la rangée, séparée des semaines par un trait : les autres
-   onglets désignent une période du mois, celui-ci les résume toutes. Sans ce
-   trait, il se lisait comme une semaine de plus. */
-#dashboard-periode-semaines .semaine-moyenne {
-  margin-left: 0.5rem;
-  border-left: 1px solid var(--border);
-  padding-left: 0.9rem;
+/* L'INTERRUPTEUR DE MOYENNE, sous l'arbre, à la hauteur de la rangée des
+   semaines : il décrit un ensemble, pas une semaine. Éteint (et inerte) quand
+   on regarde UNE semaine, où il n'aurait rien à moyenner. */
+.periode-moyenne {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0 1.25rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.periode-moyenne.desactive {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* ---------- Réorganiser les colonnes en glissant les en-têtes ---------- */
@@ -6451,4 +6514,140 @@ body input[type="checkbox"]:disabled {
 #import-apercu-bloc.sans-compte-banque table th:nth-child(6),
 #import-apercu-bloc.sans-compte-banque table td:nth-child(6) {
   display: none;
+}
+
+/* ---------- La cascade (waterfall) d'une monnaie ----------
+   Dessinée par renderCascade (app.js) : la page d'un projet et la fenêtre de
+   détail d'une monnaie éteinte. Elle défile à l'horizontale quand il y a beaucoup
+   de marches, plutôt que de tasser les barres : le SVG garde sa largeur propre. */
+.waterfall-cadre {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+/* Chaque marche porte sa couleur en ligne (cf. couleurColonneCascade) : celle de sa
+   catégorie — les entrées en blanc ou en noir selon le thème —, le violet de
+   l'épargne, et les gris réservés aux frais et aux conversions. */
+.waterfall .wf-solde {
+  fill: var(--accent);
+}
+
+.waterfall .wf-deficit {
+  fill: var(--negatif);
+}
+
+.waterfall .wf-zero,
+.waterfall .wf-raccord {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.waterfall .wf-raccord {
+  stroke-dasharray: 3 2;
+}
+
+.waterfall .wf-valeur {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.waterfall .wf-libelle {
+  fill: var(--text-secondary);
+  font-size: 11px;
+}
+
+.waterfall .wf-marche:hover rect:not([fill="transparent"]) {
+  opacity: 0.82;
+}
+
+/* La fenêtre de détail d'une monnaie éteinte : une cascade et un camembert,
+   qui demandent plus de largeur qu'une fenêtre de confirmation. */
+/* UNE TAILLE FIXE, ET GRANDE : changer de période ou de filtre ne doit pas faire
+   rétrécir la fenêtre sous le curseur. Le contenu défile à l'intérieur. */
+.modale-monnaie-eteinte {
+  width: min(60rem, 94vw);
+  max-width: none;
+  height: min(48rem, 88vh);
+  max-height: none;
+  overflow-y: auto;
+}
+
+.modale-periode {
+  margin: 0.4rem 0 0.8rem;
+}
+
+.modale-monnaie-eteinte .legende-cadre {
+  margin: 0.8rem 0;
+}
+
+.modale-monnaie-eteinte .selecteur-contexte {
+  margin: 0.4rem 0 0.8rem;
+}
+
+/* La fenêtre des frais de virements internes : un groupe par couple de monnaies.
+   LES FRAIS EN AVANT, les montants du virement en retrait. */
+.frais-filtres {
+  margin: 0.4rem 0 0.8rem;
+  align-items: flex-end;
+}
+
+.frais-filtres .filtre-menu {
+  margin-left: 0;
+}
+
+.frais-groupe {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.frais-groupe-entete {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.frais-groupe-titre {
+  font-weight: 600;
+}
+
+.frais-groupe-total {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.frais-table td {
+  vertical-align: top;
+}
+
+.frais-montant {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.frais-virement,
+.frais-nature {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.frais-comptes {
+  display: block;
+  font-size: 0.78rem;
+}
+
+/* Un intertitre de menu à cocher (cf. creerMenuCases, option `titre`). */
+.filtre-menu-intertitre {
+  margin: 0.45rem 0.2rem 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }

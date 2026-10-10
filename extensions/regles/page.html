@@ -135,6 +135,14 @@
         </label>
         <button type="button" class="champ-ajoute-retirer" data-retirer-autre="imprevue" title="Retirer" aria-label="Retirer">×</button>
       </div>
+      <!-- Lue par la seule extension « Impôts » (migration 0077) : le champ n'est proposé que si elle tourne. -->
+      <div class="champ-ajoute" data-autre="a_declarer" id="regle-a-declarer-bloc">
+        <label class="import-option-ligne">
+          <input type="checkbox" id="regle-a-declarer" />
+          Marquer comme à déclarer
+        </label>
+        <button type="button" class="champ-ajoute-retirer" data-retirer-autre="a_declarer" title="Retirer" aria-label="Retirer">×</button>
+      </div>
     </div>
     <!-- Un virement décrit DEUX comptes, et le relevé n'en nomme qu'un.
          Sans ce second compte, chaque ligne reconnue par la règle doit
@@ -163,6 +171,13 @@
       <input type="checkbox" id="regle-arreter-apres" checked />
       Arrêter la lecture des règles ici<i class="info-bulle" tabindex="0" data-info-cle="regles.arreter-la-lecture-des-regles-ici">i</i>
     </label>
+    <!-- LES FORMATS VISÉS (migration 0077) : décochée, la règle s'applique à TOUS les formats
+         d'import, comme avant. Cochée, un menu à cases dit lesquels (tous cochés d'abord). -->
+    <label class="import-option-ligne">
+      <input type="checkbox" id="regle-formats-restreints" />
+      Uniquement certains formats d'import<i class="info-bulle" tabindex="0" data-info-cle="regles.formats-restreints">i</i>
+    </label>
+    <div id="regle-formats-menu" style="display:none"></div>
 
     <div class="actions">
       <button type="button" class="primary" id="btn-regle-enregistrer">Enregistrer</button>

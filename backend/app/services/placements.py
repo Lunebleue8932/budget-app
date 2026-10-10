@@ -1,7 +1,7 @@
 """Portefeuilles de titres des comptes de placement.
 
 Rien n'est stocké de ce qui est détenu : quantités, prix de revient et
-valorisations se recalculent depuis les mouvements (`operation_action`). C'est
+valorisations se recalculent depuis les mouvements (`operation_titre`). C'est
 le même parti pris que pour le reste de l'app — un solde recalculé ne peut pas
 dériver de ses écritures, alors qu'un solde stocké finit toujours par le faire.
 
@@ -14,7 +14,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from .. import models
-from ..constants import TYPE_COMPTE_PLACEMENT, SensAction
+from ..constants import TYPE_COMPTE_PLACEMENT, SensTitre
 
 # En dessous de ce seuil, une quantité résiduelle n'est que du bruit de calcul
 # en virgule flottante (tout vendre doit afficher une ligne soldée, pas
@@ -32,12 +32,12 @@ def get_comptes_placement(db: Session) -> list[models.Compte]:
     )
 
 
-def get_mouvements(db: Session, compte_id: Optional[int] = None) -> list[models.OperationAction]:
+def get_mouvements(db: Session, compte_id: Optional[int] = None) -> list[models.OperationTitre]:
     """Mouvements de titres, du plus ancien au plus récent — l'ordre dans lequel
     le prix de revient moyen doit être déroulé."""
     query = (
-        db.query(models.OperationAction)
-        .join(models.Operation, models.OperationAction.operation_id == models.Operation.id)
+        db.query(models.OperationTitre)
+        .join(models.Operation, models.OperationTitre.operation_id == models.Operation.id)
         .order_by(models.Operation.date, models.Operation.id)
     )
     if compte_id is not None:
@@ -45,7 +45,7 @@ def get_mouvements(db: Session, compte_id: Optional[int] = None) -> list[models.
     return query.all()
 
 
-def _replier_mouvements(mouvements: list[models.OperationAction]) -> dict:
+def _replier_mouvements(mouvements: list[models.OperationTitre]) -> dict:
     """Déroule les mouvements d'un compte pour obtenir, par titre, la quantité
     restante et ce qu'elle a coûté.
 
@@ -59,9 +59,9 @@ def _replier_mouvements(mouvements: list[models.OperationAction]) -> dict:
     etat: dict = {}
     for mouvement in mouvements:
         ligne = etat.setdefault(
-            mouvement.action_id, {"action": mouvement.action, "quantite": 0.0, "cout": 0.0}
+            mouvement.titre_id, {"titre": mouvement.titre, "quantite": 0.0, "cout": 0.0}
         )
-        if mouvement.sens == SensAction.achat:
+        if mouvement.sens == SensTitre.achat:
             ligne["quantite"] += mouvement.quantite
             ligne["cout"] += mouvement.quantite * mouvement.prix_unitaire
             continue
@@ -81,41 +81,41 @@ def detentions(db: Session, compte_id: int) -> list[dict]:
     """Titres encore détenus sur ce compte, les positions soldées exclues."""
     etat = _replier_mouvements(get_mouvements(db, compte_id))
     resultat = []
-    for action_id, ligne in etat.items():
+    for titre_id, ligne in etat.items():
         if ligne["quantite"] <= EPSILON_QUANTITE:
             continue
-        action = ligne["action"]
-        valorisation = ligne["quantite"] * action.valeur
+        titre = ligne["titre"]
+        valorisation = ligne["quantite"] * titre.valeur
         resultat.append(
             {
-                "action_id": action_id,
+                "titre_id": titre_id,
                 # Ce qu'on LIT : le renommage s'il existe, le nom du courtier
                 # sinon (cf. models.Action.nom_affiche).
-                "action_nom": action.nom_affiche,
+                "titre_nom": titre.nom_affiche,
                 # Monnaie de cotation du titre : cours, prix de revient et
                 # valorisation en sont tous libellés.
-                "monnaie_id": action.monnaie_id,
-                "monnaie_symbole": action.monnaie.symbole,
+                "monnaie_id": titre.monnaie_id,
+                "monnaie_symbole": titre.monnaie.symbole,
                 "quantite": ligne["quantite"],
                 "prix_revient_unitaire": ligne["cout"] / ligne["quantite"],
                 "montant_investi": ligne["cout"],
-                "valeur_unitaire": action.valeur,
+                "valeur_unitaire": titre.valeur,
                 "valorisation": valorisation,
                 "plus_value_latente": valorisation - ligne["cout"],
             }
         )
-    resultat.sort(key=lambda ligne: ligne["action_nom"])
+    resultat.sort(key=lambda ligne: ligne["titre_nom"])
     return resultat
 
 
-def quantite_detenue(db: Session, compte_id: int, action_id: int) -> float:
+def quantite_detenue(db: Session, compte_id: int, titre_id: int) -> float:
     """Quantité d'un titre détenue sur un compte — la borne d'une vente."""
     etat = _replier_mouvements(get_mouvements(db, compte_id))
-    ligne = etat.get(action_id)
+    ligne = etat.get(titre_id)
     return ligne["quantite"] if ligne else 0.0
 
 
-def quantite_detenue_totale(db: Session, action_id: int) -> float:
+def quantite_detenue_totale(db: Session, titre_id: int) -> float:
     """Ce qu'il reste de ce titre, TOUS COMPTES CONFONDUS.
 
     Compté compte par compte plutôt qu'en sommant les mouvements d'un bloc : le
@@ -128,7 +128,7 @@ def quantite_detenue_totale(db: Session, action_id: int) -> float:
     encore le ferait disparaître des menus tout en le laissant peser dans la
     valorisation, ce qui n'a aucun sens."""
     return sum(
-        quantite_detenue(db, compte.id, action_id) for compte in get_comptes_placement(db)
+        quantite_detenue(db, compte.id, titre_id) for compte in get_comptes_placement(db)
     )
 
 

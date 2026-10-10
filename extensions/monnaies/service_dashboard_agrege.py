@@ -90,6 +90,9 @@ def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
             # disparaître toutes les pastilles d'objectif dès que la case
             # « Tout convertir » est cochée.
             "objectif_pourcentage": depense.objectif_pourcentage,
+            # UNE BARRE QUI N'EST PAS UNE CATÉGORIE le reste une fois convertie : sans ce
+            # champ, la barre des frais perdait son gris et sa fenêtre de détail.
+            "colonne_speciale": getattr(depense, "colonne_speciale", None),
         },
     )
     ligne["total_reel"] += depense.total_reel * coefficient

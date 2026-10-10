@@ -103,7 +103,7 @@ def _obstacles_extinction(db: Session, monnaie_id: int) -> list[str]:
 
         titres = sorted(
             {
-                ligne["action_nom"]
+                ligne["titre_nom"]
                 for compte in service_placements.get_comptes_placement(db)
                 for ligne in service_placements.detentions(db, compte.id)
                 if ligne["monnaie_id"] == monnaie_id

@@ -2,7 +2,7 @@
 
 ## Nouveautés
 
-- **Les virements internes déjà connus sont reconnus à l'import.** Quand le relevé de l'autre compte arrive, l'app te demande « Même virement ? » : oui, la ligne n'est pas importée, non, elle l'est. À activer avec l'extension « Détection des ressemblances ».
+- **Les virements internes déjà connus sont reconnus à l'import.** Quand le relevé de l'autre compte arrive, l'app te demande « Même virement ? » : oui, la ligne n'est pas importée, non, elle l'est. À activer avec l'extension « Imports Avancés ».
 - **L'aperçu d'import se replie en sections.** Les doublons sont séparés (opérations classiques, virements internes), et les lignes refusées par la banque sont retenues pour les imports suivants.
 - **Le dépliant des semaines du dashboard a sa « Moyenne de l'année »** : ce qu'une semaine ordinaire coûte, par catégorie, sur toute l'année, à côté de la moyenne du mois.
 - **Les règles comparent le montant reçu et le montant envoyé**, avec des formules et une aide à l'écriture. Une ligne découpée par une règle se corrige directement dans l'aperçu.

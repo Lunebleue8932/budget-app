@@ -130,7 +130,7 @@ function ioContenuInfobulle(part, monnaieId, axe) {
             })})</i>`
           : "";
       return `<li>
-        <span class="histo-bulle-nature">${escapeHtml(titre.action_nom)}${comptes}</span>
+        <span class="histo-bulle-nature">${escapeHtml(titre.titre_nom)}${comptes}</span>
         <span class="histo-bulle-montant">${formatMontant(titre.valorisation, monnaieId)}</span>
       </li>`;
     })

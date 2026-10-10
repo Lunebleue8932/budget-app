@@ -211,7 +211,7 @@ def _valider(valeur: float) -> float:
     """Un cours nul ou négatif est le signe qu'on a lu autre chose que le cours
     (un volume à zéro, une variation), pas d'un titre qui ne vaudrait plus
     rien : la base refuse d'ailleurs les valeurs négatives
-    (ck_action_valeur_positive)."""
+    (ck_titre_possede_valeur_positive)."""
     if valeur <= 0:
         raise CoursIllisible("Cours lu invalide (zéro ou négatif)")
     return valeur

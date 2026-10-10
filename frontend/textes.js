@@ -58,7 +58,7 @@ const TEXTES = {
   "noyau.total-entrees":
     "Les entrées d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui rentre sur ton compte durant la période). Les entrées amorties sont comptées au prorata, et les dépenses remboursables ne comptent que pour la part non-remboursable.",
   "noyau.total-depenses":
-    "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser.",
+    "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser. Les frais des virements internes et des comptes d'épargne ou de placements y sont comptés : ces mouvements ne font rien sortir de ton budget, leurs frais si.",
   "noyau.variation-attribuee-au-mois":
     "La différence des deux KPIs différents.",
   "noyau.variation-sur-le-mois-brute":
@@ -121,6 +121,9 @@ const TEXTES = {
     "Le camembert montre la part de chaque catégorie. / -En vue « État actuel », chaque tranche est rapportée au total dépensé (le total fait donc 100%). /- En vue « Budget », elles sont rapportées au budget du mois : l'anneau reste ouvert sur ce qui n'a pas été dépensé.",
   "noyau.notice-graphes-legende":
     "La légende sous les deux est commune aux deux graphiques : l'infobulle affiche le bouton « Voir toutes les dépenses » qui t'emmène à la liste des opérations de cette catégorie.",
+  // L'ampoule du dashboard : le message par défaut, tant qu'aucune astuce plus précise n'a été écrite.
+  "noyau.astuces":
+    "N’hésite pas à me faire un retour (via le bouton feedback ou directement) sur ton utilisation de l’app. Ça me fait plaisir d’en savoir plus sur ton expérience !",
   "noyau.notice-graphes-semaines":
     "La flèche sous la rangée des mois déplie les semaines : l'histogramme devient celui de la semaine choisie, et « Moyenne » te montre une vue moyennée sur le mois (au prorata en fonction du nombre de jours écoulés). Les cartes ne sont pas affectées.",
   "noyau.notice-types-intro":
@@ -128,7 +131,7 @@ const TEXTES = {
   "noyau.notice-type-classique":
     "Le type d'opération par défaut et le plus courant : des courses, un paiement, un salaire, etc... C'est le seul type que tu peux découper en plusieurs catégories (plus de détails en bas de page).",
   "noyau.notice-type-virement":
-    "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs (à l'exception des virements internes entre deux monnaies différentes).",
+    "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs. Seuls leurs frais y comptent, comme une dépense : eux sont bien partis.",
   "noyau.notice-type-remboursable":
     "Si tu as avancé de l'argent ou qu'une de tes dépenses est remboursable, ce type est fait pour ton opération. Il te permet de /- ne compter que combien tu as réellement dépensé dans tes KPIs et les graphiques /- renseigner un montant dû /- suivre combien on te doit // Quand un remboursement est effectué (en partie ou totalement), le type Remboursement reçu te permet de relier l'opération de remboursement à la dépense remboursable.",
   "noyau.notice-type-pret":
@@ -163,6 +166,16 @@ const TEXTES = {
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
   "analyse-budget.graphes":
     "« Comparer avec » te permet de comparer deux périodes de même durée.",
+  "analyse-budget.previsions":
+    "Toutes tes opérations prévisionnelles, toutes monnaies confondues. Celles dont la date est passée sont en haut : elles attendent d'être reconnues au prochain import, ou d'être passées en réelles à la main. Un virement n'y prend qu'une ligne, avec le compte d'en face à la place de la catégorie.",
+  "analyse-budget.previsions-passees":
+    "Leur date est passée et elles sont toujours prévisionnelles : la vraie ligne n'a pas encore été importée, ou n'a pas été reconnue. Tant qu'elles le restent, elles comptent dans ton solde projeté mais pas dans ton solde réel.",
+  "analyse-budget.solde-previsionnel":
+    "Où en sera le solde de tes comptes courants, jour après jour : le passé réel en trait plein, puis chaque échéance prévisionnelle à sa date, en pointillés. Le dernier point est le « Solde total » du dashboard à la même date.",
+  "analyse-budget.solde-previsionnel-avancee":
+    "Ajoute à chaque jour ce que tu dépenses en moyenne, d'après tes dépenses passées. -- Les échéances déjà prévues ne sont pas touchées : la moyenne couvre le reste de la vie courante. -- Un loyer prévu ET présent dans l'historique serait compté deux fois : l'application te le signale, c'est toi qui décides.",
+  "analyse-budget.solde-previsionnel-exclusions":
+    "Retire des catégories ou des types d'opération du calcul de la moyenne : un loyer, un achat exceptionnel. Les échéances prévues ne changent pas.",
   "analyse-budget.budget-total":
 
     "Le budget de chaque mois, il reprend la valeur du dernier mois par défaut. Il relie les objectifs par catégorie en pourcentage et en valeur. ",
@@ -188,6 +201,12 @@ const TEXTES = {
     "Permet l'amélioration de la détection d'une dépense prévisionnelle renseignée dans l'app lors de son importation. L'import te proposera alors de valider la substitution.",
   "noyau.rapprochement-mots-cles":
     "Permet de ne pas confondre des dépenses de même montant, compte et date mais dont le libellé est différent.",
+
+  /* ----- La cascade (waterfall) d'une monnaie : projets, détail d'une monnaie éteinte ----- */
+  "noyau.frais-virements":
+    "Les frais qui comptent dans tes dépenses : ceux des virements internes, regroupés par couple de monnaies (un change dans un sens et dans l'autre se lisent ensemble), et ceux de tes comptes d'épargne ou de placements. Pour chaque ligne, les frais dans leur monnaie, puis le montant de l'opération. Les frais d'une opération ordinaire n'y figurent pas : ils font déjà partie de son montant.",
+  "noyau.cascade":
+    "Ce qui est entré et sorti dans cette monnaie, marche par marche : /- chaque catégorie, au net (les catégories d'entrée en blanc, ou en noir sur le thème clair) ; /- l'argent mis de côté sur un compte d'épargne ou de placements, ou repris, vu depuis tes comptes courants ; /- les frais de virements internes, en gris foncé ; /- les conversions vers ou depuis une autre monnaie, en gris, aux montants enregistrés dans les virements (jamais au taux du jour). // Un virement entre deux comptes du même type et dans la même monnaie n'y figure pas : il ne fait rien entrer ni sortir. La dernière marche est le solde.",
 
   "noyau.montant-a-rembourser":
     "Combien on te doit sur une dépense remboursable, combien tu dois sur un prêt.",
@@ -295,6 +314,8 @@ const TEXTES = {
   /* ----- Extension « Monnaies » ----- */
   "monnaies.taux-de-change":
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.",
+  "monnaies.affichage-monnaies-eteintes":
+    "Sur la page : chaque monnaie a ses graphiques, éteinte ou non. // En pop-up : seules les monnaies allumées ont leurs graphiques. L'argent converti vers une monnaie éteinte y devient une colonne grise /italic(Conversion vers…) : survole-la pour ouvrir le détail de cette monnaie dans une fenêtre. // Au dashboard, ces colonnes n'existent qu'en pop-up. Dans un projet, chaque conversion a sa colonne dans les deux cas.",
 
   /* ----- Extension « Placements » ----- */
   "placements.titres-suivis":
@@ -307,6 +328,24 @@ const TEXTES = {
     "Sous quelle forme tes titres sont détenus : ETF, action en direct, fonds et SCPI sont livrés par défaut.",
   "placements.classes-actif":
     "À quel type d'objet financier tes avoirs t'exposent-ils ?",
+  "placements.zones":
+    "Où tes avoirs sont exposés, par grande région du monde. Les zones livrées sont exclusives (« Asie (hors Chine) ») : un même pays ne compte pas deux fois dans la répartition d'un fonds.",
+  "placements.secteurs":
+    "De quoi tes avoirs sont faits, par secteur d'activité (nomenclature GICS).",
+  "placements.repartition-classe":
+    "La répartition du titre par classe d'actif, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un fonds mixte se répartit : Actions 60 %, Obligations 40 %. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
+  "placements.repartition-zone":
+    "La répartition du titre par zone géographique, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit : États-Unis 65 %, Europe 15 %… -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
+  "placements.repartition-secteur":
+    "La répartition du titre par secteur d'activité, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit entre plusieurs secteurs. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
+  "import-titres.presentation":
+    "Un fichier Excel ou CSV qui DÉCRIT des titres : une ligne par ISIN, avec son enveloppe, ses répartitions (classe d'actif, zone, secteur) et, pour un ETF, la composition de son indice. -- Il ne crée aucune opération. -- Une cellule vide ne change rien : le fichier complète, il n'efface jamais. -- Tu peux le réimporter autant de fois que tu veux, par exemple pour mettre un ETF à jour.",
+  "import-titres.apercu-modele":
+    "Seule la feuille « Titres » est lue à l'import ; une feuille « Notice » explique chaque colonne. Les trois premières lignes suffisent ici : ce sont les en-têtes qui comptent, et le modèle ne contient aucune ligne d'exemple.",
+  "import-titres.lire":
+    "Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé.",
+  "placements.composition-etf":
+    "Les ISIN du haut de l'indice que suit l'ETF, avec leur poids en %, une ligne par ISIN (« ISIN ; poids »). -- La part de l'indice couverte est le « x % » que ces lignes représentent ensemble (60 % par défaut). -- Elle sert à éclater l'ETF dans les graphiques : exposition par action, et zone ou secteur quand rien de plus direct n'est renseigné.",
 
   /* ----- Extension « Objectifs » ----- */
   "objectifs.objectifs":
@@ -332,15 +371,27 @@ const TEXTES = {
   "projets.projets":
     "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.",
   "projets.repartition-par-categorie":
-    "Les sorties du projet, réparties par catégorie — virements sortants compris, comme dans le total ci-dessus. Les entrées n'y figurent pas : elles se lisent dans le total des entrées.",
+    "Où l'argent du projet a été DÉPENSÉ, catégorie par catégorie. Un virement entre tes comptes dans la même monnaie n'y figure pas : l'argent a changé de compte, rien n'a été dépensé. Un change vers une autre monnaie a sa colonne grise /italic(Conversion vers…), et les frais de virements internes la leur, en gris foncé. Pour voir où l'argent est PARTI, lis la cascade juste au-dessus.",
   "projets.cascade":
-    "Les entrées du projet, puis chaque catégorie de dépense qui les entame (de la plus lourde à la plus légère), puis ce qu'il en reste. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.",
+    "Ce que le projet a fait entrer et sortir, marche par marche : les catégories (les entrées en blanc, ou en noir sur le thème clair, puis les dépenses de la plus lourde à la plus légère), l'épargne et les placements, les frais de virements internes en gris foncé et les conversions vers d'autres monnaies en gris, puis le solde. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.",
   "projets.ajouter-des-operations":
     "Ajouter une opération ici ne la retire d'aucun autre projet, et ne change ni sa catégorie ni son compte.",
 
   /* ----- Extension « Détection des ressemblances » ----- */
   "ressemblances.validation-lecture":
     "Quand tu as importé ce virement depuis l'autre compte, l'app a aussi écrit la jambe de celui-ci : la ligne ci-dessous lui ressemble (même compte, même sens, même montant, date voisine). « Oui » = c'est le même virement : la ligne n'est pas importée, et ses colonnes sont retenues pour que le prochain relevé la reconnaisse sans te redemander. « Non » = c'est une autre opération, elle est importée. Si tu changes le type de la ligne ou son compte en face, le choix passe en « Non » tout seul. L'import est bloqué tant qu'un choix reste « à choisir ».",
+
+  /* ----- Extension « Impôts » ----- */
+  "impots.impots":
+    "Toutes les entrées d'argent marquées « à déclarer », pour l'année choisie. Le total ne compte que ce qui est réellement perçu - le prévu est indiqué à part.",
+  "impots.taux":
+    "Le taux d'imposition de l'année, tel que ton avis d'imposition ou ta simulation l'indique. Il ne sert qu'à estimer l'impôt (total × taux) : ni barème, ni abattement, ni quotient. Laissé vide, aucun impôt estimé n'est affiché.",
+  "impots.date-limite":
+    "La date limite de ta déclaration pour cette année. L'app compte seulement les jours qu'il reste - aucun rappel n'est envoyé.",
+  "impots.a-declarer-champ":
+    "Une étiquette lue par l'extension impôts. Elle n'existe que sur une entrée d'argent ordinaire : un remboursement reçu, un prêt reçu ou un virement ne sont pas des revenus.",
+  "impots.ajouter-des-operations":
+    "Seules les entrées d'argent ordinaires sont proposées : ce sont les seules qui se déclarent. Marquer une entrée ne change ni son montant, ni sa catégorie, ni son compte.",
 
   /* ----- Extension « Règles » ----- */
   "regles.regles-de-categorisation":
@@ -353,6 +404,10 @@ const TEXTES = {
     "L'autre compte du virement, celui que le relevé ne nomme pas. Le sens se déduit du signe du montant. Sans lui, la ligne est à compléter à la main dans l'aperçu.",
   "regles.arreter-la-lecture-des-regles-ici":
     "Coché, le réglage habituel : cette règle décide, on s'arrête là. Décoché, les règles suivantes peuvent compléter ce qu'elle laisse ouvert — la catégorie, le compte en face. Le type reste celui de la première règle qui a mordu.",
+  "regles.formats-restreints":
+    "Décoché, la règle s'applique à tous les formats d'import. Coché, elle ne s'applique qu'aux formats choisis : utile quand un même libellé veut dire une chose chez une banque et une autre chez une autre.",
+  "regles.colonnes-du-fichier":
+    "« Toute la ligne » cherche dans toutes les colonnes du fichier à la fois. « Colonne n° » vise une seule colonne, comptée comme dans ton tableur (1 = la première) : pratique pour une colonne que le format d'import ne lit pas.",
   "regles.autres-proprietes":
     "Tout ce qu'une règle peut changer d'autre sur la ligne, sauf ses montants et sa date. Chaque champ est facultatif : laissé vide, la règle n'en dit rien. Le nouveau nom ne change pas ce que les règles comparent — elles lisent toutes le libellé du relevé.",
   "regles.sorties-conditionnelles":
@@ -392,6 +447,8 @@ const TEXTES = {
     "Le libellé de devise tel que le relevé l'écrit (« EUR », « $ »), pas la monnaie de l'app : une règle se lit avant que la devise soit rattachée. Compare-la à un libellé, ou à la devise de l'autre montant pour repérer un mouvement entre deux devises différentes.",
   "regles.action":
     "Le type détermine ce qui suit : seules « Opération classique » et « Dépense remboursable » laissent choisir une catégorie — les autres types imposent la leur. Chaque part dit combien elle prend. On peut écrire un nombre (50), un pourcentage (30%), une opération (montant - 50), ou utiliser min et max — par exemple min(montant; 50) pour « au plus 50 € ». Le mot reste donne à une part tout ce que les autres n'ont pas pris ; une seule part peut le porter, et la somme doit valoir le montant de la ligne.",
+  "regles.sortie-a-declarer-sans-type":
+    "L'application de la règle ne se fera que sur les opérations catégorisées d'office comme entrées d'argent par l'app.",
 
   /* ----- Extension « Suivi des remboursements » ----- */
   "suivi-remboursements.on-te-doit":
@@ -781,6 +838,8 @@ Object.assign(TEXTES, {
     "C'est LA page pour pouvoir tenir ton budget. // Elle te permet de sélectionner un budget pour ton mois et de choisir des budgets par catégorie. // Tu peux l'utiliser pour comparer les graphiques du dashboard sur différentes périodes, et mieux comprendre comme tu gères ton argent avec plus de recul. // Elle te permet également d'avoir accès à trois nouveaux indicateurs : /- L'argent que tu as mis de côté sur la période (virements internes vers tes comptes d'épargne ou de placements) /- Un matelas de sécurité que tu définis, utile pour s'assurer que ce dernier se porte bien /- La classification de dépenses comme étant imprévues, et le montant de ces imprévus sur la période : cet indicateur te permet de mieux comprendre ce qu'on n'anticipe jamais et qu'on finit par souvent par définir comme impossible à prendre en compte dans le budget ",
   "import-placements.description":
     "C'est l'extension te permettant d'importer des relevés pour tes titres de placements (nécessite l'extension Placements). Le mécanisme d'import est le même que celui pour l'import d'informations, et l'information clé est l'ISIN d'un titre - un identifiant unique.",
+  "impots.description":
+    "Tu reçois un salaire, des loyers, un revenu à déclarer ? Cette extension te laisse marquer ces entrées d'argent « à déclarer » (une case dans le formulaire d'une opération, dans l'aperçu d'un import, ou posée par une règle), puis les retrouve toutes au même endroit, année par année. // Tu y notes ton taux d'imposition et la date limite de ta déclaration : l'app te dit combien de jours il reste et t'indique un impôt estimé. // Attention, c'est un ordre de grandeur : total × taux, sans barème ni abattement. /bold(Ce n'est pas un calcul fiscal.)",
   "interets-percus.description":
     "Un compte d'épargne te rapporte de l'argent passivement, à des fréquences différences (journalier, mensuel, annuel, ...). Néanmoins, une opération ne s'écrit pas pour autant dans tes relevés - l'app affichera donc un montant erroné pour ton compte de placements quand tes intérêts apparaîtront sur ton compte. // Cette extension - s'affichant dans la page Vue des avoirs /Vue des avoirs - te permet de renseigner à la main ces intérêts et les assigner à un compte de placements.",
   "investing-overview.description":

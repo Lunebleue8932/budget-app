@@ -70,7 +70,8 @@ def reordonner_projets(payload: schemas.ReordonnerSousFiltres, db: Session = Dep
 
 @router.get("/{projet_id}", response_model=schemas.SousFiltreRead)
 def get_projet(projet_id: int, db: Session = Depends(get_db)):
-    return service.lire_sous_filtre(_get_sous_filtre_ou_404(db, projet_id))
+    # LE PROJET OUVERT porte ses cascades ; la liste, non (cf. lire_sous_filtre).
+    return service.lire_sous_filtre(_get_sous_filtre_ou_404(db, projet_id), db)
 
 
 @router.put("/{projet_id}", response_model=schemas.SousFiltreRead)

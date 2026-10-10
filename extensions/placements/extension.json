@@ -8,11 +8,14 @@
     "html": "page.html",
     "css": [
       "placements.css",
-      "import-placements.css"
+      "import-placements.css",
+      "import-titres.css"
     ],
     "js": [
       "placements.js",
-      "import-placements.js"
+      "expositions.js",
+      "import-placements.js",
+      "import-titres.js"
     ]
   },
   "navigation": {

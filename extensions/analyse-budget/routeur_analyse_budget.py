@@ -17,16 +17,17 @@ un matelas franchi dans une monnaie ne dit rien de l'autre.
 from datetime import date as date_type
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 # Imports ABSOLUS vers le noyau : ce module n'est pas un sous-paquet de `app`,
 # il est chargé par chemin de fichier (cf. extensions/README.md).
-from app import models
+from app import crud, models
 from app.database import get_db
 
 import schemas_analyse_budget as schemas_ab
 import service_analyse_budget as service
+import service_solde_previsionnel as service_solde
 
 router = APIRouter(prefix="/analyse-budget", tags=["analyse-budget"])
 
@@ -122,3 +123,43 @@ def lire_imprevues(
             for ligne in service.detail_imprevues(db, annee, None, monnaie_id)
         ],
     )
+
+
+# ---------- Le solde prévisionnel ----------
+
+
+@router.get("/solde-previsionnel", response_model=schemas_ab.SoldePrevisionnelRead)
+def lire_solde_previsionnel(
+    monnaie_id: int,
+    jusqu_au: Optional[date_type] = None,
+    avancee: bool = False,
+    cadence: str = Query("jour", pattern="^(jour|semaine)$"),
+    fenetre: Optional[int] = Query(service_solde.FENETRE_SEMAINES_DEFAUT, ge=1, le=520),
+    tout_l_historique: bool = False,
+    exclure_categories: Optional[list[int]] = Query(None),
+    exclure_types: Optional[list[str]] = Query(None),
+    exclure_operations: Optional[list[int]] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """La courbe du solde des comptes courants, du passé récent à `jusqu_au`.
+
+    LES OCCURRENCES RÉCURRENTES SONT GÉNÉRÉES D'ABORD, comme à chaque lecture du
+    dashboard : cette route lit directement la table des opérations, elle doit
+    voir les prévisionnelles même si personne n'est passé par la page Opérations.
+
+    UNE SEULE MONNAIE, obligatoire — rien ne s'additionne entre devises."""
+    _monnaie_ou_404(db, monnaie_id)
+    crud.generer_occurrences_recurrentes(db)
+    resultat = service_solde.solde_previsionnel(
+        db,
+        monnaie_id,
+        jusqu_au=jusqu_au,
+        avancee=avancee,
+        cadence=cadence,
+        fenetre_semaines=None if tout_l_historique else fenetre,
+        exclure_categories=set(exclure_categories or []),
+        exclure_types=set(exclure_types or []),
+        exclure_operations=set(exclure_operations or []),
+    )
+    resultat["matelas"] = service.get_matelas(db, monnaie_id)
+    return resultat

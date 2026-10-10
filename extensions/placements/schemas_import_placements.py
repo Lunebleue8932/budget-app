@@ -52,12 +52,12 @@ class LignePlacement(BaseModel):
     # Le titre déjà en base que ces deux-là désignent, s'il existe. None avec un
     # nom ou un ISIN renseigné = ce titre sera CRÉÉ à la confirmation (cf.
     # `titre_a_creer`), ce que l'aperçu signale.
-    action_id: Optional[int] = None
+    titre_id: Optional[int] = None
     # Le nom du titre en base, qui peut différer de celui du fichier quand le
     # rapprochement s'est fait par l'ISIN. C'est celui-là qui fait foi : un
     # courtier abrège, un autre pas, et renommer un titre à chaque import
     # réécrirait l'historique de l'onglet Placements.
-    action_nom: str = ""
+    titre_nom: str = ""
     titre_a_creer: bool = False
     # L'ÉTIQUETTE À POSER SUR LE TITRE, si la ligne en désigne une — par une
     # règle, ou par une colonne du fichier. Le nom est ce que le fichier écrit
@@ -84,7 +84,7 @@ class LignePlacement(BaseModel):
     # décide de rien : il sert de CONTRÔLE contre le prix unitaire déduit.
     cours: Optional[float] = None
     # montant / quantité — le prix réellement payé ou encaissé par titre, frais
-    # de courtage compris. C'est lui qui part en base (OperationAction.
+    # de courtage compris. C'est lui qui part en base (OperationTitre.
     # prix_unitaire), et c'est de lui que le prix de revient se déduit.
     prix_unitaire: Optional[float] = None
     # Écart RELATIF entre le cours lu et le prix unitaire déduit, quand il
@@ -155,7 +155,7 @@ class LignePlacementOverride(BaseModel):
     # Le titre à utiliser, choisi dans la liste des titres existants : court-
     # circuite le rapprochement par nom/ISIN, et donc la création d'un doublon
     # quand le courtier écrit un nom que l'app ne connaît pas encore.
-    action_id: Optional[int] = None
+    titre_id: Optional[int] = None
     compte_id: Optional[int] = None
     # Le second compte d'un transfert. Le seul champ que l'aperçu DOIT
     # régulièrement remplir : le fichier ne le porte jamais.

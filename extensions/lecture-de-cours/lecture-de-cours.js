@@ -33,7 +33,7 @@
  */
 
 // L'état de cotation par titre : { url_cours, cours_maj_le }, indexé par
-// action_id. Tenu à jour à chaque réponse du serveur (toutes en renvoient la
+// titre_id. Tenu à jour à chaque réponse du serveur (toutes en renvoient la
 // liste complète), pour que le redessin d'une ligne soit SYNCHRONE — il est
 // appelé au milieu du rendu de « placements », qui ne nous attendrait pas.
 const coursParTitre = new Map();
@@ -57,7 +57,7 @@ const ID_EXTENSION = "lecture-de-cours";
  * Or c'est exactement ce qu'on lui demande — être bleu, de la MÊME teinte que
  * la flèche d'à côté, et suivre le thème si la palette change. Le dessin est
  * donc repris ici avec `fill="currentColor"`, comme les pictogrammes du noyau
- * (ICONE_POUBELLE, ICONE_OEIL…).
+ * (ICONE_POUBELLE…).
  *
  * Seul le tracé du globe est repris : le second chemin du fichier n'est qu'un
  * rectangle transparent de calage, sans objet une fois en ligne.
@@ -83,7 +83,7 @@ function actif() {
 
 function memoriser(titres) {
   coursParTitre.clear();
-  (titres || []).forEach((titre) => coursParTitre.set(titre.action_id, titre));
+  (titres || []).forEach((titre) => coursParTitre.set(titre.titre_id, titre));
   // Le résumé de la barre découle entièrement de cette table : le remettre à
   // jour ICI, et pas chez chacun des appelants, évite qu'un chemin oublié
   // laisse affiché « 1 titre suivi » sous un titre qu'on vient de détacher.
@@ -211,7 +211,7 @@ let sourcesConnues = null;
  * personne à la lire — c'est une liste, elle se lit comme une liste.
  */
 async function poserAideSources() {
-  const liste = document.getElementById("placements-actions-liste");
+  const liste = document.getElementById("placements-titres-liste");
   if (!liste) return;
   const existante = document.getElementById("pw-sources");
   if (!actif()) {
@@ -280,7 +280,7 @@ async function poserAideSources() {
  * chaque fois, et non ajoutés une bonne fois pour toutes.
  */
 function greffeLiens() {
-  const bloc = document.getElementById("placements-actions-liste");
+  const bloc = document.getElementById("placements-titres-liste");
   if (!bloc || !actif()) return;
 
   bloc.querySelectorAll(".import-mapping-row").forEach((ligne) => {
@@ -292,8 +292,8 @@ function greffeLiens() {
     if (ligne.classList.contains("titre-archive")) return;
     const champCours = ligne.querySelector("input[data-action='cours']");
     if (!champCours) return;
-    const actionId = Number(champCours.dataset.id);
-    const titre = coursParTitre.get(actionId) || {};
+    const titreId = Number(champCours.dataset.id);
+    const titre = coursParTitre.get(titreId) || {};
     const suivi = Boolean(titre.url_cours);
 
     // LA FLÈCHE, posée juste après le nom du titre : c'est elle qui déplie le
@@ -305,7 +305,7 @@ function greffeLiens() {
     const bascule = document.createElement("button");
     bascule.type = "button";
     bascule.className = "pw-bascule";
-    bascule.dataset.pwBascule = String(actionId);
+    bascule.dataset.pwBascule = String(titreId);
     bascule.setAttribute("aria-expanded", "false");
     bascule.title = t("Afficher le lien de cotation");
     bascule.setAttribute("aria-label", bascule.title);
@@ -342,14 +342,14 @@ function greffeLiens() {
     greffe.className = "pw-lien";
     greffe.hidden = true;
     greffe.innerHTML = `
-      <input type="url" class="pw-url" data-pw-url data-id="${actionId}"
+      <input type="url" class="pw-url" data-pw-url data-id="${titreId}"
              placeholder="${t("Lien de la page de cotation (Google Finance, Yahoo Finance…)")}"
              value="${escapeHtml(titre.url_cours || "")}" />
-      <button type="button" data-pw-rafraichir data-id="${actionId}"
+      <button type="button" data-pw-rafraichir data-id="${titreId}"
               title="${t("Relire le cours maintenant")}" ${suivi ? "" : "disabled"}>
         ${t("Mettre à jour")}
       </button>
-      <button type="button" data-pw-retirer data-id="${actionId}"
+      <button type="button" data-pw-retirer data-id="${titreId}"
               title="${t("Ne plus suivre ce cours en ligne")}" ${suivi ? "" : "disabled"}>
         ${t("Détacher")}
       </button>
@@ -385,25 +385,25 @@ function greffeLiens() {
 }
 
 async function enregistrerLien(champ) {
-  const actionId = Number(champ.dataset.id);
+  const titreId = Number(champ.dataset.id);
   const url = champ.value.trim();
-  const precedent = coursParTitre.get(actionId) || {};
+  const precedent = coursParTitre.get(titreId) || {};
 
   if (!url) {
-    if (precedent.url_cours) await retirerLien(actionId);
+    if (precedent.url_cours) await retirerLien(titreId);
     return;
   }
   if (url === precedent.url_cours) return; // rien n'a changé
 
   champ.disabled = true;
   try {
-    const reponse = await apiFetch(`/cours/titres/${actionId}`, {
+    const reponse = await apiFetch(`/cours/titres/${titreId}`, {
       method: "PUT",
       body: JSON.stringify({ url }),
     });
     appliquerReponse(reponse);
     const lu = reponse.resultats[0];
-    const symbole = (coursParTitre.get(actionId) || {}).monnaie_symbole || "";
+    const symbole = (coursParTitre.get(titreId) || {}).monnaie_symbole || "";
     // Le nom publié par la source, pas celui du titre : c'est la seule
     // confirmation que le lien collé désigne bien l'instrument voulu.
     showMessage(
@@ -428,9 +428,9 @@ async function enregistrerLien(champ) {
   }
 }
 
-async function retirerLien(actionId) {
+async function retirerLien(titreId) {
   try {
-    await apiFetch(`/cours/titres/${actionId}`, { method: "DELETE" });
+    await apiFetch(`/cours/titres/${titreId}`, { method: "DELETE" });
     showMessage(t("Lien retiré — le cours redevient saisi à la main"), "success");
     await chargerTitres();
     await rechargerEcran();
@@ -471,7 +471,7 @@ async function rafraichir(route) {
     reponse.resultats
       .filter((resultat) => !resultat.ok)
       .forEach((resultat) =>
-        showMessage(`${resultat.action_nom} : ${resultat.erreur}`, "warning")
+        showMessage(`${resultat.titre_nom} : ${resultat.erreur}`, "warning")
       );
     if (reponse.reussis === 0 && reponse.echecs === 0) {
       showMessage(t("Aucun titre n'a de lien à relire"), "warning");

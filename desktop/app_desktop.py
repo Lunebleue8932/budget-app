@@ -308,6 +308,34 @@ class ApiBureau:
             return None
         return chemin
 
+    def enregistrer_octets(self, nom_propose: str, contenu_base64: str) -> str | None:
+        """Écrit un fichier BINAIRE (le modèle Excel de l'import de titres) à l'endroit
+        que l'utilisateur désigne.
+
+        LA MÊME RAISON QUE `enregistrer_texte` (un lien `download` ne fait rien dans la
+        fenêtre de bureau), pour un contenu qui ne passe pas par du texte : un classeur
+        .xlsx est un zip, et le décoder en UTF-8 l'aurait corrompu. Il voyage donc en
+        base64 — c'est ce que sait transporter l'appel JavaScript — et s'écrit tel quel.
+
+        Rend le chemin écrit, ou None si l'utilisateur annule, si le contenu n'est pas du
+        base64 valide ou si l'écriture échoue : l'écran le dit alors plutôt que de laisser
+        croire au succès."""
+        import base64
+        import binascii
+
+        try:
+            octets = base64.b64decode(contenu_base64, validate=True)
+        except (binascii.Error, ValueError):
+            return None
+        chemin = self._dialogue("enregistrer", nom_propose)
+        if not chemin:
+            return None
+        try:
+            Path(chemin).write_bytes(octets)
+        except OSError:
+            return None
+        return chemin
+
     def _dialogue(self, mode: str, chemin_propose: str, file_types=()) -> str | None:
         # Importé ICI et pas en tête de module : `webview` tire les
         # bibliothèques graphiques du système, et tout ce qui précède

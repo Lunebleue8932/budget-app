@@ -22,6 +22,7 @@ from ..constants import (
     EXTENSION_INTERETS_PERCUS,
     EXTENSION_PRETS,
     EXTENSION_SUIVI_REMBOURSEMENTS,
+    LIBELLE_FRAIS_VIREMENTS,
     LIBELLE_INTERETS_PRETS,
     TYPES_COMPTE_HORS_COURANT,
     TYPES_HORS_FLUX,
@@ -1070,6 +1071,9 @@ def get_depenses_par_categorie(
     ligne_prets = _barre_interets_prets(db, annee, mois, monnaie_id, semaine)
     if ligne_prets is not None:
         resultats.append(ligne_prets)
+    ligne_frais = _barre_frais_virements(db, annee, mois, monnaie_id, semaine)
+    if ligne_frais is not None:
+        resultats.append(ligne_frais)
     return resultats
 
 
@@ -1163,6 +1167,50 @@ def _semaine_depensiere(semaine: dict) -> bool:
     )
 
 
+def annees_couvertes(db: Session, aujourdhui: Optional[date_type] = None) -> list[int]:
+    """Les années que couvre « tout », de la première opération à la dernière,
+    prévisionnelles comprises (cf. `services/periode_tout`).
+
+    Sans aucune opération, l'année en cours seulement : une vue vide plutôt
+    qu'une vue qui remonte à l'an zéro. L'année en cours est toujours comprise,
+    même si les opérations s'arrêtent avant — « tout » ne peut pas se terminer
+    avant aujourd'hui."""
+    aujourdhui = aujourdhui or date_type.today()
+    premiere, derniere = db.query(
+        func.min(models.Operation.date), func.max(models.Operation.date)
+    ).one()
+    if premiere is None:
+        return [aujourdhui.year]
+    return list(
+        range(min(premiere.year, aujourdhui.year), max(derniere.year, aujourdhui.year) + 1)
+    )
+
+
+def _semaines_revolues_de_l_annee(
+    db: Session, annee: int, monnaie_id: int, aujourdhui: date_type
+) -> list[dict]:
+    """Les semaines RÉVOLUES d'une année, mois après mois — sans le repli de
+    `_semaines_revolues` sur la semaine en cours : une année a toujours de quoi se
+    passer d'une semaine, et les mois à venir n'ont rien à dire."""
+    revolues: list[dict] = []
+    for mois in range(1, 13):
+        if date_type(annee, mois, 1) > aujourdhui:
+            break
+        revolues += [
+            s
+            for s in _semaines_calculees(db, annee, mois, monnaie_id)
+            if date_type(annee, mois, s["jour_fin"]) < aujourdhui
+        ]
+    return revolues
+
+
+def _a_partir_de_la_premiere_depense(semaines: list[dict]) -> list[dict]:
+    """On écarte les semaines d'avant la première dépense : une application
+    commencée en août ne doit pas voir sa moyenne écrasée par sept mois vides."""
+    premiere = next((i for i, s in enumerate(semaines) if _semaine_depensiere(s)), None)
+    return [] if premiere is None else semaines[premiere:]
+
+
 def get_depenses_moyenne_annee(
     db: Session, annee: int, monnaie_id: int, aujourdhui: Optional[date_type] = None
 ) -> dict:
@@ -1184,24 +1232,60 @@ def get_depenses_moyenne_annee(
 
     Une année sans aucune dépense rend une moyenne vide, sur zéro semaine."""
     aujourdhui = aujourdhui or date_type.today()
-    revolues: list[dict] = []
-    for mois in range(1, 13):
-        if date_type(annee, mois, 1) > aujourdhui:
-            break
-        revolues += [
-            s
-            for s in _semaines_calculees(db, annee, mois, monnaie_id)
-            if date_type(annee, mois, s["jour_fin"]) < aujourdhui
-        ]
-    # On écarte les semaines d'avant la première dépense.
-    premiere = next((i for i, s in enumerate(revolues) if _semaine_depensiere(s)), None)
-    revolues = [] if premiere is None else revolues[premiere:]
+    revolues = _a_partir_de_la_premiere_depense(
+        _semaines_revolues_de_l_annee(db, annee, monnaie_id, aujourdhui)
+    )
     moyenne, budget_total_moyen = _moyenner_semaines(revolues)
     return {
         "annee": annee,
         "moyenne": moyenne,
         "budget_total_moyen": budget_total_moyen,
         "semaines_moyennees": len(revolues),
+    }
+
+
+def get_depenses_moyenne_periode(
+    db: Session,
+    vue: str,
+    annee: int,
+    mois: Optional[int],
+    monnaie_id: int,
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """LA MOYENNE HEBDOMADAIRE D'UN ENSEMBLE, CHOISI PAR LE NIVEAU DU DASHBOARD.
+
+    Même principe que les cartes d'objectifs (cf. `service_objectifs.
+    fenetres_de_lecture`) : la fenêtre sur laquelle on moyenne est celle du
+    niveau où l'on se trouve — le mois, l'année, ou tout l'historique — et non un
+    second bouton qu'on choisirait à part. Un seul réglage, donc un seul endroit
+    où l'on peut se tromper de période.
+
+      - `mois` : les semaines révolues du mois, avec le repli habituel sur la
+        semaine en cours (cf. `_semaines_revolues`) ;
+      - `annee` : celles de l'année (cf. `get_depenses_moyenne_annee`) ;
+      - `tout` : celles de TOUTES les années couvertes, à partir de la première
+        semaine où l'on a dépensé.
+
+    La forme de la réponse est la même dans les trois cas : l'écran dessine la
+    même barre « Moyenne » quelle que soit la fenêtre."""
+    aujourdhui = aujourdhui or date_type.today()
+    if vue == "mois":
+        semaines = _semaines_calculees(db, annee, mois, monnaie_id)
+        moyennees = _semaines_revolues(annee, mois, semaines, aujourdhui)
+    else:
+        annees = [annee] if vue == "annee" else annees_couvertes(db, aujourdhui)
+        revolues: list[dict] = []
+        for a in annees:
+            revolues += _semaines_revolues_de_l_annee(db, a, monnaie_id, aujourdhui)
+        moyennees = _a_partir_de_la_premiere_depense(revolues)
+    moyenne, budget_total_moyen = _moyenner_semaines(moyennees)
+    return {
+        "vue": vue,
+        "annee": annee if vue != "tout" else None,
+        "mois": mois if vue == "mois" else None,
+        "moyenne": moyenne,
+        "budget_total_moyen": budget_total_moyen,
+        "semaines_moyennees": len(moyennees),
     }
 
 
@@ -1335,6 +1419,90 @@ def _barre_interets_prets(db: Session, annee, mois, monnaie_id, semaine=None):
         # Le détail par libellé n'a pas de sens ici : chaque prêt est une ligne,
         # et son libellé est déjà celui de la barre.
         "top_depenses": [],
+    }
+
+
+def _lignes_frais_virements(db: Session, annee, mois, monnaie_id, semaine=None, filtre=None):
+    """Les opérations dont les FRAIS comptent comme une dépense, dans la monnaie et sur la
+    période données : toute jambe de VIREMENT INTERNE qui porte des frais, quel que soit
+    son compte, et toute opération d'un compte d'ÉPARGNE ou de PLACEMENTS qui en porte.
+
+    CES FRAIS NE SE LISAIENT NULLE PART. Un virement est écarté des flux (il déplace de
+    l'argent sans en faire sortir), un compte d'épargne ou de placements aussi (il ne
+    porte pas le budget courant) — et leurs frais avec eux. Or ces frais-là sont bien
+    partis, à la banque. Ils comptent donc dans les sorties de la période, dans les deux
+    variations et dans l'histogramme (une barre à eux, cf. _barre_frais_virements), pour
+    leur SEUL montant de frais.
+
+    PAS LES FRAIS D'UNE OPÉRATION ORDINAIRE D'UN COMPTE COURANT : ils sont déjà dans son
+    montant, donc déjà dans sa catégorie — les compter ici les compterait deux fois.
+
+    UNE SEULE JAMBE D'UN VIREMENT LES PORTE (cf. crud._jambe_des_frais), dans SA monnaie :
+    c'est elle qu'on lit. Réel et prévisionnel confondus, sauf `filtre` (un statut, pour
+    l'histogramme)."""
+    requete = (
+        db.query(models.Operation)
+        .join(models.Compte, models.Operation.compte_id == models.Compte.id)
+        .join(models.TypeCompte, models.Compte.type_id == models.TypeCompte.id)
+        .join(models.TypeOperationDB, models.Operation.type_id == models.TypeOperationDB.id)
+        .filter(
+            models.Operation.frais > 0,
+            models.Operation.monnaie_id == monnaie_id,
+            or_(
+                models.TypeOperationDB.code == TypeOperation.virement.value,
+                models.TypeCompte.nom.in_(TYPES_COMPTE_HORS_COURANT),
+            ),
+            _filtre_periode(annee, mois, semaine),
+        )
+    )
+    if filtre is not None:
+        requete = requete.filter(models.Operation.statut == filtre)
+    return requete.all()
+
+
+def _frais_virements(db: Session, annee, mois, monnaie_id, semaine=None) -> float:
+    return sum(op.frais for op in _lignes_frais_virements(db, annee, mois, monnaie_id, semaine))
+
+
+# L'index de palette de la barre des frais : sans effet à l'écran, qui la peint du gris
+# réservé aux frais (cf. app.js, GRIS_FRAIS) ; posé pour que la forme reste celle d'une
+# barre ordinaire.
+_COULEUR_FRAIS_VIREMENTS = 7
+
+
+def _barre_frais_virements(db: Session, annee, mois, monnaie_id, semaine=None):
+    """La barre des frais (virements, épargne, placements), ou None s'il n'y en a pas.
+
+    Même nature que « Intérêts de prêts » : pas une catégorie, une barre de plus qui
+    existe pour que l'histogramme dise la MÊME CHOSE que le total des sorties, lequel
+    compte ces frais (cf. _lignes_frais_virements). `colonne_speciale` dit à l'écran
+    de la peindre en gris et de lui donner sa fenêtre de détail."""
+    reel_lignes = _lignes_frais_virements(db, annee, mois, monnaie_id, semaine, Statut.reel)
+    prev_lignes = _lignes_frais_virements(
+        db, annee, mois, monnaie_id, semaine, Statut.previsionnel
+    )
+    reel = sum(op.frais for op in reel_lignes)
+    previsionnel = reel + sum(op.frais for op in prev_lignes)
+    if previsionnel < 0.005:
+        return None
+    cumuls: dict = {}
+    for op in [*reel_lignes, *prev_lignes]:
+        _fondre_par_libelle(cumuls, LIBELLE_FRAIS_VIREMENTS, op.nature, op.frais)
+    top = sorted(
+        (
+            {"nature": nature, "montant": montant, "nombre": nombre}
+            for nature, (montant, nombre) in cumuls.get(LIBELLE_FRAIS_VIREMENTS, {}).items()
+        ),
+        key=lambda d: (-d["montant"], d["nature"]),
+    )[:NB_TOP_DEPENSES]
+    return {
+        "categorie": LIBELLE_FRAIS_VIREMENTS,
+        "total_reel": reel,
+        "total_previsionnel": previsionnel,
+        "budget_alloue": 0.0,
+        "couleur_index": _COULEUR_FRAIS_VIREMENTS,
+        "colonne_speciale": "frais_virements",
+        "top_depenses": top,
     }
 
 
@@ -1485,6 +1653,12 @@ def get_flux_periode(
             base * part_amortie(operation, annee, mois)
         )
 
+    # 4. LES FRAIS DE VIREMENTS INTERNES, une dépense comme une autre (cf.
+    # _lignes_frais_virements) — le virement lui-même reste écarté.
+    totaux[Sens.depense] = totaux.get(Sens.depense, 0.0) + _frais_virements(
+        db, annee, mois, monnaie_id
+    )
+
     entrees = totaux.get(Sens.entree, 0.0)
     sorties = totaux.get(Sens.depense, 0.0)
     return {"entrees": entrees, "sorties": sorties, "variation": entrees - sorties}
@@ -1582,6 +1756,10 @@ def get_top_flux_periode(
         sens, montant = contribution
         _ajouter(sens, operation.nature, montant * part_amortie(operation, annee, mois))
 
+    # Les frais de virements internes, comptés dans la carte (cf. get_flux_periode).
+    for operation in _lignes_frais_virements(db, annee, mois, monnaie_id):
+        _ajouter(Sens.depense, operation.nature, operation.frais)
+
     def _classer(par_libelle):
         return sorted(
             (
@@ -1650,7 +1828,11 @@ def get_variation_brute(
         .all()
     )
     totaux = {sens: (total or 0.0) for sens, total in lignes}
-    return totaux.get(Sens.entree, 0.0) - totaux.get(Sens.depense, 0.0)
+    # LES FRAIS DE VIREMENTS INTERNES sont partis du compte, comme dans les flux (cf.
+    # _lignes_frais_virements) : ils comptent ici aussi, et l'écart entre les deux
+    # variations n'en dépend donc pas.
+    frais = _frais_virements(db, annee, mois, monnaie_id)
+    return totaux.get(Sens.entree, 0.0) - totaux.get(Sens.depense, 0.0) - frais
 
 
 # Pourquoi une opération creuse un écart entre les deux variations. Un code

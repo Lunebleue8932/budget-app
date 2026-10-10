@@ -242,9 +242,13 @@ def mesurer_objectifs(
     annee: Optional[int] = None,
     mois: Optional[int] = None,
     dashboard: bool = False,
+    tout: bool = False,
     db: Session = Depends(get_db),
 ):
     """Les objectifs, mesurés sur la période demandée.
+
+    `tout=true` est le niveau « Tout » du dashboard : la période est tout
+    l'historique, `annee` et `mois` sont ignorés.
 
     `monnaie_id` ABSENT LES REND TOUS, chacun mesuré dans SA monnaie : c'est ce
     que demande la page des objectifs, qui les montre tous et n'additionne rien.
@@ -267,7 +271,7 @@ def mesurer_objectifs(
         objectifs=[
             schemas_obj.ObjectifMesureRead(**ligne)
             for ligne in service.mesurer_tous(
-                db, annee, mois, monnaie_id, dashboard_seulement=dashboard
+                db, annee, mois, monnaie_id, dashboard_seulement=dashboard, tout=tout
             )
         ],
     )
@@ -282,6 +286,7 @@ def operations_de_l_objectif(
     vue: str = "actuelle",
     annee: Optional[int] = None,
     mois: Optional[int] = None,
+    tout: bool = False,
     db: Session = Depends(get_db),
 ):
     """La page d'un objectif : toutes les opérations qui entrent dans sa mesure.
@@ -300,8 +305,8 @@ def operations_de_l_objectif(
         raise HTTPException(status_code=400, detail="Vue inconnue : « actuelle » ou « moyennee »")
     objectif = _objectif_ou_404(db, objectif_id)
     annee = annee if annee is not None else date_type.today().year
-    mesure = service.mesurer(db, objectif, annee, mois)
-    fenetres = service.fenetres_de_lecture(db, objectif, annee, mois)
+    mesure = service.mesurer(db, objectif, annee, mois, tout=tout)
+    fenetres = service.fenetres_de_lecture(db, objectif, annee, mois, tout=tout)
     lignes = service.operations_contribuantes(db, objectif, fenetres[vue])
     return schemas_obj.ObjectifOperationsRead(
         mesure=schemas_obj.ObjectifMesureRead(**mesure),

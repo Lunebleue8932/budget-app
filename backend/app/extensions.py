@@ -50,7 +50,7 @@ FICHIER_MANIFESTE = "extension.json"
 # intégrée — mêmes routes, mêmes fichiers, mêmes identifiants dans la page — donc
 # `decouvrir` l'ignore, comme un dossier sans manifeste. Ses données dorment en
 # base et sont lues par `placements`, rien ne se perd.
-EXTENSIONS_RETIREES = {"import-placements"}
+EXTENSIONS_RETIREES = {"import-placements", "ressemblances"}
 
 # Les deux racines scannées, dans cet ordre. « standard » d'abord pour qu'une
 # extension de développement portant le même identifiant ne masque jamais une
@@ -412,7 +412,7 @@ def charger_routeur(extension: Extension):
         return None, f"module backend introuvable : {nom_module}"
 
     # Le dossier de l'extension rejoint le sys.path pour que ses fichiers
-    # puissent s'importer ENTRE EUX (`from routeur_actions import router`) :
+    # puissent s'importer ENTRE EUX (`from routeur_titres import router`) :
     # une extension d'un seul fichier est l'exception, pas la règle.
     #
     # AJOUTÉ EN FIN DE LISTE, jamais au début : une extension qui contiendrait

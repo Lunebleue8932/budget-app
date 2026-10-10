@@ -1,7 +1,7 @@
 {
   "numero": 9,
-  "nom": "Règles de catégorisation",
-  "description": "Classe automatiquement les lignes d'un relevé d'après leurs libellés : type d'opération, catégorie, compte en face d'un virement. Vue liste ordonnée ou vue galerie par dossiers. Les règles restent en base quand l'extension est éteinte — l'import cesse simplement de les consulter.",
+  "nom": "Imports Avancés",
+  "description": "Tout ce qui apprend à l'import à lire un relevé à ta place. LES RÈGLES classent les lignes d'après leurs libellés, ou n'importe quelle colonne du fichier : type d'opération, catégorie, compte en face d'un virement, et chacune peut ne viser que certains formats. LA DÉTECTION DES RESSEMBLANCES repère les virements internes que l'app connaît déjà : quand le relevé de l'autre compte arrive, la ligne qui décrit le même virement est reconnue, et l'app te demande de valider sa lecture (« Oui » : la ligne n'est pas importée ; « Non » : elle l'est). Elle compare aussi les virements entre eux pour signaler un doublon possible. Éteindre ne supprime rien : les règles restent en base et les lignes déjà validées continuent de servir de doublons. L'import cesse simplement de les consulter.",
   "version": "1.0.0",
   "backend": "backend.py",
   "frontend": {

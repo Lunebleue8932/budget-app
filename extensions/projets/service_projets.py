@@ -18,7 +18,11 @@ virement interne dont les DEUX écritures sont versées dans le projet s'y annul
 donc de lui-même, ce qui est bien ce qu'il vaut : l'argent n'a pas quitté le
 patrimoine.
 """
-from app.constants import Sens
+from sqlalchemy.orm import object_session
+
+from app import models
+from app.constants import Sens, TypeOperation
+from app.services import cascade as service_cascade
 from app.services.soldes import NB_TOP_DEPENSES
 
 # Les deux sens qui font sortir de l'argent, et les deux qui en font entrer.
@@ -112,13 +116,23 @@ def depenses_par_categorie(sous_filtre) -> dict[int, list[dict]]:
     catégorie garde sa teinte du dashboard au projet. « Sans catégorie » n'en a
     pas — elle prend l'index de fin de palette, celui que le noyau réserve déjà
     aux barres qui ne sont pas des catégories.
+
+    LES VIREMENTS INTERNES N'Y SONT PAS. Celui vers une AUTRE monnaie est une colonne
+    grise « Conversion vers… », et les frais d'un virement la colonne grise des frais —
+    toutes deux tirées de la cascade (cf. services/cascade.py). Celui dans la MÊME
+    monnaie n'apparaît nulle part ici : l'argent a changé de compte, rien n'a été
+    dépensé, et le compter brouillait la question de ce graphe — « en quoi a-t-on
+    dépensé ? ». Où l'argent est PARTI se lit dans la cascade.
     """
     par_monnaie: dict[int, dict[str, dict]] = {}
     for operation in sous_filtre.operations:
         if operation.sens not in SENS_SORTANTS:
             continue
         barres = par_monnaie.setdefault(operation.monnaie_id, {})
-        for nom, montant, nature, est_entree in _lignes_de_depense(operation):
+        lignes = _lignes_de_depense(operation)
+        if _jambe_en_face(operation) is not None:
+            continue
+        for nom, montant, nature, est_entree in lignes:
             # Une catégorie d'ENTRÉE ne peut rien porter ici (les sorties sont
             # seules comptées) : c'est le même écart que le dashboard refuse de
             # dessiner, une barre à zéro qui n'apprend rien. Le drapeau de la
@@ -188,9 +202,27 @@ def _top(lignes: list[dict]) -> list[dict]:
     return sorted(lignes, key=lambda d: (-d["montant"], d["nature"]))[:NB_TOP_DEPENSES]
 
 
-def lire_sous_filtre(sous_filtre) -> dict:
+def _jambe_en_face(operation):
+    """L'autre écriture d'un virement interne, relue en base — ou None pour tout ce qui
+    n'est pas un virement apparié (une jambe ancienne restée seule compte comme avant)."""
+    if not operation.virement_id or operation.type_code != TypeOperation.virement.value:
+        return None
+    return (
+        object_session(operation)
+        .query(models.Operation)
+        .filter(
+            models.Operation.virement_id == operation.virement_id,
+            models.Operation.id != operation.id,
+        )
+        .first()
+    )
+
+
+def lire_sous_filtre(sous_filtre, db=None) -> dict:
     """Le projet tel que l'écran le lit : ses champs, son compte d'opérations et
-    ses totaux.
+    ses totaux — et ses CASCADES quand `db` est fourni (le projet ouvert : la
+    liste n'en dessine aucune, et elles relisent en base la jambe d'en face de
+    chaque virement, cf. services/cascade.py).
 
     Le nombre d'opérations et les totaux sont CALCULÉS à chaque lecture, jamais
     stockés. Une colonne « total » aurait dû être maintenue à chaque création,
@@ -213,4 +245,7 @@ def lire_sous_filtre(sous_filtre) -> dict:
         # réaccorder par identifiant n'auraient été qu'une occasion de plus de
         # les laisser diverger.
         "totaux": totaux,
+        "cascades": (
+            service_cascade.cascades(db, sous_filtre.operations) if db is not None else []
+        ),
     }

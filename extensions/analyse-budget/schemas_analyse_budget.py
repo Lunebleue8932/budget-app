@@ -109,3 +109,81 @@ class ImprevuesAnneeRead(BaseModel):
     # Les lignes de l'année, les plus grosses d'abord. « 640 € d'imprévu »
     # appelle immédiatement « lesquels ? ».
     lignes: list[LigneImprevueRead] = Field(default_factory=list)
+
+
+# ---------- Le solde prévisionnel (courbe) ----------
+
+
+class PointSoldeRead(BaseModel):
+    date: date_type
+    solde: float
+    # Vrai jusqu'à aujourd'hui inclus : le solde RÉEL, déjà vécu. Faux après : le
+    # prévisionnel. L'écran trace les deux différemment.
+    passe: bool
+
+
+class EcheanceRead(BaseModel):
+    """Une prévisionnelle qui fait bouger la courbe : son montant est SIGNÉ
+    (négatif = ça sort), pour que la courbe et la liste se lisent pareil."""
+
+    id: int
+    date: date_type
+    # Le jour où la courbe la compte : sa date, ou demain si elle est échue.
+    jour_pose: date_type
+    nature: str
+    montant: float
+    compte_nom: str
+    en_retard: bool = False
+
+
+class MoyenneDepensesRead(BaseModel):
+    """Ce que la prévision avancée ajoute chaque jour, et d'où ça vient."""
+
+    # Vrai quand la prévision avancée est demandée : sans elle la moyenne est
+    # calculée (elle sert à l'infobulle d'aide) mais n'entre pas dans la courbe.
+    active: bool = False
+    cadence: str = "jour"
+    par_jour: float = 0.0
+    par_semaine: float = 0.0
+    total: float = 0.0
+    jours: int = 0
+    nombre_operations: int = 0
+    debut: Optional[date_type] = None
+    fin: Optional[date_type] = None
+
+
+class LigneDoublonRead(BaseModel):
+    id: int
+    date: date_type
+    nature: str
+    montant: float
+    compte_nom: str
+
+
+class DoublonRead(BaseModel):
+    """Une prévisionnelle qui risque de compter deux fois. L'application la
+    SIGNALE ; `a_exclure` est une proposition, jamais appliquée d'office."""
+
+    # « deja_reelle » (la prévisionnelle a son double réel) ou
+    # « deja_dans_la_moyenne » (une récurrence à venir dont les occurrences
+    # passées sont dans la moyenne).
+    genre: str
+    prevu: LigneDoublonRead
+    passes: list[LigneDoublonRead] = Field(default_factory=list)
+    # Combien d'occurrences à venir portent cette récurrence.
+    occurrences: int = 1
+    a_exclure: list[int] = Field(default_factory=list)
+
+
+class SoldePrevisionnelRead(BaseModel):
+    monnaie_id: int
+    aujourdhui: date_type
+    jusqu_au: date_type
+    points: list[PointSoldeRead] = Field(default_factory=list)
+    echeances: list[EcheanceRead] = Field(default_factory=list)
+    moyenne: MoyenneDepensesRead
+    doublons: list[DoublonRead] = Field(default_factory=list)
+    solde_aujourdhui: float = 0.0
+    solde_fin: float = 0.0
+    # Le seuil du matelas, pour le tracer en pointillé (0 = aucun).
+    matelas: float = 0.0

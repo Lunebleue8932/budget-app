@@ -14,7 +14,7 @@
    les deux se côtoient dans la même liste, et son cours n'est plus relu. Éteint
    plutôt que barré : un titre archivé n'est pas une erreur, et son historique
    reste parfaitement valide. */
-#placements-actions-liste .titre-archive {
+#placements-titres-liste .titre-archive {
   opacity: 0.6;
 }
 
@@ -63,4 +63,109 @@
 .placements-titre-action {
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+/* ---------- Le détail d'un titre : répartitions et composition d'ETF ----------
+ *
+ * Déplié SOUS la ligne du titre (cf. expositions.js). Tout descend de `.expo-panneau`,
+ * élément que cette extension pose elle-même : une feuille d'extension est chargée
+ * pour toute l'application. Aucune couleur en dur — les variables du noyau portent le
+ * thème.
+ */
+.expo-panneau {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.9rem;
+  padding: 0.8rem 1rem;
+  margin: -0.2rem 0 0.6rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+.expo-axe,
+.expo-composition {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.expo-axe-titre {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.expo-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.expo-ligne .expo-etiquette {
+  flex: 1;
+  min-width: 0;
+}
+
+.expo-ligne .expo-poids {
+  width: 4.6rem;
+  text-align: right;
+}
+
+.expo-pourcent {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.expo-retirer {
+  padding: 0.15rem 0.5rem;
+  color: var(--text-muted);
+}
+
+/* Le total EST ce que le graphe montrera : il se lit sans calcul, et vire au rouge
+   quand il dépasse 100 % — un état que le serveur refuserait. */
+.expo-total {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.expo-total-trop {
+  color: var(--negatif);
+}
+
+.expo-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.expo-couverture {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.expo-couverture input {
+  width: 4.5rem;
+  text-align: right;
+}
+
+.expo-composition textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+/* Ce qui est incomplet SANS être faux : signalé en bas, sur toute la largeur. */
+.expo-avertissements {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--depense);
 }

@@ -85,7 +85,7 @@ class ObjectifUpdate(BaseModel):
     ailleurs dans l'application.
 
     LA CATÉGORIE FAIT EXCEPTION et se retire par `categorie_id = 0`, sur le
-    modèle du type d'un titre (cf. schemas.ActionUpdate) : `None` y étant déjà
+    modèle du type d'un titre (cf. schemas.TitreUpdate) : `None` y étant déjà
     pris pour « ne change pas », il fallait une autre façon de dire « élargis cet
     objectif à toutes les dépenses »."""
 

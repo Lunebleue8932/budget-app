@@ -35,6 +35,10 @@ const CHAMPS_REGLE = [
   ["compte_banque", "Compte bancaire"],
   // La colonne « Notes » du relevé, quand le preset la lit.
   ["notes", "Notes"],
+  // TOUTE LA LIGNE du fichier (migration 0077) : tous les textes des colonnes mis bout à bout,
+  // pour viser un mot où qu'il soit. « Colonne n° N » (cf. COLONNE_REGLE) vise une colonne que le
+  // format ne lit pas.
+  ["ligne_entiere", "Toute la ligne"],
   // LE MONTANT EST TOUJOURS POSITIF, comme partout dans l'app : le sens
   // (dépense / recette) est une colonne à part, jamais un signe. « supérieur à
   // 50 » veut donc dire « plus de 50 € en jeu », quel que soit le sens.
@@ -48,6 +52,13 @@ const CHAMPS_REGLE = [
   ["devise_recue", "Devise du montant reçu"],
   ["devise_envoyee", "Devise du montant envoyé"],
 ];
+// Le champ « colonne_N » (N libre) : un choix du formulaire, pas un élément de CHAMPS_REGLE.
+const MOTIF_COLONNE_REGLE = /^colonne_([1-9][0-9]{0,2})$/;
+const COLONNE_REGLE = "colonne";
+const numeroColonneRegle = (champ) => {
+  const trouve = MOTIF_COLONNE_REGLE.exec(champ || "");
+  return trouve ? Number(trouve[1]) : null;
+};
 const CHAMPS_REGLE_NUMERIQUES = new Set(["montant", "montant_recu", "montant_envoye"]);
 const CHAMPS_REGLE_DEVISES = new Set(["devise_recue", "devise_envoyee"]);
 // La devise de l'AUTRE montant, en guise de valeur (cf. regles_categorisation).
@@ -283,7 +294,11 @@ function libelleConditionRegle(condition) {
   // `champs` (pluriel) : ancienne forme, avant le passage au champ unique.
   const champs = condition.champ ? [condition.champ] : condition.champs || [];
   const libelle = champs
-    .map((c) => (CHAMPS_REGLE.find(([v]) => v === c) || [c, c])[1])
+    .map((c) =>
+      numeroColonneRegle(c) != null
+        ? t("Colonne n° {n}", { n: numeroColonneRegle(c) })
+        : t((CHAMPS_REGLE.find(([v]) => v === c) || [c, c])[1])
+    )
     .join(` ${t("ou")} `);
   // TOUS LES MOTS-CLÉS, séparés par « et » : une condition qui en porte trois
   // et n'en montrerait qu'un ferait passer une règle pour plus large qu'elle.
@@ -292,7 +307,7 @@ function libelleConditionRegle(condition) {
       LIBELLE_REFERENCE_DEVISE[mot] ? t(LIBELLE_REFERENCE_DEVISE[mot]) : `« ${mot} »`
     )
     .join(` ${t("et")} `);
-  return `${t(libelle)} ${t(condition.operateur)} ${mots}`;
+  return `${libelle} ${t(condition.operateur)} ${mots}`;
 }
 
 function resumeRegle(regle) {
@@ -328,6 +343,11 @@ function autresActionsRegle(regle) {
     actions.push(t("amortie sur {n} mois", { n: regle.amortissement_mois }));
   }
   if (regle.imprevue) actions.push(t("imprévue"));
+  if (regle.a_declarer) actions.push(t("à déclarer"));
+  // Une règle limitée à certains formats le dit, sinon elle passerait pour une règle de tous.
+  if (regle.presets && regle.presets.length) {
+    actions.push(t("sur {n} format(s) d'import", { n: regle.presets.length }));
+  }
   return actions;
 }
 
@@ -557,7 +577,17 @@ function renderRegleGroupes(
         } />
             ${t(label)}
           </label>`
-      ).join("");
+      ).join("") + `
+          <label class="regle-champ-case regle-champ-colonne">
+            <input type="radio" name="${nomGroupeRadio}" value="${COLONNE_REGLE}" ${
+        numeroColonneRegle(condition.champ) != null ? "checked" : ""
+      } />
+            ${t("Colonne n°")}
+            <input type="number" min="1" max="999" step="1" data-role="numero-colonne"
+                   value="${numeroColonneRegle(condition.champ) ?? ""}" placeholder="1" />
+          </label>
+          <i class="info-bulle" tabindex="0"
+             data-info="${escapeHtml(t(TEXTES["regles.colonnes-du-fichier"]))}">i</i>`;
 
       // Le menu d'opérateurs et le champ de valeur SUIVENT le champ choisi :
       // texte ou nombre, ce ne sont ni les mêmes comparaisons ni la même
@@ -671,7 +701,12 @@ function renderRegleGroupes(
             CHAMPS_REGLE_NUMERIQUES.has(radio.value) !==
               CHAMPS_REGLE_NUMERIQUES.has(condition.champ) ||
             CHAMPS_REGLE_DEVISES.has(radio.value) !== CHAMPS_REGLE_DEVISES.has(condition.champ);
-          condition.champ = radio.value;
+          // « Colonne n° » : le champ réel porte le numéro saisi à côté (1 par défaut).
+          const champChoisi =
+            radio.value === COLONNE_REGLE
+              ? `colonne_${Number(ligne.querySelector("[data-role='numero-colonne']").value) || 1}`
+              : radio.value;
+          condition.champ = champChoisi;
           if (changeDeFamille) {
             // L'opérateur d'avant n'existe plus dans la nouvelle famille :
             // le garder aurait envoyé au serveur une condition qu'il refuse.
@@ -696,6 +731,21 @@ function renderRegleGroupes(
             rendre();
           }
         });
+      });
+      // LE NUMÉRO DE COLONNE : le saisir choisit la case « Colonne n° » d'office, et le champ de
+      // la condition suit le numéro (1 à 999, comme le serveur l'accepte).
+      const champNumeroColonne = ligne.querySelector("[data-role='numero-colonne']");
+      champNumeroColonne.addEventListener("input", () => {
+        const numero = Number(champNumeroColonne.value);
+        if (!Number.isInteger(numero) || numero < 1 || numero > 999) return;
+        const radioColonne = ligne.querySelector(`input[type='radio'][value='${COLONNE_REGLE}']`);
+        radioColonne.checked = true;
+        if (numeroColonneRegle(condition.champ) == null) {
+          // On vient d'un champ nommé : même opération que le changement de radio.
+          radioColonne.dispatchEvent(new Event("change"));
+        } else {
+          condition.champ = `colonne_${numero}`;
+        }
       });
       // L'ICÔNE ƒ à gauche du champ numérique : cf. creerAideFormule.
       const champFormule = ligne.querySelector("input[data-role='valeur']");
@@ -884,7 +934,44 @@ document
   .addEventListener("click", () => ajouterPartDecoupeRegle());
 
 
-function ouvrirEditeurRegle(regle = null) {
+/* ---------- LES FORMATS D'IMPORT VISÉS (migration 0077) ----------
+ *
+ * Décochée, la règle s'applique à tous les formats (`presets` null). Cochée, un menu à cases liste
+ * les formats BANCAIRES ; tous sont cochés d'emblée, on décoche ceux que la règle ne doit pas
+ * toucher. Aucun format coché n'a pas de sens : le serveur le refuse, et l'enregistrement le dit
+ * avant. */
+let regleFormatsDisponibles = [];
+let regleFormatsChoisis = new Set();
+
+function renderFormatsRegle() {
+  const restreint = document.getElementById("regle-formats-restreints").checked;
+  const menu = document.getElementById("regle-formats-menu");
+  menu.style.display = restreint ? "" : "none";
+  if (!restreint) return;
+  creerMenuCases(menu, {
+    libelle: t("Formats d'import"),
+    options: regleFormatsDisponibles.map((p) => ({ cle: p.id, libelle: p.nom })),
+    coches: regleFormatsChoisis,
+    onChange: (choisis) => {
+      regleFormatsChoisis = choisis;
+    },
+  });
+}
+
+document.getElementById("regle-formats-restreints").addEventListener("change", (e) => {
+  // Cocher la case propose d'abord TOUS les formats : le geste « tous sauf un » est le plus courant.
+  if (e.target.checked && regleFormatsChoisis.size === 0) {
+    regleFormatsChoisis = new Set(regleFormatsDisponibles.map((p) => p.id));
+  }
+  renderFormatsRegle();
+});
+
+async function ouvrirEditeurRegle(regle = null) {
+  try {
+    regleFormatsDisponibles = await apiFetch("/import/presets");
+  } catch (err) {
+    regleFormatsDisponibles = [];
+  }
   document.getElementById("regle-editeur").style.display = "";
   document.getElementById("regle-editeur-titre").textContent = regle
     ? "Modifier la règle"
@@ -927,6 +1014,12 @@ function ouvrirEditeurRegle(regle = null) {
   document.getElementById("regle-amortissement").value =
     (regle && regle.amortissement_mois) || "";
   document.getElementById("regle-imprevue").checked = !!(regle && regle.imprevue);
+  document.getElementById("regle-a-declarer").checked = !!(regle && regle.a_declarer);
+  // Les formats : un identifiant supprimé depuis n'est plus listé, on ne le garde pas coché.
+  const idsConnus = new Set(regleFormatsDisponibles.map((p) => p.id));
+  regleFormatsChoisis = new Set(((regle && regle.presets) || []).filter((id) => idsConnus.has(id)));
+  document.getElementById("regle-formats-restreints").checked = regleFormatsChoisis.size > 0;
+  renderFormatsRegle();
   // AVANT majVisibiliteCategorieRegle, qui lit la case pour décider d'afficher
   // les parts ou la catégorie unique.
   const parts = regle && regle.decoupes ? regle.decoupes : [];
@@ -969,15 +1062,18 @@ const AUTRES_CHAMPS_REGLE = [
   { cle: "notes", libelle: "Avec la note", id: "regle-notes" },
   { cle: "amortissement", libelle: "Amortir sur (mois)", id: "regle-amortissement" },
   { cle: "imprevue", libelle: "Marquer comme dépense imprévue", id: "regle-imprevue" },
+  { cle: "a_declarer", libelle: "Marquer comme à déclarer", id: "regle-a-declarer" },
 ];
 let regleAutresAffiches = [];
 
-/** L'étiquette « imprévue » appartient à l'extension « Budget » : sans elle,
- *  aucun écran ne la montre, et la proposer ici poserait une étiquette
+/** L'étiquette « imprévue » appartient à l'extension « Budget », « à déclarer » à l'extension
+ *  « Impôts » : sans elles, aucun écran ne les montre, et les proposer ici poserait une étiquette
  *  invisible. */
 function autresChampsDisponibles() {
   return AUTRES_CHAMPS_REGLE.filter(
-    (def) => def.cle !== "imprevue" || BudgetApp.extensions.estActive("analyse-budget")
+    (def) =>
+      (def.cle !== "imprevue" || BudgetApp.extensions.estActive("analyse-budget")) &&
+      (def.cle !== "a_declarer" || BudgetApp.extensions.estActive("impots"))
   );
 }
 
@@ -1067,7 +1163,24 @@ const SORTIE_CHAMPS = [
   { cle: "compte_id", libelle: "Sur le compte", saisie: "compte" },
   { cle: "nature_remplacement", libelle: "Renommer en", saisie: "texte" },
   { cle: "notes", libelle: "Avec la note", saisie: "texte" },
+  // Proposé seulement quand l'extension Impôts tourne, comme sur la règle elle-même.
+  { cle: "a_declarer", libelle: "Marquer comme à déclarer", saisie: "case", extension: "impots" },
 ];
+
+/** Les champs qu'une sortie peut proposer MAINTENANT : ceux d'une extension éteinte en sont
+ *  écartés (une sortie relue qui en porte un le garde affiché, cf. champsAffichesSortie). */
+function sortieChampsDisponibles() {
+  return SORTIE_CHAMPS.filter((c) => !c.extension || BudgetApp.extensions.estActive(c.extension));
+}
+
+/* « À DÉCLARER » SANS TYPE : la sortie garde alors le type de la règle, et le serveur ne pose
+ * l'étiquette que sur une entrée classique (crud.operation_declarable). Rien ne l'empêche, mais
+ * ce n'est pas ce qu'on croit écrire : une phrase le dit sous la sortie. */
+function majAvisADeclarerSortie(carte, sortie) {
+  const avis = carte.querySelector('[data-role="avis-a-declarer"]');
+  if (!avis) return;
+  avis.hidden = !(champsAffichesSortie(sortie).includes("a_declarer") && !sortie.type_code);
+}
 
 /** Les champs affichés d'une sortie : ceux qui portent une valeur, plus ceux
  *  qu'on vient d'ajouter et pas encore remplis. Rangé sur la sortie sous une
@@ -1090,6 +1203,7 @@ function sortieVide() {
     compte_id: null,
     nature_remplacement: null,
     notes: null,
+    a_declarer: null,
   };
 }
 
@@ -1129,6 +1243,9 @@ function renderRegleSorties() {
       <div class="actions"><button type="button" data-role="ajouter-groupe">+ ${t("Ajouter un groupe")}</button></div>
       <div class="regle-sortie-etiquette">${t("…alors, à la place de la règle :")}</div>
       <div class="regle-sortie-actions" data-role="actions"></div>
+      <p class="hint" data-role="avis-a-declarer" hidden>${escapeHtml(
+        t(texteAide("regles.sortie-a-declarer-sans-type"))
+      )}</p>
       <div data-role="ajout-champ"></div>`;
 
     // LES SEULS CHAMPS POSÉS, dans l'ordre de la liste de référence : une
@@ -1145,6 +1262,8 @@ function renderRegleSorties() {
           ${optionsTypes.map(([v, l]) => `<option value="${v}">${escapeHtml(l)}</option>`).join("")}</select>`;
       } else if (def.saisie === "texte") {
         saisie = `<input type="text" data-champ="${def.cle}" />`;
+      } else if (def.saisie === "case") {
+        saisie = `<input type="checkbox" data-champ="${def.cle}" />`;
       } else {
         saisie = `<select data-champ="${def.cle}"><option value="">${
           def.saisie === "categorie" ? garderF : garder
@@ -1170,7 +1289,7 @@ function renderRegleSorties() {
     });
     creerMenuAjoutChamp(carte.querySelector('[data-role="ajout-champ"]'), {
       libelle: t("Ajouter un champ"),
-      options: SORTIE_CHAMPS.filter((c) => !affiches.includes(c.cle)).map((c) => ({
+      options: sortieChampsDisponibles().filter((c) => !affiches.includes(c.cle)).map((c) => ({
         cle: c.cle,
         libelle: t(c.libelle),
       })),
@@ -1183,13 +1302,26 @@ function renderRegleSorties() {
 
     carte.querySelectorAll("[data-champ]").forEach((champ) => {
       const valeur = sortie[champ.dataset.champ];
+      if (champ.type === "checkbox") {
+        // UNE CASE POSÉE EST COCHÉE : on l'ajoute pour la poser. Décochée, elle vaut « celle
+        // de la règle » (null), jamais « false » — une sortie ne retire pas une étiquette.
+        champ.checked = valeur !== false;
+        sortie[champ.dataset.champ] = champ.checked ? true : null;
+        champ.addEventListener("change", () => {
+          sortie[champ.dataset.champ] = champ.checked ? true : null;
+          majAvisADeclarerSortie(carte, sortie);
+        });
+        return;
+      }
       champ.value = valeur == null ? "" : String(valeur);
       champ.addEventListener("change", () => {
         const brut = champ.value.trim();
         const numerique = champ.dataset.champ.endsWith("_id");
         sortie[champ.dataset.champ] = brut === "" ? null : numerique ? Number(brut) : brut;
+        if (champ.dataset.champ === "type_code") majAvisADeclarerSortie(carte, sortie);
       });
     });
+    majAvisADeclarerSortie(carte, sortie);
     carte.querySelector('[data-role="connecteur"]').addEventListener("change", (e) => {
       sortie.conditions.operateur = e.target.value;
     });
@@ -1343,7 +1475,8 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
     !compteVal &&
     !document.getElementById("regle-notes").value.trim() &&
     !amortissement &&
-    !document.getElementById("regle-imprevue").checked;
+    !document.getElementById("regle-imprevue").checked &&
+    !document.getElementById("regle-a-declarer").checked;
   if (neChangeRien) {
     showMessage(t("Cette règle ne changerait rien : choisis au moins une action."), "error");
     return;
@@ -1367,6 +1500,10 @@ document.getElementById("btn-regle-enregistrer").addEventListener("click", async
     // Décochée = « n'en dit rien » (null), jamais « pas imprévue » : une règle
     // n'a pas à retirer une étiquette que personne n'a posée.
     imprevue: document.getElementById("regle-imprevue").checked ? true : null,
+    a_declarer: document.getElementById("regle-a-declarer").checked ? true : null,
+    presets: document.getElementById("regle-formats-restreints").checked
+      ? [...regleFormatsChoisis]
+      : null,
     sorties: sortiesPourServeur(),
     actif: document.getElementById("regle-actif").checked,
     arreter_apres: document.getElementById("regle-arreter-apres").checked,

@@ -2,7 +2,7 @@
 
 Le point sensible de cette fonctionnalité est que les deux soldes d'un
 compte-titres viennent de sources différentes — les espèces des `Operation`
-ordinaires (comme n'importe quel compte), les titres des `OperationAction` — et
+ordinaires (comme n'importe quel compte), les titres des `OperationTitre` — et
 qu'un mouvement doit toujours bouger les deux à la fois, ou aucun.
 """
 from datetime import date
@@ -11,7 +11,7 @@ import pytest
 from fastapi import HTTPException
 
 from app import crud, models, schemas
-from app.constants import Sens, SensAction, Statut, TypeOperation
+from app.constants import Sens, SensTitre, Statut, TypeOperation
 from app.services import placements, soldes
 
 from .conftest import (
@@ -33,15 +33,15 @@ def _make_compte(db, nom="PEA", type_nom="placements financiers", solde_initial=
     )
 
 
-def _make_action(db, nom="Air Liquide", valeur=0.0, monnaie_id=None):
-    return crud.create_action(db, nom, monnaie_id or get_monnaie_id(db), valeur)
+def _make_titre(db, nom="Air Liquide", valeur=0.0, monnaie_id=None):
+    return crud.create_titre(db, nom, monnaie_id or get_monnaie_id(db), valeur)
 
 
-def _mouvement(db, compte, action, sens, quantite, prix, jour=1):
-    return crud.create_operation_action(
+def _mouvement(db, compte, titre, sens, quantite, prix, jour=1):
+    return crud.create_operation_titre(
         db,
         compte_id=compte.id,
-        action=action,
+        titre=titre,
         sens=sens,
         quantite=quantite,
         prix_unitaire=prix,
@@ -60,9 +60,9 @@ def _solde_reel(db, compte, monnaie_id=None):
 
 def test_achat_debite_les_especes_et_credite_le_portefeuille(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
+    titre = _make_titre(db_session)
 
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     assert _solde_reel(db_session, compte) == 750.0
     detention = placements.detentions(db_session, compte.id)[0]
@@ -77,7 +77,7 @@ def test_achat_nest_ni_une_depense_ni_une_entree(db_session):
     catégorie."""
     compte = _make_compte(db_session, solde_initial=1000.0)
     courant = _make_compte(db_session, nom="Courant", type_nom="courant")
-    action = _make_action(db_session)
+    titre = _make_titre(db_session)
     crud.create_operation(
         db_session,
         schemas.OperationCreate(
@@ -92,7 +92,7 @@ def test_achat_nest_ni_une_depense_ni_une_entree(db_session):
         ),
     )
 
-    mouvement = _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    mouvement = _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     operation = crud.get_operation(db_session, mouvement.operation_id)
     assert operation.sens == Sens.transfert_sortant
@@ -108,10 +108,10 @@ def test_achat_nest_ni_une_depense_ni_une_entree(db_session):
 
 def test_vente_credite_les_especes_et_reduit_la_quantite(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0, jour=1)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0, jour=1)
 
-    mouvement = _mouvement(db_session, compte, action, SensAction.vente, 4, 30.0, jour=5)
+    mouvement = _mouvement(db_session, compte, titre, SensTitre.vente, 4, 30.0, jour=5)
 
     assert crud.get_operation(db_session, mouvement.operation_id).sens == Sens.transfert_entrant
     assert _solde_reel(db_session, compte) == 1000.0 - 250.0 + 120.0
@@ -125,15 +125,15 @@ def test_vente_credite_les_especes_et_reduit_la_quantite(db_session):
 
 def test_vente_superieure_a_la_detention_refusee(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_placements.create_operation_action(
+        routeur_placements.create_operation_titre(
             compte.id,
-            schemas.OperationActionCreate(
-                action_id=action.id,
-                sens=SensAction.vente,
+            schemas.OperationTitreCreate(
+                titre_id=titre.id,
+                sens=SensTitre.vente,
                 quantite=11,
                 prix_unitaire=30.0,
                 date=date(2026, 7, 5),
@@ -153,16 +153,16 @@ def test_vente_limitee_au_compte_qui_detient(db_session):
     compte est vendable depuis lui."""
     pea = _make_compte(db_session, nom="PEA", solde_initial=1000.0)
     cto = _make_compte(db_session, nom="CTO", solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, pea, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, pea, titre, SensTitre.achat, 10, 25.0)
 
-    assert placements.quantite_detenue(db_session, cto.id, action.id) == 0
+    assert placements.quantite_detenue(db_session, cto.id, titre.id) == 0
     with pytest.raises(HTTPException) as erreur:
-        routeur_placements.create_operation_action(
+        routeur_placements.create_operation_titre(
             cto.id,
-            schemas.OperationActionCreate(
-                action_id=action.id,
-                sens=SensAction.vente,
+            schemas.OperationTitreCreate(
+                titre_id=titre.id,
+                sens=SensTitre.vente,
                 quantite=1,
                 prix_unitaire=30.0,
                 date=date(2026, 7, 5),
@@ -174,20 +174,20 @@ def test_vente_limitee_au_compte_qui_detient(db_session):
 
 def test_position_soldee_disparait_des_detentions(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0, jour=1)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0, jour=1)
 
-    _mouvement(db_session, compte, action, SensAction.vente, 10, 30.0, jour=5)
+    _mouvement(db_session, compte, titre, SensTitre.vente, 10, 30.0, jour=5)
 
     assert placements.detentions(db_session, compte.id) == []
-    assert placements.quantite_detenue(db_session, compte.id, action.id) == 0
+    assert placements.quantite_detenue(db_session, compte.id, titre.id) == 0
 
 
 def test_prix_de_revient_moyen_sur_deux_achats(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 20.0, jour=1)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 30.0, jour=2)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 20.0, jour=1)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 30.0, jour=2)
 
     detention = placements.detentions(db_session, compte.id)[0]
     assert detention["quantite"] == 20
@@ -196,10 +196,10 @@ def test_prix_de_revient_moyen_sur_deux_achats(db_session):
 
 def test_valorisation_suit_le_cours_saisi(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session, valeur=25.0)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session, valeur=25.0)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
-    crud.update_action(db_session, action, valeur=32.0)
+    crud.update_titre(db_session, titre, valeur=32.0)
 
     detention = placements.detentions(db_session, compte.id)[0]
     assert detention["valorisation"] == 320.0
@@ -210,11 +210,11 @@ def test_valorisation_suit_le_cours_saisi(db_session):
 
 def test_supprimer_un_mouvement_annule_les_deux_versants(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    mouvement = _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    mouvement = _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
     operation_id = mouvement.operation_id
 
-    crud.delete_operation_action(db_session, mouvement)
+    crud.delete_operation_titre(db_session, mouvement)
 
     assert crud.get_operation(db_session, operation_id) is None
     assert placements.detentions(db_session, compte.id) == []
@@ -223,23 +223,23 @@ def test_supprimer_un_mouvement_annule_les_deux_versants(db_session):
 
 def test_supprimer_lecriture_despeces_emporte_le_mouvement(db_session):
     """Chemin de suppression générique (delete_all_operations, cascade d'un
-    compte…) : aucune OperationAction ne doit survivre à son écriture."""
+    compte…) : aucune OperationTitre ne doit survivre à son écriture."""
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    mouvement = _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    mouvement = _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     crud.delete_operation(db_session, crud.get_operation(db_session, mouvement.operation_id))
 
-    assert db_session.query(models.OperationAction).count() == 0
+    assert db_session.query(models.OperationTitre).count() == 0
     # Le titre lui-même reste : ce n'est pas une opération.
-    assert crud.get_action(db_session, action.id) is not None
+    assert crud.get_titre(db_session, titre.id) is not None
 
 
 def test_placement_hors_kpi_courants_mais_dans_les_avoirs(db_session):
     courant = _make_compte(db_session, nom="Courant", type_nom="courant", solde_initial=500.0)
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session, valeur=30.0)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session, valeur=30.0)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     comptes_soldes = soldes.get_soldes_comptes(db_session)
     totaux = soldes.calculer_totaux_par_monnaie(
@@ -311,22 +311,22 @@ def test_type_titres_refuse_dans_une_regle(db_session):
 
 
 def test_supprimer_un_titre_encore_detenu_refuse(db_session):
-    routeur_actions = charger_module_extension("placements", "routeur_actions.py")
+    routeur_titres = charger_module_extension("placements", "routeur_titres.py")
 
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.delete_action(action.id, db_session)
+        routeur_titres.delete_titre(titre.id, db_session)
 
     assert erreur.value.status_code == 409
 
 
 def test_lecture_dun_compte_de_placement(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session, valeur=30.0)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session, valeur=30.0)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     detail = routeur_placements.read_placement(compte.id, db_session)
 
@@ -334,8 +334,8 @@ def test_lecture_dun_compte_de_placement(db_session):
     assert euro.solde_espece == 750.0
     assert euro.valorisation == 300.0
     assert euro.total == 1050.0
-    assert [d.action_nom for d in detail.detentions] == ["Air Liquide"]
-    assert [o.sens for o in detail.operations] == [SensAction.achat]
+    assert [d.titre_nom for d in detail.detentions] == ["Air Liquide"]
+    assert [o.sens for o in detail.operations] == [SensTitre.achat]
     assert detail.operations[0].montant == 250.0
     assert detail.operations[0].nature == "Achat Air Liquide"
 
@@ -358,21 +358,21 @@ def test_lecture_refusee_sur_un_compte_ordinaire(db_session):
 # titre qu'on ne détient plus, ou de détruire l'historique de ce qu'on avait
 # réellement acheté et vendu.
 
-routeur_actions = charger_module_extension("placements", "routeur_actions.py")
+routeur_titres = charger_module_extension("placements", "routeur_titres.py")
 
 
-def _vendre_tout(db, compte, action, quantite, prix, jour=2):
-    _mouvement(db, compte, action, SensAction.vente, quantite, prix, jour=jour)
+def _vendre_tout(db, compte, titre, quantite, prix, jour=2):
+    _mouvement(db, compte, titre, SensTitre.vente, quantite, prix, jour=jour)
 
 
 def test_un_titre_solde_peut_etre_archive(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _vendre_tout(db_session, compte, action, 10, 30.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, titre, 10, 30.0)
 
-    lu = routeur_actions.update_action(
-        action.id, schemas.ActionUpdate(archivee=True), db_session
+    lu = routeur_titres.update_titre(
+        titre.id, schemas.TitreUpdate(archivee=True), db_session
     )
 
     assert lu.archivee is True
@@ -380,16 +380,16 @@ def test_un_titre_solde_peut_etre_archive(db_session):
 
 def test_un_titre_archive_quitte_les_listes_sans_perdre_son_histoire(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _vendre_tout(db_session, compte, action, 10, 30.0)
-    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, titre, 10, 30.0)
+    routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
     # Il sort de la liste des titres…
-    assert routeur_actions.list_actions(db=db_session) == []
+    assert routeur_titres.list_titres(db=db_session) == []
     # …mais reste demandable explicitement, sans quoi on ne pourrait plus le
     # remettre en service.
-    assert [a.nom for a in routeur_actions.list_actions(True, db_session)] == ["Air Liquide"]
+    assert [a.nom for a in routeur_titres.list_titres(True, db_session)] == ["Air Liquide"]
 
     # ET SON HISTOIRE EST INTACTE : c'est toute la différence avec une
     # suppression. Les mouvements, l'opération d'espèces et le solde du compte
@@ -403,11 +403,11 @@ def test_archiver_un_titre_encore_detenu_refuse(db_session):
     """Il sortirait des menus tout en continuant de peser dans la valorisation,
     sans plus aucun moyen de le vendre depuis l'écran."""
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+        routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
     assert erreur.value.status_code == 409
     # Le message dit la quantité en jeu, et l'écrit comme on l'écrirait.
@@ -416,12 +416,12 @@ def test_archiver_un_titre_encore_detenu_refuse(db_session):
 
 def test_une_position_partiellement_vendue_retient_encore(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _mouvement(db_session, compte, action, SensAction.vente, 6, 30.0, jour=2)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _mouvement(db_session, compte, titre, SensTitre.vente, 6, 30.0, jour=2)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+        routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
     assert "4 titre(s)" in erreur.value.detail
 
@@ -431,42 +431,42 @@ def test_un_titre_detenu_sur_un_autre_compte_retient_aussi(db_session):
     détenu sur deux comptes-titres, et n'en solder qu'un ne le libère pas."""
     pea = _make_compte(db_session, nom="PEA", solde_initial=1000.0)
     cto = _make_compte(db_session, nom="CTO", solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, pea, action, SensAction.achat, 10, 25.0)
-    _mouvement(db_session, cto, action, SensAction.achat, 5, 25.0)
-    _mouvement(db_session, pea, action, SensAction.vente, 10, 30.0, jour=2)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, pea, titre, SensTitre.achat, 10, 25.0)
+    _mouvement(db_session, cto, titre, SensTitre.achat, 5, 25.0)
+    _mouvement(db_session, pea, titre, SensTitre.vente, 10, 30.0, jour=2)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+        routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
     assert "5 titre(s)" in erreur.value.detail
 
 
 def test_remettre_en_service_ne_se_refuse_jamais(db_session):
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _vendre_tout(db_session, compte, action, 10, 30.0)
-    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, titre, 10, 30.0)
+    routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
-    lu = routeur_actions.update_action(
-        action.id, schemas.ActionUpdate(archivee=False), db_session
+    lu = routeur_titres.update_titre(
+        titre.id, schemas.TitreUpdate(archivee=False), db_session
     )
 
     assert lu.archivee is False
-    assert [a.nom for a in routeur_actions.list_actions(db=db_session)] == ["Air Liquide"]
+    assert [a.nom for a in routeur_titres.list_titres(db=db_session)] == ["Air Liquide"]
 
 
 def test_corriger_un_cours_ne_desarchive_pas(db_session):
     """`archivee=None` ne se prononce pas : on doit pouvoir toucher au cours
     d'un titre rangé sans le faire ressortir des listes."""
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _vendre_tout(db_session, compte, action, 10, 30.0)
-    routeur_actions.update_action(action.id, schemas.ActionUpdate(archivee=True), db_session)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, titre, 10, 30.0)
+    routeur_titres.update_titre(titre.id, schemas.TitreUpdate(archivee=True), db_session)
 
-    lu = routeur_actions.update_action(action.id, schemas.ActionUpdate(valeur=42.0), db_session)
+    lu = routeur_titres.update_titre(titre.id, schemas.TitreUpdate(valeur=42.0), db_session)
 
     assert lu.valeur == 42.0
     assert lu.archivee is True
@@ -477,12 +477,12 @@ def test_le_refus_de_suppression_indique_l_archivage(db_session):
     détruire l'historique pour ne plus voir une ligne. Il doit nommer la sortie
     qui ne perd rien."""
     compte = _make_compte(db_session, solde_initial=1000.0)
-    action = _make_action(db_session)
-    _mouvement(db_session, compte, action, SensAction.achat, 10, 25.0)
-    _vendre_tout(db_session, compte, action, 10, 30.0)
+    titre = _make_titre(db_session)
+    _mouvement(db_session, compte, titre, SensTitre.achat, 10, 25.0)
+    _vendre_tout(db_session, compte, titre, 10, 30.0)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.delete_action(action.id, db_session)
+        routeur_titres.delete_titre(titre.id, db_session)
 
     assert erreur.value.status_code == 409
     assert "rchive" in erreur.value.detail
@@ -491,8 +491,8 @@ def test_le_refus_de_suppression_indique_l_archivage(db_session):
 def test_un_titre_sans_mouvement_se_supprime_toujours(db_session):
     """L'archivage ne remplace pas la suppression : un titre créé par erreur,
     qui n'a jamais servi, n'a aucune raison d'encombrer même les archives."""
-    action = _make_action(db_session)
+    titre = _make_titre(db_session)
 
-    routeur_actions.delete_action(action.id, db_session)
+    routeur_titres.delete_titre(titre.id, db_session)
 
-    assert crud.get_action(db_session, action.id) is None
+    assert crud.get_titre(db_session, titre.id) is None

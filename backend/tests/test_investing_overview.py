@@ -21,7 +21,7 @@ from datetime import date
 import pytest
 
 from app import crud
-from app.constants import AxeTitre, SensAction
+from app.constants import AxeTitre, SensTitre
 
 from .conftest import charger_module_extension, creer_compte, creer_monnaie
 
@@ -41,12 +41,12 @@ def _monnaie_id(db):
     return crud.get_monnaies(db)[0].id
 
 
-def _acheter(db, compte, action, quantite, prix, jour=date(2026, 3, 1)):
-    return crud.create_operation_action(
+def _acheter(db, compte, un_titre, quantite, prix, jour=date(2026, 3, 1)):
+    return crud.create_operation_titre(
         db,
         compte_id=compte.id,
-        action=action,
-        sens=SensAction.achat,
+        titre=un_titre,
+        sens=SensTitre.achat,
         quantite=quantite,
         prix_unitaire=prix,
         date_operation=jour,
@@ -54,7 +54,7 @@ def _acheter(db, compte, action, quantite, prix, jour=date(2026, 3, 1)):
 
 
 def _titre(db, nom, cours, type_titre=None, monnaie_id=None, classe=None):
-    return crud.create_action(
+    return crud.create_titre(
         db,
         nom,
         monnaie_id if monnaie_id is not None else _monnaie_id(db),
@@ -124,16 +124,16 @@ def test_un_meme_titre_sur_deux_comptes_ne_fait_quune_ligne(db_session):
     pea = _compte_titres(db_session, "PEA")
     cto = _compte_titres(db_session, "CTO")
     etf = crud.create_type_titre(db_session, "ETF")
-    action = _titre(db_session, "MSCI World", 100.0, etf)
-    _acheter(db_session, pea, action, 10, 90.0)
-    _acheter(db_session, cto, action, 5, 95.0)
+    un_titre = _titre(db_session, "MSCI World", 100.0, etf)
+    _acheter(db_session, pea, un_titre, 10, 90.0)
+    _acheter(db_session, cto, un_titre, 5, 95.0)
 
     (bloc,) = service.exposition_par_axe(db_session)
     (part,) = bloc["parts"]
     assert part["valorisation"] == 1500.0
     assert part["nombre_titres"] == 1
     (titre,) = part["titres"]
-    assert titre["action_nom"] == "MSCI World"
+    assert titre["titre_nom"] == "MSCI World"
     assert titre["valorisation"] == 1500.0
     assert titre["nombre_comptes"] == 2
 
@@ -170,13 +170,13 @@ def test_deux_monnaies_donnent_deux_repartitions_jamais_un_total(db_session):
 def test_une_position_soldee_disparait_de_la_repartition(db_session):
     compte = _compte_titres(db_session)
     etf = crud.create_type_titre(db_session, "ETF")
-    action = _titre(db_session, "MSCI World", 100.0, etf)
-    _acheter(db_session, compte, action, 10, 90.0)
-    crud.create_operation_action(
+    un_titre = _titre(db_session, "MSCI World", 100.0, etf)
+    _acheter(db_session, compte, un_titre, 10, 90.0)
+    crud.create_operation_titre(
         db_session,
         compte_id=compte.id,
-        action=action,
-        sens=SensAction.vente,
+        titre=un_titre,
+        sens=SensTitre.vente,
         quantite=10,
         prix_unitaire=110.0,
         date_operation=date(2026, 4, 1),
@@ -195,7 +195,7 @@ def test_le_detail_dune_part_se_limite_au_top_et_annonce_le_reste(db_session):
     (bloc,) = service.exposition_par_axe(db_session)
     (part,) = bloc["parts"]
     assert part["nombre_titres"] == 5
-    assert [t["action_nom"] for t in part["titres"]] == ["ETF 0", "ETF 1", "ETF 2"]
+    assert [t["titre_nom"] for t in part["titres"]] == ["ETF 0", "ETF 1", "ETF 2"]
 
 
 def test_le_montant_investi_voyage_a_cote_de_la_valorisation(db_session):
@@ -282,7 +282,7 @@ def test_supprimer_une_classe_ne_detype_pas_les_enveloppes(db_session):
     crud.delete_type_titre(db_session, actions)
     db_session.expire_all()
 
-    rouvert = crud.get_action(db_session, titre.id)
+    rouvert = crud.get_titre(db_session, titre.id)
     assert rouvert.classe_actif_id is None
     assert rouvert.type_titre_id == etf.id
 

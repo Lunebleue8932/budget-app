@@ -11,8 +11,8 @@ from pydantic import BaseModel
 class TitreDeLaPart(BaseModel):
     """Un titre dans le détail d'une part — ce que l'infobulle énumère."""
 
-    action_id: int
-    action_nom: str
+    titre_id: int
+    titre_nom: str
     valorisation: float
     # Sur combien de comptes ce titre est détenu. Affiché entre parenthèses
     # quand il y en a plusieurs, comme l'histogramme des dépenses le fait pour

@@ -393,10 +393,10 @@ def test_une_source_muette_sur_la_devise_ne_bloque_rien(db_session):
 
 
 def _titre(db, nom="Air Liquide", valeur=1.0, url=None):
-    action = crud.create_action(db, nom, get_monnaie_id(db), valeur)
+    titre = crud.create_titre(db, nom, get_monnaie_id(db), valeur)
     if url:
-        crud.definir_url_cours(db, action, url)
-    return action
+        crud.definir_url_cours(db, titre, url)
+    return titre
 
 
 def test_seuls_les_titres_avec_un_lien_sont_relus(db_session):
@@ -407,38 +407,38 @@ def test_seuls_les_titres_avec_un_lien_sont_relus(db_session):
 
     suivis = service_cours.titres_suivis(db_session)
 
-    assert [action.id for action in suivis] == [suivi.id]
+    assert [titre.id for titre in suivis] == [suivi.id]
 
 
 def test_un_rafraichissement_ecrit_le_cours_et_date_la_lecture(db_session, monkeypatch):
-    action = _titre(db_session, valeur=10.0, url="https://exemple.fr/x")
+    titre = _titre(db_session, valeur=10.0, url="https://exemple.fr/x")
     monkeypatch.setattr(
         service_cours,
         "lire_cours",
         lambda url: source_cours.Cours(valeur=167.12, devise="EUR", source="test"),
     )
 
-    resume = service_cours.rafraichir(db_session, [action])
+    resume = service_cours.rafraichir(db_session, [titre])
 
     assert resume.reussis == 1 and resume.echecs == 0
     assert resume.resultats[0].ancien_cours == 10.0
-    assert action.valeur == 167.12
-    assert isinstance(action.cours_maj_le, datetime)
+    assert titre.valeur == 167.12
+    assert isinstance(titre.cours_maj_le, datetime)
 
 
 def test_un_lot_porte_un_seul_horodatage(db_session, monkeypatch):
     """Dix titres relus d'un même clic portent la même date : c'est le geste
     qu'elle raconte, pas l'ordre d'exécution du code."""
-    actions = [
+    titres = [
         _titre(db_session, f"Titre {i}", url=f"https://exemple.fr/{i}") for i in range(3)
     ]
     monkeypatch.setattr(
         service_cours, "lire_cours", lambda url: source_cours.Cours(valeur=5.0)
     )
 
-    service_cours.rafraichir(db_session, actions)
+    service_cours.rafraichir(db_session, titres)
 
-    assert len({action.cours_maj_le for action in actions}) == 1
+    assert len({titre.cours_maj_le for titre in titres}) == 1
 
 
 def test_un_titre_en_echec_nempeche_pas_les_autres(db_session, monkeypatch):
@@ -466,30 +466,30 @@ def test_un_titre_en_echec_nempeche_pas_les_autres(db_session, monkeypatch):
 
 
 def test_un_cours_dans_la_mauvaise_monnaie_nest_pas_ecrit(db_session, monkeypatch):
-    action = _titre(db_session, valeur=10.0, url="https://exemple.fr/x")
+    titre = _titre(db_session, valeur=10.0, url="https://exemple.fr/x")
     monkeypatch.setattr(
         service_cours,
         "lire_cours",
         lambda url: source_cours.Cours(valeur=200.0, devise="USD"),
     )
 
-    resume = service_cours.rafraichir(db_session, [action])
+    resume = service_cours.rafraichir(db_session, [titre])
 
     assert resume.echecs == 1
-    assert action.valeur == 10.0  # inchangé
+    assert titre.valeur == 10.0  # inchangé
 
 
 def test_une_source_qui_leve_nimporte_quoi_ne_casse_pas_le_lot(db_session, monkeypatch):
     """Un site hostile (HTML piégé, JSON monstrueux) ne doit pas remonter une
     exception technique jusqu'à l'écran, ni interrompre les autres lectures."""
-    action = _titre(db_session, url="https://exemple.fr/x")
+    titre = _titre(db_session, url="https://exemple.fr/x")
 
     def explose(url):
         raise RecursionError("boum")
 
     monkeypatch.setattr(service_cours, "lire_cours", explose)
 
-    resume = service_cours.rafraichir(db_session, [action])
+    resume = service_cours.rafraichir(db_session, [titre])
 
     assert resume.echecs == 1
     assert "RecursionError" in resume.resultats[0].erreur
@@ -501,7 +501,7 @@ def test_une_source_qui_leve_nimporte_quoi_ne_casse_pas_le_lot(db_session, monke
 def test_enregistrer_un_lien_le_lit_tout_de_suite(db_session, monkeypatch):
     """Un lien accepté sans être essayé ne se découvre cassé que des semaines
     plus tard, devant un cours qu'on croit juste."""
-    action = _titre(db_session, valeur=1.0)
+    titre = _titre(db_session, valeur=1.0)
     monkeypatch.setattr(
         source_cours,
         "lire_cours",
@@ -511,20 +511,20 @@ def test_enregistrer_un_lien_le_lit_tout_de_suite(db_session, monkeypatch):
     )
 
     reponse = routeur_cours.definir_url(
-        action.id,
+        titre.id,
         type("Payload", (), {"url": " https://www.boursorama.com/cours/1rPAI/ "})(),
         db_session,
     )
 
     assert reponse.reussis == 1
     assert reponse.resultats[0].libelle_source == "AIR LIQUIDE"
-    assert action.valeur == 167.12
+    assert titre.valeur == 167.12
     # Espaces rognés : un lien collé traîne souvent un blanc en fin de chaîne.
-    assert action.url_cours == "https://www.boursorama.com/cours/1rPAI/"
+    assert titre.url_cours == "https://www.boursorama.com/cours/1rPAI/"
 
 
 def test_un_lien_illisible_nest_pas_enregistre(db_session, monkeypatch):
-    action = _titre(db_session, valeur=1.0)
+    titre = _titre(db_session, valeur=1.0)
     monkeypatch.setattr(
         source_cours,
         "lire_cours",
@@ -533,30 +533,30 @@ def test_un_lien_illisible_nest_pas_enregistre(db_session, monkeypatch):
 
     with pytest.raises(HTTPException) as erreur:
         routeur_cours.definir_url(
-            action.id, type("Payload", (), {"url": "https://exemple.fr/x"})(), db_session
+            titre.id, type("Payload", (), {"url": "https://exemple.fr/x"})(), db_session
         )
 
     assert erreur.value.status_code == 400
-    assert action.url_cours is None
-    assert action.valeur == 1.0
+    assert titre.url_cours is None
+    assert titre.valeur == 1.0
 
 
 def test_detacher_un_lien_garde_le_dernier_cours(db_session):
     """Un cours ne devient pas faux parce qu'on cesse de le rafraîchir : le
     titre retombe simplement dans le régime manuel."""
-    action = _titre(db_session, valeur=167.12, url="https://exemple.fr/x")
+    titre = _titre(db_session, valeur=167.12, url="https://exemple.fr/x")
 
-    routeur_cours.retirer_url(action.id, db_session)
+    routeur_cours.retirer_url(titre.id, db_session)
 
-    assert action.url_cours is None
-    assert action.valeur == 167.12
+    assert titre.url_cours is None
+    assert titre.valeur == 167.12
 
 
 def test_rafraichir_un_titre_sans_lien_est_refuse(db_session):
-    action = _titre(db_session)
+    titre = _titre(db_session)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_cours.rafraichir_titre(action.id, db_session)
+        routeur_cours.rafraichir_titre(titre.id, db_session)
 
     assert erreur.value.status_code == 400
 
@@ -573,7 +573,7 @@ def test_la_reponse_porte_letat_de_tous_les_titres(db_session, monkeypatch):
 
     reponse = routeur_cours.rafraichir_tout(db_session)
 
-    assert {titre.action_nom for titre in reponse.titres} == {"Sans lien", "Avec lien"}
+    assert {titre.titre_nom for titre in reponse.titres} == {"Sans lien", "Avec lien"}
     assert len(reponse.resultats) == 1
 
 

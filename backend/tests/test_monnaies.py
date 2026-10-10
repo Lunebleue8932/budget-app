@@ -12,7 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from app import crud, models, schemas
-from app.constants import SensAction, Statut
+from app.constants import SensTitre, Statut
 from app.routers import comptes as routeur_comptes
 from app.routers import dashboard as routeur_dashboard
 from app.routers import operations as routeur_operations
@@ -25,7 +25,7 @@ from .conftest import charger_module_extension  # noqa: E402
 # Créer/renommer/supprimer une monnaie relève de l'extension « Monnaies » ;
 # la lecture, elle, est restée dans le noyau.
 routeur_monnaies = charger_module_extension("monnaies", "routeur_monnaies.py")
-routeur_actions = charger_module_extension("placements", "routeur_actions.py")
+routeur_titres = charger_module_extension("placements", "routeur_titres.py")
 routeur_placements = charger_module_extension("placements", "routeur_placements.py")
 
 from .conftest import (
@@ -525,14 +525,14 @@ def test_titre_cote_dans_une_monnaie_absente_du_compte_refuse(db_session):
     compte = creer_compte(
         db_session, "PEA", type_nom="placements financiers", monnaies=[(euro, 1000.0)]
     )
-    action = crud.create_action(db_session, "Apple", dollar, 200.0)
+    titre = crud.create_titre(db_session, "Apple", dollar, 200.0)
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_placements.create_operation_action(
+        routeur_placements.create_operation_titre(
             compte.id,
-            schemas.OperationActionCreate(
-                action_id=action.id,
-                sens=SensAction.achat,
+            schemas.OperationTitreCreate(
+                titre_id=titre.id,
+                sens=SensTitre.achat,
                 quantite=2,
                 prix_unitaire=180.0,
                 date=date(2026, 7, 1),
@@ -552,14 +552,14 @@ def test_portefeuille_multi_monnaies_reste_separe(db_session):
         type_nom="placements financiers",
         monnaies=[(euro, 1000.0), (dollar, 1000.0)],
     )
-    air_liquide = crud.create_action(db_session, "Air Liquide", euro, 30.0)
-    apple = crud.create_action(db_session, "Apple", dollar, 200.0)
-    for action, prix in ((air_liquide, 25.0), (apple, 180.0)):
-        crud.create_operation_action(
+    air_liquide = crud.create_titre(db_session, "Air Liquide", euro, 30.0)
+    apple = crud.create_titre(db_session, "Apple", dollar, 200.0)
+    for titre, prix in ((air_liquide, 25.0), (apple, 180.0)):
+        crud.create_operation_titre(
             db_session,
             compte_id=compte.id,
-            action=action,
-            sens=SensAction.achat,
+            titre=titre,
+            sens=SensTitre.achat,
             quantite=10,
             prix_unitaire=prix,
             date_operation=date(2026, 7, 1),
@@ -585,20 +585,20 @@ def test_changer_la_monnaie_dun_titre_deja_mouvemente_refuse(db_session):
     compte = creer_compte(
         db_session, "PEA", type_nom="placements financiers", monnaies=[(euro, 1000.0)]
     )
-    action = crud.create_action(db_session, "Air Liquide", euro, 30.0)
-    crud.create_operation_action(
+    titre = crud.create_titre(db_session, "Air Liquide", euro, 30.0)
+    crud.create_operation_titre(
         db_session,
         compte_id=compte.id,
-        action=action,
-        sens=SensAction.achat,
+        titre=titre,
+        sens=SensTitre.achat,
         quantite=10,
         prix_unitaire=25.0,
         date_operation=date(2026, 7, 1),
     )
 
     with pytest.raises(HTTPException) as erreur:
-        routeur_actions.update_action(
-            action.id, schemas.ActionUpdate(monnaie_id=dollar), db_session
+        routeur_titres.update_titre(
+            titre.id, schemas.TitreUpdate(monnaie_id=dollar), db_session
         )
 
     assert erreur.value.status_code == 409
@@ -770,12 +770,12 @@ def test_des_titres_detenus_empechent_l_extinction(db_session):
         type_nom="placements financiers",
         monnaies=[(euro, 0.0), (dollar, 1000.0)],
     )
-    titre = crud.create_action(db_session, "Apple", dollar, 200.0)
-    crud.create_operation_action(
+    titre = crud.create_titre(db_session, "Apple", dollar, 200.0)
+    crud.create_operation_titre(
         db_session,
         compte_id=compte.id,
-        action=titre,
-        sens=SensAction.achat,
+        titre=titre,
+        sens=SensTitre.achat,
         quantite=5,
         prix_unitaire=200.0,
         date_operation=date(2026, 5, 4),

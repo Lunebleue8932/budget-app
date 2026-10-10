@@ -4,14 +4,14 @@ Le noyau ne cherche qu'une chose dans ce fichier : une variable `router`
 (cf. app/extensions.py::charger_routeur). Ce module ne fait donc qu'assembler
 les deux routeurs de l'extension et poser sur eux le garde-fou d'activation.
 
-POURQUOI TROIS ROUTEURS. Les titres (`/actions`), les portefeuilles
+POURQUOI TROIS ROUTEURS. Les titres (`/titres`), les portefeuilles
 (`/placements`) et les types de titre (`/types-titre`) sont trois ressources
 distinctes — un titre existe indépendamment des comptes qui le détiennent, et
 une étiquette indépendamment des titres qui la portent. Les fondre en un seul
 routeur aurait été un remaniement gratuit, sans rapport avec le passage en
 extension.
 
-CE QUI N'EST PAS PARTI ICI. Les tables (`action`, `operation_action`), leurs
+CE QUI N'EST PAS PARTI ICI. Les tables (`titre_possede`, `operation_titre`), leurs
 modèles SQLAlchemy et leurs migrations restent dans le noyau. C'est ce qui
 permet de désactiver l'extension SANS PERDRE UN SEUL MOUVEMENT : les données
 dorment en base, la page disparaît, et tout revient intact à la réactivation.
@@ -22,8 +22,9 @@ from fastapi import APIRouter, Depends
 
 from app.extensions import exiger_extension
 
-from routeur_actions import router as router_actions
+from routeur_titres import router as router_titres
 from routeur_import_placements import router as router_import_placements
+from routeur_import_titres import router as router_import_titres
 from routeur_placements import router as router_placements
 from routeur_regles_placements import router as router_regles_placements
 from routeur_types_titre import router as router_types_titre
@@ -32,7 +33,7 @@ from routeur_types_titre import router as router_types_titre
 # TOUTES les routes des sous-routeurs, sans avoir à la répéter sur chacune — et
 # sans qu'une route ajoutée plus tard puisse l'oublier.
 router = APIRouter(dependencies=[Depends(exiger_extension("placements"))])
-router.include_router(router_actions)
+router.include_router(router_titres)
 router.include_router(router_placements)
 router.include_router(router_types_titre)
 # L'IMPORT DE PLACEMENTS (`/import-placements`) ET SES RÈGLES
@@ -43,3 +44,7 @@ router.include_router(router_types_titre)
 # noyau, migration 0041) : rien ne se perd à l'extinction.
 router.include_router(router_import_placements)
 router.include_router(router_regles_placements)
+# L'IMPORT DE TITRES (`/import-titres`) : un fichier Excel ou CSV qui DÉCRIT des titres
+# (enveloppe, répartitions, dictionnaire d'ETF) sans créer la moindre opération. Même
+# garde-fou : éteint avec l'extension, ses presets dorment en base (domaine `titre`).
+router.include_router(router_import_titres)

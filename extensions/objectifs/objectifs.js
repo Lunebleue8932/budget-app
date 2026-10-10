@@ -682,7 +682,7 @@ async function loadObjectifs() {
     if (objDetailEnAttente) {
       const demande = objDetailEnAttente;
       objDetailEnAttente = null;
-      await objOuvrirDetail(demande.objectifId, demande.annee, demande.mois);
+      await objOuvrirDetail(demande.objectifId, demande.annee, demande.mois, demande.tout);
     } else {
       objFermerDetail();
     }
@@ -728,8 +728,8 @@ function objFermerDetail() {
   objMontreVuePage(false);
 }
 
-async function objOuvrirDetail(objectifId, annee, mois) {
-  objDetail = { objectifId: Number(objectifId), annee, mois };
+async function objOuvrirDetail(objectifId, annee, mois, tout = false) {
+  objDetail = { objectifId: Number(objectifId), annee, mois, tout };
   await objChargerDetail();
 }
 
@@ -737,9 +737,10 @@ async function objOuvrirDetail(objectifId, annee, mois) {
  *  instant (la bascule de la carte change la liste, pas seulement le chiffre). */
 async function objChargerDetail() {
   if (!objDetail) return;
-  const { objectifId, annee, mois } = objDetail;
+  const { objectifId, annee, mois, tout } = objDetail;
   const vue = objVue(objectifId);
-  const requete = `vue=${vue}&annee=${annee}` + (mois ? `&mois=${mois}` : "");
+  const requete =
+    `vue=${vue}&annee=${annee}` + (mois ? `&mois=${mois}` : "") + (tout ? "&tout=true" : "");
   try {
     const data = await apiFetch(`${OBJECTIFS_BASE}/${objectifId}/operations?${requete}`);
     objRenderDetail(data);
@@ -990,12 +991,18 @@ async function objRendreDashboard(annee, mois) {
   try {
     // LA VUE ANNÉE N'ENVOIE PAS DE MOIS, comme partout ailleurs : `mois` absent
     // veut dire l'année entière (cf. soldes._filtre_periode), et la cadence
-    // fait le reste — un objectif mensuel y vaut douze unités.
-    const enAnnee = state.dashboardPeriode.vue === "annee";
-    objContexteDashboard = { annee, mois: enAnnee ? null : mois };
+    // fait le reste — un objectif mensuel y vaut douze unités. « TOUT » envoie
+    // `tout=true` : la période est alors tout l'historique, que le serveur
+    // résout seul (cf. service_objectifs.fenetre_tout). Une SEMAINE choisie sur
+    // le dashboard n'est pas transmise : l'objectif lit toujours le mois qui la
+    // contient (la vue du dashboard est « mois »).
+    const vue = state.dashboardPeriode.vue;
+    const tout = vue === "tout";
+    objContexteDashboard = { annee, mois: vue === "mois" ? mois : null, tout };
     const requete =
       `monnaie_id=${monnaieId}&annee=${annee}&dashboard=true` +
-      (enAnnee ? "" : `&mois=${mois}`);
+      (vue === "mois" ? `&mois=${mois}` : "") +
+      (tout ? "&tout=true" : "");
     const data = await apiFetch(`${OBJECTIFS_BASE}/mesures?${requete}`);
     objMesuresDashboard = data.objectifs;
     if (!data.objectifs.length) {

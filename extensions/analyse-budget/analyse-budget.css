@@ -411,3 +411,200 @@
 .ab-graphes {
   margin-bottom: 0.8rem;
 }
+
+/* ---------- Le solde prévisionnel ----------
+ *
+ * LA COURBE : un trait plein pour ce qui a eu lieu, des pointillés pour ce qui
+ * est attendu. Aucune couleur en dur — les variables du noyau portent le thème.
+ */
+.ab-sp-cadre {
+  position: relative; /* la bulle de survol se pose dans ce cadre */
+}
+
+.ab-sp-svg {
+  display: block;
+  overflow: visible;
+}
+
+.ab-sp-grille {
+  stroke: var(--border-soft);
+  stroke-width: 1;
+}
+
+.ab-sp-grille-x {
+  stroke-dasharray: 2 4;
+}
+
+.ab-sp-axe-texte {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.ab-sp-courbe-passe,
+.ab-sp-courbe-futur {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.ab-sp-courbe-futur {
+  stroke-dasharray: 6 4;
+}
+
+.ab-sp-aujourdhui {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.ab-sp-matelas {
+  stroke: var(--negatif);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.ab-sp-matelas-texte {
+  fill: var(--negatif);
+  font-size: 10px;
+}
+
+.ab-sp-marque-entree {
+  fill: var(--positif);
+  stroke: var(--bg-surface);
+  stroke-width: 1.5;
+}
+
+.ab-sp-marque-sortie {
+  fill: var(--negatif);
+  stroke: var(--bg-surface);
+  stroke-width: 1.5;
+}
+
+.ab-sp-reticule {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* La zone qui capte le survol : transparente, mais présente pour que `mousemove`
+   se déclenche partout dans le graphe et pas seulement sur le trait. */
+.ab-sp-survol {
+  fill: transparent;
+}
+
+.ab-sp-bulle {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 11rem;
+  max-width: 20rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.ab-sp-bulle-date {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.ab-sp-bulle-solde {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.2rem;
+}
+
+.ab-sp-bulle-ligne {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+/* ---------- Les réglages de la prévision avancée ---------- */
+
+.ab-sp-avancee {
+  margin-bottom: 0.6rem;
+}
+
+.ab-sp-exclusions {
+  margin: 0.4rem 0;
+}
+
+.ab-sp-exclusions summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.ab-sp-exclusions-corps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.ab-sp-exclusions-corps fieldset {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.8rem 0.6rem;
+  min-width: 12rem;
+}
+
+.ab-sp-exclusions-corps legend {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  padding: 0 0.3rem;
+}
+
+.ab-sp-case {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  padding: 0.1rem 0;
+}
+
+/* ---------- Les doublons signalés ----------
+ *
+ * UN BANDEAU, PAS UN BLOCAGE : l'application signale, l'utilisateur décide (cf.
+ * service_solde_previsionnel.py). Même famille visuelle que la bannière du
+ * matelas, qui est l'autre avertissement de cette page.
+ */
+.ab-sp-doublon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  border: 1px solid var(--depense);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ab-sp-doublon-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ab-sp-echeances {
+  margin-top: 0.4rem;
+}
+
+.ab-sp-echeances summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Le mois de la page, choisi comme au dashboard (creerArbrePeriode). */
+.ab-periode {
+  margin: 0.4rem 0 1rem;
+}

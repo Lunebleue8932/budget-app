@@ -105,7 +105,7 @@ def _confirmer(db, preset, contenu, overrides=None, **kwargs):
 
 
 def _mouvements(db):
-    return db.query(models.OperationAction).all()
+    return db.query(models.OperationTitre).all()
 
 
 # ---------- Cloisonnement des deux domaines ----------
@@ -264,7 +264,7 @@ def test_un_achat_cree_le_titre_puis_son_mouvement(db_session):
 
     assert resultat.operations_creees == 1
     assert resultat.titres_crees == ["Amundi MSCI World"]
-    titre = crud.get_action_by_isin(db_session, "LU1681043599")
+    titre = crud.get_titre_by_isin(db_session, "LU1681043599")
     assert titre.nom == "Amundi MSCI World"
     assert titre.monnaie_id == compte.monnaie_principale_id
 
@@ -316,7 +316,7 @@ def test_une_vente_encaisse_le_montant_du_releve(db_session):
 
     assert resultat.operations_creees == 1
     # Aucun second titre : la vente a retrouvé celui de l'achat.
-    assert crud.get_actions(db_session, inclure_archivees=True).__len__() == 1
+    assert crud.get_titres(db_session, inclure_archivees=True).__len__() == 1
     vente = [m for m in _mouvements(db_session) if m.sens.value == "vente"][0]
     assert vente.operation.sens == Sens.transfert_entrant
     assert vente.operation.montant == pytest.approx(900.0)
@@ -328,7 +328,7 @@ def test_le_titre_est_rapproche_par_isin_malgre_un_nom_different(db_session):
     l'historique de la page Placements."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    existant = crud.create_action(
+    existant = crud.create_titre(
         db_session,
         nom="Amundi MSCI World",
         monnaie_id=get_monnaie_id(db_session),
@@ -353,8 +353,8 @@ def test_le_titre_est_rapproche_par_isin_malgre_un_nom_different(db_session):
     )
 
     ligne = apercu.lignes[0]
-    assert ligne.action_id == existant.id
-    assert ligne.action_nom == "Amundi MSCI World"
+    assert ligne.titre_id == existant.id
+    assert ligne.titre_nom == "Amundi MSCI World"
     assert ligne.titre_a_creer is False
     assert apercu.titres_a_creer == []
 
@@ -364,7 +364,7 @@ def test_lisin_du_fichier_complete_un_titre_qui_nen_avait_pas(db_session):
     d'ISIN : le premier relevé importé le lui donne."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    existant = crud.create_action(
+    existant = crud.create_titre(
         db_session, nom="Air Liquide", monnaie_id=get_monnaie_id(db_session)
     )
     assert existant.code_isin is None
@@ -395,7 +395,7 @@ def test_un_isin_different_pour_le_meme_nom_met_la_ligne_en_erreur(db_session):
     laquelle mélangerait deux portefeuilles."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    crud.create_action(
+    crud.create_titre(
         db_session,
         nom="Total",
         monnaie_id=get_monnaie_id(db_session),
@@ -428,7 +428,7 @@ def test_lisin_est_normalise_avant_rapprochement(db_session):
     l'autre ne doit pas donner deux titres."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    crud.create_action(
+    crud.create_titre(
         db_session,
         nom="Air Liquide",
         monnaie_id=get_monnaie_id(db_session),
@@ -474,7 +474,7 @@ def test_un_titre_sans_nom_est_cree_sous_son_isin(db_session):
             ]
         ),
     )
-    titre = crud.get_action_by_isin(db_session, "FR0000120073")
+    titre = crud.get_titre_by_isin(db_session, "FR0000120073")
     assert titre.nom == "FR0000120073"
 
 
@@ -506,7 +506,7 @@ def test_le_meme_titre_nest_cree_quune_fois_dans_un_fichier(db_session):
         ),
     )
     assert resultat.titres_crees == ["Air Liquide"]
-    assert len(crud.get_actions(db_session)) == 1
+    assert len(crud.get_titres(db_session)) == 1
     assert len(_mouvements(db_session)) == 2
 
 
@@ -909,7 +909,7 @@ def test_choisir_un_titre_a_la_main_court_circuite_le_rapprochement(db_session):
     un doublon, l'utilisateur désigne le titre existant."""
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    existant = crud.create_action(
+    existant = crud.create_titre(
         db_session, nom="Air Liquide", monnaie_id=get_monnaie_id(db_session)
     )
     _confirmer(
@@ -927,11 +927,11 @@ def test_choisir_un_titre_a_la_main_court_circuite_le_rapprochement(db_session):
             ]
         ),
         schemas_pl.OverridesPlacements(
-            lignes={2: schemas_pl.LignePlacementOverride(action_id=existant.id)}
+            lignes={2: schemas_pl.LignePlacementOverride(titre_id=existant.id)}
         ),
     )
-    assert len(crud.get_actions(db_session)) == 1
-    assert _mouvements(db_session)[0].action_id == existant.id
+    assert len(crud.get_titres(db_session)) == 1
+    assert _mouvements(db_session)[0].titre_id == existant.id
 
 
 # ---------- Annulation ----------
@@ -973,7 +973,7 @@ def test_annuler_un_import_defait_mouvements_et_virements(db_session):
     # Le TITRE créé reste : il ne porte plus aucun mouvement, mais l'effacer
     # dépasserait ce qu'annuler un import veut dire (et la page Placements sait
     # l'archiver).
-    assert len(crud.get_actions(db_session)) == 1
+    assert len(crud.get_titres(db_session)) == 1
 
 
 def test_lhistorique_dun_preset_ne_montre_que_ses_imports(db_session):
@@ -1008,7 +1008,7 @@ def test_un_titre_cote_dans_une_monnaie_que_le_compte_ne_porte_pas(db_session):
     dollar = crud.create_monnaie(db_session, "Dollar", "$")
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    crud.create_action(
+    crud.create_titre(
         db_session,
         nom="Apple",
         monnaie_id=dollar.id,
@@ -1064,7 +1064,7 @@ def test_lapercu_rejoue_les_retouches_deja_faites(db_session):
 def test_un_titre_choisi_a_la_main_disparait_des_titres_a_creer(db_session):
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
-    existant = crud.create_action(
+    existant = crud.create_titre(
         db_session, nom="Air Liquide", monnaie_id=get_monnaie_id(db_session)
     )
     contenu = _fichier(
@@ -1087,11 +1087,11 @@ def test_un_titre_choisi_a_la_main_disparait_des_titres_a_creer(db_session):
         preset.id,
         contenu,
         overrides=schemas_pl.OverridesPlacements(
-            lignes={2: schemas_pl.LignePlacementOverride(action_id=existant.id)}
+            lignes={2: schemas_pl.LignePlacementOverride(titre_id=existant.id)}
         ),
     )
     assert apres.titres_a_creer == []
-    assert apres.lignes[0].action_nom == "Air Liquide"
+    assert apres.lignes[0].titre_nom == "Air Liquide"
 
 
 def test_corriger_la_quantite_se_voit_dans_lapercu(db_session):
@@ -1303,14 +1303,14 @@ def test_renommer_un_titre_ne_change_pas_le_nom_du_courtier(db_session):
     l'import suivant ne le retrouverait plus, créerait un second titre du même
     ISIN, et scinderait la position en deux."""
     monnaie = get_monnaie_id(db_session)
-    titre = crud.create_action(
+    titre = crud.create_titre(
         db_session,
         "AMUNDI IDX SOL MSC WLD-IE-C",
         monnaie,
         valeur=100.0,
         code_isin="LU1681043599",
     )
-    crud.update_action(db_session, titre, nom_affichage="Amundi MSCI World")
+    crud.update_titre(db_session, titre, nom_affichage="Amundi MSCI World")
 
     assert titre.nom == "AMUNDI IDX SOL MSC WLD-IE-C"
     assert titre.nom_affiche == "Amundi MSCI World"
@@ -1321,14 +1321,14 @@ def test_un_titre_renomme_reste_reconnu_a_l_import_suivant(db_session):
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
     monnaie = get_monnaie_id(db_session)
-    titre = crud.create_action(
+    titre = crud.create_titre(
         db_session,
         "AMUNDI IDX SOL MSC WLD-IE-C",
         monnaie,
         valeur=100.0,
         code_isin="LU1681043599",
     )
-    crud.update_action(db_session, titre, nom_affichage="Amundi MSCI World")
+    crud.update_titre(db_session, titre, nom_affichage="Amundi MSCI World")
 
     apercu = service.previsualiser(
         db_session,
@@ -1348,17 +1348,17 @@ def test_un_titre_renomme_reste_reconnu_a_l_import_suivant(db_session):
     )
     (ligne,) = apercu.lignes
     # Rapproché du titre existant : aucun nouveau titre à créer.
-    assert ligne.action_id == titre.id
+    assert ligne.titre_id == titre.id
     assert ligne.titre_a_creer is False
     # Et c'est le nom RENOMMÉ qui s'affiche dans l'aperçu.
-    assert ligne.action_nom == "Amundi MSCI World"
+    assert ligne.titre_nom == "Amundi MSCI World"
 
 
 def test_un_nom_daffichage_vide_rend_son_nom_au_titre(db_session):
     """Le seul moyen de défaire un renommage."""
     monnaie = get_monnaie_id(db_session)
-    titre = crud.create_action(db_session, "TOTALENERGIES SE", monnaie, valeur=50.0)
-    crud.update_action(db_session, titre, nom_affichage="Total")
-    crud.update_action(db_session, titre, nom_affichage="   ")
+    titre = crud.create_titre(db_session, "TOTALENERGIES SE", monnaie, valeur=50.0)
+    crud.update_titre(db_session, titre, nom_affichage="Total")
+    crud.update_titre(db_session, titre, nom_affichage="   ")
     assert titre.nom_affichage is None
     assert titre.nom_affiche == "TOTALENERGIES SE"

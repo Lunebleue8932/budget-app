@@ -65,6 +65,20 @@ if not OPTIONS.get("icone_incrustee", True):
     donnees.append((str(ICONE), "."))
 
 
+# TOUT LE PAQUET `app` EST EMBARQUÉ, y compris ce que seul une extension importe. Les extensions ne
+# sont pas dans le bundle (cf. plus haut) : PyInstaller n'analyse donc jamais leurs imports, et un
+# module du noyau qu'AUCUN fichier du noyau n'importe — `app.services.lignes_depenses`, lu par
+# « Budget » et « Objectifs », `app.services.exposition`, lu par « Placements » — manquait au
+# bundle. Chaque extension concernée échouait alors à son chargement (« cannot import name … »),
+# et avec elle tout ce qu'elle porte. La liste se déduit des fichiers plutôt que de s'écrire à la
+# main : un module ajouté demain n'a pas à se souvenir de ce fichier-ci.
+modules_du_noyau = sorted(
+    f"app.{dossier.name}.{fichier.stem}" if dossier != BACKEND / "app" else f"app.{fichier.stem}"
+    for dossier in (BACKEND / "app", *sorted(d for d in (BACKEND / "app").iterdir() if d.is_dir() and (d / "__init__.py").is_file()))
+    for fichier in dossier.glob("*.py")
+    if fichier.stem != "__init__"
+)
+
 a = Analysis(
     [str(DOSSIER_DESKTOP / "app_desktop.py")],
     pathex=[str(BACKEND), str(DOSSIER_DESKTOP)],  # `app` et `platforms` importables à l'analyse
@@ -78,6 +92,7 @@ a = Analysis(
         "uvicorn.lifespan.on",
         "app.models",
         "app.routers",
+        *modules_du_noyau,
     ],
     hookspath=[],
     hooksconfig={},

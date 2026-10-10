@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -35,12 +37,62 @@ CATEGORIES_TEST = [
 CATEGORIES_TEST_ENTREE = {"Entrées d'argent"}
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--avec-migrations",
+        action="store_true",
+        default=False,
+        help="inclut les tests de migration (lents : chacun rejoue alembic dans un sous-processus)",
+    )
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "extensions_reelles: laisse l'état d'activation réel décider "
         "(pour les tests du mécanisme d'extensions lui-même)",
     )
+    config.addinivalue_line(
+        "markers",
+        "migrations: test lent qui rejoue alembic dans un sous-processus (écarté par défaut, "
+        "cf. pytest_collection_modifyitems)",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """LES TESTS DE MIGRATION SONT ÉCARTÉS PAR DÉFAUT, et marqués `migrations` automatiquement.
+
+    Chacun lance `python -m alembic` dans un sous-processus et rejoue les migrations d'une base
+    neuve : de 20 à 40 s pièce sur une machine virtuelle, et ils pèsent à eux seuls l'essentiel de
+    la durée de la suite. Reconnus à leur source (un `subprocess` qui appelle `alembic`) plutôt
+    qu'à une liste tenue à la main : un test de migration écrit demain est écarté sans y penser.
+
+    Les lancer : `pytest backend/tests -m migrations` (eux seuls) ou `pytest backend/tests
+    --avec-migrations` (tout). À faire avant une version et chaque fois qu'on touche à
+    `backend/alembic/`. Donner un `-m` explicite les laisse aussi tels quels."""
+    marqueur = pytest.mark.migrations
+    ecartes = []
+    gardes = []
+    lents: dict = {}
+    for item in items:
+        fichier = getattr(item, "path", None) or Path(str(item.fspath))
+        if fichier not in lents:
+            try:
+                source = Path(fichier).read_text(encoding="utf-8")
+            except OSError:
+                source = ""
+            lents[fichier] = "subprocess" in source and "alembic" in source
+        if lents[fichier]:
+            item.add_marker(marqueur)
+        if item.get_closest_marker("migrations") is not None:
+            ecartes.append(item)
+        else:
+            gardes.append(item)
+    if config.getoption("--avec-migrations") or config.getoption("markexpr"):
+        return
+    if ecartes:
+        config.hook.pytest_deselected(items=ecartes)
+        items[:] = gardes
 
 
 @pytest.fixture(autouse=True)

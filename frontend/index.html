@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=132" />
+  <link rel="stylesheet" href="style.css?v=135" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -223,10 +223,65 @@
     </div>
   </div>
 
+  <!-- LE DÉTAIL D'UNE MONNAIE ÉTEINTE (Paramètres généraux → « Afficher en
+       pop-up »). Ouverte depuis une colonne grise « Conversion vers… » d'un
+       projet ou du dashboard : la cascade de la monnaie éteinte et, au
+       dashboard, son camembert et un sélecteur de période — on change de mois
+       sans refermer. HORS DE TOUTE <section> : deux écrans l'ouvrent, et une
+       section éteinte la cacherait (cf. ouvrirFenetreMonnaieEteinte). -->
+  <div id="modale-monnaie-eteinte" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-monnaie-eteinte" role="dialog" aria-modal="true"
+         aria-labelledby="modale-monnaie-eteinte-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-monnaie-eteinte-titre"></h2>
+        <button type="button" id="btn-monnaie-eteinte-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <p class="hint" id="modale-monnaie-eteinte-sous-titre"></p>
+      <!-- Le sélecteur de période du dashboard, sans les semaines (creerArbrePeriode). -->
+      <div id="modale-monnaie-eteinte-periode" class="modale-periode" style="display:none"></div>
+      <h4>Entrées et sorties<i class="info-bulle" tabindex="0" data-info-cle="noyau.cascade">i</i></h4>
+      <div id="modale-monnaie-eteinte-cascade"></div>
+      <!-- LA LÉGENDE ENTRE LES DEUX GRAPHES : elle nomme les couleurs de l'un et de l'autre. -->
+      <div id="modale-monnaie-eteinte-legende" class="histogramme-cadre legende-cadre"></div>
+      <div id="modale-monnaie-eteinte-camembert-bloc" style="display:none">
+        <h4>Dépenses par catégorie</h4>
+        <div class="histogramme-cadre" id="modale-monnaie-eteinte-camembert"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LES FRAIS, ligne par ligne : ceux des virements internes et des comptes
+       d'épargne ou de placements (cf. soldes._lignes_frais_virements). Ouverte depuis
+       la colonne grise des frais d'un projet, du dashboard ou d'une cascade. Les virements sont groupés par COUPLE de monnaies (A → B et
+       B → A ensemble) ; chaque ligne met en avant ses frais, et rappelle en retrait
+       les deux montants du virement. Mêmes filtres que la page Opérations :
+       période, monnaies, comptes (cf. ouvrirFenetreFrais). -->
+  <div id="modale-frais-virements" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-monnaie-eteinte modale-frais" role="dialog" aria-modal="true"
+         aria-labelledby="modale-frais-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-frais-titre">Frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.frais-virements">i</i></h2>
+        <button type="button" id="btn-frais-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <p class="hint" id="modale-frais-sous-titre"></p>
+      <div id="modale-frais-periode" class="modale-periode"></div>
+      <div class="selecteur-contexte frais-filtres">
+        <span id="modale-frais-monnaies"></span>
+        <span id="modale-frais-comptes"></span>
+      </div>
+      <div id="modale-frais-liste"></div>
+    </div>
+  </div>
+
   <main>
     <!-- DASHBOARD -->
     <section id="section-dashboard" class="active">
-      <h2>Dashboard</h2>
+      <!-- TIPS & TRICKS : une ampoule au bord droit du titre, dont la bulle porte le message du
+           moment (cf. textes.js, `noyau.astuces`). Une pastille d'info comme les autres — même
+           bulle, même placement — habillée d'un emoji plutôt que d'un « i ». -->
+      <h2 class="dashboard-titre">Dashboard<i class="info-bulle info-bulle-astuce" tabindex="0" data-info-cle="noyau.astuces" aria-label="Astuces">💡</i></h2>
 
       <!-- Les KPI agrégés et l'histogramme des dépenses somment des montants :
            impossible d'additionner deux monnaies sans taux de change, donc un
@@ -327,30 +382,23 @@
           </div>
         </span>
       </h3>
-      <!-- Mêmes flèches que la page Opérations : ▲ regroupe le mois dans son
-           année, ▼ redescend au mois. Le niveau qui ne filtre pas est grisé, pas
-           masqué — voir dans quel mois ET quelle année on se trouve compte plus
-           que de gagner une rangée. -->
-      <div class="periode-selecteur">
-        <div class="periode-fleches" id="dashboard-periode-fleches"></div>
-        <div class="periode-niveaux">
-          <div class="sous-onglets" id="dashboard-periode-annees"></div>
-          <div class="sous-onglets sous-onglets-mois" id="dashboard-periode-mois"></div>
-          <!-- UN CRAN PLUS BAS : les semaines du mois choisi. Repliées, parce
-               qu'on regarde un mois neuf fois sur dix ; la petite flèche les
-               déplie, et l'histogramme au-dessous devient celui de la semaine
-               choisie — le MÊME graphe, pas un second. Recliquer la semaine
-               active rend l'histogramme au mois entier.
-
-               « Moyenne » ferme la rangée : elle répond à ce qu'une semaine
-               seule laisse ouvert — celle-ci est-elle une semaine ordinaire ? -->
-          <div class="periode-semaines" id="dashboard-periode-semaines-ligne">
-            <button type="button" class="periode-chevron" id="btn-dashboard-semaines"
-                    aria-expanded="false" aria-controls="dashboard-periode-semaines"
-                    title="Détailler par semaine"></button>
-            <div class="sous-onglets sous-onglets-mois" id="dashboard-periode-semaines" hidden></div>
-          </div>
-        </div>
+      <!-- L'ARBRE DE PÉRIODE : Tout > année > mois > semaines. Chaque ligne a sa
+           PASTILLE ronde, bleue sur le niveau qui pilote le dashboard, grise
+           ailleurs ; les deux chevrons déplient les mois sous l'année et les
+           semaines sous le mois. Cliquer plus bas que la pastille la fait
+           descendre, cliquer plus haut ne change que l'année ou le mois de
+           référence — pour remonter, on clique la pastille de la ligne du
+           dessus. Tout le contenu est dessiné par renderArbrePeriode (app.js) ;
+           `.periode-selecteur` reste la prise du tutoriel. -->
+      <div class="periode-selecteur periode-selecteur-arbre">
+        <div class="periode-arbre" id="dashboard-periode-arbre" role="radiogroup"></div>
+        <!-- LA MOYENNE HEBDOMADAIRE SUIT LE NIVEAU : un seul interrupteur, dont la
+             fenêtre est celle du niveau actif (mois, année ou tout l'historique),
+             comme les cartes d'objectifs. Rien à choisir de plus. -->
+        <label class="periode-moyenne" id="dashboard-periode-moyenne-bloc">
+          <input type="checkbox" id="dashboard-periode-moyenne" />
+          Moyenne par semaine
+        </label>
       </div>
 
       <!-- CE QUE LA PÉRIODE COÛTE ET RAPPORTE, posé ICI et non parmi les cartes
@@ -1248,25 +1296,26 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <input type="checkbox" id="operation-imprevue" /> <span>Dépense imprévue<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.imprevue-champ">i</i></span>
           </label>
 
+          <!-- UNE ENTRÉE QU'IL FAUT DÉCLARER (extension « Impôts », migration 0077). Même
+               principe que « imprévue » juste au-dessus : une étiquette, posée par le noyau
+               dans son formulaire, montrée par l'extension (data-extension-greffe). Elle ne
+               vaut que sur une entrée d'argent de type classique : sur tout le reste la
+               case s'éteint sur place (cf. majADeclarerOperation) et le serveur la refuse. -->
+          <label id="operation-a-declarer-bloc" data-extension-greffe="impots" style="display:none">
+            <input type="checkbox" id="operation-a-declarer" /> <span>À déclarer<i class="info-bulle" tabindex="0" data-info-cle="impots.a-declarer-champ">i</i></span>
+          </label>
+
           <label id="operation-amorti-bloc">
             <input type="checkbox" id="operation-amorti" /> <span>Amortie sur plusieurs mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.amortie-sur-plusieurs-mois">i</i></span>
           </label>
 
-          <!-- LA CASE EST DANS LA RANGÉE, SES CHAMPS SONT EN DESSOUS. Elle
-               vivait dans son propre bloc, lequel apparaissait et disparaissait
-               selon le statut et la récurrence : une cinquième case surgissait
-               alors sous les quatre autres, à un endroit qui changeait avec le
-               type. C'est une question de même nature que ses voisines — « que
-               fait-on de cette opération ? » — et elle se lit avec elles.
-
-               RÈGLE GÉNÉRALE DE CETTE RANGÉE : une case ne bouge JAMAIS. Ce
-               qu'elle déplie paraît en dessous, sans déranger personne, et une
-               case hors sujet s'éteint sur place (`.champ-hors-sujet`) au lieu
-               de disparaître — sans quoi cocher l'une ferait sauter les
-               autres. -->
-          <label id="operation-rapprochement-case">
-            <input type="checkbox" id="operation-rapprochement-actif" /> <span>Reconnaître à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i></span>
-          </label>
+          <!-- PLUS DE CASE « RECONNAÎTRE À L'IMPORT » : la reconnaissance est
+               rattachée à « Prévisionnelle ». Une prévisionnelle était DÉJÀ
+               reconnaissable sans rien cocher (fenêtre NULL = le jour même, cf.
+               models.Operation.rapprochement_debut) ; la case ne faisait que
+               montrer des champs facultatifs. Ils paraissent désormais sous la
+               rangée dès que « Prévisionnelle » est cochée — et « Récurrente »
+               ne s'allume qu'avec elle (cf. updateOperationTypeFields). -->
         </div>
 
         <div id="operation-decoupe-bloc" class="full-width" style="display:none">
@@ -1297,6 +1346,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              attendue AU JOUR MÊME, ce qui est déjà le cas le plus courant. -->
         <div id="operation-rapprochement-bloc" class="full-width" style="display:none">
           <div id="operation-rapprochement-champs" class="full-width" style="display:none">
+            <p class="champ-titre full-width">Reconnaître à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i></p>
             <label>Attendue à partir du
               <input type="date" id="operation-rapprochement-debut" />
             </label>
@@ -1445,6 +1495,20 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div class="reglage-bloc">
           <label for="reglage-monnaie-defaut">Monnaie d'affichage par défaut<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-affichage-defaut">i</i></label>
           <select id="reglage-monnaie-defaut"></select>
+        </div>
+
+        <!-- LES MONNAIES ÉTEINTES DANS LES GRAPHIQUES (extension « Monnaies »,
+             qui l'allume par data-extension-greffe). « Sur la page » : un
+             graphique par monnaie, comme toujours. « En pop-up » : seules les
+             monnaies allumées ont leur graphique, et ce qui a été converti vers
+             une monnaie éteinte y devient une colonne grise qui ouvre son détail
+             dans une fenêtre (cf. modeMonnaiesEteintes, app.js). -->
+        <div class="reglage-bloc" id="reglage-monnaies-eteintes-bloc" data-extension-greffe="monnaies" style="display:none">
+          <label for="reglage-monnaies-eteintes">Graphiques des monnaies éteintes<i class="info-bulle" tabindex="0" data-info-cle="monnaies.affichage-monnaies-eteintes">i</i></label>
+          <select id="reglage-monnaies-eteintes">
+            <option value="page">Afficher sur la page</option>
+            <option value="popup">Afficher en pop-up</option>
+          </select>
         </div>
 
         <div class="reglage-bloc">
@@ -2605,11 +2669,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=34"></script>
-  <script src="i18n.js?v=84"></script>
-  <script src="i18n-pt.js?v=2"></script>
+  <script src="textes.js?v=39"></script>
+  <script src="i18n.js?v=90"></script>
+  <script src="i18n-pt.js?v=8"></script>
   <script src="extensions.js?v=26"></script>
-  <script src="app.js?v=165"></script>
+  <script src="app.js?v=171"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas

@@ -152,6 +152,8 @@ TRADUCTIONS.pt = {
     "O que a linha descreve: uma compra, uma venda ou uma transferência de dinheiro. As palavras-chave são definidas logo abaixo. Uma descrição desconhecida coloca a linha em erro em vez de ser adivinhada.",
   "Ce qui PART du compte, avant frais et avant conversion ; « Montant » décrit alors ce qui ARRIVE. C'est le couple qu'il faut pour importer un virement entre deux devises : seul ton relevé connaît les deux montants.":
     "O que SAI da conta, antes das tarifas e da conversão; « Montant » descreve então o que CHEGA. É o par necessário para importar uma transferência entre duas moedas: só o seu extrato conhece os dois valores.",
+  "Tout ce qui apprend à l'import à lire un relevé à ta place. LES RÈGLES classent les lignes d'après leurs libellés, ou n'importe quelle colonne du fichier : type d'opération, catégorie, compte en face d'un virement, et chacune peut ne viser que certains formats. LA DÉTECTION DES RESSEMBLANCES repère les virements internes que l'app connaît déjà : quand le relevé de l'autre compte arrive, la ligne qui décrit le même virement est reconnue, et l'app te demande de valider sa lecture (« Oui » : la ligne n'est pas importée ; « Non » : elle l'est). Elle compare aussi les virements entre eux pour signaler un doublon possible. Éteindre ne supprime rien : les règles restent en base et les lignes déjà validées continuent de servir de doublons. L'import cesse simplement de les consulter.":
+    "Tudo o que ensina a importação a ler um extrato por você. AS REGRAS classificam as linhas conforme suas descrições, ou qualquer coluna do arquivo: tipo de transação, categoria, conta de destino de uma transferência, e cada uma pode visar apenas certos formatos. A DETECÇÃO DE SEMELHANÇAS identifica as transferências internas que o app já conhece: quando o extrato da outra conta chega, a linha que descreve a mesma transferência é reconhecida e o app pede que você valide a leitura (« Oui »: a linha não é importada; « Non »: ela é). Também compara as transferências entre si para sinalizar uma possível duplicata. Desligar não apaga nada: as regras continuam no banco e as linhas já validadas continuam servindo como duplicatas. A importação apenas deixa de consultá-las.",
   "Classe automatiquement les lignes d'un relevé d'après leurs libellés : type d'opération, catégorie, compte en face d'un virement. Vue liste ordonnée ou vue galerie par dossiers. Les règles restent en base quand l'extension est éteinte — l'import cesse simplement de les consulter.":
     "Classifica automaticamente as linhas de um extrato conforme suas descrições: tipo de transação, categoria, conta de destino de uma transferência. Visão em lista ordenada ou em galeria por pastas. As regras permanecem no banco quando a extensão está desligada — a importação apenas deixa de consultá-las.",
   "Le code ISIN du titre (FR0000120073, LU1681043599…). Seul nom qui ne change jamais : c'est par lui qu'un titre est reconnu d'un import à l'autre. Facultatif si tu lis le nom de la valeur.":
@@ -2077,8 +2079,8 @@ TRADUCTIONS.pt = {
     "Entradas",
   "Solde":
     "Saldo",
-  "Les entrées du projet, puis chaque catégorie de dépense qui les entame (de la plus lourde à la plus légère), puis ce qu'il en reste. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.":
-    "As entradas do projeto, depois cada categoria de despesa que as reduz (da maior à menor), depois o que sobra. Abaixo de zero, o projeto custou mais do que rendeu. Uma cascata por moeda.",
+  "Ce que le projet a fait entrer et sortir, marche par marche : les catégories (les entrées en blanc, ou en noir sur le thème clair, puis les dépenses de la plus lourde à la plus légère), l'épargne et les placements, les frais de virements internes en gris foncé et les conversions vers d'autres monnaies en gris, puis le solde. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.":
+    "O que o projeto fez entrar e sair, etapa por etapa: as categorias (as entradas em branco, ou em preto no tema claro, depois as despesas da mais pesada à mais leve), a poupança e os investimentos, as tarifas de transferências internas em cinza escuro e as conversões para outras moedas em cinza, e por fim o saldo. Abaixo de zero, o projeto custou mais do que rendeu. Uma cascata por moeda.",
   "— toutes —": "— todas —",
   "Remboursé via : {details}. Le montant de l'opération est figé tant que ce lien existe. Le montant à rembourser peut encore changer, sans descendre sous ce qui est déjà remboursé ({deja}) — pour aller plus bas, délie d'abord l'opération de remboursement correspondante.":
     "Reembolsado via: {details}. O valor da transação fica congelado enquanto esse vínculo existir. O valor a reembolsar ainda pode mudar, sem ficar abaixo do que já foi reembolsado ({deja}) — para ir mais baixo, desvincule primeiro a transação de reembolso correspondente.",
@@ -2186,8 +2188,8 @@ TRADUCTIONS.pt = {
     "Suas transações não são excluídas: elas voltam para « Sem perfil ».",
   "Répartition par catégorie":
     "Distribuição por categoria",
-  "Les sorties du projet, réparties par catégorie — virements sortants compris, comme dans le total ci-dessus. Les entrées n'y figurent pas : elles se lisent dans le total des entrées.":
-    "As saídas do projeto, distribuídas por categoria — transferências de saída incluídas, como no total acima. As entradas não aparecem aqui: elas se leem no total das entradas.",
+  "Où l'argent du projet a été DÉPENSÉ, catégorie par catégorie. Un virement entre tes comptes dans la même monnaie n'y figure pas : l'argent a changé de compte, rien n'a été dépensé. Un change vers une autre monnaie a sa colonne grise /italic(Conversion vers…), et les frais de virements internes la leur, en gris foncé. Pour voir où l'argent est PARTI, lis la cascade juste au-dessus.":
+    "Onde o dinheiro do projeto foi GASTO, categoria por categoria. Uma transferência entre as suas contas na mesma moeda não aparece: o dinheiro mudou de conta, nada foi gasto. Um câmbio para outra moeda tem a sua coluna cinza /italic(Conversão para…), e as tarifas de transferências internas têm a delas, em cinza escuro. Para ver para onde o dinheiro FOI, leia a cascata logo acima.",
   "ex. la banque écrit « VIR RECU M DUPONT » pour les remboursements de Paul":
     "ex. o banco escreve « VIR RECU M DUPONT » para os reembolsos do Paul",
   "ex. ce courtier écrit « ACHAT COMPTANT » suivi du nom du titre":
@@ -2714,8 +2716,8 @@ TRADUCTIONS.pt = {
     "O que devem a você - o que você deve.",
   "Les entrées d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui rentre sur ton compte durant la période). Les entrées amorties sont comptées au prorata, et les dépenses remboursables ne comptent que pour la part non-remboursable.":
     "As entradas de dinheiro - previstas incluídas - atribuídas ao período (diferente do que entra na sua conta durante o período). As entradas diluídas são contadas proporcionalmente, e as despesas reembolsáveis só contam pela parte não reembolsável.",
-  "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser.":
-    "As saídas de dinheiro - previstas incluídas - atribuídas ao período (diferente do que sai da sua conta durante o período). As despesas diluídas são contadas proporcionalmente. Os empréstimos só contam pela parte a reembolsar.",
+  "Les sorties d'argent - prévisionnelles incluses - attribuées à la période (différent de ce qui sort de ton compte durant la période). Les dépenses amorties sont comptées au prorata. Les prêts ne comptent que pour la partie à rembourser. Les frais des virements internes et des comptes d'épargne ou de placements y sont comptés : ces mouvements ne font rien sortir de ton budget, leurs frais si.":
+    "As saídas de dinheiro - previstas incluídas - atribuídas ao período (diferente do que sai da sua conta durante o período). As despesas diluídas contam proporcionalmente. Os empréstimos só contam pela parte a reembolsar. As tarifas das transferências internas e das contas poupança ou de investimentos são contadas: esses movimentos não tiram nada do seu orçamento, as tarifas sim.",
   "La différence des deux KPIs différents.":
     "A diferença entre os dois KPIs diferentes.",
   "La variation de ce que tu possèdes sur le mois : un calcul brut en fonction de la date et du montant.":
@@ -2776,8 +2778,8 @@ TRADUCTIONS.pt = {
     "O tipo de uma transação permite ditar como ela age. Dois tipos estão disponíveis de início: as transações padrão (entradas e saídas de dinheiro) e as transferências internas (entre duas contas que você possui). Os outros podem ser ativados e usados por meio de extensões.",
   "Le type d'opération par défaut et le plus courant : des courses, un paiement, un salaire, etc... C'est le seul type que tu peux découper en plusieurs catégories (plus de détails en bas de page).":
     "O tipo de transação padrão e o mais comum: compras, um pagamento, um salário, etc. É o único tipo que você pode dividir entre várias categorias (mais detalhes no fim da página).",
-  "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs (à l'exception des virements internes entre deux monnaies différentes).":
-    "As transferências internas não mudam quanto você possui. Elas têm seu próprio tipo e não entram nos cálculos dos seus KPIs (exceto as transferências internas entre duas moedas diferentes).",
+  "Les virements internes ne font pas bouger combien tu possèdes. Ils ont leur type à part, et ne rentrent pas dans les calculs de tes KPIs. Seuls leurs frais y comptent, comme une dépense : eux sont bien partis.":
+    "As transferências internas não mudam quanto você possui. Elas têm um tipo próprio e ficam fora dos cálculos dos seus KPIs. Só as tarifas contam, como uma despesa: esse dinheiro saiu de verdade.",
   "Si tu as avancé de l'argent ou qu'une de tes dépenses est remboursable, ce type est fait pour ton opération. Il te permet de /- ne compter que combien tu as réellement dépensé dans tes KPIs et les graphiques /- renseigner un montant dû /- suivre combien on te doit // Quand un remboursement est effectué (en partie ou totalement), le type Remboursement reçu te permet de relier l'opération de remboursement à la dépense remboursable.":
     "Se você adiantou dinheiro ou se uma das suas despesas é reembolsável, este tipo é feito para a sua transação. Ele permite /- contar nos seus KPIs e gráficos apenas quanto você realmente gastou /- informar um valor devido /- acompanhar quanto lhe devem // Quando um reembolso é feito (em parte ou totalmente), o tipo Reembolso recebido permite vincular a transação de reembolso à despesa reembolsável.",
   "Ce type est similaire au précédent, mais dans la situation inverse. Ici, seul les intérêts du montant prêté (s'il y en a) rentrent dans le compte des dépenses.":
@@ -3034,4 +3036,250 @@ MOTIFS_PAR_LANGUE.pt = [
   [/^sens « (.+) » non reconnu \(attendus : (.+)\)$/, "sentido “$1” não reconhecido (esperados: $2)"],
   [/^état « (.+) » non reconnu \(attendus : (.+)\)$/, "estado “$1” não reconhecido (esperados: $2)"],
   [/^frais en « (.+) » : ce n'est pas la monnaie (.+) à laquelle ils devraient s'appliquer$/, "tarifas em “$1”: esta não é a moeda $2 à qual elas deveriam se aplicar"],
+  [/^le poids (.+) doit être compris entre 0 \(exclu\) et 100$/, "o peso $1 deve estar entre 0 (excluído) e 100"],
+  [/^la somme des poids \((.+) %\) dépasse 100 %$/, "a soma dos pesos ($1%) ultrapassa 100%"],
+  [/^la somme des poids de la composition \((.+) %\) dépasse 100 %$/, "a soma dos pesos da composição ($1%) ultrapassa 100%"],
+  [/^« (.+) » n'est pas un ISIN valide$/, "“$1” não é um ISIN válido"],
+  [/^le poids de (.+) \((.+)\) doit être compris entre 0 \(exclu\) et 100$/, "o peso de $1 ($2) deve estar entre 0 (excluído) e 100"],
+  [/^« (.+) » n'est pas un pourcentage$/, "“$1” não é uma porcentagem"],
+  [/^classe : la répartition ne couvre que (.+) % : le reste est non renseigné$/, "classe de ativo: a distribuição cobre apenas $1% — o restante não está informado"],
+  [/^zone : la répartition ne couvre que (.+) % : le reste est non renseigné$/, "zona: a distribuição cobre apenas $1% — o restante não está informado"],
+  [/^secteur : la répartition ne couvre que (.+) % : le reste est non renseigné$/, "setor: a distribuição cobre apenas $1% — o restante não está informado"],
+  [/^les poids somment (.+) % alors que la couverture annoncée est de (.+) %$/, "os pesos somam $1% enquanto a cobertura informada é de $2%"],
+  [/^ISIN manquant$/, "ISIN ausente"],
+  [/^cet ISIN figure déjà à la ligne (.+)$/, "este ISIN já aparece na linha $1"],
+  [/^monnaie « (.+) » inconnue$/, "moeda “$1” desconhecida"],
+  [/^ce titre a des mouvements : sa monnaie de cotation ne peut plus changer$/, "este título tem transações: sua moeda de cotação não pode mais mudar"],
+  [/^« (.+) » existe déjà sous l'ISIN (.+) : deviner mélangerait deux titres$/, "“$1” já existe com o ISIN $2: adivinhar misturaria dois títulos"],
+  [/^un titre nommé « (.+) » existe déjà$/, "já existe um título chamado “$1”"],
+  [/^nom absent : l'ISIN sert de nom au titre créé$/, "nome ausente: o ISIN serve de nome ao título criado"],
+  [/^monnaie absente : « (.+) » par défaut$/, "moeda ausente: “$1” por padrão"],
+  [/^(classe d'actif|zone géographique|secteur) : la répartition ne couvre que (.+) % — le reste est non renseigné$/, "a distribuição ($1) cobre apenas $2% — o restante não está informado"],
+  [/^(classe d'actif|zone géographique|secteur|composition) : tous les poids sont inférieurs à 1 — des fractions plutôt que des pourcentages \?$/, "$1: todos os pesos são inferiores a 1 — frações em vez de porcentagens?"],
+  [/^(\d+) ISIN de composition n'ont de fiche ni dans le fichier ni dans la base : (.+)$/, "$1 ISIN de composição não têm ficha no arquivo nem na base: $2"],
+  [/^Fichier illisible : (.+)$/, "Arquivo ilegível: $1"],
 ];
+
+// analyse-budget : le solde prévisionnel
+TRADUCTIONS.pt["Solde prévisionnel"] = "Saldo previsto";
+TRADUCTIONS.pt["Horizon"] = "Horizonte";
+TRADUCTIONS.pt["3 mois"] = "3 meses";
+TRADUCTIONS.pt["6 mois"] = "6 meses";
+TRADUCTIONS.pt["1 an"] = "1 ano";
+TRADUCTIONS.pt["Prévision avancée"] = "Previsão avançada";
+TRADUCTIONS.pt["Dépenses moyennes par"] = "Despesas médias por";
+TRADUCTIONS.pt["jour"] = "dia";
+TRADUCTIONS.pt["semaine"] = "semana";
+TRADUCTIONS.pt["Calculées sur"] = "Calculadas sobre";
+TRADUCTIONS.pt["4 semaines"] = "4 semanas";
+TRADUCTIONS.pt["12 semaines"] = "12 semanas";
+TRADUCTIONS.pt["26 semaines"] = "26 semanas";
+TRADUCTIONS.pt["52 semaines"] = "52 semanas";
+TRADUCTIONS.pt["Tout l'historique"] = "Todo o histórico";
+TRADUCTIONS.pt["Exclure de la moyenne"] = "Excluir da média";
+TRADUCTIONS.pt["Types d'opération"] = "Tipos de transação";
+TRADUCTIONS.pt["Matelas"] = "Colchão";
+TRADUCTIONS.pt["Aujourd'hui"] = "Hoje";
+TRADUCTIONS.pt["Aujourd'hui : {solde}"] = "Hoje: {solde}";
+TRADUCTIONS.pt["Au {date} : {solde}"] = "Em {date}: {solde}";
+TRADUCTIONS.pt["Dépenses moyennes : {montant} par {unite} ({n} opérations sur {jours} jours)"] = "Despesas médias: {montant} por {unite} ({n} transação(ões) em {jours} dias)";
+TRADUCTIONS.pt["Aucune dépense passée à moyenner."] = "Nenhuma despesa passada para calcular a média.";
+TRADUCTIONS.pt["{n} échéances prises en compte"] = "{n} vencimentos considerados";
+TRADUCTIONS.pt["en retard"] = "atrasado";
+TRADUCTIONS.pt["Ne plus compter"] = "Parar de contar";
+TRADUCTIONS.pt["« {nature} » ({montant}) est prévue le {date}, mais une opération identique est déjà passée le {dateReelle} : elle est comptée deux fois."] = "“{nature}” ({montant}) está prevista para {date}, mas uma transação idêntica já ocorreu em {dateReelle}: ela é contada duas vezes.";
+TRADUCTIONS.pt["Ne plus compter la prévue"] = "Parar de contar a prevista";
+TRADUCTIONS.pt["« {nature} » ({montant}) est prévue {n} fois, et {k} de ses occurrences passées figurent déjà dans la moyenne : ce montant est compté deux fois."] = "“{nature}” ({montant}) está prevista {n} vez(es), e {k} de suas ocorrência(s) passada(s) já estão na média: este valor é contado duas vezes.";
+TRADUCTIONS.pt["Sortir les passées de la moyenne"] = "Tirar as passadas da média";
+TRADUCTIONS.pt["Ignorer"] = "Ignorar";
+TRADUCTIONS.pt["{n} opération(s) écartée(s) à la main."] = "{n} transação(ões) descartada(s) manualmente.";
+TRADUCTIONS.pt["Tout réintégrer"] = "Restaurar tudo";
+TRADUCTIONS.pt["Où en sera le solde de tes comptes courants, jour après jour : le passé réel en trait plein, puis chaque échéance prévisionnelle à sa date, en pointillés. Le dernier point est le « Solde total » du dashboard à la même date."] = "Onde estará o saldo das suas contas correntes, dia após dia: o passado real em linha contínua, depois cada vencimento previsto na sua data, em pontilhado. O último ponto é o “Saldo total” do dashboard na mesma data.";
+TRADUCTIONS.pt["Ajoute à chaque jour ce que tu dépenses en moyenne, d'après tes dépenses passées. -- Les échéances déjà prévues ne sont pas touchées : la moyenne couvre le reste de la vie courante. -- Un loyer prévu ET présent dans l'historique serait compté deux fois : l'application te le signale, c'est toi qui décides."] = "Soma a cada dia o que você gasta em média, com base nas suas despesas passadas. -- Os vencimentos já previstos não são alterados: a média cobre o resto da vida cotidiana. -- Um aluguel previsto E presente no histórico seria contado duas vezes: o aplicativo avisa, e é você quem decide.";
+TRADUCTIONS.pt["Retire des catégories ou des types d'opération du calcul de la moyenne : un loyer, un achat exceptionnel. Les échéances prévues ne changent pas."] = "Retira categorias ou tipos de transação do cálculo da média: um aluguel, uma compra excepcional. Os vencimentos previstos não mudam.";
+
+// dashboard : l'arbre de période
+TRADUCTIONS.pt["Moyenne par semaine"] = "Média por semana";
+TRADUCTIONS.pt["Afficher tout l'historique"] = "Mostrar todo o histórico";
+TRADUCTIONS.pt["Afficher l'année"] = "Mostrar o ano";
+TRADUCTIONS.pt["Afficher le mois"] = "Mostrar o mês";
+TRADUCTIONS.pt["Afficher la semaine"] = "Mostrar a semana";
+TRADUCTIONS.pt["Détailler par mois"] = "Detalhar por mês";
+TRADUCTIONS.pt["Replier les mois"] = "Recolher os meses";
+TRADUCTIONS.pt["tout l'historique"] = "todo o histórico";
+TRADUCTIONS.pt["moyenne des {n} semaines sur tout l'historique"] = "média das {n} semanas em todo o histórico";
+TRADUCTIONS.pt["Variation sur tout l'historique brute"] = "Variação bruta em todo o histórico";
+TRADUCTIONS.pt["Variation attribuée à tout l'historique"] = "Variação atribuída a todo o histórico";
+TRADUCTIONS.pt["Ce budget additionne tous les mois de l'historique ET les monnaies converties :"] = "Este orçamento soma todos os meses do histórico E as moedas convertidas:";
+
+// placements : zones, secteurs, répartitions et composition d'ETF (migration 0076)
+TRADUCTIONS.pt["Où tes avoirs sont exposés, par grande région du monde. Les zones livrées sont exclusives (« Asie (hors Chine) ») : un même pays ne compte pas deux fois dans la répartition d'un fonds."] = "Onde seus ativos estão expostos, por grande região do mundo. As zonas fornecidas são exclusivas (“Ásia (exceto China)”): um mesmo país não é contado duas vezes na distribuição de um fundo.";
+TRADUCTIONS.pt["De quoi tes avoirs sont faits, par secteur d'activité (nomenclature GICS)."] = "Do que seus ativos são feitos, por setor de atividade (classificação GICS).";
+TRADUCTIONS.pt["La répartition du titre par classe d'actif, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un fonds mixte se répartit : Actions 60 %, Obligations 40 %. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré."] = "A distribuição do título por classe de ativo, em porcentagem. Uma ação em carteira direta cabe em uma única linha a 100%. -- Um fundo misto se divide: Ações 60%, Títulos de renda fixa 40%. -- O que falta para chegar a 100% continua “não informado”: nada é esticado.";
+TRADUCTIONS.pt["La répartition du titre par zone géographique, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit : États-Unis 65 %, Europe 15 %… -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré."] = "A distribuição do título por zona geográfica, em porcentagem. Uma ação em carteira direta cabe em uma única linha a 100%. -- Um ETF se divide: Estados Unidos 65%, Europa 15%… -- O que falta para chegar a 100% continua “não informado”: nada é esticado.";
+TRADUCTIONS.pt["La répartition du titre par secteur d'activité, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit entre plusieurs secteurs. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré."] = "A distribuição do título por setor de atividade, em porcentagem. Uma ação em carteira direta cabe em uma única linha a 100%. -- Um ETF se divide entre vários setores. -- O que falta para chegar a 100% continua “não informado”: nada é esticado.";
+TRADUCTIONS.pt["Les ISIN du haut de l'indice que suit l'ETF, avec leur poids en %, une ligne par ISIN (« ISIN ; poids »). -- La part de l'indice couverte est le « x % » que ces lignes représentent ensemble (60 % par défaut). -- Elle sert à éclater l'ETF dans les graphiques : exposition par action, et zone ou secteur quand rien de plus direct n'est renseigné."] = "Os ISIN do topo do índice que o ETF acompanha, com seu peso em %, uma linha por ISIN (“ISIN ; peso”). -- A parcela do índice coberta é o “x%” que essas linhas representam juntas (60% por padrão). -- Serve para detalhar o ETF nos gráficos: exposição por ação e, por zona ou setor, quando nada mais direto está preenchido.";
+TRADUCTIONS.pt["Zones géographiques"] = "Zonas geográficas";
+TRADUCTIONS.pt["Ajouter la zone"] = "Adicionar a zona";
+TRADUCTIONS.pt["Secteurs"] = "Setores";
+TRADUCTIONS.pt["Ajouter le secteur"] = "Adicionar o setor";
+TRADUCTIONS.pt["ex. Japon"] = "ex. Japão";
+TRADUCTIONS.pt["ex. Luxe"] = "ex. Luxo";
+TRADUCTIONS.pt["Détail"] = "Detalhes";
+TRADUCTIONS.pt["Répartition par classe d'actif, zone et secteur — et composition d'un ETF"] = "Distribuição por classe de ativo, zona e setor — e composição de um ETF";
+TRADUCTIONS.pt["Poids en pourcentage"] = "Peso em porcentagem";
+TRADUCTIONS.pt["Retirer cette ligne"] = "Remover esta linha";
+TRADUCTIONS.pt["Zone géographique"] = "Zona geográfica";
+TRADUCTIONS.pt["Secteur"] = "Setor";
+TRADUCTIONS.pt["Ajouter une classe"] = "Adicionar uma classe";
+TRADUCTIONS.pt["Ajouter une zone"] = "Adicionar uma zona";
+TRADUCTIONS.pt["Ajouter un secteur"] = "Adicionar um setor";
+TRADUCTIONS.pt["Rien de renseigné : tout est « non renseigné »."] = "Nada preenchido: tudo é “não informado”.";
+TRADUCTIONS.pt["Total : {total} % — plus de 100 %, à corriger."] = "Total: {total}% — mais de 100%, corrija.";
+TRADUCTIONS.pt["Total : {total} % — {reste} % non renseigné"] = "Total: {total}% — {reste}% não informado";
+TRADUCTIONS.pt["Ligne illisible : « {ligne} » (attendu : ISIN ; poids)"] = "Linha ilegível: “{ligne}” (esperado: ISIN ; peso)";
+TRADUCTIONS.pt["L'ISIN {isin} figure deux fois"] = "O ISIN {isin} aparece duas vezes";
+TRADUCTIONS.pt["Composition de l'ETF"] = "Composição do ETF";
+TRADUCTIONS.pt["Part de l'indice couverte"] = "Parcela do índice coberta";
+TRADUCTIONS.pt["US5949181045 ; 15\nUS02079K3059 ; 12,5"] = "US5949181045 ; 15\nUS02079K3059 ; 12,5";
+TRADUCTIONS.pt["Répartition enregistrée"] = "Distribuição salva";
+TRADUCTIONS.pt["Composition enregistrée"] = "Composição salva";
+TRADUCTIONS.pt["Zone géographique introuvable"] = "Zona geográfica não encontrada";
+TRADUCTIONS.pt["Secteur introuvable"] = "Setor não encontrado";
+TRADUCTIONS.pt["Étiquette introuvable"] = "Rótulo não encontrado";
+TRADUCTIONS.pt["Cette zone géographique existe déjà"] = "Esta zona geográfica já existe";
+TRADUCTIONS.pt["Ce secteur existe déjà"] = "Este setor já existe";
+TRADUCTIONS.pt["Cette étiquette existe déjà"] = "Este rótulo já existe";
+TRADUCTIONS.pt["L'enveloppe n'est pas une répartition : elle se pose sur le titre"] = "O invólucro não é uma distribuição: ele é definido no próprio título";
+TRADUCTIONS.pt["la même étiquette figure deux fois dans la répartition"] = "o mesmo rótulo aparece duas vezes na distribuição";
+TRADUCTIONS.pt["la couverture doit être comprise entre 0 (exclu) et 100"] = "a cobertura deve estar entre 0 (excluído) e 100";
+
+// placements : importer des titres (migration 0076)
+TRADUCTIONS.pt["Un fichier Excel ou CSV qui DÉCRIT des titres : une ligne par ISIN, avec son enveloppe, ses répartitions (classe d'actif, zone, secteur) et, pour un ETF, la composition de son indice. -- Il ne crée aucune opération. -- Une cellule vide ne change rien : le fichier complète, il n'efface jamais. -- Tu peux le réimporter autant de fois que tu veux, par exemple pour mettre un ETF à jour."] = "Um arquivo Excel ou CSV que DESCREVE títulos: uma linha por ISIN, com seu invólucro, suas distribuições (classe de ativo, zona, setor) e, para um ETF, a composição do seu índice. -- Ele não cria nenhuma transação. -- Uma célula vazia não muda nada: o arquivo completa, nunca apaga. -- Você pode reimportá-lo quantas vezes quiser, por exemplo para atualizar um ETF.";
+TRADUCTIONS.pt["Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé."] = "Como nas outras importações, você indica qual coluna contém o quê: esse formato fica memorizado. -- Só o ISIN é obrigatório, é a chave do arquivo. -- Nada é gravado antes de você revisar a prévia e confirmar.";
+TRADUCTIONS.pt["Importer des titres"] = "Importar títulos";
+TRADUCTIONS.pt["1. Préparer le fichier"] = "1. Preparar o arquivo";
+TRADUCTIONS.pt["Télécharger le modèle Excel"] = "Baixar o modelo Excel";
+TRADUCTIONS.pt["Titres détenus"] = "Títulos detidos";
+TRADUCTIONS.pt["Titres connus"] = "Títulos conhecidos";
+TRADUCTIONS.pt["Copier la liste des ISIN"] = "Copiar a lista de ISIN";
+TRADUCTIONS.pt["2. Lire le fichier"] = "2. Ler o arquivo";
+TRADUCTIONS.pt["Format"] = "Formato";
+TRADUCTIONS.pt["Configurer les colonnes"] = "Configurar as colunas";
+TRADUCTIONS.pt["Fichier"] = "Arquivo";
+TRADUCTIONS.pt["Prévisualiser"] = "Pré-visualizar";
+TRADUCTIONS.pt["Nom du format"] = "Nome do formato";
+TRADUCTIONS.pt["Lignes d'en-tête à sauter"] = "Linhas de cabeçalho a ignorar";
+TRADUCTIONS.pt["Séparateur (CSV)"] = "Separador (CSV)";
+TRADUCTIONS.pt["Automatique"] = "Automático";
+TRADUCTIONS.pt["Point-virgule"] = "Ponto e vírgula";
+TRADUCTIONS.pt["Virgule"] = "Vírgula";
+TRADUCTIONS.pt["Tabulation"] = "Tabulação";
+TRADUCTIONS.pt["Enregistrer ce format"] = "Salvar este formato";
+TRADUCTIONS.pt["Enregistrer sous un nouveau nom"] = "Salvar com um novo nome";
+TRADUCTIONS.pt["Supprimer ce format"] = "Excluir este formato";
+TRADUCTIONS.pt["colonne"] = "coluna";
+TRADUCTIONS.pt["Couverture de la composition (%)"] = "Cobertura da composição (%)";
+TRADUCTIONS.pt["Composition (ISIN ; poids en %)"] = "Composição (ISIN ; peso em %)";
+TRADUCTIONS.pt["Monnaie"] = "Moeda";
+TRADUCTIONS.pt["Modèle de l'application"] = "Modelo do aplicativo";
+TRADUCTIONS.pt["Nom du nouveau format"] = "Nome do novo formato";
+TRADUCTIONS.pt["Le format a besoin d'un nom"] = "O formato precisa de um nome";
+TRADUCTIONS.pt["Format enregistré"] = "Formato salvo";
+TRADUCTIONS.pt["Supprimer le format « {nom} » ?"] = "Excluir o formato “{nom}”?";
+TRADUCTIONS.pt["Format supprimé"] = "Formato excluído";
+TRADUCTIONS.pt["Modèle enregistré :"] = "Modelo salvo:";
+TRADUCTIONS.pt["{n} ISIN dans la liste"] = "{n} ISIN na lista";
+TRADUCTIONS.pt["{n} titre(s) sans ISIN n'y figurent pas : {noms}"] = "{n} título(s) sem ISIN não constam: {noms}";
+TRADUCTIONS.pt["Aucun ISIN à copier pour cette liste."] = "Nenhum ISIN para copiar nesta lista.";
+TRADUCTIONS.pt["{n} ISIN copiés"] = "{n} ISIN copiados";
+TRADUCTIONS.pt["Copie impossible : le navigateur l'a refusée."] = "Cópia impossível: o navegador a recusou.";
+TRADUCTIONS.pt["(aucun pour l'instant)"] = "(nenhum por enquanto)";
+TRADUCTIONS.pt["À créer"] = "A criar";
+TRADUCTIONS.pt["À modifier"] = "A modificar";
+TRADUCTIONS.pt["Inchangé"] = "Sem alteração";
+TRADUCTIONS.pt["Ignoré"] = "Ignorado";
+TRADUCTIONS.pt["Étiquettes qui seront créées : {liste}"] = "Rótulos que serão criados: {liste}";
+TRADUCTIONS.pt["3. Relire l'aperçu"] = "3. Revisar a prévia";
+TRADUCTIONS.pt["{n} à créer"] = "{n} a criar";
+TRADUCTIONS.pt["{n} à modifier"] = "{n} a modificar";
+TRADUCTIONS.pt["{n} inchangé(s)"] = "{n} sem alteração";
+TRADUCTIONS.pt["{n} ignoré(s)"] = "{n} ignorado(s)";
+TRADUCTIONS.pt["Ligne"] = "Linha";
+TRADUCTIONS.pt["Statut"] = "Status";
+TRADUCTIONS.pt["Ce qui change"] = "O que muda";
+TRADUCTIONS.pt["Appliquer {n} ligne(s)"] = "Aplicar {n} linha(s)";
+TRADUCTIONS.pt["Choisis d'abord un fichier."] = "Escolha primeiro um arquivo.";
+TRADUCTIONS.pt["Import terminé : {crees} créé(s), {maj} modifié(s), {inchanges} inchangé(s), {ignores} ignoré(s)"] = "Importação concluída: {crees} criado(s), {maj} modificado(s), {inchanges} sem alteração, {ignores} ignorado(s)";
+TRADUCTIONS.pt["N’hésite pas à me faire un retour (via le bouton feedback ou directement) sur ton utilisation de l’app. Ça me fait plaisir d’en savoir plus sur ton expérience !"] = "Não hesite em me dar um retorno (pelo botão de feedback ou diretamente) sobre o seu uso do app. Fico feliz em saber mais sobre a sua experiência!";
+TRADUCTIONS.pt["Toutes les entrées d'argent marquées « à déclarer », pour l'année choisie. Le total ne compte que ce qui est réellement perçu - le prévu est indiqué à part."] = "Todas as entradas de dinheiro marcadas como « a declarar », para o ano escolhido. O total só conta o que foi realmente recebido - o previsto aparece à parte.";
+TRADUCTIONS.pt["Le taux d'imposition de l'année, tel que ton avis d'imposition ou ta simulation l'indique. Il ne sert qu'à estimer l'impôt (total × taux) : ni barème, ni abattement, ni quotient. Laissé vide, aucun impôt estimé n'est affiché."] = "A alíquota de imposto do ano, como seu aviso de imposto ou sua simulação indica. Ela serve apenas para estimar o imposto (total × alíquota): sem faixas, sem dedução, sem quociente. Se ficar vazia, nenhum imposto estimado é exibido.";
+TRADUCTIONS.pt["La date limite de ta déclaration pour cette année. L'app compte seulement les jours qu'il reste - aucun rappel n'est envoyé."] = "O prazo da sua declaração para este ano. O app apenas conta os dias que faltam - nenhum lembrete é enviado.";
+TRADUCTIONS.pt["Une étiquette lue par l'extension impôts. Elle n'existe que sur une entrée d'argent ordinaire : un remboursement reçu, un prêt reçu ou un virement ne sont pas des revenus."] = "Uma etiqueta lida pela extensão de impostos. Ela só existe em uma entrada de dinheiro comum: um reembolso recebido, um empréstimo recebido ou uma transferência não são rendimentos.";
+TRADUCTIONS.pt["Décoché, la règle s'applique à tous les formats d'import. Coché, elle ne s'applique qu'aux formats choisis : utile quand un même libellé veut dire une chose chez une banque et une autre chez une autre."] = "Desmarcada, a regra vale para todos os formatos de importação. Marcada, vale apenas para os formatos escolhidos: útil quando o mesmo texto significa uma coisa em um banco e outra em outro.";
+TRADUCTIONS.pt["« Toute la ligne » cherche dans toutes les colonnes du fichier à la fois. « Colonne n° » vise une seule colonne, comptée comme dans ton tableur (1 = la première) : pratique pour une colonne que le format d'import ne lit pas."] = "« Linha inteira » procura em todas as colunas do arquivo ao mesmo tempo. « Coluna nº » mira uma única coluna, contada como na sua planilha (1 = a primeira): útil para uma coluna que o formato de importação não lê.";
+TRADUCTIONS.pt["Tu reçois un salaire, des loyers, un revenu à déclarer ? Cette extension te laisse marquer ces entrées d'argent « à déclarer » (une case dans le formulaire d'une opération, dans l'aperçu d'un import, ou posée par une règle), puis les retrouve toutes au même endroit, année par année. // Tu y notes ton taux d'imposition et la date limite de ta déclaration : l'app te dit combien de jours il reste et t'indique un impôt estimé. // Attention, c'est un ordre de grandeur : total × taux, sans barème ni abattement. /bold(Ce n'est pas un calcul fiscal.)"] = "Você recebe salário, aluguéis, uma renda a declarar? Esta extensão permite marcar essas entradas de dinheiro como « a declarar » (uma caixa no formulário de uma transação, na prévia de uma importação, ou definida por uma regra) e depois reúne todas no mesmo lugar, ano a ano. // Você anota ali sua alíquota de imposto e o prazo da sua declaração: o app diz quantos dias faltam e mostra um imposto estimado. // Atenção, é uma ordem de grandeza: total × alíquota, sem faixas nem deduções. /bold(Não é um cálculo fiscal.)";
+TRADUCTIONS.pt["Toute la ligne"] = "Linha inteira";
+TRADUCTIONS.pt["Colonne n°"] = "Coluna nº";
+TRADUCTIONS.pt["Colonne n° {n}"] = "Coluna nº {n}";
+TRADUCTIONS.pt["à déclarer"] = "a declarar";
+TRADUCTIONS.pt["sur {n} format(s) d'import"] = "em {n} formato(s) de importação";
+TRADUCTIONS.pt["Formats d'import"] = "Formatos de importação";
+TRADUCTIONS.pt["Uniquement certains formats d'import"] = "Apenas alguns formatos de importação";
+TRADUCTIONS.pt["Marquer comme à déclarer"] = "Marcar como a declarar";
+TRADUCTIONS.pt["À déclarer"] = "A declarar";
+TRADUCTIONS.pt["Impôts"] = "Impostos";
+TRADUCTIONS.pt["Taux d'imposition (%)"] = "Alíquota de imposto (%)";
+TRADUCTIONS.pt["Date limite de déclaration"] = "Prazo da declaração";
+TRADUCTIONS.pt["Il reste {n} jours avant la date limite."] = "Faltam {n} dias para o prazo.";
+TRADUCTIONS.pt["Il reste 1 jour avant la date limite."] = "Falta 1 dia para o prazo.";
+TRADUCTIONS.pt["La date limite, c'est aujourd'hui."] = "O prazo é hoje.";
+TRADUCTIONS.pt["La date limite est dépassée de {n} jour(s)."] = "O prazo passou há {n} dia(s).";
+TRADUCTIONS.pt["Le taux est un pourcentage entre 0 et 100."] = "A alíquota é uma porcentagem entre 0 e 100.";
+TRADUCTIONS.pt["Réglages enregistrés"] = "Configurações salvas";
+TRADUCTIONS.pt["dont prévu"] = "dos quais previstos";
+TRADUCTIONS.pt["Impôt estimé"] = "Imposto estimado";
+TRADUCTIONS.pt["Aucune entrée à déclarer cette année. Coche « À déclarer » sur une entrée d'argent."] = "Nenhuma entrada a declarar este ano. Marque « A declarar » em uma entrada de dinheiro.";
+TRADUCTIONS.pt["Étiquette retirée (l'opération reste en base)."] = "Etiqueta removida (a transação continua no banco).";
+TRADUCTIONS.pt["Entrées à déclarer —"] = "Entradas a declarar —";
+TRADUCTIONS.pt["ex. 11"] = "ex. 11";
+TRADUCTIONS.pt["Imports Avancés"] = "Importações avançadas";
+TRADUCTIONS.pt["Seule la feuille « Titres » est lue à l'import ; une feuille « Notice » explique chaque colonne. Les trois premières lignes suffisent ici : ce sont les en-têtes qui comptent, et le modèle ne contient aucune ligne d'exemple."] = "Apenas a planilha « Titres » é lida na importação; uma planilha « Notice » explica cada coluna. As três primeiras linhas bastam aqui: o que importa são os cabeçalhos, e o modelo não tem nenhuma linha de exemplo.";
+TRADUCTIONS.pt["Le modèle Excel"] = "O modelo Excel";
+TRADUCTIONS.pt["Ce qui est entré et sorti dans cette monnaie, marche par marche : /- chaque catégorie, au net (les catégories d'entrée en blanc, ou en noir sur le thème clair) ; /- l'argent mis de côté sur un compte d'épargne ou de placements, ou repris, vu depuis tes comptes courants ; /- les frais de virements internes, en gris foncé ; /- les conversions vers ou depuis une autre monnaie, en gris, aux montants enregistrés dans les virements (jamais au taux du jour). // Un virement entre deux comptes du même type et dans la même monnaie n'y figure pas : il ne fait rien entrer ni sortir. La dernière marche est le solde."] = "O que entrou e saiu nesta moeda, etapa por etapa: /- cada categoria, no líquido (as categorias de receita em branco, ou em preto no tema claro); /- o dinheiro guardado numa conta poupança ou de investimentos, ou retirado de lá, visto das suas contas correntes; /- as tarifas de transferências internas, em cinza escuro; /- as conversões para ou de outra moeda, em cinza, pelos valores registrados nas transferências (nunca pela cotação do dia). // Uma transferência entre duas contas do mesmo tipo e na mesma moeda não aparece: nada entra nem sai. A última etapa é o saldo.";
+TRADUCTIONS.pt["Sur la page : chaque monnaie a ses graphiques, éteinte ou non. // En pop-up : seules les monnaies allumées ont leurs graphiques. L'argent converti vers une monnaie éteinte y devient une colonne grise /italic(Conversion vers…) : survole-la pour ouvrir le détail de cette monnaie dans une fenêtre. // Au dashboard, ces colonnes n'existent qu'en pop-up. Dans un projet, chaque conversion a sa colonne dans les deux cas."] = "Na página: cada moeda tem seus gráficos, desativada ou não. // Em pop-up: só as moedas ativas têm seus gráficos. O dinheiro convertido para uma moeda desativada vira uma coluna cinza /italic(Conversão para…): passe o mouse por cima para abrir o detalhe dessa moeda numa janela. // No painel, essas colunas só existem em pop-up. Num projeto, cada conversão tem a sua coluna nos dois casos.";
+TRADUCTIONS.pt["Seules les entrées d'argent ordinaires sont proposées : ce sont les seules qui se déclarent. Marquer une entrée ne change ni son montant, ni sa catégorie, ni son compte."] = "Só as entradas de dinheiro comuns são propostas: são as únicas que se declaram. Marcar uma entrada não muda nem o valor, nem a categoria, nem a conta dela.";
+TRADUCTIONS.pt["L'application de la règle ne se fera que sur les opérations catégorisées d'office comme entrées d'argent par l'app."] = "A regra só será aplicada às transações que o app classifica automaticamente como entradas de dinheiro.";
+TRADUCTIONS.pt["Conversion vers {monnaie}"] = "Conversão para {monnaie}";
+TRADUCTIONS.pt["Conversion depuis {monnaie}"] = "Conversão de {monnaie}";
+TRADUCTIONS.pt["Voir les virements"] = "Ver as transferências";
+TRADUCTIONS.pt["Ouvrir le détail : {monnaie}"] = "Abrir o detalhe: {monnaie}";
+TRADUCTIONS.pt["Vers l'épargne ou les placements"] = "Para a poupança ou os investimentos";
+TRADUCTIONS.pt["Depuis l'épargne ou les placements"] = "Da poupança ou dos investimentos";
+TRADUCTIONS.pt["Frais de virements internes"] = "Tarifas de transferências internas";
+TRADUCTIONS.pt["Entrées et sorties"] = "Entradas e saídas";
+TRADUCTIONS.pt["Toute l'année"] = "O ano todo";
+TRADUCTIONS.pt["Types"] = "Tipos";
+TRADUCTIONS.pt["Dépenses par catégorie"] = "Despesas por categoria";
+TRADUCTIONS.pt["Graphiques des monnaies éteintes"] = "Gráficos das moedas desativadas";
+TRADUCTIONS.pt["Afficher sur la page"] = "Mostrar na página";
+TRADUCTIONS.pt["Afficher en pop-up"] = "Mostrar em pop-up";
+TRADUCTIONS.pt["Marquer à déclarer ("] = "Marcar para declarar (";
+TRADUCTIONS.pt["ex. salaire"] = "ex. salário";
+TRADUCTIONS.pt["{n} entrée(s) proposée(s). Celles déjà marquées à déclarer ne sont pas listées."] = "{n} entrada(s) proposta(s). As já marcadas para declarar não aparecem na lista.";
+TRADUCTIONS.pt["{n} entrée(s) marquée(s) à déclarer."] = "{n} entrada(s) marcada(s) para declarar.";
+TRADUCTIONS.pt["Les frais qui comptent dans tes dépenses : ceux des virements internes, regroupés par couple de monnaies (un change dans un sens et dans l'autre se lisent ensemble), et ceux de tes comptes d'épargne ou de placements. Pour chaque ligne, les frais dans leur monnaie, puis le montant de l'opération. Les frais d'une opération ordinaire n'y figurent pas : ils font déjà partie de son montant."] = "As tarifas que contam nas suas despesas: as das transferências internas, agrupadas por par de moedas (um câmbio num sentido e no outro são lidos juntos), e as das suas contas poupança ou de investimentos. Para cada linha, as tarifas na moeda delas, depois o valor da transação. As tarifas de uma transação comum não aparecem: elas já fazem parte do valor dela.";
+TRADUCTIONS.pt["Voir le détail des frais"] = "Ver o detalhe das tarifas";
+TRADUCTIONS.pt["Aucun frais de virement sur la période."] = "Nenhuma tarifa de transferência no período.";
+TRADUCTIONS.pt["Virement"] = "Transferência";
+TRADUCTIONS.pt["Frais : {montant}"] = "Tarifas: {montant}";
+TRADUCTIONS.pt["Toutes tes opérations prévisionnelles, toutes monnaies confondues. Celles dont la date est passée sont en haut : elles attendent d'être reconnues au prochain import, ou d'être passées en réelles à la main. Un virement n'y prend qu'une ligne, avec le compte d'en face à la place de la catégorie."] = "Todas as suas transações previstas, todas as moedas juntas. As que já passaram da data ficam no topo: elas esperam ser reconhecidas na próxima importação, ou passadas para reais à mão. Uma transferência ocupa uma só linha, com a conta do outro lado no lugar da categoria.";
+TRADUCTIONS.pt["Leur date est passée et elles sont toujours prévisionnelles : la vraie ligne n'a pas encore été importée, ou n'a pas été reconnue. Tant qu'elles le restent, elles comptent dans ton solde projeté mais pas dans ton solde réel."] = "A data delas já passou e elas continuam previstas: a linha real ainda não foi importada, ou não foi reconhecida. Enquanto continuarem assim, elas contam no seu saldo projetado, mas não no saldo real.";
+TRADUCTIONS.pt["Aucune opération prévisionnelle en retard."] = "Nenhuma transação prevista em atraso.";
+TRADUCTIONS.pt["Aucune opération prévisionnelle à venir."] = "Nenhuma transação prevista por vir.";
+TRADUCTIONS.pt["Prévisions"] = "Previsões";
+TRADUCTIONS.pt["Opérations prévisionnelles"] = "Transações previstas";
+TRADUCTIONS.pt["Date passée ("] = "Data passada (";
+TRADUCTIONS.pt["À venir ("] = "Por vir (";
+TRADUCTIONS.pt["Frais (virements, épargne, placements)"] = "Tarifas (transferências, poupança, investimentos)";
+TRADUCTIONS.pt["Opération"] = "Transação";

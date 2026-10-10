@@ -177,47 +177,25 @@
   font-size: 0.85rem;
 }
 
-/* ---------- La cascade (waterfall) ---------- */
-/* Défile à l'horizontale quand il y a beaucoup de catégories, plutôt que de
-   tasser les barres : le SVG garde sa largeur propre. */
-.waterfall-cadre {
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+/* La cascade (waterfall) est dessinée par le noyau (renderCascade) : ses styles
+   vivent dans frontend/style.css, la fenêtre de détail d'une monnaie éteinte
+   s'en sert aussi. */
+
+/* La légende d'un histogramme de projet : celle du dashboard, posée sous son graphe. */
+.projet-legende {
+  margin-top: 0.5rem;
 }
 
-.waterfall .wf-entree {
-  fill: var(--positif);
+/* Les trois menus à cocher du sélecteur s'alignent sur les champs de date. */
+.projet-selecteur-filtres .filtre-menu {
+  margin-left: 0;
+  align-self: flex-end;
 }
 
-.waterfall .wf-depense {
-  fill: var(--depense);
-}
-
-.waterfall .wf-solde {
-  fill: var(--accent);
-}
-
-.waterfall .wf-deficit {
-  fill: var(--negatif);
-}
-
-.waterfall .wf-zero,
-.waterfall .wf-raccord {
-  stroke: var(--border);
-  stroke-width: 1;
-}
-
-.waterfall .wf-raccord {
-  stroke-dasharray: 3 2;
-}
-
-.waterfall .wf-valeur {
-  fill: var(--text-primary);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.waterfall .wf-libelle {
-  fill: var(--text-secondary);
-  font-size: 11px;
+/* Les lignes du panneau restent celles du menu à cocher, et non les champs empilés
+   (libellé au-dessus) que la règle ci-dessus pose sur les `label` du sélecteur. */
+.projet-selecteur-filtres .filtre-categories-panneau label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
 }

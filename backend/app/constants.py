@@ -1,4 +1,5 @@
 import enum
+import re
 
 
 class Sens(str, enum.Enum):
@@ -72,6 +73,12 @@ CATEGORIES_PROTEGEES = {CATEGORIE_AUTRES, CATEGORIE_ENTREES_ARGENT}
 # la rejoindre d'une case à cocher, « Salaire », « Loyers perçus », une pension.
 CATEGORIES_ENTREE_INITIALES = {CATEGORIE_ENTREES_ARGENT}
 
+# LA COULEUR DES CATÉGORIES D'ENTRÉE (migration 0078) : un index hors palette, que l'écran
+# peint en blanc sur le thème sombre et en noir sur le clair. Toutes les entrées d'argent
+# se lisent ainsi d'un même ton, à part des dépenses, et c'est écrit en base comme la
+# couleur de toute autre catégorie (cf. crud.set_categorie_est_entree).
+COULEUR_INDEX_ENTREE = -1
+
 
 # ---------- Monnaies ----------
 # L'app ne connaît aucun taux de change et n'additionne JAMAIS deux monnaies :
@@ -103,7 +110,7 @@ class TypeOperation(str, enum.Enum):
     remboursement_pret = "remboursement_pret"
     # Mouvement d'espèces d'un achat ou d'une vente de titres. Type "interne"
     # (cf. TYPES_INTERNES) : il n'est jamais choisi à la main, il naît toujours
-    # avec sa ligne OperationAction depuis l'onglet Placements financiers.
+    # avec sa ligne OperationTitre depuis l'onglet Placements financiers.
     action = "action"
 
 
@@ -190,6 +197,12 @@ TYPES_HORS_FLUX = {TypeOperation.remboursements, TypeOperation.remboursement_pre
 # n'apparaît que si des intérêts sont dus sur la période.
 LIBELLE_INTERETS_PRETS = "Intérêts de prêts"
 
+# Le libellé de la barre des FRAIS (cf. soldes._lignes_frais_virements) : ceux des
+# virements internes et des comptes d'épargne ou de placements. Pas une catégorie non plus :
+# ce que la banque a prélevé hors des opérations du budget courant, compté dans les
+# sorties comme une dépense, à côté d'elles.
+LIBELLE_FRAIS_VIREMENTS = "Frais (virements, épargne, placements)"
+
 # Types qui règlent une dette (jamais eux-mêmes remboursables), et la cible
 # qu'ils ont le droit de régler : un remboursement reçu solde une dépense
 # remboursable, un remboursement de prêt solde un prêt reçu.
@@ -211,7 +224,7 @@ TYPE_COMPTE_COURANT = "courant"
 TYPE_COMPTE_EPARGNE = "épargne"
 # Compte-titres : deux soldes à la fois, des espèces (alimentées par virement
 # interne, dépensées à l'achat de titres) et un portefeuille de titres détenus
-# (cf. models.Action / models.OperationAction, onglet Placements financiers).
+# (cf. models.Action / models.OperationTitre, onglet Placements financiers).
 TYPE_COMPTE_PLACEMENT = "placements financiers"
 TYPES_COMPTE_INITIAUX = [TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT]
 TYPES_COMPTE_SYSTEME = {TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT}
@@ -221,9 +234,9 @@ TYPES_COMPTE_SYSTEME = {TYPE_COMPTE_COURANT, TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PL
 TYPES_COMPTE_HORS_COURANT = {TYPE_COMPTE_EPARGNE, TYPE_COMPTE_PLACEMENT}
 
 
-class SensAction(str, enum.Enum):
+class SensTitre(str, enum.Enum):
     """Direction d'une opération sur titres. Source de vérité du couple
-    (OperationAction, Operation) : le sens de l'écriture d'espèces en découle
+    (OperationTitre, Operation) : le sens de l'écriture d'espèces en découle
     (achat -> transfert_sortant, vente -> transfert_entrant)."""
 
     achat = "achat"
@@ -553,12 +566,26 @@ CHAMPS_REGLE_NUMERIQUES = {"montant", "montant_recu", "montant_envoye"}
 # devise soit rattachée. Comparables à du texte, ou à l'autre devise en posant
 # `@devise_recue` / `@devise_envoyee` comme valeur.
 CHAMPS_REGLE_DEVISES = {"devise_recue", "devise_envoyee"}
+# LES COLONNES QUE LE FORMAT NE LIT PAS (migration 0077, « Imports Avancés ») : une règle peut
+# viser n'importe quelle colonne du fichier, pas seulement celles que le format a rattachées à
+# une propriété. Deux champs, tous deux lus dans la ligne brute intégrale
+# (`donnees_completes`, clé = numéro de colonne, 1-based, comme dans le tableur) :
+#   - « ligne_entiere » : le texte de TOUTES les colonnes, mises bout à bout ;
+#   - « colonne_N » : la colonne n° N, dont le numéro est libre (d'où un motif, pas une liste).
+CHAMP_REGLE_LIGNE_ENTIERE = "ligne_entiere"
+MOTIF_CHAMP_REGLE_COLONNE = re.compile(r"^colonne_([1-9][0-9]{0,2})$")
+
 CHAMPS_REGLE_VALIDES = {
     "nature",
     "categorie_banque",
     "compte_banque",
     "notes",
+    CHAMP_REGLE_LIGNE_ENTIERE,
 } | CHAMPS_REGLE_NUMERIQUES | CHAMPS_REGLE_DEVISES
+
+
+def est_champ_colonne_regle(champ: str) -> bool:
+    return bool(MOTIF_CHAMP_REGLE_COLONNE.match(champ or ""))
 
 
 def operateurs_admis(champ: str) -> set:
@@ -615,6 +642,11 @@ class DomaineImport(str, enum.Enum):
 
     bancaire = "bancaire"
     placement = "placement"
+    # Un fichier qui DÉCRIT des titres (migration 0076) : une ligne par ISIN, avec son
+    # enveloppe, ses répartitions et, pour un ETF, son dictionnaire. Il ne crée aucune
+    # opération — c'est pourquoi il a son domaine, et non un mode de lecture de plus
+    # sur les placements : tout le modèle de cet import-là est orienté mouvements.
+    titre = "titre"
 
 
 class TypeOperationPlacement(str, enum.Enum):
@@ -623,8 +655,8 @@ class TypeOperationPlacement(str, enum.Enum):
     Trois cas, et trois traitements entièrement différents :
 
      - `achat` / `vente` : un mouvement de titres, qui crée le couple
-       (OperationAction, Operation) habituel — cf.
-       crud.create_operation_action ;
+       (OperationTitre, Operation) habituel — cf.
+       crud.create_operation_titre ;
      - `transfert` : un mouvement d'ESPÈCES entre ce compte et un autre
        (l'alimentation d'un PEA, un retrait vers le compte courant). Aucun
        titre n'y bouge : c'est un virement interne ordinaire, et il se compare
@@ -715,7 +747,7 @@ class ModeLecturePlacement(str, enum.Enum):
 #  - `quantite` : le nombre de titres DÉTENUS à l'instant de la photo ;
 #  - `prix_revient` : le prix de revient UNITAIRE (PRU), c'est-à-dire ce qu'un
 #    titre a coûté en moyenne. C'est lui qui part en base
-#    (OperationAction.prix_unitaire) et dont découlent les plus-values ;
+#    (OperationTitre.prix_unitaire) et dont découlent les plus-values ;
 #  - `valeur_totale` : la valorisation actuelle de la ligne, facultative. Elle
 #    ne décide d'aucune détention : elle sert à en déduire le COURS du titre
 #    (valeur totale ÷ quantité), qui n'a pas de colonne à lui dans ce genre
@@ -743,6 +775,39 @@ COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
     {"index": 3, "propriete": "quantite"},
     {"index": 4, "propriete": "prix_revient"},
     {"index": 5, "propriete": "valeur_totale"},
+]
+
+# ---------- L'import de titres (fichier Excel ou CSV qui décrit des titres) ----------
+#
+#  - `code_isin` : la clé du fichier, et la seule propriété obligatoire. Un titre se
+#    reconnaît d'un import à l'autre par son ISIN (le nom du courtier change, pas lui) ;
+#  - `nom` : le libellé à donner à un titre CRÉÉ par le fichier. Jamais appliqué à un
+#    titre existant : le nom du courtier identifie (cf. models.TitrePossede.nom) ;
+#  - `monnaie` : la monnaie de cotation, par son nom ou son symbole, pour un titre créé ;
+#  - `enveloppe` : comment le titre est détenu — UNE étiquette ;
+#  - `classe_actif`, `zone`, `secteur` : les trois répartitions. Une cellule vaut un
+#    libellé seul (100 %) ou « Libellé 70 ; Libellé 30 » (cf. services/exposition) ;
+#  - `couverture_pct` et `composition` : le dictionnaire d'un ETF.
+# Une cellule VIDE ne change rien : le fichier complète, il n'efface pas.
+PROPRIETES_IMPORT_TITRE = (
+    "code_isin",
+    "nom",
+    "monnaie",
+    "enveloppe",
+    "classe_actif",
+    "zone",
+    "secteur",
+    "couverture_pct",
+    "composition",
+)
+
+PROPRIETES_IMPORT_TITRE_OBLIGATOIRES = {"code_isin"}
+
+# L'ordre du fichier MODÈLE que l'application fait télécharger : un preset créé sans
+# rien configurer lit exactement ces colonnes.
+COLONNES_IMPORT_TITRE_PAR_DEFAUT = [
+    {"index": i, "propriete": propriete}
+    for i, propriete in enumerate(PROPRIETES_IMPORT_TITRE, start=1)
 ]
 
 COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT = [
@@ -922,9 +987,61 @@ class SensObjectif(str, enum.Enum):
 # seule colonne portait la question, il fallait choisir — et le camembert
 # répondait alors à l'une ou à l'autre, jamais aux deux. « ETF 60 % / Actions
 # 40 % » est un graphe de CONTENANTS, qui ne dit rien de l'exposition réelle.
+#
+# DEUX AXES DE PLUS (migration 0076) : la ZONE GÉOGRAPHIQUE et le SECTEUR. Avec la
+# classe d'actif, ce sont les trois axes d'EXPOSITION — ceux qui décrivent ce à
+# quoi un titre expose, et qui sont des RÉPARTITIONS en % (un ETF World n'est pas
+# « Monde », il est 65 % États-Unis, 15 % Europe…). L'enveloppe reste une
+# étiquette unique : un titre n'a qu'une manière d'être détenu.
 class AxeTitre(str, enum.Enum):
     enveloppe = "enveloppe"
     classe = "classe"
+    zone = "zone"
+    secteur = "secteur"
+
+
+# Les axes qui portent une RÉPARTITION (table `exposition_titre`), par opposition à
+# l'enveloppe, qui reste une colonne du titre.
+AXES_EXPOSITION = (AxeTitre.classe, AxeTitre.zone, AxeTitre.secteur)
+
+# Marge sous laquelle on ne signale pas qu'une somme de poids n'est pas tout à fait
+# ce qu'elle devrait être : les compositions publiées par les émetteurs arrondissent
+# chaque ligne, et leur somme tombe rarement juste. Rien n'est jamais renormalisé.
+TOLERANCE_POIDS_PCT = 0.5
+
+# La part de l'indice que le dictionnaire d'un ETF cherche à couvrir quand
+# l'utilisateur n'en a pas choisi une autre : les ISIN du haut de l'indice, jusqu'à
+# 60 % de sa valorisation.
+COUVERTURE_COMPOSITION_DEFAUT = 60.0
+
+# Les zones posées par la migration 0076. EXCLUSIVES : « Asie (hors Chine) » et
+# non « Asie », sans quoi la Chine compterait deux fois dans la répartition d'un
+# fonds — une fois seule, une fois avec le continent. Ce vocabulaire est le même
+# pour tout le monde, d'où un semis sans condition ; il se renomme et s'étend.
+ZONES_INITIALES = [
+    "États-Unis",
+    "Chine",
+    "Europe",
+    "Asie (hors Chine)",
+    "Amérique (hors États-Unis)",
+    "Afrique",
+    "Océanie",
+]
+
+# Les onze secteurs de la nomenclature GICS, en français.
+SECTEURS_INITIAUX = [
+    "Technologies de l'information",
+    "Santé",
+    "Finance",
+    "Consommation discrétionnaire",
+    "Consommation de base",
+    "Industrie",
+    "Énergie",
+    "Services de communication",
+    "Services aux collectivités",
+    "Matériaux",
+    "Immobilier",
+]
 
 
 # Les classes d'actif posées par la migration 0066. CONTRAIREMENT AUX CATÉGORIES

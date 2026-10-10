@@ -67,6 +67,7 @@
     <div id="projet-waterfall"></div>
 
     <h4 id="projet-histogramme-titre" style="display:none">Répartition par catégorie<i class="info-bulle" tabindex="0" data-info-cle="projets.repartition-par-categorie">i</i></h4>
+    <!-- Chaque histogramme porte la LÉGENDE du dashboard, aux mêmes couleurs. -->
     <div id="projet-histogramme"></div>
 
     <div class="actions">
@@ -85,15 +86,12 @@
         <label for="projet-filtre-fin">Au
           <input type="date" id="projet-filtre-fin" />
         </label>
-        <label for="projet-filtre-compte">Compte
-          <select id="projet-filtre-compte"><option value="">— tous —</option></select>
-        </label>
-        <label for="projet-filtre-type">Type
-          <select id="projet-filtre-type"><option value="">— tous —</option></select>
-        </label>
-        <label for="projet-filtre-categorie">Catégorie
-          <select id="projet-filtre-categorie"><option value="">— toutes —</option></select>
-        </label>
+        <!-- PLUSIEURS COMPTES, TYPES ET CATÉGORIES À LA FOIS : le menu à cocher du
+             noyau (creerMenuCases), avec les pastilles de couleur du filtre du
+             dashboard pour les catégories. Tout coché = aucun filtre. -->
+        <span id="projet-filtre-comptes"></span>
+        <span id="projet-filtre-types"></span>
+        <span id="projet-filtre-categories"></span>
         <label for="projet-filtre-texte">Nature contient
           <input type="text" id="projet-filtre-texte" placeholder="ex. hôtel" spellcheck="false" />
         </label>

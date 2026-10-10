@@ -79,27 +79,27 @@
           <tbody id="placements-detentions"></tbody>
         </table>
 
-        <h3 id="form-operation-action-titre">Acheter / vendre</h3>
-        <form id="form-operation-action">
-          <div class="sous-onglets full-width" id="operation-action-sens-boutons">
+        <h3 id="form-achat-vente-titre">Acheter / vendre</h3>
+        <form id="form-achat-vente">
+          <div class="sous-onglets full-width" id="operation-titre-sens-boutons">
             <button type="button" data-sens="achat" class="active">Achat</button>
             <button type="button" data-sens="vente">Vente</button>
           </div>
-          <input type="hidden" id="operation-action-sens" value="achat" />
+          <input type="hidden" id="operation-titre-sens" value="achat" />
 
           <label>Titre
-            <select id="operation-action-titre" required></select>
+            <select id="operation-titre-titre" required></select>
           </label>
           <label>Quantité
-            <input type="number" step="any" min="0" id="operation-action-quantite" required />
+            <input type="number" step="any" min="0" id="operation-titre-quantite" required />
           </label>
           <label>Prix unitaire
-            <input type="number" step="0.01" min="0" id="operation-action-prix" required />
+            <input type="number" step="0.01" min="0" id="operation-titre-prix" required />
           </label>
           <label>Date
-            <input type="date" id="operation-action-date" required />
+            <input type="date" id="operation-titre-date" required />
           </label>
-          <p class="hint full-width" id="operation-action-resume"></p>
+          <p class="hint full-width" id="operation-titre-resume"></p>
           <div class="actions full-width">
             <button type="submit" class="primary">Enregistrer</button>
           </div>
@@ -129,7 +129,7 @@
            tous les jours.
 
            L'extension « Lecture de cours » vient greffer ses blocs ICI — elle
-           s'accroche à `#placements-actions-liste` et à `#form-action`, qui ont
+           s'accroche à `#placements-titres-liste` et à `#form-titre`, qui ont
            déménagé avec le reste : elle n'a donc rien à changer. -->
       <div id="placements-titres" style="display:none">
         <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info-cle="placements.titres-suivis">i</i></h3>
@@ -142,16 +142,16 @@
           <input type="checkbox" id="placements-voir-archives" />
           Afficher les titres archivés
         </label>
-        <div id="placements-actions-liste" class="import-mappings"></div>
-        <form id="form-action">
+        <div id="placements-titres-liste" class="import-mappings"></div>
+        <form id="form-titre">
           <label>Nom du titre
-            <input type="text" id="action-nom" placeholder="ex. Air Liquide" required />
+            <input type="text" id="titre-nom" placeholder="ex. Air Liquide" required />
           </label>
           <label>Monnaie de cotation
-            <select id="action-monnaie" required></select>
+            <select id="titre-monnaie" required></select>
           </label>
           <label>Cours actuel
-            <input type="number" step="0.01" min="0" id="action-valeur" value="0" />
+            <input type="number" step="0.01" min="0" id="titre-valeur" value="0" />
           </label>
           <!-- DEUX AXES, DEUX MENUS, tous deux facultatifs (« — » par défaut) :
                l'ENVELOPPE dit comment le titre est détenu, la CLASSE D'ACTIF à
@@ -159,10 +159,10 @@
                fondre en un seul menu obligeait à choisir, et le camembert
                d'exposition répondait alors à une question sur deux. -->
           <label><span class="champ-titre">Enveloppe<i class="info-bulle" tabindex="0" data-info-cle="placements.enveloppe">i</i></span>
-            <select id="action-type-titre"></select>
+            <select id="titre-enveloppe"></select>
           </label>
           <label><span class="champ-titre">Classe d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classe-actif">i</i></span>
-            <select id="action-classe-actif"></select>
+            <select id="titre-classe-actif"></select>
           </label>
           <div class="actions">
             <button type="submit" class="primary">Ajouter le titre</button>
@@ -199,7 +199,88 @@
             <button type="submit" class="primary">Ajouter la classe</button>
           </div>
         </form>
+
+        <!-- LES DEUX AXES SUIVANTS (migration 0076), rangés de la même façon : la zone
+             géographique et le secteur. Les zones livrées sont EXCLUSIVES — « Asie
+             (hors Chine) » et non « Asie » — pour qu'un même pays ne compte pas deux
+             fois dans la répartition d'un fonds. Elles se renomment, se suppriment
+             et s'étendent comme n'importe quelle étiquette. -->
+        <h3>Zones géographiques<i class="info-bulle" tabindex="0" data-info-cle="placements.zones">i</i></h3>
+        <div id="placements-zones-liste" class="import-mappings"></div>
+        <form id="form-zone">
+          <label>Nom
+            <input type="text" id="zone-nom" placeholder="ex. Japon" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Ajouter la zone</button>
+          </div>
+        </form>
+
+        <h3>Secteurs<i class="info-bulle" tabindex="0" data-info-cle="placements.secteurs">i</i></h3>
+        <div id="placements-secteurs-liste" class="import-mappings"></div>
+        <form id="form-secteur">
+          <label>Nom
+            <input type="text" id="secteur-nom" placeholder="ex. Luxe" required />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Ajouter le secteur</button>
+          </div>
+        </form>
       </div>
+
+      </div>
+
+      <!-- ===== LE VOLET D'IMPORT DE TITRES (migration 0076) : un fichier Excel ou CSV qui
+           DÉCRIT des titres — enveloppe, répartitions, dictionnaire d'ETF — sans créer
+           la moindre opération. Frère des deux autres volets : on bascule de l'un à
+           l'autre localement, sans quitter la page. Tout son contenu est dessiné par
+           import-titres.js (préfixe `imt`). ===== -->
+      <div id="placements-vue-import-titres" style="display:none">
+        <div class="impl-entete">
+          <h2>Importer des titres<i class="info-bulle" tabindex="0" data-info-cle="import-titres.presentation">i</i></h2>
+          <button type="button" id="btn-imt-retour">&larr; Retour aux placements</button>
+        </div>
+
+        <h3>1. Lire le fichier<i class="info-bulle" tabindex="0" data-info-cle="import-titres.lire">i</i></h3>
+        <!-- `.selecteur-contexte` : la forme partagée des champs posés hors formulaire, qui leur
+             donne le style du thème (cf. style.css). Plusieurs champs sur une même ligne. -->
+        <div class="imt-fichier selecteur-contexte">
+          <label>Format
+            <select id="imt-preset"></select>
+          </label>
+          <button type="button" id="btn-imt-config">Configurer les colonnes</button>
+          <label>Fichier
+            <input type="file" id="imt-fichier" accept=".xlsx,.xlsm,.csv,.txt" />
+          </label>
+          <button type="button" class="primary" id="btn-imt-apercu">Prévisualiser</button>
+        </div>
+
+        <div id="imt-config" class="imt-config" hidden>
+          <div class="imt-config-ligne selecteur-contexte">
+            <label>Nom du format
+              <input type="text" id="imt-config-nom" />
+            </label>
+            <label>Lignes d'en-tête à sauter
+              <input type="number" id="imt-config-entete" min="0" max="20" value="1" />
+            </label>
+            <label>Séparateur (CSV)
+              <select id="imt-delimiteur">
+                <option value="">Automatique</option>
+                <option value=";">Point-virgule</option>
+                <option value=",">Virgule</option>
+                <option value="&#9;">Tabulation</option>
+              </select>
+            </label>
+          </div>
+          <div id="imt-config-colonnes" class="imt-config-colonnes"></div>
+          <div class="actions">
+            <button type="button" class="primary" id="btn-imt-config-enregistrer">Enregistrer ce format</button>
+            <button type="button" id="btn-imt-config-nouveau">Enregistrer sous un nouveau nom</button>
+            <button type="button" class="danger" id="btn-imt-config-supprimer">Supprimer ce format</button>
+          </div>
+        </div>
+
+        <div id="imt-apercu"></div>
 
       </div>
 

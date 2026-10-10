@@ -22,7 +22,9 @@ def _make_modele(db, compte, **kwargs):
         categorie_id=get_categorie_id(db, "Charges fixes"),
         nature="Abonnement",
         montant=10.0,
-        statut=Statut.reel,
+        # UN MODÈLE RÉCURRENT EST PRÉVISIONNEL : un modèle réel se dédouble à la
+        # première lecture (cf. crud.scinder_modele_recurrent, test_recurrence_scindee.py).
+        statut=Statut.previsionnel,
         recurrente=True,
         frequence=Frequence.mensuelle,
     )

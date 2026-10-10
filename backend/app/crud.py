@@ -9,10 +9,12 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .constants import (
+    COULEUR_INDEX_ENTREE,
     CATEGORIE_AUTRES,
     CIBLE_PAR_TYPE_REGLEMENT,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
+    COLONNES_IMPORT_TITRE_PAR_DEFAUT,
     COLONNES_IMPORT_POSITION_PAR_DEFAUT,
     MONNAIE_INITIALE_NOM,
     MONNAIE_INITIALE_SYMBOLE,
@@ -23,13 +25,14 @@ from .constants import (
     TYPES_REGLEMENT,
     TYPES_REMBOURSABLES,
     TYPES_SENS_ENTREE,
+    AXES_EXPOSITION,
     AxeTitre,
     DomaineImport,
     Frequence,
     ModeComparaison,
     ModeLecturePlacement,
     Sens,
-    SensAction,
+    SensTitre,
     Statut,
     TypeOperation,
 )
@@ -104,7 +107,7 @@ _MODELES_PORTANT_UNE_MONNAIE = (
     models.CompteMonnaie,
     models.Operation,
     models.CategorieBudgetMensuel,
-    models.Action,
+    models.TitrePossede,
 )
 
 
@@ -596,8 +599,15 @@ def set_categorie_est_entree(
     RIEN N'EST RECALCULÉ. Les opérations déjà écrites gardent leur `sens` : il
     est posé à la création et relu par tous les soldes, et le réécrire ici
     ferait bouger des chiffres déjà rapprochés d'un relevé, pour un geste qui
-    n'annonce rien de tel."""
+    n'annonce rien de tel.
+
+    LA COULEUR SUIT, ELLE (migration 0078) : une catégorie d'entrée prend la couleur des
+    entrées, et en la quittant elle reprend le plus petit index de palette libre."""
     db_categorie.est_entree = bool(est_entree)
+    if db_categorie.est_entree:
+        db_categorie.couleur_index = COULEUR_INDEX_ENTREE
+    elif db_categorie.couleur_index == COULEUR_INDEX_ENTREE:
+        db_categorie.couleur_index = _prochain_couleur_index(db)
     db.commit()
     db.refresh(db_categorie)
     return db_categorie
@@ -606,6 +616,21 @@ def set_categorie_est_entree(
 def delete_categorie(db: Session, db_categorie: models.Categorie) -> None:
     db.delete(db_categorie)
     db.commit()
+
+
+def _est_declarable(sens, code) -> bool:
+    """Une opération peut-elle porter l'étiquette « à déclarer » ?
+
+    UNE ENTRÉE DE TYPE CLASSIQUE, et rien d'autre (migration 0077). Un remboursement reçu et un
+    prêt reçu sont aussi des entrées, mais pas des revenus — le dashboard ne les compte
+    d'ailleurs pas comme tels —, et un virement n'en est jamais une. Jugée sur le SENS FINAL
+    de l'opération, pas sur ce que le formulaire a envoyé : une catégorie qui quitte « entrée
+    d'argent » fait sortir l'opération du périmètre."""
+    return sens == Sens.entree and TypeOperation(code) == TypeOperation.classique
+
+
+def operation_declarable(operation: models.Operation) -> bool:
+    return _est_declarable(operation.sens, operation.type_code)
 
 
 def _sens_pour_type(code: str, categorie_est_entree: bool) -> Sens:
@@ -1212,6 +1237,7 @@ def create_operation(db: Session, operation: schemas.OperationCreate) -> models.
         code, data["montant"], data["montant_du"], data["montant_a_rembourser"]
     )
     _serialiser_mots_cles_rapprochement(data)
+    data["a_declarer"] = bool(data.get("a_declarer")) and _est_declarable(data["sens"], code)
 
     db_operation = models.Operation(**data)
     # Les parts AVANT le premier commit : une opération qui naîtrait découpée
@@ -1284,6 +1310,10 @@ def update_operation(
     # le recalculer le ramènerait à "dépense" et fausserait le solde du compte.
     if not (etait_virement and TypeOperation(code) == TypeOperation.virement):
         db_operation.sens = _sens_pour_type(code, categorie_est_entree)
+    # L'ÉTIQUETTE « À DÉCLARER » SUIT L'ÉLIGIBILITÉ, jugée sur l'état FINAL : une catégorie qui
+    # quitte « entrée d'argent » fait sortir l'opération du périmètre, et la case retombe avec.
+    if not _est_declarable(db_operation.sens, code):
+        db_operation.a_declarer = False
 
     est_remboursable = TypeOperation(code) in TYPES_REMBOURSABLES
     if not est_remboursable:
@@ -1345,6 +1375,16 @@ def update_operation(
 
     if etait_modele_recurrent and not db_operation.recurrente:
         _arreter_recurrence(db, db_operation)
+    elif (
+        db_operation.recurrente
+        and db_operation.recurrence_parent_id is None
+        and db_operation.statut == Statut.reel
+        and db_operation.frequence is not None
+    ):
+        # UN MODÈLE MARQUÉ PAYÉ SE DÉDOUBLE tout de suite (cf. scinder_modele_recurrent) :
+        # ce mois-ci devient réel, la récurrence continue sur la prochaine occurrence.
+        scinder_modele_recurrent(db, db_operation)
+        db.refresh(db_operation)
 
     return db_operation
 
@@ -1475,10 +1515,19 @@ def generer_occurrences_recurrentes(db: Session) -> None:
     par l'autre bout, ce que le rapprochement existe pour empêcher. Les
     occurrences générées AVANT la migration 0058 n'ont pas de date prévue, et
     leur date fait alors foi comme auparavant."""
+    # D'ABORD, UN MODÈLE RÉEL SE DÉDOUBLE (cf. scinder_modele_recurrent) : c'est ce
+    # qui convertit une base d'avant la règle, et un modèle rapproché à l'import.
+    scinder_modeles_recurrents_reels(db)
     horizon = _ajouter_mois(date_type.today(), HORIZON_MOIS_RECURRENCE)
     modeles = (
         db.query(models.Operation)
-        .filter(models.Operation.recurrente.is_(True), models.Operation.recurrence_parent_id.is_(None))
+        .filter(
+            models.Operation.recurrente.is_(True),
+            models.Operation.recurrence_parent_id.is_(None),
+            # Une occurrence détachée par une version d'avant (cf. _arreter_recurrence)
+            # garde `recurrente` sans fréquence : ce n'est pas un modèle.
+            models.Operation.frequence.isnot(None),
+        )
         .all()
     )
     a_commiter = False
@@ -1513,6 +1562,8 @@ def generer_occurrences_recurrentes(db: Session) -> None:
                         rapprochement_debut=debut_fenetre,
                         rapprochement_fin=fin_fenetre,
                         rapprochement_mots_cles=modele.rapprochement_mots_cles,
+                        # Un revenu récurrent à déclarer l'est à chaque occurrence.
+                        a_declarer=modele.a_declarer,
                     )
                 )
                 dates_existantes.add(courante)
@@ -1538,7 +1589,103 @@ def _arreter_recurrence(db: Session, modele: models.Operation) -> None:
             delete_operation(db, enfant)
         else:
             enfant.recurrence_parent_id = None
+            # Détachée, elle n'est plus une occurrence : sans fréquence, un
+            # « récurrente » resté levé la ferait relire comme un modèle.
+            enfant.recurrente = False
     db.commit()
+
+
+def _date_prevue(operation: models.Operation) -> date_type:
+    return operation.recurrence_date_prevue or operation.date
+
+
+def scinder_modele_recurrent(db: Session, modele: models.Operation) -> Optional[models.Operation]:
+    """UN MODÈLE RÉCURRENT EST TOUJOURS PRÉVISIONNEL : celui qui devient réel passe la main.
+
+    « Récurrente » ne s'allume qu'avec « Prévisionnelle » (une récurrence est une suite de
+    dépenses attendues, reconnues à l'import). Un modèle devient pourtant réel — écrit avant
+    cette règle (cf. migration 0078), rapproché d'une ligne de relevé, ou marqué payé à la
+    main. Le garder comme modèle obligeait à choisir entre un passé juste et une récurrence
+    qui continue.
+
+    LE MODÈLE PASSE DONC LA MAIN à la première occurrence encore prévisionnelle, qui reprend
+    la fréquence, la fin et les occurrences suivantes. S'il n'y en a pas encore, un nouveau
+    modèle naît à la date suivante, sur le patron de l'ancien.
+
+    LE PASSÉ RESTE RATTACHÉ : l'ancien modèle et les occurrences déjà réelles deviennent des
+    occurrences RÉELLES du nouveau modèle — des opérations ordinaires, qui gardent le lien
+    avec la récurrence qui les a dictées.
+
+    UNE RÉCURRENCE TERMINÉE (plus aucune date avant sa fin) n'est pas touchée : il n'y a
+    plus personne à qui passer la main, et le lien avec ses occurrences reste le sien.
+
+    Rend le nouveau modèle, ou None quand rien n'a changé."""
+    enfants = sorted(
+        db.query(models.Operation)
+        .filter(models.Operation.recurrence_parent_id == modele.id)
+        .all(),
+        key=_date_prevue,
+    )
+    frontiere = next((e for e in enfants if e.statut == Statut.previsionnel), None)
+    if frontiere is not None:
+        nouveau = frontiere
+        nouveau.recurrence_parent_id = None
+    else:
+        derniere = max([_date_prevue(modele), *(_date_prevue(e) for e in enfants)])
+        prochaine = _prochaine_date_recurrence(derniere, modele.frequence)
+        if modele.recurrence_fin is not None and prochaine > modele.recurrence_fin:
+            return None
+        debut_fenetre, fin_fenetre = _fenetre_heritee(modele, prochaine)
+        nouveau = models.Operation(
+            date=prochaine,
+            compte_id=modele.compte_id,
+            type_id=modele.type_id,
+            categorie_id=modele.categorie_id,
+            nature=modele.nature,
+            montant=modele.montant,
+            monnaie_id=modele.monnaie_id,
+            sens=modele.sens,
+            statut=Statut.previsionnel,
+            montant_du=modele.montant_du,
+            montant_a_rembourser=modele.montant_a_rembourser,
+            recurrence_date_prevue=prochaine,
+            rapprochement_debut=debut_fenetre,
+            rapprochement_fin=fin_fenetre,
+            rapprochement_mots_cles=modele.rapprochement_mots_cles,
+            a_declarer=modele.a_declarer,
+        )
+        db.add(nouveau)
+    nouveau.recurrente = True
+    nouveau.frequence = modele.frequence
+    nouveau.recurrence_fin = modele.recurrence_fin
+    db.flush()
+    for enfant in enfants:
+        if enfant is not nouveau:
+            enfant.recurrence_parent_id = nouveau.id
+    # L'ANCIEN MODÈLE DEVIENT UNE OCCURRENCE RÉELLE du nouveau, à sa date.
+    modele.recurrence_date_prevue = modele.recurrence_date_prevue or modele.date
+    modele.recurrence_parent_id = nouveau.id
+    modele.frequence = None
+    modele.recurrence_fin = None
+    db.commit()
+    return nouveau
+
+
+def scinder_modeles_recurrents_reels(db: Session) -> None:
+    """Dédouble tous les modèles récurrents RÉELS (cf. scinder_modele_recurrent). Appelée
+    en tête de la génération des occurrences : c'est ce qui convertit une base écrite avant
+    la règle au premier lancement, et rattrape un modèle rapproché à l'import."""
+    for modele in (
+        db.query(models.Operation)
+        .filter(
+            models.Operation.recurrente.is_(True),
+            models.Operation.recurrence_parent_id.is_(None),
+            models.Operation.statut == Statut.reel,
+            models.Operation.frequence.isnot(None),
+        )
+        .all()
+    ):
+        scinder_modele_recurrent(db, modele)
 
 
 def delete_operation(db: Session, db_operation: models.Operation) -> None:
@@ -1564,8 +1711,8 @@ def delete_operation(db: Session, db_operation: models.Operation) -> None:
     ).delete(synchronize_session=False)
     # Idem pour le versant titres d'un achat/vente : les deux lignes ne
     # survivent jamais l'une sans l'autre.
-    db.query(models.OperationAction).filter(
-        models.OperationAction.operation_id == db_operation.id
+    db.query(models.OperationTitre).filter(
+        models.OperationTitre.operation_id == db_operation.id
     ).delete(synchronize_session=False)
     db.delete(db_operation)
     db.commit()
@@ -1584,7 +1731,7 @@ def delete_all_operations(db: Session) -> int:
     ).delete(synchronize_session=False)
     # Les mouvements de titres partent avec leur écriture d'espèces ; les
     # titres eux-mêmes (table `action`) restent, ils ne sont pas des opérations.
-    db.query(models.OperationAction).delete(synchronize_session=False)
+    db.query(models.OperationTitre).delete(synchronize_session=False)
     db.query(models.Operation).delete(synchronize_session=False)
     db.commit()
     return nb
@@ -1989,17 +2136,11 @@ def delete_virement(db: Session, operations: list[models.Operation]) -> None:
 # faire sans rien changer.
 
 
-def _colonne_axe(axe: str):
-    """La colonne d'`action` que cet axe renseigne.
-
-    UN SEUL ENDROIT décide, parce que trois fonctions en ont besoin (le compte
-    des titres, le détypage à la suppression, et l'écriture) : la faire deviner
-    à chacune, c'est se donner rendez-vous à la première divergence."""
-    return (
-        models.Action.classe_actif_id
-        if axe == AxeTitre.classe.value
-        else models.Action.type_titre_id
-    )
+def _est_axe_exposition(axe: str) -> bool:
+    """Vrai pour la classe d'actif, la zone et le secteur — les axes qui portent
+    une RÉPARTITION en % (table `exposition_titre`) ; faux pour l'enveloppe, qui
+    reste une colonne du titre (migration 0076)."""
+    return axe in {a.value for a in AXES_EXPOSITION}
 
 
 def get_types_titre(db: Session, axe: str = AxeTitre.enveloppe.value) -> list[models.TypeTitre]:
@@ -2043,9 +2184,23 @@ def compter_titres_par_type(
     Une seule requête groupée plutôt qu'un compte par ligne : l'écran de gestion
     en affiche autant qu'il y a d'étiquettes, et un archivé pèse dans la décision
     de supprimer une étiquette autant qu'un titre en service."""
-    colonne = _colonne_axe(axe)
+    if _est_axe_exposition(axe):
+        # Un titre compte UNE fois par étiquette qu'il porte, quel que soit son
+        # poids : « combien de titres touche cette étiquette » est la question
+        # de qui s'apprête à la supprimer.
+        lignes = (
+            db.query(
+                models.ExpositionTitre.type_titre_id,
+                func.count(func.distinct(models.ExpositionTitre.titre_id)),
+            )
+            .filter(models.ExpositionTitre.axe == axe)
+            .group_by(models.ExpositionTitre.type_titre_id)
+            .all()
+        )
+        return {type_id: nombre for type_id, nombre in lignes}
+    colonne = models.TitrePossede.type_titre_id
     lignes = (
-        db.query(colonne, func.count(models.Action.id))
+        db.query(colonne, func.count(models.TitrePossede.id))
         .filter(colonne.isnot(None))
         .group_by(colonne)
         .all()
@@ -2085,10 +2240,19 @@ def delete_type_titre(db: Session, type_titre: models.TypeTitre) -> None:
     déclaré sur la colonne : SQLite n'applique ses clés étrangères que si
     `PRAGMA foreign_keys` est allumé, et une session qui aurait déjà chargé ces
     titres garderait de toute façon l'ancien identifiant en mémoire."""
-    colonne = _colonne_axe(type_titre.axe)
-    db.query(models.Action).filter(colonne == type_titre.id).update(
-        {colonne: None}, synchronize_session=False
-    )
+    if _est_axe_exposition(type_titre.axe):
+        # Les lignes de répartition qui la portaient s'en vont avec elle : le
+        # reste de la répartition demeure, et ce qui manque redevient « non
+        # renseigné » — c'est la même chose que détyper.
+        db.query(models.ExpositionTitre).filter(
+            models.ExpositionTitre.type_titre_id == type_titre.id
+        ).delete(synchronize_session=False)
+        db.expire_all()
+    else:
+        colonne = models.TitrePossede.type_titre_id
+        db.query(models.TitrePossede).filter(colonne == type_titre.id).update(
+            {colonne: None}, synchronize_session=False
+        )
     db.query(models.RegleImportPlacement).filter(
         models.RegleImportPlacement.type_titre_id == type_titre.id
     ).update({models.RegleImportPlacement.type_titre_id: None}, synchronize_session=False)
@@ -2096,7 +2260,45 @@ def delete_type_titre(db: Session, type_titre: models.TypeTitre) -> None:
     db.commit()
 
 
-def get_actions(db: Session, *, inclure_archivees: bool = False) -> list[models.Action]:
+def poser_repartition(
+    db: Session,
+    titre: models.TitrePossede,
+    axe: str,
+    lignes: list[tuple[int, float]],
+    *,
+    source: Optional[str] = None,
+    date_maj: Optional[date_type] = None,
+) -> None:
+    """REMPLACE la répartition d'un titre sur un axe par `lignes` : `[(étiquette, poids)]`.
+
+    UN REMPLACEMENT ET NON UN AJOUT : une répartition est un instantané qu'on corrige
+    d'un bloc, et poser « États-Unis 70 » puis « Europe 30 » ligne à ligne laisserait
+    exister, entre les deux, une répartition qui ne somme pas 100 et qu'un graphe
+    pourrait lire. Liste vide : l'axe est vidé, tout redevient « non renseigné ».
+
+    NE COMMITE PAS : l'appelant (une modification de titre, un import) décide du
+    moment. La validation des poids n'est pas faite ici non plus, elle est au
+    routeur et au service d'import (services/exposition) — chacun a sa façon de la
+    dire à l'utilisateur."""
+    for existante in [e for e in titre.expositions if e.axe == axe]:
+        titre.expositions.remove(existante)
+    # Les retraits partent AVANT les ajouts : sans ce flush, l'ORM exécute les
+    # insertions d'abord, et reposer la même étiquette violerait l'unicité.
+    db.flush()
+    for type_titre_id, poids in lignes:
+        titre.expositions.append(
+            models.ExpositionTitre(
+                axe=axe,
+                type_titre_id=type_titre_id,
+                poids_pct=poids,
+                source=source,
+                date_maj=date_maj,
+            )
+        )
+    db.flush()
+
+
+def get_titres(db: Session, *, inclure_archivees: bool = False) -> list[models.TitrePossede]:
     """Les titres en service. Les ARCHIVÉS sont exclus par défaut.
 
     Un titre archivé n'a plus à figurer là où l'on CHOISIT un titre — le menu
@@ -2108,22 +2310,22 @@ def get_actions(db: Session, *, inclure_archivees: bool = False) -> list[models.
     Ce qui se lit depuis les MOUVEMENTS n'est pas concerné et ne doit pas
     l'être : l'historique et les plus-values passées d'un titre archivé restent
     affichés, sans quoi archiver reviendrait à effacer (cf.
-    services/placements, qui part de `operation_action` et jamais d'ici)."""
-    query = db.query(models.Action)
+    services/placements, qui part de `operation_titre` et jamais d'ici)."""
+    query = db.query(models.TitrePossede)
     if not inclure_archivees:
-        query = query.filter(models.Action.archivee.is_(False))
-    return query.order_by(models.Action.nom).all()
+        query = query.filter(models.TitrePossede.archivee.is_(False))
+    return query.order_by(models.TitrePossede.nom).all()
 
 
-def get_action(db: Session, action_id: int) -> Optional[models.Action]:
-    return db.query(models.Action).filter(models.Action.id == action_id).first()
+def get_titre(db: Session, titre_id: int) -> Optional[models.TitrePossede]:
+    return db.query(models.TitrePossede).filter(models.TitrePossede.id == titre_id).first()
 
 
-def get_action_by_nom(db: Session, nom: str) -> Optional[models.Action]:
-    return db.query(models.Action).filter(models.Action.nom == nom).first()
+def get_titre_by_nom(db: Session, nom: str) -> Optional[models.TitrePossede]:
+    return db.query(models.TitrePossede).filter(models.TitrePossede.nom == nom).first()
 
 
-def get_action_by_isin(db: Session, code_isin: str) -> Optional[models.Action]:
+def get_titre_by_isin(db: Session, code_isin: str) -> Optional[models.TitrePossede]:
     """Le titre portant ce code ISIN, ou None.
 
     Les titres ARCHIVÉS sont inclus, à dessein : un relevé qui rouvre une
@@ -2132,10 +2334,10 @@ def get_action_by_isin(db: Session, code_isin: str) -> Optional[models.Action]:
     toute façon, mais bien plus tard et bien moins clairement)."""
     if not code_isin:
         return None
-    return db.query(models.Action).filter(models.Action.code_isin == code_isin).first()
+    return db.query(models.TitrePossede).filter(models.TitrePossede.code_isin == code_isin).first()
 
 
-def create_action(
+def create_titre(
     db: Session,
     nom: str,
     monnaie_id: int,
@@ -2143,8 +2345,8 @@ def create_action(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
-) -> models.Action:
-    action = models.Action(
+) -> models.TitrePossede:
+    titre = models.TitrePossede(
         nom=nom,
         valeur=valeur,
         monnaie_id=monnaie_id,
@@ -2152,17 +2354,20 @@ def create_action(
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
         type_titre_id=type_titre_id or None,
-        classe_actif_id=classe_actif_id or None,
     )
-    db.add(action)
+    db.add(titre)
+    db.flush()
+    if classe_actif_id:
+        # Une classe unique est une répartition à 100 % (migration 0076).
+        poser_repartition(db, titre, AxeTitre.classe.value, [(classe_actif_id, 100.0)])
     db.commit()
-    db.refresh(action)
-    return action
+    db.refresh(titre)
+    return titre
 
 
-def update_action(
+def update_titre(
     db: Session,
-    action: models.Action,
+    titre: models.TitrePossede,
     *,
     nom: Optional[str] = None,
     nom_affichage: Optional[str] = None,
@@ -2172,45 +2377,60 @@ def update_action(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
-) -> models.Action:
+    composition: Optional[dict] = None,
+    composition_couverture_pct: Optional[float] = None,
+) -> models.TitrePossede:
     if nom is not None:
-        action.nom = nom
+        titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de
     # défaire un renommage, `None` voulant dire « ne change pas ».
     if nom_affichage is not None:
-        action.nom_affichage = nom_affichage.strip() or None
+        titre.nom_affichage = nom_affichage.strip() or None
     if valeur is not None:
-        action.valeur = valeur
+        titre.valeur = valeur
     if monnaie_id is not None:
-        action.monnaie_id = monnaie_id
+        titre.monnaie_id = monnaie_id
     if archivee is not None:
-        action.archivee = archivee
+        titre.archivee = archivee
     # Comme partout ici, None veut dire « ne change pas » : l'import de
     # placements COMPLÈTE un titre dont l'ISIN manquait, il n'a jamais à
     # l'effacer.
     if code_isin is not None:
-        action.code_isin = code_isin
+        titre.code_isin = code_isin
     # LE ZÉRO DÉTYPE. `None` veut dire « ne change pas » comme partout ici, il ne
     # peut donc pas vouloir dire aussi « retire le type » — et il faut bien un
     # geste pour défaire un choix qu'on regrette. Le menu envoie 0 quand on
     # sélectionne « aucun ».
     if type_titre_id is not None:
-        action.type_titre_id = type_titre_id or None
+        titre.type_titre_id = type_titre_id or None
     # La classe d'actif suit exactement la même convention : c'est le même
-    # objet, sur l'autre axe.
+    # objet, sur l'autre axe. Depuis la 0076 elle est une RÉPARTITION : choisir une
+    # classe la pose à 100 %, le zéro la retire — c'est le geste du menu de saisie
+    # rapide, la répartition fine passe par `poser_repartition`.
     if classe_actif_id is not None:
-        action.classe_actif_id = classe_actif_id or None
+        poser_repartition(
+            db,
+            titre,
+            AxeTitre.classe.value,
+            [(classe_actif_id, 100.0)] if classe_actif_id else [],
+        )
+    # LE DICTIONNAIRE D'UN ETF : `None` ne change rien, un dictionnaire VIDE le retire
+    # (même convention que le zéro de l'étiquette), et la couverture suit — zéro la retire.
+    if composition is not None:
+        titre.composition = dict(composition) or None
+    if composition_couverture_pct is not None:
+        titre.composition_couverture_pct = composition_couverture_pct or None
     db.commit()
-    db.refresh(action)
-    return action
+    db.refresh(titre)
+    return titre
 
 
 def definir_url_cours(
-    db: Session, action: models.Action, url: Optional[str]
-) -> models.Action:
+    db: Session, titre: models.TitrePossede, url: Optional[str]
+) -> models.TitrePossede:
     """Enregistre (ou retire, avec `None`) la page d'où relire le cours du titre.
 
-    Une fonction à part plutôt qu'un paramètre de plus sur `update_action` :
+    Une fonction à part plutôt qu'un paramètre de plus sur `update_titre` :
     celle-ci traite `None` comme « ne change pas », convention qui rendrait
     impossible d'EFFACER un lien. Ici `None` veut dire ce qu'il dit.
 
@@ -2218,15 +2438,15 @@ def definir_url_cours(
     cours lu, il cesse seulement d'être rafraîchi. Le remettre à NULL aurait
     fait passer une valeur connue pour une valeur jamais lue.
     """
-    action.url_cours = url
+    titre.url_cours = url
     db.commit()
-    db.refresh(action)
-    return action
+    db.refresh(titre)
+    return titre
 
 
 def enregistrer_cours_en_ligne(
-    db: Session, action: models.Action, valeur: float, horodatage: datetime
-) -> models.Action:
+    db: Session, titre: models.TitrePossede, valeur: float, horodatage: datetime
+) -> models.TitrePossede:
     """Écrit un cours relu en ligne, et date la lecture.
 
     Les deux ensemble, jamais l'un sans l'autre : un cours sans date ne dit pas
@@ -2235,46 +2455,46 @@ def enregistrer_cours_en_ligne(
     ici) pour qu'un rafraîchissement de dix titres porte la MÊME date sur les
     dix — ce qui se lit comme la seule action qu'il a été.
     """
-    action.valeur = valeur
-    action.cours_maj_le = horodatage
+    titre.valeur = valeur
+    titre.cours_maj_le = horodatage
     db.commit()
-    db.refresh(action)
-    return action
+    db.refresh(titre)
+    return titre
 
 
-def action_est_utilisee(db: Session, action_id: int) -> bool:
+def titre_est_utilise(db: Session, titre_id: int) -> bool:
     return (
-        db.query(models.OperationAction)
-        .filter(models.OperationAction.action_id == action_id)
+        db.query(models.OperationTitre)
+        .filter(models.OperationTitre.titre_id == titre_id)
         .first()
         is not None
     )
 
 
-def delete_action(db: Session, action: models.Action) -> None:
-    db.delete(action)
+def delete_titre(db: Session, titre: models.TitrePossede) -> None:
+    db.delete(titre)
     db.commit()
 
 
-def get_operation_action(db: Session, operation_action_id: int) -> Optional[models.OperationAction]:
+def get_operation_titre(db: Session, operation_titre_id: int) -> Optional[models.OperationTitre]:
     return (
-        db.query(models.OperationAction)
-        .filter(models.OperationAction.id == operation_action_id)
+        db.query(models.OperationTitre)
+        .filter(models.OperationTitre.id == operation_titre_id)
         .first()
     )
 
 
-def create_operation_action(
+def create_operation_titre(
     db: Session,
     *,
     compte_id: int,
-    action: models.Action,
-    sens: SensAction,
+    titre: models.TitrePossede,
+    sens: SensTitre,
     quantite: float,
     prix_unitaire: float,
     date_operation: date_type,
     nature: Optional[str] = None,
-) -> models.OperationAction:
+) -> models.OperationTitre:
     """Crée les deux lignes solidaires d'un mouvement de titres : l'écriture
     d'espèces (une Operation ordinaire de type `action`) et son versant titres.
 
@@ -2292,7 +2512,7 @@ def create_operation_action(
     """
     type_action = get_type_operation_par_code(db, TypeOperation.action.value)
     montant = quantite * prix_unitaire
-    prefixe = "Achat" if sens == SensAction.achat else "Vente"
+    prefixe = "Achat" if sens == SensTitre.achat else "Vente"
     db_operation = models.Operation(
         date=date_operation,
         compte_id=compte_id,
@@ -2301,34 +2521,34 @@ def create_operation_action(
         # Le nom AFFICHÉ : ce libellé se relit dans la liste des opérations,
         # et c'est justement pour ne plus lire « AMUNDI IDX SOL MSC WLD-IE-C »
         # qu'on renomme un titre.
-        nature=nature or f"{prefixe} {action.nom_affiche}",
+        nature=nature or f"{prefixe} {titre.nom_affiche}",
         montant=montant,
-        monnaie_id=action.monnaie_id,
-        sens=Sens.transfert_sortant if sens == SensAction.achat else Sens.transfert_entrant,
+        monnaie_id=titre.monnaie_id,
+        sens=Sens.transfert_sortant if sens == SensTitre.achat else Sens.transfert_entrant,
         statut=Statut.reel,
         montant_du=0.0,
         montant_a_rembourser=0.0,
     )
     db.add(db_operation)
     db.flush()  # l'id de l'écriture d'espèces est nécessaire ci-dessous
-    db_operation_action = models.OperationAction(
+    db_operation_titre = models.OperationTitre(
         operation_id=db_operation.id,
-        action_id=action.id,
+        titre_id=titre.id,
         sens=sens,
         quantite=quantite,
         prix_unitaire=prix_unitaire,
     )
-    db.add(db_operation_action)
+    db.add(db_operation_titre)
     db.commit()
-    db.refresh(db_operation_action)
-    return db_operation_action
+    db.refresh(db_operation_titre)
+    return db_operation_titre
 
 
-def delete_operation_action(db: Session, operation_action: models.OperationAction) -> None:
+def delete_operation_titre(db: Session, operation_titre: models.OperationTitre) -> None:
     """Supprime le mouvement de titres ET son écriture d'espèces : laisser
     l'une sans l'autre fausserait soit le portefeuille, soit le solde."""
-    operation = get_operation(db, operation_action.operation_id)
-    db.delete(operation_action)
+    operation = get_operation(db, operation_titre.operation_id)
+    db.delete(operation_titre)
     if operation is not None:
         db.delete(operation)
     db.commit()
@@ -2386,7 +2606,9 @@ def create_import_preset(
     # faire dans un preset de placements, et une PHOTOGRAPHIE de compte ne lit
     # ni date ni type d'opération là où une liste de mouvements le fait.
     if colonnes is None:
-        if domaine == DomaineImport.placement.value:
+        if domaine == DomaineImport.titre.value:
+            colonnes = COLONNES_IMPORT_TITRE_PAR_DEFAUT
+        elif domaine == DomaineImport.placement.value:
             colonnes = (
                 COLONNES_IMPORT_POSITION_PAR_DEFAUT
                 if mode_lecture == ModeLecturePlacement.position.value
@@ -2487,6 +2709,18 @@ def update_import_preset(
 
 
 def delete_import_preset(db: Session, preset: models.ImportPreset) -> None:
+    # LES RÈGLES QUI VISAIENT CE FORMAT l'oublient (migration 0077). Une règle dont c'était le
+    # seul format ne s'appliquerait plus nulle part : elle redevient une règle de TOUS les
+    # formats plutôt que de rester dormante sans que rien ne le dise — le contraire serait de
+    # la faire disparaître en silence de l'import qu'elle classait.
+    # Filtré ICI et non en SQL : une colonne JSON écrite à None est un « null » JSON, pas un NULL
+    # SQL, et `IS NOT NULL` les garderait toutes.
+    for regle in db.query(models.RegleCategorisation):
+        if not regle.presets:
+            continue
+        restants = [i for i in regle.presets if i != preset.id]
+        if len(restants) != len(regle.presets):
+            regle.presets = restants or None
     db.delete(preset)
     db.commit()
 
@@ -3154,8 +3388,10 @@ def create_regle_categorisation(
     compte_id: Optional[int] = None,
     notes: Optional[str] = None,
     imprevue: Optional[bool] = None,
+    a_declarer: Optional[bool] = None,
     amortissement_mois: Optional[int] = None,
     sorties: Optional[list] = None,
+    presets: Optional[list] = None,
 ) -> models.RegleCategorisation:
     if ordre is None:
         # En bout de liste : une nouvelle règle ne doit jamais court-circuiter
@@ -3176,8 +3412,10 @@ def create_regle_categorisation(
         compte_id=compte_id,
         notes=notes,
         imprevue=imprevue,
+        a_declarer=a_declarer,
         amortissement_mois=amortissement_mois,
         sorties=sorties or [],
+        presets=presets or None,
     )
     _appliquer_decoupes_regle(regle, decoupes)
     db.add(regle)
@@ -3211,8 +3449,10 @@ def update_regle_categorisation(
         "compte_id",
         "notes",
         "imprevue",
+        "a_declarer",
         "amortissement_mois",
         "sorties",
+        "presets",
     ):
 
         if nom_champ in champs:

@@ -12,7 +12,7 @@
  * CHARGÉ PAR frontend/extensions.js, après que le fragment page.html a été
  * injecté : les écouteurs posés plus bas trouvent donc bien leurs éléments. Le script s'exécute dans la portée globale de la page, il a donc
  * accès à tout ce que app.js expose (apiFetch, apiFetchForm, showMessage,
- * formatMontant, escapeHtml, state, t, ICONE_OEIL…) — c'est ce qui évite de
+ * formatMontant, escapeHtml, state, t…) — c'est ce qui évite de
  * dupliquer ces utilitaires ici.
  *
  * TOUS LES IDENTIFIANTS SONT PRÉFIXÉS `impl-` et toutes les variables `impl`.
@@ -332,18 +332,18 @@ function creerLigneConfigImpl(propriete, libelle, actif) {
   const row = document.createElement("div");
   row.className = `import-mapping-row import-config-ligne${actif ? "" : " inactive"}`;
   row.innerHTML = `
+    <input type="checkbox" class="import-config-interrupteur" data-action="basculer"
+           title="${escapeHtml(titreBouton)}" aria-label="${escapeHtml(libelle)}"
+           ${actif ? "checked" : ""} ${obligatoire ? "disabled" : ""} />
     <span class="import-config-propriete">${escapeHtml(t(libelle))}${bulle}</span>
     <label class="import-config-index">${t("Colonne n°")}
       <input type="number" min="1" value="${index}" ${actif ? "" : "disabled"} />
     </label>
-    <button type="button" class="import-config-oeil" data-action="basculer"
-            title="${escapeHtml(titreBouton)}"
-            ${obligatoire ? "disabled" : ""}>${actif ? ICONE_OEIL : ICONE_OEIL_BARRE}</button>
   `;
-  row.querySelector("input").addEventListener("input", (e) => {
+  row.querySelector("input[type='number']").addEventListener("input", (e) => {
     if (colonne) colonne.index = Number(e.target.value) || 0;
   });
-  row.querySelector("button[data-action='basculer']").addEventListener("click", () => {
+  row.querySelector("input[data-action='basculer']").addEventListener("change", () => {
     implBasculerPropriete(propriete, !actif);
     renderImplConfig();
   });
@@ -922,7 +922,7 @@ function implCellulesGeneriques(ligne) {
         ? t(IMPL_LIBELLES_TYPE[ligne.type_placement])
         : ligne.libelle_type || "—"
     )}</td>
-    <td>${escapeHtml(ligne.action_nom || ligne.nom_valeur || ligne.code_isin || "—")}</td>
+    <td>${escapeHtml(ligne.titre_nom || ligne.nom_valeur || ligne.code_isin || "—")}</td>
     <td>${implQuantite(ligne.quantite)}</td>
     <td>${
       ligne.montant === null || ligne.montant === undefined
@@ -987,7 +987,7 @@ function implLigneSuspectHtml(suspect, nbColonnes) {
 function ligneTitreHtml(ligne) {
   // Le nom EN BASE quand le titre est déjà connu : c'est celui qui fera foi,
   // et le voir avant l'import évite la surprise d'un titre qu'on croyait créer.
-  const nom = ligne.action_nom || ligne.nom_valeur || "—";
+  const nom = ligne.titre_nom || ligne.nom_valeur || "—";
   const neuf = ligne.titre_a_creer
     ? ` <span class="badge-partiel">${t("nouveau")}</span>`
     : "";
@@ -1088,7 +1088,7 @@ function rendreSectionImpl(cle, lignes) {
           <td>${escapeHtml(
             ligne.type_placement ? t(IMPL_LIBELLES_TYPE[ligne.type_placement]) : ligne.libelle_type || "—"
           )}</td>
-          <td>${escapeHtml(ligne.action_nom || ligne.nom_valeur || ligne.code_isin || "—")}</td>
+          <td>${escapeHtml(ligne.titre_nom || ligne.nom_valeur || ligne.code_isin || "—")}</td>
           <td>${ligne.montant === null ? "—" : formatMontant(ligne.montant, ligne.monnaie_id)}</td>
           <td class="impl-erreur-cellule">${escapeHtml(t(ligne.erreur || ""))}</td>
           ${implBoutonsLigne(ligne)}
@@ -1137,7 +1137,7 @@ function formulaireEditionImpl(ligne) {
   const titres = implTitres
     .map(
       (a) =>
-        `<option value="${a.id}" ${a.id === ligne.action_id ? "selected" : ""}>${escapeHtml(
+        `<option value="${a.id}" ${a.id === ligne.titre_id ? "selected" : ""}>${escapeHtml(
           a.nom_affiche
         )}${a.code_isin ? ` (${escapeHtml(a.code_isin)})` : ""}</option>`
     )
@@ -1172,7 +1172,7 @@ function formulaireEditionImpl(ligne) {
         <select data-champ="type_placement">${types}</select>
       </label>
       <label>${t("Titre")}
-        <select data-champ="action_id">
+        <select data-champ="titre_id">
           <option value="">${t("— d'après le fichier —")}</option>
           ${titres}
         </select>
@@ -1272,7 +1272,7 @@ async function appliquerRetoucheImpl(bloc) {
     retouches[nom] =
       nom === "quantite" || nom === "montant"
         ? Number(valeur)
-        : nom === "action_id" || nom === "compte_id_autre"
+        : nom === "titre_id" || nom === "compte_id_autre"
           ? Number(valeur)
           : valeur;
   });
@@ -1457,7 +1457,7 @@ async function loadImplHistorique() {
 async function refreshTitresImpl() {
   // Les archivés compris : un relevé peut rouvrir une position sur un titre
   // rangé, et le choisir à la main doit rester possible.
-  implTitres = await apiFetch("/actions?inclure_archivees=true");
+  implTitres = await apiFetch("/titres?inclure_archivees=true");
 }
 
 function remplirSelectComptesPlacement(select, valeurCourante) {

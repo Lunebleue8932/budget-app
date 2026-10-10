@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 # Imports ABSOLUS vers le noyau : ce module n'est pas un sous-paquet de `app`,
 # il est chargé par chemin de fichier (cf. extensions/README.md).
 from app import crud, schemas
-from app.constants import TYPES_AVEC_CATEGORIE_LIBRE, TYPES_INTERNES, TypeOperation
+from app.constants import (
+    TYPES_AVEC_CATEGORIE_LIBRE,
+    TYPES_INTERNES,
+    DomaineImport,
+    TypeOperation,
+)
 from app.database import get_db
 
 router = APIRouter(prefix="/regles-categorisation", tags=["regles"])
@@ -108,13 +113,39 @@ def _autres_actions(db: Session, payload) -> dict:
     nature = (payload.nature_remplacement or "").strip() or None
     notes = (payload.notes or "").strip() or None
     return dict(
+        presets=_presets_valides(db, payload.presets),
         nature_remplacement=nature,
         compte_id=payload.compte_id,
         notes=notes,
         imprevue=payload.imprevue,
+        a_declarer=payload.a_declarer,
         amortissement_mois=payload.amortissement_mois,
         sorties=[_sortie_validee(db, sortie) for sortie in payload.sorties],
     )
+
+
+def _presets_valides(db: Session, presets):
+    """Les formats d'import visés par la règle (migration 0077), vérifiés.
+
+    None = TOUS les formats. UNE LISTE VIDE EST REFUSÉE : une règle qui ne s'appliquerait
+    nulle part n'est pas « sans format », c'est une règle qui ne ferait jamais rien, sans que
+    rien ne le dise. Seuls des formats BANCAIRES existants sont admis (les formats de
+    compte-titres n'ont pas de règles de catégorisation). Doublons écartés, ordre gardé."""
+    if presets is None:
+        return None
+    if not presets:
+        raise HTTPException(
+            status_code=400,
+            detail="Choisis au moins un format d'import, ou laisse la règle sur tous les formats.",
+        )
+    retenus = []
+    for preset_id in presets:
+        preset = crud.get_import_preset(db, preset_id)
+        if preset is None or preset.domaine != DomaineImport.bancaire.value:
+            raise HTTPException(status_code=404, detail="Format d'import introuvable")
+        if preset_id not in retenus:
+            retenus.append(preset_id)
+    return retenus
 
 
 def _sortie_validee(db: Session, sortie) -> dict:

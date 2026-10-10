@@ -23,6 +23,12 @@
  * besoin de connaître les symboles pour afficher un montant, extension ou pas.
  */
 
+/* LE RÉGLAGE « GRAPHIQUES DES MONNAIES ÉTEINTES » (Paramètres généraux) est écrit dans
+ * index.html avec `display:none` et `data-extension-greffe="monnaies"` : ce fichier n'est
+ * chargé que si l'extension tourne, et sa seule exécution l'allume (même patron que
+ * impots.js). Le noyau ne l'allume qu'au moment où l'on bascule l'interrupteur. */
+BudgetApp.extensions.majVisibilite("monnaies", true);
+
 
 async function loadMonnaies() {
   try {
@@ -500,7 +506,7 @@ async function appliquerAgregation(annee, mois) {
     annee: String(annee),
     vue,
   });
-  if (vue !== "annee") parametres.set("mois", String(mois));
+  if (vue === "mois") parametres.set("mois", String(mois));
 
   const reponse = await apiFetch(`/conversion/dashboard?${parametres}`);
   agregationNonConverties = reponse.non_converties || [];
@@ -562,9 +568,11 @@ function majCompositionBudget(detail, vue) {
   );
   const total = detail.reduce((somme, ligne) => somme + ligne.converti, 0);
   const entete = t(
-    vue === "annee"
-      ? "Ce budget additionne les douze mois de l'année ET les monnaies converties :"
-      : "Ce budget additionne les monnaies converties :"
+    vue === "tout"
+      ? "Ce budget additionne tous les mois de l'historique ET les monnaies converties :"
+      : vue === "annee"
+        ? "Ce budget additionne les douze mois de l'année ET les monnaies converties :"
+        : "Ce budget additionne les monnaies converties :"
   );
   pastille.dataset.info = `${base} ${entete}${lignes.join("")} -- ${t(
     "Total"

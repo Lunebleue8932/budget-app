@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .constants import (
     CHAMPS_REGLE_PLACEMENT_VALIDES,
     CHAMPS_REGLE_VALIDES,
+    est_champ_colonne_regle,
     MAX_LIGNES_ENTETE,
     NB_MAX_PARTS_DECOUPE,
     OPERATEURS_NOMBRE,
@@ -20,7 +21,7 @@ from .constants import (
     ModeLecturePlacement,
     OperateurRegle,
     Sens,
-    SensAction,
+    SensTitre,
     Statut,
     TypeOperationPlacement,
 )
@@ -352,6 +353,11 @@ class OperationBase(BaseModel):
     # être prévisionnelle et prévue, réelle et imprévue.
     imprevue: bool = False
 
+    # UNE ENTRÉE À DÉCLARER (cf. models.Operation.a_declarer) : une étiquette lue par la seule
+    # extension « Impôts ». Le serveur la ramène à False sur tout ce qui n'est pas une entrée
+    # de type classique.
+    a_declarer: bool = False
+
     # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (cf. models.Operation) ----------
     #
     # À quoi ressemblera la vraie dépense quand elle passera au relevé, pour que
@@ -530,6 +536,7 @@ class OperationUpdate(BaseModel):
     # convention que `decoupes` et `operations_remboursees`).
     rapprochement_mots_cles: Optional[list[str]] = None
     imprevue: Optional[bool] = None
+    a_declarer: Optional[bool] = None
     operations_remboursees: Optional[list[OperationRembourseeInput]] = None
 
 
@@ -687,6 +694,10 @@ class DepenseParCategorie(BaseModel):
     # Peut être vide : toutes les catégories visibles sont listées, y compris
     # celles où rien n'a été dépensé.
     top_depenses: list[DepenseTopRead] = Field(default_factory=list)
+    # UNE BARRE QUI N'EST PAS UNE CATÉGORIE et que l'écran dessine à sa façon :
+    # « frais_virements » (cf. soldes._barre_frais_virements), peinte du gris des frais
+    # et ouvrant leur détail. None pour une catégorie.
+    colonne_speciale: Optional[str] = None
     # Index dans la palette de l'histogramme, porté par la catégorie elle-même
     # (cf. models.Categorie.couleur_index). Envoyé ici plutôt que déduit de la
     # position dans cette liste : la liste est filtrée (catégories éteintes) et
@@ -878,6 +889,21 @@ class MoyenneAnnuelleDepensesRead(BaseModel):
     semaines_moyennees: int = 0
 
 
+class MoyenneDepensesPeriodeRead(BaseModel):
+    """La moyenne hebdomadaire de l'ENSEMBLE que le niveau du dashboard désigne :
+    un mois, une année, ou tout l'historique (cf.
+    soldes.get_depenses_moyenne_periode). Même forme que les deux moyennes d'avant,
+    avec en plus ce qui dit sur quoi elle porte — l'écran l'écrit dans le titre."""
+
+    vue: str
+    # `annee` n'a pas de sens pour « tout », et `mois` seulement pour « mois ».
+    annee: Optional[int] = None
+    mois: Optional[int] = None
+    moyenne: list[DepenseParCategorie] = Field(default_factory=list)
+    budget_total_moyen: float = 0.0
+    semaines_moyennees: int = 0
+
+
 class BudgetTotalUpdate(BaseModel):
     """Le budget de tout un mois, dans une monnaie. Zéro RETIRE le budget : la
     vue « budget » du camembert disparaît alors, plutôt que de rapporter des
@@ -967,7 +993,7 @@ class TypeTitreRead(BaseModel):
     nb_titres: int = 0
 
 
-class ActionCreate(BaseModel):
+class TitreCreate(BaseModel):
     nom: str = Field(min_length=1)
     # Dernier cours unitaire connu, saisi à la main : sert à valoriser le
     # portefeuille, jamais à calculer un solde en espèces.
@@ -988,7 +1014,7 @@ class ActionCreate(BaseModel):
     classe_actif_id: Optional[int] = None
 
 
-class ActionUpdate(BaseModel):
+class TitreUpdate(BaseModel):
     nom: Optional[str] = Field(default=None, min_length=1)
     # Ce qu'on lit à l'écran, quand le nom du courtier est illisible. Une chaîne
     # VIDE rend son nom d'origine au titre — c'est le seul moyen de défaire un
@@ -1006,11 +1032,46 @@ class ActionUpdate(BaseModel):
     # et `None` est déjà pris.
     type_titre_id: Optional[int] = None
     # La classe d'actif, même convention exactement : `None` ne touche à rien,
-    # zéro la retire.
+    # zéro la retire. Depuis la 0076 elle pose une RÉPARTITION À 100 % — c'est le
+    # geste de la saisie rapide ; une répartition fine passe par
+    # `PUT /titres/{id}/expositions`.
     classe_actif_id: Optional[int] = None
+    # Le DICTIONNAIRE d'un ETF : {ISIN: poids en %}. `None` ne change rien, un
+    # dictionnaire VIDE le retire. La couverture (le « x % » de l'indice que les
+    # ISIN représentent) suit la même convention, zéro la retire.
+    composition: Optional[dict[str, float]] = None
+    composition_couverture_pct: Optional[float] = Field(default=None, ge=0, le=100)
 
 
-class ActionRead(BaseModel):
+class ExpositionLigneEcriture(BaseModel):
+    """Une ligne de répartition envoyée : une étiquette et son poids en %."""
+
+    type_titre_id: int
+    poids_pct: float
+
+
+class ExpositionsUpdate(BaseModel):
+    """Remplace TOUTE la répartition d'un titre sur UN axe (classe, zone, secteur).
+
+    Une liste vide vide l'axe. Les poids sont validés par `services/exposition`
+    (chacun dans ]0 ; 100], somme ≤ 100) ; rien n'est renormalisé."""
+
+    axe: AxeTitre
+    lignes: list[ExpositionLigneEcriture] = Field(default_factory=list)
+    source: Optional[str] = None
+    date_maj: Optional[date_type] = None
+
+
+class ExpositionLigneRead(BaseModel):
+    axe: str
+    type_titre_id: int
+    type_titre_nom: str
+    poids_pct: float
+    source: Optional[str] = None
+    date_maj: Optional[date_type] = None
+
+
+class TitreRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -1024,7 +1085,7 @@ class ActionRead(BaseModel):
     valeur: float
     monnaie_id: int
     monnaie_symbole: str
-    # Un titre archivé n'est rendu que sur demande explicite (cf. list_actions) :
+    # Un titre archivé n'est rendu que sur demande explicite (cf. list_titres) :
     # le drapeau voyage quand même, pour que l'écran sache dire lequel il montre.
     archivee: bool = False
     code_isin: Optional[str] = None
@@ -1034,13 +1095,23 @@ class ActionRead(BaseModel):
     # les affiche côte à côte.
     type_titre_id: Optional[int] = None
     type_titre_nom: Optional[str] = None
+    # La classe qui pèse le plus (cf. models.TitrePossede.classe_actif) : ce que
+    # lit la saisie rapide. La répartition COMPLÈTE est dans `expositions`.
     classe_actif_id: Optional[int] = None
     classe_actif_nom: Optional[str] = None
+    # Les répartitions sur les trois axes d'exposition, à plat : l'écran les groupe
+    # par axe. Le dictionnaire d'un ETF et sa couverture voyagent avec.
+    expositions: list[ExpositionLigneRead] = Field(default_factory=list)
+    composition: Optional[dict[str, float]] = None
+    composition_couverture_pct: Optional[float] = None
+    # Ce qui est incomplet SANS être faux (une répartition qui ne couvre pas 100 %,
+    # une couverture qui ne colle pas aux poids) : signalé, jamais bloquant.
+    avertissements: list[str] = Field(default_factory=list)
 
 
-class OperationActionCreate(BaseModel):
-    action_id: int
-    sens: SensAction
+class OperationTitreCreate(BaseModel):
+    titre_id: int
+    sens: SensTitre
     quantite: float = Field(gt=0)
     # Prix réellement payé (achat) ou encaissé (vente) par titre : le montant
     # débité/crédité sur le compte en découle, indépendamment du cours affiché.
@@ -1050,12 +1121,12 @@ class OperationActionCreate(BaseModel):
     nature: Optional[str] = None
 
 
-class OperationActionRead(BaseModel):
+class OperationTitreRead(BaseModel):
     id: int
     operation_id: int
-    action_id: int
-    action_nom: str
-    sens: SensAction
+    titre_id: int
+    titre_nom: str
+    sens: SensTitre
     quantite: float
     prix_unitaire: float
     # quantite * prix_unitaire : le montant de l'écriture d'espèces.
@@ -1071,8 +1142,8 @@ class DetentionRead(BaseModel):
     """Ce qui est détenu d'un titre sur un compte donné, entièrement recalculé
     depuis les opérations (aucune quantité n'est stockée)."""
 
-    action_id: int
-    action_nom: str
+    titre_id: int
+    titre_nom: str
     monnaie_id: int
     monnaie_symbole: str
     quantite: float
@@ -1110,7 +1181,7 @@ class PlacementCompteRead(BaseModel):
 
 
 class PlacementDetailRead(PlacementCompteRead):
-    operations: list[OperationActionRead] = Field(default_factory=list)
+    operations: list[OperationTitreRead] = Field(default_factory=list)
 
 
 # ---------- Placements financiers : cours lus en ligne ----------
@@ -1146,8 +1217,8 @@ class CoursTitreRead(BaseModel):
     `cours_maj_le` à None se lit « jamais relu en ligne » — cours saisi à la
     main, ou lien ajouté mais encore jamais suivi d'une lecture réussie."""
 
-    action_id: int
-    action_nom: str
+    titre_id: int
+    titre_nom: str
     url_cours: Optional[str] = None
     cours: float
     monnaie_symbole: str
@@ -1161,8 +1232,8 @@ class ResultatCoursRead(BaseModel):
     mouvement : un cours qui n'a pas bougé et un cours qui vient de tomber de
     3 % s'affichent autrement, et c'est l'information qu'on regarde."""
 
-    action_id: int
-    action_nom: str
+    titre_id: int
+    titre_nom: str
     ok: bool
     cours: Optional[float] = None
     ancien_cours: Optional[float] = None
@@ -1403,6 +1474,9 @@ class ImportLigne(BaseModel):
     # L'étiquette « dépense imprévue » (cf. models.Operation.imprevue), posée
     # par une règle (migration 0071) ou dans l'aperçu.
     imprevue: bool = False
+    # L'étiquette « à déclarer » (cf. models.Operation.a_declarer), posée par une règle ou dans
+    # l'aperçu. Ne vaut que sur une entrée de type classique : le serveur l'écarte sinon.
+    a_declarer: bool = False
     erreur: Optional[str] = None
     # Id de la LigneImportBrute déjà en base suspectée d'être la même
     # transaction (voir services.import_bancaire.detecter_doublon), None si
@@ -1622,6 +1696,8 @@ class ImportLigneOverride(BaseModel):
     # n'ouvre pas cette case, et un booléen plein l'aurait effacée à chaque
     # retouche.
     imprevue: Optional[bool] = None
+    # Même convention pour « à déclarer » : None = ne touche pas à ce qu'une règle a posé.
+    a_declarer: Optional[bool] = None
     # LES DÉPENSES (OU PRÊTS) QUE CETTE LIGNE SOLDE, choisies dans l'aperçu.
     #
     # POURQUOI ELLES VOYAGENT AVEC L'OVERRIDE. Un règlement lié se créait
@@ -2107,7 +2183,12 @@ def _valider_condition(condition, champs_valides: set[str]):
     """Le contrôle commun aux deux domaines de règles : un champ connu, un
     opérateur de la bonne famille, une valeur non vide. Seule la liste des
     champs change de l'un à l'autre."""
-    if condition.champ not in champs_valides:
+    # « colonne_N » a un numéro libre : il ne peut pas figurer dans l'ensemble des champs, et ne
+    # vaut que pour les règles bancaires (le seul domaine dont les lignes gardent leurs colonnes).
+    est_colonne = champs_valides is CHAMPS_REGLE_VALIDES and est_champ_colonne_regle(
+        condition.champ
+    )
+    if condition.champ not in champs_valides and not est_colonne:
         raise ValueError(
             f"champ inconnu : {condition.champ} "
             f"(attendus : {', '.join(sorted(champs_valides))})"
@@ -2289,6 +2370,7 @@ class SortieRegle(BaseModel):
     nature_remplacement: Optional[str] = None
     notes: Optional[str] = None
     imprevue: Optional[bool] = None
+    a_declarer: Optional[bool] = None
     amortissement_mois: Optional[int] = Field(default=None, ge=2, le=120)
 
 
@@ -2326,8 +2408,12 @@ class RegleCategorisationBase(BaseModel):
     compte_id: Optional[int] = None
     notes: Optional[str] = None
     imprevue: Optional[bool] = None
+    a_declarer: Optional[bool] = None
     amortissement_mois: Optional[int] = Field(default=None, ge=2, le=120)
     sorties: list[SortieRegle] = Field(default_factory=list)
+    # LES FORMATS D'IMPORT visés (migration 0077) : None = tous. Une liste vide n'a pas de sens
+    # (une règle qui ne s'appliquerait nulle part) : le routeur la refuse.
+    presets: Optional[list[int]] = None
     actif: bool = True
     # Faut-il cesser d'évaluer les règles quand celle-ci correspond ? True par
     # défaut : c'est le comportement historique, et celui qu'on veut sur une
@@ -2402,7 +2488,9 @@ class RegleCategorisationRead(BaseModel):
     compte_id: Optional[int] = None
     notes: Optional[str] = None
     imprevue: Optional[bool] = None
+    a_declarer: Optional[bool] = None
     amortissement_mois: Optional[int] = None
+    presets: Optional[list[int]] = None
     sorties: list[SortieRegle] = Field(default_factory=list)
     conditions: ConditionsRegle
 
@@ -2529,6 +2617,71 @@ class SousFiltreTotal(BaseModel):
     depenses_par_categorie: list[DepenseParCategorie] = Field(default_factory=list)
 
 
+class ColonneCascade(BaseModel):
+    """Une marche de cascade (cf. services/cascade.py). `montant` est SIGNÉ : ce
+    qui monte est positif, ce qui descend négatif.
+
+    `genre` : « entree » / « depense » (une catégorie, au net), « epargne »,
+    « frais » (de virements internes) ou « conversion » (vers ou depuis
+    `monnaie_autre_id`, selon le signe). `libelle` est le nom de la catégorie, ou
+    celui de la monnaie d'en face pour une conversion ; vide sinon — l'écran
+    nomme lui-même les colonnes calculées, dans sa langue."""
+
+    genre: str
+    libelle: str = ""
+    montant: float
+    est_entree: bool = False
+    couleur_index: Optional[int] = None
+    monnaie_autre_id: Optional[int] = None
+    # Les plus grosses lignes de la marche, montants signés (cf. DepenseTopRead).
+    top: list[DepenseTopRead] = Field(default_factory=list)
+
+
+class CascadeMonnaie(BaseModel):
+    """La cascade d'UNE monnaie : ses marches, et ce qu'il en reste."""
+
+    monnaie_id: int
+    monnaie_nom: str
+    monnaie_symbole: str
+    # Éteinte (cf. models.Monnaie.active) : l'écran peut la replier dans une
+    # fenêtre plutôt que de lui donner une place sur la page.
+    monnaie_active: bool = True
+    colonnes: list[ColonneCascade] = Field(default_factory=list)
+    solde: float = 0.0
+
+
+class JambeFraisRead(BaseModel):
+    operation_id: int
+    compte_id: int
+    monnaie_id: int
+    montant: float
+
+
+class VirementFraisRead(BaseModel):
+    """Des frais comptés comme une dépense : un virement interne (ses deux jambes, les
+    montants tels qu'ils ont bougé sur chaque compte, et ses frais dans la monnaie de la
+    jambe qui les porte, cf. crud._jambe_des_frais) ou une opération d'un compte
+    d'épargne ou de placements (une seule jambe)."""
+
+    virement_id: str
+    date: date_type
+    nature: str
+    statut: str
+    sortante: JambeFraisRead
+    # Vide pour les frais d'une opération d'un compte d'épargne ou de placements, qui n'a
+    # qu'une écriture.
+    entrante: Optional[JambeFraisRead] = None
+    frais: float
+    monnaie_frais_id: int
+
+
+class PeriodeRead(BaseModel):
+    """Un mois de calendrier, tel que les sélecteurs de période le proposent."""
+
+    annee: int
+    mois: int
+
+
 class SousFiltreRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -2540,6 +2693,11 @@ class SousFiltreRead(BaseModel):
     # seules choses qu'on veut lire sur une carte de projet sans l'ouvrir.
     nombre_operations: int = 0
     totaux: list[SousFiltreTotal] = []
+    # LES CASCADES, À CÔTÉ DES TOTAUX ET NON DEDANS : un change vers le franc
+    # suisse fait exister une cascade en francs même quand aucune opération du
+    # projet n'est libellée en francs (cf. services/cascade.py). Vide sur la
+    # liste des projets, où personne ne les lit.
+    cascades: list[CascadeMonnaie] = []
 
 
 class SousFiltreOperations(BaseModel):

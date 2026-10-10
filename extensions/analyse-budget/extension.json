@@ -10,7 +10,8 @@
       "analyse-budget.css"
     ],
     "js": [
-      "analyse-budget.js"
+      "analyse-budget.js",
+      "solde-previsionnel.js"
     ]
   },
   "navigation": {

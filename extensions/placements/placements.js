@@ -51,6 +51,12 @@ let typesTitre = [];
 // comment il est détenu. Deux listes et non une seule filtrée : l'API les rend
 // déjà séparées, et chaque menu n'en propose jamais qu'une.
 let classesActif = [];
+// Les deux axes d'exposition ajoutés par la migration 0076 : la zone géographique et
+// le secteur. Pas de menu dans le formulaire d'ajout d'un titre — ce sont des
+// RÉPARTITIONS, qui se saisissent dans le panneau « Détail » de chaque titre (cf.
+// expositions.js) — mais leurs étiquettes se gèrent ici comme les autres.
+let zonesGeo = [];
+let secteurs = [];
 
 // Ce qui distingue les deux axes, et RIEN D'AUTRE : tout le reste — le menu, le
 // rendu de la liste, le renommage, la suppression — est écrit une fois et
@@ -63,7 +69,7 @@ const AXES_ETIQUETTE = {
     poser: (valeurs) => (typesTitre = valeurs),
     conteneur: "placements-types-titre-liste",
     champ: "type_titre_id",
-    menu: "action-type-titre",
+    menu: "titre-enveloppe",
     vide: "Aucune enveloppe. Ajoutes-en une ci-dessous si tu veux regrouper tes titres.",
   },
   classe: {
@@ -72,8 +78,26 @@ const AXES_ETIQUETTE = {
     poser: (valeurs) => (classesActif = valeurs),
     conteneur: "placements-classes-actif-liste",
     champ: "classe_actif_id",
-    menu: "action-classe-actif",
+    menu: "titre-classe-actif",
     vide: "Aucune classe d'actif. Ajoutes-en une ci-dessous pour voir à quoi ton portefeuille expose.",
+  },
+  zone: {
+    axe: "zone",
+    liste: () => zonesGeo,
+    poser: (valeurs) => (zonesGeo = valeurs),
+    conteneur: "placements-zones-liste",
+    champ: null,
+    menu: null,
+    vide: "Aucune zone géographique. Ajoutes-en une ci-dessous pour voir où ton portefeuille est exposé.",
+  },
+  secteur: {
+    axe: "secteur",
+    liste: () => secteurs,
+    poser: (valeurs) => (secteurs = valeurs),
+    conteneur: "placements-secteurs-liste",
+    champ: null,
+    menu: null,
+    vide: "Aucun secteur. Ajoutes-en un ci-dessous pour voir de quoi ton portefeuille est fait.",
   },
 };
 
@@ -120,7 +144,7 @@ async function refreshTypesTitre() {
   await Promise.all(
     Object.values(AXES_ETIQUETTE).map(async (config) => {
       config.poser(await apiFetch(`/types-titre?axe=${config.axe}`));
-      const menu = document.getElementById(config.menu);
+      const menu = config.menu ? document.getElementById(config.menu) : null;
       if (menu) {
         const avant = menu.value;
         menu.innerHTML = optionsTypesTitre(avant, config.axe);
@@ -176,7 +200,7 @@ function renderEtiquettes(config) {
         // recharge donc avec.
         showMessage(t("Type renommé"), "success");
         await refreshTypesTitre();
-        await refreshActionsTitres();
+        await refreshTitres();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -199,7 +223,7 @@ function renderEtiquettes(config) {
         await apiFetch(`/types-titre/${type.id}`, { method: "DELETE" });
         showMessage(t("Type supprimé"), "success");
         await refreshTypesTitre();
-        await refreshActionsTitres();
+        await refreshTitres();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -207,16 +231,16 @@ function renderEtiquettes(config) {
   });
 }
 
-async function refreshActionsTitres() {
+async function refreshTitres() {
   // Les archivés ne sont demandés que lorsqu'on veut les voir. Le menu d'achat,
   // lui, n'en montre JAMAIS : on ne peut pas acheter un titre qu'on a rangé —
   // il faut d'abord le remettre en service, ce qui est un geste explicite.
-  state.actions = await apiFetch(
-    voirTitresArchives() ? "/actions?inclure_archivees=true" : "/actions"
+  state.titres = await apiFetch(
+    voirTitresArchives() ? "/titres?inclure_archivees=true" : "/titres"
   );
-  _refillPreservingSelection(document.getElementById("operation-action-titre"), (el) => {
+  _refillPreservingSelection(document.getElementById("operation-titre-titre"), (el) => {
     el.innerHTML = "";
-    state.actions
+    state.titres
       .filter((a) => !a.archivee)
       .forEach((a) => {
         const opt = document.createElement("option");
@@ -233,62 +257,68 @@ async function refreshActionsTitres() {
 }
 
 function renderTitresSuivis() {
-  const bloc = document.getElementById("placements-actions-liste");
+  const bloc = document.getElementById("placements-titres-liste");
   bloc.innerHTML = "";
-  if (state.actions.length === 0) {
+  if (state.titres.length === 0) {
     bloc.innerHTML = `<span class="hint">${t("Aucun titre. Ajoute-en un ci-dessous.")}</span>`;
     return;
   }
-  state.actions.forEach((action) => {
+  state.titres.forEach((titre) => {
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     // LE NOM DU COURTIER EN INFOBULLE quand le titre a été renommé : c'est lui
     // que le fichier porte, et le seul moyen de retrouver de quelle ligne du
     // relevé ce titre vient.
-    const renomme = Boolean(action.nom_affichage);
+    const renomme = Boolean(titre.nom_affichage);
     row.innerHTML = `
       <span class="import-mapping-nom"${
-        renomme ? ` title="${escapeHtml(t("Nom du courtier :"))} ${escapeHtml(action.nom)}"` : ""
-      }>${escapeHtml(action.nom_affiche)} — (${escapeHtml(action.monnaie_symbole)})${
+        renomme ? ` title="${escapeHtml(t("Nom du courtier :"))} ${escapeHtml(titre.nom)}"` : ""
+      }>${escapeHtml(titre.nom_affiche)} — (${escapeHtml(titre.monnaie_symbole)})${
         renomme ? ` <span class="titre-renomme-etiquette">${t("renommé")}</span>` : ""
       }${
-        action.archivee
+        titre.archivee
           ? ` <span class="titre-archive-etiquette">${t("archivé")}</span>`
           : ""
       }</span>
-      <button type="button" data-action="renommer-titre" data-id="${action.id}"
+      <button type="button" data-action="renommer-titre" data-id="${titre.id}"
               title="${t("Changer le nom affiché (le nom du courtier ne bouge pas)")}">
         ${t("Renommer")}
       </button>
-      <input type="number" step="0.01" min="0" value="${Number(action.valeur).toFixed(2)}"
-             data-action="cours" data-id="${action.id}" title="${t("Cours unitaire actuel")}" />
+      <button type="button" data-action="detail-titre" data-id="${titre.id}"
+              aria-expanded="${expoOuverts.has(titre.id)}"
+              title="${t("Répartition par classe d'actif, zone et secteur — et composition d'un ETF")}">
+        ${t("Détail")}
+      </button>
+      <input type="number" step="0.01" min="0" value="${Number(titre.valeur).toFixed(2)}"
+             data-action="cours" data-id="${titre.id}" title="${t("Cours unitaire actuel")}" />
       <!-- DEUX MENUS, UN PAR AXE : comment le titre est détenu, et à quoi il
            expose. C'est data-axe qui dit lequel des deux l'écouteur écrit.
            (Pas d'accent grave dans ce commentaire : il vit DANS une chaîne
            gabarit, et un seul y refermerait la chaîne.) -->
-      <select data-action="type-titre" data-axe="enveloppe" data-id="${action.id}"
+      <select data-action="type-titre" data-axe="enveloppe" data-id="${titre.id}"
               title="${t("Enveloppe : comment le titre est détenu — purement descriptif")}">
-        ${optionsTypesTitre(action.type_titre_id, "enveloppe")}
+        ${optionsTypesTitre(titre.type_titre_id, "enveloppe")}
       </select>
-      <select data-action="type-titre" data-axe="classe" data-id="${action.id}"
+      <select data-action="type-titre" data-axe="classe" data-id="${titre.id}"
               title="${t("Classe d'actif : à quoi le titre expose — purement descriptif")}">
-        ${optionsTypesTitre(action.classe_actif_id, "classe")}
+        ${optionsTypesTitre(titre.classe_actif_id, "classe")}
       </select>
-      <button type="button" data-action="${action.archivee ? "reactiver-titre" : "archiver-titre"}"
-              data-id="${action.id}"
+      <button type="button" data-action="${titre.archivee ? "reactiver-titre" : "archiver-titre"}"
+              data-id="${titre.id}"
               title="${
-                action.archivee
+                titre.archivee
                   ? t("Remettre ce titre dans les listes")
                   : t("Ranger ce titre : il quitte les listes, son historique reste")
               }">
-        ${action.archivee ? t("Remettre en service") : t("Archiver")}
+        ${titre.archivee ? t("Remettre en service") : t("Archiver")}
       </button>
-      <button type="button" data-action="supprimer-titre" data-id="${action.id}" class="danger">
+      <button type="button" data-action="supprimer-titre" data-id="${titre.id}" class="danger">
         ${t("Supprimer")}
       </button>
     `;
-    if (action.archivee) row.classList.add("titre-archive");
+    if (titre.archivee) row.classList.add("titre-archive");
     bloc.appendChild(row);
+    expoPanneauSousLigne(bloc, titre);
   });
 
   // Le cours est enregistré à la validation du champ (change), pas à chaque
@@ -296,12 +326,12 @@ function renderTitresSuivis() {
   bloc.querySelectorAll("input[data-action='cours']").forEach((input) => {
     input.addEventListener("change", async () => {
       try {
-        await apiFetch(`/actions/${input.dataset.id}`, {
+        await apiFetch(`/titres/${input.dataset.id}`, {
           method: "PUT",
           body: JSON.stringify({ valeur: parseFloat(input.value || "0") }),
         });
         showMessage(t("Cours mis à jour"), "success");
-        await refreshActionsTitres();
+        await refreshTitres();
         if (state.placementCompteId) await loadPlacementDetail(state.placementCompteId);
       } catch (err) {
         showMessage(err.message, "error");
@@ -319,21 +349,21 @@ function renderTitresSuivis() {
       // c'est `data-axe` qui dit laquelle on écrit.
       const config = AXES_ETIQUETTE[menu.dataset.axe || "enveloppe"];
       try {
-        await apiFetch(`/actions/${menu.dataset.id}`, {
+        const lu = await apiFetch(`/titres/${menu.dataset.id}`, {
           method: "PUT",
           body: JSON.stringify({
             [config.champ]: valeurTypeTitreEnvoyee(menu.value),
           }),
         });
-        const action = state.actions.find((a) => a.id === Number(menu.dataset.id));
-        if (action) {
-          action[config.champ] = menu.value ? Number(menu.value) : null;
-        }
+        // La réponse remplace le titre : choisir une classe pose une répartition à
+        // 100 %, changer l'enveloppe peut faire (dis)paraître le dictionnaire d'un
+        // ETF — le panneau « Détail », s'il est ouvert, doit suivre.
+        expoRemplacerTitre(lu);
         // Le compte affiché à côté de chaque étiquette vient de bouger.
         await refreshTypesTitre();
       } catch (err) {
         showMessage(err.message, "error");
-        await refreshActionsTitres();
+        await refreshTitres();
       }
     });
   });
@@ -352,17 +382,17 @@ function renderTitresSuivis() {
    */
   bloc.querySelectorAll("button[data-action='renommer-titre']").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const action = state.actions.find((a) => a.id === Number(btn.dataset.id));
-      if (!action) return;
+      const titre = state.titres.find((a) => a.id === Number(btn.dataset.id));
+      if (!titre) return;
       const saisi = window.prompt(
         t("Nom à afficher pour « {nom} » (laisse vide pour revenir au nom du courtier)", {
-          nom: action.nom,
+          nom: titre.nom,
         }),
-        action.nom_affichage || ""
+        titre.nom_affichage || ""
       );
       if (saisi === null) return; // annulé
       try {
-        await apiFetch(`/actions/${action.id}`, {
+        await apiFetch(`/titres/${titre.id}`, {
           method: "PUT",
           body: JSON.stringify({ nom_affichage: saisi }),
         });
@@ -370,7 +400,7 @@ function renderTitresSuivis() {
           saisi.trim() ? t("Titre renommé") : t("Nom du courtier rétabli"),
           "success"
         );
-        await refreshActionsTitres();
+        await refreshTitres();
         if (state.placementCompteId) await loadPlacementDetail(state.placementCompteId);
       } catch (err) {
         showMessage(err.message, "error");
@@ -384,7 +414,7 @@ function renderTitresSuivis() {
       btn.addEventListener("click", async () => {
         const archiver = btn.dataset.action === "archiver-titre";
         try {
-          await apiFetch(`/actions/${btn.dataset.id}`, {
+          await apiFetch(`/titres/${btn.dataset.id}`, {
             method: "PUT",
             body: JSON.stringify({ archivee: archiver }),
           });
@@ -407,9 +437,9 @@ function renderTitresSuivis() {
     btn.addEventListener("click", async () => {
       if (!confirm(t("Supprimer ce titre ?"))) return;
       try {
-        await apiFetch(`/actions/${btn.dataset.id}`, { method: "DELETE" });
+        await apiFetch(`/titres/${btn.dataset.id}`, { method: "DELETE" });
         showMessage(t("Titre supprimé"), "success");
-        await refreshActionsTitres();
+        await refreshTitres();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -423,12 +453,12 @@ async function loadPlacements() {
   if (typeof afficherVuePlacements === "function") afficherVuePlacements(false);
   try {
     await refreshMonnaies();
-    fillMonnaiesSelect(document.getElementById("action-monnaie"), state.monnaies);
+    fillMonnaiesSelect(document.getElementById("titre-monnaie"), state.monnaies);
     await refreshComptes();
     // AVANT les titres : chaque ligne de « Titres suivis » porte un menu de
     // types, qui serait vide si la liste arrivait après.
     await refreshTypesTitre();
-    await refreshActionsTitres();
+    await refreshTitres();
     const comptes = await apiFetch("/placements");
 
     const contenu = document.getElementById("placements-contenu");
@@ -450,7 +480,7 @@ async function loadPlacements() {
       return;
     }
 
-    const champDate = document.getElementById("operation-action-date");
+    const champDate = document.getElementById("operation-titre-date");
     if (!champDate.value) champDate.value = new Date().toISOString().slice(0, 10);
 
     // Le compte affiché survit à un rechargement tant qu'il existe encore.
@@ -543,7 +573,7 @@ async function loadPlacementDetail(compteId) {
     renderPlacementKpis(placementDetail.par_monnaie);
     renderDetentions(placementDetail.detentions);
     renderMouvementsTitres(placementDetail.operations);
-    majResumeOperationAction();
+    majResumeOperationTitre();
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -656,7 +686,7 @@ function placementsCelluleDetention(cle, d) {
     `<td class="montant neutre">${formatMontant(valeur, d.monnaie_id)}</td>`;
   switch (cle) {
     case "titre":
-      return `<td>${escapeHtml(d.action_nom)}</td>`;
+      return `<td>${escapeHtml(d.titre_nom)}</td>`;
     case "quantite":
       return `<td>${formatQuantite(d.quantite)}</td>`;
     case "prix_revient":
@@ -759,7 +789,7 @@ function renderMouvementsTitres(operations) {
     tr.innerHTML = `
       <td>${formatDate(op.date)}</td>
       <td><span class="badge-${estAchat ? "partiel" : "total"}">${estAchat ? "Achat" : "Vente"}</span></td>
-      <td>${escapeHtml(op.action_nom)}</td>
+      <td>${escapeHtml(op.titre_nom)}</td>
       <td>${formatQuantite(op.quantite)}</td>
       <td class="montant neutre">${formatMontant(op.prix_unitaire, op.monnaie_id)}</td>
       <td>${montantHtml(op.montant, estAchat ? "dépense" : "entrée", op.monnaie_id)}</td>
@@ -784,30 +814,30 @@ function renderMouvementsTitres(operations) {
   });
 }
 
-function quantiteDetenue(actionId) {
+function quantiteDetenue(titreId) {
   if (!placementDetail) return 0;
-  const detention = placementDetail.detentions.find((d) => d.action_id === actionId);
+  const detention = placementDetail.detentions.find((d) => d.titre_id === titreId);
   return detention ? detention.quantite : 0;
 }
 
 // Récapitule ce que le formulaire va produire (montant débité/crédité) et, pour
 // une vente, ce qui est réellement disponible : les deux seules informations
 // que la saisie ne montre pas d'elle-même.
-function majResumeOperationAction() {
-  const sens = document.getElementById("operation-action-sens").value;
-  const actionId = Number(document.getElementById("operation-action-titre").value);
-  const quantite = parseFloat(document.getElementById("operation-action-quantite").value || "0");
-  const prix = parseFloat(document.getElementById("operation-action-prix").value || "0");
-  const resume = document.getElementById("operation-action-resume");
+function majResumeOperationTitre() {
+  const sens = document.getElementById("operation-titre-sens").value;
+  const titreId = Number(document.getElementById("operation-titre-titre").value);
+  const quantite = parseFloat(document.getElementById("operation-titre-quantite").value || "0");
+  const prix = parseFloat(document.getElementById("operation-titre-prix").value || "0");
+  const resume = document.getElementById("operation-titre-resume");
 
-  if (state.actions.length === 0) {
+  if (state.titres.length === 0) {
     resume.textContent = t("Ajoute d'abord un titre dans « Titres suivis » ci-dessous.");
     return;
   }
   // Le prix est libellé dans la monnaie de cotation du titre : c'est elle qui
   // décide de quelles espèces bougent.
-  const action = state.actions.find((a) => a.id === actionId);
-  const monnaieId = action ? action.monnaie_id : null;
+  const titre = state.titres.find((a) => a.id === titreId);
+  const monnaieId = titre ? titre.monnaie_id : null;
   const montant = quantite * prix;
   const mouvement =
     sens === "achat"
@@ -818,7 +848,7 @@ function majResumeOperationAction() {
           montant: formatMontant(montant, monnaieId),
         });
   if (sens === "vente") {
-    const detenue = quantiteDetenue(actionId);
+    const detenue = quantiteDetenue(titreId);
     const alerte =
       quantite > detenue
         ? ` — impossible : ${formatQuantite(detenue)} détenu(s) seulement.`
@@ -829,29 +859,29 @@ function majResumeOperationAction() {
   resume.textContent = mouvement;
 }
 
-document.querySelectorAll("#operation-action-sens-boutons button").forEach((btn) => {
+document.querySelectorAll("#operation-titre-sens-boutons button").forEach((btn) => {
   btn.addEventListener("click", () => {
     document
-      .querySelectorAll("#operation-action-sens-boutons button")
+      .querySelectorAll("#operation-titre-sens-boutons button")
       .forEach((b) => b.classList.toggle("active", b === btn));
-    document.getElementById("operation-action-sens").value = btn.dataset.sens;
-    majResumeOperationAction();
+    document.getElementById("operation-titre-sens").value = btn.dataset.sens;
+    majResumeOperationTitre();
   });
 });
 
-["operation-action-titre", "operation-action-quantite", "operation-action-prix"].forEach((id) => {
-  document.getElementById(id).addEventListener("input", majResumeOperationAction);
+["operation-titre-titre", "operation-titre-quantite", "operation-titre-prix"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", majResumeOperationTitre);
 });
 
-document.getElementById("form-operation-action").addEventListener("submit", async (e) => {
+document.getElementById("form-achat-vente").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!state.placementCompteId) return;
   const payload = {
-    action_id: Number(document.getElementById("operation-action-titre").value),
-    sens: document.getElementById("operation-action-sens").value,
-    quantite: parseFloat(document.getElementById("operation-action-quantite").value),
-    prix_unitaire: parseFloat(document.getElementById("operation-action-prix").value),
-    date: document.getElementById("operation-action-date").value,
+    titre_id: Number(document.getElementById("operation-titre-titre").value),
+    sens: document.getElementById("operation-titre-sens").value,
+    quantite: parseFloat(document.getElementById("operation-titre-quantite").value),
+    prix_unitaire: parseFloat(document.getElementById("operation-titre-prix").value),
+    date: document.getElementById("operation-titre-date").value,
   };
   try {
     await apiFetch(`/placements/${state.placementCompteId}/operations`, {
@@ -859,30 +889,30 @@ document.getElementById("form-operation-action").addEventListener("submit", asyn
       body: JSON.stringify(payload),
     });
     showMessage(payload.sens === "achat" ? "Achat enregistré" : "Vente enregistrée", "success");
-    document.getElementById("operation-action-quantite").value = "";
-    document.getElementById("operation-action-prix").value = "";
+    document.getElementById("operation-titre-quantite").value = "";
+    document.getElementById("operation-titre-prix").value = "";
     await loadPlacementDetail(state.placementCompteId);
   } catch (err) {
     showMessage(err.message, "error");
   }
 });
 
-document.getElementById("form-action").addEventListener("submit", async (e) => {
+document.getElementById("form-titre").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const nomInput = document.getElementById("action-nom");
-  const valeurInput = document.getElementById("action-valeur");
+  const nomInput = document.getElementById("titre-nom");
+  const valeurInput = document.getElementById("titre-valeur");
   try {
-    await apiFetch("/actions", {
+    await apiFetch("/titres", {
       method: "POST",
       body: JSON.stringify({
         nom: nomInput.value,
         valeur: parseFloat(valeurInput.value || "0"),
-        monnaie_id: Number(document.getElementById("action-monnaie").value),
+        monnaie_id: Number(document.getElementById("titre-monnaie").value),
         type_titre_id: valeurTypeTitreEnvoyee(
-          document.getElementById("action-type-titre").value
+          document.getElementById("titre-enveloppe").value
         ),
         classe_actif_id: valeurTypeTitreEnvoyee(
-          document.getElementById("action-classe-actif").value
+          document.getElementById("titre-classe-actif").value
         ),
       }),
     });
@@ -893,18 +923,20 @@ document.getElementById("form-action").addEventListener("submit", async (e) => {
     // ETF à la suite, et reposer les menus à chaque fois ferait recliquer les
     // mêmes valeurs.
     await refreshTypesTitre();
-    await refreshActionsTitres();
-    majResumeOperationAction();
+    await refreshTitres();
+    majResumeOperationTitre();
   } catch (err) {
     showMessage(err.message, "error");
   }
 });
 
-// UN SEUL GESTIONNAIRE POUR LES DEUX FORMULAIRES : ils font le même geste sur
+// UN SEUL GESTIONNAIRE POUR LES QUATRE FORMULAIRES : ils font le même geste sur
 // le même endpoint, à l'axe près.
 [
   ["form-type-titre", "type-titre-nom", AXES_ETIQUETTE.enveloppe],
   ["form-classe-actif", "classe-actif-nom", AXES_ETIQUETTE.classe],
+  ["form-zone", "zone-nom", AXES_ETIQUETTE.zone],
+  ["form-secteur", "secteur-nom", AXES_ETIQUETTE.secteur],
 ].forEach(([formulaire, champId, config]) => {
   document.getElementById(formulaire)?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -919,7 +951,7 @@ document.getElementById("form-action").addEventListener("submit", async (e) => {
       await refreshTypesTitre();
       // Les menus des lignes de « Titres suivis » sont dessinés avec la liste :
       // sans ce second passage, l'étiquette qu'on vient de créer n'y serait pas.
-      await refreshActionsTitres();
+      await refreshTitres();
     } catch (err) {
       showMessage(err.message, "error");
     }
@@ -927,12 +959,12 @@ document.getElementById("form-action").addEventListener("submit", async (e) => {
 });
 
 // La case « Afficher les titres archivés » ne fait que rappeler la liste : c'est
-// le serveur qui décide de ce qu'il rend (cf. refreshActionsTitres). Posée ici,
+// le serveur qui décide de ce qu'il rend (cf. refreshTitres). Posée ici,
 // une seule fois, plutôt que dans le rendu — la case, elle, ne se reconstruit
 // jamais.
 document
   .getElementById("placements-voir-archives")
-  .addEventListener("change", () => refreshActionsTitres());
+  .addEventListener("change", () => refreshTitres());
 
 /**
  * GREFFE SUR LA PAGE COMPTES : le noyau affiche le solde en espèces de

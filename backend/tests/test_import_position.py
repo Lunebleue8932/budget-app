@@ -188,7 +188,7 @@ def test_la_confirmation_cree_la_detention_et_le_titre(db_session):
 
     assert resultat.operations_creees == 1
     assert resultat.titres_crees == ["Amundi MSCI World"]
-    titre = crud.get_action_by_nom(db_session, "Amundi MSCI World")
+    titre = crud.get_titre_by_nom(db_session, "Amundi MSCI World")
     assert titre.code_isin == "LU1681043599"
     assert placements.quantite_detenue(db_session, compte.id, titre.id) == pytest.approx(12)
 
@@ -199,7 +199,7 @@ def test_la_confirmation_pose_le_cours_du_jour(db_session):
 
     _confirmer(db_session, preset, [LIGNE])
 
-    titre = crud.get_action_by_nom(db_session, "Amundi MSCI World")
+    titre = crud.get_titre_by_nom(db_session, "Amundi MSCI World")
     assert titre.valeur == pytest.approx(100.0)
 
 
@@ -209,7 +209,7 @@ def test_sans_valeur_totale_le_cours_nest_pas_touche(db_session):
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
     monnaie = get_monnaie_id(db_session)
-    titre = crud.create_action(db_session, "Amundi MSCI World", monnaie, valeur=42.0)
+    titre = crud.create_titre(db_session, "Amundi MSCI World", monnaie, valeur=42.0)
 
     _confirmer(db_session, preset, [{**LIGNE, "valeur_totale": None}])
 
@@ -242,12 +242,12 @@ def test_un_titre_deja_connu_est_rapproche_par_lisin(db_session):
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
     monnaie = get_monnaie_id(db_session)
-    titre = crud.create_action(
+    titre = crud.create_titre(
         db_session, "AMUNDI IDX WLD", monnaie, valeur=90.0, code_isin="LU1681043599"
     )
 
     (ligne,) = _apercu(db_session, preset, [LIGNE]).lignes
-    assert ligne.action_id == titre.id
+    assert ligne.titre_id == titre.id
     assert ligne.titre_a_creer is False
 
 
@@ -408,9 +408,9 @@ def test_un_titre_cree_depuis_lecran_garde_son_isin(db_session):
     le posait pas. Un titre saisi depuis la page Placements perdait donc son
     code, et l'import suivant — qui rapproche par l'ISIN avant le nom — en
     créait un second."""
-    routeur_actions = charger_module_extension("placements", "routeur_actions.py")
-    lu = routeur_actions.create_action(
-        schemas.ActionCreate(
+    routeur_titres = charger_module_extension("placements", "routeur_titres.py")
+    lu = routeur_titres.create_titre(
+        schemas.TitreCreate(
             nom="Amundi MSCI World",
             monnaie_id=get_monnaie_id(db_session),
             valeur=100.0,
@@ -424,5 +424,5 @@ def test_un_titre_cree_depuis_lecran_garde_son_isin(db_session):
     compte = _compte_titres(db_session)
     preset = _preset(db_session, compte)
     (ligne,) = _apercu(db_session, preset, [LIGNE]).lignes
-    assert ligne.action_id == lu.id
+    assert ligne.titre_id == lu.id
     assert ligne.titre_a_creer is False

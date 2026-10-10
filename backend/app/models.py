@@ -30,7 +30,7 @@ from .constants import (
     MesureObjectif,
     ModeComparaison,
     Sens,
-    SensAction,
+    SensTitre,
     SensObjectif,
     Statut,
     TypeOperation,
@@ -506,7 +506,7 @@ class Compte(Base):
     def est_placement(self) -> bool:
         """Un compte-titres : son solde en espèces se calcule comme celui de
         n'importe quel compte, mais il porte en plus un portefeuille de titres
-        (cf. OperationAction) et n'accepte pas d'opération classique."""
+        (cf. OperationTitre) et n'accepte pas d'opération classique."""
         return self.type_compte.nom == TYPE_COMPTE_PLACEMENT
 
 
@@ -586,6 +586,17 @@ class Operation(Base):
     # mois prochain), réelle et imprévue (le plombier de mardi) : les deux axes
     # sont indépendants.
     imprevue = Column(Boolean, nullable=False, default=False)
+
+    # UNE ENTRÉE QU'IL FAUT DÉCLARER (migration 0077) — un salaire, des loyers perçus, un
+    # revenu non salarié. Lue par la seule extension « Impôts ».
+    #
+    # UNE ÉTIQUETTE, ET RIEN DE PLUS, comme `imprevue` : aucun solde, aucun KPI du noyau ne la
+    # lit. ELLE NE VAUT QUE SUR UNE ENTRÉE DE TYPE CLASSIQUE (cf. `est_declarable`) : un
+    # remboursement, un prêt reçu ou un virement ne sont pas des revenus, et la case n'existe
+    # pas pour eux. Le serveur le garantit (crud._normaliser_a_declarer) plutôt que de s'en
+    # remettre au formulaire : une catégorie qui quitte « entrée d'argent » fait sortir
+    # l'opération de l'éligibilité, et la case doit retomber avec elle.
+    a_declarer = Column(Boolean, nullable=False, default=False)
 
     # ---------- RAPPROCHER UNE PRÉVISIONNELLE DE LA VRAIE (migration 0058) ----------
     #
@@ -895,14 +906,14 @@ class TypeTitre(Base):
     )
 
 
-class Action(Base):
+class TitrePossede(Base):
     """Un titre détenu ou négociable (action, ETF, obligation…).
 
     `valeur` est le dernier cours unitaire connu, saisi à la main : l'app n'a
     aucune source de marché, cette valeur ne sert qu'à valoriser le
     portefeuille à l'écran. Elle n'entre jamais dans le calcul d'un solde en
     espèces, lequel ne dépend que des prix réellement payés ou encaissés
-    (OperationAction.prix_unitaire).
+    (OperationTitre.prix_unitaire).
 
     Le titre est global, pas rattaché à un compte : le même ETF peut être
     détenu sur deux comptes-titres, et les quantités détenues se lisent par
@@ -913,7 +924,7 @@ class Action(Base):
     qui porte cette monnaie.
     """
 
-    __tablename__ = "action"
+    __tablename__ = "titre_possede"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     # LE NOM DU COURTIER, jamais modifié. C'est par lui, à défaut d'ISIN, que
@@ -949,18 +960,20 @@ class Action(Base):
     type_titre_id = Column(
         Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
     )
-    # LA CLASSE D'ACTIF (migration 0066), l'autre axe : à quoi ce titre EXPOSE,
-    # là où `type_titre_id` dit comment il est détenu. Même table, même nature,
-    # mêmes conséquences — facultative, SET NULL, et aucun calcul ne la lit.
+    # LE DICTIONNAIRE D'UN ETF (migration 0076) : les ISIN du haut de son indice et
+    # leur poids, {"US5949181045": 15.0, "US02079K3059": 12.5}, et la part de
+    # l'indice qu'ils couvrent (le « x % » que l'utilisateur renseigne, 60 par
+    # défaut côté écran). NULL pour tout ce qui n'est pas un ETF.
     #
-    # DEUX COLONNES ET NON UNE TABLE DE LIAISON : un titre a UNE enveloppe et UNE
-    # classe, pas plusieurs. Un fonds mixte — 60 % actions, 40 % obligations —
-    # n'entre dans aucune des deux, et c'est assumé : le décomposer demande une
-    # table de poids, qui est un autre sujet (l'exposition détaillée) et non une
-    # étiquette.
-    classe_actif_id = Column(
-        Integer, ForeignKey("type_titre.id", ondelete="SET NULL"), nullable=True
-    )
+    # DU JSON ET NON UNE TABLE : on l'écrit et on le relit d'un bloc, personne ne
+    # le filtre en base, et un ETF dont on corrige la composition la REMPLACE
+    # entière — c'est un instantané publié par l'émetteur, pas des lignes qu'on
+    # édite une à une. Il sert à ÉCLATER l'ETF dans les graphes (exposition par
+    # action, et zone / secteur / classe quand rien de plus direct n'existe).
+    # RIEN N'EST RENORMALISÉ : la somme des poids dit ce qu'on connaît, le reste de
+    # l'indice est « non détaillé » et se montrera comme tel.
+    composition = Column(JSON, nullable=True)
+    composition_couverture_pct = Column(Float, nullable=True)
     # RANGÉ, PAS EFFACÉ (migration 0040). Un titre entièrement vendu ne se
     # supprime pas — ses mouvements portent des opérations d'espèces réelles, et
     # les effacer réécrirait le solde du compte. L'archiver le retire des listes
@@ -989,18 +1002,114 @@ class Action(Base):
     code_isin = Column(String, nullable=True)
 
     monnaie = relationship("Monnaie")
-    # Deux relations vers la MÊME table : `foreign_keys` est obligatoire, sans
-    # quoi SQLAlchemy ne sait pas laquelle des deux colonnes chacune suit.
     type_titre = relationship("TypeTitre", foreign_keys=[type_titre_id])
-    classe_actif = relationship("TypeTitre", foreign_keys=[classe_actif_id])
+    # LES RÉPARTITIONS sur les trois axes d'exposition (classe, zone, secteur),
+    # en base dans `exposition_titre`. Supprimer le titre les emporte : la
+    # cascade est portée par l'ORM, SQLite n'appliquant `ON DELETE CASCADE` que si
+    # `PRAGMA foreign_keys` est allumé.
+    expositions = relationship(
+        "ExpositionTitre", back_populates="titre", cascade="all, delete-orphan"
+    )
+
+    def repartition(self, axe: str) -> list["ExpositionTitre"]:
+        """Les lignes d'un axe, de la plus lourde à la plus légère (puis par
+        identifiant, pour que l'ordre ne dépende pas du hasard)."""
+        return sorted(
+            (e for e in self.expositions if e.axe == axe),
+            key=lambda e: (-e.poids_pct, e.id or 0),
+        )
+
+    @property
+    def classe_actif(self):
+        """LA CLASSE QUI PÈSE LE PLUS, ou None. Depuis la 0076 une classe d'actif est
+        une RÉPARTITION ; cette propriété garde à l'écran de saisie rapide et aux
+        anciens appelants ce qu'ils lisaient — une étiquette — sans leur faire
+        connaître la table des poids."""
+        lignes = self.repartition("classe")
+        return lignes[0].etiquette if lignes else None
+
+    @property
+    def classe_actif_id(self):
+        classe = self.classe_actif
+        return classe.id if classe is not None else None
 
     __table_args__ = (
-        CheckConstraint("valeur >= 0", name="ck_action_valeur_positive"),
-        Index("ix_action_code_isin", "code_isin", unique=True),
+        CheckConstraint("valeur >= 0", name="ck_titre_possede_valeur_positive"),
+        Index("ix_titre_possede_code_isin", "code_isin", unique=True),
     )
 
 
-class OperationAction(Base):
+class ExpositionTitre(Base):
+    """Une ligne de la RÉPARTITION d'un titre sur un axe : « 65 % États-Unis ».
+
+    TROIS AXES (classe d'actif, zone, secteur — cf. constants.AXES_EXPOSITION),
+    UNE TABLE : un titre en direct porte une ligne à 100 %, un panier en porte
+    plusieurs. L'enveloppe n'est pas ici, elle reste une colonne du titre — elle
+    dit comment il est DÉTENU, pas à quoi il expose.
+
+    RIEN N'EST RENORMALISÉ. Des poids qui somment 80 disent qu'on connaît 80 % du
+    titre ; les étirer à 100 inventerait de l'information. Le reste est
+    « non renseigné », et c'est aux graphes de le montrer.
+
+    `source` et `date_maj` répondent à « ce chiffre date de quand, et d'où vient-il ? »,
+    qui est LA question sur une composition (un ETF change de poids tous les mois).
+    Un avertissement au-delà de six mois, jamais un blocage.
+    """
+
+    __tablename__ = "exposition_titre"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    titre_id = Column(
+        Integer, ForeignKey("titre_possede.id", ondelete="CASCADE"), nullable=False
+    )
+    axe = Column(String, nullable=False)
+    type_titre_id = Column(
+        Integer, ForeignKey("type_titre.id", ondelete="CASCADE"), nullable=False
+    )
+    # En pourcent, de 0 (exclu) à 100 (inclus) : « 65 » et non « 0,65 ».
+    poids_pct = Column(Float, nullable=False)
+    source = Column(String, nullable=True)
+    date_maj = Column(Date, nullable=True)
+
+    titre = relationship("TitrePossede", back_populates="expositions")
+    etiquette = relationship("TypeTitre")
+
+    __table_args__ = (
+        CheckConstraint("axe IN ('classe', 'zone', 'secteur')", name="ck_exposition_titre_axe"),
+        CheckConstraint("poids_pct > 0 AND poids_pct <= 100", name="ck_exposition_titre_poids"),
+        UniqueConstraint("titre_id", "axe", "type_titre_id", name="uq_exposition_titre"),
+        Index("ix_exposition_titre_titre_id", "titre_id"),
+    )
+
+
+class DeclarationImpots(Base):
+    """Les réglages de la déclaration d'impôts d'UNE ANNÉE (migration 0077, extension « Impôts »).
+
+    PAR ANNÉE : une déclaration se fait une fois l'an, et la date limite de 2026 ne dit rien de
+    celle de 2027. Le taux n'a ni mois ni monnaie (un pourcentage), d'où une table à lui plutôt
+    qu'une ligne de `budget_total_mensuel`. NULL = « pas encore renseigné » — l'écran se tait
+    plutôt que d'annoncer un impôt de zéro.
+
+    Cette table vit dans le noyau comme tout ce qu'une extension écrit : l'éteindre ne perd
+    rien, les réglages dorment en base."""
+
+    __tablename__ = "declaration_impots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    annee = Column(Integer, nullable=False)
+    date_limite = Column(Date, nullable=True)
+    taux_pct = Column(Float, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("annee", name="uq_declaration_impots_annee"),
+        CheckConstraint(
+            "taux_pct IS NULL OR (taux_pct >= 0 AND taux_pct <= 100)",
+            name="ck_declaration_impots_taux",
+        ),
+    )
+
+
+class OperationTitre(Base):
     """Le versant "titres" d'un achat ou d'une vente ; le versant "espèces" est
     une Operation ordinaire de type `action` (cf. constants.TypeOperation),
     référencée ici.
@@ -1009,7 +1118,7 @@ class OperationAction(Base):
     reste ainsi une opération comme les autres, et le solde du compte, le
     dashboard et les projections continuent de se calculer sans exception. Les
     deux lignes naissent et meurent ensemble (voir
-    services/placements.enregistrer_operation_action) ; l'unicité de
+    services/placements.enregistrer_operation_titre) ; l'unicité de
     `operation_id` interdit qu'une écriture d'espèces porte deux mouvements de
     titres.
 
@@ -1020,15 +1129,15 @@ class OperationAction(Base):
     déjà en recalculant (cf. crud._recalculer_montant_a_rembourser).
     """
 
-    __tablename__ = "operation_action"
+    __tablename__ = "operation_titre"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     operation_id = Column(
         Integer, ForeignKey("operation.id", ondelete="CASCADE"), nullable=False, unique=True
     )
-    action_id = Column(Integer, ForeignKey("action.id"), nullable=False)
+    titre_id = Column(Integer, ForeignKey("titre_possede.id"), nullable=False)
     sens = Column(
-        Enum(SensAction, native_enum=False, values_callable=_enum_values), nullable=False
+        Enum(SensTitre, native_enum=False, values_callable=_enum_values), nullable=False
     )
     quantite = Column(Float, nullable=False)
     # Prix unitaire réellement payé (achat) ou encaissé (vente) : le montant de
@@ -1037,16 +1146,16 @@ class OperationAction(Base):
     prix_unitaire = Column(Float, nullable=False)
 
     operation = relationship("Operation")
-    action = relationship("Action")
+    titre = relationship("TitrePossede")
 
     __table_args__ = (
-        CheckConstraint("quantite > 0", name="ck_operation_action_quantite_positive"),
-        CheckConstraint("prix_unitaire >= 0", name="ck_operation_action_prix_positif"),
+        CheckConstraint("quantite > 0", name="ck_operation_titre_quantite_positive"),
+        CheckConstraint("prix_unitaire >= 0", name="ck_operation_titre_prix_positif"),
         CheckConstraint(
-            f"sens IN ({_sql_in_list(_enum_values(SensAction))})",
-            name="ck_operation_action_sens",
+            f"sens IN ({_sql_in_list(_enum_values(SensTitre))})",
+            name="ck_operation_titre_sens",
         ),
-        Index("ix_operation_action_action_id", "action_id"),
+        Index("ix_operation_titre_titre_id", "titre_id"),
     )
 
 
@@ -1401,6 +1510,15 @@ class RegleCategorisation(Base):
     notes = Column(String, nullable=True)
     # L'étiquette « dépense imprévue » (cf. Operation.imprevue).
     imprevue = Column(Boolean, nullable=True)
+    # L'étiquette « à déclarer » (migration 0077, cf. Operation.a_declarer) : NULL = la règle n'en
+    # dit rien, jamais False.
+    a_declarer = Column(Boolean, nullable=True)
+    # LES FORMATS D'IMPORT auxquels la règle s'applique (migration 0077) : une liste
+    # d'identifiants de `import_preset`. NULL = TOUS, ce qu'étaient toutes les règles d'avant.
+    # Du JSON plutôt qu'une table de liaison, sur le patron de `sorties` : on l'écrit et on le
+    # relit d'un bloc, et la suppression d'un format en retire l'identifiant à la main
+    # (crud.delete_import_preset).
+    presets = Column(JSON, nullable=True)
     # Amortir sur N mois, à partir du mois de la ligne.
     amortissement_mois = Column(Integer, nullable=True)
     # LES SORTIES CONDITIONNELLES (migration 0072) : [{conditions, type_id,

@@ -1,0 +1,98 @@
+<!-- Écran de l'extension « Impôts ».
+
+     UN ONGLET DE LA PAGE BUDGET (cf. le manifeste : navigation.type = "onglet",
+     hote_section = "budget"), à côté du budget du mois, des projets et des
+     objectifs. Comme eux il répond à « qu'est-ce que je dois prévoir À
+     L'AVANCE » : ici, ce qu'il faudra écrire sur la déclaration.
+
+     D'où la dépendance déclarée (`requiert_une_de`) : sans l'extension
+     « Budget », cette page n'existe pas et un onglet n'a pas d'hôte.
+
+     C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la
+     montre et la cache, exactement comme un onglet du noyau.
+
+     UNE ANNÉE À LA FOIS, par pastilles : une déclaration se fait une fois l'an,
+     et son taux comme sa date limite sont ceux de CETTE année. Le tableau est
+     celui de la page Opérations (mêmes colonnes), groupé par jour. -->
+<div id="sous-section-budget-impots" class="sous-section">
+  <h3>Impôts<i class="info-bulle" tabindex="0" data-info-cle="impots.impots">i</i></h3>
+
+  <div class="sous-onglets" id="impots-annees"></div>
+
+  <!-- Les réglages de l'année : un taux et une date limite, effaçables en vidant le champ.
+       `.selecteur-contexte` est la forme partagée des champs posés hors formulaire : c'est elle
+       qui leur donne le style du thème (cf. style.css). -->
+  <div class="selecteur-contexte impots-declaration">
+    <label>
+      <span>Taux d'imposition (%)<i class="info-bulle" tabindex="0" data-info-cle="impots.taux">i</i></span>
+      <input type="number" id="impots-taux" min="0" max="100" step="0.1" placeholder="ex. 11" />
+    </label>
+    <label>
+      <span>Date limite de déclaration<i class="info-bulle" tabindex="0" data-info-cle="impots.date-limite">i</i></span>
+      <input type="date" id="impots-date-limite" />
+    </label>
+    <button type="button" class="primary" id="btn-impots-declaration">Enregistrer</button>
+  </div>
+  <p class="hint" id="impots-delai"></p>
+
+  <!-- Un bilan PAR MONNAIE : l'app n'additionne jamais deux devises. -->
+  <div id="impots-bilans"></div>
+
+  <div class="actions">
+    <button type="button" class="primary" id="btn-impots-ajouter-operations">+ Ajouter des opérations</button>
+  </div>
+
+  <!-- LE SÉLECTEUR, comme celui des projets : on retrouve des entrées déjà saisies et on
+       les coche. Seules les entrées d'argent de type classique y sont proposées — les
+       seules qui se déclarent (cf. crud.operation_declarable) —, et le filtre de
+       catégories ne propose que les catégories d'entrée. -->
+  <div id="impots-selecteur" class="impots-selecteur" style="display:none">
+    <h4>Ajouter des opérations<i class="info-bulle" tabindex="0" data-info-cle="impots.ajouter-des-operations">i</i></h4>
+    <div class="impots-selecteur-filtres">
+      <label for="impots-filtre-debut">Du
+        <input type="date" id="impots-filtre-debut" />
+      </label>
+      <label for="impots-filtre-fin">Au
+        <input type="date" id="impots-filtre-fin" />
+      </label>
+      <span id="impots-filtre-comptes"></span>
+      <span id="impots-filtre-categories"></span>
+      <label for="impots-filtre-texte">Nature contient
+        <input type="text" id="impots-filtre-texte" placeholder="ex. salaire" spellcheck="false" />
+      </label>
+      <button type="button" class="primary" id="btn-impots-filtrer">Chercher</button>
+    </div>
+
+    <div class="actions barre-selection">
+      <button type="button" id="btn-impots-tout-selectionner">Tout sélectionner</button>
+      <button type="button" class="primary" id="btn-impots-verser" disabled>
+        Marquer à déclarer (<span id="impots-selection-nombre">0</span>)
+      </button>
+      <button type="button" id="btn-impots-selecteur-fermer">Fermer</button>
+    </div>
+
+    <div class="apercu-fichier-defilement">
+      <table>
+        <thead>
+          <tr>
+            <th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th>
+            <th>Catégorie</th><th>Sélection</th>
+          </tr>
+        </thead>
+        <tbody id="impots-candidats-liste"></tbody>
+      </table>
+    </div>
+    <p class="hint" id="impots-candidats-info"></p>
+  </div>
+
+  <h4>Entrées à déclarer — <span id="impots-nombre"></span></h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Nature</th><th>Montant</th><th>Compte</th><th>Catégorie</th>
+        <th>Statut</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="impots-liste"></tbody>
+  </table>
+</div>

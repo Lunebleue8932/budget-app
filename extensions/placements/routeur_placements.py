@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
-from app.constants import SensAction
+from app.constants import SensTitre
 from app.database import get_db
 from app.services import placements, soldes
 
@@ -24,7 +24,7 @@ def _get_compte_placement_ou_404(db: Session, compte_id: int) -> models.Compte:
 def _soldes_espece(db: Session) -> dict:
     """Le solde en espèces d'un compte-titres se calcule exactement comme
     n'importe quel solde : les achats/ventes y sont déjà, sous forme d'écritures
-    de transfert (cf. crud.create_operation_action). Indexé par (compte,
+    de transfert (cf. crud.create_operation_titre). Indexé par (compte,
     monnaie), un compte-titres pouvant porter des espèces dans plusieurs."""
     return {
         (item["compte"].id, monnaie_id): solde["solde_reel"]
@@ -71,18 +71,18 @@ def _lire_compte(db: Session, compte: models.Compte, soldes_espece: dict) -> dic
     }
 
 
-def _lire_mouvement(mouvement: models.OperationAction) -> schemas.OperationActionRead:
-    return schemas.OperationActionRead(
+def _lire_mouvement(mouvement: models.OperationTitre) -> schemas.OperationTitreRead:
+    return schemas.OperationTitreRead(
         id=mouvement.id,
         operation_id=mouvement.operation_id,
-        action_id=mouvement.action_id,
-        action_nom=mouvement.action.nom_affiche,
+        titre_id=mouvement.titre_id,
+        titre_nom=mouvement.titre.nom_affiche,
         sens=mouvement.sens,
         quantite=mouvement.quantite,
         prix_unitaire=mouvement.prix_unitaire,
         montant=mouvement.operation.montant,
-        monnaie_id=mouvement.action.monnaie_id,
-        monnaie_symbole=mouvement.action.monnaie.symbole,
+        monnaie_id=mouvement.titre.monnaie_id,
+        monnaie_symbole=mouvement.titre.monnaie.symbole,
         date=mouvement.operation.date,
         nature=mouvement.operation.nature,
     )
@@ -112,46 +112,46 @@ def read_placement(compte_id: int, db: Session = Depends(get_db)):
 
 @router.post(
     "/{compte_id}/operations",
-    response_model=schemas.OperationActionRead,
+    response_model=schemas.OperationTitreRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_operation_action(
-    compte_id: int, payload: schemas.OperationActionCreate, db: Session = Depends(get_db)
+def create_operation_titre(
+    compte_id: int, payload: schemas.OperationTitreCreate, db: Session = Depends(get_db)
 ):
     compte = _get_compte_placement_ou_404(db, compte_id)
-    action = crud.get_action(db, payload.action_id)
-    if action is None:
+    titre = crud.get_titre(db, payload.titre_id)
+    if titre is None:
         raise HTTPException(status_code=404, detail="Titre introuvable")
 
     # Le prix payé est libellé dans la monnaie de cotation du titre : les
     # espèces bougent donc dans celle-là, et le compte doit la porter.
-    if action.monnaie_id not in compte.monnaie_ids:
+    if titre.monnaie_id not in compte.monnaie_ids:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"« {action.nom_affiche} » est coté en {action.monnaie.nom}, monnaie que le "
+                f"« {titre.nom_affiche} » est coté en {titre.monnaie.nom}, monnaie que le "
                 f"compte « {compte.nom} » ne porte pas : ajoute-la au compte "
                 "(Paramètres > Comptes) ou choisis un autre titre."
             ),
         )
 
-    if payload.sens == SensAction.vente:
+    if payload.sens == SensTitre.vente:
         # On ne peut vendre que ce qui est détenu SUR CE COMPTE : le même titre
         # peut être détenu ailleurs sans être disponible ici.
-        detenue = placements.quantite_detenue(db, compte_id, action.id)
+        detenue = placements.quantite_detenue(db, compte_id, titre.id)
         if payload.quantite > detenue + placements.EPSILON_QUANTITE:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Quantité insuffisante : {detenue:g} « {action.nom_affiche} » "
+                    f"Quantité insuffisante : {detenue:g} « {titre.nom_affiche} » "
                     f"détenu(s) sur ce compte, {payload.quantite:g} demandé(s)"
                 ),
             )
 
-    mouvement = crud.create_operation_action(
+    mouvement = crud.create_operation_titre(
         db,
         compte_id=compte.id,
-        action=action,
+        titre=titre,
         sens=payload.sens,
         quantite=payload.quantite,
         prix_unitaire=payload.prix_unitaire,
@@ -161,8 +161,8 @@ def create_operation_action(
     return _lire_mouvement(mouvement)
 
 
-@router.delete("/operations/{operation_action_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_operation_action(operation_action_id: int, db: Session = Depends(get_db)):
+@router.delete("/operations/{operation_titre_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_operation_titre(operation_titre_id: int, db: Session = Depends(get_db)):
     """Supprime le mouvement et son écriture d'espèces.
 
     Aucun garde-fou sur la quantité résultante : une position ne peut devenir
@@ -171,7 +171,7 @@ def delete_operation_action(operation_action_id: int, db: Session = Depends(get_
     deviner quelle vente défaire d'abord). La page affiche la quantité
     recalculée, qui rend l'incohérence visible immédiatement.
     """
-    mouvement = crud.get_operation_action(db, operation_action_id)
+    mouvement = crud.get_operation_titre(db, operation_titre_id)
     if mouvement is None:
         raise HTTPException(status_code=404, detail="Mouvement de titres introuvable")
-    crud.delete_operation_action(db, mouvement)
+    crud.delete_operation_titre(db, mouvement)

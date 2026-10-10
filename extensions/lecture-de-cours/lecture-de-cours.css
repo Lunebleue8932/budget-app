@@ -26,7 +26,7 @@
 /* La seconde ligne d'un titre suivi : elle occupe toute la largeur sous le
    nom, le cours et le bouton de suppression — d'où le `flex-wrap` posé sur la
    ligne du noyau, qui n'attendait qu'une seule rangée. */
-#placements-actions-liste .import-mapping-row {
+#placements-titres-liste .import-mapping-row {
   flex-wrap: wrap;
 }
 

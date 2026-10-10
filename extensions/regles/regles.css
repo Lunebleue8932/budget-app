@@ -310,3 +310,11 @@
   font-size: 0.78rem;
   color: var(--text-secondary);
 }
+
+/* Le numéro de « Colonne n° » (migration 0077) : un petit champ à côté du rond, pas la saisie
+   de la valeur (que la règle générale `.regle-condition input[type="number"]` étire). */
+.regle-condition .regle-champ-colonne input[type="number"] {
+  flex: none;
+  width: 3.5rem;
+  min-width: 0;
+}

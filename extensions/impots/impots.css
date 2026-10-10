@@ -1,0 +1,111 @@
+/* ---------- Extension « Impôts » ----------
+ *
+ * Ces règles vivent ici, et non dans frontend/style.css : elles n'ont de sens
+ * que si l'extension est installée. Tout ce qui est partagé — `.hint`,
+ * `.info-bulle`, `.sous-onglets`, `.montant`, les tableaux — est réutilisé tel quel.
+ */
+
+/* Le taux et la date limite : la forme (champs, libellés) vient de `.selecteur-contexte`, partagée
+   par les extensions ; ne reste ici que ce qui est propre à cet écran. */
+.impots-declaration {
+  margin: 0.9rem 0 0.4rem;
+}
+
+.impots-declaration input {
+  min-width: 9rem;
+}
+
+/* Un bilan par monnaie, côte à côte : deux devises ne se mélangent pas, elles se lisent
+   l'une à côté de l'autre. */
+#impots-bilans {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0 1.2rem;
+}
+
+.impots-bilan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 14rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.impots-bilan-monnaie {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.impots-kpi {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.impots-kpi-valeur {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* LE TOTAL À DÉCLARER est le chiffre qu'on vient chercher : il se voit avant les autres. */
+.impots-kpi-principal .impots-kpi-valeur {
+  font-size: 1.25rem;
+  color: var(--positif);
+}
+
+/* L'en-tête d'un jour dans le tableau : une ligne qui sépare, pas une ligne de données. */
+.impots-jour td {
+  padding-top: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.impots-prevue {
+  opacity: 0.65;
+}
+
+/* Le sélecteur d'opérations : la même disposition que celui des projets. */
+.impots-selecteur {
+  margin: 0.6rem 0 1.2rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.impots-selecteur-filtres {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.impots-selecteur-filtres > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.impots-selecteur-filtres .filtre-menu {
+  margin-left: 0;
+}
+
+.impots-selecteur-filtres > label input {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.85rem;
+}

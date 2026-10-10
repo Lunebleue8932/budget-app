@@ -25,7 +25,7 @@ from app.constants import DomaineImport
 from .conftest import charger_module_extension, creer_compte
 
 routeur_types = charger_module_extension("placements", "routeur_types_titre.py")
-routeur_actions = charger_module_extension("placements", "routeur_actions.py")
+routeur_titres = charger_module_extension("placements", "routeur_titres.py")
 routeur_regles = charger_module_extension(
     "placements", "routeur_regles_placements.py"
 )
@@ -156,9 +156,9 @@ def test_la_liste_compte_les_titres_de_chaque_type(db_session):
     rien : c'est lui qui rend le geste informé."""
     etf = crud.create_type_titre(db_session, "ETF")
     crud.create_type_titre(db_session, "Obligation")
-    crud.create_action(db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id)
-    crud.create_action(db_session, "S&P 500", _monnaie_id(db_session), 50.0, None, etf.id)
-    crud.create_action(db_session, "Air Liquide", _monnaie_id(db_session))
+    crud.create_titre(db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id)
+    crud.create_titre(db_session, "S&P 500", _monnaie_id(db_session), 50.0, None, etf.id)
+    crud.create_titre(db_session, "Air Liquide", _monnaie_id(db_session))
 
     par_nom = {t.nom: t.nb_titres for t in routeur_types.list_types_titre(db=db_session)}
     assert par_nom == {"ETF": 2, "Obligation": 0}
@@ -168,14 +168,14 @@ def test_renommer_un_type_retype_tout_le_portefeuille_dun_coup(db_session):
     """Les titres pointent sur la ligne, pas sur son libellé : c'est ce qu'une
     colonne texte sur chaque titre n'aurait pas permis."""
     etf = crud.create_type_titre(db_session, "ETF")
-    action = crud.create_action(
+    titre = crud.create_titre(
         db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id
     )
     routeur_types.update_type_titre(
         etf.id, schemas.TypeTitreUpdate(nom="Fonds indiciel"), db_session
     )
-    db_session.refresh(action)
-    assert action.type_titre.nom == "Fonds indiciel"
+    db_session.refresh(titre)
+    assert titre.type_titre.nom == "Fonds indiciel"
 
 
 # ---------- La suppression ----------
@@ -183,25 +183,25 @@ def test_renommer_un_type_retype_tout_le_portefeuille_dun_coup(db_session):
 
 def test_supprimer_un_type_detype_les_titres_sans_les_effacer(db_session):
     etf = crud.create_type_titre(db_session, "ETF")
-    action = crud.create_action(
+    titre = crud.create_titre(
         db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id
     )
     routeur_types.delete_type_titre(etf.id, db_session)
-    db_session.refresh(action)
-    assert action.type_titre_id is None
-    assert crud.get_action(db_session, action.id) is not None
+    db_session.refresh(titre)
+    assert titre.type_titre_id is None
+    assert crud.get_titre(db_session, titre.id) is not None
 
 
 def test_supprimer_un_type_ne_touche_ni_au_cours_ni_a_la_monnaie(db_session):
     """Le type ne pèse sur aucun montant : c'est toute sa raison d'être."""
     etf = crud.create_type_titre(db_session, "ETF")
-    action = crud.create_action(
+    titre = crud.create_titre(
         db_session, "MSCI World", _monnaie_id(db_session), 87.5, None, etf.id
     )
     routeur_types.delete_type_titre(etf.id, db_session)
-    db_session.refresh(action)
-    assert action.valeur == 87.5
-    assert action.monnaie_id == _monnaie_id(db_session)
+    db_session.refresh(titre)
+    assert titre.valeur == 87.5
+    assert titre.monnaie_id == _monnaie_id(db_session)
 
 
 def test_supprimer_un_type_detache_aussi_les_regles_qui_le_posaient(db_session):
@@ -225,23 +225,23 @@ def test_le_zero_detype_un_titre_la_ou_none_ne_change_rien(db_session):
     """`None` veut dire « ne change pas » sur tous les champs d'une mise à jour
     partielle : il faut bien un autre geste pour DÉFAIRE un choix."""
     etf = crud.create_type_titre(db_session, "ETF")
-    action = crud.create_action(
+    titre = crud.create_titre(
         db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id
     )
 
-    routeur_actions.update_action(action.id, schemas.ActionUpdate(valeur=110.0), db_session)
-    db_session.refresh(action)
-    assert action.type_titre_id == etf.id, "None ne doit rien changer"
+    routeur_titres.update_titre(titre.id, schemas.TitreUpdate(valeur=110.0), db_session)
+    db_session.refresh(titre)
+    assert titre.type_titre_id == etf.id, "None ne doit rien changer"
 
-    routeur_actions.update_action(action.id, schemas.ActionUpdate(type_titre_id=0), db_session)
-    db_session.refresh(action)
-    assert action.type_titre_id is None
+    routeur_titres.update_titre(titre.id, schemas.TitreUpdate(type_titre_id=0), db_session)
+    db_session.refresh(titre)
+    assert titre.type_titre_id is None
 
 
 def test_un_type_inconnu_est_refuse_sur_un_titre(db_session):
     with pytest.raises(Exception) as erreur:
-        routeur_actions.create_action(
-            schemas.ActionCreate(
+        routeur_titres.create_titre(
+            schemas.TitreCreate(
                 nom="MSCI World", monnaie_id=_monnaie_id(db_session), type_titre_id=999
             ),
             db_session,
@@ -252,8 +252,8 @@ def test_un_type_inconnu_est_refuse_sur_un_titre(db_session):
 def test_le_libelle_du_type_voyage_avec_le_titre(db_session):
     """Les tableaux l'affichent tel quel, sans recharger la liste des types."""
     etf = crud.create_type_titre(db_session, "ETF")
-    crud.create_action(db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id)
-    lu = routeur_actions.list_actions(False, db_session)[0]
+    crud.create_titre(db_session, "MSCI World", _monnaie_id(db_session), 100.0, None, etf.id)
+    lu = routeur_titres.list_titres(False, db_session)[0]
     assert (lu.type_titre_id, lu.type_titre_nom) == (etf.id, "ETF")
 
 
@@ -274,9 +274,9 @@ def test_une_regle_type_le_titre_quelle_fait_creer(db_session):
     contenu = _fichier_operations([_ligne_achat(type="ACHAT COMPTANT MSCI WORLD")])
     _confirmer(db_session, preset, contenu)
 
-    action = crud.get_action_by_nom(db_session, "MSCI World")
-    assert action is not None
-    assert action.type_titre_id == etf.id
+    titre = crud.get_titre_by_nom(db_session, "MSCI World")
+    assert titre is not None
+    assert titre.type_titre_id == etf.id
 
 
 def test_limport_ne_retype_jamais_un_titre_deja_connu(db_session):
@@ -286,7 +286,7 @@ def test_limport_ne_retype_jamais_un_titre_deja_connu(db_session):
     preset = _preset(db_session, compte)
     etf = crud.create_type_titre(db_session, "ETF")
     obligation = crud.create_type_titre(db_session, "Obligation")
-    action = crud.create_action(
+    titre = crud.create_titre(
         db_session, "MSCI World", _monnaie_id(db_session), 100.0, "IE00B4L5Y983", etf.id
     )
     crud.create_regle_import_placement(
@@ -298,8 +298,8 @@ def test_limport_ne_retype_jamais_un_titre_deja_connu(db_session):
     )
     contenu = _fichier_operations([_ligne_achat(type="ACHAT COMPTANT")])
     _confirmer(db_session, preset, contenu)
-    db_session.refresh(action)
-    assert action.type_titre_id == etf.id
+    db_session.refresh(titre)
+    assert titre.type_titre_id == etf.id
 
 
 def test_une_colonne_de_type_cree_letiquette_quelle_nomme(db_session):
@@ -312,9 +312,9 @@ def test_une_colonne_de_type_cree_letiquette_quelle_nomme(db_session):
     )
     _confirmer(db_session, preset, contenu)
 
-    action = crud.get_action_by_nom(db_session, "MSCI World")
-    assert action.type_titre is not None
-    assert action.type_titre.nom == "ETF"
+    titre = crud.get_titre_by_nom(db_session, "MSCI World")
+    assert titre.type_titre is not None
+    assert titre.type_titre.nom == "ETF"
 
 
 def test_deux_lignes_du_meme_libelle_ne_creent_quun_seul_type(db_session):
@@ -340,7 +340,7 @@ def test_deux_lignes_du_meme_libelle_ne_creent_quun_seul_type(db_session):
 
     types = crud.get_types_titre(db_session)
     assert [t.nom for t in types] == ["ETF"]
-    assert crud.get_action_by_nom(db_session, "S&P 500").type_titre_id == types[0].id
+    assert crud.get_titre_by_nom(db_session, "S&P 500").type_titre_id == types[0].id
 
 
 def test_la_regle_lemporte_sur_la_colonne(db_session):
@@ -360,7 +360,7 @@ def test_la_regle_lemporte_sur_la_colonne(db_session):
         [_ligne_achat(type="ACHAT COMPTANT", type_titre="ETF")], avec_type_titre=True
     )
     _confirmer(db_session, preset, contenu)
-    assert crud.get_action_by_nom(db_session, "MSCI World").type_titre_id == obligation.id
+    assert crud.get_titre_by_nom(db_session, "MSCI World").type_titre_id == obligation.id
 
 
 def test_une_regle_de_transfert_ne_pose_aucun_type(db_session):

@@ -46,6 +46,7 @@
        durée. -->
   <div class="sous-onglets" id="budget-sous-nav">
     <button type="button" data-sous-section="budget-budget" class="active">Budget</button>
+    <button type="button" data-sous-section="budget-previsions">Prévisions</button>
     <button type="button" data-sous-section="budget-categories">Budgets par catégorie</button>
   </div>
 
@@ -55,13 +56,9 @@
       <label for="ab-monnaie">Monnaie
         <select id="ab-monnaie"></select>
       </label>
-      <label for="ab-annee">Année
-        <select id="ab-annee"></select>
-      </label>
-      <label for="ab-mois">Mois
-        <select id="ab-mois"></select>
-      </label>
     </div>
+    <!-- LE MOIS SE CHOISIT COMME AU DASHBOARD (creerArbrePeriode, sans les semaines). -->
+    <div id="ab-periode" class="ab-periode"></div>
 
     <!-- ---------- LE BUDGET DU MOIS ---------- -->
     <h3>Budget du mois<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budget-total">i</i></h3>
@@ -200,19 +197,115 @@
        DEUX BARRES PLUTÔT QU'UNE SEULE POSÉE AU-DESSUS DES ONGLETS : la
        troisième page de cette barre — « Projets » — n'a ni mois ni monnaie, et
        une barre commune y aurait posé trois listes sans effet. -->
+  <!-- ---------- LES PRÉVISIONS ----------
+       UN ONGLET À ELLES, en deuxième position : la courbe du solde prévisionnel, qui
+       vivait sous les graphes du budget, puis TOUTES LES OPÉRATIONS PRÉVISIONNELLES. Les
+       deux répondent à la même question — « qu'est-ce qui va arriver ? » — et la
+       seconde dit sur quoi la première repose.
+
+       DEUX LISTES, LA DATE PASSÉE AU-DESSUS : une prévisionnelle dont la date est
+       derrière nous attend d'être reconnue au prochain import, ou de passer en réelle
+       à la main. C'est la seule des deux qui demande un geste, d'où sa place. -->
+  <div id="sous-section-budget-previsions" class="sous-section">
+    <div class="selecteur-contexte ab-contexte">
+      <label for="ab-prev-monnaie">Monnaie
+        <select id="ab-prev-monnaie"></select>
+      </label>
+    </div>
+
+    <!-- ---------- LE SOLDE PRÉVISIONNEL ----------
+         La courbe du solde des comptes courants — le « Solde total » du
+         dashboard, étiré dans le temps : le passé réel, puis chaque échéance
+         prévisionnelle à sa date. La PRÉVISION AVANCÉE y ajoute ce qu'on dépense
+         en moyenne (cf. service_solde_previsionnel.py). Tout ce qui est coché ici
+         désigne des identifiants de la base : le rangement vit donc dans
+         `preference_interface`, pas dans le navigateur. -->
+    <h3>Solde prévisionnel<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.solde-previsionnel">i</i></h3>
+    <div class="selecteur-contexte ab-contexte ab-sp-controles">
+      <label for="ab-sp-horizon">Horizon
+        <select id="ab-sp-horizon">
+          <option value="30">1 mois</option>
+          <option value="90">3 mois</option>
+          <option value="180">6 mois</option>
+          <option value="365">1 an</option>
+        </select>
+      </label>
+      <label class="ab-comparer" for="ab-sp-avancee">
+        <input type="checkbox" id="ab-sp-avancee" />
+        Prévision avancée
+      </label>
+      <i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.solde-previsionnel-avancee">i</i>
+    </div>
+
+    <div class="ab-sp-avancee" id="ab-sp-options-avancee" hidden>
+      <div class="selecteur-contexte ab-contexte">
+        <label for="ab-sp-cadence">Dépenses moyennes par
+          <select id="ab-sp-cadence">
+            <option value="jour">jour</option>
+            <option value="semaine">semaine</option>
+          </select>
+        </label>
+        <label for="ab-sp-fenetre">Calculées sur
+          <select id="ab-sp-fenetre">
+            <option value="4">4 semaines</option>
+            <option value="12">12 semaines</option>
+            <option value="26">26 semaines</option>
+            <option value="52">52 semaines</option>
+            <option value="tout">Tout l'historique</option>
+          </select>
+        </label>
+      </div>
+      <details class="ab-sp-exclusions">
+        <summary>Exclure de la moyenne<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.solde-previsionnel-exclusions">i</i></summary>
+        <div class="ab-sp-exclusions-corps">
+          <fieldset id="ab-sp-exclure-categories"><legend>Catégories</legend></fieldset>
+          <fieldset id="ab-sp-exclure-types"><legend>Types d'opération</legend></fieldset>
+        </div>
+        <p class="hint" id="ab-sp-exclusions-manuelles" hidden></p>
+      </details>
+    </div>
+
+    <div id="ab-sp-doublons"></div>
+    <div class="histogramme-cadre ab-sp-cadre">
+      <div id="ab-sp-graphe"></div>
+      <div class="ab-sp-bulle" id="ab-sp-bulle" hidden></div>
+    </div>
+    <p class="hint" id="ab-sp-resume"></p>
+    <details class="ab-sp-echeances" id="ab-sp-echeances-bloc" hidden>
+      <summary id="ab-sp-echeances-titre"></summary>
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Nature</th><th>Compte</th><th>Montant</th><th></th></tr>
+        </thead>
+        <tbody id="ab-sp-echeances"></tbody>
+      </table>
+    </details>
+
+    <h3>Opérations prévisionnelles<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.previsions">i</i></h3>
+    <h4>Date passée (<span id="ab-prev-passees-nombre"></span>)<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.previsions-passees">i</i></h4>
+    <table>
+      <thead>
+        <tr><th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th><th>Catégorie</th></tr>
+      </thead>
+      <tbody id="ab-prev-passees"></tbody>
+    </table>
+    <h4>À venir (<span id="ab-prev-futures-nombre"></span>)</h4>
+    <table>
+      <thead>
+        <tr><th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th><th>Catégorie</th></tr>
+      </thead>
+      <tbody id="ab-prev-futures"></tbody>
+    </table>
+  </div>
+
   <div id="sous-section-budget-categories" class="sous-section">
 
     <div class="selecteur-contexte ab-contexte">
       <label for="ab-cat-monnaie">Monnaie
         <select id="ab-cat-monnaie"></select>
       </label>
-      <label for="ab-cat-annee">Année
-        <select id="ab-cat-annee"></select>
-      </label>
-      <label for="ab-cat-mois">Mois
-        <select id="ab-cat-mois"></select>
-      </label>
     </div>
+    <div id="ab-cat-periode" class="ab-periode"></div>
 
     <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
 

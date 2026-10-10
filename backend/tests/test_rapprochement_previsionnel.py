@@ -420,7 +420,8 @@ def _modele_recurrent(db, compte, **kwargs):
             categorie_id=get_categorie_id(db, "Charges fixes"),
             nature="Loyer",
             montant=800.0,
-            statut=Statut.reel,
+            # UN MODÈLE RÉCURRENT EST PRÉVISIONNEL (cf. crud.scinder_modele_recurrent).
+            statut=Statut.previsionnel,
             recurrente=True,
             frequence=Frequence.mensuelle,
             recurrence_fin=kwargs.get("fin_recurrence", date(2026, 12, 31)),
