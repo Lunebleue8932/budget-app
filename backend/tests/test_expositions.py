@@ -156,6 +156,30 @@ def test_l_enveloppe_n_est_pas_une_repartition(db_session):
 # ---------- La classe d'actif unique, devenue une répartition à 100 % ----------
 
 
+def test_une_action_en_direct_tient_sur_une_etiquette_a_cent_pour_cent(db_session):
+    direct = _etiquette(db_session, "Action en direct", AxeTitre.enveloppe)
+    titre = crud.create_titre(db_session, "Air Liquide", _monnaie(db_session), 100.0, None, direct.id)
+    europe = _etiquette(db_session, "Europe", AxeTitre.zone)
+    usa = _etiquette(db_session, "États-Unis", AxeTitre.zone)
+
+    # Le poids reçu ne compte pas : une société a un pays de siège, à 100 %.
+    lu = _repartir(db_session, titre, AxeTitre.zone, [(europe.id, 60.0)])
+    assert [(e.type_titre_nom, e.poids_pct) for e in lu.expositions] == [("Europe", 100.0)]
+
+    with pytest.raises(HTTPException) as erreur:
+        _repartir(db_session, titre, AxeTitre.zone, [(europe.id, 60.0), (usa.id, 40.0)])
+    assert erreur.value.status_code == 422
+    assert "une seule étiquette" in erreur.value.detail
+
+
+@pytest.mark.parametrize("nom, attendu", [
+    ("Action en direct", True), ("actions en direct", True), ("ACTION EN DIRECT", True),
+    ("ETF", False), ("Actions", False), (None, False),
+])
+def test_l_enveloppe_action_en_direct_se_reconnait_sans_casse(nom, attendu):
+    assert exposition.est_action_en_direct(nom) is attendu
+
+
 def test_choisir_une_classe_la_pose_a_cent_pour_cent_et_zero_la_retire(db_session):
     titre = _titre(db_session)
     actions = _etiquette(db_session, "Actions", AxeTitre.classe)

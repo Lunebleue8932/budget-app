@@ -91,6 +91,34 @@
   border-radius: var(--radius-sm);
 }
 
+/* LES CHAMPS DU PANNEAU AU STYLE DE L'APPLICATION : le même habillage que les menus de la
+   ligne du titre juste au-dessus (`.import-mapping-row select`), sur la teinte de surface —
+   le panneau est déjà sur `--bg-surface-alt`, des champs de la même teinte s'y fondraient.
+   Sans cette règle, ils gardaient le rendu par défaut du navigateur (blanc sur sombre). */
+.expo-panneau select,
+.expo-panneau input[type="number"],
+.expo-panneau textarea {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.expo-panneau select:focus,
+.expo-panneau input[type="number"]:focus,
+.expo-panneau textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Le seul « Enregistrer » du panneau, sous tout le reste. */
+.expo-actions-panneau {
+  grid-column: 1 / -1;
+}
+
 .expo-axe,
 .expo-composition {
   display: flex;

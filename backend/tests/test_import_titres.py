@@ -205,6 +205,20 @@ def test_les_libelles_se_retrouvent_sans_egard_a_la_casse_ni_aux_accents(db_sess
 # ---------- Le bon axe ----------
 
 
+def test_une_action_en_direct_importee_tient_sur_une_etiquette_a_cent_pour_cent(db_session, preset):
+    crud.create_type_titre(db_session, "Action en direct", AxeTitre.enveloppe.value)
+    crud.create_type_titre(db_session, "Europe", AxeTitre.zone.value)
+    _confirmer(db_session, preset, _fichier((ISIN_MSFT, "Microsoft", None, "Action en direct", None, "Europe 70")))
+    titre = crud.get_titre_by_isin(db_session, ISIN_MSFT)
+    assert [(e.etiquette.nom, e.poids_pct) for e in titre.repartition("zone")] == [("Europe", 100.0)]
+
+    (ligne,) = _apercu(
+        db_session, preset, _fichier((ISIN_MSFT, None, None, None, None, "Europe 60 ; Asie 40"))
+    ).lignes
+    assert ligne.statut == "erreur"
+    assert any("une seule étiquette" in e for e in ligne.erreurs)
+
+
 def test_une_etiquette_inconnue_est_creee_dans_son_axe(db_session, preset):
     """« Immobilier » existe comme classe (semée) ET comme secteur : la zone « Immobilier » est autre chose."""
     resultat = _confirmer(

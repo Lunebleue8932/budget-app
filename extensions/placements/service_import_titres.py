@@ -251,12 +251,21 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
         plan["enveloppe"] = {"id": etiquette.id if etiquette else None, "nom": etiquette.nom if etiquette else nom_env}
 
     # ---- Les trois répartitions ----
+    # L'enveloppe que le titre AURA après la ligne : celle du fichier, sinon la sienne. Une
+    # action en direct tient sur une étiquette par axe, à 100 % (cf. services/exposition).
+    enveloppe_finale = (
+        plan["enveloppe"]["nom"] if "enveloppe" in plan
+        else (titre.type_titre.nom if existe and titre.type_titre else None)
+    )
+    en_direct = exposition.est_action_en_direct(enveloppe_finale)
     for propriete, axe in REPARTITIONS.items():
         cellule = brute.get(f"{propriete}_brut")
         if _vide(cellule) or erreurs:
             continue
         try:
             lignes = exposition.parser_repartition(_texte(cellule))
+            if en_direct:
+                lignes = exposition.verrouiller_action_en_direct(lignes)
             # Les étiquettes se jugent à leur clé : « états-unis » et « États-Unis » sont la même.
             exposition.valider_repartition([(_cle(nom_e), poids) for nom_e, poids in lignes])
         except exposition.ErreurExposition as erreur:

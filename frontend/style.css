@@ -1,4 +1,6 @@
 :root {
+  /* Le halo bleu en tête de page, partagé par le fond et l'en-tête figé (cf. body). */
+  --degrade-page: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(59, 130, 246, 0.08), transparent);
   --bg-page: #0a0c12;
   --bg-header: rgba(10, 12, 18, 0.85);
   --bg-surface: #14171f;
@@ -209,9 +211,14 @@ body {
   min-height: 100vh;
   background: var(--bg-page);
   color: var(--text-primary);
-  /* Léger dégradé radial en tête de page, façon dashboards fintech. */
-  background-image: radial-gradient(ellipse 80% 40% at 50% -10%, rgba(59, 130, 246, 0.08), transparent);
+  /* Léger dégradé radial en tête de page, façon dashboards fintech. ANCRÉ À LA FENÊTRE
+     (`fixed`) et non au document : l'en-tête figé des pages (.page-entete) peint le même
+     dégradé, ancré de la même façon, et se confond donc avec ce qui l'entoure à toute
+     hauteur de défilement. Ancré au document, le fond s'assombrissait en descendant et
+     l'en-tête, d'une teinte fixe, se détachait en bandeau. */
+  background-image: var(--degrade-page);
   background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 /* LA BARRE LATÉRALE (cf. index.html pour le pourquoi du déménagement).
@@ -6693,7 +6700,12 @@ body input[type="checkbox"]:disabled {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: var(--bg-page);
+  /* Le fond de la page, dégradé compris, ancré à la fenêtre comme celui du `body` : les deux
+     coïncident pixel pour pixel (cf. body). */
+  background-color: var(--bg-page);
+  background-image: var(--degrade-page);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   padding-top: 0.75rem;
   margin-top: -0.75rem;
   padding-bottom: 0.25rem;

@@ -3049,6 +3049,7 @@ MOTIFS_PAR_LANGUE.pt = [
   [/^ISIN manquant$/, "ISIN ausente"],
   [/^cet ISIN figure déjà à la ligne (.+)$/, "este ISIN já aparece na linha $1"],
   [/^monnaie « (.+) » inconnue$/, "moeda “$1” desconhecida"],
+  [/^(?:(classe d'actif|zone géographique|secteur) : )?une action en direct tient sur une seule étiquette, à 100 %$/, "uma ação detida diretamente tem um único rótulo por eixo, a 100%"],
   [/^cours « (.+) » illisible : un nombre positif est attendu$/, "cotação “$1” ilegível: um número positivo é esperado"],
   [/^ce titre a des mouvements : sa monnaie de cotation ne peut plus changer$/, "este título tem transações: sua moeda de cotação não pode mais mudar"],
   [/^« (.+) » existe déjà sous l'ISIN (.+) : deviner mélangerait deux titres$/, "“$1” já existe com o ISIN $2: adivinhar misturaria dois títulos"],
@@ -3327,3 +3328,6 @@ TRADUCTIONS.pt["Masquer la part non déterminée des ETF"] = "Ocultar a parte n�
 TRADUCTIONS.pt["Détenu par ETF, non déterminé"] = "Detido via ETF, não determinado";
 TRADUCTIONS.pt["Autres titres"] = "Outros títulos";
 TRADUCTIONS.pt["En direct"] = "Detido diretamente";
+TRADUCTIONS.pt["{axe} : plus de 100 %, à corriger."] = "{axe}: mais de 100%, a corrigir.";
+TRADUCTIONS.pt["Rien n'a changé."] = "Nada mudou.";
+TRADUCTIONS.pt["Détail enregistré"] = "Detalhes salvos";

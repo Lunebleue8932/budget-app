@@ -3608,6 +3608,12 @@ const TRADUCTIONS = {
       "Other securities",
     "En direct":
       "Held directly",
+    "{axe} : plus de 100 %, à corriger.":
+      "{axe}: over 100%, to be fixed.",
+    "Rien n'a changé.":
+      "Nothing has changed.",
+    "Détail enregistré":
+      "Details saved",
     // monnaies.taux-de-change
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.":
       "Lets you use the dashboard's convert-all feature for a complete view. Your transactions are never modified, only the dashboard display.",
@@ -4094,6 +4100,7 @@ const MOTIFS_SERVEUR = [
   [/^(classe d'actif|zone géographique|secteur) : la répartition ne couvre que (.+) % — le reste est non renseigné$/, "the breakdown ($1) only covers $2% — the rest is not specified"],
   [/^(classe d'actif|zone géographique|secteur|composition) : tous les poids sont inférieurs à 1 — des fractions plutôt que des pourcentages \?$/, "$1: all the weights are below 1 — fractions rather than percentages?"],
   [/^cours « (.+) » illisible : un nombre positif est attendu$/, "unreadable price “$1”: a positive number is expected"],
+  [/^(?:(classe d'actif|zone géographique|secteur) : )?une action en direct tient sur une seule étiquette, à 100 %$/, "a direct holding has a single label per axis, at 100%"],
   [/^(\d+) ISIN de composition n'ont de fiche ni dans le fichier ni dans la base : (.+)$/, "$1 composition ISINs have no record in the file or in the database: $2"],
   [/^Fichier illisible : (.+)$/, "Unreadable file: $1"],
 ];

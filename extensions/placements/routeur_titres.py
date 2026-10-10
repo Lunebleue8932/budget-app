@@ -274,15 +274,19 @@ def remplacer_expositions(
         )
     for ligne in payload.lignes:
         _valider_etiquette(db, ligne.type_titre_id, axe.value)
+    lignes = [(l.type_titre_id, l.poids_pct) for l in payload.lignes]
     try:
-        exposition.valider_repartition([(l.type_titre_id, l.poids_pct) for l in payload.lignes])
+        # UNE ACTION EN DIRECT EST VERROUILLÉE : une étiquette, 100 % (cf. services/exposition).
+        if exposition.est_action_en_direct(titre.type_titre.nom if titre.type_titre else None):
+            lignes = exposition.verrouiller_action_en_direct(lignes)
+        exposition.valider_repartition(lignes)
     except exposition.ErreurExposition as erreur:
         raise HTTPException(status_code=422, detail=str(erreur)) from None
     crud.poser_repartition(
         db,
         titre,
         axe.value,
-        [(l.type_titre_id, l.poids_pct) for l in payload.lignes],
+        lignes,
         source=payload.source,
         date_maj=payload.date_maj,
     )

@@ -62,6 +62,12 @@ function expoEstEtf(titre) {
   return /^etf/.test(expoNormaliser(titre.type_titre_nom));
 }
 
+/** Vrai pour une « Action en direct » : une étiquette par axe, à 100 %, VERROUILLÉ au serveur
+ *  (services/exposition.verrouiller_action_en_direct). Même reconnaissance des deux côtés. */
+function expoEstActionDirecte(titre) {
+  return /^actions?\s+en\s+direct/.test(expoNormaliser(titre.type_titre_nom));
+}
+
 function expoNombre(valeur) {
   // « 12,5 » comme « 12.5 » : la virgule est le séparateur décimal de l'application.
   return parseFloat(String(valeur).replace(",", "."));
@@ -86,24 +92,41 @@ function expoLigneHtml(axe, ligne) {
     </div>`;
 }
 
+function expoLignesDe(titre, axe) {
+  return (titre.expositions || []).filter((e) => e.axe === axe);
+}
+
 function expoAxeHtml(titre, config) {
-  const lignes = (titre.expositions || []).filter((e) => e.axe === config.axe);
-  return `
-    <div class="expo-axe" data-axe="${config.axe}">
+  const lignes = expoLignesDe(titre, config.axe);
+  const entete = `
       <div class="expo-axe-titre">
         ${escapeHtml(t(config.titre))}<i class="info-bulle" tabindex="0" data-info-cle="${config.aide}">i</i>
-      </div>
+      </div>`;
+  // UNE ACTION EN DIRECT : un seul menu par axe, sans poids — il vaut 100 %, et le serveur le
+  // verrouille. S'il en portait plusieurs (écrites avant le verrou), la plus lourde s'affiche.
+  if (expoEstActionDirecte(titre)) {
+    const lourde = [...lignes].sort((a, b) => b.poids_pct - a.poids_pct)[0];
+    return `
+    <div class="expo-axe" data-axe="${config.axe}" data-expo-direct>${entete}
+      <select class="expo-etiquette">${optionsTypesTitre(lourde ? lourde.type_titre_id : null, config.axe)}</select>
+    </div>`;
+  }
+  return `
+    <div class="expo-axe" data-axe="${config.axe}">${entete}
       <div class="expo-lignes">${lignes.map((l) => expoLigneHtml(config.axe, l)).join("")}</div>
       <div class="expo-total" data-expo-total></div>
       <div class="expo-actions">
         <button type="button" data-expo-ajouter>${escapeHtml(t(config.nouvelle))}</button>
-        <button type="button" class="primary" data-expo-enregistrer>${escapeHtml(t("Enregistrer"))}</button>
       </div>
     </div>`;
 }
 
 /** Ce que le panneau lit : les lignes d'un axe, telles que saisies (les incomplètes sont écartées). */
 function expoLignesSaisies(axeEl) {
+  if (axeEl.hasAttribute("data-expo-direct")) {
+    const id = Number(axeEl.querySelector(".expo-etiquette").value);
+    return id ? [{ type_titre_id: id, poids_pct: 100 }] : [];
+  }
   return [...axeEl.querySelectorAll(".expo-ligne")]
     .map((ligne) => ({
       type_titre_id: Number(ligne.querySelector(".expo-etiquette").value),
@@ -113,9 +136,10 @@ function expoLignesSaisies(axeEl) {
 }
 
 function expoMajTotal(axeEl) {
+  const cible = axeEl.querySelector("[data-expo-total]");
+  if (!cible) return; // une action en direct : pas de total, c'est 100 % ou rien
   const lignes = expoLignesSaisies(axeEl);
   const total = lignes.reduce((somme, l) => somme + l.poids_pct, 0);
-  const cible = axeEl.querySelector("[data-expo-total]");
   if (!lignes.length) {
     cible.textContent = t("Rien de renseigné : tout est « non renseigné ».");
     cible.classList.remove("expo-total-trop");
@@ -171,9 +195,6 @@ function expoCompositionHtml(titre) {
                 placeholder="${escapeHtml(t("US5949181045 ; 15\nUS02079K3059 ; 12,5"))}">${escapeHtml(
                   expoCompositionEnTexte(titre.composition)
                 )}</textarea>
-      <div class="expo-actions">
-        <button type="button" class="primary" data-expo-enregistrer-composition>${escapeHtml(t("Enregistrer"))}</button>
-      </div>
     </div>`;
 }
 
@@ -183,10 +204,15 @@ function expoPanneauHtml(titre) {
   const avertissements = (titre.avertissements || [])
     .map((m) => `<li>${escapeHtml(traduireMessageServeur(m))}</li>`)
     .join("");
+  // UN SEUL « ENREGISTRER » POUR TOUT LE PANNEAU (cf. expoEnregistrer) : trois axes et une
+  // composition à enregistrer chacun de leur côté, c'était quatre boutons pour un geste.
   return `
     ${EXPO_AXES.map((config) => expoAxeHtml(titre, config)).join("")}
     ${expoEstEtf(titre) ? expoCompositionHtml(titre) : ""}
-    ${avertissements ? `<ul class="expo-avertissements">${avertissements}</ul>` : ""}`;
+    ${avertissements ? `<ul class="expo-avertissements">${avertissements}</ul>` : ""}
+    <div class="expo-actions expo-actions-panneau">
+      <button type="button" class="primary" data-expo-enregistrer>${escapeHtml(t("Enregistrer"))}</button>
+    </div>`;
 }
 
 function expoCreerPanneau(titre) {
@@ -216,37 +242,73 @@ function expoRemplacerTitre(lu) {
   }
 }
 
-async function expoEnregistrerAxe(panneau, axeEl) {
+/** Une répartition comparable : `id:poids` triés, pour savoir si un axe a changé. */
+function expoEmpreinte(lignes) {
+  return lignes
+    .map((l) => `${l.type_titre_id}:${Number(l.poids_pct).toFixed(4)}`)
+    .sort()
+    .join("|");
+}
+
+/**
+ * LE SEUL « ENREGISTRER » DU PANNEAU : les trois axes, puis la composition d'un ETF.
+ *
+ * TOUT EST VÉRIFIÉ AVANT LA PREMIÈRE ÉCRITURE — un axe au-dessus de 100 %, une composition
+ * illisible — pour ne jamais laisser un panneau à moitié enregistré. SEUL CE QUI A CHANGÉ PART :
+ * réenregistrer un axe intact lui ferait perdre sa source et sa date (« Import … » deviendrait
+ * une saisie du jour).
+ */
+async function expoEnregistrer(panneau) {
   const titreId = Number(panneau.dataset.titre);
+  const titre = state.titres.find((x) => x.id === titreId);
+  if (!titre) return;
   try {
-    const lu = await apiFetch(`/titres/${titreId}/expositions`, {
-      method: "PUT",
-      body: JSON.stringify({ axe: axeEl.dataset.axe, lignes: expoLignesSaisies(axeEl) }),
-    });
-    showMessage(t("Répartition enregistrée"), "success");
+    const axes = [...panneau.querySelectorAll(".expo-axe")].map((axeEl) => ({
+      axe: axeEl.dataset.axe,
+      lignes: expoLignesSaisies(axeEl),
+    }));
+    const trop = axes.find((a) => a.lignes.reduce((s, l) => s + l.poids_pct, 0) > 100.5);
+    if (trop) {
+      const config = EXPO_AXES.find((c) => c.axe === trop.axe);
+      throw new Error(t("{axe} : plus de 100 %, à corriger.", { axe: t(config.titre) }));
+    }
+    const changes = axes.filter(
+      (a) => expoEmpreinte(a.lignes) !== expoEmpreinte(expoLignesDe(titre, a.axe))
+    );
+
+    let composition = null;
+    const champ = panneau.querySelector("[data-expo-composition]");
+    if (champ) {
+      const lue = expoTexteEnComposition(champ.value);
+      const couverture = expoNombre(panneau.querySelector("[data-expo-couverture]").value);
+      const corps = {
+        composition: lue,
+        // Un dictionnaire vidé retire aussi la couverture (zéro la retire).
+        composition_couverture_pct: Object.keys(lue).length && !Number.isNaN(couverture) ? couverture : 0,
+      };
+      const avant = JSON.stringify([titre.composition || {}, titre.composition_couverture_pct || 0]);
+      const apres = JSON.stringify([lue, corps.composition_couverture_pct]);
+      if (avant !== apres) composition = corps;
+    }
+
+    if (!changes.length && !composition) {
+      showMessage(t("Rien n'a changé."), "success");
+      return;
+    }
+    let lu = null;
+    for (const a of changes) {
+      lu = await apiFetch(`/titres/${titreId}/expositions`, {
+        method: "PUT",
+        body: JSON.stringify(a),
+      });
+    }
+    if (composition) {
+      lu = await apiFetch(`/titres/${titreId}`, { method: "PUT", body: JSON.stringify(composition) });
+    }
+    showMessage(t("Détail enregistré"), "success");
     expoRemplacerTitre(lu);
     // Les compteurs « N titre(s) » de chaque étiquette viennent de bouger.
     await refreshTypesTitre();
-  } catch (err) {
-    showMessage(traduireMessageServeur(err.message), "error");
-  }
-}
-
-async function expoEnregistrerComposition(panneau) {
-  const titreId = Number(panneau.dataset.titre);
-  try {
-    const composition = expoTexteEnComposition(panneau.querySelector("[data-expo-composition]").value);
-    const couverture = expoNombre(panneau.querySelector("[data-expo-couverture]").value);
-    const lu = await apiFetch(`/titres/${titreId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        composition,
-        // Un dictionnaire vidé retire aussi la couverture (zéro la retire).
-        composition_couverture_pct: Object.keys(composition).length && !Number.isNaN(couverture) ? couverture : 0,
-      }),
-    });
-    showMessage(t("Composition enregistrée"), "success");
-    expoRemplacerTitre(lu);
   } catch (err) {
     showMessage(traduireMessageServeur(err.message), "error");
   }
@@ -277,10 +339,8 @@ async function expoEnregistrerComposition(panneau) {
     } else if (e.target.closest("[data-expo-retirer]") && axeEl) {
       e.target.closest(".expo-ligne").remove();
       expoMajTotal(axeEl);
-    } else if (e.target.closest("[data-expo-enregistrer]") && axeEl) {
-      await expoEnregistrerAxe(panneau, axeEl);
-    } else if (e.target.closest("[data-expo-enregistrer-composition]")) {
-      await expoEnregistrerComposition(panneau);
+    } else if (e.target.closest("[data-expo-enregistrer]")) {
+      await expoEnregistrer(panneau);
     }
   });
 

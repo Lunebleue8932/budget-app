@@ -19,6 +19,7 @@ AVERTISSEMENTS, les données sont seulement incomplètes — un ETF dont on ne c
 que le haut de l'indice est le cas ordinaire, pas une faute.
 """
 import re
+import unicodedata
 from typing import Optional
 
 from ..constants import TOLERANCE_POIDS_PCT
@@ -109,6 +110,27 @@ def parser_composition(texte: object) -> dict[str, float]:
             raise ErreurExposition(f"l'ISIN {isin} figure deux fois")
         resultat[isin] = parser_poids(m.group("poids"))
     return resultat
+
+
+_ACTION_EN_DIRECT = re.compile(r"^actions?\s+en\s+direct")
+
+
+def est_action_en_direct(nom_enveloppe: Optional[str]) -> bool:
+    """Vrai pour l'enveloppe « Action en direct » (ou « Actions en direct »), casse et
+    accents ignorés — la même tolérance que la détection d'un ETF."""
+    nom = unicodedata.normalize("NFD", str(nom_enveloppe or ""))
+    nom = "".join(c for c in nom if not unicodedata.combining(c)).strip().lower()
+    return bool(_ACTION_EN_DIRECT.match(nom))
+
+
+def verrouiller_action_en_direct(lignes: list[tuple[object, float]]) -> list[tuple[object, float]]:
+    """UNE ACTION EN DIRECT TIENT SUR UNE SEULE ÉTIQUETTE PAR AXE, À 100 %. Une société a un
+    secteur, un pays de siège, une classe : la répartir n'a pas de sens, et l'écran ne propose
+    même pas de poids. Le poids reçu est donc remplacé par 100 ; plusieurs étiquettes sont une
+    erreur. Liste vide : l'axe est vidé, comme pour tout titre."""
+    if len(lignes) > 1:
+        raise ErreurExposition("une action en direct tient sur une seule étiquette, à 100 %")
+    return [(cle, 100.0) for cle, _ in lignes]
 
 
 def reste_non_renseigne(poids: list[float]) -> float:
