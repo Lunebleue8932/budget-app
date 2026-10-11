@@ -6053,7 +6053,7 @@ td.apercu-col-hors-fichier {
 .tutoriel-bulle {
   position: fixed;
   z-index: 1200;
-  width: min(22rem, calc(100vw - 2rem));
+  width: min(29.25rem, calc(100vw - 2rem));
   background: var(--bg-surface);
   border: 1px solid var(--accent);
   border-radius: var(--radius);

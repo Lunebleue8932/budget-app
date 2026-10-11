@@ -67,15 +67,21 @@ def _reculer(jour: date, mois: int) -> date:
 # les chiffres ne bougent pas, seules les dates suivent le calendrier.
 _DEPENSES_MENSUELLES = [
     (2, "Loyer", "Charges fixes", 750.00),
-    (3, "Courses du quartier", "Alimentaire", 62.40),
+    (3, "Courses", "Alimentaire", 62.40),
     (5, "Abonnement transport", "Transports", 75.00),
     (9, "Restaurant", "Loisirs", 38.00),
-    (11, "Courses du samedi", "Alimentaire", 48.10),
+    (11, "Courses", "Alimentaire", 48.10),
     (16, "Cinéma", "Loisirs", 24.00),
-    (18, "Courses de la semaine", "Alimentaire", 71.85),
+    (18, "Courses", "Alimentaire", 71.85),
     (20, "Essence", "Transports", 54.20),
-    (25, "Courses de fin de mois", "Alimentaire", 55.30),
+    (23, "Restaurant", "Loisirs", 29.50),
+    (25, "Courses", "Alimentaire", 55.30),
 ]
+
+# POURQUOI DES NOMS QUI SE RÉPÈTENT. L'infobulle d'une catégorie regroupe les dépenses de même
+# nom et écrit leur nombre entre parenthèses : « Courses (4) ». Avec des noms tous différents,
+# ces parenthèses n'apparaîtraient jamais, et l'étape du tutoriel qui les décrit n'aurait rien
+# à montrer.
 
 
 def _jour_valide(premier: date, jour: int, aujourdhui: date) -> date:
