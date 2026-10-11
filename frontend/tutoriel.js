@@ -271,94 +271,183 @@ const EXEMPLE_DOUBLONS = {
  * qu'une fois un fichier lu, et pointer un rectangle vide n'apprend rien.
  */
 
-const TUTORIEL_DECOUVERTE = [
-  {
-    cible: "header nav",
-    titre: "Quatre écrans, et c'est tout",
-    texte:
-      "Le dashboard montre ce que le mois a fait. La vue globale des comptes montre ce que tu possèdes. Opérations est la liste de tout, et Paramètres ce qui règle le reste — comptes, catégories, import, extensions. On va les traverser dans cet ordre.",
-    avant: () => switchSection("dashboard"),
+/* ---------- Se placer sur la bonne page ----------
+ *
+ * CHAQUE ÉTAPE DIT SUR QUELLE PAGE ELLE SE LIT (`page`), et une étape qui n'en
+ * dit rien hérite de la plus proche qui précède (cf. pageEffective). Sans cela,
+ * « Précédent » depuis la première étape d'une page laissait l'écran de la page
+ * suivante, l'étape d'avant n'ayant aucune consigne de page : on ne voyait plus
+ * ce que la bulle décrivait, et il fallait remonter jusqu'à la première étape de
+ * cette page pour y revenir. Dans l'autre sens, un « Suivant » qui saute à
+ * une étape d'une autre page y emmène de la même façon.
+ *
+ * IDEMPOTENT : ne change rien quand on y est déjà, pour ne pas relire les
+ * données de la page (et défaire ce qu'on y a déplié) à chaque étape. Rend true
+ * quand la page a changé. */
+function surPage(section, sousSection = null) {
+  const hote = document.getElementById(`section-${section}`);
+  const volet = sousSection ? document.getElementById(`sous-section-${sousSection}`) : null;
+  const dejaLa =
+    hote &&
+    hote.classList.contains("active") &&
+    (!sousSection || (volet && volet.classList.contains("active")));
+  if (dejaLa) return false;
+  switchSection(section, sousSection ? { sousSection } : {});
+  return true;
+}
+
+const PAGE_DASHBOARD = () => surPage("dashboard");
+const PAGE_OPERATIONS = () => surPage("operations", "classique");
+const PAGE_CONFIGURATION = () => surPage("parametres", "parametres-configuration");
+const PAGE_PARAMETRES_GENERAUX = () => surPage("parametres", "parametres-generaux");
+const PAGE_EXTENSIONS = () => surPage("parametres", "parametres-extensions");
+
+/* CE QU'UNE ÉTAPE OUVRE POUR S'ILLUSTRER, ET QU'ELLE REFERME EN PARTANT.
+ *
+ * Le tutoriel ne laisse rien derrière lui (cf. l'en-tête) : un volet déplié ou un
+ * formulaire ouvert pour une étape est rangé dès qu'on passe à une étape qui n'en
+ * a pas besoin. `ouvre` désigne une entrée de ce tableau ; deux étapes
+ * consécutives qui la demandent toutes deux ne la referment pas entre elles. */
+const OUVERTURES_TUTORIEL = {
+  filtres: {
+    ouvrir: () => {
+      const volet = document.getElementById("filtres-repli-classique");
+      if (!volet || volet.open) return null;
+      volet.open = true;
+      return () => {
+        volet.open = false;
+      };
+    },
   },
-  {
-    cible: "#section-dashboard .kpi-grid",
-    titre: "En haut : ce que tu as, aujourd'hui",
-    texte:
-      "Ces cartes-là ne dépendent PAS du mois choisi. Le solde total est ce qu'il y a sur tes comptes courants, et son chiffre gris à côté est le solde projeté — ce qu'il deviendra une fois les dépenses prévues passées.",
+  formulaire: {
+    ouvrir: () => {
+      const formulaire = document.getElementById("form-operation");
+      if (formulaire && formulaire.parentNode.id === "operations-form-classique") return null;
+      document.querySelector(".ajouter-operation[data-onglet='classique']")?.click();
+      return () => {
+        resetOperationForm();
+        fermerFormulaireOperation();
+      };
+    },
   },
-  {
-    cible: "#section-dashboard .periode-selecteur",
-    titre: "La période se choisit ici",
-    texte:
-      "Une rangée d'années, une rangée de mois, et une petite flèche sous les mois qui déplie les SEMAINES du mois choisi. L'histogramme descend alors d'un cran — c'est le même graphe, pas un second. Recliquer la semaine allumée rend le mois entier.",
-  },
-  {
-    cible: "#section-dashboard .flux-periode",
-    titre: "En bas : ce que la période a fait",
-    texte:
-      "Ces quatre cartes suivent le mois choisi. Les deux dernières ne mesurent pas la même chose : l'une dit ce que le mois COÛTE (une dépense étalée n'y compte que pour sa part du mois), l'autre ce qui a BOUGÉ sur le compte, à la date et pour le montant du relevé. Elles diffèrent, et c'est normal — un bouton dans la carte jaune explique d'où vient l'écart, ligne par ligne.",
-  },
-  {
-    cible: "#dashboard-legende",
-    titre: "Les deux graphes partagent tout",
-    texte:
-      "Même filtre de catégories, mêmes couleurs, une seule légende sous les deux. Survoler une barre, une tranche ou une ligne de légende allume les trois. L'infobulle qui suit le curseur SE FIGE avec une touche (« F » par défaut, réglable dans Paramètres généraux) : c'est ce qui permet d'aller cliquer dedans.",
-  },
-  {
-    cible: "#operations-sous-nav",
-    titre: "Opérations : un onglet par type",
-    texte:
-      "Chaque type d'opération a son onglet et ses colonnes. Les onglets grisés ou absents appartiennent à une extension éteinte. Tant que le tri est chronologique, la date coiffe un bloc de lignes ; trie par montant ou par compte et elle redescend dans la ligne — grouper par jour n'aurait alors plus rien à grouper.",
-    avant: () => switchSection("operations"),
-  },
-  {
-    cible: "#filtres-classique",
-    titre: "Le filtre de dates CHOISIT la période",
-    texte:
-      "« Du » et « Au » ne s'ajoutent pas aux onglets de période : ils les déplacent. Un intervalle contenu dans un mois bascule sur ce mois, dans une année sur cette année, sinon sur « Tout ». Deux champs vides ne bougent rien.",
-  },
-  {
-    cible: ".ajouter-operation[data-onglet='classique']",
-    titre: "Ce qu'une opération peut porter",
-    texte:
-      "Ce bouton ouvre le formulaire ici même ; un double-clic sur une ligne l'ouvre SOUS elle, déjà rempli. Trois choses s'y ajoutent à tout type : un statut (réel, ou prévisionnel — qui ne pèse que sur le solde projeté), une DÉCOUPE entre plusieurs catégories (un plein de courses dont 30 € de ménager reste une seule ligne au relevé), et un AMORTISSEMENT sur plusieurs mois.",
-    avant: () => switchSection("operations"),
-  },
-  {
-    cible: "#comptes-liste",
-    titre: "Comptes, catégories, monnaies : on ÉTEINT",
-    texte:
-      "Supprimer emporterait l'historique. Éteindre ne supprime rien : l'élément quitte simplement les menus, plus aucune écriture nouvelle ne le désigne, et tout reparaît tel quel sur une période antérieure. Le bouton est dans le formulaire (double-clic sur la ligne), pas dans la liste.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-configuration" }),
-  },
-  {
-    cible: "#parametres-sous-nav-droite",
-    titre: "La moitié droite règle l'application",
-    texte:
-      "À gauche ce que l'application manipule — tes comptes, tes catégories. À droite ce qui la règle : les paramètres généraux, les correspondances retenues des imports, l'import lui-même, les extensions, et le fichier où vivent tes données.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-generaux" }),
-  },
-  {
-    cible: "#extensions-liste",
-    titre: "Les extensions s'allument une par une",
-    texte:
-      "Rien n'est actif d'office. Une extension ajoute un écran, un type d'opération ou une colonne ; l'éteindre fait disparaître son écran sans RIEN effacer, et tout revient si tu la rallumes. C'est de là que viennent les prêts, le suivi des remboursements, le budget, les placements.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-extensions" }),
-  },
-  {
-    cible: "#parametres-partie-bdd",
-    titre: "Où vivent tes données",
-    texte:
-      "Un seul fichier .db, à l'endroit que tu as choisi au premier démarrage. Range-le ailleurs que dans le dossier de l'application : c'est celui qu'une mise à jour remplace. Le chemin est retenu d'un lancement à l'autre, hors de ce dossier, justement pour qu'aucune mise à jour n'y touche.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-generaux" }),
-  },
-  {
-    cible: "#tutoriels-liste",
-    titre: "Et la suite",
-    texte:
-      "Tu sais l'essentiel. L'import d'un relevé a son propre tutoriel, juste en dessous de celui-ci : c'est la partie qui demande le plus de réglages, et la seule où un fichier de travers peut faire perdre du temps. La notice, au-dessus, décrit chaque écran en détail quand tu butes sur quelque chose.",
-    avant: () => switchSection("parametres", { sousSection: "parametres-generaux" }),
-  },
-];
+};
+// Ce qui est ouvert en ce moment : { cle: fonction qui le referme }.
+let tutorielOuvertures = {};
+
+function ajusterOuverturesTutoriel(cleVoulue) {
+  Object.keys(tutorielOuvertures).forEach((cle) => {
+    if (cle === cleVoulue) return;
+    tutorielOuvertures[cle]();
+    delete tutorielOuvertures[cle];
+  });
+  if (cleVoulue && !tutorielOuvertures[cleVoulue]) {
+    const defaire = OUVERTURES_TUTORIEL[cleVoulue].ouvrir();
+    if (defaire) tutorielOuvertures[cleVoulue] = defaire;
+  }
+}
+
+/* LE PARCOURS « PRENDRE L'APPLICATION EN MAIN ».
+ *
+ * Il se lit sur une base de DÉCOUVERTE (cf. `baseDecouverte` dans TUTORIELS) :
+ * des comptes, des dépenses, des entrées et des virements fabriqués pour que
+ * chaque phrase ait un chiffre à montrer.
+ *
+ * Les textes vivent dans textes.js (`noyau.tuto-pem-<étape>`, « 3-1 » pour 3.1).
+ * UN GROUPE PARTAGE UN EN-TÊTE : « 3 », « 3.1 » et « 3.2 » portent le même titre,
+ * posé une fois. Les numéros sont ceux que les textes citent (« étape 8.2 du
+ * tutoriel ») et s'affichent dans la bulle. */
+function etapesDecouverte() {
+  const groupe = (titre, etapes) =>
+    etapes.map(([numero, cle, cible, extra = {}]) => ({
+      numero,
+      titre,
+      cible,
+      texte: texteAide(`noyau.tuto-pem-${cle}`),
+      ...extra,
+    }));
+
+  const periode = "#section-dashboard .periode-selecteur";
+  const cartes = "#section-dashboard .flux-periode .flux-carte";
+  return [
+    ...groupe("Quatre écrans, et c'est tout", [
+      ["1", "1", "header nav", { page: PAGE_DASHBOARD }],
+    ]),
+    ...groupe("Ce que tu possèdes aujourd'hui", [
+      ["2", "2", "#section-dashboard .kpi-grid", { page: PAGE_DASHBOARD }],
+    ]),
+    ...groupe("Le choix de la période", [
+      ["3", "3", periode, { page: PAGE_DASHBOARD }],
+      ["3.1", "3-1", "#section-dashboard .periode-pastille"],
+      ["3.2", "3-2", periode],
+    ]),
+    ...groupe("Les cartes de la période", [
+      ["4", "4", "#section-dashboard .flux-periode"],
+      ["4.1", "4-1", `${cartes}:nth-child(1), ${cartes}:nth-child(2)`],
+      ["4.2", "4-2", `${cartes}:nth-child(3), ${cartes}:nth-child(4)`],
+      [
+        "4.3",
+        "4-3",
+        "#flux-ecart-actions",
+        { attente: true, siMasque: texteAide("noyau.tuto-pem-4-3-masque") },
+      ],
+    ]),
+    ...groupe("Les deux graphiques", [
+      ["5.1", "5-1", "#section-dashboard .dashboard-graphes"],
+      ["5.2", "5-2", "#section-dashboard .dashboard-graphes"],
+    ]),
+    ...groupe("La page Opérations !", [
+      ["6", "6", "#operations-sous-nav", { page: PAGE_OPERATIONS }],
+    ]),
+    ...groupe("Les filtres", [
+      [
+        "7",
+        "7",
+        "#filtres-repli-classique",
+        // Dépliés, les filtres sont hauts : la bulle se pose au-dessus plutôt que
+        // sur leurs premiers champs.
+        { page: PAGE_OPERATIONS, ouvre: "filtres", placement: "dessus", defilement: "end" },
+      ],
+    ]),
+    ...groupe("Propriétés spéciales d'une opération", [
+      // La bulle se pose AU-DESSUS du bouton : le formulaire s'ouvre juste en dessous.
+      [
+        "8.1",
+        "8-1",
+        ".ajouter-operation[data-onglet='classique']",
+        { page: PAGE_OPERATIONS, ouvre: "formulaire", placement: "dessus" },
+      ],
+      [
+        "8.2",
+        "8-2",
+        ".ajouter-operation[data-onglet='classique']",
+        { ouvre: "formulaire", placement: "dessus" },
+      ],
+    ]),
+    ...groupe("La configuration de ton app : tes comptes, catégories & monnaies", [
+      ["9", "9", "#comptes-liste", { page: PAGE_CONFIGURATION }],
+      ["9.1", "9-1", "#configuration-partie-categories"],
+      ["9.2", "9-2", "#configuration-partie-comptes"],
+    ]),
+    ...groupe("Les paramètres pour contrôler la logique", [
+      ["10.1", "10-1", "#parametres-sous-nav-droite", { page: PAGE_PARAMETRES_GENERAUX }],
+      ["10.2", "10-2", "#parametres-partie-bdd"],
+    ]),
+    ...groupe("Le système d'extensions", [
+      ["11.1", "11-1", "#extensions-liste", { page: PAGE_EXTENSIONS }],
+      [
+        "11.2",
+        "11-2",
+        "#extensions-liste .extension-carte .extension-entete",
+        { premier: true, attente: true },
+      ],
+    ]),
+    ...groupe("Et la suite ?", [
+      ["12", "12", "#tutoriels-liste", { page: PAGE_PARAMETRES_GENERAUX }],
+    ]),
+  ];
+}
+
+const TUTORIEL_DECOUVERTE = etapesDecouverte();
 
 const TUTORIEL_IMPORT = [
   {
@@ -366,7 +455,7 @@ const TUTORIEL_IMPORT = [
     titre: "L'import vit dans les Paramètres",
     texte:
       "Tout se passe ici, dans l'onglet « Import ». On vient d'y aller pour toi. Garde cette bulle ouverte : elle suit les étapes pendant que tu regardes l'écran.",
-    avant: () => ouvrirSousPageParametres("parametres-import"),
+    page: () => surPage("parametres", "parametres-import"),
   },
   {
     cible: "#import-preset-chips",
@@ -553,7 +642,7 @@ const TUTORIEL_REGLES = [
     cible: "#regles-bloc",
     titre: "Les règles",
     texte: texteAide("regles.tuto-page"),
-    avant: () => switchSection("parametres", { sousSection: "parametres-correspondances" }),
+    page: () => surPage("parametres", "parametres-correspondances"),
   },
   {
     cible: "#btn-regle-nouvelle",
@@ -614,7 +703,7 @@ const TUTORIEL_REGLES = [
     cible: "#regles-liste",
     titre: "L'ordre des règles",
     texte: texteAide("regles.tuto-liste"),
-    avant: () => switchSection("parametres", { sousSection: "parametres-correspondances" }),
+    page: () => surPage("parametres", "parametres-correspondances"),
   },
 ];
 
@@ -630,6 +719,10 @@ const TUTORIELS = [
     resume:
       "Le tour des quatre écrans, et les quelques idées qui ne se devinent pas : les deux rangées de cartes, la période, l'extinction plutôt que la suppression, les extensions.",
     etapes: TUTORIEL_DECOUVERTE,
+    // SE LIT SUR UNE BASE FABRIQUÉE (cf. basculerDecouverte), même si l'utilisateur
+    // a déjà des données : on ne lui montre pas ses finances, et ses chiffres
+    // n'illustreraient pas la phrase qu'on lit.
+    baseDecouverte: true,
   },
   {
     id: "import",
@@ -681,11 +774,15 @@ function renderTutorielsParametres() {
     const commence = etape > 0 || termine;
     const part = termine ? 100 : Math.round((etape / total) * 100);
 
+    // LE NUMÉRO QUE LA BULLE AFFICHE (« 3.2 / 12 »), pas le rang dans la liste à
+    // plat : les sous-étapes ne comptent pas à part.
+    const rang = Math.min(etape, total - 1);
+    const principal = totalEtapes(parcours);
     const etatTexte = termine
       ? t("Terminé")
       : commence
-        ? `${t("Étape")} ${Math.min(etape + 1, total)} / ${total}`
-        : `${t("Pas encore commencé")} · ${total} ${t("étapes")}`;
+        ? `${t("Étape")} ${libelleEtape(parcours, rang)} / ${principal}`
+        : `${t("Pas encore commencé")} · ${principal} ${t("étapes")}`;
 
     const carte = document.createElement("div");
     carte.className = "tutoriel-carte";
@@ -733,6 +830,48 @@ function ouvrirSousPageParametres(sousSection) {
   switchSection("parametres", { sousSection });
 }
 
+/**
+ * La page d'une étape : la sienne, ou celle de la plus proche qui précède.
+ * C'est ce qui rend « Précédent » et « Suivant » sûrs d'atterrir sur le bon
+ * écran quelle que soit l'étape d'où l'on vient (cf. surPage).
+ */
+function pageEffective(parcours, index) {
+  for (let i = index; i >= 0; i--) {
+    if (parcours.etapes[i].page) return parcours.etapes[i].page;
+  }
+  return null;
+}
+
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Les éléments VISIBLES qu'une étape désigne (le premier seulement si `premier`). */
+function ciblesEtape(selecteur, premier = false) {
+  const visibles = [...document.querySelectorAll(selecteur)].filter(
+    (el) => el.offsetParent !== null
+  );
+  return premier ? visibles.slice(0, 1) : visibles;
+}
+
+/** « 3.2 » pour une étape numérotée, son rang sinon. */
+function libelleEtape(parcours, index) {
+  return parcours.etapes[index]?.numero || String(index + 1);
+}
+
+/** Le nombre d'étapes PRINCIPALES : « 3.1 » et « 3.2 » ne comptent pas à part de « 3 ». */
+function totalEtapes(parcours) {
+  const numeros = parcours.etapes.map((e) => e.numero).filter(Boolean);
+  if (numeros.length === 0) return parcours.etapes.length;
+  return new Set(numeros.map((n) => String(n).split(".")[0])).size;
+}
+
+/**
+ * La croix de la bulle (et Échap) ne quitte pas d'un geste : on est peut-être
+ * à l'étape 9 sur 12, et la progression ne se retrouve qu'en le sachant.
+ */
+function demanderSortieTutoriel() {
+  if (confirm(t(texteAide("noyau.tuto-sortie")))) arreterTutoriel();
+}
+
 function bulleTutoriel() {
   let bulle = document.getElementById("tutoriel-bulle");
   if (bulle) return bulle;
@@ -749,7 +888,7 @@ function bulleTutoriel() {
     if (!bouton) return;
     if (bouton.dataset.tutoriel === "suivant") allerEtapeTutoriel(tutorielEtape + 1);
     if (bouton.dataset.tutoriel === "precedent") allerEtapeTutoriel(tutorielEtape - 1);
-    if (bouton.dataset.tutoriel === "fin") arreterTutoriel();
+    if (bouton.dataset.tutoriel === "fin") demanderSortieTutoriel();
   });
   return bulle;
 }
@@ -765,9 +904,11 @@ function eteindreCibleTutoriel() {
  *
  * SOUS LA CIBLE PAR DÉFAUT, AU-DESSUS quand il n'y a plus de place en bas :
  * une bulle qui sort de l'écran ne dit rien, et c'est le cas ordinaire d'un
- * élément situé en bas de page.
+ * élément situé en bas de page. `placement: "dessus"` la veut au-dessus d'office
+ * (le formulaire d'ajout d'une opération s'ouvre juste sous son bouton : la bulle
+ * dessous le cacherait).
  */
-function placerBulleTutoriel(bulle, cible) {
+function placerBulleTutoriel(bulle, cible, placement = null) {
   if (!cible) {
     bulle.classList.add("tutoriel-bulle-centree");
     bulle.style.top = "";
@@ -779,9 +920,14 @@ function placerBulleTutoriel(bulle, cible) {
   const hauteur = bulle.offsetHeight || 180;
   const largeur = bulle.offsetWidth || 340;
   const marge = 12;
-  let haut = rect.bottom + marge;
-  if (haut + hauteur > window.innerHeight - marge) {
+  let haut;
+  if (placement === "dessus") {
     haut = Math.max(marge, rect.top - hauteur - marge);
+  } else {
+    haut = rect.bottom + marge;
+    if (haut + hauteur > window.innerHeight - marge) {
+      haut = Math.max(marge, rect.top - hauteur - marge);
+    }
   }
   const gauche = Math.min(
     Math.max(marge, rect.left),
@@ -821,8 +967,7 @@ async function allerEtapeTutoriel(index) {
   if (index < 0) return;
   if (index >= parcours.etapes.length) {
     noterProgression(parcours.id, { etape: parcours.etapes.length - 1, termine: true });
-    arreterTutoriel();
-    showMessage(`${t("Tutoriel terminé :")} ${t(parcours.nom)}`, "success");
+    arreterTutoriel({ message: `${t("Tutoriel terminé :")} ${t(parcours.nom)}` });
     return;
   }
   tutorielEtape = index;
@@ -834,6 +979,17 @@ async function allerEtapeTutoriel(index) {
 
   const etape = parcours.etapes[index];
   eteindreCibleTutoriel();
+
+  // LA PAGE D'ABORD, puis ce que l'étape y ouvre : un formulaire ne s'ouvre pas
+  // sur un écran qu'on n'affiche pas encore. Un écran qui vient de changer de
+  // page, ou qui attend ses données, se laisse un instant pour les lire.
+  const page = pageEffective(parcours, index);
+  const pageChangee = page ? page() === true : false;
+  if (pageChangee || etape.attente) {
+    await pause(pageChangee ? 450 : 350);
+    if (jeton !== tutorielJeton) return;
+  }
+  ajusterOuverturesTutoriel(etape.ouvre || null);
   if (etape.avant) etape.avant();
 
   // UN EXEMPLE SE MONTRE DANS L'APERÇU DU FICHIER, et c'est lui que la bulle
@@ -847,26 +1003,26 @@ async function allerEtapeTutoriel(index) {
     if (exempleCharge) selecteurCible = "#import-apercu-fichier-bloc";
   }
 
-  const cible = document.querySelector(selecteurCible);
+  const cibles = ciblesEtape(selecteurCible, etape.premier && !exempleCharge);
   // UN BLOC MASQUÉ N'EST PAS UNE ERREUR : la moitié de l'écran d'import
   // n'existe qu'une fois un fichier lu. On le dit plutôt que de pointer un
   // rectangle vide — ou, pire, de refuser d'avancer.
-  const visible = cible && cible.offsetParent !== null;
+  const visible = cibles.length > 0;
   if (visible) {
-    cible.classList.add("tutoriel-cible");
-    cible.scrollIntoView({ behavior: "smooth", block: "center" });
+    cibles.forEach((el) => el.classList.add("tutoriel-cible"));
+    cibles[0].scrollIntoView({ behavior: "smooth", block: etape.defilement || "center" });
   }
 
   const bulle = bulleTutoriel();
   bulle.innerHTML = `
     <div class="tutoriel-entete">
-      <span class="tutoriel-compteur">${index + 1} / ${parcours.etapes.length}</span>
+      <span class="tutoriel-compteur">${escapeHtml(libelleEtape(parcours, index))} / ${totalEtapes(parcours)}</span>
       <span class="tutoriel-parcours">${escapeHtml(t(parcours.nom))}</span>
       <button type="button" class="tutoriel-fermer" data-tutoriel="fin"
               title="${t("Quitter le tutoriel")}" aria-label="${t("Quitter le tutoriel")}">&times;</button>
     </div>
     <h4>${escapeHtml(t(etape.titre))}</h4>
-    <p>${escapeHtml(t(etape.texte))}</p>
+    <div class="tutoriel-texte"></div>
     ${exempleTutorielHtml(etape.exemple, exempleCharge)}
     ${
       !visible && etape.siMasque
@@ -881,10 +1037,105 @@ async function allerEtapeTutoriel(index) {
         index === parcours.etapes.length - 1 ? t("Terminer") : t("Suivant")
       }</button>
     </div>`;
+  // LE TEXTE S'ÉCRIT EN NŒUDS (puces, sauts de ligne, gras, liens : cf. textes.js,
+  // ecrireTexteAide), jamais en HTML. Une phrase sans marqueur reste un simple texte.
+  const zoneTexte = bulle.querySelector(".tutoriel-texte");
+  const texte = t(etape.texte);
+  if (texteAMarqueurs(texte)) ecrireTexteAide(zoneTexte, texte);
+  else zoneTexte.textContent = texte;
   bulle.style.display = "";
   // APRÈS le rendu : la hauteur de la bulle dépend du texte qu'on vient d'y
   // écrire, et la placer avant la mesurerait vide.
-  placerBulleTutoriel(bulle, visible ? cible : null);
+  placerBulleTutoriel(bulle, visible ? cibles[0] : null, etape.placement);
+}
+
+/* ---------- La base de découverte ----------
+ *
+ * LE PARCOURS « PRENDRE L'APPLICATION EN MAIN » SE LIT SUR UNE BASE FABRIQUÉE
+ * (cf. backend/app/services/base_decouverte.py), même quand l'utilisateur a déjà
+ * des données : ses chiffres n'illustreraient pas la phrase qu'on lit, et il n'y
+ * a aucune raison de lui faire passer ses finances sous une bulle.
+ *
+ * LE SERVEUR EST LA SEULE MÉMOIRE DE « SUIS-JE DESSUS ? ». Entrer et sortir
+ * rechargent la page, parce que tout ce que l'écran a chargé (comptes, soldes,
+ * période) appartient à l'autre base. Au rechargement, `reprendreDecouverte`
+ * relit l'état du serveur : si la découverte est toujours active, le parcours
+ * repart de l'étape où il en était. C'est ce qui rend sûre une page rechargée ou
+ * fermée en plein tutoriel — on ne reste jamais coincé sur la base fabriquée sans
+ * la bulle qui permet d'en sortir.
+ */
+const CLE_SORTIE_DECOUVERTE = "budget-app.tutoriel-sortie";
+
+/** Vrai si la découverte est (déjà) active. Sinon la prépare et recharge la page : rend false. */
+async function entrerDecouverte() {
+  try {
+    const etat = await apiFetch("/tutoriel/decouverte");
+    if (etat.actif) return true;
+    await apiFetch("/tutoriel/decouverte/entrer", { method: "POST" });
+    window.location.reload();
+    return false;
+  } catch (err) {
+    showMessage(err.message, "error");
+    return false;
+  }
+}
+
+/** Rejoint la base d'avant, puis recharge la page. `message` s'affiche une fois revenu. */
+async function quitterDecouverte(message) {
+  try {
+    const etat = await apiFetch("/tutoriel/decouverte");
+    if (etat.actif) await apiFetch("/tutoriel/decouverte/quitter", { method: "POST" });
+  } catch (err) {
+    showMessage(err.message, "error");
+    return;
+  }
+  try {
+    sessionStorage.setItem(CLE_SORTIE_DECOUVERTE, JSON.stringify({ message: message || null }));
+  } catch (err) {
+    // Stockage indisponible : on revient sur sa base sans message, rien de cassé.
+  }
+  window.location.reload();
+}
+
+/**
+ * Au chargement de la page : si le serveur est sur la base de découverte, le
+ * parcours reprend là où il en était ; si l'on vient d'en sortir, on revient sur
+ * l'écran des tutoriels avec le message de sortie.
+ */
+async function reprendreDecouverte() {
+  // Après le démarrage de l'application : les écrans qu'on va ouvrir ne sont
+  // prêts qu'une fois ses premières lectures faites.
+  if (BudgetApp.pret) {
+    try {
+      await BudgetApp.pret;
+    } catch (err) {
+      return;
+    }
+  }
+  let sortie = null;
+  try {
+    sortie = JSON.parse(sessionStorage.getItem(CLE_SORTIE_DECOUVERTE) || "null");
+    sessionStorage.removeItem(CLE_SORTIE_DECOUVERTE);
+  } catch (err) {
+    sortie = null;
+  }
+  if (sortie) {
+    switchSection("parametres", { sousSection: "parametres-generaux" });
+    if (sortie.message) showMessage(sortie.message, "success");
+  }
+  let etat;
+  try {
+    etat = await apiFetch("/tutoriel/decouverte");
+  } catch (err) {
+    return;
+  }
+  if (!etat.actif) return;
+  const parcours = TUTORIELS.find((p) => p.baseDecouverte);
+  if (!parcours) return;
+  tutorielParcours = parcours;
+  tutorielActif = true;
+  const { etape } = progressionDe(parcours.id);
+  allerEtapeTutoriel(Math.min(etape, parcours.etapes.length - 1));
 }
 
 /**
@@ -894,26 +1145,42 @@ async function allerEtapeTutoriel(index) {
  * « relire la dernière étape », et laisser la bulle s'ouvrir sur la conclusion
  * d'un tutoriel qu'on vient de choisir de recommencer n'aurait aucun sens.
  */
-function demarrerTutoriel(id, { reprendre = true } = {}) {
+async function demarrerTutoriel(id, { reprendre = true } = {}) {
   const parcours = tutorielParId(id);
   if (!parcours) return;
-  tutorielParcours = parcours;
-  tutorielActif = true;
   const { etape, termine } = progressionDe(id);
   if (!reprendre || termine) noterProgression(id, { etape: 0, termine: false });
+  // La progression est écrite AVANT le rechargement qu'entraîne la base de
+  // découverte : c'est elle que `reprendreDecouverte` relira.
+  if (parcours.baseDecouverte && !(await entrerDecouverte())) return;
+  tutorielParcours = parcours;
+  tutorielActif = true;
   allerEtapeTutoriel(reprendre && !termine ? Math.min(etape, parcours.etapes.length - 1) : 0);
 }
 
-function arreterTutoriel() {
+/**
+ * Ferme le tutoriel. `message` s'affiche à la fin (« Tutoriel terminé »). Sur la
+ * base de découverte, la sortie rejoint la base d'avant et recharge la page :
+ * le message attend alors le rechargement (cf. reprendreDecouverte).
+ */
+async function arreterTutoriel({ message = null } = {}) {
+  const parcours = tutorielParcours;
   tutorielActif = false;
   tutorielJeton++;
   eteindreCibleTutoriel();
+  // Ce que le tutoriel avait ouvert pour s'illustrer se referme avec lui.
+  ajusterOuverturesTutoriel(null);
   // L'EXEMPLE REPART AVEC LE TUTORIEL : un relevé qui n'existe pas ne doit pas
   // rester dans l'écran d'import. Un fichier déposé par l'utilisateur, lui, n'est
   // jamais touché ici.
   if (fichierImportEstUnExemple()) reinitialiserImport();
   const bulle = document.getElementById("tutoriel-bulle");
   if (bulle) bulle.style.display = "none";
+  if (parcours && parcours.baseDecouverte) {
+    await quitterDecouverte(message);
+  } else if (message) {
+    showMessage(message, "success");
+  }
 }
 
 // La bulle est en position fixe : elle doit suivre ce qu'elle désigne quand la
@@ -924,24 +1191,25 @@ function arreterTutoriel() {
     () => {
       if (!tutorielActif || !tutorielParcours) return;
       const etape = tutorielParcours.etapes[tutorielEtape];
-      const cible = document.querySelector(
-        etape.exemple && fichierImportEstUnExemple() ? "#import-apercu-fichier-bloc" : etape.cible
+      const surExemple = etape.exemple && fichierImportEstUnExemple();
+      const cibles = ciblesEtape(
+        surExemple ? "#import-apercu-fichier-bloc" : etape.cible,
+        !surExemple && etape.premier
       );
 
-      placerBulleTutoriel(
-        bulleTutoriel(),
-        cible && cible.offsetParent !== null ? cible : null
-      );
+      placerBulleTutoriel(bulleTutoriel(), cibles[0] || null, etape.placement);
     },
     { passive: true }
   );
 });
 
-// Échap ferme le tutoriel, comme toute chose ouverte par-dessus l'application.
-// La progression est déjà écrite : on reprendra exactement ici.
+// Échap ferme le tutoriel, comme toute chose ouverte par-dessus l'application —
+// après confirmation, comme la croix. La progression est déjà écrite : on
+// reprendra exactement ici.
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && tutorielActif) arreterTutoriel();
+  if (e.key === "Escape" && tutorielActif) demanderSortieTutoriel();
 });
 
 chargerProgressionTutoriels();
 renderTutorielsParametres();
+reprendreDecouverte();

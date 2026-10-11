@@ -585,6 +585,59 @@ const TEXTES = {
   "import-placements.action":
     "Une ligne de compte-titres n'a pas de catégorie : un mouvement de titres n'en porte pas. Un transfert, lui, touche deux comptes et le relevé n'en nomme qu'un — la règle peut donc désigner le second.",
 
+  /* ----- Le tutoriel « Prendre l'application en main » -----
+     Un texte par étape (ou sous-étape : 3-1 pour 3.1), lu par tutoriel.js. */
+  "noyau.tuto-pem-1":
+    "/- Le dashboard : la vue principale de ton appli /- Vue des avoirs : pour voir l'état de chacun de tes comptes /- Opérations : là où tu peux retrouver toutes tes opérations /- Paramètres : on y règle tout le reste, entre extensions, import de données et tes comptes & catégories",
+  "noyau.tuto-pem-2":
+    "Ces cartes ne dépendent pas du choix de la période. // Tu y vois la somme des soldes de tes comptes courants et le prévisionnel (étape 8.2 du tutoriel).",
+  "noyau.tuto-pem-3":
+    "Pour contrôler la période sur laquelle les graphiques se basent. Les flèches te permettent de montrer ou cacher les différents niveaux de périodes.",
+  "noyau.tuto-pem-3-1":
+    "Le sélecteur rond à gauche te permet de changer de niveau dans la hiérarchie : Tout, Années, Mois et Semaines.",
+  "noyau.tuto-pem-3-2":
+    "Comment le sélecteur de niveau réagit à un clic sur un onglet ? /- Cliquer sur un onglet de niveau inférieur (par exemple, sur Oct quand tu es sur 2026) change le sélecteur de hiérarchie. /- Cliquer sur un onglet de niveau supérieur change la période mère (cliquer sur 2027 en étant dans Oct 2026 te fait passer sur Oct 2027).",
+  "noyau.tuto-pem-4":
+    "Elles suivent la période suivie, mais ne descendent pas au niveau des semaines. Total entrées et dépenses montrent les totaux concernés sur la période.",
+  "noyau.tuto-pem-4-1":
+    "Total entrées et dépenses se basent sur la date de l'opération mais pas que : /- les dépenses prévisionnelles sont prises en compte /- les dépenses amorties sur plusieurs mois sont prises en compte au prorata /- les dépenses remboursables / prêts ne comptent que ce qu'ils coûtent (la part non-remboursable / les intérêts du prêt) // Les deux premiers points sont détaillés plus tard (étape 8.1 et 8.2 du tuto), le dernier nécessite les extensions en question.",
+  "noyau.tuto-pem-4-2":
+    "/- Variation attribuée au mois calcule la différence des deux cartes précédentes. /- Variation sur la période brute te montre la somme de toutes les entrées - celle de toutes tes dépenses sur la période : elle se base uniquement sur la date de l'opération.",
+  "noyau.tuto-pem-4-3":
+    "Si les deux variations diffèrent, un bouton s'affiche pour comprendre pourquoi.",
+  "noyau.tuto-pem-5-1":
+    "Ils affichent les montants par catégorie. // Survoler une barre, une tranche ou la légende fait apparaître une infobulle : tu peux la figer en cliquant sur une touche (F par défaut).",
+  "noyau.tuto-pem-5-2":
+    "L'infobulle te montre plusieurs informations en plus du total de la catégorie : /- Le top 3 des dépenses de la catégorie, agrégé : l'app regroupe ensemble les dépenses qui ont le même nom puis calcule le top 3. /- Le bouton 'Voir les opérations', qui t'amène vers la page Opérations filtrée.",
+  "noyau.tuto-pem-6":
+    "On y trouve un onglet par type d'opérations. // Par défaut, les opérations apparaissent par ordre chronologique.",
+  "noyau.tuto-pem-7":
+    "Ils fonctionnent comme on s'y attend, avec quelques spécificités : /- Choisir une période avec 'Du' et 'Au' modifie la période (Mois, Année, Tout) pour qu'elle soit compatible avec le filtre. /- Ne pas renseigner un montant min ou max n'impose pas de restriction (sur le minimum ou le maximum). /- Quand un filtre est appliqué sur une case, celle-ci devient bleue.",
+  "noyau.tuto-pem-8-1":
+    "/- Découpée : permet de diviser une opération en plusieurs catégories /- Amortie sur plusieurs mois : permet de faire rentrer une dépense sur plusieurs mois, au prorata du nombre de mois",
+  "noyau.tuto-pem-8-2":
+    "/- Prévisionnelle : elle agit comme une opération qui n'a pas encore eu lieu /- Récurrente : permet d'ajouter une récurrence, elle nécessite de cocher Prévisionnelle /- Si tu importes tes opérations (cf. tutoriel sur l'Import), il faut qu'une dépense prévisionnelle reconnaisse la vraie opération à l'import. Tu peux donc indiquer : /-- une plage de date dans laquelle la dépense devrait arriver /-- des mots clés à chercher dans le libellé (pour enregistrer un mot-clé, utilise le bouton '+' ou Ctrl + Entrée)",
+  "noyau.tuto-pem-9":
+    "Tu peux créer, modifier ou supprimer ces différents éléments. Si tu as des opérations en base, la suppression ne sera pas disponible. // Tu peux utiliser la fonctionnalité 'Éteindre' : tout se passe comme si tu n'avais pas le compte / la catégorie, mais les opérations en base le conservent.",
+  "noyau.tuto-pem-9-1":
+    "Deux types de catégories : celles pour les dépenses, et celles pour les entrées d'argent. Tu le renseignes en créant ou en modifiant.",
+  "noyau.tuto-pem-9-2":
+    "Similairement, tu peux avoir plusieurs types de comptes. Seuls les soldes des comptes courants entrent dans le calcul du solde total (Dashboard). // Pour ce qui est des monnaies, il faut l'extension 'Monnaies' - le fonctionnement est similaire aux comptes & catégories.",
+  "noyau.tuto-pem-10-1":
+    "Les quatre onglets de droite (Paramètres généraux, Correspondances, Import et Extensions) contrôlent la logique de l'application.",
+  "noyau.tuto-pem-10-2":
+    "Toutes les informations de l'application vivent dans un fichier de base de données (.db). Range-le hors du dossier de l'app pour qu'il ne soit pas écrasé par une mise à jour. Le chemin, lui, est retenu entre les mises à jour.",
+  "noyau.tuto-pem-11-1":
+    "Par défaut, l'app est minimaliste. Tu peux la personnaliser en téléchargeant les extensions (/italic(depuis le GitHub, les instructions de téléchargement s'y trouvent)) et en activant les extensions qui t'intéressent.",
+  "noyau.tuto-pem-11-2":
+    "/- L'icône de fichier gris explique ce que fait l'extension. L'icône orange avertit d'une condition à l'usage. /- Allumer ou éteindre une extension ne supprime pas les données qui y sont associées (tout reste en base). La réactiver les affiche à nouveau.",
+  "noyau.tuto-pem-12":
+    "Tu connais maintenant le fonctionnement de l'app. Si tu cherches plus de détails, tu peux consulter la notice d'utilisation. // Pour apprendre comment importer des opérations, utilise le tutoriel 'Importer un relevé'. // Bonne continuation avec l'app !",
+  "noyau.tuto-pem-4-3-masque":
+    "Le bouton n'apparaît que lorsque les deux variations diffèrent : ici, elles disent la même chose.",
+  "noyau.tuto-sortie":
+    "Quitter le tutoriel ? Tu pourras reprendre là où tu en étais.",
+
   /* ----- Extension « Monnaies » — la case d'agrégation (posée par son JS) ----- */
   "monnaies.agregation":
     "Additionne tes monnaies en une seule, au taux que tu as saisi dans Paramètres → Monnaies. Rien n'est modifié : décoche et tout revient. Une monnaie sans taux est laissée de côté, et signalée.",
@@ -677,7 +730,12 @@ const CHEMIN_FIN = /[),.;:!?«»(\n]/;
 /** Vrai si la phrase porte au moins un marqueur (et demande donc un rendu). */
 function texteAMarqueurs(texte) {
   const s = String(texte || "");
-  return s.includes(SAUT_MARQUEUR) || PUCE_MOTIF.test(s) || debutCheminDans(s, 0) !== -1;
+  return (
+    s.includes(SAUT_MARQUEUR) ||
+    PUCE_MOTIF.test(s) ||
+    STYLE_MOTIF.test(s) ||
+    debutCheminDans(s, 0) !== -1
+  );
 }
 
 /* L'indice du prochain « / » qui ouvre un chemin, ou -1. Un chemin commence

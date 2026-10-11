@@ -25,6 +25,7 @@ from .routers import (
     operations,
     parametres_base,
     preferences,
+    tutoriel,
     types_comptes,
     types_operation,
     virements,
@@ -52,6 +53,8 @@ app.include_router(preferences.router)
 # remplace). Choisir où ranger ses données n'est plus un outil de mise au point
 # mais la seule chose qui les protège — cf. routers/parametres_base.py.
 app.include_router(parametres_base.router)
+# La base de découverte du tutoriel : fabriquée et quittée à la demande, jamais mémorisée.
+app.include_router(tutoriel.router)
 
 
 def _monter_extensions() -> list[str]:

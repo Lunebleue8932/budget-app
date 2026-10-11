@@ -4126,5 +4126,77 @@ Object.assign(TRADUCTIONS.en, {
     "The currency name and symbol are required.",
   "Monnaie enregistrée.":
     "Currency saved.",
+  "/- Le dashboard : la vue principale de ton appli /- Vue des avoirs : pour voir l'état de chacun de tes comptes /- Opérations : là où tu peux retrouver toutes tes opérations /- Paramètres : on y règle tout le reste, entre extensions, import de données et tes comptes & catégories":
+    "/- The dashboard: the main view of your app /- Assets overview: to see the state of each of your accounts /- Transactions: where you can find all your transactions /- Settings: where everything else is set up, from extensions and data import to your accounts & categories",
+  "Ces cartes ne dépendent pas du choix de la période. // Tu y vois la somme des soldes de tes comptes courants et le prévisionnel (étape 8.2 du tutoriel).":
+    "These cards don't depend on the period you choose. // You see the sum of your checking account balances and the forecast (step 8.2 of the tutorial).",
+  "Pour contrôler la période sur laquelle les graphiques se basent. Les flèches te permettent de montrer ou cacher les différents niveaux de périodes.":
+    "To control the period the charts are based on. The arrows let you show or hide the different period levels.",
+  "Le sélecteur rond à gauche te permet de changer de niveau dans la hiérarchie : Tout, Années, Mois et Semaines.":
+    "The round selector on the left lets you change level in the hierarchy: All, Years, Months and Weeks.",
+  "Comment le sélecteur de niveau réagit à un clic sur un onglet ? /- Cliquer sur un onglet de niveau inférieur (par exemple, sur Oct quand tu es sur 2026) change le sélecteur de hiérarchie. /- Cliquer sur un onglet de niveau supérieur change la période mère (cliquer sur 2027 en étant dans Oct 2026 te fait passer sur Oct 2027).":
+    "How does the level selector react when you click a tab? /- Clicking a lower-level tab (for example Oct while you are on 2026) changes the hierarchy selector. /- Clicking a higher-level tab changes the parent period (clicking 2027 while in Oct 2026 takes you to Oct 2027).",
+  "Elles suivent la période suivie, mais ne descendent pas au niveau des semaines. Total entrées et dépenses montrent les totaux concernés sur la période.":
+    "They follow the selected period, but don't go down to the week level. Total In and Total Out show the relevant totals over the period.",
+  "Total entrées et dépenses se basent sur la date de l'opération mais pas que : /- les dépenses prévisionnelles sont prises en compte /- les dépenses amorties sur plusieurs mois sont prises en compte au prorata /- les dépenses remboursables / prêts ne comptent que ce qu'ils coûtent (la part non-remboursable / les intérêts du prêt) // Les deux premiers points sont détaillés plus tard (étape 8.1 et 8.2 du tuto), le dernier nécessite les extensions en question.":
+    "Total In and Total Out are based on the transaction date, but not only: /- planned expenses are taken into account /- expenses spread over several months are taken into account pro rata /- reimbursable expenses / loans only count for what they cost you (the non-reimbursable share / the interest on the loan) // The first two points are detailed later (steps 8.1 and 8.2 of the tutorial), the last one needs the extensions in question.",
+  "/- Variation attribuée au mois calcule la différence des deux cartes précédentes. /- Variation sur la période brute te montre la somme de toutes les entrées - celle de toutes tes dépenses sur la période : elle se base uniquement sur la date de l'opération.":
+    "/- Change attributed to this month is the difference between the two previous cards. /- Gross change over the period shows the sum of all income - the sum of all your expenses over the period: it is based only on the transaction date.",
+  "Si les deux variations diffèrent, un bouton s'affiche pour comprendre pourquoi.":
+    "If the two variations differ, a button appears to help you understand why.",
+  "Ils affichent les montants par catégorie. // Survoler une barre, une tranche ou la légende fait apparaître une infobulle : tu peux la figer en cliquant sur une touche (F par défaut).":
+    "They show the amounts by category. // Hovering over a bar, a slice or the legend brings up a tooltip: you can freeze it by pressing a key (F by default).",
+  "L'infobulle te montre plusieurs informations en plus du total de la catégorie : /- Le top 3 des dépenses de la catégorie, agrégé : l'app regroupe ensemble les dépenses qui ont le même nom puis calcule le top 3. /- Le bouton 'Voir les opérations', qui t'amène vers la page Opérations filtrée.":
+    "The tooltip shows several pieces of information besides the category total: /- The category's top 3 expenses, aggregated: the app groups expenses with the same name together, then computes the top 3. /- The 'See transactions' button, which takes you to the filtered Transactions page.",
+  "On y trouve un onglet par type d'opérations. // Par défaut, les opérations apparaissent par ordre chronologique.":
+    "There is one tab per transaction type. // By default, transactions appear in chronological order.",
+  "Ils fonctionnent comme on s'y attend, avec quelques spécificités : /- Choisir une période avec 'Du' et 'Au' modifie la période (Mois, Année, Tout) pour qu'elle soit compatible avec le filtre. /- Ne pas renseigner un montant min ou max n'impose pas de restriction (sur le minimum ou le maximum). /- Quand un filtre est appliqué sur une case, celle-ci devient bleue.":
+    "They work as you would expect, with a few specifics: /- Choosing a period with 'From' and 'To' changes the period (Month, Year, All) so that it fits the filter. /- Leaving a min or max amount empty sets no restriction (on the minimum or the maximum). /- When a filter is applied to a field, it turns blue.",
+  "/- Découpée : permet de diviser une opération en plusieurs catégories /- Amortie sur plusieurs mois : permet de faire rentrer une dépense sur plusieurs mois, au prorata du nombre de mois":
+    "/- Split: lets you divide a transaction across several categories /- Spread over several months: lets you spread an expense over several months, pro rata to the number of months",
+  "/- Prévisionnelle : elle agit comme une opération qui n'a pas encore eu lieu /- Récurrente : permet d'ajouter une récurrence, elle nécessite de cocher Prévisionnelle /- Si tu importes tes opérations (cf. tutoriel sur l'Import), il faut qu'une dépense prévisionnelle reconnaisse la vraie opération à l'import. Tu peux donc indiquer : /-- une plage de date dans laquelle la dépense devrait arriver /-- des mots clés à chercher dans le libellé (pour enregistrer un mot-clé, utilise le bouton '+' ou Ctrl + Entrée)":
+    "/- Planned: it acts like a transaction that hasn't happened yet /- Recurring: lets you add a recurrence, and requires ticking Planned /- If you import your transactions (see the Import tutorial), a planned expense has to recognize the real transaction at import. You can therefore set: /-- a date range in which the expense should arrive /-- keywords to look for in the label (to save a keyword, use the '+' button or Ctrl + Enter)",
+  "Tu peux créer, modifier ou supprimer ces différents éléments. Si tu as des opérations en base, la suppression ne sera pas disponible. // Tu peux utiliser la fonctionnalité 'Éteindre' : tout se passe comme si tu n'avais pas le compte / la catégorie, mais les opérations en base le conservent.":
+    "You can create, edit or delete these different items. If you have transactions in the database, deletion won't be available. // You can use the 'Disable' feature: everything works as if you didn't have the account / category, but the transactions in the database keep it.",
+  "Deux types de catégories : celles pour les dépenses, et celles pour les entrées d'argent. Tu le renseignes en créant ou en modifiant.":
+    "Two kinds of categories: those for expenses, and those for income. You set it when creating or editing.",
+  "Similairement, tu peux avoir plusieurs types de comptes. Seuls les soldes des comptes courants entrent dans le calcul du solde total (Dashboard). // Pour ce qui est des monnaies, il faut l'extension 'Monnaies' - le fonctionnement est similaire aux comptes & catégories.":
+    "Similarly, you can have several account types. Only checking account balances count toward the total balance (Dashboard). // As for currencies, you need the 'Currencies' extension - it works like accounts & categories.",
+  "Les quatre onglets de droite (Paramètres généraux, Correspondances, Import et Extensions) contrôlent la logique de l'application.":
+    "The four tabs on the right (General settings, Mappings, Import and Extensions) control the logic of the app.",
+  "Toutes les informations de l'application vivent dans un fichier de base de données (.db). Range-le hors du dossier de l'app pour qu'il ne soit pas écrasé par une mise à jour. Le chemin, lui, est retenu entre les mises à jour.":
+    "All the app's information lives in a database file (.db). Store it outside the app folder so an update doesn't overwrite it. The path itself is remembered between updates.",
+  "Par défaut, l'app est minimaliste. Tu peux la personnaliser en téléchargeant les extensions (/italic(depuis le GitHub, les instructions de téléchargement s'y trouvent)) et en activant les extensions qui t'intéressent.":
+    "By default, the app is minimalist. You can customize it by downloading extensions (/italic(from GitHub, where the download instructions are)) and turning on the ones you're interested in.",
+  "/- L'icône de fichier gris explique ce que fait l'extension. L'icône orange avertit d'une condition à l'usage. /- Allumer ou éteindre une extension ne supprime pas les données qui y sont associées (tout reste en base). La réactiver les affiche à nouveau.":
+    "/- The grey file icon explains what the extension does. The orange icon warns of a condition for use. /- Turning an extension on or off doesn't delete the data tied to it (everything stays in the database). Turning it back on shows it again.",
+  "Tu connais maintenant le fonctionnement de l'app. Si tu cherches plus de détails, tu peux consulter la notice d'utilisation. // Pour apprendre comment importer des opérations, utilise le tutoriel 'Importer un relevé'. // Bonne continuation avec l'app !":
+    "You now know how the app works. If you're looking for more detail, you can read the user guide. // To learn how to import transactions, use the 'Importing a statement' tutorial. // Enjoy the app!",
+  "Le bouton n'apparaît que lorsque les deux variations diffèrent : ici, elles disent la même chose.":
+    "The button only appears when the two variations differ: here, they say the same thing.",
+  "Quitter le tutoriel ? Tu pourras reprendre là où tu en étais.":
+    "Leave the tutorial? You'll be able to pick up where you left off.",
+  "Ce que tu possèdes aujourd'hui":
+    "What you own today",
+  "Le choix de la période":
+    "Choosing the period",
+  "Les cartes de la période":
+    "The period cards",
+  "Les deux graphiques":
+    "The two charts",
+  "La page Opérations !":
+    "The Transactions page!",
+  "Les filtres":
+    "Filters",
+  "Propriétés spéciales d'une opération":
+    "Special properties of a transaction",
+  "La configuration de ton app : tes comptes, catégories & monnaies":
+    "Your app setup: accounts, categories & currencies",
+  "Les paramètres pour contrôler la logique":
+    "The settings that control the logic",
+  "Le système d'extensions":
+    "The extension system",
+  "Et la suite ?":
+    "What's next?",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

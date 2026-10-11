@@ -487,10 +487,16 @@ def installer_base(destination: str, deplacer_depuis: str | None = None) -> tupl
         return changer_base(str(cible)), "déplacée"
 
     # Ni fichier à l'arrivée, ni base à déplacer : on en fabrique une neuve.
-    # `upgrade head` sur un chemin inexistant crée le fichier, y pose tout le
-    # schéma et son contenu initial (catégories, monnaie par défaut) — c'est
-    # exactement ce qui se passe aujourd'hui au premier lancement, simplement
-    # ailleurs.
+    creer_base_neuve(cible)
+    return changer_base(str(cible)), "créée"
+
+
+def creer_base_neuve(cible: Path) -> None:
+    """Fabrique une base neuve à `cible` SANS y basculer.
+
+    `upgrade head` sur un chemin inexistant crée le fichier, y pose tout le
+    schéma et son contenu initial (catégories, monnaie par défaut) — c'est
+    exactement ce qui se passe au premier lancement, simplement ailleurs."""
     from alembic import command
     from alembic.config import Config
 
@@ -501,7 +507,6 @@ def installer_base(destination: str, deplacer_depuis: str | None = None) -> tupl
         command.upgrade(config, "head")
     except Exception as exc:
         raise ValueError(f"Impossible de créer la base {cible} : {exc}") from exc
-    return changer_base(str(cible)), "créée"
 
 
 def _fermer_base_courante() -> None:
@@ -554,7 +559,70 @@ def changer_base(chemin: str) -> Path:
     _etat.engine, _etat.SessionLocal, _etat.chemin = engine, SessionLocal, nouveau_chemin
     if ancien_engine is not None:
         ancien_engine.dispose()
+    # Basculer ailleurs que sur la base de découverte met fin à la découverte :
+    # il n'y a plus de « base d'avant » à rejoindre en la quittant (cf. plus bas).
+    if _decouverte["chemin"] is not None and nouveau_chemin != _decouverte["chemin"]:
+        _decouverte["chemin"] = None
+        _decouverte["avant"] = None
     return nouveau_chemin
+
+
+# ---------- La base de DÉCOUVERTE (tutoriel « Prendre l'application en main ») ----------
+#
+# POURQUOI. Le tutoriel pointe des cartes, des graphiques, des filtres : sur une
+# base neuve il ne montre que des zéros, et sur la base de l'utilisateur il
+# montrerait SES finances (et lui ferait voir des chiffres qui n'illustrent pas la
+# phrase qu'on lit). On passe donc, le temps du tutoriel, sur une base exprès, que
+# l'application fabrique elle-même (cf. services/base_decouverte.py) — jamais un
+# fichier livré : un fichier binaire resterait figé à un schéma, celle-ci suit
+# toujours les migrations.
+#
+# CE QUI LA REND SÛRE.
+#   - Le fichier vit dans le dossier temporaire du système, JAMAIS à côté de la
+#     base de l'utilisateur, et il est recréé à chaque entrée.
+#   - AUCUNE MÉMORISATION : on n'écrit rien dans le profil (cf.
+#     routers/tutoriel.py). Fermer l'application en plein tutoriel suffit à
+#     retrouver sa base au lancement suivant, qui résout toujours son chemin
+#     depuis le profil et jamais depuis cet état.
+#   - La base d'avant n'est ni ouverte en écriture ni modifiée : on la quitte, on
+#     la rejoint.
+_decouverte: dict = {"chemin": None, "avant": None}
+
+
+def en_decouverte() -> bool:
+    return _decouverte["chemin"] is not None and _etat.chemin == _decouverte["chemin"]
+
+
+def entrer_decouverte(chemin: Path) -> Path:
+    """Bascule sur la base de découverte déjà fabriquée à `chemin`. Sans effet
+    si on y est déjà (le tutoriel peut être relancé sans passer par la sortie)."""
+    if en_decouverte():
+        return _etat.chemin
+    avant = _etat.chemin
+    basculee = changer_base(str(chemin))
+    _decouverte["chemin"] = basculee
+    _decouverte["avant"] = avant
+    return basculee
+
+
+def quitter_decouverte() -> Path:
+    """Rejoint la base qu'on avait quittée en entrant, et supprime celle de
+    découverte. Sans effet hors découverte."""
+    if not en_decouverte():
+        return _etat.chemin
+    avant, decouverte = _decouverte["avant"], _decouverte["chemin"]
+    retour = changer_base(str(avant))
+    _decouverte["chemin"] = None
+    _decouverte["avant"] = None
+    # Le moteur de la base de découverte est fermé par la bascule ; Windows ne
+    # supprime pas un fichier ouvert, d'où l'ordre.
+    for suffixe in ("", "-wal", "-shm", "-journal"):
+        annexe = decouverte.with_name(decouverte.name + suffixe)
+        try:
+            annexe.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return retour
 
 
 def get_db():

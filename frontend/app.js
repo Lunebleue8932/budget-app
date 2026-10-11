@@ -17471,7 +17471,9 @@ document.querySelectorAll("nav button").forEach((btn) => {
   btn.addEventListener("click", () => switchSection(btn.dataset.section));
 });
 
-(async function init() {
+// Exposée pour qui doit attendre que l'application soit prête (le tutoriel qui reprend
+// après un rechargement, cf. tutoriel.js).
+BudgetApp.pret = (async function init() {
   try {
     await loadMeta();
     // Avant les comptes : le formulaire d'opération lit les monnaies du compte

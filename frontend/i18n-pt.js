@@ -3346,5 +3346,77 @@ Object.assign(TRADUCTIONS.pt, {
     "O nome e o símbolo da moeda são obrigatórios.",
   "Monnaie enregistrée.":
     "Moeda salva.",
+  "/- Le dashboard : la vue principale de ton appli /- Vue des avoirs : pour voir l'état de chacun de tes comptes /- Opérations : là où tu peux retrouver toutes tes opérations /- Paramètres : on y règle tout le reste, entre extensions, import de données et tes comptes & catégories":
+    "/- O dashboard: a visão principal do seu app /- Visão dos ativos: para ver a situação de cada uma das suas contas /- Transações: onde você encontra todas as suas transações /- Ajustes: onde se configura todo o resto, de extensões e importação de dados às suas contas e categorias",
+  "Ces cartes ne dépendent pas du choix de la période. // Tu y vois la somme des soldes de tes comptes courants et le prévisionnel (étape 8.2 du tutoriel).":
+    "Esses cartões não dependem do período escolhido. // Você vê a soma dos saldos das suas contas correntes e a previsão (etapa 8.2 do tutorial).",
+  "Pour contrôler la période sur laquelle les graphiques se basent. Les flèches te permettent de montrer ou cacher les différents niveaux de périodes.":
+    "Para controlar o período em que os gráficos se baseiam. As setas permitem mostrar ou ocultar os diferentes níveis de período.",
+  "Le sélecteur rond à gauche te permet de changer de niveau dans la hiérarchie : Tout, Années, Mois et Semaines.":
+    "O seletor redondo à esquerda permite mudar de nível na hierarquia: Tudo, Anos, Meses e Semanas.",
+  "Comment le sélecteur de niveau réagit à un clic sur un onglet ? /- Cliquer sur un onglet de niveau inférieur (par exemple, sur Oct quand tu es sur 2026) change le sélecteur de hiérarchie. /- Cliquer sur un onglet de niveau supérieur change la période mère (cliquer sur 2027 en étant dans Oct 2026 te fait passer sur Oct 2027).":
+    "Como o seletor de nível reage a um clique em uma aba? /- Clicar em uma aba de nível inferior (por exemplo, Out quando você está em 2026) muda o seletor de hierarquia. /- Clicar em uma aba de nível superior muda o período pai (clicar em 2027 estando em Out 2026 leva você a Out 2027).",
+  "Elles suivent la période suivie, mais ne descendent pas au niveau des semaines. Total entrées et dépenses montrent les totaux concernés sur la période.":
+    "Eles seguem o período selecionado, mas não descem ao nível das semanas. Total de entradas e Total de despesas mostram os totais do período.",
+  "Total entrées et dépenses se basent sur la date de l'opération mais pas que : /- les dépenses prévisionnelles sont prises en compte /- les dépenses amorties sur plusieurs mois sont prises en compte au prorata /- les dépenses remboursables / prêts ne comptent que ce qu'ils coûtent (la part non-remboursable / les intérêts du prêt) // Les deux premiers points sont détaillés plus tard (étape 8.1 et 8.2 du tuto), le dernier nécessite les extensions en question.":
+    "Total de entradas e Total de despesas se baseiam na data da transação, mas não só: /- as despesas previstas são consideradas /- as despesas diluídas em vários meses são consideradas proporcionalmente /- as despesas reembolsáveis / empréstimos só contam pelo que custam (a parte não reembolsável / os juros do empréstimo) // Os dois primeiros pontos são detalhados mais adiante (etapas 8.1 e 8.2 do tutorial), o último precisa das extensões em questão.",
+  "/- Variation attribuée au mois calcule la différence des deux cartes précédentes. /- Variation sur la période brute te montre la somme de toutes les entrées - celle de toutes tes dépenses sur la période : elle se base uniquement sur la date de l'opération.":
+    "/- Variação atribuída ao mês é a diferença entre os dois cartões anteriores. /- Variação bruta do período mostra a soma de todas as entradas - a de todas as suas despesas no período: ela se baseia somente na data da transação.",
+  "Si les deux variations diffèrent, un bouton s'affiche pour comprendre pourquoi.":
+    "Se as duas variações forem diferentes, aparece um botão para você entender por quê.",
+  "Ils affichent les montants par catégorie. // Survoler une barre, une tranche ou la légende fait apparaître une infobulle : tu peux la figer en cliquant sur une touche (F par défaut).":
+    "Eles mostram os valores por categoria. // Passar o mouse sobre uma barra, uma fatia ou a legenda faz aparecer uma dica: você pode congelá-la pressionando uma tecla (F por padrão).",
+  "L'infobulle te montre plusieurs informations en plus du total de la catégorie : /- Le top 3 des dépenses de la catégorie, agrégé : l'app regroupe ensemble les dépenses qui ont le même nom puis calcule le top 3. /- Le bouton 'Voir les opérations', qui t'amène vers la page Opérations filtrée.":
+    "A dica mostra várias informações além do total da categoria: /- As 3 maiores despesas da categoria, agregadas: o app agrupa as despesas com o mesmo nome e depois calcula as 3 maiores. /- O botão 'Ver transações', que leva você à página Transações já filtrada.",
+  "On y trouve un onglet par type d'opérations. // Par défaut, les opérations apparaissent par ordre chronologique.":
+    "Há uma aba por tipo de transação. // Por padrão, as transações aparecem em ordem cronológica.",
+  "Ils fonctionnent comme on s'y attend, avec quelques spécificités : /- Choisir une période avec 'Du' et 'Au' modifie la période (Mois, Année, Tout) pour qu'elle soit compatible avec le filtre. /- Ne pas renseigner un montant min ou max n'impose pas de restriction (sur le minimum ou le maximum). /- Quand un filtre est appliqué sur une case, celle-ci devient bleue.":
+    "Eles funcionam como esperado, com algumas particularidades: /- Escolher um período com 'De' e 'Até' muda o período (Mês, Ano, Tudo) para que fique compatível com o filtro. /- Não preencher um valor mín. ou máx. não impõe restrição (no mínimo ou no máximo). /- Quando um filtro é aplicado a um campo, ele fica azul.",
+  "/- Découpée : permet de diviser une opération en plusieurs catégories /- Amortie sur plusieurs mois : permet de faire rentrer une dépense sur plusieurs mois, au prorata du nombre de mois":
+    "/- Dividida: permite dividir uma transação em várias categorias /- Diluída em vários meses: permite distribuir uma despesa por vários meses, proporcionalmente ao número de meses",
+  "/- Prévisionnelle : elle agit comme une opération qui n'a pas encore eu lieu /- Récurrente : permet d'ajouter une récurrence, elle nécessite de cocher Prévisionnelle /- Si tu importes tes opérations (cf. tutoriel sur l'Import), il faut qu'une dépense prévisionnelle reconnaisse la vraie opération à l'import. Tu peux donc indiquer : /-- une plage de date dans laquelle la dépense devrait arriver /-- des mots clés à chercher dans le libellé (pour enregistrer un mot-clé, utilise le bouton '+' ou Ctrl + Entrée)":
+    "/- Prevista: age como uma transação que ainda não aconteceu /- Recorrente: permite adicionar uma recorrência, e exige marcar Prevista /- Se você importa suas transações (veja o tutorial de Importação), uma despesa prevista precisa reconhecer a transação real na importação. Você pode então indicar: /-- um intervalo de datas em que a despesa deve chegar /-- palavras-chave a procurar na descrição (para salvar uma palavra-chave, use o botão '+' ou Ctrl + Enter)",
+  "Tu peux créer, modifier ou supprimer ces différents éléments. Si tu as des opérations en base, la suppression ne sera pas disponible. // Tu peux utiliser la fonctionnalité 'Éteindre' : tout se passe comme si tu n'avais pas le compte / la catégorie, mais les opérations en base le conservent.":
+    "Você pode criar, editar ou excluir esses diferentes elementos. Se houver transações no banco, a exclusão não estará disponível. // Você pode usar a função 'Desativar': tudo funciona como se você não tivesse a conta / a categoria, mas as transações no banco a mantêm.",
+  "Deux types de catégories : celles pour les dépenses, et celles pour les entrées d'argent. Tu le renseignes en créant ou en modifiant.":
+    "Dois tipos de categorias: as de despesas e as de entradas de dinheiro. Você define isso ao criar ou editar.",
+  "Similairement, tu peux avoir plusieurs types de comptes. Seuls les soldes des comptes courants entrent dans le calcul du solde total (Dashboard). // Pour ce qui est des monnaies, il faut l'extension 'Monnaies' - le fonctionnement est similaire aux comptes & catégories.":
+    "Da mesma forma, você pode ter vários tipos de conta. Somente os saldos das contas correntes entram no cálculo do saldo total (Dashboard). // Quanto às moedas, é preciso a extensão 'Moedas' - o funcionamento é parecido com o de contas e categorias.",
+  "Les quatre onglets de droite (Paramètres généraux, Correspondances, Import et Extensions) contrôlent la logique de l'application.":
+    "As quatro abas da direita (Ajustes gerais, Correspondências, Importação e Extensões) controlam a lógica do aplicativo.",
+  "Toutes les informations de l'application vivent dans un fichier de base de données (.db). Range-le hors du dossier de l'app pour qu'il ne soit pas écrasé par une mise à jour. Le chemin, lui, est retenu entre les mises à jour.":
+    "Todas as informações do aplicativo ficam em um arquivo de banco de dados (.db). Guarde-o fora da pasta do app para que uma atualização não o sobrescreva. O caminho, esse sim, é lembrado entre as atualizações.",
+  "Par défaut, l'app est minimaliste. Tu peux la personnaliser en téléchargeant les extensions (/italic(depuis le GitHub, les instructions de téléchargement s'y trouvent)) et en activant les extensions qui t'intéressent.":
+    "Por padrão, o app é minimalista. Você pode personalizá-lo baixando extensões (/italic(pelo GitHub, onde estão as instruções de download)) e ativando as que lhe interessam.",
+  "/- L'icône de fichier gris explique ce que fait l'extension. L'icône orange avertit d'une condition à l'usage. /- Allumer ou éteindre une extension ne supprime pas les données qui y sont associées (tout reste en base). La réactiver les affiche à nouveau.":
+    "/- O ícone de arquivo cinza explica o que a extensão faz. O ícone laranja avisa de uma condição de uso. /- Ativar ou desativar uma extensão não apaga os dados associados a ela (tudo continua no banco). Reativá-la os mostra de novo.",
+  "Tu connais maintenant le fonctionnement de l'app. Si tu cherches plus de détails, tu peux consulter la notice d'utilisation. // Pour apprendre comment importer des opérations, utilise le tutoriel 'Importer un relevé'. // Bonne continuation avec l'app !":
+    "Agora você já sabe como o app funciona. Se quiser mais detalhes, consulte o manual de uso. // Para aprender a importar transações, use o tutorial 'Importar um extrato'. // Boa continuação com o app!",
+  "Le bouton n'apparaît que lorsque les deux variations diffèrent : ici, elles disent la même chose.":
+    "O botão só aparece quando as duas variações são diferentes: aqui, elas dizem a mesma coisa.",
+  "Quitter le tutoriel ? Tu pourras reprendre là où tu en étais.":
+    "Sair do tutorial? Você poderá continuar de onde parou.",
+  "Ce que tu possèdes aujourd'hui":
+    "O que você tem hoje",
+  "Le choix de la période":
+    "A escolha do período",
+  "Les cartes de la période":
+    "Os cartões do período",
+  "Les deux graphiques":
+    "Os dois gráficos",
+  "La page Opérations !":
+    "A página Transações!",
+  "Les filtres":
+    "Filtros",
+  "Propriétés spéciales d'une opération":
+    "Propriedades especiais de uma transação",
+  "La configuration de ton app : tes comptes, catégories & monnaies":
+    "A configuração do seu app: contas, categorias e moedas",
+  "Les paramètres pour contrôler la logique":
+    "Os ajustes que controlam a lógica",
+  "Le système d'extensions":
+    "O sistema de extensões",
+  "Et la suite ?":
+    "E agora?",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

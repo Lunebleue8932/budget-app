@@ -122,6 +122,18 @@ def _lire_etat(migration=None, choix_memorise: bool = True) -> schemas.BaseDonne
     )
 
 
+def _refuser_en_decouverte() -> None:
+    """Pendant le tutoriel, l'application tourne sur une base fabriquée pour lui
+    (cf. database.en_decouverte). Déplacer, créer ou rejoindre une base depuis là
+    ferait mémoriser ce fichier temporaire à la place de celle de l'utilisateur :
+    on refuse, et on dit pourquoi."""
+    if database.en_decouverte():
+        raise HTTPException(
+            status_code=409,
+            detail="Termine ou quitte le tutoriel avant de changer de base de données.",
+        )
+
+
 @router.get("/base", response_model=schemas.BaseDonneesRead)
 def get_base():
     return _lire_etat()
@@ -138,6 +150,7 @@ def set_base(payload: schemas.BaseDonneesUpdate):
     base rejointe après le démarrage restait à son ancienne version sous une
     application neuve et répondait 500 sur ses pages principales. Une copie est
     prise avant toute migration, et son chemin renvoyé ici."""
+    _refuser_en_decouverte()
     try:
         chemin = database.changer_base(payload.chemin)
     except FileNotFoundError as exc:
@@ -164,6 +177,7 @@ def reinitialiser_base():
     Mais tant qu'on n'a pas redémarré, le processus SERT toujours la base
     personnelle : elle reste ouverte, et tout ce qui interroge l'API la lit. Le
     reset ferme cette fenêtre-là tout de suite, sans quitter l'application."""
+    _refuser_en_decouverte()
     if not database.mode_developpement():
         raise HTTPException(
             status_code=403,
@@ -198,6 +212,7 @@ def installer_base(payload: schemas.BaseDonneesInstaller):
     desktop/app_desktop.py) : en créer une seconde, vide, et abandonner la
     première dans le dossier que la mise à jour effacera serait le plus mauvais
     des deux mondes."""
+    _refuser_en_decouverte()
     source = str(database.get_chemin_actuel()) if payload.deplacer_actuelle else None
     try:
         chemin, action = database.installer_base(payload.chemin, source)

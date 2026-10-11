@@ -6059,6 +6059,9 @@ td.apercu-col-hors-fichier {
   border-radius: var(--radius);
   box-shadow: var(--shadow-flottant);
   padding: 0.9rem 1rem;
+  /* Une étape à puces et sous-puces peut dépasser la fenêtre : la bulle défile. */
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
 }
 
 .tutoriel-bulle-centree {
@@ -6091,6 +6094,17 @@ td.apercu-col-hors-fichier {
 }
 
 .tutoriel-bulle h4 {
+  margin: 0 0 0.4rem;
+}
+
+.tutoriel-texte {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.tutoriel-texte .texte-aide-intro {
   margin: 0 0 0.4rem;
 }
 
