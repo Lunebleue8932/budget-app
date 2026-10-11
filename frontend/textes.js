@@ -48,6 +48,9 @@ const TEXTES = {
   "noyau.monnaie-affichage-defaut":
     "Permet de changer la monnaie d'affichage par défaut : celle qui s'affiche en premier au lancement de l'app ou d'une page",
 
+  "noyau.monnaie-application":
+    "Permet de changer le nom et le symbole de la monnaie de l'app : tout le monde ne compte pas en euros. Les montants ne changent pas, seul leur libellé.",
+
   /* ----- Le camembert et ses deux vues ----- */
   "noyau.camembert-vue-budget":
     "La répartition de tes dépenses rapportées à ton budget de la période.",
@@ -634,7 +637,8 @@ function texteAide(cle) {
  * la phrase, suffisent à dire les deux :
  *
  *   - « /- » (ou « -- », la forme d'origine) ouvre une PUCE. Ce qui précède le
- *     premier marqueur est l'introduction.
+ *     premier marqueur est l'introduction. « /-- » ouvre une SOUS-PUCE, rangée
+ *     sous la dernière puce.
  *   - « // » est un SAUT DE LIGNE : ce qui suit forme un nouveau paragraphe,
  *     avec ses propres puces éventuelles.
  *   - « /bold(texte) » met en GRAS, « /italic(texte) » en ITALIQUE.
@@ -663,7 +667,10 @@ const PUCE_MARQUEUR = "--";
 const SAUT_MARQUEUR = "//";
 // « /- » et sa variante « / - », plus « -- » : la forme d'origine reste lue,
 // toutes les phrases écrites avant la nouvelle ne sont donc pas à reprendre.
-const PUCE_MOTIF = /\s*(?:--|\/\s?-)\s*/;
+// « /-- » est lue AVANT « /- » : elle commence pareil, et c'est une sous-puce.
+const PUCE_MOTIF = /\s*(?:\/\s?--|--|\/\s?-)\s*/;
+const PUCE_MOTIF_CAPTURE = /\s*(\/\s?--|--|\/\s?-)\s*/;
+const SOUS_PUCE_MOTIF = /^\/\s?--$/;
 // Ce qui arrête un chemin : la ponctuation, ou un autre marqueur.
 const CHEMIN_FIN = /[),.;:!?«»(\n]/;
 
@@ -685,18 +692,24 @@ function debutCheminDans(texte, depuis) {
 }
 
 /**
- * {intro, puces} — `puces` est vide quand la phrase n'en porte aucune.
+ * {intro, puces, niveaux} — `puces` est vide quand la phrase n'en porte aucune.
+ * `niveaux[i]` vaut 1 pour une puce (« /- »), 2 pour une sous-puce (« /-- »).
  * Conservé tel quel pour qui ne veut que le découpage en puces.
  */
 function texteEnPuces(texte) {
-  const morceaux = String(texte || "").split(PUCE_MOTIF);
+  const morceaux = String(texte || "").split(PUCE_MOTIF_CAPTURE);
   const intro = morceaux.shift().trim();
-  return {
-    intro,
+  const puces = [];
+  const niveaux = [];
+  for (let i = 0; i < morceaux.length; i += 2) {
+    const contenu = (morceaux[i + 1] || "").trim();
     // Une puce vide (deux marqueurs qui se suivent, un marqueur en fin de
     // phrase) n'apprend rien et laisserait une ligne blanche dans la liste.
-    puces: morceaux.map((m) => m.trim()).filter(Boolean),
-  };
+    if (!contenu) continue;
+    puces.push(contenu);
+    niveaux.push(SOUS_PUCE_MOTIF.test(morceaux[i]) ? 2 : 1);
+  }
+  return { intro, puces, niveaux };
 }
 
 function echapperRegExp(s) {
@@ -810,7 +823,7 @@ function ecrireTexteAide(el, texte) {
     return;
   }
   blocs.forEach((bloc) => {
-    const { intro, puces } = texteEnPuces(bloc);
+    const { intro, puces, niveaux } = texteEnPuces(bloc);
     if (intro) {
       const paragraphe = document.createElement("p");
       paragraphe.className = "texte-aide-intro";
@@ -820,10 +833,25 @@ function ecrireTexteAide(el, texte) {
     if (!puces.length) return;
     const liste = document.createElement("ul");
     liste.className = "texte-aide-puces";
-    puces.forEach((puce) => {
+    let derniere = null;
+    let sousListe = null;
+    puces.forEach((puce, i) => {
       const ligne = document.createElement("li");
       ecrireMorceauAvecChemins(ligne, puce);
+      // UNE SOUS-PUCE SE RANGE SOUS LA DERNIÈRE PUCE ; sans puce au-dessus, elle
+      // en devient une (rien à quoi la rattacher).
+      if (niveaux[i] === 2 && derniere) {
+        if (!sousListe) {
+          sousListe = document.createElement("ul");
+          sousListe.className = "texte-aide-puces texte-aide-sous-puces";
+          derniere.appendChild(sousListe);
+        }
+        sousListe.appendChild(ligne);
+        return;
+      }
       liste.appendChild(ligne);
+      derniere = ligne;
+      sousListe = null;
     });
     el.appendChild(liste);
   });

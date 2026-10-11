@@ -589,7 +589,7 @@ function formatMontantMonnaie(montant, monnaieNom) {
   return monnaie ? formatMontant(montant, monnaie.id) : String(montant);
 }
 
-/* ---------- La même case, pour le camembert de la Vue globale des comptes ----------
+/* ---------- La même case, pour le camembert de la Vue des avoirs ----------
  *
  * LE CAMEMBERT A SA PROPRE MONNAIE, et donc sa propre case. Il vivait sur le
  * dashboard, où la case des onglets suffisait à le convertir avec le reste ;

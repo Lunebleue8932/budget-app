@@ -22,7 +22,6 @@
     "type": "onglet",
     "hote_section": "comptes-globale",
     "sous_section": "placements",
-    "libelle": "Placements financiers",
-    "section_libelle": "Vue des avoirs"
+    "libelle": "Placements financiers"
   }
 }

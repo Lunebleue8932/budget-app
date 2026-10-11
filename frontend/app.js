@@ -1812,7 +1812,7 @@ function switchSection(name, { ongletActif = name, sousSection = null } = {}) {
   appliquerRecherche({ conserverIndex: false });
 }
 
-/* ---------- Vue globale des comptes (onglets) ---------- */
+/* ---------- Vue des avoirs (onglets) ---------- */
 
 // UN SEUL ONGLET DANS L'APPLICATION NUE, et c'est voulu : la barre reste
 // masquée tant qu'elle est seule (cf. majBarreOngletsComptesGlobale). Elle
@@ -1938,6 +1938,7 @@ function majAffichageToucheGel() {
 /** Le menu « Monnaie d'affichage par défaut » : toutes les monnaies, plus
  * « Aucune » (première de la liste). */
 function majAffichageMonnaieDefaut() {
+  majChampMonnaieApplication();
   const select = document.getElementById("reglage-monnaie-defaut");
   if (!select) return;
   select.innerHTML = "";
@@ -1957,6 +1958,44 @@ function majAffichageMonnaieDefaut() {
   const preferee = state.monnaieAffichageDefautId;
   select.value = preferee != null && proposables.some((m) => m.id === preferee) ? String(preferee) : "";
 }
+
+/** Le nom et le symbole de la monnaie de l'application, SANS l'extension
+ * « Monnaies » (avec elle, c'est le choix de la monnaie d'affichage qui paraît, et
+ * le nom se change dans Paramètres → Monnaies). La monnaie de l'application est la
+ * première de la liste. */
+function majChampMonnaieApplication() {
+  const bloc = document.getElementById("reglage-monnaie-app-bloc");
+  if (!bloc) return;
+  const sansExtension = !BudgetApp.extensions.estActive("monnaies");
+  bloc.style.display = sansExtension ? "" : "none";
+  const monnaie = (state.monnaies || [])[0];
+  if (!sansExtension || !monnaie) return;
+  // Pas pendant qu'on écrit dedans : le rendu est relancé à chaque passage ici.
+  const nom = document.getElementById("reglage-monnaie-nom");
+  const symbole = document.getElementById("reglage-monnaie-symbole");
+  if (document.activeElement !== nom) nom.value = monnaie.nom;
+  if (document.activeElement !== symbole) symbole.value = monnaie.symbole;
+}
+
+document.getElementById("btn-monnaie-app-enregistrer")?.addEventListener("click", async () => {
+  const nom = document.getElementById("reglage-monnaie-nom").value.trim();
+  const symbole = document.getElementById("reglage-monnaie-symbole").value.trim();
+  if (!nom || !symbole) {
+    showMessage(t("Le nom et le symbole de la monnaie sont obligatoires."), "error");
+    return;
+  }
+  try {
+    await apiFetch("/monnaies/application", {
+      method: "PUT",
+      body: JSON.stringify({ nom, symbole }),
+    });
+    await refreshMonnaies();
+    majChampMonnaieApplication();
+    showMessage(t("Monnaie enregistrée."), "success");
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+});
 
 document.getElementById("reglage-monnaie-defaut")?.addEventListener("change", async (e) => {
   const id = Number(e.target.value) || null;
@@ -2165,6 +2204,16 @@ function fillMonnaiesSelect(selectEl, monnaies) {
 }
 
 /**
+ * VRAI QUAND L'APPLICATION PROPOSE UN CHOIX DE MONNAIE. Sans l'extension
+ * « Monnaies », elle est mono-devise : aucun sélecteur de monnaie n'a rien à
+ * demander (onglets du dashboard, filtres, formulaire d'opération, répartition
+ * des avoirs). Le seul endroit à le dire, pour que les écrans ne se contredisent pas.
+ */
+function choixDeMonnaiePossible() {
+  return BudgetApp.extensions.estActive("monnaies");
+}
+
+/**
  * Barre d'onglets « une monnaie à la fois », utilisée partout où l'app agrège
  * des montants (KPI du dashboard, budgets par catégorie) : sans taux de change,
  * additionner deux monnaies n'aurait aucun sens, alors on n'en montre qu'une.
@@ -2174,8 +2223,11 @@ function fillMonnaiesSelect(selectEl, monnaies) {
 function renderOngletsMonnaies(conteneurId, monnaies, monnaieIdActive, onSelect) {
   const barre = document.getElementById(conteneurId);
   barre.innerHTML = "";
-  barre.style.display = monnaies.length > 1 ? "" : "none";
-  if (monnaies.length <= 1) return;
+  // Sans l'extension « Monnaies », l'application est mono-devise : aucun choix
+  // de monnaie n'est proposé, où que ce soit (cf. choixDeMonnaiePossible).
+  const visible = monnaies.length > 1 && choixDeMonnaiePossible();
+  barre.style.display = visible ? "" : "none";
+  if (!visible) return;
   monnaies.forEach((monnaie) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -2432,7 +2484,7 @@ async function drillThroughConversion(monnaieId, colonne, bornes = null) {
   if (!synchroniserPeriodeAvecFiltres("virements")) trierEtRerender("virements");
 }
 
-/* ---------- Répartition des avoirs, page Vue globale des comptes ---------- */
+/* ---------- Répartition des avoirs, page Vue des avoirs ---------- */
 
 // Le dernier /dashboard lu par cette page. Gardé pour que changer la monnaie du
 // camembert le redessine sans nouvel aller-retour : les soldes n'ont pas changé
@@ -2475,7 +2527,7 @@ function renderRepartitionAvoirs() {
   // Un menu à un seul choix ne choisit rien : il est masqué avec son étiquette
   // tant que l'app est mono-devise, comme la barre d'onglets de cette page
   // l'est tant qu'elle n'a qu'un onglet.
-  menu.parentElement.style.display = monnaies.length > 1 ? "" : "none";
+  menu.parentElement.style.display = monnaies.length > 1 && choixDeMonnaiePossible() ? "" : "none";
 
   const monnaieId = state.comptesRepartitionMonnaieId;
   const kpis = (data.kpis || []).find((k) => k.monnaie_id === monnaieId);
@@ -2924,7 +2976,7 @@ document
 /**
  * La couleur d'un type de compte, lue depuis les variables CSS `--compte-*`
  * plutôt que dupliquée ici : ce sont les MÊMES qui bordent les cartes de la
- * Vue globale des comptes (cf. style.css, .compte-card.epargne/.placements),
+ * Vue des avoirs (cf. style.css, .compte-card.epargne/.placements),
  * une seule source évite que les deux dérivent l'une de l'autre au premier
  * changement de teinte.
  */
@@ -2933,7 +2985,7 @@ function couleurTypeCompte(cle) {
 }
 
 // Les trois familles, dans l'ordre où elles apparaissent en légende ET sur la
-// Vue globale des comptes : courant, épargne, placements. `test` reprend
+// Vue des avoirs : courant, épargne, placements. `test` reprend
 // exactement le filtrage déjà utilisé par loadDashboardData/loadComptesGlobale
 // (un type personnalisé, ni épargne ni placement, est un compte courant).
 const TYPES_REPARTITION_COMPTES = [
@@ -2949,7 +3001,7 @@ const TYPES_REPARTITION_COMPTES = [
  * SOLDE RÉEL, PAS PROJETÉ. Le solde projeté anticipe des opérations qui n'ont
  * pas encore eu lieu : la répartition doit répondre à « où est mon argent
  * aujourd'hui », pas à une hypothèse sur le mois prochain — cohérent avec les
- * cartes de la Vue globale des comptes, qui affichent le réel en premier.
+ * cartes de la Vue des avoirs, qui affichent le réel en premier.
  *
  * LES TITRES DÉTENUS COMPTENT, et c'est bien « Total des avoirs » que ce
  * camembert répartit — le chiffre affiché juste au-dessus de lui.
@@ -7131,7 +7183,7 @@ function syncSelectMonnaieCompte(
     select.value = precedente;
   }
   document.getElementById(blocId).style.display =
-    forcerAffichage || monnaies.length > 1 ? "" : "none";
+    choixDeMonnaiePossible() && (forcerAffichage || monnaies.length > 1) ? "" : "none";
   return Number(select.value) || null;
 }
 

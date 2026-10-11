@@ -827,3 +827,26 @@ def test_eteindre_ne_touche_a_aucun_solde(db_session):
     crud.set_monnaie_active(db_session, crud.get_monnaie(db_session, dollar), False)
 
     assert soldes.get_soldes_comptes(db_session) == avant
+
+
+def test_renommer_la_monnaie_de_l_application(db_session):
+    """Sans l'extension « Monnaies », le noyau laisse changer le nom et le symbole
+    de l'unique monnaie : tout le monde ne compte pas en euros."""
+    from app.routers import monnaies as routeur_noyau
+
+    monnaie = routeur_noyau.renommer_monnaie_application(
+        schemas.MonnaieUpdate(nom="Franc suisse", symbole="CHF"), db_session
+    )
+    assert (monnaie.nom, monnaie.symbole) == ("Franc suisse", "CHF")
+    assert [m.nom for m in crud.get_monnaies(db_session)] == ["Franc suisse"]
+
+
+def test_renommer_la_monnaie_de_l_application_refuse_un_nom_deja_pris(db_session):
+    from app.routers import monnaies as routeur_noyau
+
+    creer_monnaie(db_session, "Dollar", "$")
+    with pytest.raises(HTTPException) as erreur:
+        routeur_noyau.renommer_monnaie_application(
+            schemas.MonnaieUpdate(nom="Dollar", symbole="$"), db_session
+        )
+    assert erreur.value.status_code == 409

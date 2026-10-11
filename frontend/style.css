@@ -2181,6 +2181,23 @@ form .operation-cases input[type="checkbox"] {
   align-items: center;
 }
 
+/* Le nom et le symbole de la monnaie de l'application (Paramètres généraux,
+   sans l'extension « Monnaies »). */
+.reglage-monnaie-app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reglage-monnaie-app #reglage-monnaie-nom {
+  width: 12rem;
+}
+
+.reglage-monnaie-app #reglage-monnaie-symbole {
+  width: 6rem;
+}
+
 /* CENTRÉ ET EN CAPITALES, comme une touche de clavier et non comme un mot :
    ce champ n'affiche pas une valeur saisie mais le NOM d'une touche, et le
    lire de gauche à droite comme du texte ordinaire ferait chercher un curseur
@@ -4519,6 +4536,14 @@ a.lien-chemin:hover {
   /* Une puce reste une phrase : on la lit sur plusieurs lignes, et c'est le
      retrait ci-dessus qui la rattache à son marqueur. */
   padding-left: 0.1rem;
+}
+
+/* Les SOUS-PUCES (marqueur « /-- ») : rangées sous leur puce, un cran plus
+   serrées et plus en retrait. */
+.texte-aide-puces.texte-aide-sous-puces {
+  margin-top: 0.28rem;
+  padding-left: 1rem;
+  list-style: circle;
 }
 
 /* Une bulle à puces s'élargit un peu : une liste dont chaque ligne se replie

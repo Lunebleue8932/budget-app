@@ -3333,3 +3333,18 @@ TRADUCTIONS.pt["Rien n'a changé."] = "Nada mudou.";
 TRADUCTIONS.pt["Détail enregistré"] = "Detalhes salvos";
 TRADUCTIONS.pt["Ce que le projet a rapporté moins ce qu'il a coûté, catégorie par catégorie, frais de virement compris. Les virements vers ou depuis l'épargne et les conversions entre monnaies n'y comptent pas : l'argent a changé de place, il n'a pas été dépensé. La cascade juste en dessous les montre toujours."] = "O que o projeto rendeu menos o que custou, categoria por categoria, taxas de transferência incluídas. As transferências de ou para a poupança e as conversões entre moedas não contam: o dinheiro mudou de lugar, não foi gasto. A cascata logo abaixo continua mostrando-as.";
 TRADUCTIONS.pt["Entrées − dépenses"] = "Entradas − despesas";
+
+// >>> TRADUCTIONS AJOUTÉES (monnaie de l'app, moyenne par semaine, tutoriel, pop-up de sortie)
+Object.assign(TRADUCTIONS.pt, {
+  "Permet de changer le nom et le symbole de la monnaie de l'app : tout le monde ne compte pas en euros. Les montants ne changent pas, seul leur libellé.":
+    "Permite mudar o nome e o símbolo da moeda do app: nem todo mundo conta em euros. Os valores não mudam, só o rótulo.",
+  "Monnaie de l'application":
+    "Moeda do aplicativo",
+  "Nom de la monnaie":
+    "Nome da moeda",
+  "Le nom et le symbole de la monnaie sont obligatoires.":
+    "O nome e o símbolo da moeda são obrigatórios.",
+  "Monnaie enregistrée.":
+    "Moeda salva.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES

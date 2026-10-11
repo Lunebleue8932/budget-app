@@ -4114,3 +4114,17 @@ const MOTIFS_SERVEUR = [
 // des messages tels que le serveur les écrit.
 const MOTIFS_PAR_LANGUE = { en: MOTIFS_SERVEUR, pt: [] };
 
+// >>> TRADUCTIONS AJOUTÉES (monnaie de l'app, moyenne par semaine, tutoriel, pop-up de sortie)
+Object.assign(TRADUCTIONS.en, {
+  "Permet de changer le nom et le symbole de la monnaie de l'app : tout le monde ne compte pas en euros. Les montants ne changent pas, seul leur libellé.":
+    "Changes the name and symbol of the app's currency: not everyone counts in euros. Amounts don't change, only their label.",
+  "Monnaie de l'application":
+    "App currency",
+  "Nom de la monnaie":
+    "Currency name",
+  "Le nom et le symbole de la monnaie sont obligatoires.":
+    "The currency name and symbol are required.",
+  "Monnaie enregistrée.":
+    "Currency saved.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES

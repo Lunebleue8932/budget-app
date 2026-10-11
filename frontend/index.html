@@ -113,7 +113,7 @@
 
     <nav>
       <button data-section="dashboard" class="active">Dashboard</button>
-      <button data-section="comptes-globale">Vue globale des comptes</button>
+      <button data-section="comptes-globale">Vue des avoirs</button>
       <button data-section="operations">Opérations</button>
       <button data-section="parametres">Paramètres</button>
     </nav>
@@ -373,8 +373,8 @@
         </div>
       </div>
 
-      <!-- LA RÉPARTITION DES AVOIRS A DÉMÉNAGÉ, page « Vue globale des
-           comptes ». Elle répartit un patrimoine ENTRE DES COMPTES : sa place
+      <!-- LA RÉPARTITION DES AVOIRS A DÉMÉNAGÉ, page « Vue des
+           avoirs ». Elle répartit un patrimoine ENTRE DES COMPTES : sa place
            est au-dessus des cartes de compte qu'elle résume, et non au milieu
            d'un écran qui parle du mois en cours. Elle y gagne au passage ce que
            le dashboard ne pouvait pas lui donner — le choix de sa monnaie,
@@ -596,7 +596,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
     </section>
 
-    <!-- VUE GLOBALE DES COMPTES -->
+    <!-- VUE DES AVOIRS -->
     <!-- Reprend les cartes de compte qui vivaient sur le dashboard (cf.
          renderComptesCards), mais SANS onglet de monnaie : un compte
          multi-devises y montre tous ses soldes sur la même carte plutôt que de
@@ -611,11 +611,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
          n'offre aucun choix et ne ferait que répéter le titre — et apparaît
          dès qu'il y a quelque chose à choisir.
 
-         C'est aussi à ce moment-là que la page CHANGE DE NOM : « Vue globale
-         des comptes » descend d'un cran et devient le nom de l'onglet qui
-         l'affiche, l'extension nommant la page qui les contient tous les deux.
-         Éteindre l'extension rend son nom à la page (cf.
-         renommerSectionHote). -->
+         LA PAGE S'APPELLE « VUE DES AVOIRS » dans tous les cas, extension ou
+         non : son onglet seul s'appelle « Comptes ». -->
     <!-- ================= D'OÙ VIENT L'ÉCART ENTRE LES DEUX VARIATIONS =========
          PAS DE BOUTON DANS LA BARRE DU HAUT, et c'est délibéré : cet écran
          n'est pas une destination, c'est la réponse à une question qu'on se
@@ -678,7 +675,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
     <section id="section-comptes-globale">
       <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
       <div class="page-entete">
-      <h2 id="titre-comptes-globale">Vue globale des comptes</h2>
+      <h2 id="titre-comptes-globale">Vue des avoirs</h2>
 
       <!-- LA BARRE RESTE MASQUÉE TANT QU'ELLE EST SEULE (cf.
            extensions.majBarreOnglets) : son unique onglet ne choisirait rien et
@@ -789,7 +786,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -860,7 +857,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -940,7 +937,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -999,7 +996,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant envoyé max
             <input type="number" step="0.01" min="0" data-filtre="montantEnvoyeMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie envoyée
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie envoyée
             <select class="filtre-select-monnaie" data-filtre="monnaieEnvoyeeId"><option value="">Toutes</option></select>
           </label>
           <label>Montant reçu min
@@ -1008,7 +1005,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant reçu max
             <input type="number" step="0.01" min="0" data-filtre="montantRecuMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie reçue
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie reçue
             <select class="filtre-select-monnaie" data-filtre="monnaieRecueId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -1073,7 +1070,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -1147,7 +1144,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label>Monnaie
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Du
@@ -1522,9 +1519,23 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </select>
         </div>
 
-        <div class="reglage-bloc">
+        <!-- SANS L'EXTENSION « MONNAIES », L'APPLICATION N'A QU'UNE MONNAIE : choisir
+             laquelle s'affiche d'abord n'aurait aucun sens, et c'est son NOM et son
+             SYMBOLE qu'on règle ici (tout le monde ne compte pas en euros). Avec
+             l'extension, c'est l'inverse : le choix de la monnaie d'affichage
+             apparaît (greffe), et le nom se change dans Paramètres → Monnaies. -->
+        <div class="reglage-bloc" id="reglage-monnaie-defaut-bloc" data-extension-greffe="monnaies" style="display:none">
           <label for="reglage-monnaie-defaut">Monnaie d'affichage par défaut<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-affichage-defaut">i</i></label>
           <select id="reglage-monnaie-defaut"></select>
+        </div>
+
+        <div class="reglage-bloc" id="reglage-monnaie-app-bloc">
+          <label for="reglage-monnaie-nom">Monnaie de l'application<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-application">i</i></label>
+          <div class="reglage-monnaie-app">
+            <input type="text" id="reglage-monnaie-nom" autocomplete="off" aria-label="Nom de la monnaie" placeholder="Nom" />
+            <input type="text" id="reglage-monnaie-symbole" autocomplete="off" maxlength="8" aria-label="Symbole" placeholder="Symbole" />
+            <button type="button" class="primary" id="btn-monnaie-app-enregistrer">Enregistrer</button>
+          </div>
         </div>
 
         <!-- LES MONNAIES ÉTEINTES DANS LES GRAPHIQUES (extension « Monnaies »,

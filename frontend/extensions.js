@@ -373,9 +373,8 @@ function renommerOngletHote(navigation, actif) {
  *
  * MÊME PRINCIPE QUE `renommerOngletHote` pour les greffes, un cran plus haut :
  * une page qui porte désormais deux onglets ne peut plus s'appeler par l'un
- * d'eux. « Vue globale des comptes » descend donc d'un cran — il reste le nom
- * de l'onglet qui l'affiche, écrit une fois pour toutes dans index.html — et la
- * page prend le nom que l'extension lui donne.
+ * d'eux. La page garde son nom d'origine dans index.html tant qu'aucune extension
+ * n'en pose un autre (« Vue des avoirs » n'en demande plus : elle l'a d'office).
  *
  * Le libellé d'origine est gardé au premier passage : éteindre l'extension doit
  * rendre la page telle qu'elle serait sans elle, nom compris.
