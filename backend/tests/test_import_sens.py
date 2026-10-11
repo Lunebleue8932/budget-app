@@ -190,8 +190,9 @@ def test_le_sens_impose_entree_sur_une_operation_classique(db_session):
 
     operation = db_session.query(models.Operation).one()
     assert operation.sens == Sens.entree
-    # La catégorie, elle, reste celle qui a été choisie : le sens ne la change pas.
-    assert operation.categorie_id == get_categorie_id(db_session, "Autres")
+    # Rien ne classe la ligne (catégorie bancaire vide) : une ENTRÉE tombe dans « Entrées
+    # d'argent », plus dans « Autres » (cf. crud.categorie_de_repli).
+    assert operation.categorie_id == get_categorie_id(db_session, "Entrées d'argent")
 
 
 def test_le_sens_impose_depense_sur_une_operation_classique(db_session):
@@ -376,6 +377,8 @@ def test_un_preset_sans_colonne_de_sens_se_comporte_exactement_comme_avant(db_se
         compte_id_defaut=compte.id,
     )
 
-    # Sens dérivé de la catégorie, comme toujours : « Autres » est une dépense,
-    # y compris pour la ligne au montant positif.
-    assert {o.sens for o in db_session.query(models.Operation).all()} == {Sens.depense}
+    # Sens dérivé de la catégorie, comme toujours. Rien ne classe ces lignes : la dépense
+    # tombe dans « Autres », la ligne au montant positif dans « Entrées d'argent » (cf.
+    # crud.categorie_de_repli) — et devient donc une entrée.
+    sens = {o.nature: o.sens for o in db_session.query(models.Operation).all()}
+    assert sens == {"Courses": Sens.depense, "Salaire": Sens.entree}

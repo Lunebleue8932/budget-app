@@ -207,6 +207,12 @@ function expoPanneauHtml(titre) {
   // UN SEUL « ENREGISTRER » POUR TOUT LE PANNEAU (cf. expoEnregistrer) : trois axes et une
   // composition à enregistrer chacun de leur côté, c'était quatre boutons pour un geste.
   return `
+    <div class="expo-levier">
+      <span class="expo-axe-titre">${escapeHtml(t("Levier"))}<i class="info-bulle" tabindex="0" data-info-cle="placements.levier">i</i></span>
+      <label>×
+        <input type="number" data-expo-levier step="0.1" min="0.1" value="${Number(titre.levier ?? 1)}" />
+      </label>
+    </div>
     ${EXPO_AXES.map((config) => expoAxeHtml(titre, config)).join("")}
     ${expoEstEtf(titre) ? expoCompositionHtml(titre) : ""}
     ${avertissements ? `<ul class="expo-avertissements">${avertissements}</ul>` : ""}
@@ -291,7 +297,16 @@ async function expoEnregistrer(panneau) {
       if (avant !== apres) composition = corps;
     }
 
-    if (!changes.length && !composition) {
+    // LE LEVIER (migration 0082) : 1 pour un titre ordinaire, strictement positif.
+    let levier = null;
+    const champLevier = panneau.querySelector("[data-expo-levier]");
+    if (champLevier) {
+      const saisi = expoNombre(champLevier.value || "1");
+      if (Number.isNaN(saisi) || saisi <= 0) throw new Error(t("Le levier doit être un nombre positif (1 sans levier)."));
+      if (Math.abs(saisi - Number(titre.levier ?? 1)) > 1e-9) levier = saisi;
+    }
+
+    if (!changes.length && !composition && levier === null) {
       showMessage(t("Rien n'a changé."), "success");
       return;
     }
@@ -302,8 +317,11 @@ async function expoEnregistrer(panneau) {
         body: JSON.stringify(a),
       });
     }
-    if (composition) {
-      lu = await apiFetch(`/titres/${titreId}`, { method: "PUT", body: JSON.stringify(composition) });
+    if (composition || levier !== null) {
+      lu = await apiFetch(`/titres/${titreId}`, {
+        method: "PUT",
+        body: JSON.stringify({ ...(composition || {}), ...(levier !== null ? { levier } : {}) }),
+      });
     }
     showMessage(t("Détail enregistré"), "success");
     expoRemplacerTitre(lu);

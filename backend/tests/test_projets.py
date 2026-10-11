@@ -176,14 +176,20 @@ def test_les_totaux_separent_depenses_et_entrees(db_session):
         _operation(db_session, compte, montant=120.0, sens=Sens.depense).id,
         _operation(db_session, compte, montant=80.0, sens=Sens.depense).id,
         _operation(db_session, compte, montant=50.0, sens=Sens.entree).id,
+        _operation(
+            db_session, compte, montant=30.0, sens=Sens.entree,
+            categorie_id=get_categorie_id(db_session, "Entrées d'argent"),
+        ).id,
     ]
     crud.ajouter_operations_au_sous_filtre(db_session, projet, ids)
 
     (total,) = service.totaux_par_monnaie(crud.get_sous_filtre(db_session, projet.id))
-    assert total["depenses"] == 200.0
-    assert total["entrees"] == 50.0
+    # CHAQUE CATÉGORIE AU NET, comme dans la cascade : les 50 € rendus dans « Autres »
+    # diminuent ce que « Autres » a coûté, ils ne sont pas une recette.
+    assert total["depenses"] == 150.0
+    assert total["entrees"] == 30.0
     # Négatif : le cas ordinaire d'un projet, qui coûte.
-    assert total["solde"] == -150.0
+    assert total["solde"] == -120.0
 
 
 def test_les_totaux_sont_separes_par_monnaie(db_session):
@@ -206,11 +212,34 @@ def test_les_totaux_sont_separes_par_monnaie(db_session):
     assert {t["monnaie_id"]: t["depenses"] for t in totaux} == {euro: 100.0, franc: 60.0}
 
 
-def test_un_virement_interne_compte_selon_son_sens(db_session):
-    """Comme le calcul des soldes du noyau : une sortie est une sortie, d'où
-    qu'elle vienne. Les DEUX écritures d'un virement versées dans le même projet
-    s'y annulent donc — ce qui est bien ce qu'elles valent, l'argent n'ayant pas
-    quitté le patrimoine."""
+def test_le_bilan_ignore_l_epargne_et_les_conversions_mais_compte_les_frais(db_session):
+    """Ce qu'un projet a COÛTÉ : un retrait du livret ou un change ne sont pas des dépenses,
+    les frais d'un virement en sont."""
+    from .test_cascade import _op, _virement
+
+    euro = get_monnaie_id(db_session)
+    franc = creer_monnaie(db_session, "Franc suisse", "CHF").id
+    courant = creer_compte(db_session, "Courant", monnaies=[(euro, 0.0), (franc, 0.0)])
+    livret = creer_compte(db_session, "Livret", type_nom="épargne")
+    suisse = creer_compte(db_session, "Compte CHF", monnaies=[(franc, 0.0)])
+    hotel = _op(db_session, courant, 300, Sens.depense)
+    retrait = _virement(db_session, livret, courant, 500, 500, vid="livret")
+    change = _virement(db_session, courant, suisse, 102, 95, monnaie_source=euro,
+                       monnaie_destination=franc, frais=2, vid="change")
+    projet = _projet(db_session)
+    ids = [hotel.id, *(o.id for o in retrait), *(o.id for o in change)]
+    crud.ajouter_operations_au_sous_filtre(db_session, projet, ids)
+
+    totaux = {t["monnaie_id"]: t for t in service.totaux_par_monnaie(crud.get_sous_filtre(db_session, projet.id))}
+    # Euros : l'hôtel et les 2 € de frais ; ni le retrait du livret ni le change.
+    assert (totaux[euro]["entrees"], totaux[euro]["depenses"], totaux[euro]["solde"]) == (0.0, 302.0, -302.0)
+    # Francs : la monnaie reste (elle porte son histogramme), à zéro.
+    assert totaux[franc]["solde"] == 0.0
+
+
+def test_les_deux_jambes_d_un_virement_ne_coutent_rien_au_projet(db_session):
+    """Les DEUX écritures d'un virement versées dans le même projet s'annulent : l'argent
+    n'a pas quitté le patrimoine, le projet ne l'a pas dépensé."""
     compte = creer_compte(db_session, "Courant")
     epargne = creer_compte(db_session, "Livret", type_nom="épargne")
     projet = _projet(db_session)
@@ -236,8 +265,8 @@ def test_un_virement_interne_compte_selon_son_sens(db_session):
     crud.ajouter_operations_au_sous_filtre(db_session, projet, ids)
 
     (total,) = service.totaux_par_monnaie(crud.get_sous_filtre(db_session, projet.id))
-    assert total["depenses"] == 500.0
-    assert total["entrees"] == 500.0
+    assert total["depenses"] == 0.0
+    assert total["entrees"] == 0.0
     assert total["solde"] == 0.0
 
 

@@ -3049,6 +3049,7 @@ MOTIFS_PAR_LANGUE.pt = [
   [/^ISIN manquant$/, "ISIN ausente"],
   [/^cet ISIN figure déjà à la ligne (.+)$/, "este ISIN já aparece na linha $1"],
   [/^monnaie « (.+) » inconnue$/, "moeda “$1” desconhecida"],
+  [/^levier « (.+) » illisible : un nombre positif est attendu \(1 sans levier\)$/, "alavancagem “$1” ilegível: um número positivo é esperado (1 sem alavancagem)"],
   [/^(?:(classe d'actif|zone géographique|secteur) : )?une action en direct tient sur une seule étiquette, à 100 %$/, "uma ação detida diretamente tem um único rótulo por eixo, a 100%"],
   [/^cours « (.+) » illisible : un nombre positif est attendu$/, "cotação “$1” ilegível: um número positivo é esperado"],
   [/^ce titre a des mouvements : sa monnaie de cotation ne peut plus changer$/, "este título tem transações: sua moeda de cotação não pode mais mudar"],
@@ -3331,3 +3332,11 @@ TRADUCTIONS.pt["En direct"] = "Detido diretamente";
 TRADUCTIONS.pt["{axe} : plus de 100 %, à corriger."] = "{axe}: mais de 100%, a corrigir.";
 TRADUCTIONS.pt["Rien n'a changé."] = "Nada mudou.";
 TRADUCTIONS.pt["Détail enregistré"] = "Detalhes salvos";
+TRADUCTIONS.pt["Ce que le projet a rapporté moins ce qu'il a coûté, catégorie par catégorie, frais de virement compris. Les virements vers ou depuis l'épargne et les conversions entre monnaies n'y comptent pas : l'argent a changé de place, il n'a pas été dépensé. La cascade juste en dessous les montre toujours."] = "O que o projeto rendeu menos o que custou, categoria por categoria, taxas de transferência incluídas. As transferências de ou para a poupança e as conversões entre moedas não contam: o dinheiro mudou de lugar, não foi gasto. A cascata logo abaixo continua mostrando-as.";
+TRADUCTIONS.pt["Entrées − dépenses"] = "Entradas − despesas";
+TRADUCTIONS.pt["1 pour un titre ordinaire, 2 ou 3 pour un ETF à effet de levier. Il ne change ni la valeur du titre ni tes soldes : la vue d'ensemble s'en sert seulement pour montrer ton exposition au marché."] = "1 para um título comum, 2 ou 3 para um ETF alavancado. Ele não muda nem o valor do título nem os seus saldos: a visão geral só o usa para mostrar a sua exposição ao mercado.";
+TRADUCTIONS.pt["Décoché : chaque titre pèse ce que tu y as mis. Coché : il pèse ce qu'il fait bouger, sa valeur × son levier - un ETF x2 de 1 000 € compte pour 2 000 €. Les cartes du haut gardent les montants réels ; une carte de plus donne l'exposition."] = "Desmarcado: cada título pesa o que você colocou nele. Marcado: ele pesa o que movimenta, o valor × a alavancagem - um ETF x2 de 1 000 € conta como 2 000 €. Os cartões do topo mantêm os valores reais; um cartão a mais mostra a exposição.";
+TRADUCTIONS.pt["Levier"] = "Alavancagem";
+TRADUCTIONS.pt["Exposition au marché"] = "Exposição ao mercado";
+TRADUCTIONS.pt["Exposition au marché (effet de levier compris)"] = "Exposição ao mercado (alavancagem incluída)";
+TRADUCTIONS.pt["Le levier doit être un nombre positif (1 sans levier)."] = "A alavancagem deve ser um número positivo (1 sem alavancagem).";

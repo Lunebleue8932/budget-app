@@ -12,6 +12,7 @@ from .constants import (
     id_colonne_dummy_regle,
     COULEUR_INDEX_ENTREE,
     CATEGORIE_AUTRES,
+    CATEGORIE_ENTREES_ARGENT,
     CIBLE_PAR_TYPE_REGLEMENT,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
@@ -166,6 +167,30 @@ def get_categorie(db: Session, categorie_id: int):
 
 def get_categorie_by_nom(db: Session, nom: str):
     return db.query(models.Categorie).filter(models.Categorie.nom == nom).first()
+
+
+def categorie_de_repli(db: Session, entree: bool) -> Optional[models.Categorie]:
+    """La catégorie d'une ligne que rien ne classe (ni règle ni correspondance).
+
+    UNE DÉPENSE tombe dans « Autres ». UNE ENTRÉE tombe dans « Entrées d'argent » : la
+    ranger dans « Autres » la faisait compter parmi les DÉPENSES tant qu'on ne la
+    reclassait pas — un salaire oublié dans l'aperçu gonflait le total des sorties.
+    « Entrées d'argent » est protégée comme « Autres », elle existe donc toujours ; si on
+    l'a renommée ou éteinte, la première catégorie d'entrée allumée prend le relais, et
+    « Autres » seulement s'il n'y en a aucune."""
+    if entree:
+        protegee = get_categorie_by_nom(db, CATEGORIE_ENTREES_ARGENT)
+        if protegee is not None and protegee.active and protegee.est_entree:
+            return protegee
+        autre_entree = (
+            db.query(models.Categorie)
+            .filter(models.Categorie.est_entree.is_(True), models.Categorie.active.is_(True))
+            .order_by(models.Categorie.id)
+            .first()
+        )
+        if autre_entree is not None:
+            return autre_entree
+    return get_categorie_by_nom(db, CATEGORIE_AUTRES)
 
 
 def _prochain_couleur_index(db: Session) -> int:
@@ -2353,11 +2378,13 @@ def create_titre(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
+    levier: float = 1.0,
 ) -> models.TitrePossede:
     titre = models.TitrePossede(
         nom=nom,
         valeur=valeur,
         monnaie_id=monnaie_id,
+        levier=levier,
         code_isin=code_isin or None,
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
@@ -2387,7 +2414,10 @@ def update_titre(
     classe_actif_id: Optional[int] = None,
     composition: Optional[dict] = None,
     composition_couverture_pct: Optional[float] = None,
+    levier: Optional[float] = None,
 ) -> models.TitrePossede:
+    if levier is not None:
+        titre.levier = levier
     if nom is not None:
         titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de

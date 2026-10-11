@@ -979,6 +979,11 @@ class TitrePossede(Base):
     # l'indice est « non détaillé » et se montrera comme tel.
     composition = Column(JSON, nullable=True)
     composition_couverture_pct = Column(Float, nullable=True)
+    # LE LEVIER (migration 0082) : 1 pour presque tous, 2 ou 3 pour un ETF à effet de
+    # levier. Lu par la seule vue d'ensemble des placements, qui peut montrer l'EXPOSITION
+    # AU MARCHÉ (valorisation × levier) au lieu du capital investi. Aucun solde ni
+    # aucune valorisation ne le lit. Strictement positif.
+    levier = Column(Float, nullable=False, default=1.0, server_default="1")
     # RANGÉ, PAS EFFACÉ (migration 0040). Un titre entièrement vendu ne se
     # supprime pas — ses mouvements portent des opérations d'espèces réelles, et
     # les effacer réécrirait le solde du compte. L'archiver le retire des listes

@@ -798,7 +798,9 @@ COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
 #  - `couverture_pct` et `composition` : le dictionnaire d'un ETF ;
 #  - `cours` : le dernier cours unitaire, dans la monnaie de cotation. EN DERNIER, pour
 #    que les presets enregistrés avant elle lisent toujours les mêmes colonnes ; lue
-#    seulement quand l'extension « Lecture de cours » tourne (cf. service_import_titres).
+#    seulement quand l'extension « Lecture de cours » tourne (cf. service_import_titres) ;
+#  - `levier` : 1 pour un titre ordinaire, 2 ou 3 pour un ETF à effet de levier (migration
+#    0082). Ajouté à la fin, pour la même raison que `cours`.
 # Une cellule VIDE ne change rien : le fichier complète, il n'efface pas.
 PROPRIETES_IMPORT_TITRE = (
     "code_isin",
@@ -811,6 +813,7 @@ PROPRIETES_IMPORT_TITRE = (
     "couverture_pct",
     "composition",
     "cours",
+    "levier",
 )
 
 PROPRIETES_IMPORT_TITRE_OBLIGATOIRES = {"code_isin"}

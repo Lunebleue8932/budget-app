@@ -18,7 +18,7 @@ router = APIRouter(prefix="/investing-overview", tags=["investing-overview"])
 
 @router.get("/exposition", response_model=list[ExpositionMonnaie])
 def get_exposition(
-    axe: AxeTitre = AxeTitre.enveloppe, db: Session = Depends(get_db)
+    axe: AxeTitre = AxeTitre.enveloppe, levier: bool = False, db: Session = Depends(get_db)
 ):
     """La répartition du portefeuille sur un axe, une entrée par monnaie.
 
@@ -34,11 +34,11 @@ def get_exposition(
     Une liste VIDE quand rien n'est détenu — ce n'est pas une erreur, c'est
     l'état d'un portefeuille neuf, et l'écran le dit avec une phrase plutôt
     qu'avec un camembert à zéro part."""
-    return exposition_par_axe(db, axe.value)
+    return exposition_par_axe(db, axe.value, avec_levier=levier)
 
 
 @router.get("/exposition-titres", response_model=list[ExpositionTitresMonnaie])
-def get_exposition_titres(db: Session = Depends(get_db)):
+def get_exposition_titres(levier: bool = False, db: Session = Depends(get_db)):
     """L'exposition titre par titre : en direct, et à travers la composition des ETF. Ce que
     les compositions ne décrivent pas forme une part à elle (cf. exposition_par_titre)."""
-    return exposition_par_titre(db)
+    return exposition_par_titre(db, avec_levier=levier)

@@ -35,16 +35,25 @@ SENS_ENTRANTS = {Sens.entree, Sens.transfert_entrant}
 def totaux_par_monnaie(sous_filtre) -> list[dict]:
     """[{monnaie_id, monnaie_nom, monnaie_symbole, depenses, entrees, solde}]
 
-    `depenses` et `entrees` sont des valeurs ABSOLUES — c'est ainsi qu'on les
-    lit (« 1 240 € dépensés »). `solde` est leur différence, donc négatif pour un
-    projet qui n'a fait que coûter : le cas ordinaire d'un voyage.
+    CE QUE LE PROJET A COÛTÉ (ou rapporté) : les ENTRÉES moins les DÉPENSES, lues dans la
+    cascade du projet (cf. services/cascade.py) — chaque catégorie AU NET, plus les frais de
+    virements internes, qui sont une dépense bien réelle. LES MOUVEMENTS VERS OU DEPUIS
+    L'ÉPARGNE ET LES CONVERSIONS ENTRE MONNAIES N'Y COMPTENT PAS : l'argent a changé de place,
+    il n'a pas été dépensé. Les compter faisait d'un voyage financé par un retrait du livret
+    un projet « à l'équilibre ». La cascade, juste dessous, les montre toujours.
 
-    Les monnaies sortent dans l'ordre de leur nom : une liste de totaux qui
-    change de place d'une visite à l'autre se relit mal.
+    `depenses` et `entrees` sont des valeurs ABSOLUES — c'est ainsi qu'on les lit
+    (« 1 240 € dépensés »). `solde` est leur différence, donc négatif pour un projet qui n'a
+    fait que coûter : le cas ordinaire d'un voyage.
+
+    UNE ENTRÉE PAR MONNAIE TOUCHÉE par une opération du projet, même à zéro (une monnaie
+    qu'on n'a fait que convertir) : c'est elle qui porte aussi l'histogramme de la monnaie.
+    Les monnaies sortent dans l'ordre de leur nom : une liste de totaux qui change de place
+    d'une visite à l'autre se relit mal.
     """
     par_monnaie: dict[int, dict] = {}
     for operation in sous_filtre.operations:
-        entree = par_monnaie.setdefault(
+        par_monnaie.setdefault(
             operation.monnaie_id,
             {
                 "monnaie_id": operation.monnaie_id,
@@ -55,15 +64,35 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
                 "solde": 0.0,
             },
         )
-        if operation.sens in SENS_SORTANTS:
-            entree["depenses"] += operation.montant
-        elif operation.sens in SENS_ENTRANTS:
-            entree["entrees"] += operation.montant
+    db = object_session(sous_filtre)
+    if par_monnaie and db is not None:
+        for cascade in service_cascade.cascades(db, sous_filtre.operations):
+            entree = par_monnaie.get(cascade["monnaie_id"])
+            if entree is None:
+                continue
+            for colonne in cascade["colonnes"]:
+                if colonne["genre"] not in GENRES_DU_BILAN:
+                    continue
+                if colonne["montant"] > 0:
+                    entree["entrees"] += colonne["montant"]
+                else:
+                    entree["depenses"] -= colonne["montant"]
 
     for entree in par_monnaie.values():
-        entree["solde"] = entree["entrees"] - entree["depenses"]
+        entree["entrees"] = round(entree["entrees"], 2)
+        entree["depenses"] = round(entree["depenses"], 2)
+        entree["solde"] = round(entree["entrees"] - entree["depenses"], 2)
 
     return sorted(par_monnaie.values(), key=lambda e: e["monnaie_nom"])
+
+
+# Les marches de la cascade qui entrent dans le bilan d'un projet : les catégories et les
+# frais. Pas l'épargne ni les conversions (cf. totaux_par_monnaie).
+GENRES_DU_BILAN = {
+    service_cascade.GENRE_ENTREE,
+    service_cascade.GENRE_DEPENSE,
+    service_cascade.GENRE_FRAIS,
+}
 
 
 # Le libellé d'une dépense qu'aucune catégorie ne classe. Une opération d'un

@@ -1016,6 +1016,8 @@ class TitreCreate(BaseModel):
     # L'autre axe : à QUOI le titre expose (« Actions », « Obligations »…). Même
     # table, même nature, même absence d'effet sur le moindre calcul.
     classe_actif_id: Optional[int] = None
+    # Le levier (migration 0082) : 1 pour un titre ordinaire. Strictement positif.
+    levier: float = Field(default=1.0, gt=0)
 
 
 class TitreUpdate(BaseModel):
@@ -1045,6 +1047,8 @@ class TitreUpdate(BaseModel):
     # ISIN représentent) suit la même convention, zéro la retire.
     composition: Optional[dict[str, float]] = None
     composition_couverture_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    # Le levier, None = « ne change pas ». Strictement positif : 1 le remet à l'ordinaire.
+    levier: Optional[float] = Field(default=None, gt=0)
 
 
 class ExpositionLigneEcriture(BaseModel):
@@ -1117,6 +1121,7 @@ class TitreRead(BaseModel):
     expositions: list[ExpositionLigneRead] = Field(default_factory=list)
     composition: Optional[dict[str, float]] = None
     composition_couverture_pct: Optional[float] = None
+    levier: float = 1.0
     # Ce qui est incomplet SANS être faux (une répartition qui ne couvre pas 100 %,
     # une couverture qui ne colle pas aux poids) : signalé, jamais bloquant.
     avertissements: list[str] = Field(default_factory=list)

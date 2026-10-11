@@ -91,6 +91,35 @@ function totauxHtml(totaux) {
 }
 
 /**
+ * LE BILAN DU PROJET OUVERT, EN CARTES — une par monnaie : les entrées moins les dépenses, sans
+ * l'épargne ni les conversions (cf. service_projets.totaux_par_monnaie), en grand ; le détail
+ * des deux dessous. La liste des projets garde sa ligne compacte (`totauxHtml`).
+ */
+function totauxCartesHtml(totaux) {
+  if (totaux.length === 0) {
+    return `<span class="hint">${t("Aucune opération.")}</span>`;
+  }
+  return totaux
+    .map((total) => {
+      const solde = total.solde;
+      const signe = montantEstNul(solde) ? "" : solde < 0 ? "−" : "+";
+      const classe = classeMontant(solde, solde < 0 ? "sortie" : "entree");
+      return `
+      <div class="kpi-card projet-bilan">
+        <div class="kpi-label">${escapeHtml(t("Entrées − dépenses"))}<i class="info-bulle" tabindex="0" data-info-cle="projets.bilan">i</i></div>
+        <div class="kpi-valeur montant ${classe}">${signe}${formatMontant(Math.abs(solde), total.monnaie_id)}</div>
+        <div class="kpi-sous-texte">${escapeHtml(
+          t("Entrées : {entrees} · Sorties : {sorties}", {
+            entrees: formatMontant(total.entrees || 0, total.monnaie_id),
+            sorties: formatMontant(total.depenses || 0, total.monnaie_id),
+          })
+        )}</div>
+      </div>`;
+    })
+    .join("");
+}
+
+/**
  * L'histogramme du projet ouvert : les mêmes barres que celles du dashboard,
  * sur les seules opérations que le projet regroupe.
  *
@@ -345,7 +374,10 @@ async function ouvrirProjet(projet) {
   const description = document.getElementById("projet-detail-description");
   description.textContent = projetOuvert.description;
   description.style.display = projetOuvert.description ? "" : "none";
-  document.getElementById("projet-detail-totaux").innerHTML = totauxHtml(projetOuvert.totaux);
+  const totaux = document.getElementById("projet-detail-totaux");
+  totaux.innerHTML = totauxCartesHtml(projetOuvert.totaux);
+  // L'info-bulle de la carte vient de textes.js (`data-info-cle`), posée après coup.
+  appliquerTextes(totaux);
   renderWaterfallProjet();
   renderHistogrammeProjet(projetOuvert.totaux);
   // La surbrillance croisée barre ↔ ligne de légende, comme au dashboard.

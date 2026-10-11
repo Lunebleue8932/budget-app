@@ -87,6 +87,7 @@ def _titre_read(titre, detenus: set[int] | None = None) -> schemas.TitreRead:
         ],
         composition=titre.composition or None,
         composition_couverture_pct=titre.composition_couverture_pct,
+        levier=titre.levier,
         avertissements=_avertissements(titre),
     )
 
@@ -172,6 +173,7 @@ def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
             payload.code_isin,
             payload.type_titre_id,
             payload.classe_actif_id,
+            payload.levier,
         )
     )
 
@@ -245,6 +247,7 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
             classe_actif_id=payload.classe_actif_id,
             composition=payload.composition,
             composition_couverture_pct=payload.composition_couverture_pct,
+            levier=payload.levier,
         )
     )
 

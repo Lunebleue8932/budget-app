@@ -321,6 +321,22 @@ def test_previsualiser_liste_les_categories_et_comptes_inconnus(db_session):
     assert preview.lignes[0].compte_id is None
 
 
+def test_une_entree_que_rien_ne_classe_tombe_dans_entrees_d_argent(db_session):
+    """Repli d'une entrée : « Entrées d'argent », et non « Autres », qui la ferait compter
+    parmi les dépenses tant qu'on ne la reclasse pas."""
+    preset = _make_preset(db_session)
+    contenu = _construire_fichier(
+        [
+            {"date": date(2026, 7, 1), "nature": "Salaire", "categorie": "Paie", "montant": 2100.0, "compte": "CC Perso"},
+            {"date": date(2026, 7, 2), "nature": "Courses", "categorie": "Paie", "montant": -45.2, "compte": "CC Perso"},
+        ]
+    )
+    entree, depense = import_bancaire.previsualiser(db_session, preset.id, contenu).lignes
+    assert entree.categorie_id == get_categorie_id(db_session, "Entrées d'argent")
+    assert entree.categorie_suggestion_auto is True
+    assert depense.categorie_id == get_categorie_id(db_session, "Autres")
+
+
 def test_previsualiser_ne_suggere_jamais_virement_interne_automatiquement(db_session):
     preset = _make_preset(db_session)
     contenu = _construire_fichier(

@@ -31,10 +31,13 @@ const IMT_PROPRIETES = [
   // EN DERNIER, comme au serveur : les formats enregistrés avant elle lisent toujours les
   // mêmes colonnes. Seulement pour qui a « Lecture de cours ».
   { cle: "cours", libelle: "Cours", extension: "lecture-de-cours" },
+  // Le levier (migration 0082) : 1 pour un titre ordinaire. À la fin, comme « Cours ».
+  { cle: "levier", libelle: "Levier" },
 ];
 
-// Le nombre de colonnes du modèle d'avant la colonne « Cours » (cf. imtCompleterFormats).
-const IMT_NB_COLONNES_SANS_COURS = 9;
+// Le nombre de colonnes du premier modèle, celui d'avant « Cours » et « Levier » (cf.
+// imtCompleterFormats).
+const IMT_NB_COLONNES_ORIGINE = 9;
 
 const IMT = {
   presets: [],
@@ -125,28 +128,31 @@ async function imtChargerPresets() {
 }
 
 /**
- * LA COLONNE « COURS » ARRIVÉE APRÈS COUP. Un format qui lit EXACTEMENT les colonnes du modèle
- * d'avant (les neuf premières, dans l'ordre) est celui que l'écran a créé, ou sa copie : il
- * apprend à lire la dixième, que le modèle porte désormais quand on demande les cours. Sans
- * cela, la colonne ne serait lue par personne. Un format composé à la main
- * n'est pas touché. Rend true si un format a été complété.
+ * LES COLONNES ARRIVÉES APRÈS COUP (« Cours », « Levier »). Un format qui lit EXACTEMENT les
+ * premières colonnes de la liste, dans l'ordre (celui que l'écran a créé, ou sa copie, à
+ * neuf colonnes au moins), apprend à lire les suivantes. Sans cela, ces colonnes ne seraient
+ * lues par personne. Un format composé à la main n'est pas touché. Rend true si un format a
+ * été complété.
  */
 async function imtCompleterFormats(presets) {
-  if (!imtCoursDisponible()) return false;
-  const modele = IMT_PROPRIETES.slice(0, IMT_NB_COLONNES_SANS_COURS);
-  const aCompleter = presets.filter(
-    (p) =>
-      p.colonnes.length === modele.length &&
-      modele.every((prop, i) => p.colonnes.some((c) => c.index === i + 1 && c.propriete === prop.cle))
-  );
+  const attendues = imtProprietes();
+  const aCompleter = presets.filter((p) => {
+    const n = p.colonnes.length;
+    return (
+      n >= IMT_NB_COLONNES_ORIGINE &&
+      n < attendues.length &&
+      attendues.slice(0, n).every((prop, i) => p.colonnes.some((c) => c.index === i + 1 && c.propriete === prop.cle))
+    );
+  });
   for (const preset of aCompleter) {
+    const n = preset.colonnes.length;
     await apiFetch(`/import-titres/presets/${preset.id}`, {
       method: "PUT",
       body: JSON.stringify({
         nom: preset.nom,
         colonnes: [
           ...preset.colonnes.map(({ index, propriete }) => ({ index, propriete })),
-          { index: IMT_NB_COLONNES_SANS_COURS + 1, propriete: "cours" },
+          ...attendues.slice(n).map((prop, i) => ({ index: n + i + 1, propriete: prop.cle })),
         ],
         lignes_entete: preset.lignes_entete ?? 0,
       }),

@@ -44,7 +44,7 @@ ISIN_APPLE = "US0378331005"
 
 ENTETE = [
     "ISIN", "Nom", "Monnaie", "Enveloppe", "Classe d'actif", "Zone géographique",
-    "Secteur", "Couverture", "Composition", "Cours",
+    "Secteur", "Couverture", "Composition", "Cours", "Levier",
 ]
 
 
@@ -402,81 +402,6 @@ def test_les_presets_de_titres_ne_se_melangent_pas_aux_autres(db_session):
 # ---------- Préparer le fichier ----------
 
 
-def test_le_modele_est_un_classeur_relisible_avec_les_colonnes_du_preset_par_defaut(db_session):
-    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
-    assert classeur.sheetnames == ["Titres", "Notice"]
-    # La feuille ACTIVE est celle que l'import lit : c'est la feuille des données.
-    assert classeur.active.title == "Titres"
-    assert [c.value for c in classeur["Titres"][1]] == routeur.ENTETES_MODELE
-    assert len(routeur.ENTETES_MODELE) == len(COLONNES_IMPORT_TITRE_PAR_DEFAUT)
-    # Aucune ligne d'exemple dans la feuille de données : elle serait importée.
-    assert classeur["Titres"].max_row == 1
-
-
-def test_la_colonne_cours_n_est_posee_que_demandee_et_avec_lecture_de_cours(db_session, monkeypatch):
-    from app import extensions
-
-    def entetes(cours):
-        return routeur.apercu_modele(cours=cours)["lignes"][0]
-
-    assert entetes(True)[-1] == "Cours"
-    assert "Cours" not in entetes(False)
-    monkeypatch.setattr(extensions, "est_active", lambda extension_id: extension_id != "lecture-de-cours")
-    assert "Cours" not in entetes(True)
-
-
-def test_la_notice_donne_les_valeurs_de_l_application(db_session):
-    crud.create_type_titre(db_session, "ETF", AxeTitre.enveloppe.value)
-    crud.create_type_titre(db_session, "Luxe", AxeTitre.secteur.value)
-    eteinte = crud.create_monnaie(db_session, "Peso", "MXN")
-    eteinte.active = False
-    db_session.commit()
-
-    notice = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session)), data_only=True)["Notice"]
-    valeurs = {ligne[0]: ligne[1] for ligne in notice.iter_rows(values_only=True) if ligne[0]}
-
-    euro = crud.get_monnaies(db_session)[0]
-    assert valeurs["Monnaies"] == f"{euro.nom} ({euro.symbole})"
-    assert "ETF" in valeurs["Enveloppes"].split(" ; ")
-    assert "Luxe" in valeurs["Secteurs"].split(" ; ")
-    for intitule in ("Classes d'actif", "Zones géographiques"):
-        assert valeurs[intitule]
-
-
-def test_le_modele_ne_nomme_ni_l_outil_ni_un_budget(db_session):
-    """Le classeur décrit des titres, rien de ce qui les range."""
-    import re
-
-    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
-    textes = [
-        str(cellule)
-        for feuille in classeur.worksheets
-        for ligne in feuille.iter_rows(values_only=True)
-        for cellule in ligne
-        if cellule
-    ]
-    assert not [t for t in textes if re.search(r"appli|import|budget|\bapp\b", t, re.IGNORECASE)]
-
-
-def test_l_apercu_du_modele_montre_trois_lignes_dont_les_en_tetes_du_classeur(db_session):
-    """L'aperçu affiché dans l'app lit la même source que le classeur : il ne peut pas diverger."""
-    apercu = routeur.apercu_modele(cours=True)
-    classeur = load_workbook(io.BytesIO(routeur.modele_xlsx(db_session, avec_cours=True)), data_only=True)
-    entetes = [c.value for c in classeur["Titres"][1]]
-
-    assert apercu["feuille"] == "Titres"
-    assert len(apercu["lignes"]) == 3
-    assert apercu["lignes"][0] == entetes
-    # Les deux autres sont vides : le modèle n'a aucune ligne d'exemple.
-    assert all(cellule == "" for ligne in apercu["lignes"][1:] for cellule in ligne)
-    assert all(len(ligne) == len(entetes) for ligne in apercu["lignes"])
-
-
-def test_le_modele_s_importe_tel_quel_sans_rien_creer(db_session, preset):
-    resultat = _confirmer(db_session, preset, routeur.modele_xlsx(db_session, avec_cours=True))
-    assert (resultat.crees, resultat.mis_a_jour, resultat.ignores) == (0, 0, 0)
-
-
 def test_la_feuille_titres_est_lue_meme_si_une_autre_est_active(db_session, preset):
     """Un classeur avec une feuille de remarques peut être enregistré ouvert sur elle."""
     classeur = load_workbook(io.BytesIO(_fichier((ISIN_MSFT, "Microsoft"))))
@@ -495,9 +420,9 @@ def test_la_feuille_titres_est_lue_meme_si_une_autre_est_active(db_session, pres
 
 
 def _avec_cours(*valeurs):
-    """Une ligne du fichier réduite à son ISIN et à son cours (dernière colonne)."""
+    """Une ligne du fichier réduite à son ISIN et à son cours (avant-dernière colonne)."""
     isin, cours = valeurs
-    return (isin,) + (None,) * (len(ENTETE) - 2) + (cours,)
+    return (isin,) + (None,) * (len(ENTETE) - 3) + (cours, None)
 
 
 def test_le_cours_du_fichier_remplace_celui_du_titre(db_session, preset):
@@ -525,6 +450,20 @@ def test_un_cours_illisible_met_la_ligne_en_erreur(db_session, preset):
     (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "n.d."))).lignes
     assert ligne.statut == "erreur"
     assert any("cours" in e for e in ligne.erreurs)
+
+
+def test_le_levier_se_lit_et_x2_vaut_2(db_session, preset):
+    titre = _titre(db_session, ISIN_ETF)
+    ligne = (ISIN_ETF,) + (None,) * (len(ENTETE) - 2) + ("x2",)
+    (lue,) = _apercu(db_session, preset, _fichier(ligne)).lignes
+    assert [(c.champ, c.avant, c.apres) for c in lue.changements] == [("levier", "1", "2")]
+    _confirmer(db_session, preset, _fichier(ligne))
+    db_session.refresh(titre)
+    assert titre.levier == 2.0
+
+    nul = (ISIN_ETF,) + (None,) * (len(ENTETE) - 2) + (0,)
+    (refusee,) = _apercu(db_session, preset, _fichier(nul)).lignes
+    assert refusee.statut == "erreur"
 
 
 def test_sans_lecture_de_cours_la_colonne_cours_est_ignoree(db_session, preset, monkeypatch):

@@ -308,6 +308,8 @@ const TEXTES = {
     "Pour renseigner les intérêts perçus sur tes comptes de placements. Pense à les remettre à 0 si un import de relevé les importe.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
+  "investing-overview.levier":
+    "Décoché : chaque titre pèse ce que tu y as mis. Coché : il pèse ce qu'il fait bouger, sa valeur × son levier - un ETF x2 de 1 000 € compte pour 2 000 €. Les cartes du haut gardent les montants réels ; une carte de plus donne l'exposition.",
   "investing-overview.repartition-par-classe":
     "À quoi ton portefeuille est exposé : actions, obligations, immobilier, monétaire ?",
   "investing-overview.repartition-par-type-de-titre":
@@ -352,6 +354,8 @@ const TEXTES = {
     "Seule la feuille « Titres » est lue à l'import ; une feuille « Notice » explique chaque colonne. Les trois premières lignes suffisent ici : ce sont les en-têtes qui comptent, et le modèle ne contient aucune ligne d'exemple.",
   "import-titres.lire":
     "Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé.",
+  "placements.levier":
+    "1 pour un titre ordinaire, 2 ou 3 pour un ETF à effet de levier. Il ne change ni la valeur du titre ni tes soldes : la vue d'ensemble s'en sert seulement pour montrer ton exposition au marché.",
   "placements.composition-etf":
     "Les ISIN du haut de l'indice que suit l'ETF, avec leur poids en %, une ligne par ISIN (« ISIN ; poids »). -- La part de l'indice couverte est le « x % » que ces lignes représentent ensemble (60 % par défaut). -- Elle sert à éclater l'ETF dans les graphiques : exposition par action, et zone ou secteur quand rien de plus direct n'est renseigné.",
 
@@ -380,6 +384,8 @@ const TEXTES = {
     "Rassemble des opérations déjà saisies, quelles que soient leur catégorie et leur compte, pour lire ce qu'un voyage ou un déménagement t'a coûté. Une opération peut appartenir à plusieurs projets, et rien d'autre dans l'app n'en tient compte. Un projet ne se saisit pas depuis une opération : on le crée ici, puis on y verse les opérations concernées. C'est un regroupement de LECTURE — retirer une opération d'un projet ne la supprime pas, et supprimer un projet ne supprime aucune dépense.",
   "projets.repartition-par-categorie":
     "Où l'argent du projet a été DÉPENSÉ, catégorie par catégorie. Un virement entre tes comptes dans la même monnaie n'y figure pas : l'argent a changé de compte, rien n'a été dépensé. Un change vers une autre monnaie a sa colonne grise /italic(Conversion vers…), et les frais de virements internes la leur, en gris foncé. Pour voir où l'argent est PARTI, lis la cascade juste au-dessus.",
+  "projets.bilan":
+    "Ce que le projet a rapporté moins ce qu'il a coûté, catégorie par catégorie, frais de virement compris. Les virements vers ou depuis l'épargne et les conversions entre monnaies n'y comptent pas : l'argent a changé de place, il n'a pas été dépensé. La cascade juste en dessous les montre toujours.",
   "projets.cascade":
     "Ce que le projet a fait entrer et sortir, marche par marche : les catégories (les entrées en blanc, ou en noir sur le thème clair, puis les dépenses de la plus lourde à la plus légère), l'épargne et les placements, les frais de virements internes en gris foncé et les conversions vers d'autres monnaies en gris, puis le solde. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.",
   "projets.ajouter-des-operations":

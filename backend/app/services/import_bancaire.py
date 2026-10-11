@@ -184,7 +184,6 @@ import unicodedata
 from .. import crud, extensions, models, schemas
 from . import rapprochement_previsionnel, regles_categorisation
 from ..constants import (
-    CATEGORIE_AUTRES,
     DEVISE_PAR_MONTANT_AVANCE,
     LIBELLES_SENS_ENTREE,
     LIBELLES_SENS_SORTIE,
@@ -2176,10 +2175,14 @@ def _resoudre_ligne(
                 categorie_id = None
 
         if categorie_id is None:
-            # Ni règle ni correspondance : on propose "Autres" par défaut plutôt
+            # Ni règle ni correspondance : on propose une catégorie de repli plutôt
             # que de bloquer la ligne — l'utilisateur confirme ou change ce choix
-            # avant de valider l'import (voir frontend).
-            categorie_suggeree = crud.get_categorie_by_nom(db, CATEGORIE_AUTRES)
+            # avant de valider l'import (voir frontend). « Autres » pour ce qui
+            # SORT, « Entrées d'argent » pour ce qui ENTRE (montant positif, sens
+            # lu « entrant », colonne crédit) : cf. crud.categorie_de_repli.
+            categorie_suggeree = crud.categorie_de_repli(
+                db, entree=montant_op is not None and montant_op > 0
+            )
             categorie_id = categorie_suggeree.id if categorie_suggeree else None
             categorie_suggestion_auto = True
 

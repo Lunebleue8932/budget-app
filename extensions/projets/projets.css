@@ -94,6 +94,12 @@
   font-weight: 600;
 }
 
+/* LE BILAN DU PROJET OUVERT, en carte (une par monnaie) : la carte des KPI du dashboard, à sa
+   largeur ordinaire plutôt qu'étirée sur toute la ligne. */
+#projet-detail-totaux .projet-bilan {
+  flex: 0 1 18rem;
+}
+
 /* MÊME RÈGLE POUR LES LIGNES D'OPÉRATION des deux tableaux du projet. Elles
    passent par `montantHtml` du noyau, qui colore selon le sens (vert / orange)
    — pertinent sur la page Opérations, où entrées et sorties se mélangent, et
