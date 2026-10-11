@@ -99,3 +99,10 @@ backend/diagnostic_ecart_flux.py
 # jeux de démonstration) et ne servent qu'au développeur. Un utilisateur n'en a
 # aucun usage, et un clone n'a pas à pouvoir remplir sa base avec.
 backend/scripts/
+
+# ---------- VARIANTE LOCALE ----------
+#
+# Copies complètes de certains fichiers, avec un supplément qui n'est pas publié pour
+# l'instant. Posée ou retirée par local-extras/appliquer.py ; ce dossier ne voyage jamais
+# avec le dépôt, et un crochet pre-commit local refuse de commiter tant qu'elle est posée.
+local-extras/

@@ -4,7 +4,9 @@
  * une feuille d'extension est chargée pour toute l'application. Aucune couleur en dur — les
  * variables du noyau portent le thème.
  */
-
+/* `.imt-fichier` et `.imt-config-ligne` portent aussi `.selecteur-contexte` (cf. page.html) : c'est
+   elle qui habille leurs champs au thème, et leur dispose plusieurs par ligne. Ne reste ici que
+   ce qui est propre à l'écran. */
 #placements-vue-import-titres .imt-fichier,
 #placements-vue-import-titres .imt-config-ligne {
   margin-bottom: 0.6rem;

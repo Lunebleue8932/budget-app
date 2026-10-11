@@ -351,8 +351,6 @@ const TEXTES = {
     "La répartition du titre par secteur d'activité, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit entre plusieurs secteurs. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
   "import-titres.presentation":
     "Un fichier Excel ou CSV qui DÉCRIT des titres : une ligne par ISIN, avec son enveloppe, ses répartitions (classe d'actif, zone, secteur) et, pour un ETF, la composition de son indice. -- Il ne crée aucune opération. -- Une cellule vide ne change rien : le fichier complète, il n'efface jamais. -- Tu peux le réimporter autant de fois que tu veux, par exemple pour mettre un ETF à jour.",
-  "import-titres.apercu-modele":
-    "Seule la feuille « Titres » est lue à l'import ; une feuille « Notice » explique chaque colonne. Les trois premières lignes suffisent ici : ce sont les en-têtes qui comptent, et le modèle ne contient aucune ligne d'exemple.",
   "import-titres.lire":
     "Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé.",
   "placements.composition-etf":
@@ -618,7 +616,7 @@ const TEXTES = {
   "noyau.tuto-pem-8-2":
     "/- Prévisionnelle : elle agit comme une opération qui n'a pas encore eu lieu /- Récurrente : permet d'ajouter une récurrence, elle nécessite de cocher Prévisionnelle /- Si tu importes tes opérations (cf. tutoriel sur l'Import), il faut qu'une dépense prévisionnelle reconnaisse la vraie opération à l'import. Tu peux donc indiquer : /-- une plage de date dans laquelle la dépense devrait arriver /-- des mots clés à chercher dans le libellé (pour enregistrer un mot-clé, utilise le bouton '+' ou Ctrl + Entrée)",
   "noyau.tuto-pem-9":
-    "Tu peux créer, modifier ou supprimer ces différents éléments. Si tu as des opérations en base, la suppression ne sera pas disponible. // Tu peux utiliser la fonctionnalité 'Éteindre' : tout se passe comme si tu n'avais pas le compte / la catégorie, mais les opérations en base le conservent.",
+    "Tu peux créer, modifier (double-clic sur la ligne) ou supprimer ces différents éléments. Si tu as des opérations en base, la suppression ne sera pas disponible. // Tu peux utiliser la fonctionnalité 'Désactiver' : tout se passe comme si tu n'avais pas le compte / la catégorie, mais les opérations en base le conservent.",
   "noyau.tuto-pem-9-1":
     "Deux types de catégories : celles pour les dépenses, et celles pour les entrées d'argent. Tu le renseignes en créant ou en modifiant.",
   "noyau.tuto-pem-9-2":

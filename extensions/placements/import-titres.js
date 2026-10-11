@@ -48,15 +48,10 @@ function imtEl(id) {
   return document.getElementById(id);
 }
 
-function imtCoursDisponible() {
-  return BudgetApp.extensions.estActive("lecture-de-cours");
-}
-
 /** Les propriétés qu'une colonne peut porter ICI : sans « Lecture de cours », pas de « Cours ». */
 function imtProprietes() {
   return IMT_PROPRIETES.filter((p) => !p.extension || BudgetApp.extensions.estActive(p.extension));
 }
-
 
 
 /* ---------- Les volets ---------- */

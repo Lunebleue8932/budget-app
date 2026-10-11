@@ -7,7 +7,7 @@ refusent les presets de ce domaine, et celui-ci refuse les leurs : la frontière
 des trois côtés, parce qu'un preset lu par le mauvais routeur donnerait un résultat faux
 en silence.
 
-CE QUI SERT À PRÉPARER LE FICHIER vit ici aussi, à côté de la lecture : Il n'y a pas de modèle Excel à télécharger : les colonnes se désignent à la lecture du fichier,
+Il n'y a pas de modèle Excel à télécharger : les colonnes se désignent à la lecture du fichier,
 dans le format (preset) qu'on enregistre.
 """
 import json

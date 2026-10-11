@@ -2,7 +2,7 @@
 
 CE QUE CES TESTS PROTÈGENT, dans l'ordre de ce qui coûterait le plus cher à casser :
 
-  - UNE CELLULE VIDE NE CHANGE RIEN. Un secteur qu'on ne connaît pas laisse la
+  - UNE CELLULE VIDE NE CHANGE RIEN. Un fichier dont on ne trouve pas le secteur laisse la
     cellule vide : ce n'est pas une demande de retirer celui qu'on avait saisi. Un
     import qui effacerait en silence ce qu'on a mis des heures à renseigner serait
     pire que pas d'import ;
