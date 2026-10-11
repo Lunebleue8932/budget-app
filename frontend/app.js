@@ -6527,7 +6527,11 @@ function cablerActionsComptes(conteneur) {
  */
 function attacherDragTypeComptes(conteneur) {
   attacherDragEntreGroupes(conteneur, {
-    selecteurLigne: ".import-mapping-row[draggable='true']",
+    // `.import-mapping-row` et non `[draggable='true']` : la ligne ne devient
+    // déplaçable qu'au moment où l'on appuie sur sa poignée (cf.
+    // rendreDeplacableParPoignee), elle ne porte donc pas l'attribut au repos —
+    // et un sélecteur sur l'attribut ne trouvait plus aucune ligne.
+    selecteurLigne: ".import-mapping-row",
     selecteurGroupe: ".groupe-carte",
     selecteurCorps: ".groupe-carte-corps",
     selecteurVide: ".groupe-carte-vide",
@@ -6544,7 +6548,7 @@ function attacherDragTypeComptes(conteneur) {
     // enregistré.
     onReordonne: async (groupe, aChangeDeGroupe) => {
       const ids = [
-        ...groupe.querySelectorAll(".import-mapping-row[draggable='true']"),
+        ...groupe.querySelectorAll(".import-mapping-row"),
       ].map((ligne) => Number(ligne.dataset.id));
       await apiFetch("/comptes/reordonner", {
         method: "PUT",
@@ -6905,14 +6909,14 @@ function renderCategories() {
 // Glisser-déposer natif (HTML5) pour réordonner les catégories : plus
 // pratique que des boutons monter/descendre pour une longue liste.
 function attacherDragReorderCategories(body) {
-  body.querySelectorAll("tr[draggable='true']").forEach((tr) => {
+  body.querySelectorAll("tr[data-id]").forEach((tr) => {
     tr.addEventListener("dragstart", () => {
       tr.classList.add("dragging");
     });
 
     tr.addEventListener("dragend", async () => {
       tr.classList.remove("dragging");
-      const nouvelOrdre = [...body.querySelectorAll("tr[draggable='true']")].map((r) =>
+      const nouvelOrdre = [...body.querySelectorAll("tr[data-id]")].map((r) =>
         Number(r.dataset.id)
       );
       try {
