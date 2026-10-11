@@ -5601,24 +5601,6 @@ body.modale-ouverte {
   border-right: none;
 }
 
-/* L'INTERRUPTEUR DE MOYENNE, sous l'arbre, à la hauteur de la rangée des
-   semaines : il décrit un ensemble, pas une semaine. Éteint (et inerte) quand
-   on regarde UNE semaine, où il n'aurait rien à moyenner. */
-.periode-moyenne {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0.4rem 0 0 1.25rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.periode-moyenne.desactive {
-  opacity: 0.45;
-  cursor: default;
-}
-
 /* ---------- Réorganiser les colonnes en glissant les en-têtes ---------- */
 
 /* Le titre et le bouton de relecture sur une ligne. */

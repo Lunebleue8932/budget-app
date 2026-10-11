@@ -102,8 +102,7 @@ const state = {
   placementCompteId: null,
   // L'ARBRE DE PÉRIODE (cf. « L'arbre de période du dashboard ») : `niveau` dit
   // ce que désigne la pastille (tout | annee | mois | semaine), `annee` / `mois` /
-  // `semaine` sont les références, `moyenne` l'interrupteur de la moyenne
-  // hebdomadaire, et `moisDeplie` / `semainesDeplie` les deux chevrons. `vue`
+  // `semaine` sont les références, et `moisDeplie` / `semainesDeplie` les deux chevrons. `vue`
   // (tout | annee | mois) est DÉRIVÉ du niveau : c'est la seule chose que le
   // serveur, les objectifs et les monnaies connaissent — une semaine y est un
   // mois dont on regarde une tranche.
@@ -473,7 +472,6 @@ function periodeInitialeDashboard() {
     annee: null,
     mois: null,
     semaine: null,
-    moyenne: false,
     // Le dashboard s'ouvre sur le mois : sa ligne doit être là, sans quoi la
     // pastille bleue n'aurait aucune ligne où se poser.
     moisDeplie: true,
@@ -536,12 +534,6 @@ function transitionPeriode(etat, geste, contexte) {
         else if (suivant.niveau === "semaine") suivant.niveau = "mois";
       }
       break;
-    case "moyenne":
-      // UNE MOYENNE PORTE SUR UN ENSEMBLE, pas sur une semaine : activée alors
-      // qu'on regarde une semaine, elle remonte la pastille au mois.
-      suivant.moyenne = !!geste.actif;
-      if (suivant.moyenne && suivant.niveau === "semaine") suivant.niveau = "mois";
-      break;
   }
 
   // Les invariants, une fois pour toutes.
@@ -549,7 +541,6 @@ function transitionPeriode(etat, geste, contexte) {
   if (rang() >= rangNiveauPeriode("mois")) suivant.moisDeplie = true;
   if (suivant.niveau === "semaine") {
     suivant.semainesDeplie = true;
-    suivant.moyenne = false;
     const nombre = semainesDuMoisLocal(suivant.annee, suivant.mois).length;
     suivant.semaine = Math.min(Math.max(suivant.semaine || 1, 1), nombre);
   }
@@ -633,7 +624,7 @@ function creerArbrePeriode(
   const geste = (g) => {
     const avant = { ...etat };
     const apres = transitionPeriode(
-      { ...etat, semaine: null, semainesDeplie: false, moyenne: false },
+      { ...etat, semaine: null, semainesDeplie: false },
       g,
       { aujourdhui: new Date(), moisDisponibles }
     );
@@ -870,19 +861,7 @@ function renderArbrePeriode() {
     });
     ligne("semaine", { contenu: contenuSemaines });
   }
-
-  // L'interrupteur de moyenne : sans objet quand on regarde UNE semaine.
-  const caseMoyenne = document.getElementById("dashboard-periode-moyenne");
-  if (caseMoyenne) {
-    caseMoyenne.checked = !!p.moyenne;
-    caseMoyenne.disabled = p.niveau === "semaine";
-    caseMoyenne.closest("label")?.classList.toggle("desactive", p.niveau === "semaine");
-  }
 }
-
-document.getElementById("dashboard-periode-moyenne")?.addEventListener("change", (e) => {
-  appliquerGestePeriode({ type: "moyenne", actif: e.target.checked });
-});
 
 // Le symbole vient de la table `monnaie` (saisi par l'utilisateur, pas un code
 // ISO) : on formate le nombre à la française et on accole le symbole, plutôt
@@ -2352,11 +2331,10 @@ async function loadDashboardData(annee, mois) {
   // la requête est en vol doit déjà voir la BONNE période (cf.
   // dashboardAnneeMoisActuel, drillThroughCategorie).
   dashboardAnneeMoisActuel = { annee, mois };
-  // Les semaines et la moyenne se relisent avec le reste : une opération a pu
+  // Les semaines se relisent avec le reste : une opération a pu
   // changer depuis. Seul un geste de l'arbre qui ne change pas de données (une
   // autre semaine du même mois) garde ce qu'on a déjà.
   dashboardSemainesDonnees = null;
-  dashboardMoyenneDonnees = null;
   try {
     const vue = state.dashboardPeriode.vue;
     const url =
@@ -4796,7 +4774,7 @@ function bornesPeriode({ vue, annee, mois, semaine = null }) {
     };
   }
   if (vue === "annee") return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
-  if (semaine && !semaine.moyenne) {
+  if (semaine) {
     return {
       debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
       fin: `${annee}-${pad(mois)}-${pad(semaine.jour_fin)}`,
@@ -5172,8 +5150,6 @@ let dashboardAnneeMoisActuel = { annee: null, mois: null };
  * libellePeriodeHistogramme), traduit en dates pour le drill-through vers
  * Opérations.
  *
- * LA MOYENNE N'A PAS DE BORNES À ELLE : c'est une moyenne de semaines, pas une
- * semaine — elle retombe sur l'ensemble qu'elle résume (le mois, l'année ou tout).
  */
 function bornesPeriodeHistogramme(annee, mois) {
   return bornesPeriode({ vue: state.dashboardPeriode.vue, annee, mois, semaine: semaineChoisie() });
@@ -5344,7 +5320,7 @@ function majPanneauFiltreCategoriesDashboard(depenses) {
   });
 })();
 
-// Les dernières `depenses` rendues (mois entier, semaine ou moyenne selon ce
+// Les dernières `depenses` rendues (mois entier ou semaine selon ce
 // qui est choisi) : la case "Tout sélectionner" en a besoin hors de tout
 // rendu de panneau (cf. initFiltreCategoriesDashboard ci-dessus).
 let dashboardDepensesActuels = [];
@@ -5379,36 +5355,18 @@ let dashboardDepensesActuels = [];
 // lecture périmée (cf. cleSemainesDashboard).
 let dashboardSemainesDonnees = null;
 
-// LA MOYENNE HEBDOMADAIRE de l'ensemble que le niveau désigne (cf.
-// /dashboard/semaines/moyenne), lue à la demande : elle parcourt toutes les
-// semaines de son ensemble, et la recalculer à chaque changement de mois
-// ralentirait tout le dépliant pour une moyenne qu'on ne regarde que sur
-// demande. Gardée avec sa clé, comme les semaines.
-let dashboardMoyenneDonnees = null;
-
 function cleSemainesDashboard() {
   const p = state.dashboardPeriode;
   return `${p.annee}-${p.mois}-${state.dashboardMonnaieId}`;
 }
 
-function cleMoyenneDashboard() {
-  const p = state.dashboardPeriode;
-  const ensemble =
-    p.vue === "tout" ? "tout" : p.vue === "annee" ? `annee:${p.annee}` : `mois:${p.annee}-${p.mois}`;
-  return `${ensemble}-${state.dashboardMonnaieId}`;
-}
-
 /**
  * Ce que l'histogramme regarde en plus du mois entier : la semaine choisie
- * (l'objet de /dashboard/semaines), `{ moyenne: true, pret }` pour la moyenne
- * hebdomadaire, ou null — et null veut dire « la période entière », l'état où
- * l'histogramme est celui que le dashboard a toujours montré.
+ * (l'objet de /dashboard/semaines), ou null — et null veut dire « la période
+ * entière », l'état où l'histogramme est celui que le dashboard a toujours montré.
  */
 function semaineChoisie() {
   const p = state.dashboardPeriode;
-  if (p.moyenne) {
-    return { moyenne: true, pret: dashboardMoyenneDonnees?.cle === cleMoyenneDashboard() };
-  }
   if (p.niveau !== "semaine") return null;
   if (dashboardSemainesDonnees?.cle !== cleSemainesDashboard()) return null;
   return (dashboardSemainesDonnees.semaines || []).find((s) => s.numero === p.semaine) || null;
@@ -5425,13 +5383,9 @@ function semaineChoisie() {
  */
 function contexteGraphesDashboard(depensesDuMois) {
   const semaine = semaineChoisie();
-  // LA MOYENNE VIENT DE SA PROPRE LECTURE ; tant qu'elle n'est pas arrivée, le
-  // graphe est vide plutôt que de montrer la période entière sous un titre qui
-  // annonce une moyenne.
-  const moyenne = semaine?.moyenne && semaine.pret ? dashboardMoyenneDonnees : null;
   // LES CONVERSIONS VERS UNE MONNAIE ÉTEINTE (« en pop-up », cf.
   // chargerConversionsDashboard) rejoignent les barres de la période ENTIÈRE
-  // seulement : elles ne se découpent ni en semaines ni en moyenne. Ni quand tout
+  // seulement : elles ne se découpent pas en semaines. Ni quand tout
   // est converti dans une seule monnaie (extension « Monnaies ») : la monnaie
   // éteinte y est déjà fondue, la compter encore en conversion la doublerait.
   const toutConverti = typeof agregationActive !== "undefined" && agregationActive;
@@ -5439,9 +5393,7 @@ function contexteGraphesDashboard(depensesDuMois) {
   const brutes =
     semaine === null
       ? [...depensesDuMois, ...conversions]
-      : semaine.moyenne
-        ? moyenne?.moyenne || []
-        : semaine.depenses || [];
+      : semaine.depenses || [];
   // LA BARRE DES FRAIS DE VIREMENTS (rendue par le serveur, cf.
   // soldes._barre_frais_virements) ouvre leur détail SUR LA PÉRIODE AFFICHÉE.
   const p = state.dashboardPeriode;
@@ -5467,9 +5419,7 @@ function contexteGraphesDashboard(depensesDuMois) {
   const budgetTotal =
     semaine === null
       ? dashboardBudgetTotalDuMois
-      : semaine.moyenne
-        ? moyenne?.budget_total_moyen || 0
-        : semaine.budget_total || 0;
+      : semaine.budget_total || 0;
 
   dashboardDepensesActuels = depenses;
   majPanneauFiltreCategoriesDashboard(depenses);
@@ -5757,17 +5707,6 @@ function libellePeriodeHistogramme(annee, mois) {
   const vue = state.dashboardPeriode.vue;
   const semaine = semaineChoisie();
   const nomMois = libelleMois(annee, mois).toLowerCase();
-  if (semaine?.moyenne) {
-    // LE NOMBRE VIENT DU SERVEUR (`semaines_moyennees`), et non de la longueur
-    // d'une rangée : sur un mois en cours, la moyenne ne porte que sur les
-    // semaines RÉVOLUES (cf. soldes._semaines_revolues). Compter les barres
-    // affichées aurait annoncé cinq semaines pour une moyenne qui en résume
-    // deux — c'est-à-dire exactement l'erreur que ce calcul corrige.
-    const n = semaine.pret ? dashboardMoyenneDonnees.semaines_moyennees : 0;
-    if (vue === "tout") return t("moyenne des {n} semaines sur tout l'historique", { n });
-    if (vue === "annee") return t("moyenne des {n} semaines de {annee}", { n, annee });
-    return t("moyenne des {n} semaines de {mois}", { n, mois: nomMois });
-  }
   if (vue === "tout") return t("tout l'historique");
   if (vue === "annee") return t("année {annee}", { annee });
   if (semaine === null) return nomMois;
@@ -5785,12 +5724,10 @@ function majTitrePeriodeHistogramme(annee, mois) {
 
 /**
  * Lit (si besoin) ce que le niveau demande au serveur EN PLUS du dashboard — les
- * semaines du mois quand on en regarde une, la moyenne hebdomadaire quand
- * l'interrupteur est levé — puis redessine l'arbre, le titre et l'histogramme.
+ * semaines du mois quand on en regarde une — puis redessine l'arbre, le titre et l'histogramme.
  *
  * APPELÉE À CHAQUE CHARGEMENT ET À CHAQUE GESTE QUI NE CHANGE PAS DE DONNÉES :
- * passer d'une semaine à l'autre, ou lever l'interrupteur, ne relit pas le
- * dashboard. Les lectures déjà faites pour la même clé sont gardées.
+ * passer d'une semaine à l'autre ne relit pas le dashboard. Les lectures déjà faites pour la même clé sont gardées.
  */
 async function majDetailSemaines(annee, mois) {
   const p = state.dashboardPeriode;
@@ -5800,7 +5737,6 @@ async function majDetailSemaines(annee, mois) {
   // Aucune monnaie en jeu (base sans compte) : rien à détailler.
   if (monnaieId == null) {
     dashboardSemainesDonnees = null;
-    dashboardMoyenneDonnees = null;
     majTitrePeriodeHistogramme(annee, mois);
     return;
   }
@@ -5813,19 +5749,10 @@ async function majDetailSemaines(annee, mois) {
       );
       dashboardSemainesDonnees = { ...donnees, cle };
     }
-    if (p.moyenne && dashboardMoyenneDonnees?.cle !== cleMoyenneDashboard()) {
-      const cle = cleMoyenneDashboard();
-      const parametres = new URLSearchParams({ monnaie_id: monnaieId, vue: p.vue });
-      if (p.vue !== "tout") parametres.set("annee", annee);
-      if (p.vue === "mois") parametres.set("mois", mois);
-      const donnees = await apiFetch(`/dashboard/semaines/moyenne?${parametres}`);
-      dashboardMoyenneDonnees = { ...donnees, cle };
-    }
   } catch (err) {
     showMessage(err.message, "error");
     // Ce qu'on n'a pas pu lire ne doit pas rester allumé : on rend la période
-    // entière plutôt qu'un graphe vide sous un titre qui promet une moyenne.
-    p.moyenne = false;
+    // entière plutôt qu'un graphe vide sous un titre qui promet une semaine.
     if (p.niveau === "semaine") p.niveau = "mois";
     p.vue = vueDuNiveau(p.niveau);
     renderArbrePeriode();

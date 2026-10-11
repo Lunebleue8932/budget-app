@@ -357,6 +357,9 @@ function abRenderImprevues(donnees) {
 const abGraphes = {
   vue: "mois",
   comparer: false,
+  // LA MOYENNE HEBDOMADAIRE de la période (le mois, ou toute son année), au lieu de ses
+  // dépenses entières : la même lecture que le dashboard offrait avant de la céder ici.
+  moyenne: false,
   cmp: { annee: null, mois: null },
 };
 
@@ -367,7 +370,8 @@ function abLibellePeriode(p) {
 
 /** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page — ou dans
  *  `monnaieId` (la fenêtre d'une monnaie éteinte). */
-async function abDepensesDe(p, monnaieId = abMonnaieId) {
+async function abDepensesDe(p, monnaieId = abMonnaieId, { moyenne = false } = {}) {
+  if (moyenne) return abMoyenneDe(p, monnaieId);
   const url =
     p.vue === "annee"
       ? `/dashboard?annee=${p.annee}&vue=annee`
@@ -378,6 +382,34 @@ async function abDepensesDe(p, monnaieId = abMonnaieId) {
     depenses: kpis ? kpis.depenses_par_categorie || [] : [],
     budgetTotal: kpis ? kpis.budget_total || 0 : 0,
     libelle: abLibellePeriode(p),
+    bornes: bornesPeriode({ vue: p.vue, annee: p.annee, mois: p.mois }),
+  };
+}
+
+/**
+ * Même forme que `abDepensesDe`, pour la MOYENNE HEBDOMADAIRE de la période
+ * (`/dashboard/semaines/moyenne`). Le nombre de semaines vient du serveur : sur un mois en
+ * cours, la moyenne ne porte que sur les semaines RÉVOLUES, et compter les barres aurait
+ * annoncé plus de semaines que celles dont elle est faite. Les bornes restent celles de la
+ * période entière : une moyenne de semaines n'a pas de dates à elle.
+ */
+async function abMoyenneDe(p, monnaieId) {
+  const parametres = new URLSearchParams({
+    monnaie_id: monnaieId,
+    vue: p.vue === "annee" ? "annee" : "mois",
+    annee: p.annee,
+  });
+  if (p.vue !== "annee") parametres.set("mois", p.mois);
+  const data = await apiFetch(`/dashboard/semaines/moyenne?${parametres}`);
+  const n = data.semaines_moyennees || 0;
+  const libelle =
+    p.vue === "annee"
+      ? t("moyenne des {n} semaines de {annee}", { n, annee: p.annee })
+      : t("moyenne des {n} semaines de {mois}", { n, mois: libelleMois(p.annee, p.mois).toLowerCase() });
+  return {
+    depenses: data.moyenne || [],
+    budgetTotal: data.budget_total_moyen || 0,
+    libelle,
     bornes: bornesPeriode({ vue: p.vue, annee: p.annee, mois: p.mois }),
   };
 }
@@ -406,6 +438,7 @@ function abAfficher(id, visible) {
 async function abRemplirControlesGraphes() {
   const vue = abGraphes.vue;
   document.getElementById("ab-comparer").checked = abGraphes.comparer;
+  document.getElementById("ab-moyenne").checked = abGraphes.moyenne;
 
   if (abGraphes.comparer && abGraphes.cmp.annee == null) abGraphes.cmp = abComparaisonParDefaut();
   // La période comparée : ses listes n'existent que si l'on compare.
@@ -486,16 +519,19 @@ async function abRenderGraphes() {
   try {
     await abRemplirControlesGraphes();
     const p = abPeriodeGraphes();
-    const lue = await abDepensesDe(p);
+    const moyenne = abGraphes.moyenne;
+    const lue = await abDepensesDe(p, abMonnaieId, { moyenne });
+    // Les conversions vers une monnaie éteinte ne se découpent pas en semaines : elles
+    // rejoignent les barres de la période entière seulement (comme au dashboard).
     const principale = {
       ...lue,
       depenses: [
         ...abAvecFrais(lue.depenses, p, abMonnaieId, lue.bornes),
-        ...(await abConversions(p)),
+        ...(moyenne ? [] : await abConversions(p)),
       ],
     };
     const comparee = abGraphes.comparer
-      ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp })
+      ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp }, abMonnaieId, { moyenne })
       : null;
 
     // TOUTES LES CATÉGORIES : il n'y a pas de filtre sur cette page, et une
@@ -541,6 +577,10 @@ async function abRenderGraphes() {
 
 document.getElementById("ab-comparer")?.addEventListener("change", (e) => {
   abGraphes.comparer = e.target.checked;
+  abRenderGraphes();
+});
+document.getElementById("ab-moyenne")?.addEventListener("change", (e) => {
+  abGraphes.moyenne = e.target.checked;
   abRenderGraphes();
 });
 document.getElementById("ab-cmp-annee")?.addEventListener("change", (e) => {
