@@ -33,9 +33,6 @@ const IO_HOTE = "placements";
 // aurait laissé exister un état où l'un en propose une que l'autre ignore.
 let ioExpositions = { enveloppe: [], classe: [], zone: [], secteur: [] };
 let ioMonnaieId = null;
-// Le sélecteur du haut de page : l'exposition au MARCHÉ (valorisation × levier) plutôt que
-// le capital investi. Les deux lectures viennent du serveur (`?levier=true`).
-let ioAvecLevier = false;
 
 // L'ordre des quatre blocs à l'écran (deux par ligne), et les identifiants qui vont avec.
 // Une seule liste : le chargement, le rendu et l'infobulle la parcourent tous.
@@ -268,10 +265,7 @@ function ioCablerSurvol(bloc, axe) {
 /* ---------- Les chiffres du haut ---------- */
 
 function ioRenderKpis(bloc) {
-  // LES MONTANTS RÉELS, levier ou pas : `total_capital` est la valeur des détentions, `total`
-  // celle des parts — l'exposition au marché quand on compte le levier.
-  const valeur = bloc.total_capital ?? bloc.total;
-  const plusValue = valeur - bloc.total_investi;
+  const plusValue = bloc.total - bloc.total_investi;
   const signe = plusValue >= 0 ? "positif" : "negatif";
   // PAS DE SOUS-TEXTE sous ces cartes : chaque libellé se suffit, et une ligne
   // de glose sous chacun repoussait les chiffres — la seule chose qu'on vient
@@ -279,7 +273,7 @@ function ioRenderKpis(bloc) {
   document.getElementById("io-kpis").innerHTML = `
     <div class="kpi-card">
       <div class="kpi-label">${t("Valeur du portefeuille")}</div>
-      <div class="kpi-valeur">${formatMontant(valeur, bloc.monnaie_id)}</div>
+      <div class="kpi-valeur">${formatMontant(bloc.total, bloc.monnaie_id)}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">${t("Montant investi")}</div>
@@ -289,14 +283,6 @@ function ioRenderKpis(bloc) {
       <div class="kpi-label">${t("Plus-value latente")}</div>
       <div class="kpi-valeur ${signe}">${formatMontant(plusValue, bloc.monnaie_id)}</div>
     </div>
-    ${
-      ioAvecLevier
-        ? `<div class="kpi-card">
-      <div class="kpi-label">${t("Exposition au marché")}</div>
-      <div class="kpi-valeur">${formatMontant(bloc.total, bloc.monnaie_id)}</div>
-    </div>`
-        : ""
-    }
   `;
 }
 
@@ -446,11 +432,6 @@ function ioRenderTitres() {
   ioCablerSurvol(vue, "titre");
 }
 
-document.getElementById("io-levier")?.addEventListener("change", (e) => {
-  ioAvecLevier = e.target.checked;
-  loadInvestingOverview();
-});
-
 document.getElementById("io-titres-masquer")?.addEventListener("change", (e) => {
   ioMasquerNonDetermine = e.target.checked;
   ioRenderTitres();
@@ -464,10 +445,9 @@ async function loadInvestingOverview() {
     // serveur (cf. routeur_investing_overview), et les demander ensemble évite
     // l'instant où l'un des camemberts décrit une autre lecture que ses
     // voisins.
-    const levier = ioAvecLevier ? "levier=true" : "";
     const [titres, ...lus] = await Promise.all([
-      apiFetch(`/investing-overview/exposition-titres?${levier}`),
-      ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}&${levier}`)),
+      apiFetch("/investing-overview/exposition-titres"),
+      ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`)),
     ]);
     ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
     ioTitres = titres;

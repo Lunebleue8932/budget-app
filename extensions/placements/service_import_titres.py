@@ -67,7 +67,6 @@ NOMS_CHAMPS = {
     "couverture_pct": "Couverture",
     "code_isin": "ISIN",
     "cours": "Cours",
-    "levier": "Levier",
 }
 
 # La feuille que l'import lit dans un classeur : celle du modèle. Par son NOM, et non la
@@ -353,20 +352,6 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
                     }
                 )
 
-    # ---- Le levier (migration 0082) ----
-    levier_cellule = brute.get("levier_brut")
-    if not _vide(levier_cellule) and not erreurs:
-        levier = _lire_cours(str(levier_cellule).lower().lstrip("x").rstrip("x"))
-        if levier is None or levier <= 0:
-            erreurs.append(f"levier « {_texte(levier_cellule)} » illisible : un nombre positif est attendu (1 sans levier)")
-        else:
-            plan["levier"] = levier
-            avant_l = titre.levier if existe else 1.0
-            if round(avant_l, 6) != round(levier, 6):
-                changements.append(
-                    {"champ": "levier", "avant": f"{avant_l:g}" if existe else None, "apres": f"{levier:g}"}
-                )
-
     if couverture is not None and not erreurs:
         plan["couverture"] = couverture
         avant_c = titre.composition_couverture_pct if existe else None
@@ -520,8 +505,7 @@ def confirmer(
 
         if plan["titre_id"] is None:
             titre = crud.create_titre(
-                db, plan["nom"], plan["monnaie_id"], plan.get("cours", 0.0), plan["isin"], enveloppe_id,
-                levier=plan.get("levier", 1.0),
+                db, plan["nom"], plan["monnaie_id"], plan.get("cours", 0.0), plan["isin"], enveloppe_id
             )
             ctx.par_isin[plan["isin"]] = titre
             ctx.index.ajouter(titre)
@@ -537,7 +521,6 @@ def confirmer(
                 # Comme une saisie à la main : `cours_maj_le` date une lecture EN LIGNE,
                 # que ce fichier n'est pas.
                 valeur=plan.get("cours"),
-                levier=plan.get("levier"),
             )
             resultat.mis_a_jour += 1
 

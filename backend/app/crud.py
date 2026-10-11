@@ -2378,13 +2378,11 @@ def create_titre(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
-    levier: float = 1.0,
 ) -> models.TitrePossede:
     titre = models.TitrePossede(
         nom=nom,
         valeur=valeur,
         monnaie_id=monnaie_id,
-        levier=levier,
         code_isin=code_isin or None,
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
@@ -2414,10 +2412,7 @@ def update_titre(
     classe_actif_id: Optional[int] = None,
     composition: Optional[dict] = None,
     composition_couverture_pct: Optional[float] = None,
-    levier: Optional[float] = None,
 ) -> models.TitrePossede:
-    if levier is not None:
-        titre.levier = levier
     if nom is not None:
         titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de

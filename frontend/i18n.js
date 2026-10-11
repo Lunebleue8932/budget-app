@@ -3618,18 +3618,6 @@ const TRADUCTIONS = {
       "What the project brought in minus what it cost, category by category, transfer fees included. Transfers to or from savings and conversions between currencies do not count: the money moved, it was not spent. The waterfall just below still shows them.",
     "Entrées − dépenses":
       "Income − expenses",
-    "1 pour un titre ordinaire, 2 ou 3 pour un ETF à effet de levier. Il ne change ni la valeur du titre ni tes soldes : la vue d'ensemble s'en sert seulement pour montrer ton exposition au marché.":
-      "1 for an ordinary security, 2 or 3 for a leveraged ETF. It changes neither the security's value nor your balances: the overview only uses it to show your market exposure.",
-    "Décoché : chaque titre pèse ce que tu y as mis. Coché : il pèse ce qu'il fait bouger, sa valeur × son levier - un ETF x2 de 1 000 € compte pour 2 000 €. Les cartes du haut gardent les montants réels ; une carte de plus donne l'exposition.":
-      "Unticked: each security weighs what you put into it. Ticked: it weighs what it moves, its value × its leverage - a €1,000 x2 ETF counts for €2,000. The cards at the top keep the real amounts; an extra card gives the exposure.",
-    "Levier":
-      "Leverage",
-    "Exposition au marché":
-      "Market exposure",
-    "Exposition au marché (effet de levier compris)":
-      "Market exposure (leverage included)",
-    "Le levier doit être un nombre positif (1 sans levier).":
-      "Leverage must be a positive number (1 without leverage).",
     // monnaies.taux-de-change
     "Permet d'utiliser la fonctionnalité tout convertir du dashboard pour une vue complète. Tes opérations ne sont jamais modifiées, uniquement l'affichage du dashboard.":
       "Lets you use the dashboard's convert-all feature for a complete view. Your transactions are never modified, only the dashboard display.",
@@ -4117,7 +4105,6 @@ const MOTIFS_SERVEUR = [
   [/^(classe d'actif|zone géographique|secteur|composition) : tous les poids sont inférieurs à 1 — des fractions plutôt que des pourcentages \?$/, "$1: all the weights are below 1 — fractions rather than percentages?"],
   [/^cours « (.+) » illisible : un nombre positif est attendu$/, "unreadable price “$1”: a positive number is expected"],
   [/^(?:(classe d'actif|zone géographique|secteur) : )?une action en direct tient sur une seule étiquette, à 100 %$/, "a direct holding has a single label per axis, at 100%"],
-  [/^levier « (.+) » illisible : un nombre positif est attendu \(1 sans levier\)$/, "unreadable leverage “$1”: a positive number is expected (1 without leverage)"],
   [/^(\d+) ISIN de composition n'ont de fiche ni dans le fichier ni dans la base : (.+)$/, "$1 composition ISINs have no record in the file or in the database: $2"],
   [/^Fichier illisible : (.+)$/, "Unreadable file: $1"],
 ];

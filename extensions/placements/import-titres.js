@@ -31,12 +31,9 @@ const IMT_PROPRIETES = [
   // EN DERNIER, comme au serveur : les formats enregistrés avant elle lisent toujours les
   // mêmes colonnes. Seulement pour qui a « Lecture de cours ».
   { cle: "cours", libelle: "Cours", extension: "lecture-de-cours" },
-  // Le levier (migration 0082) : 1 pour un titre ordinaire. À la fin, comme « Cours ».
-  { cle: "levier", libelle: "Levier" },
 ];
 
-// Le nombre de colonnes du premier modèle, celui d'avant « Cours » et « Levier » (cf.
-// imtCompleterFormats).
+// Le nombre de colonnes du premier modèle, celui d'avant « Cours » (cf. imtCompleterFormats).
 const IMT_NB_COLONNES_ORIGINE = 9;
 
 const IMT = {
@@ -128,7 +125,7 @@ async function imtChargerPresets() {
 }
 
 /**
- * LES COLONNES ARRIVÉES APRÈS COUP (« Cours », « Levier »). Un format qui lit EXACTEMENT les
+ * LES COLONNES ARRIVÉES APRÈS COUP (« Cours »). Un format qui lit EXACTEMENT les
  * premières colonnes de la liste, dans l'ordre (celui que l'écran a créé, ou sa copie, à
  * neuf colonnes au moins), apprend à lire les suivantes. Sans cela, ces colonnes ne seraient
  * lues par personne. Un format composé à la main n'est pas touché. Rend true si un format a

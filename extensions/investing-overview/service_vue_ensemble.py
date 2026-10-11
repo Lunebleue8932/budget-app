@@ -90,16 +90,7 @@ def _parts_du_titre(un_titre, axe: str, par_isin: dict | None = None) -> list[tu
     return parts
 
 
-def _facteur(un_titre, avec_levier: bool) -> float:
-    """EXPOSITION AU MARCHÉ OU CAPITAL INVESTI (migration 0082) : avec le levier, un ETF
-    « x2 » de 1 000 € pèse 2 000 € dans les répartitions. Sans, il pèse ce qu'il vaut.
-    Les montants RÉELS (`total_capital`, `total_investi`) ne bougent jamais."""
-    if not avec_levier or un_titre is None:
-        return 1.0
-    return float(un_titre.levier or 1.0)
-
-
-def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: bool = False) -> list[dict]:
+def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     """La répartition du portefeuille sur un axe, une entrée par monnaie.
 
     Chaque entrée porte ses parts triées de la plus lourde à la plus légère, et
@@ -114,8 +105,6 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: boo
     # cloisonne (on n'additionne pas deux devises) et que le type regroupe.
     cases: dict = {}
     monnaies: dict = {}
-    # La valeur RÉELLE des détentions de chaque monnaie, levier ou pas : ce que disent les KPI.
-    capital: dict = {}
     # Les composants d'un ETF se retrouvent par leur ISIN, archivés compris : ce sont
     # justement des titres qu'on suit sans les détenir (cf. `_parts_eclatees`).
     par_isin = {
@@ -143,9 +132,6 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: boo
                 ligne["monnaie_id"],
                 {"monnaie_id": ligne["monnaie_id"], "monnaie_symbole": ligne["monnaie_symbole"]},
             )
-            facteur = _facteur(un_titre, avec_levier)
-            capital.setdefault(ligne["monnaie_id"], 0.0)
-            capital[ligne["monnaie_id"]] += ligne["valorisation"]
             for etiquette, part in _parts_du_titre(un_titre, axe, par_isin):
                 type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
                 type_nom = etiquette.nom if etiquette else None
@@ -159,7 +145,7 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: boo
                         "titres": {},
                     },
                 )
-                case["valorisation"] += ligne["valorisation"] * part * facteur
+                case["valorisation"] += ligne["valorisation"] * part
                 case["montant_investi"] += ligne["montant_investi"] * part
 
                 # UN MÊME TITRE PEUT ÊTRE DÉTENU SUR PLUSIEURS COMPTES (c'est même
@@ -175,7 +161,7 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: boo
                         "nombre_comptes": 0,
                     },
                 )
-                titre["valorisation"] += ligne["valorisation"] * part * facteur
+                titre["valorisation"] += ligne["valorisation"] * part
                 titre["nombre_comptes"] += 1
 
     resultat = []
@@ -201,7 +187,6 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value, avec_levier: boo
             {
                 **monnaie,
                 "total": total,
-                "total_capital": capital.get(monnaie_id, total),
                 "total_investi": sum(part["montant_investi"] for part in parts),
                 "parts": parts,
             }
@@ -232,7 +217,7 @@ def _est_etf(un_titre) -> bool:
     return nom.startswith("etf")
 
 
-def exposition_par_titre(db, avec_levier: bool = False) -> list[dict]:
+def exposition_par_titre(db) -> list[dict]:
     """L'exposition à chaque titre, une entrée par monnaie : ce qu'on détient EN DIRECT, plus
     ce que chaque ETF détient pour nous d'après sa composition (sa valorisation × le poids du
     composant). Le même titre tenu des deux façons ne fait qu'une part.
@@ -268,8 +253,7 @@ def exposition_par_titre(db, avec_levier: bool = False) -> list[dict]:
     for compte in placements.get_comptes_placement(db):
         for ligne in placements.detentions(db, compte.id):
             un_titre = crud.get_titre(db, ligne["titre_id"])
-            m_id = ligne["monnaie_id"]
-            valeur = ligne["valorisation"] * _facteur(un_titre, avec_levier)
+            m_id, valeur = ligne["monnaie_id"], ligne["valorisation"]
             monnaies.setdefault(
                 m_id, {"monnaie_id": m_id, "monnaie_symbole": ligne["monnaie_symbole"]}
             )

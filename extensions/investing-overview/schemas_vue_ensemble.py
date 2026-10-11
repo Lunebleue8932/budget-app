@@ -46,10 +46,7 @@ class ExpositionMonnaie(BaseModel):
 
     monnaie_id: int
     monnaie_symbole: str
-    #: Le total des parts : l'exposition au marché quand on compte le levier.
     total: float
-    #: La valeur RÉELLE des détentions, levier ou pas (migration 0082) : ce que lisent les KPI.
-    total_capital: float = 0.0
     total_investi: float
     parts: list[PartExposition] = []
 

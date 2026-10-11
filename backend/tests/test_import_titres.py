@@ -44,7 +44,7 @@ ISIN_APPLE = "US0378331005"
 
 ENTETE = [
     "ISIN", "Nom", "Monnaie", "Enveloppe", "Classe d'actif", "Zone géographique",
-    "Secteur", "Couverture", "Composition", "Cours", "Levier",
+    "Secteur", "Couverture", "Composition", "Cours",
 ]
 
 
@@ -420,9 +420,9 @@ def test_la_feuille_titres_est_lue_meme_si_une_autre_est_active(db_session, pres
 
 
 def _avec_cours(*valeurs):
-    """Une ligne du fichier réduite à son ISIN et à son cours (avant-dernière colonne)."""
+    """Une ligne du fichier réduite à son ISIN et à son cours (dernière colonne)."""
     isin, cours = valeurs
-    return (isin,) + (None,) * (len(ENTETE) - 3) + (cours, None)
+    return (isin,) + (None,) * (len(ENTETE) - 2) + (cours,)
 
 
 def test_le_cours_du_fichier_remplace_celui_du_titre(db_session, preset):
@@ -450,20 +450,6 @@ def test_un_cours_illisible_met_la_ligne_en_erreur(db_session, preset):
     (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "n.d."))).lignes
     assert ligne.statut == "erreur"
     assert any("cours" in e for e in ligne.erreurs)
-
-
-def test_le_levier_se_lit_et_x2_vaut_2(db_session, preset):
-    titre = _titre(db_session, ISIN_ETF)
-    ligne = (ISIN_ETF,) + (None,) * (len(ENTETE) - 2) + ("x2",)
-    (lue,) = _apercu(db_session, preset, _fichier(ligne)).lignes
-    assert [(c.champ, c.avant, c.apres) for c in lue.changements] == [("levier", "1", "2")]
-    _confirmer(db_session, preset, _fichier(ligne))
-    db_session.refresh(titre)
-    assert titre.levier == 2.0
-
-    nul = (ISIN_ETF,) + (None,) * (len(ENTETE) - 2) + (0,)
-    (refusee,) = _apercu(db_session, preset, _fichier(nul)).lignes
-    assert refusee.statut == "erreur"
 
 
 def test_sans_lecture_de_cours_la_colonne_cours_est_ignoree(db_session, preset, monkeypatch):

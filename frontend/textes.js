@@ -308,8 +308,6 @@ const TEXTES = {
     "Pour renseigner les intérêts perçus sur tes comptes de placements. Pense à les remettre à 0 si un import de relevé les importe.",
 
   /* ----- Extension « Vue d'ensemble des placements » ----- */
-  "investing-overview.levier":
-    "Décoché : chaque titre pèse ce que tu y as mis. Coché : il pèse ce qu'il fait bouger, sa valeur × son levier - un ETF x2 de 1 000 € compte pour 2 000 €. Les cartes du haut gardent les montants réels ; une carte de plus donne l'exposition.",
   "investing-overview.repartition-par-classe":
     "À quoi ton portefeuille est exposé : actions, obligations, immobilier, monétaire ?",
   "investing-overview.repartition-par-type-de-titre":
@@ -354,8 +352,6 @@ const TEXTES = {
     "Seule la feuille « Titres » est lue à l'import ; une feuille « Notice » explique chaque colonne. Les trois premières lignes suffisent ici : ce sont les en-têtes qui comptent, et le modèle ne contient aucune ligne d'exemple.",
   "import-titres.lire":
     "Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé.",
-  "placements.levier":
-    "1 pour un titre ordinaire, 2 ou 3 pour un ETF à effet de levier. Il ne change ni la valeur du titre ni tes soldes : la vue d'ensemble s'en sert seulement pour montrer ton exposition au marché.",
   "placements.composition-etf":
     "Les ISIN du haut de l'indice que suit l'ETF, avec leur poids en %, une ligne par ISIN (« ISIN ; poids »). -- La part de l'indice couverte est le « x % » que ces lignes représentent ensemble (60 % par défaut). -- Elle sert à éclater l'ETF dans les graphiques : exposition par action, et zone ou secteur quand rien de plus direct n'est renseigné.",
 

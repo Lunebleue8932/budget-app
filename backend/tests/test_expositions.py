@@ -404,31 +404,6 @@ def test_titre_par_titre_au_dela_des_premiers_les_titres_se_fondent(db_session):
     assert sum(p["valorisation"] for p in bloc["parts"]) == pytest.approx(bloc["total"])
 
 
-def test_le_levier_compte_dans_l_exposition_au_marche_seulement(db_session):
-    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
-    usa = _etiquette(db_session, "États-Unis", AxeTitre.zone)
-    europe = _etiquette(db_session, "Europe", AxeTitre.zone)
-    x2 = crud.create_titre(db_session, "Nasdaq x2", _monnaie(db_session), 100.0, levier=2.0)
-    simple = _titre(db_session, "Europe 600", 100.0)
-    _repartir(db_session, x2, AxeTitre.zone, [(usa.id, 100.0)])
-    _repartir(db_session, simple, AxeTitre.zone, [(europe.id, 100.0)])
-    _acheter(db_session, compte, x2, 10, 100.0)  # 1 000 € de capital, 2 000 € de marché
-    _acheter(db_session, compte, simple, 10, 100.0)  # 1 000 €
-
-    (capital,) = service_vue.exposition_par_axe(db_session, AxeTitre.zone.value)
-    (marche,) = service_vue.exposition_par_axe(db_session, AxeTitre.zone.value, avec_levier=True)
-
-    assert {p["type_titre_nom"]: p["part"] for p in capital["parts"]} == {"États-Unis": 0.5, "Europe": 0.5}
-    assert {p["type_titre_nom"]: p["valorisation"] for p in marche["parts"]} == {"États-Unis": 2000.0, "Europe": 1000.0}
-    assert marche["total"] == pytest.approx(3000.0)
-    # Les montants réels ne bougent pas : ce sont eux que lisent les KPI.
-    assert marche["total_capital"] == capital["total_capital"] == pytest.approx(2000.0)
-    assert marche["total_investi"] == pytest.approx(2000.0)
-
-    (titres,) = service_vue.exposition_par_titre(db_session, avec_levier=True)
-    assert titres["total"] == pytest.approx(3000.0)
-
-
 def test_la_classe_unique_donne_le_meme_camembert_qu_avant(db_session):
     compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=100000.0)
     actions = _etiquette(db_session, "Actions", AxeTitre.classe)
