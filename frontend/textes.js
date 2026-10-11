@@ -441,8 +441,59 @@ const TEXTES = {
     "Si ton preset lit la colonne « Notes » du relevé, une condition peut aussi porter sur elle : utile quand la banque écrit la référence utile dans le commentaire plutôt que dans le libellé.",
   "regles.tuto-ajout-champ":
     "Rien ne s'affiche d'office : « + Ajouter un champ » pose une propriété à la fois, et la croix la retire. Même geste que dans les sorties conditionnelles, juste en dessous.",
-  "noyau.tuto-import-notes":
-    "La colonne « Notes » est éteinte au départ. Allume-la si ton relevé porte un commentaire ou une référence : il est recopié dans la note de l'opération, et tes règles peuvent s'en servir.",
+  /* ----- Le tutoriel « Importer un relevé » (tutoriel.js, TUTORIEL_IMPORT) -----
+     `noyau.tuto-import-<étape>` : « 2-1 » pour 2.1. Les étapes sont numérotées comme dans la
+     bulle ; l'aperçu ligne par ligne est l'étape 4. */
+  "noyau.tuto-import-1":
+    "L'import est la fonctionnalité clé de l'application, basée sur la lecture de fichiers Excel ou CSV. // Une fois paramétrée, elle te permet d'ajouter toutes tes opérations en quelques clics.",
+  "noyau.tuto-import-2-1":
+    "Ton fichier d'opérations bancaires possède un format bien défini (spécifique à chaque banque). Le preset permet de conserver toutes les instructions de lecture, pour ne les renseigner qu'une fois.",
+  "noyau.tuto-import-2-2":
+    "Naturellement, tu peux associer un preset à un de tes comptes sur l'app (celui qui réplique le compte en banque d'où vient le fichier). Toutes les opérations importées avec ce preset seront alors attribuées à ce compte.",
+  "noyau.tuto-import-3":
+    "Dépose ton fichier ou clique pour le choisir. Pour t'entraîner, tu peux utiliser le fichier proposé dans la notice d'utilisation : Paramètres généraux → Notice → Import /Paramètres généraux/Notice/Import. // Il possède une ligne parasite et trois colonnes dont l'app ne se sert pas.",
+  "noyau.tuto-import-4":
+    "Rien n'est importé à ce stade. Tu vois comment l'application a lu le fichier, et tu peux modifier ou supprimer des opérations. // Les doublons sont automatiquement sélectionnés avec le sélecteur à droite : tu peux tous les supprimer avec le bouton supprimer la sélection. // L'import est bloqué tant qu'il reste des doublons à traiter : si tu veux en garder, il suffit de les décocher.",
+  "noyau.tuto-import-5":
+    "Ce tableau montre ce que l'application lit, colonne par colonne. // Deux façons de changer le champ que l'app lit sur une colonne. /- 1. Changer du champ lu (par ex : Nature) dans Configuration du fichier /- 2. Glisser et déposer le champ d'une colonne dans les pointillés. // /italic(Si la colonne sur laquelle le champ est glissé a déjà un champ, les deux seront alors échangés.)",
+  "noyau.tuto-import-6":
+    "Ici, tu peux changer la correspondance champ <-> colonne. Les champs présents suffisent pour la plupart des relevés. Quant au sélecteur, il permet d'activer ou de désactiver un champ lu par l'app. // /italic(Les champs Date, Nature et Montant sont essentiels et ne peuvent pas être désactivés.)",
+  "noyau.tuto-import-7":
+    "Huit colonnes de plus, parfois nécessaires pour certains formats de fichiers plus complexes. // Leur fonctionnement est également plus complexe : les étapes suivantes du tutoriel couvrent chacun de ces champs, un par un.",
+  "noyau.tuto-import-8":
+    "Celui-ci est utile quand le fichier utilisé porte différents comptes bancaires. Si un compte est rattaché au preset (étape 2.2 du tutoriel), ce champ ne peut pas être activé. // Pour chaque nouveau compte lu, l'application te demandera vers quel compte de l'app il doit pointer. Tout ceci est enregistré dans Correspondances quand l'import est confirmé : pas besoin de le renseigner une autre fois.",
+  "noyau.tuto-import-9":
+    "Certains relevés n'écrivent pas de montants négatifs. L'un des formats possible est une colonne Sens pour indiquer si l'opération est entrante ou sortante. // L'app ne devine pas pour autant les mots-clés utilisés par ta banque : il faut alors les renseigner dans la section 'Mots-clés du champ Sens'.",
+  "noyau.tuto-import-10":
+    "L'autre façon de faire, c'est d'avoir une colonne pour les opérations entrantes et l'autre pour les opérations sortantes. // Ces champs s'activent et désactivent automatiquement ensemble, et leur activation désactive le champ Montant - celui des champs principaux. // /italic(Si une ligne porte une valeur non-nulle sur les deux colonnes, l'app la met en erreur.)",
+  "noyau.tuto-import-11":
+    "Ceux-ci servent pour certains formats d'excels qui renseignent ces propriétés, notamment pour les virements internes. Les frais sont soit ajoutés au montant envoyé (qui sort de ton compte), soit soustraits au montant reçu (qui rentre sur ton compte). // Ces trois champs sont particulièrement utiles pour les virements multi-devises : quand l'extension Monnaies est activée, tu peux également lire la monnaie de chaque branche - Envoyé, Reçu et Frais.",
+  "noyau.tuto-import-note-11":
+    "Pour un virement entre deux monnaies, c'est la devise des frais qui indique si ceux-ci sont ajoutés ou retranchés.",
+  "noyau.tuto-import-12":
+    "Une colonne que la banque peut parfois renseigner. Le fonctionnement côté app est alors similaire au champ Sens, avec un système de mots-clés à renseigner. // /- 'Exécuté' : l'opération créée est réelle /- 'En attente' : l'opération créée est prévisionnelle /- 'Refusé' : l'opération n'est pas importée // Lors de l'importation d'une opération déjà dans l'app en prévisionnelle, l'app le détecte et te propose de remplacer la ligne prévisionnelle.",
+  "noyau.tuto-import-13":
+    "C'est grâce à ces paramètres que l'application reconnaît des doublons. Deux manières de l'utiliser : /- Renseigner chaque colonne à comparer /- Renseigner chaque colonne à ne pas comparer // Un nom d'opération ou une catégorie pourraient bouger (s'ils sont modifiés sur l'app bancaire par exemple). // En général, sélectionner la comparaison des dates et des montants suffit. Si le fichier contient un libellé statique (celui que la banque assigne à l'opération par défaut), c'est aussi un bon candidat.",
+  "noyau.tuto-import-14":
+    "Le fichier que tu importes aura parfois un en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.",
+  "noyau.tuto-import-15":
+    "C'est un réglage de derniers recours, et c'est le /bold(seul) qui ne s'enregistre pas avec le preset. L'app le déplie automatiquement quand la majorité des lignes sont illisibles : c'est souvent un signe qu'un délimiteur ou un caractère de décimale ne conviennent pas.",
+  "noyau.tuto-import-16-1":
+    "Les modifications faites au preset ne sont pas enregistrées par défaut : ça te permet de tester sans endommager ton preset. // Enregistrer conserve l'état actuel de la configuration dans ton preset.",
+  "noyau.tuto-import-16-2":
+    "Ce bouton relit le fichier et /bold(enregistre) ton preset dans la foulée.",
+  "noyau.tuto-import-17":
+    "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app te montre un panneau avec différentes propositions pour l'allocation champs <-> colonnes, tu peux alors faire les dernières modifications et enregistrer le preset.",
+  "noyau.tuto-import-18":
+    "À chaque fois qu'une catégorie apparaît pour la première fois, l'app te demande à quelle catégorie de l'app la relier. Une fois enregistré, plus besoin d'y toucher ; tu peux néanmoins la modifier dans l'onglet Correspondances.",
+  "noyau.tuto-import-19":
+    "Ça y est, tu as tout configuré. Il ne reste plus qu'à cliquer sur /bold(Confirmer l'import) pour que les opérations s'écrivent en base. // L'historique d'importation se trouve en bas de page : si tu veux revenir en arrière, il suffit de supprimer une importation. Ta base se retrouve alors dans l'état qui précédait l'importation.",
+  "noyau.import-compte-banque-preset-lie":
+    "Ce preset est rattaché à un compte : la colonne « Compte bancaire » ne peut pas être lue en même temps. Pour l'activer, délie d'abord le preset de son compte (« Compte bancaire de ce preset », en haut de la page).",
+  "noyau.compte-solde-actuel":
+    "Une fois une première importation (ou une première opération) ajoutée, renseigne ici le solde actuel de ton compte : l'app en déduit le solde initial. // Le solde initial est ensuite verrouillé. Pour le modifier, il faut d'abord supprimer le solde actuel renseigné.",
+  "noyau.compte-solde-initial-verrouille":
+    "Le solde initial a été déduit du solde actuel renseigné : il est verrouillé. Supprime le solde actuel renseigné pour pouvoir le modifier.",
   "regles.tuto-sorties":
     "Quand ce que la règle doit faire dépend d'un détail de la ligne, inutile de la recopier : ajoute des sorties. Chacune a ses conditions et ses actions, et la première qui correspond l'emporte. Typiquement : une seule règle « Virement interne », une sortie par compte en face.",
   "regles.tuto-ordre":

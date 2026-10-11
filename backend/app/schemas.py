@@ -75,6 +75,10 @@ class CompteMonnaieInput(BaseModel):
 
     monnaie_id: int
     solde_initial: float = 0.0
+    # LE SOLDE ACTUEL RENSEIGNÉ (cf. models.CompteMonnaie.solde_actuel_renseigne). Envoyé
+    # avec une valeur NEUVE, le serveur en DÉDUIT le solde initial ; renvoyé tel qu'il est
+    # enregistré, il garde le solde initial verrouillé ; absent (None), il déverrouille.
+    solde_actuel_renseigne: Optional[float] = None
     # ÉTEINTE = plus proposée à la saisie ni devinée à l'import, mais ses
     # opérations restent en base (cf. models.CompteMonnaie.active). True par
     # défaut : un écran qui ne connaît pas encore ce champ continue d'envoyer

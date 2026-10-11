@@ -811,6 +811,7 @@ def _appliquer_monnaies_compte(
         if lien is None:
             lien = models.CompteMonnaie(monnaie_id=entree.monnaie_id)
         lien.solde_initial = entree.solde_initial
+        lien.solde_actuel_renseigne = entree.solde_actuel_renseigne
         lien.ordre = position
         # Éteindre / rallumer se fait par cette même liste : c'est l'état voulu
         # du compte qui arrive, entier, comme pour l'ordre et les soldes

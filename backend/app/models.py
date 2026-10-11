@@ -271,6 +271,10 @@ class CompteMonnaie(Base):
     compte_id = Column(Integer, ForeignKey("compte.id", ondelete="CASCADE"), nullable=False)
     monnaie_id = Column(Integer, ForeignKey("monnaie.id"), nullable=False)
     solde_initial = Column(Float, nullable=False, default=0.0)
+    # LE SOLDE ACTUEL QU'ON A RENSEIGNÉ (migration 0082), dont `solde_initial` a été DÉDUIT.
+    # Renseigné, il VERROUILLE le solde initial : pour le modifier, on supprime d'abord ce
+    # solde actuel. NULL = le solde initial est libre (cf. routers/comptes).
+    solde_actuel_renseigne = Column(Float, nullable=True)
     # Position dans la liste du compte ; la première est la monnaie proposée
     # par défaut à la saisie et celle retenue pour les lignes importées.
     ordre = Column(Integer, nullable=False, default=0)

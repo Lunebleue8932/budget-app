@@ -115,6 +115,16 @@ function noterProgression(id, { etape, termine } = {}) {
  * l'utilisateur avait déposé lui-même n'est remplacé qu'après accord.
  */
 
+/* LES COLONNES D'UN EXEMPLE (`colonnes`) : [propriété, numéro de colonne]. Un exemple est un
+ * fichier DESSINÉ POUR UN CAS, et l'application ne le lit juste que si les colonnes affichées
+ * à l'écran sont celles de ce cas — sans elles, la colonne « Sens » tombait là où le preset
+ * attend le montant, et rien ne se lisait. Le tutoriel les pose donc À L'ÉCRAN, et seulement
+ * là : le preset enregistré n'est jamais touché, et revenir à une étape sans exemple (ou
+ * sortir) rend à l'écran la configuration du preset (cf. restaurerImportTutoriel).
+ *
+ * `compteParDefaut` : l'exemple n'a pas de colonne de compte, et aucune ligne ne s'importerait
+ * sans compte. Le tutoriel choisit alors, dans « Compte pour ce fichier », le premier compte de
+ * l'app — un réglage de l'ÉCRAN pour ce fichier, jamais enregistré dans le preset. */
 const EXEMPLE_COMPTE_BANQUE = {
   titre: "Un export qui couvre plusieurs comptes",
   entetes: ["Date", "Libellé", "Montant", "Compte"],
@@ -124,6 +134,7 @@ const EXEMPLE_COMPTE_BANQUE = {
     ["03/09/2026", "VIREMENT RECU", "200,00", "Livret A"],
   ],
   note: "Sans la colonne « Compte bancaire », ces trois lignes iraient toutes sur le même compte.",
+  colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["compte_banque", 4]],
 };
 
 const EXEMPLE_SENS = {
@@ -134,6 +145,8 @@ const EXEMPLE_SENS = {
     ["05/09/2026", "SALAIRE SEPTEMBRE", "Crédit", "2 150,00"],
   ],
   note: "C'est le mot de la colonne « Sens » qui donne son signe au montant. Un mot inconnu met la ligne en erreur plutôt que d'être deviné : se tromper ici inverserait l'opération dans tous les soldes.",
+  colonnes: [["date", 1], ["nature", 2], ["sens", 3], ["montant", 4]],
+  compteParDefaut: true,
 };
 
 const EXEMPLE_MONTANT_SCINDE = {
@@ -145,16 +158,8 @@ const EXEMPLE_MONTANT_SCINDE = {
     ["07/09/2026", "ESSENCE", "62,00", "0,00"],
   ],
   note: "La colonne REMPLIE dit le sens, exactement comme un mot le dirait. Un zéro compte comme une case vide (ligne 3) : bien des banques écrivent « 0,00 » du côté inutilisé.",
-};
-
-const EXEMPLE_MONNAIE = {
-  titre: "Un compte qui porte plusieurs devises",
-  entetes: ["Date", "Libellé", "Montant", "Devise"],
-  lignes: [
-    ["02/09/2026", "HOTEL LISBOA", "-84,00", "EUR"],
-    ["04/09/2026", "AMAZON.COM", "-32,10", "USD"],
-  ],
-  note: "Chaque devise lue est rattachée à une monnaie de l'app par une correspondance que tu confirmes UNE fois. Rien n'est deviné d'un nom ou d'un symbole qui se ressemblent.",
+  colonnes: [["date", 1], ["nature", 2], ["montant_debit", 3], ["montant_credit", 4]],
+  compteParDefaut: true,
 };
 
 const EXEMPLE_WISE = {
@@ -164,9 +169,21 @@ const EXEMPLE_WISE = {
     ["02/09/2026", "Transfert vers USD", "100,00", "EUR", "2,00", "EUR", "106,40", "USD"],
     ["09/09/2026", "Paiement carte", "45,00", "EUR", "0,90", "USD", "48,10", "USD"],
   ],
-  note: "Ce qui part, la commission, ce qui arrive — chacun dans sa devise. C'est la DEVISE DES FRAIS qui dit auquel des deux montants ils se rapportent : dans la monnaie envoyée ils s'y ajoutent, dans celle du montant ils s'en retranchent. Une troisième devise est refusée plutôt que devinée.",
+  note: texteAide("noyau.tuto-import-note-11"),
+  colonnes: [
+    ["date", 1],
+    ["nature", 2],
+    ["montant_initial", 3],
+    ["monnaie_initiale", 4],
+    ["frais", 5],
+    ["monnaie_frais", 6],
+    ["montant", 7],
+    ["monnaie", 8],
+  ],
+  compteParDefaut: true,
 };
 
+// SANS NOTE : l'encadré se résume à son titre et à la phrase qui dit que le fichier est chargé.
 const EXEMPLE_STATUT = {
   titre: "Un relevé qui mélange les lignes passées et celles à venir",
   entetes: ["Date", "Libellé", "Montant", "État"],
@@ -175,46 +192,44 @@ const EXEMPLE_STATUT = {
     ["12/09/2026", "PRELEVEMENT EDF", "-89,00", "En attente"],
     ["13/09/2026", "PAIEMENT REFUSE", "-30,00", "Refusé"],
   ],
-  note: "« Exécuté » fait une opération réelle, « en attente » une prévisionnelle qui pèse sur le solde projeté, « refusé » n'entre pas du tout.",
+  colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["statut", 4]],
+  compteParDefaut: true,
 };
 
-const EXEMPLE_LIGNES_ENTETE = {
-  titre: "Un export qui commence par une page de garde",
-  entetes: ["A", "B", "C", "D"],
-  sansEntetes: true,
+// DES CATÉGORIES QUE L'APPLICATION NE CONNAÎT PAS ENCORE : c'est ce qui fait apparaître le bloc
+// des correspondances (cf. « La correspondance des catégories »). Des noms volontairement peu
+// courants, pour qu'aucune correspondance déjà mémorisée ne les ait rattachés à une catégorie.
+// `discret` : pas d'encadré dans la bulle, le fichier n'y est pour rien — c'est le bloc visé
+// qui compte.
+const EXEMPLE_CATEGORIES = {
+  titre: "Des catégories bancaires encore inconnues",
+  entetes: ["Date", "Libellé", "Montant", "Catégorie banque"],
   lignes: [
-    ["RELEVÉ DE COMPTE", "", "", ""],
-    ["Titulaire : Dupont", "", "", ""],
-    ["Du 01/09/2026 au 30/09/2026", "", "", ""],
-    ["", "", "", ""],
-    ["Date", "Libellé", "Montant", "Compte"],
-    ["02/09/2026", "CARREFOUR MARKET", "-45,20", "Compte courant"],
+    ["02/09/2026", "CARREFOUR MARKET", "-45,20", "Provisions (exemple)"],
+    ["05/09/2026", "LE BISTROT DU COIN", "-28,00", "Sorties (exemple)"],
+    ["07/09/2026", "SALAIRE SEPTEMBRE", "2150,00", "Revenus (exemple)"],
   ],
-  note: "Cinq lignes de tête ici : les trois du bandeau, la ligne vide, et la ligne des intitulés. Sans ce réglage, elles arrivent dans l'aperçu comme des opérations illisibles, à supprimer à la main à chaque import.",
-};
-
-// UN VRAI CSV À L'ANGLO-SAXONNE, et pas un tableau qui le décrit : c'est en le
-// voyant lu (ou mal lu) par l'écran d'import qu'on comprend ce que ces deux
-// réglages changent. `csv` remplace alors les en-têtes et les lignes.
-const EXEMPLE_DELIMITEUR = {
-  titre: "Un CSV écrit à l'anglo-saxonne",
-  csv: 'Date,Libellé,Montant\n02/09/2026,CARREFOUR,"-1,234.56"\n05/09/2026,SALAIRE,"2,150.00"\n',
-  note: "Quand presque toutes les lignes sont en « date illisible » ou « montant illisible », ce n'est pas le fichier qui est mauvais : c'est le délimiteur ou la décimale détectés qui ne conviennent pas à ce format.",
-
+  colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["categorie_banque", 4]],
+  compteParDefaut: true,
+  discret: true,
 };
 
 /* LE CSV D'UN EXEMPLE : en-têtes puis lignes, délimiteur « ; » — celui des
  * exports français, qui laisse la virgule aux décimales. Une cellule qui
  * contient le délimiteur ou un guillemet est citée. */
 function csvExempleTutoriel(exemple) {
-  if (exemple.csv) return exemple.csv;
   const citer = (cellule) =>
     /[;"\n]/.test(cellule) ? `"${String(cellule).replace(/"/g, '""')}"` : String(cellule);
-  const lignes = exemple.sansEntetes ? exemple.lignes : [exemple.entetes, ...exemple.lignes];
-  return lignes.map((ligne) => ligne.map(citer).join(";")).join("\n") + "\n";
+  return [exemple.entetes, ...exemple.lignes].map((ligne) => ligne.map(citer).join(";")).join("\n") + "\n";
 }
 
 const PREFIXE_FICHIER_EXEMPLE = "exemple-tutoriel-";
+
+// LE RELEVÉ D'EXEMPLE DE LA NOTICE, celui qu'on peut aussi télécharger : le tutoriel le charge
+// lui-même dès l'étape où l'on parle du fichier, pour que tout ce qui suit se lise sur un vrai
+// relevé. Il porte le préfixe des exemples : le quitter le vide comme eux.
+const URL_FICHIER_TEST = "/exemples/releve-exemple.csv";
+const NOM_FICHIER_TEST = `${PREFIXE_FICHIER_EXEMPLE}releve.csv`;
 
 function fichierImportEstUnExemple() {
   return !!(
@@ -224,11 +239,73 @@ function fichierImportEstUnExemple() {
   );
 }
 
+function fichierImportEstLeFichierTest() {
+  return !!(
+    typeof importFichierActuel !== "undefined" &&
+    importFichierActuel &&
+    importFichierActuel.name === NOM_FICHIER_TEST
+  );
+}
+
+// Vrai tant que l'ÉCRAN porte des colonnes posées par un exemple : c'est ce qu'il faudra rendre
+// à la configuration du preset (cf. restaurerImportTutoriel).
+let tutorielConfigModifiee = false;
+
+/** Pose les colonnes d'un exemple À L'ÉCRAN (rien n'est enregistré). */
+function appliquerColonnesTutoriel(colonnes) {
+  importConfigColonnes = colonnes
+    // Sans l'extension « Monnaies », ces trois colonnes n'existent pas à l'écran.
+    .filter(([propriete]) => choixDeMonnaiePossible() || !PROPRIETES_IMPORT_MONNAIE.has(propriete))
+    .map(([propriete, index]) => ({ propriete, index }));
+  // L'alerte « les colonnes ont changé, enregistre » parle d'une modification de l'utilisateur :
+  // ici les colonnes sont celles de l'exemple, il n'y a rien à garder.
+  importSignatureColonnesEnregistrees = signatureColonnesImport(importConfigColonnes);
+  importApercuAReloire = false;
+  tutorielConfigModifiee = true;
+  renderImportConfig();
+  updateImportPresetCompteAvertissement();
+  updateImportCompteDefautVisibility();
+}
+
+/** Choisit le premier compte de l'app dans « Compte pour ce fichier », si rien n'y est lu. */
+function choisirCompteParDefautTutoriel() {
+  const select = document.getElementById("import-compte-defaut");
+  if (compteIdDefautChoisi() === null && document.getElementById("import-compte-defaut-bloc").style.display !== "none") {
+    const premier = [...select.options].find((option) => option.value);
+    if (premier) select.value = premier.value;
+  }
+}
+
 /**
- * Charge un exemple dans l'écran d'import, comme si on l'avait déposé.
- * Rend false quand l'utilisateur refuse de remplacer SON fichier.
+ * Rend à l'écran d'import ce que le tutoriel y a posé : la configuration du preset, et un
+ * « compte pour ce fichier » vide. Ne fait rien quand rien n'a été posé.
  */
-async function montrerExempleTutoriel(exemple, rang) {
+async function restaurerConfigImportTutoriel() {
+  if (!tutorielConfigModifiee) return;
+  tutorielConfigModifiee = false;
+  try {
+    await loadImportConfiguration();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+  document.getElementById("import-compte-defaut").value = "";
+}
+
+/** Vide l'écran d'import d'un fichier d'exemple, et lui rend la configuration du preset. */
+async function restaurerImportTutoriel() {
+  if (fichierImportEstUnExemple()) reinitialiserImport();
+  await restaurerConfigImportTutoriel();
+}
+
+/**
+ * Charge un fichier dans l'écran d'import, comme si on l'avait déposé, avec — pour un exemple —
+ * ses colonnes. Rend false quand l'utilisateur refuse de remplacer SON fichier.
+ */
+async function afficherFichierTutoriel(
+  fichier,
+  nomAffiche,
+  { colonnes = null, compteParDefaut = false } = {}
+) {
   if (
     typeof importApercu !== "undefined" &&
     importApercu &&
@@ -240,27 +317,52 @@ async function montrerExempleTutoriel(exemple, rang) {
   ) {
     return false;
   }
-  const fichier = new File([csvExempleTutoriel(exemple)], `${PREFIXE_FICHIER_EXEMPLE}${rang + 1}.csv`, {
-    type: "text/csv",
-  });
+  if (colonnes) appliquerColonnesTutoriel(colonnes);
+  else await restaurerConfigImportTutoriel();
+  if (compteParDefaut) choisirCompteParDefautTutoriel();
   // Le chemin de `definirFichierImport`, SANS sa question « un aperçu est déjà
   // en cours » : entre deux exemples du tutoriel, il n'y a rien à perdre.
   importFichierActuel = fichier;
-  document.getElementById("import-fichier-nom").textContent = t(exemple.titre);
+  document.getElementById("import-fichier-nom").textContent = nomAffiche;
   reinitialiserReglagesLecture();
   await executerPrevisualisation();
   return true;
 }
 
-const EXEMPLE_DOUBLONS = {
-  titre: "Deux exports du même mois, à une colonne près",
-  entetes: ["Date", "Libellé", "Montant", "Solde après"],
-  lignes: [
-    ["02/09/2026", "CARREFOUR MARKET", "-45,20", "1 204,80"],
-    ["02/09/2026", "CARREFOUR MARKET", "-45,20", "1 187,30"],
-  ],
-  note: "La même opération, exportée deux fois : seule la colonne « Solde après » diffère, parce qu'elle dépend du jour de l'export. Exclue de la comparaison, la seconde ligne est reconnue comme un doublon ; comparée, elle passe pour neuve.",
-};
+/** Charge un exemple dessiné pour une étape (cf. EXEMPLE_*). */
+async function montrerExempleTutoriel(exemple, rang) {
+  const fichier = new File([csvExempleTutoriel(exemple)], `${PREFIXE_FICHIER_EXEMPLE}${rang + 1}.csv`, {
+    type: "text/csv",
+  });
+  return afficherFichierTutoriel(fichier, t(exemple.titre), {
+    colonnes: exemple.colonnes,
+    compteParDefaut: exemple.compteParDefaut,
+  });
+}
+
+let fichierTestTutoriel = null;
+
+/**
+ * Charge le relevé d'exemple de la notice, avec la configuration du preset : c'est le fichier du
+ * « reste du tutoriel », hors colonnes secondaires. Déjà chargé, il n'est pas relu — ce qu'on a
+ * déplacé à l'écran entre deux étapes reste en place.
+ */
+async function montrerFichierTestTutoriel() {
+  if (fichierImportEstLeFichierTest() && importApercu) return true;
+  if (!fichierTestTutoriel) {
+    try {
+      const reponse = await fetch(URL_FICHIER_TEST);
+      if (!reponse.ok) throw new Error(String(reponse.status));
+      fichierTestTutoriel = new File([await reponse.blob()], NOM_FICHIER_TEST, {
+        type: "text/csv",
+      });
+    } catch (err) {
+      showMessage(t("Le relevé d'exemple n'a pas pu être chargé."), "error");
+      return false;
+    }
+  }
+  return afficherFichierTutoriel(fichierTestTutoriel, "releve-exemple.csv");
+}
 
 /* ---------- Les parcours ----------
  *
@@ -449,177 +551,198 @@ function etapesDecouverte() {
 
 const TUTORIEL_DECOUVERTE = etapesDecouverte();
 
+/* LE PARCOURS « IMPORTER UN RELEVÉ ». Les textes vivent dans textes.js
+ * (`noyau.tuto-import-<étape>`, « 2-1 » pour 2.1) ; les numéros sont ceux de la bulle, et le
+ * texte du compte bancaire cite « l'étape 2.2 ».
+ *
+ * TROIS FAÇONS DE MONTRER UN FICHIER, selon l'étape :
+ *   - rien (étapes 1 à 3) : l'écran est vide, ou vidé s'il montrait un exemple ;
+ *   - `fichierTest` : le relevé d'exemple de la notice, chargé d'office — c'est lui qui sert
+ *     à tout le reste du tutoriel ;
+ *   - `exemple` : un fichier dessiné pour un cas, avec ses colonnes posées à l'écran, pour les
+ *     colonnes secondaires — le relevé de la notice n'en a aucune. */
+const T_IMPORT = (cle) => texteAide(`noyau.tuto-import-${cle}`);
+
 const TUTORIEL_IMPORT = [
   {
+    numero: "1",
     cible: "#parametres-sous-nav",
-    titre: "L'import vit dans les Paramètres",
-    texte:
-      "Tout se passe ici, dans l'onglet « Import ». On vient d'y aller pour toi. Garde cette bulle ouverte : elle suit les étapes pendant que tu regardes l'écran.",
+    titre: "Tout savoir sur l'import",
+    texte: T_IMPORT("1"),
     page: () => surPage("parametres", "parametres-import"),
   },
   {
+    numero: "2.1",
     cible: "#import-preset-chips",
-    titre: "Le preset",
-    texte:
-      "Un preset retient la FORME d'un fichier : quelles colonnes lire, et où. Tu en crées un par banque et par type d'export, puis tu ne le règles plus jamais. Le bouton « + Nouveau preset » en crée un ; celui qui est allumé ici est celui qu'on utilise.",
+    titre: "Les presets",
+    texte: T_IMPORT("2-1"),
   },
   {
+    numero: "2.2",
     cible: "#import-preset-compte",
-    titre: "Le compte de ce preset",
-    texte:
-      "Si le relevé ne décrit qu'un seul compte — le cas ordinaire — dis-le ici : chaque ligne importée ira sur ce compte, et le fichier n'aura pas à le nommer.",
+    titre: "Les presets",
+    texte: T_IMPORT("2-2"),
   },
   {
+    numero: "3",
     cible: "#import-dropzone",
     titre: "Le fichier",
-    texte:
-      "Dépose ton relevé ici, ou clique pour le choisir. Pour t'entraîner, prends le relevé d'exemple que la notice propose au téléchargement : c'est un vrai CSV, avec une ligne de titre parasite et trois colonnes dont l'application n'a rien à faire — exactement ce qu'une banque exporte.",
+    texte: T_IMPORT("3"),
+    // UN BOUTON TOUT À GAUCHE DE LA BULLE : le relevé d'exemple, pour qui ne l'a pas encore.
+    telechargement: { url: URL_FICHIER_TEST, nom: "releve-exemple.csv" },
   },
   {
+    numero: "4",
+    cible: "#import-apercu-bloc",
+    titre: "L'aperçu, ligne par ligne",
+    texte: T_IMPORT("4"),
+    fichierTest: true,
+    // L'aperçu fait plusieurs écrans de haut : on montre son début, pas son milieu.
+    defilement: "start",
+    siMasque: "L'aperçu apparaît une fois le fichier lu.",
+  },
+  {
+    numero: "5",
     cible: "#import-apercu-fichier-bloc",
-    titre: "Le fichier tel qu'il est",
-    texte:
-      "Ce tableau montre ce que l'application LIT, colonne par colonne. C'est ici qu'on corrige : fais glisser un en-tête sur un autre pour échanger deux colonnes, jusqu'à ce que chaque propriété tombe en face de la bonne. Les colonnes hachurées sont celles que le réglage attend et que le fichier n'a pas.",
+    titre: "Le fichier vu par l'app",
+    texte: T_IMPORT("5"),
+    fichierTest: true,
     siMasque:
       "Ce tableau apparaît dès qu'un fichier est déposé : reviens à cette étape à ce moment-là.",
   },
   {
+    numero: "6",
     cible: "#import-config-colonnes",
     titre: "Les colonnes lues",
-    texte:
-      "La même chose que le glisser-déposer, dite en numéros. L'œil de chaque ligne allume ou éteint une colonne ; Date, Nature et Montant sont obligatoires et ne s'éteignent pas. Les quatre d'ici suffisent à l'immense majorité des relevés.",
+    texte: T_IMPORT("6"),
+    fichierTest: true,
     avant: () => deplierBloc("#import-config-fichier"),
   },
   {
-    cible: "#import-config-colonnes",
-    titre: "La colonne Notes",
-    texte: texteAide("noyau.tuto-import-notes"),
-    avant: () => deplierBloc("#import-config-fichier"),
-  },
-  {
+    numero: "7",
     cible: "#import-config-avancee",
-    titre: "Les colonnes secondaires",
-    texte:
-      "Huit colonnes de plus, repliées parce que la plupart des relevés n'en ont aucune — et indispensables à ceux qui les ont. Ce sont des colonnes comme les autres : même œil, même numéro. Les étapes qui suivent les prennent une par une, avec à chaque fois le format qui la rend nécessaire.",
+    titre: "Les champs secondaires",
+    texte: T_IMPORT("7"),
+    fichierTest: true,
     avant: () => {
       deplierBloc("#import-config-fichier");
       deplierBloc("#import-config-avancee");
     },
   },
   {
+    numero: "8",
     cible: "#import-config-colonnes-avancees",
-    titre: "« Compte bancaire »",
-    texte:
-      "Quand un même export couvre plusieurs comptes, c'est cette colonne qui dit lequel. Tu rattaches chaque libellé bancaire à un compte de l'app une seule fois, et l'application s'en souvient pour les imports suivants. Elle est ignorée si le preset est déjà lié à un compte : ce compte-là s'impose à toutes les lignes.",
+    titre: "Le champ Compte bancaire",
+    texte: T_IMPORT("8"),
     exemple: EXEMPLE_COMPTE_BANQUE,
   },
   {
+    numero: "9",
     cible: "#import-config-colonnes-avancees",
-    titre: "« Sens »",
-    texte:
-      "Beaucoup de relevés n'écrivent que des montants positifs et mettent le signe dans une colonne à part. Sans elle, toutes les lignes entreraient comme des entrées d'argent. Sur une opération classique, le sens lu prime même sur la catégorie — un salaire rangé ailleurs qu'« Entrées d'argent » reste une entrée.",
+    titre: "Le champ Sens",
+    texte: T_IMPORT("9"),
     exemple: EXEMPLE_SENS,
   },
   {
+    numero: "10",
     cible: "#import-config-colonnes-avancees",
-    titre: "« Montant au débit » et « Montant au crédit »",
-    texte:
-      "L'autre façon, très répandue, de ne pas signer les montants : deux colonnes, dont une seule est remplie par ligne. Ce couple REMPLACE « Montant » — l'allumer éteint la colonne unique, et l'éteindre la rallume, pour qu'aucune configuration sans montant ne puisse exister. Les deux colonnes remplies sur une même ligne mettent celle-ci en erreur : compenser un débit par un crédit inventerait une opération que le relevé ne décrit pas.",
+    titre: "Montant au débit et Montant au crédit",
+    texte: T_IMPORT("10"),
     exemple: EXEMPLE_MONTANT_SCINDE,
   },
   {
+    numero: "11",
     cible: "#import-config-colonnes-avancees",
-    titre: "« Monnaie »",
-    texte:
-      "La devise dans laquelle la ligne est libellée. Sans cette colonne, chaque ligne prend la monnaie principale du compte visé — ce qui suffit à un compte mono-devise, et se corrige ligne par ligne dans l'aperçu autrement. Les trois colonnes de devise (celle-ci, celle du montant envoyé, celle des frais) partagent le même stock de correspondances : « EUR » se rattache une fois pour les trois.",
-    exemple: EXEMPLE_MONNAIE,
-  },
-  {
-    cible: "#import-config-colonnes-avancees",
-    titre: "« Montant envoyé », « Frais » et leurs devises",
-    texte:
-      "Les quatre dernières vont ensemble, et elles existent pour les relevés qui ne donnent jamais « le » montant d'une opération. « Montant » est ce qui ARRIVE, « Montant envoyé » ce qui PART avant frais et avant conversion. L'application ne convertit RIEN : entre deux devises, c'est le fichier qui doit donner les deux montants, sinon la ligne attend que tu les saisisses.",
+    titre: "Montant envoyé, Montant reçu & Frais",
+    texte: T_IMPORT("11"),
     exemple: EXEMPLE_WISE,
   },
   {
+    numero: "12",
     cible: "#import-config-colonnes-avancees",
-    titre: "« État »",
-    texte:
-      "Le mot par lequel la banque dit si la ligne est passée. « Exécuté » fait une opération réelle, « en attente » une prévisionnelle, « refusé » n'entre pas du tout. Et quand une dépense prévue que tu avais écrite toi-même se retrouve dans le relevé, l'import te propose de la REMPLACER plutôt que d'en créer une seconde — la même dépense ne comptera pas deux fois.",
+    titre: "État",
+    texte: T_IMPORT("12"),
     exemple: EXEMPLE_STATUT,
   },
   {
-    cible: "#import-sens-libelles-bloc",
-    titre: "Les mots-clés de « Sens » et « État »",
-    texte:
-      "Chaque banque écrit les siens : un relevé anglophone n'a aucune raison de dire « Débit ». Ajoute-les un par un avec « + » ou Entrée ; majuscules, accents et espaces sont ignorés. Une liste vide retombe sur les mots par défaut, rappelés sous chaque champ. Un libellé inconnu met la ligne en erreur plutôt que d'être deviné.",
-    avant: () => {
-      deplierBloc("#import-config-fichier");
-      deplierBloc("#import-config-avancee");
-    },
-    siMasque:
-      "Ce bloc n'apparaît qu'une fois la colonne « Sens » configurée : sans elle, ces mots-clés ne serviraient à rien. Même chose pour « État », juste en dessous.",
-  },
-  {
+    numero: "13",
     cible: "#import-config-doublons",
     titre: "La comparaison des doublons",
-    texte:
-      "Comment l'application reconnaît une ligne déjà importée. Soit toutes les colonnes SAUF celles que tu désignes — les colonnes qui bougent d'un export à l'autre, comme un numéro d'ordre ou un solde courant — soit UNIQUEMENT celles que tu désignes. Tape un numéro de colonne, « + », et il rejoint la liste.",
+    texte: T_IMPORT("13"),
+    fichierTest: true,
     avant: () => {
       deplierBloc("#import-config-fichier");
       deplierBloc("#import-config-doublons");
     },
-    exemple: EXEMPLE_DOUBLONS,
   },
   {
+    numero: "14",
     cible: "#import-config-lignes-ignorees",
     titre: "Les lignes à ne pas importer",
-    texte:
-      "Combien de lignes, en tête du fichier, ne sont pas des opérations. Beaucoup de banques n'exportent pas une table mais une page : titulaire, numéro de compte, période, ligne vide, puis les intitulés de colonnes. Compte-les comme Excel les numérote.",
+    texte: T_IMPORT("14"),
+    fichierTest: true,
     avant: () => {
       deplierBloc("#import-config-fichier");
       deplierBloc("#import-config-lignes-ignorees");
     },
-    exemple: EXEMPLE_LIGNES_ENTETE,
   },
   {
+    numero: "15",
     cible: "#import-reglages-lecture",
     titre: "Les réglages de lecture",
-    texte:
-      "Le dernier recours, et le SEUL réglage de cette section qui ne parte pas dans le preset : il vaut pour le fichier qu'on est en train de lire. L'application l'ouvre d'elle-même quand presque toutes les lignes sortent illisibles — c'est le signe que le délimiteur ou la décimale devinés ne conviennent pas à ce format.",
+    texte: T_IMPORT("15"),
+    fichierTest: true,
     avant: () => {
       deplierBloc("#import-config-fichier");
       deplierBloc("#import-reglages-lecture");
     },
-    exemple: EXEMPLE_DELIMITEUR,
   },
   {
+    numero: "16.1",
     cible: "#btn-import-config-enregistrer",
     titre: "Enregistrer la configuration",
-    texte:
-      "Ce bouton garde tes réglages DANS le preset : c'est ce qui fait qu'au prochain relevé de la même banque, il n'y aura plus rien à régler. Le bouton de relecture, à côté du tableau du fichier, enregistre aussi — mais relit le fichier dans la foulée pour te montrer le résultat.",
+    texte: T_IMPORT("16-1"),
+    fichierTest: true,
     avant: () => deplierBloc("#import-config-fichier"),
   },
   {
+    numero: "16.2",
+    // La bulle se centre sur le bouton de relecture, petit et posé à gauche du tableau.
+    cible: "#btn-import-apercu-relire",
+    titre: "Enregistrer la configuration",
+    texte: T_IMPORT("16-2"),
+    placement: "centre",
+    fichierTest: true,
+    siMasque:
+      "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.",
+  },
+  {
+    numero: "17",
+    cible: "#btn-import-detecter",
+    titre: "Deviner les colonnes",
+    texte: T_IMPORT("17"),
+    fichierTest: true,
+    siMasque:
+      "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.",
+  },
+  {
+    numero: "18",
     cible: "#import-mappings-bloc",
-    titre: "Ce que l'application te demande",
-    texte:
-      "Les catégories écrites par ta banque ne sont pas les tiennes : tu dis une fois à quoi chacune correspond, et l'application s'en souvient pour tous les imports suivants. Les comptes et les devises inconnus se rattachent au même endroit.",
+    titre: "La correspondance des catégories",
+    texte: T_IMPORT("18"),
+    exemple: EXEMPLE_CATEGORIES,
+    // Le bloc visé n'existe que parce que l'exemple apporte des catégories inconnues : c'est
+    // lui qu'on désigne, pas le tableau du fichier.
+    garderCible: true,
     siMasque:
       "Ce bloc n'apparaît que si le fichier apporte des catégories, des comptes ou des devises inconnus.",
   },
   {
-    cible: "#import-apercu-bloc",
-    titre: "L'aperçu, ligne par ligne",
-    texte:
-      "Rien n'est écrit en base avant ton accord. Chaque ligne se modifie ici — catégorie, type, compte, note, étalement — et se supprime si elle n'a rien à faire là. Les lignes sont rangées par type d'opération, et deux sections de fin posent les questions qui restent : les RESSEMBLANCES (une suspicion, rien n'est coché) et les DOUBLONS (un constat, décochés d'office).",
-    siMasque: "L'aperçu apparaît une fois le fichier lu.",
-  },
-  {
+    numero: "19",
     cible: "#btn-import-confirmer",
     titre: "Confirmer",
-    texte:
-      "C'est le seul geste qui écrit. Et s'il s'avère que le résultat ne te convient pas, l'historique des importations, plus bas, annule un import entier — les opérations qu'il a créées disparaissent, et les dépenses prévues qu'il avait remplacées reviennent telles qu'elles étaient.",
+    texte: T_IMPORT("19"),
+    fichierTest: true,
     siMasque:
       "Ce bouton apparaît au bas de l'aperçu, donc une fois un fichier lu. Il reste gris tant qu'une question n'a pas de réponse — survole-le, il dit lesquelles.",
   },
@@ -929,10 +1052,10 @@ function placerBulleTutoriel(bulle, cible, placement = null) {
       haut = Math.max(marge, rect.top - hauteur - marge);
     }
   }
-  const gauche = Math.min(
-    Math.max(marge, rect.left),
-    window.innerWidth - largeur - marge
-  );
+  // `placement: "centre"` : la bulle se centre sur sa cible (un petit bouton), au lieu de
+  // s'aligner sur son bord gauche.
+  const aligne = placement === "centre" ? rect.left + rect.width / 2 - largeur / 2 : rect.left;
+  const gauche = Math.min(Math.max(marge, aligne), window.innerWidth - largeur - marge);
   bulle.style.top = `${haut}px`;
   bulle.style.left = `${gauche}px`;
 }
@@ -1000,7 +1123,17 @@ async function allerEtapeTutoriel(index) {
   if (etape.exemple) {
     exempleCharge = await montrerExempleTutoriel(etape.exemple, index);
     if (jeton !== tutorielJeton) return;
-    if (exempleCharge) selecteurCible = "#import-apercu-fichier-bloc";
+    if (exempleCharge && !etape.garderCible) selecteurCible = "#import-apercu-fichier-bloc";
+  } else if (etape.fichierTest) {
+    // LE RELEVÉ DE LA NOTICE, chargé d'office : tout ce qui n'est pas une colonne
+    // secondaire se lit dessus. Rien n'est refait s'il est déjà à l'écran.
+    await montrerFichierTestTutoriel();
+    if (jeton !== tutorielJeton) return;
+  } else if (parcours.id === "import") {
+    // Avant le fichier : l'écran est vidé s'il montrait un exemple (on revient d'une
+    // étape plus loin), jamais s'il montre le fichier de l'utilisateur.
+    await restaurerImportTutoriel();
+    if (jeton !== tutorielJeton) return;
   }
 
   const cibles = ciblesEtape(selecteurCible, etape.premier && !exempleCharge);
@@ -1023,13 +1156,19 @@ async function allerEtapeTutoriel(index) {
     </div>
     <h4>${escapeHtml(t(etape.titre))}</h4>
     <div class="tutoriel-texte"></div>
-    ${exempleTutorielHtml(etape.exemple, exempleCharge)}
+    ${etape.discret ? "" : exempleTutorielHtml(etape.exemple, exempleCharge)}
     ${
       !visible && etape.siMasque
         ? `<p class="hint">${escapeHtml(t(etape.siMasque))}</p>`
         : ""
     }
     <div class="tutoriel-actions">
+      ${
+        etape.telechargement
+          ? `<a class="bouton-lien tutoriel-telecharger" href="${escapeHtml(etape.telechargement.url)}"
+               download="${escapeHtml(etape.telechargement.nom)}">${t("Télécharger le fichier")}</a>`
+          : ""
+      }
       <button type="button" data-tutoriel="precedent" ${index === 0 ? "disabled" : ""}>${t(
         "Précédent"
       )}</button>
@@ -1173,7 +1312,7 @@ async function arreterTutoriel({ message = null } = {}) {
   // L'EXEMPLE REPART AVEC LE TUTORIEL : un relevé qui n'existe pas ne doit pas
   // rester dans l'écran d'import. Un fichier déposé par l'utilisateur, lui, n'est
   // jamais touché ici.
-  if (fichierImportEstUnExemple()) reinitialiserImport();
+  await restaurerImportTutoriel();
   const bulle = document.getElementById("tutoriel-bulle");
   if (bulle) bulle.style.display = "none";
   if (parcours && parcours.baseDecouverte) {

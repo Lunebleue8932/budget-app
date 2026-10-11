@@ -34,6 +34,7 @@ def _compte_read(compte: models.Compte, soldes: dict | None = None) -> schemas.C
             schemas.CompteMonnaieRead(
                 monnaie_id=lien.monnaie_id,
                 solde_initial=lien.solde_initial,
+                solde_actuel_renseigne=lien.solde_actuel_renseigne,
                 active=lien.active,
                 monnaie_nom=lien.monnaie.nom,
                 monnaie_symbole=lien.monnaie.symbole,
@@ -138,6 +139,54 @@ def _valider_extinctions(
         )
 
 
+def _deduire_soldes_initiaux(
+    db: Session, compte: models.Compte, monnaies: list[schemas.CompteMonnaieInput]
+) -> list[schemas.CompteMonnaieInput]:
+    """Applique le « solde actuel renseigné » : rend la liste des monnaies avec le
+    solde initial qui en DÉCOULE.
+
+    TROIS CAS PAR MONNAIE, selon ce qui était enregistré et ce qui arrive :
+      - rien d'enregistré, rien d'envoyé : le solde initial envoyé est celui qui compte ;
+      - rien d'enregistré, un solde actuel envoyé : on DÉDUIT le solde initial —
+        `solde actuel - ce que les opérations ont changé` (intérêts perçus compris, c'est
+        le même calcul que le solde réel affiché) ;
+      - un solde actuel déjà enregistré : le solde initial est VERROUILLÉ. Renvoyé à
+        l'identique, il garde la valeur déduite ; envoyé à None, c'est la suppression du
+        solde actuel renseigné et le solde initial envoyé redevient libre ; envoyé
+        DIFFÉRENT, c'est refusé (409) — « pour le modifier, on supprime d'abord le solde
+        actuel renseigné », jamais deux gestes en un.
+    """
+    soldes = _soldes_du_compte(db, compte.id)
+    existants = {lien.monnaie_id: lien for lien in compte.monnaies}
+    resultat = []
+    for entree in monnaies:
+        lien = existants.get(entree.monnaie_id)
+        enregistre = lien.solde_actuel_renseigne if lien is not None else None
+        saisi = entree.solde_actuel_renseigne
+        if enregistre is not None and saisi is not None:
+            if abs(saisi - enregistre) >= 0.005:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Le solde initial de ce compte est verrouillé par le solde actuel "
+                        "renseigné : supprime d'abord ce dernier pour le modifier."
+                    ),
+                )
+            resultat.append(entree.model_copy(update={"solde_initial": lien.solde_initial}))
+        elif saisi is not None and lien is not None:
+            solde_reel = soldes.get(entree.monnaie_id, {}).get("solde_reel", lien.solde_initial)
+            variation = solde_reel - lien.solde_initial
+            resultat.append(
+                entree.model_copy(update={"solde_initial": round(saisi - variation, 2)})
+            )
+        elif saisi is not None:
+            # Une monnaie qui rejoint le compte n'a aucune opération : rien à déduire.
+            resultat.append(entree.model_copy(update={"solde_initial": round(saisi, 2)}))
+        else:
+            resultat.append(entree)
+    return resultat
+
+
 @router.post("", response_model=schemas.CompteRead, status_code=status.HTTP_201_CREATED)
 def create_compte(compte: schemas.CompteCreate, db: Session = Depends(get_db)):
     if crud.get_compte_by_nom(db, compte.nom):
@@ -231,6 +280,9 @@ def update_compte(
                     "l'historique reste), ou supprime d'abord ces opérations."
                 ),
             )
+        updates = updates.model_copy(
+            update={"monnaies": _deduire_soldes_initiaux(db, db_compte, updates.monnaies)}
+        )
     modifie = crud.update_compte(db, db_compte, updates)
     return _compte_read(modifie, _soldes_du_compte(db, compte_id))
 

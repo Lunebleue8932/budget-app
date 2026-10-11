@@ -6299,15 +6299,29 @@ function renderCompteMonnaies(selection = []) {
     const soldee =
       !entree ||
       (Math.abs(entree.solde_reel || 0) < 0.005 && Math.abs(entree.solde_projete || 0) < 0.005);
+    // SOLDE INITIAL VERROUILLÉ : un solde actuel a été renseigné, le solde initial en est
+    // déduit et ne se modifie plus tant qu'on ne supprime pas le solde actuel renseigné.
+    const verrouille = Boolean(entree) && entree.solde_actuel_renseigne != null;
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     row.dataset.monnaieId = monnaie.id;
+    if (verrouille) row.dataset.soldeActuel = String(entree.solde_actuel_renseigne);
     row.innerHTML = `
       <input type="checkbox" data-role="choisie" ${choisie ? "checked" : ""} />
       <span class="import-mapping-nom">${escapeHtml(monnaie.nom)} (${escapeHtml(monnaie.symbole)})</span>
       <input type="number" step="0.01" data-role="solde-initial"
              title="${t("Solde initial dans cette monnaie")}"
              value="${choisie ? entree.solde_initial : 0}" ${choisie ? "" : "disabled"} />
+      <input type="number" step="0.01" data-role="solde-actuel" style="display:none"
+             placeholder="${t("Solde actuel")}" title="${t("Solde actuel")}" />
+      <span data-role="verrou" class="compte-solde-verrou" style="display:none"
+            title="${escapeHtml(t(texteAide("noyau.compte-solde-initial-verrouille")))}">
+        ${t("Solde actuel renseigné")} :
+        <strong>${verrouille ? formatMontant(entree.solde_actuel_renseigne, monnaie.id) : ""}</strong>
+        <button type="button" data-role="supprimer-solde-actuel" class="champ-ajoute-retirer"
+                title="${t("Supprimer le solde actuel renseigné")}"
+                aria-label="${t("Supprimer le solde actuel renseigné")}">×</button>
+      </span>
       <label class="compte-monnaie-active">
         <input type="checkbox" data-role="active" ${active ? "checked" : ""} />
         ${t("Active")}
@@ -6329,24 +6343,72 @@ function renderCompteMonnaies(selection = []) {
     caseChoisie.addEventListener("change", () => {
       champSolde.disabled = !caseChoisie.checked;
       majEtatActive();
+      majLignesSoldeActuel();
     });
     caseActive.addEventListener("change", majEtatActive);
+    row.querySelector("input[data-role='solde-actuel']").addEventListener(
+      "input",
+      majLignesSoldeActuel
+    );
+    row.querySelector("[data-role='supprimer-solde-actuel']").addEventListener("click", () => {
+      delete row.dataset.soldeActuel;
+      majLignesSoldeActuel();
+    });
     majEtatActive();
     bloc.appendChild(row);
+  });
+  majLignesSoldeActuel();
+}
+
+/**
+ * « CALCULER LE SOLDE INITIAL AVEC LE SOLDE ACTUEL » (formulaire d'un compte existant).
+ *
+ * Cochée, l'option demande le solde ACTUEL de chaque monnaie : le serveur en déduit le solde
+ * initial (`actuel - ce que les opérations ont changé`), puis le VERROUILLE. Le champ du solde
+ * initial est alors grisé ; pour le modifier, on supprime d'abord le solde actuel renseigné
+ * (la croix de la ligne). Le serveur applique la même règle — cf. routers/comptes.
+ */
+function majLignesSoldeActuel() {
+  const option = document.getElementById("compte-calcul-solde");
+  const activee = Boolean(option && option.checked);
+  document.querySelectorAll("#compte-monnaies .import-mapping-row").forEach((row) => {
+    const choisie = row.querySelector("input[data-role='choisie']").checked;
+    const verrouille = row.dataset.soldeActuel !== undefined;
+    const champActuel = row.querySelector("input[data-role='solde-actuel']");
+    const champInitial = row.querySelector("input[data-role='solde-initial']");
+    row.querySelector("[data-role='verrou']").style.display = verrouille ? "" : "none";
+    champActuel.style.display = activee && !verrouille && choisie ? "" : "none";
+    champInitial.disabled =
+      !choisie || verrouille || (activee && champActuel.value.trim() !== "");
   });
 }
 
 function lireCompteMonnaies() {
   return [...document.querySelectorAll("#compte-monnaies .import-mapping-row")]
     .filter((row) => row.querySelector("input[data-role='choisie']").checked)
-    .map((row) => ({
-      monnaie_id: Number(row.dataset.monnaieId),
-      solde_initial: parseFloat(
-        row.querySelector("input[data-role='solde-initial']").value || "0"
-      ),
-      active: row.querySelector("input[data-role='active']").checked,
-    }));
+    .map((row) => {
+      const saisi = row.querySelector("input[data-role='solde-actuel']").value.trim();
+      const verrouille = row.dataset.soldeActuel !== undefined;
+      const optionActivee = document.getElementById("compte-calcul-solde").checked;
+      return {
+        monnaie_id: Number(row.dataset.monnaieId),
+        solde_initial: parseFloat(
+          row.querySelector("input[data-role='solde-initial']").value || "0"
+        ),
+        // Verrouillé : le solde actuel enregistré revient tel quel (le serveur garde le solde
+        // initial déduit). Supprimé : rien n'est envoyé, ce qui déverrouille. Neuf : le
+        // serveur en déduit le solde initial.
+        solde_actuel_renseigne: verrouille
+          ? Number(row.dataset.soldeActuel)
+          : optionActivee && saisi !== ""
+            ? parseFloat(saisi)
+            : null,
+        active: row.querySelector("input[data-role='active']").checked,
+      };
+    });
 }
+
+document.getElementById("compte-calcul-solde").addEventListener("change", majLignesSoldeActuel);
 
 function resetCompteForm() {
   // Le formulaire retourne à sa place (le bloc de création, en bas de page) :
@@ -6364,6 +6426,10 @@ function resetCompteForm() {
   // EN CRÉATION, RIEN À ÉTEINDRE : le bouton d'état ne vaut que devant un
   // compte qui existe déjà.
   document.getElementById("compte-etat").style.display = "none";
+  // L'option de solde actuel n'a de sens que devant un compte qui existe déjà.
+  document.getElementById("compte-calcul-solde").checked = false;
+  document.getElementById("compte-solde-actuel-bloc").style.display = "none";
+  majLignesSoldeActuel();
 }
 
 function fillCompteForm(compte, ancre) {
@@ -6382,8 +6448,10 @@ function fillCompteForm(compte, ancre) {
       active: m.active,
       solde_reel: m.solde_reel,
       solde_projete: m.solde_projete,
+      solde_actuel_renseigne: m.solde_actuel_renseigne,
     }))
   );
+  document.getElementById("compte-solde-actuel-bloc").style.display = "";
   document.getElementById("form-compte-titre").textContent = `Modifier "${compte.nom}"`;
   document.getElementById("compte-annuler").style.display = "inline-block";
   cablerBoutonEtat("compte-etat", {
@@ -10751,6 +10819,17 @@ const PROPRIETES_IMPORT_AVANCEES = [
 
 const CLES_PROPRIETES_AVANCEES = new Set(PROPRIETES_IMPORT_AVANCEES.map(([cle]) => cle));
 
+// Les trois colonnes qui ne disent rien sans l'extension « Monnaies » : tant
+// qu'elle est éteinte, l'application n'a qu'une monnaie et ces lignes n'ont rien
+// à régler. Elles ne sont donc pas MONTRÉES (cf. proprietesAvanceesAffichees) —
+// la configuration enregistrée, elle, n'est pas touchée.
+const PROPRIETES_IMPORT_MONNAIE = new Set(["monnaie", "monnaie_initiale", "monnaie_frais"]);
+
+function proprietesAvanceesAffichees() {
+  if (choixDeMonnaiePossible()) return PROPRIETES_IMPORT_AVANCEES;
+  return PROPRIETES_IMPORT_AVANCEES.filter(([cle]) => !PROPRIETES_IMPORT_MONNAIE.has(cle));
+}
+
 /**
  * Ce que chaque propriété d'import veut dire, POSÉ SUR SA PROPRE LIGNE.
  *
@@ -11096,11 +11175,26 @@ function separateurDecimalChoisi() {
   return document.getElementById("import-reglage-separateur-decimal").value || null;
 }
 
-document.getElementById("btn-import-relire-reglages").addEventListener("click", async () => {
+// CHANGER L'UN DES DEUX RÉGLAGES ALLUME LE BOUTON DE RELECTURE du tableau du
+// fichier (les deux flèches), seul bouton qui relit : il n'y a plus de bouton
+// « Relire avec ces réglages » à côté des champs. Le bouton lit les réglages au
+// moment du clic (cf. `lireReglagesLecture`), comme il lit tout le reste.
+[
+  "import-reglage-delimiteur",
+  "import-reglage-delimiteur-autre",
+  "import-reglage-separateur-decimal",
+].forEach((id) => {
+  document.getElementById(id).addEventListener("change", () => {
+    importApercuAReloire = true;
+    majBoutonRelireApercu();
+  });
+});
+
+/** Les réglages de lecture saisis à l'écran deviennent ceux de la prochaine lecture. */
+function lireReglagesLecture() {
   importReglageDelimiteur = delimiteurChoisi();
   importReglageSeparateurDecimal = separateurDecimalChoisi();
-  await relireFichierImport();
-});
+}
 
 /**
  * Un fichier presque entièrement en « date illisible » ou « montant
@@ -11802,7 +11896,16 @@ function creerLigneConfigColonne(propriete, libelle, { actif }) {
     if (colonne) renderApercuFichier();
   });
 
-  row.querySelector("input[data-action='basculer']").addEventListener("change", () => {
+  row.querySelector("input[data-action='basculer']").addEventListener("change", (e) => {
+    // UN PRESET LIÉ À UN COMPTE N'A PAS À LIRE LE COMPTE DANS LE FICHIER : le compte
+    // lié s'impose à toutes les lignes, la colonne ne servirait à rien. On refuse
+    // d'allumer, et on dit quoi faire — plutôt que d'allumer une colonne que
+    // l'import ignorera en silence.
+    if (propriete === "compte_banque" && !actif && importPresetCompteChoisi() != null) {
+      e.target.checked = false;
+      showMessage(t(texteAide("noyau.import-compte-banque-preset-lie")), "error");
+      return;
+    }
     basculerProprieteImport(propriete, !actif);
     renderImportConfig();
     updateImportPresetCompteAvertissement();
@@ -11881,7 +11984,7 @@ function prochainIndexLibre() {
 function renderImportConfig() {
   [
     ["import-config-colonnes", PROPRIETES_IMPORT],
-    ["import-config-colonnes-avancees", PROPRIETES_IMPORT_AVANCEES],
+    ["import-config-colonnes-avancees", proprietesAvanceesAffichees()],
   ].forEach(([blocId, proprietes]) => {
     const bloc = document.getElementById(blocId);
     bloc.innerHTML = "";
@@ -12061,8 +12164,9 @@ function updateResumeLignesEntete() {
 // active serait invisible tant qu'on n'ouvre pas la section — et des frais
 // ajoutés au montant sont bien trop surprenants pour rester cachés.
 function updateResumeConfigAvancee() {
+  const affichees = new Set(proprietesAvanceesAffichees().map(([cle]) => cle));
   const avancees =
-    importConfigColonnes.filter((c) => estProprieteAvancee(c.propriete)).length +
+    importConfigColonnes.filter((c) => affichees.has(c.propriete)).length +
     importConfigColonnesDummy.length;
   document.getElementById("import-config-avancee-resume").textContent =
     avancees > 0 ? `${avancees} colonne(s)` : "inactive";
@@ -12872,6 +12976,7 @@ document.getElementById("btn-import-apercu-relire").addEventListener("click", as
     showMessage(t("Aucun fichier chargé à relire."), "error");
     return;
   }
+  lireReglagesLecture();
   await enregistrerConfigurationImport({
     relireToujours: true,
     message: t("Configuration enregistrée, fichier relu."),

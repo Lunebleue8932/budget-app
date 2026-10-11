@@ -3421,5 +3421,106 @@ Object.assign(TRADUCTIONS.pt, {
     "O sistema de extensões",
   "Et la suite ?":
     "E agora?",
+  /* ----- Tutoriel « Importer un relevé » refait, solde actuel d'un compte (2026-10-11) ----- */
+  "L'import est la fonctionnalité clé de l'application, basée sur la lecture de fichiers Excel ou CSV. // Une fois paramétrée, elle te permet d'ajouter toutes tes opérations en quelques clics.":
+    "A importação é a funcionalidade principal do aplicativo, baseada na leitura de arquivos Excel ou CSV. // Depois de configurada, ela permite adicionar todas as suas transações em poucos cliques.",
+  "Ton fichier d'opérations bancaires possède un format bien défini (spécifique à chaque banque). Le preset permet de conserver toutes les instructions de lecture, pour ne les renseigner qu'une fois.":
+    "O seu arquivo de transações bancárias tem um formato bem definido (específico de cada banco). A predefinição guarda todas as instruções de leitura, para que você só precise informá-las uma vez.",
+  "Naturellement, tu peux associer un preset à un de tes comptes sur l'app (celui qui réplique le compte en banque d'où vient le fichier). Toutes les opérations importées avec ce preset seront alors attribuées à ce compte.":
+    "Naturalmente, você pode associar uma predefinição a uma das suas contas no app (a que reproduz a conta bancária de onde vem o arquivo). Todas as transações importadas com essa predefinição serão então atribuídas a essa conta.",
+  "Dépose ton fichier ou clique pour le choisir. Pour t'entraîner, tu peux utiliser le fichier proposé dans la notice d'utilisation : Paramètres généraux → Notice → Import /Paramètres généraux/Notice/Import. // Il possède une ligne parasite et trois colonnes dont l'app ne se sert pas.":
+    "Solte o seu arquivo ou clique para escolhê-lo. Para praticar, você pode usar o arquivo oferecido no manual de uso: Ajustes gerais → Manual de uso → Importação /Ajustes gerais/Manual de uso/Importação. // Ele tem uma linha parasita e três colunas que o app não usa.",
+  "Rien n'est importé à ce stade. Tu vois comment l'application a lu le fichier, et tu peux modifier ou supprimer des opérations. // Les doublons sont automatiquement sélectionnés avec le sélecteur à droite : tu peux tous les supprimer avec le bouton supprimer la sélection. // L'import est bloqué tant qu'il reste des doublons à traiter : si tu veux en garder, il suffit de les décocher.":
+    "Nada é importado nesta etapa. Você vê como o aplicativo leu o arquivo e pode editar ou excluir transações. // As duplicatas são selecionadas automaticamente com o seletor à direita: você pode excluí-las todas com o botão de excluir a seleção. // A importação fica bloqueada enquanto houver duplicatas a tratar: se quiser manter alguma, basta desmarcá-la.",
+  "Ce tableau montre ce que l'application lit, colonne par colonne. // Deux façons de changer le champ que l'app lit sur une colonne. /- 1. Changer du champ lu (par ex : Nature) dans Configuration du fichier /- 2. Glisser et déposer le champ d'une colonne dans les pointillés. // /italic(Si la colonne sur laquelle le champ est glissé a déjà un champ, les deux seront alors échangés.)":
+    "Esta tabela mostra o que o aplicativo lê, coluna por coluna. // Há duas maneiras de mudar o campo que o app lê em uma coluna. /- 1. Mudar o campo lido (por ex.: Descrição) em Configuração do arquivo /- 2. Arrastar e soltar o campo de uma coluna nos pontilhados. // /italic(Se a coluna em que o campo é solto já tiver um campo, os dois serão trocados.)",
+  "Ici, tu peux changer la correspondance champ <-> colonne. Les champs présents suffisent pour la plupart des relevés. Quant au sélecteur, il permet d'activer ou de désactiver un champ lu par l'app. // /italic(Les champs Date, Nature et Montant sont essentiels et ne peuvent pas être désactivés.)":
+    "Aqui você pode mudar a correspondência campo <-> coluna. Os campos presentes bastam para a maioria dos extratos. O seletor liga ou desliga um campo lido pelo app. // /italic(Os campos Data, Descrição e Valor são essenciais e não podem ser desligados.)",
+  "Huit colonnes de plus, parfois nécessaires pour certains formats de fichiers plus complexes. // Leur fonctionnement est également plus complexe : les étapes suivantes du tutoriel couvrent chacun de ces champs, un par un.":
+    "Mais oito colunas, às vezes necessárias para formatos de arquivo mais complexos. // O funcionamento delas também é mais complexo: as próximas etapas do tutorial cobrem cada um desses campos, um por um.",
+  "Celui-ci est utile quand le fichier utilisé porte différents comptes bancaires. Si un compte est rattaché au preset (étape 2.2 du tutoriel), ce champ ne peut pas être activé. // Pour chaque nouveau compte lu, l'application te demandera vers quel compte de l'app il doit pointer. Tout ceci est enregistré dans Correspondances quand l'import est confirmé : pas besoin de le renseigner une autre fois.":
+    "Este campo é útil quando o arquivo traz várias contas bancárias. Se uma conta estiver associada à predefinição (etapa 2.2 do tutorial), este campo não pode ser ligado. // Para cada nova conta lida, o aplicativo pergunta para qual conta do app ela deve apontar. Tudo isso fica salvo em Correspondências quando a importação é confirmada: não é preciso informar de novo.",
+  "Certains relevés n'écrivent pas de montants négatifs. L'un des formats possible est une colonne Sens pour indiquer si l'opération est entrante ou sortante. // L'app ne devine pas pour autant les mots-clés utilisés par ta banque : il faut alors les renseigner dans la section 'Mots-clés du champ Sens'.":
+    "Alguns extratos não escrevem valores negativos. Um dos formatos possíveis é uma coluna Sentido, que indica se a transação é de entrada ou de saída. // O app não adivinha as palavras-chave usadas pelo seu banco: é preciso informá-las na seção 'Palavras-chave da coluna Sentido'.",
+  "L'autre façon de faire, c'est d'avoir une colonne pour les opérations entrantes et l'autre pour les opérations sortantes. // Ces champs s'activent et désactivent automatiquement ensemble, et leur activation désactive le champ Montant - celui des champs principaux. // /italic(Si une ligne porte une valeur non-nulle sur les deux colonnes, l'app la met en erreur.)":
+    "A outra maneira é ter uma coluna para as transações de entrada e outra para as de saída. // Esses campos são ligados e desligados juntos, automaticamente, e ligá-los desliga o campo Valor - o dos campos principais. // /italic(Se uma linha tiver um valor diferente de zero nas duas colunas, o app a marca como erro.)",
+  "Ceux-ci servent pour certains formats d'excels qui renseignent ces propriétés, notamment pour les virements internes. Les frais sont soit ajoutés au montant envoyé (qui sort de ton compte), soit soustraits au montant reçu (qui rentre sur ton compte). // Ces trois champs sont particulièrement utiles pour les virements multi-devises : quand l'extension Monnaies est activée, tu peux également lire la monnaie de chaque branche - Envoyé, Reçu et Frais.":
+    "Estes servem para certos formatos de planilha que informam essas propriedades, principalmente em transferências internas. As tarifas são somadas ao valor enviado (que sai da sua conta) ou subtraídas do valor recebido (que entra na sua conta). // Esses três campos são especialmente úteis em transferências entre moedas: com a extensão Moedas ligada, você também pode ler a moeda de cada lado - Enviado, Recebido e Tarifas.",
+  "Pour un virement entre deux monnaies, c'est la devise des frais qui indique si ceux-ci sont ajoutés ou retranchés.":
+    "Em uma transferência entre duas moedas, é a moeda das tarifas que indica se elas são somadas ou subtraídas.",
+  "Une colonne que la banque peut parfois renseigner. Le fonctionnement côté app est alors similaire au champ Sens, avec un système de mots-clés à renseigner. // /- 'Exécuté' : l'opération créée est réelle /- 'En attente' : l'opération créée est prévisionnelle /- 'Refusé' : l'opération n'est pas importée // Lors de l'importation d'une opération déjà dans l'app en prévisionnelle, l'app le détecte et te propose de remplacer la ligne prévisionnelle.":
+    "Uma coluna que o banco às vezes preenche. No app, o funcionamento é parecido com o do campo Sentido, com um sistema de palavras-chave a informar. // /- 'Executado': a transação criada é real /- 'Pendente': a transação criada é prevista /- 'Recusado': a transação não é importada // Ao importar uma transação que já está no app como prevista, o app detecta isso e propõe substituir a linha prevista.",
+  "C'est grâce à ces paramètres que l'application reconnaît des doublons. Deux manières de l'utiliser : /- Renseigner chaque colonne à comparer /- Renseigner chaque colonne à ne pas comparer // Un nom d'opération ou une catégorie pourraient bouger (s'ils sont modifiés sur l'app bancaire par exemple). // En général, sélectionner la comparaison des dates et des montants suffit. Si le fichier contient un libellé statique (celui que la banque assigne à l'opération par défaut), c'est aussi un bon candidat.":
+    "É graças a esses parâmetros que o aplicativo reconhece duplicatas. Há duas maneiras de usá-los: /- Informar cada coluna a comparar /- Informar cada coluna a não comparar // O nome de uma transação ou uma categoria podem mudar (se forem alterados no app do banco, por exemplo). // Em geral, basta comparar as datas e os valores. Se o arquivo tiver uma descrição estática (a que o banco atribui à transação por padrão), ela também é uma boa candidata.",
+  "Le fichier que tu importes aura parfois un en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.":
+    "O arquivo que você importa às vezes terá um cabeçalho: essas linhas provocam uma mensagem de erro. Você pode então indicar ao app quantas linhas de cabeçalho ele deve pular.",
+  "C'est un réglage de derniers recours, et c'est le /bold(seul) qui ne s'enregistre pas avec le preset. L'app le déplie automatiquement quand la majorité des lignes sont illisibles : c'est souvent un signe qu'un délimiteur ou un caractère de décimale ne conviennent pas.":
+    "É um ajuste de último recurso, e é o /bold(único) que não é salvo com a predefinição. O app o abre automaticamente quando a maioria das linhas está ilegível: costuma ser sinal de que um delimitador ou um caractere decimal não combinam.",
+  "Les modifications faites au preset ne sont pas enregistrées par défaut : ça te permet de tester sans endommager ton preset. // Enregistrer conserve l'état actuel de la configuration dans ton preset.":
+    "As alterações feitas na predefinição não são salvas por padrão: isso permite testar sem danificar a sua predefinição. // Salvar guarda o estado atual da configuração na sua predefinição.",
+  "Ce bouton relit le fichier et /bold(enregistre) ton preset dans la foulée.":
+    "Este botão relê o arquivo e /bold(salva) a sua predefinição logo em seguida.",
+  "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app te montre un panneau avec différentes propositions pour l'allocation champs <-> colonnes, tu peux alors faire les dernières modifications et enregistrer le preset.":
+    "/italic(Esta funcionalidade ainda está em desenvolvimento) // Ao clicar, o app mostra um painel com várias propostas de atribuição campos <-> colunas: você pode então fazer os últimos ajustes e salvar a predefinição.",
+  "À chaque fois qu'une catégorie apparaît pour la première fois, l'app te demande à quelle catégorie de l'app la relier. Une fois enregistré, plus besoin d'y toucher ; tu peux néanmoins la modifier dans l'onglet Correspondances.":
+    "Cada vez que uma categoria aparece pela primeira vez, o app pergunta a qual categoria do app ligá-la. Depois de salvo, não precisa mexer mais; você ainda pode alterá-la na aba Correspondências.",
+  "Ça y est, tu as tout configuré. Il ne reste plus qu'à cliquer sur /bold(Confirmer l'import) pour que les opérations s'écrivent en base. // L'historique d'importation se trouve en bas de page : si tu veux revenir en arrière, il suffit de supprimer une importation. Ta base se retrouve alors dans l'état qui précédait l'importation.":
+    "Pronto, está tudo configurado. Só falta clicar em /bold(Confirmar a importação) para que as transações sejam gravadas no banco. // O histórico de importações fica no fim da página: se quiser voltar atrás, basta excluir uma importação. O seu banco volta então ao estado em que estava antes da importação.",
+  "Ce preset est rattaché à un compte : la colonne « Compte bancaire » ne peut pas être lue en même temps. Pour l'activer, délie d'abord le preset de son compte (« Compte bancaire de ce preset », en haut de la page).":
+    "Esta predefinição está associada a uma conta: a coluna « Conta bancária » não pode ser lida ao mesmo tempo. Para ligá-la, desassocie primeiro a predefinição da conta (« Conta bancária desta predefinição », no alto da página).",
+  "Une fois une première importation (ou une première opération) ajoutée, renseigne ici le solde actuel de ton compte : l'app en déduit le solde initial. // Le solde initial est ensuite verrouillé. Pour le modifier, il faut d'abord supprimer le solde actuel renseigné.":
+    "Depois de adicionar uma primeira importação (ou uma primeira transação), informe aqui o saldo atual da sua conta: o app deduz o saldo inicial a partir dele. // O saldo inicial fica então bloqueado. Para alterá-lo, é preciso primeiro remover o saldo atual informado.",
+  "Le solde initial a été déduit du solde actuel renseigné : il est verrouillé. Supprime le solde actuel renseigné pour pouvoir le modifier.":
+    "O saldo inicial foi deduzido do saldo atual informado: ele está bloqueado. Remova o saldo atual informado para poder alterá-lo.",
+  "Tout savoir sur l'import":
+    "Tudo sobre a importação",
+  "Les presets":
+    "As predefinições",
+  "Le fichier":
+    "O arquivo",
+  "L'aperçu, ligne par ligne":
+    "A prévia, linha por linha",
+  "Le fichier vu par l'app":
+    "O arquivo visto pelo app",
+  "Les champs secondaires":
+    "Os campos secundários",
+  "Le champ Compte bancaire":
+    "O campo Conta bancária",
+  "Le champ Sens":
+    "O campo Sentido",
+  "Montant au débit et Montant au crédit":
+    "Valor de débito e Valor de crédito",
+  "Montant envoyé, Montant reçu & Frais":
+    "Valor enviado, Valor recebido e Tarifas",
+  "Les lignes à ne pas importer":
+    "As linhas a não importar",
+  "La correspondance des catégories":
+    "A correspondência das categorias",
+  "Des catégories bancaires encore inconnues":
+    "Categorias bancárias ainda desconhecidas",
+  "Télécharger le fichier":
+    "Baixar o arquivo",
+  "Le relevé d'exemple n'a pas pu être chargé.":
+    "Não foi possível carregar o extrato de exemplo.",
+  "Solde actuel":
+    "Saldo atual",
+  "Solde actuel renseigné":
+    "Saldo atual informado",
+  "Supprimer le solde actuel renseigné":
+    "Remover o saldo atual informado",
+  "Calculer le solde initial avec le solde actuel":
+    "Calcular o saldo inicial a partir do saldo atual",
+  "Ce bouton apparaît au bas de l'aperçu, donc une fois un fichier lu. Il reste gris tant qu'une question n'a pas de réponse — survole-le, il dit lesquelles.":
+    "Este botão aparece no fim da prévia, ou seja, depois que um arquivo é lido. Ele fica cinza enquanto houver uma pergunta sem resposta: passe o mouse sobre ele, que ele diz quais.",
+  "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.":
+    "Este botão aparece acima da tabela do arquivo, ou seja, depois que um arquivo é lido.",
+  "Un relevé qui n'écrit que des montants positifs":
+    "Um extrato que só escreve valores positivos",
+  "Un relevé qui sépare le débit du crédit":
+    "Um extrato que separa o débito do crédito",
+  "Un relevé qui ne donne jamais « le » montant":
+    "Um extrato que nunca dá « o » valor",
+  "Un relevé qui mélange les lignes passées et celles à venir":
+    "Um extrato que mistura as linhas passadas e as futuras",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

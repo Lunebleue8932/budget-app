@@ -4201,5 +4201,106 @@ Object.assign(TRADUCTIONS.en, {
     "The extension system",
   "Et la suite ?":
     "What's next?",
+  /* ----- Tutoriel « Importer un relevé » refait, solde actuel d'un compte (2026-10-11) ----- */
+  "L'import est la fonctionnalité clé de l'application, basée sur la lecture de fichiers Excel ou CSV. // Une fois paramétrée, elle te permet d'ajouter toutes tes opérations en quelques clics.":
+    "Importing is the app's key feature, based on reading Excel or CSV files. // Once it's set up, it lets you add all your transactions in a few clicks.",
+  "Ton fichier d'opérations bancaires possède un format bien défini (spécifique à chaque banque). Le preset permet de conserver toutes les instructions de lecture, pour ne les renseigner qu'une fois.":
+    "Your bank transactions file has a well-defined format (specific to each bank). The preset keeps all the reading instructions, so you only enter them once.",
+  "Naturellement, tu peux associer un preset à un de tes comptes sur l'app (celui qui réplique le compte en banque d'où vient le fichier). Toutes les opérations importées avec ce preset seront alors attribuées à ce compte.":
+    "Naturally, you can link a preset to one of your accounts in the app (the one that mirrors the bank account the file comes from). All transactions imported with this preset are then assigned to that account.",
+  "Dépose ton fichier ou clique pour le choisir. Pour t'entraîner, tu peux utiliser le fichier proposé dans la notice d'utilisation : Paramètres généraux → Notice → Import /Paramètres généraux/Notice/Import. // Il possède une ligne parasite et trois colonnes dont l'app ne se sert pas.":
+    "Drop your file or click to choose it. To practice, you can use the file offered in the user guide: General settings → User guide → Import /General settings/User guide/Import. // It has one stray line and three columns the app doesn't use.",
+  "Rien n'est importé à ce stade. Tu vois comment l'application a lu le fichier, et tu peux modifier ou supprimer des opérations. // Les doublons sont automatiquement sélectionnés avec le sélecteur à droite : tu peux tous les supprimer avec le bouton supprimer la sélection. // L'import est bloqué tant qu'il reste des doublons à traiter : si tu veux en garder, il suffit de les décocher.":
+    "Nothing is imported at this stage. You see how the application read the file, and you can edit or delete transactions. // Duplicates are automatically selected with the selector on the right: you can delete them all with the delete selection button. // The import is blocked as long as duplicates remain to be handled: if you want to keep some, just uncheck them.",
+  "Ce tableau montre ce que l'application lit, colonne par colonne. // Deux façons de changer le champ que l'app lit sur une colonne. /- 1. Changer du champ lu (par ex : Nature) dans Configuration du fichier /- 2. Glisser et déposer le champ d'une colonne dans les pointillés. // /italic(Si la colonne sur laquelle le champ est glissé a déjà un champ, les deux seront alors échangés.)":
+    "This table shows what the application reads, column by column. // Two ways to change the field the app reads on a column. /- 1. Change the field read (e.g. Description) in File configuration /- 2. Drag and drop a column's field into the dotted slots. // /italic(If the column you drop the field on already has a field, the two will be swapped.)",
+  "Ici, tu peux changer la correspondance champ <-> colonne. Les champs présents suffisent pour la plupart des relevés. Quant au sélecteur, il permet d'activer ou de désactiver un champ lu par l'app. // /italic(Les champs Date, Nature et Montant sont essentiels et ne peuvent pas être désactivés.)":
+    "Here, you can change the field <-> column mapping. The fields shown are enough for most statements. The switch turns a field on or off for the app. // /italic(The Date, Description and Amount fields are essential and cannot be turned off.)",
+  "Huit colonnes de plus, parfois nécessaires pour certains formats de fichiers plus complexes. // Leur fonctionnement est également plus complexe : les étapes suivantes du tutoriel couvrent chacun de ces champs, un par un.":
+    "Eight more columns, sometimes needed for more complex file formats. // They also work in a more complex way: the next steps of the tutorial cover each of these fields, one by one.",
+  "Celui-ci est utile quand le fichier utilisé porte différents comptes bancaires. Si un compte est rattaché au preset (étape 2.2 du tutoriel), ce champ ne peut pas être activé. // Pour chaque nouveau compte lu, l'application te demandera vers quel compte de l'app il doit pointer. Tout ceci est enregistré dans Correspondances quand l'import est confirmé : pas besoin de le renseigner une autre fois.":
+    "This one is useful when the file covers several bank accounts. If an account is linked to the preset (step 2.2 of the tutorial), this field cannot be turned on. // For each new account read, the application asks which account of the app it should point to. All of this is saved in Mappings once the import is confirmed: no need to enter it again.",
+  "Certains relevés n'écrivent pas de montants négatifs. L'un des formats possible est une colonne Sens pour indiquer si l'opération est entrante ou sortante. // L'app ne devine pas pour autant les mots-clés utilisés par ta banque : il faut alors les renseigner dans la section 'Mots-clés du champ Sens'.":
+    "Some statements don't write negative amounts. One possible format is a Direction column that says whether the transaction is incoming or outgoing. // The app can't guess the keywords your bank uses, though: you have to enter them in the 'Keywords for the Direction column' section.",
+  "L'autre façon de faire, c'est d'avoir une colonne pour les opérations entrantes et l'autre pour les opérations sortantes. // Ces champs s'activent et désactivent automatiquement ensemble, et leur activation désactive le champ Montant - celui des champs principaux. // /italic(Si une ligne porte une valeur non-nulle sur les deux colonnes, l'app la met en erreur.)":
+    "The other way is to have one column for incoming transactions and another for outgoing ones. // These fields turn on and off together automatically, and turning them on turns off the Amount field - the one from the main fields. // /italic(If a row has a non-zero value in both columns, the app flags it as an error.)",
+  "Ceux-ci servent pour certains formats d'excels qui renseignent ces propriétés, notamment pour les virements internes. Les frais sont soit ajoutés au montant envoyé (qui sort de ton compte), soit soustraits au montant reçu (qui rentre sur ton compte). // Ces trois champs sont particulièrement utiles pour les virements multi-devises : quand l'extension Monnaies est activée, tu peux également lire la monnaie de chaque branche - Envoyé, Reçu et Frais.":
+    "These are used by some spreadsheet formats that provide these properties, notably for internal transfers. Fees are either added to the amount sent (which leaves your account) or subtracted from the amount received (which arrives in your account). // These three fields are especially useful for multi-currency transfers: when the Currencies extension is on, you can also read the currency of each leg - Sent, Received and Fees.",
+  "Pour un virement entre deux monnaies, c'est la devise des frais qui indique si ceux-ci sont ajoutés ou retranchés.":
+    "For a transfer between two currencies, it is the fee currency that tells whether the fees are added or subtracted.",
+  "Une colonne que la banque peut parfois renseigner. Le fonctionnement côté app est alors similaire au champ Sens, avec un système de mots-clés à renseigner. // /- 'Exécuté' : l'opération créée est réelle /- 'En attente' : l'opération créée est prévisionnelle /- 'Refusé' : l'opération n'est pas importée // Lors de l'importation d'une opération déjà dans l'app en prévisionnelle, l'app le détecte et te propose de remplacer la ligne prévisionnelle.":
+    "A column the bank may sometimes fill in. On the app side it works much like the Direction field, with a system of keywords to enter. // /- 'Executed': the transaction created is real /- 'Pending': the transaction created is planned /- 'Declined': the transaction is not imported // When you import a transaction that is already in the app as planned, the app detects it and offers to replace the planned row.",
+  "C'est grâce à ces paramètres que l'application reconnaît des doublons. Deux manières de l'utiliser : /- Renseigner chaque colonne à comparer /- Renseigner chaque colonne à ne pas comparer // Un nom d'opération ou une catégorie pourraient bouger (s'ils sont modifiés sur l'app bancaire par exemple). // En général, sélectionner la comparaison des dates et des montants suffit. Si le fichier contient un libellé statique (celui que la banque assigne à l'opération par défaut), c'est aussi un bon candidat.":
+    "These settings are how the application recognizes duplicates. Two ways to use them: /- Enter each column to compare /- Enter each column not to compare // A transaction name or a category could change (if they are edited in the bank's app, for example). // In general, comparing dates and amounts is enough. If the file contains a static label (the one the bank assigns to the transaction by default), it's also a good candidate.",
+  "Le fichier que tu importes aura parfois un en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.":
+    "The file you import will sometimes have a header: those rows trigger an error message. So you can tell the app how many header rows it should skip.",
+  "C'est un réglage de derniers recours, et c'est le /bold(seul) qui ne s'enregistre pas avec le preset. L'app le déplie automatiquement quand la majorité des lignes sont illisibles : c'est souvent un signe qu'un délimiteur ou un caractère de décimale ne conviennent pas.":
+    "This is a last-resort setting, and it's the /bold(only) one that isn't saved with the preset. The app opens it automatically when most rows are unreadable: it's often a sign that a delimiter or a decimal character doesn't fit.",
+  "Les modifications faites au preset ne sont pas enregistrées par défaut : ça te permet de tester sans endommager ton preset. // Enregistrer conserve l'état actuel de la configuration dans ton preset.":
+    "Changes made to the preset aren't saved by default: this lets you test without damaging your preset. // Save keeps the current state of the configuration in your preset.",
+  "Ce bouton relit le fichier et /bold(enregistre) ton preset dans la foulée.":
+    "This button re-reads the file and /bold(saves) your preset right after.",
+  "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app te montre un panneau avec différentes propositions pour l'allocation champs <-> colonnes, tu peux alors faire les dernières modifications et enregistrer le preset.":
+    "/italic(This feature is still under development) // On click, the app shows you a panel with several suggestions for the field <-> column allocation: you can then make the final changes and save the preset.",
+  "À chaque fois qu'une catégorie apparaît pour la première fois, l'app te demande à quelle catégorie de l'app la relier. Une fois enregistré, plus besoin d'y toucher ; tu peux néanmoins la modifier dans l'onglet Correspondances.":
+    "Each time a category appears for the first time, the app asks which of the app's categories to link it to. Once saved, you don't need to touch it again; you can still change it in the Mappings tab.",
+  "Ça y est, tu as tout configuré. Il ne reste plus qu'à cliquer sur /bold(Confirmer l'import) pour que les opérations s'écrivent en base. // L'historique d'importation se trouve en bas de page : si tu veux revenir en arrière, il suffit de supprimer une importation. Ta base se retrouve alors dans l'état qui précédait l'importation.":
+    "That's it, everything is set up. All that's left is to click /bold(Confirm import) so the transactions are written to the database. // The import history is at the bottom of the page: if you want to go back, just delete an import. Your database then returns to the state it was in before the import.",
+  "Ce preset est rattaché à un compte : la colonne « Compte bancaire » ne peut pas être lue en même temps. Pour l'activer, délie d'abord le preset de son compte (« Compte bancaire de ce preset », en haut de la page).":
+    "This preset is linked to an account: the “Bank account” column can't be read at the same time. To turn it on, first unlink the preset from its account (“Bank account of this preset”, at the top of the page).",
+  "Une fois une première importation (ou une première opération) ajoutée, renseigne ici le solde actuel de ton compte : l'app en déduit le solde initial. // Le solde initial est ensuite verrouillé. Pour le modifier, il faut d'abord supprimer le solde actuel renseigné.":
+    "Once a first import (or a first transaction) has been added, enter your account's current balance here: the app works out the initial balance from it. // The initial balance is then locked. To change it, you first have to remove the current balance entered.",
+  "Le solde initial a été déduit du solde actuel renseigné : il est verrouillé. Supprime le solde actuel renseigné pour pouvoir le modifier.":
+    "The initial balance was worked out from the current balance entered: it is locked. Remove the current balance entered to be able to change it.",
+  "Tout savoir sur l'import":
+    "Everything about importing",
+  "Les presets":
+    "Presets",
+  "Le fichier":
+    "The file",
+  "L'aperçu, ligne par ligne":
+    "The preview, line by line",
+  "Le fichier vu par l'app":
+    "The file as the app sees it",
+  "Les champs secondaires":
+    "The secondary fields",
+  "Le champ Compte bancaire":
+    "The Bank account field",
+  "Le champ Sens":
+    "The Direction field",
+  "Montant au débit et Montant au crédit":
+    "Debit amount and Credit amount",
+  "Montant envoyé, Montant reçu & Frais":
+    "Amount sent, Amount received & Fees",
+  "Les lignes à ne pas importer":
+    "The rows not to import",
+  "La correspondance des catégories":
+    "Category mapping",
+  "Des catégories bancaires encore inconnues":
+    "Bank categories not yet known",
+  "Télécharger le fichier":
+    "Download the file",
+  "Le relevé d'exemple n'a pas pu être chargé.":
+    "The sample statement could not be loaded.",
+  "Solde actuel":
+    "Current balance",
+  "Solde actuel renseigné":
+    "Current balance entered",
+  "Supprimer le solde actuel renseigné":
+    "Remove the current balance entered",
+  "Calculer le solde initial avec le solde actuel":
+    "Calculate the initial balance from the current balance",
+  "Ce bouton apparaît au bas de l'aperçu, donc une fois un fichier lu. Il reste gris tant qu'une question n'a pas de réponse — survole-le, il dit lesquelles.":
+    "This button appears at the bottom of the preview, so once a file has been read. It stays grey as long as a question is unanswered: hover over it, it tells you which ones.",
+  "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.":
+    "This button appears above the file table, so once a file has been read.",
+  "Un relevé qui n'écrit que des montants positifs":
+    "A statement that only writes positive amounts",
+  "Un relevé qui sépare le débit du crédit":
+    "A statement that separates debit from credit",
+  "Un relevé qui ne donne jamais « le » montant":
+    "A statement that never gives “the” amount",
+  "Un relevé qui mélange les lignes passées et celles à venir":
+    "A statement that mixes past and upcoming rows",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

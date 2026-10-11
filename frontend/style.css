@@ -3360,7 +3360,8 @@ button.danger:hover {
   gap: 0.35rem;
 }
 
-.import-vocabulaire-saisie input[type="text"] {
+.import-vocabulaire-saisie input[type="text"],
+.import-vocabulaire-saisie input[type="number"] {
   width: 100%;
   max-width: 16rem;
   background: var(--bg-surface-alt);
@@ -3369,6 +3370,47 @@ button.danger:hover {
   border-radius: var(--radius-sm);
   padding: 0.45rem 0.6rem;
   font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.import-vocabulaire-saisie input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* LE CHAMP « COLONNES » DE LA COMPARAISON DES DOUBLONS se lit comme les autres
+   réglages de sa section (« Comparer », « Lignes de tête », « Délimiteur ») : un
+   libellé, un contrôle, sur une ligne, SANS cadre. Le cadre appartient aux
+   vocabulaires « Sens » et « État », qui sont des blocs à part entière ; posé ici,
+   il faisait de ce champ une boîte dans la boîte, seule de la page à ne pas
+   suivre le style des autres. Partagé avec l'import de placements, qui pose le
+   même champ (`creerChampColonnes`). */
+.import-vocabulaire-champ[data-vocabulaire="colonnes"] {
+  margin: 0 0 0.6rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.import-vocabulaire-champ[data-vocabulaire="colonnes"] > .import-vocabulaire-entete {
+  gap: 0.6rem;
+}
+
+.import-vocabulaire-champ[data-vocabulaire="colonnes"] > .import-vocabulaire-entete > label {
+  font-size: 0.88rem;
+  font-weight: 400;
+}
+
+.import-vocabulaire-champ[data-vocabulaire="colonnes"] input[type="number"] {
+  width: 6rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.import-vocabulaire-champ[data-vocabulaire="colonnes"] .import-vocabulaire-actualisation {
+  margin-left: 0;
 }
 
 /* Carré, à la hauteur du champ qu'il prolonge : un « + » qui ressemblerait à un
@@ -5728,6 +5770,17 @@ td.apercu-col-hors-fichier {
   cursor: pointer;
 }
 
+/* Le solde actuel renseigné d'une monnaie : il verrouille son solde initial, et la croix le
+   supprime pour le déverrouiller. */
+.compte-solde-verrou {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .compte-monnaie-active.est-desactive {
   opacity: 0.45;
   cursor: not-allowed;
@@ -6128,6 +6181,12 @@ td.apercu-col-hors-fichier {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+/* Le bouton de téléchargement d'une étape (le relevé d'exemple) : tout à gauche, les deux
+   boutons de navigation restent à droite. */
+.tutoriel-actions .tutoriel-telecharger {
+  margin-right: auto;
 }
 
 /* ---------- L'EXEMPLE D'UNE ÉTAPE ----------

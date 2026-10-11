@@ -1724,6 +1724,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <label for="compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaies-du-compte">i</i></label>
             <div id="compte-monnaies" class="import-mappings"></div>
           </div>
+          <!-- N'EXISTE QU'À LA MODIFICATION : le solde actuel se déduit des opérations
+               déjà écrites, un compte qui n'existe pas encore n'en a aucune. Masqué par
+               resetCompteForm, affiché par fillCompteForm. -->
+          <div id="compte-solde-actuel-bloc" class="full-width operation-cases" style="display:none">
+            <label>
+              <input type="checkbox" id="compte-calcul-solde" /> <span>Calculer le solde initial avec le solde actuel<i class="info-bulle" tabindex="0" data-info-cle="noyau.compte-solde-actuel">i</i></span>
+            </label>
+          </div>
           <!-- ÉTEINDRE EST ICI ET PLUS DANS LA LISTE. Une ligne de compte portait
                trois boutons — modifier, éteindre, supprimer — pour un écran qu'on
                vient LIRE ; le double-clic ouvrant déjà le formulaire, « Modifier »
@@ -2013,11 +2021,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               <option value=",">Virgule — 1234,56</option>
               <option value=".">Point — 1234.56</option>
             </select>
-          </div>
-          <div class="actions">
-            <button type="button" class="primary" id="btn-import-relire-reglages">
-              Relire le fichier avec ces réglages
-            </button>
           </div>
         </details>
 
