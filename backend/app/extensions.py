@@ -224,6 +224,9 @@ class Extension:
             # grise sa case et DIT POURQUOI, plutôt que de proposer un
             # interrupteur qui ne ferait rien.
             "requiert_une_de": self.requiert_une_de,
+            # Les NOMS D'AFFICHAGE des mêmes extensions, dans le même ordre : c'est
+            # eux que l'avertissement cite, jamais les identifiants de dossier.
+            "requiert_une_de_noms": [nom_affiche(i) for i in self.requiert_une_de],
             "dependances_ok": dependances_satisfaites(self.id),
             # Ce qui empêche de l'ÉTEINDRE, quand elle le dit (cf.
             # `obstacle_a_la_desactivation`). Même intention que le champ
@@ -304,6 +307,7 @@ def entree_catalogue_absente(entree: dict) -> dict:
         "frontend": {},
         "navigation": None,
         "requiert_une_de": [],
+        "requiert_une_de_noms": [],
         "dependances_ok": True,
         "obstacle_desactivation": None,
         "installee": False,
@@ -345,8 +349,9 @@ def decouvrir() -> dict[str, Extension]:
     # dépend de qui. Rafraîchi ici plutôt qu'au démarrage seulement, pour qu'une
     # extension déposée à chaud (cf. routers/extensions.list_extensions) entre
     # aussi dans le calcul.
-    global _PRESENTES, _DEPENDANCES
+    global _PRESENTES, _DEPENDANCES, _NOMS
     _PRESENTES = set(trouvees)
+    _NOMS = {identifiant: extension.nom for identifiant, extension in trouvees.items()}
     _DEPENDANCES = {
         identifiant: extension.requiert_une_de for identifiant, extension in trouvees.items()
     }
@@ -358,6 +363,23 @@ def decouvrir() -> dict[str, Extension]:
 # l'état d'une application dont les extensions n'ont pas encore été lues.
 _PRESENTES: set[str] = set()
 _DEPENDANCES: dict[str, list[str]] = {}
+_NOMS: dict[str, str] = {}
+
+
+def nom_affiche(identifiant: str) -> str:
+    """Le nom qu'une extension porte à l'écran (« Placements financiers »), à
+    partir de son identifiant de dossier (« placements »).
+
+    Les messages qui parlent d'une AUTRE extension doivent la nommer comme
+    l'écran la nomme. Une extension présente donne son propre nom ; à défaut, le
+    catalogue (une extension absente du disque a quand même un nom) ; à défaut
+    encore, l'identifiant lui-même, plutôt que rien."""
+    if identifiant in _NOMS:
+        return _NOMS[identifiant]
+    for entree in catalogue():
+        if entree.get("id") == identifiant:
+            return entree.get("nom", identifiant)
+    return identifiant
 
 
 def dependances_satisfaites(extension_id: str) -> bool:

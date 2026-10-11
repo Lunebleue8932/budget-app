@@ -602,11 +602,7 @@ function afficherModaleExtensions(extensions) {
       // et le bouton d'à côté dit ce qui lui manque.
       const alerte = basculeDetailHtml(
         `modale-avertissement-${e.id}`,
-        e.dependances_ok
-          ? ""
-          : `<p class="modale-extension-description">${t(
-              "Nécessite au moins une de ces extensions, installée et activée :"
-            )} ${(e.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`).join(` ${t("ou")} `)}</p>`,
+        e.dependances_ok ? "" : `<p class="modale-extension-description">${manqueExtensionHtml(e)}</p>`,
         { libelle: t("Afficher l'avertissement"), classe: "detail-bascule-alerte" }
       );
       return `<li>

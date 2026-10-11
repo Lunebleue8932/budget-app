@@ -517,7 +517,8 @@ def test_le_routeur_refuse_d_allumer_une_extension_sans_hote(faux_projet):
     with pytest.raises(HTTPException) as erreur:
         routeur_extensions.set_extension("greffe", ExtensionEtatUpdate(actif=True), db=None)
     assert erreur.value.status_code == 409
-    assert "hote" in erreur.value.detail
+    # L'hôte est cité par son NOM D'AFFICHAGE, pas par son identifiant de dossier.
+    assert "« Hote »" in erreur.value.detail
     # Rien n'a été enregistré : on ne garde pas une décision qu'on a refusée.
     assert extensions._charger_etat()["actives"].get("greffe") is None
 
@@ -545,6 +546,7 @@ def test_la_liste_dit_ce_qui_manque(faux_projet):
 
     par_id = {e["id"]: e for e in routeur_extensions.list_extensions(db=None)}
     assert par_id["greffe"]["requiert_une_de"] == ["hote"]
+    assert par_id["greffe"]["requiert_une_de_noms"] == ["Hote"]
     assert par_id["greffe"]["dependances_ok"] is False
     assert par_id["hote"]["requiert_une_de"] == []
     assert par_id["hote"]["dependances_ok"] is True

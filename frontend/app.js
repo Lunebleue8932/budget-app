@@ -16674,15 +16674,20 @@ function renderErreursExtensions(reponse) {
 /**
  * « Il manque ceci pour pouvoir l'allumer ».
  *
- * Les noms cités sont les IDENTIFIANTS des extensions attendues, pas leurs
- * noms d'affichage : une extension absente du disque n'a pas de nom
- * d'affichage à donner — c'est justement le cas qu'on décrit.
+ * Les extensions attendues sont citées par leur NOM D'AFFICHAGE, comme l'écran
+ * les nomme (`requiert_une_de_noms`, rendu par le serveur — il le connaît même
+ * pour une extension absente du disque, par le catalogue). L'identifiant de
+ * dossier ne sert que de repli.
  */
+function nomsExtensionsRequises(extension) {
+  const noms = extension.requiert_une_de_noms || extension.requiert_une_de || [];
+  return noms.map((nom) => `« ${escapeHtml(t(nom))} »`);
+}
+
 function manqueExtensionHtml(extension) {
-  const noms = (extension.requiert_une_de || []).map((id) => `« ${escapeHtml(id)} »`);
-  return `${t("Nécessite au moins une de ces extensions, installée et activée :")} ${noms.join(
-    ` ${t("ou")} `
-  )}`;
+  return `${t("Nécessite au moins une de ces extensions, installée et activée :")} ${nomsExtensionsRequises(
+    extension
+  ).join(` ${t("ou")} `)}`;
 }
 
 /**

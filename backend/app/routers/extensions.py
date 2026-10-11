@@ -117,7 +117,10 @@ def set_extension(
     # donnerait l'illusion d'une fonctionnalité en marche. Le refus DIT ce qui
     # manque, plutôt que de laisser chercher.
     if payload.actif and not extensions_noyau.dependances_satisfaites(extension_id):
-        manquantes = ", ".join(f"« {identifiant} »" for identifiant in extension.requiert_une_de)
+        manquantes = ", ".join(
+            f"« {extensions_noyau.nom_affiche(identifiant)} »"
+            for identifiant in extension.requiert_une_de
+        )
         raise HTTPException(
             status_code=409,
             detail=(
