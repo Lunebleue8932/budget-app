@@ -564,10 +564,11 @@ def changer_base(chemin: str) -> Path:
     if _decouverte["chemin"] is not None and nouveau_chemin != _decouverte["chemin"]:
         _decouverte["chemin"] = None
         _decouverte["avant"] = None
+        _decouverte["parcours"] = None
     return nouveau_chemin
 
 
-# ---------- La base de DÉCOUVERTE (tutoriel « Prendre l'application en main ») ----------
+# ---------- La base de DÉCOUVERTE (tutoriels « Prendre l'application en main », « Importer ») ----------
 #
 # POURQUOI. Le tutoriel pointe des cartes, des graphiques, des filtres : sur une
 # base neuve il ne montre que des zéros, et sur la base de l'utilisateur il
@@ -586,14 +587,23 @@ def changer_base(chemin: str) -> Path:
 #     depuis le profil et jamais depuis cet état.
 #   - La base d'avant n'est ni ouverte en écriture ni modifiée : on la quitte, on
 #     la rejoint.
-_decouverte: dict = {"chemin": None, "avant": None}
+#
+# `parcours` : QUEL tutoriel l'a demandée (cf. services/base_decouverte.PARCOURS). Deux parcours
+# s'y lisent, chacun sur sa propre variante ; c'est ce qui permet à l'écran, rechargé en plein
+# tutoriel, de reprendre le BON parcours.
+_decouverte: dict = {"chemin": None, "avant": None, "parcours": None}
 
 
 def en_decouverte() -> bool:
     return _decouverte["chemin"] is not None and _etat.chemin == _decouverte["chemin"]
 
 
-def entrer_decouverte(chemin: Path) -> Path:
+def parcours_decouverte() -> str | None:
+    """Le parcours pour lequel la base de découverte a été fabriquée, hors découverte None."""
+    return _decouverte["parcours"] if en_decouverte() else None
+
+
+def entrer_decouverte(chemin: Path, parcours: str | None = None) -> Path:
     """Bascule sur la base de découverte déjà fabriquée à `chemin`. Sans effet
     si on y est déjà (le tutoriel peut être relancé sans passer par la sortie)."""
     if en_decouverte():
@@ -602,6 +612,7 @@ def entrer_decouverte(chemin: Path) -> Path:
     basculee = changer_base(str(chemin))
     _decouverte["chemin"] = basculee
     _decouverte["avant"] = avant
+    _decouverte["parcours"] = parcours
     return basculee
 
 
@@ -614,6 +625,7 @@ def quitter_decouverte() -> Path:
     retour = changer_base(str(avant))
     _decouverte["chemin"] = None
     _decouverte["avant"] = None
+    _decouverte["parcours"] = None
     # Le moteur de la base de découverte est fermé par la bascule ; Windows ne
     # supprime pas un fichier ouvert, d'où l'ordre.
     for suffixe in ("", "-wal", "-shm", "-journal"):

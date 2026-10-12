@@ -478,6 +478,8 @@ const TEXTES = {
     "Le fichier que tu importes aura parfois un en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.",
   "noyau.tuto-import-15":
     "C'est un réglage de derniers recours, et c'est le /bold(seul) qui ne s'enregistre pas avec le preset. L'app le déplie automatiquement quand la majorité des lignes sont illisibles : c'est souvent un signe qu'un délimiteur ou un caractère de décimale ne conviennent pas.",
+  "noyau.tuto-import-note-15":
+    "Cet export sépare ses colonnes par des virgules, et sa ligne de titre empêche l'app de le deviner : chaque ligne est lue d'un seul bloc. Choisis « , » comme délimiteur, puis relis le fichier.",
   "noyau.tuto-import-16-1":
     "Les modifications faites au preset ne sont pas enregistrées par défaut : ça te permet de tester sans endommager ton preset. // Enregistrer conserve l'état actuel de la configuration dans ton preset.",
   "noyau.tuto-import-16-2":

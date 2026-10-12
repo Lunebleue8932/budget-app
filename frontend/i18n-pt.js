@@ -3522,5 +3522,9 @@ Object.assign(TRADUCTIONS.pt, {
     "Um extrato que nunca dá « o » valor",
   "Un relevé qui mélange les lignes passées et celles à venir":
     "Um extrato que mistura as linhas passadas e as futuras",
+  "Un relevé séparé par des virgules":
+    "Um extrato separado por vírgulas",
+  "Cet export sépare ses colonnes par des virgules, et sa ligne de titre empêche l'app de le deviner : chaque ligne est lue d'un seul bloc. Choisis « , » comme délimiteur, puis relis le fichier.":
+    "Esta exportação separa as colunas por vírgulas, e a linha de título impede o app de adivinhar: cada linha é lida como um único bloco. Escolha « , » como delimitador e depois releia o arquivo.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

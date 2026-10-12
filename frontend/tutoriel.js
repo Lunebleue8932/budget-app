@@ -20,9 +20,10 @@
  * tutoriel qui refuse d'avancer tant qu'un geste n'est pas fait bloque celui qui
  * l'a déjà fait autrement.
  *
- * CE QU'IL NE FAIT PAS : il n'appelle aucune route d'écriture, ne crée aucune
- * donnée et ne modifie aucun réglage du budget. La seule chose qu'il écrit est
- * sa propre progression, dans le localStorage.
+ * CE QU'IL NE FAIT PAS : il ne crée aucune donnée et ne modifie aucun réglage
+ * de la base de l'utilisateur. Ce qu'il écrit : sa propre progression, dans le
+ * localStorage, et — sur la base de DÉCOUVERTE seulement, fabriquée pour lui —
+ * le preset du parcours d'import (cf. appliquerEtapeImport).
  */
 
 /* ---------- La mémoire de progression ---------- */
@@ -115,16 +116,18 @@ function noterProgression(id, { etape, termine } = {}) {
  * l'utilisateur avait déposé lui-même n'est remplacé qu'après accord.
  */
 
-/* LES COLONNES D'UN EXEMPLE (`colonnes`) : [propriété, numéro de colonne]. Un exemple est un
- * fichier DESSINÉ POUR UN CAS, et l'application ne le lit juste que si les colonnes affichées
- * à l'écran sont celles de ce cas — sans elles, la colonne « Sens » tombait là où le preset
- * attend le montant, et rien ne se lisait. Le tutoriel les pose donc À L'ÉCRAN, et seulement
- * là : le preset enregistré n'est jamais touché, et revenir à une étape sans exemple (ou
- * sortir) rend à l'écran la configuration du preset (cf. restaurerImportTutoriel).
- *
- * `compteParDefaut` : l'exemple n'a pas de colonne de compte, et aucune ligne ne s'importerait
- * sans compte. Le tutoriel choisit alors, dans « Compte pour ce fichier », le premier compte de
- * l'app — un réglage de l'ÉCRAN pour ce fichier, jamais enregistré dans le preset. */
+/* LA CONFIGURATION D'UN EXEMPLE. Un exemple est un fichier DESSINÉ POUR UN CAS, et
+ * l'application ne le lit juste que si le preset décrit ce cas — sans quoi la colonne « Sens »
+ * tombait là où le preset attend le montant, l'intitulé passait pour une opération, et la
+ * moitié des lignes partaient en erreur. Chaque exemple porte donc tout ce que le preset doit
+ * en savoir :
+ *   - `colonnes` : [propriété, numéro de colonne] ;
+ *   - `lignesEntete` : les lignes de tête à sauter (1 par défaut, la ligne des intitulés) ;
+ *   - `delie` : le preset est DÉLIÉ de son compte le temps de l'étape — la colonne « Compte
+ *     bancaire » ne s'active pas sur un preset lié ;
+ *   - `delimiteur` : celui du CSV dessiné, « ; » par défaut.
+ * Le tutoriel l'enregistre dans le preset de la base de découverte (cf. appliquerEtapeImport),
+ * jamais dans un preset réel. */
 const EXEMPLE_COMPTE_BANQUE = {
   titre: "Un export qui couvre plusieurs comptes",
   entetes: ["Date", "Libellé", "Montant", "Compte"],
@@ -135,6 +138,7 @@ const EXEMPLE_COMPTE_BANQUE = {
   ],
   note: "Sans la colonne « Compte bancaire », ces trois lignes iraient toutes sur le même compte.",
   colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["compte_banque", 4]],
+  delie: true,
 };
 
 const EXEMPLE_SENS = {
@@ -146,7 +150,6 @@ const EXEMPLE_SENS = {
   ],
   note: "C'est le mot de la colonne « Sens » qui donne son signe au montant. Un mot inconnu met la ligne en erreur plutôt que d'être deviné : se tromper ici inverserait l'opération dans tous les soldes.",
   colonnes: [["date", 1], ["nature", 2], ["sens", 3], ["montant", 4]],
-  compteParDefaut: true,
 };
 
 const EXEMPLE_MONTANT_SCINDE = {
@@ -159,7 +162,6 @@ const EXEMPLE_MONTANT_SCINDE = {
   ],
   note: "La colonne REMPLIE dit le sens, exactement comme un mot le dirait. Un zéro compte comme une case vide (ligne 3) : bien des banques écrivent « 0,00 » du côté inutilisé.",
   colonnes: [["date", 1], ["nature", 2], ["montant_debit", 3], ["montant_credit", 4]],
-  compteParDefaut: true,
 };
 
 const EXEMPLE_WISE = {
@@ -180,7 +182,6 @@ const EXEMPLE_WISE = {
     ["montant", 7],
     ["monnaie", 8],
   ],
-  compteParDefaut: true,
 };
 
 // SANS NOTE : l'encadré se résume à son titre et à la phrase qui dit que le fichier est chargé.
@@ -193,34 +194,42 @@ const EXEMPLE_STATUT = {
     ["13/09/2026", "PAIEMENT REFUSE", "-30,00", "Refusé"],
   ],
   colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["statut", 4]],
-  compteParDefaut: true,
 };
 
-// DES CATÉGORIES QUE L'APPLICATION NE CONNAÎT PAS ENCORE : c'est ce qui fait apparaître le bloc
-// des correspondances (cf. « La correspondance des catégories »). Des noms volontairement peu
-// courants, pour qu'aucune correspondance déjà mémorisée ne les ait rattachés à une catégorie.
-// `discret` : pas d'encadré dans la bulle, le fichier n'y est pour rien — c'est le bloc visé
-// qui compte.
-const EXEMPLE_CATEGORIES = {
-  titre: "Des catégories bancaires encore inconnues",
+// UN DÉLIMITEUR QUE LA DÉTECTION NE TROUVE PAS : des virgules entre les colonnes, et une ligne de
+// titre qui n'en porte aucune. Aucun délimiteur ne découpe alors toutes les lignes pareil, l'app
+// retombe sur « ; », chaque ligne tient dans une seule colonne, et le panneau des réglages de
+// lecture se déplie de lui-même. Les colonnes et les lignes de tête, elles, sont justes : choisir
+// « , » suffit à tout remettre d'aplomb. Des points décimaux, pour que la virgule ne serve qu'à
+// séparer.
+const EXEMPLE_DELIMITEUR = {
+  titre: "Un relevé séparé par des virgules",
+  titreFichier: "Export du compte courant - Septembre 2026",
   entetes: ["Date", "Libellé", "Montant", "Catégorie banque"],
   lignes: [
-    ["02/09/2026", "CARREFOUR MARKET", "-45,20", "Provisions (exemple)"],
-    ["05/09/2026", "LE BISTROT DU COIN", "-28,00", "Sorties (exemple)"],
-    ["07/09/2026", "SALAIRE SEPTEMBRE", "2150,00", "Revenus (exemple)"],
+    ["02/09/2026", "CARREFOUR MARKET", "-45.20", "Alimentation"],
+    ["04/09/2026", "LOYER SEPTEMBRE", "-780.00", "Logement"],
+    ["05/09/2026", "SALAIRE SEPTEMBRE", "2150.00", "Virements reçus"],
+    ["07/09/2026", "LE BISTROT DU COIN", "-28.00", "Restaurants"],
   ],
+  note: texteAide("noyau.tuto-import-note-15"),
   colonnes: [["date", 1], ["nature", 2], ["montant", 3], ["categorie_banque", 4]],
-  compteParDefaut: true,
-  discret: true,
+  lignesEntete: 2,
+  delimiteur: ",",
 };
 
-/* LE CSV D'UN EXEMPLE : en-têtes puis lignes, délimiteur « ; » — celui des
- * exports français, qui laisse la virgule aux décimales. Une cellule qui
- * contient le délimiteur ou un guillemet est citée. */
+/* LE CSV D'UN EXEMPLE : son titre s'il en a un (`titreFichier`), les en-têtes, puis les lignes ;
+ * délimiteur « ; » par défaut — celui des exports français, qui laisse la virgule aux
+ * décimales. Une cellule qui contient le délimiteur ou un guillemet est citée. */
 function csvExempleTutoriel(exemple) {
+  const delimiteur = exemple.delimiteur || ";";
   const citer = (cellule) =>
-    /[;"\n]/.test(cellule) ? `"${String(cellule).replace(/"/g, '""')}"` : String(cellule);
-  return [exemple.entetes, ...exemple.lignes].map((ligne) => ligne.map(citer).join(";")).join("\n") + "\n";
+    String(cellule).includes(delimiteur) || /["\n]/.test(cellule)
+      ? `"${String(cellule).replace(/"/g, '""')}"`
+      : String(cellule);
+  const lignes = [exemple.entetes, ...exemple.lignes].map((ligne) => ligne.map(citer).join(delimiteur));
+  if (exemple.titreFichier) lignes.unshift(exemple.titreFichier);
+  return lignes.join("\n") + "\n";
 }
 
 const PREFIXE_FICHIER_EXEMPLE = "exemple-tutoriel-";
@@ -247,121 +256,172 @@ function fichierImportEstLeFichierTest() {
   );
 }
 
-// Vrai tant que l'ÉCRAN porte des colonnes posées par un exemple : c'est ce qu'il faudra rendre
-// à la configuration du preset (cf. restaurerImportTutoriel).
-let tutorielConfigModifiee = false;
+/* LA CONFIGURATION DU RELEVÉ DE LA NOTICE, telle que la base de découverte la pose dans son
+ * preset (cf. base_decouverte.COLONNES_PRESET_IMPORT) : une ligne de titre et celle des
+ * intitulés, puis 1 Date, 3 Libellé, 5 Montant, 7 Catégorie banque. C'est celle de toutes les
+ * étapes qui n'ont pas de raison d'en avoir une autre — le but n'est pas de faire régler les
+ * colonnes à chaque étape. */
+const CONFIG_RELEVE_TUTORIEL = {
+  colonnes: [["date", 1], ["nature", 3], ["montant", 5], ["categorie_banque", 7]],
+  lignesEntete: 2,
+};
 
-/** Pose les colonnes d'un exemple À L'ÉCRAN (rien n'est enregistré). */
-function appliquerColonnesTutoriel(colonnes) {
+/* SAUF AUX DEUX ÉTAPES QUI APPRENNENT À LA CORRIGER (le glisser-déposer, puis le numéro saisi) :
+ * les champs y sont volontairement en face des MAUVAISES colonnes. Libellé et catégorie sont
+ * échangés, le montant lit le solde : faux, et visiblement faux, mais toujours LISIBLE — une
+ * date ou un montant illisibles sur toutes les lignes déplieraient l'alerte du délimiteur, qui
+ * n'a rien à faire à ces étapes. */
+const CONFIG_RELEVE_DESORDONNEE = {
+  colonnes: [["date", 1], ["nature", 7], ["montant", 6], ["categorie_banque", 3]],
+  lignesEntete: 2,
+};
+
+/** La configuration qu'une étape du parcours d'import pose dans le preset. */
+function configEtapeImport(etape) {
+  if (etape.exemple) {
+    return {
+      colonnes: etape.exemple.colonnes,
+      lignesEntete: etape.exemple.lignesEntete ?? 1,
+      delie: !!etape.exemple.delie,
+    };
+  }
+  return etape.config || CONFIG_RELEVE_TUTORIEL;
+}
+
+/**
+ * Pose une configuration À L'ÉCRAN, champ par champ, exactement comme si on l'avait saisie : c'est
+ * ensuite le chemin du bouton de relecture qui l'enregistre et relit le fichier. Tout ce que
+ * l'aperçu lit est posé — colonnes, lignes de tête, comparaison des doublons, vocabulaires, compte
+ * lié — et pas seulement les colonnes : un vocabulaire ou un nombre de lignes de tête laissé là
+ * par l'étape précédente suffisait à mettre la moitié des lignes en erreur.
+ */
+function poserConfigImportTutoriel({ colonnes, lignesEntete, delie = false }) {
   importConfigColonnes = colonnes
     // Sans l'extension « Monnaies », ces trois colonnes n'existent pas à l'écran.
     .filter(([propriete]) => choixDeMonnaiePossible() || !PROPRIETES_IMPORT_MONNAIE.has(propriete))
     .map(([propriete, index]) => ({ propriete, index }));
-  // L'alerte « les colonnes ont changé, enregistre » parle d'une modification de l'utilisateur :
-  // ici les colonnes sont celles de l'exemple, il n'y a rien à garder.
-  importSignatureColonnesEnregistrees = signatureColonnesImport(importConfigColonnes);
-  importApercuAReloire = false;
-  tutorielConfigModifiee = true;
+  importConfigColonnesDummy = [];
+  importConfigColonnesComparaison = [];
+  document.getElementById("import-mode-comparaison").value = "exclusion";
+  document.getElementById("import-lignes-entete").value = lignesEntete;
+  updateResumeLignesEntete();
+  renderImportVocabulaires({});
   renderImportConfig();
-  updateImportPresetCompteAvertissement();
-  updateImportCompteDefautVisibility();
+  renderImportConfigColonnesComparaison();
+  // LIÉ AU PREMIER COMPTE (le Compte A de la base de découverte), sauf à l'étape qui en délie le
+  // preset. Les deux sens de passage reposent le lien : revenir de cette étape le renoue.
+  const premier = comptesProposables()[0];
+  renderImportPresetCompte(delie || !premier ? null : premier.id);
+  toggleImportCompteDefautBloc();
 }
 
-/** Choisit le premier compte de l'app dans « Compte pour ce fichier », si rien n'y est lu. */
-function choisirCompteParDefautTutoriel() {
-  const select = document.getElementById("import-compte-defaut");
-  if (compteIdDefautChoisi() === null && document.getElementById("import-compte-defaut-bloc").style.display !== "none") {
-    const premier = [...select.options].find((option) => option.value);
-    if (premier) select.value = premier.value;
-  }
-}
-
-/**
- * Rend à l'écran d'import ce que le tutoriel y a posé : la configuration du preset, et un
- * « compte pour ce fichier » vide. Ne fait rien quand rien n'a été posé.
- */
-async function restaurerConfigImportTutoriel() {
-  if (!tutorielConfigModifiee) return;
-  tutorielConfigModifiee = false;
-  try {
-    await loadImportConfiguration();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
-  document.getElementById("import-compte-defaut").value = "";
-}
-
-/** Vide l'écran d'import d'un fichier d'exemple, et lui rend la configuration du preset. */
+/** Vide l'écran d'import d'un fichier d'exemple (le fichier de l'utilisateur n'est jamais touché). */
 async function restaurerImportTutoriel() {
   if (fichierImportEstUnExemple()) reinitialiserImport();
-  await restaurerConfigImportTutoriel();
-}
-
-/**
- * Charge un fichier dans l'écran d'import, comme si on l'avait déposé, avec — pour un exemple —
- * ses colonnes. Rend false quand l'utilisateur refuse de remplacer SON fichier.
- */
-async function afficherFichierTutoriel(
-  fichier,
-  nomAffiche,
-  { colonnes = null, compteParDefaut = false } = {}
-) {
-  if (
-    typeof importApercu !== "undefined" &&
-    importApercu &&
-    importApercu.lignes.length > 0 &&
-    !fichierImportEstUnExemple() &&
-    !confirm(
-      t("Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?")
-    )
-  ) {
-    return false;
-  }
-  if (colonnes) appliquerColonnesTutoriel(colonnes);
-  else await restaurerConfigImportTutoriel();
-  if (compteParDefaut) choisirCompteParDefautTutoriel();
-  // Le chemin de `definirFichierImport`, SANS sa question « un aperçu est déjà
-  // en cours » : entre deux exemples du tutoriel, il n'y a rien à perdre.
-  importFichierActuel = fichier;
-  document.getElementById("import-fichier-nom").textContent = nomAffiche;
-  reinitialiserReglagesLecture();
-  await executerPrevisualisation();
-  return true;
-}
-
-/** Charge un exemple dessiné pour une étape (cf. EXEMPLE_*). */
-async function montrerExempleTutoriel(exemple, rang) {
-  const fichier = new File([csvExempleTutoriel(exemple)], `${PREFIXE_FICHIER_EXEMPLE}${rang + 1}.csv`, {
-    type: "text/csv",
-  });
-  return afficherFichierTutoriel(fichier, t(exemple.titre), {
-    colonnes: exemple.colonnes,
-    compteParDefaut: exemple.compteParDefaut,
-  });
 }
 
 let fichierTestTutoriel = null;
 
-/**
- * Charge le relevé d'exemple de la notice, avec la configuration du preset : c'est le fichier du
- * « reste du tutoriel », hors colonnes secondaires. Déjà chargé, il n'est pas relu — ce qu'on a
- * déplacé à l'écran entre deux étapes reste en place.
- */
-async function montrerFichierTestTutoriel() {
-  if (fichierImportEstLeFichierTest() && importApercu) return true;
-  if (!fichierTestTutoriel) {
-    try {
-      const reponse = await fetch(URL_FICHIER_TEST);
-      if (!reponse.ok) throw new Error(String(reponse.status));
-      fichierTestTutoriel = new File([await reponse.blob()], NOM_FICHIER_TEST, {
-        type: "text/csv",
-      });
-    } catch (err) {
-      showMessage(t("Le relevé d'exemple n'a pas pu être chargé."), "error");
-      return false;
-    }
+/** Le relevé d'exemple de la notice, lu une fois puis gardé. Null s'il n'a pas pu être lu. */
+async function chargerFichierTestTutoriel() {
+  if (fichierTestTutoriel) return fichierTestTutoriel;
+  try {
+    const reponse = await fetch(URL_FICHIER_TEST);
+    if (!reponse.ok) throw new Error(String(reponse.status));
+    fichierTestTutoriel = new File([await reponse.blob()], NOM_FICHIER_TEST, { type: "text/csv" });
+    return fichierTestTutoriel;
+  } catch (err) {
+    showMessage(t("Le relevé d'exemple n'a pas pu être chargé."), "error");
+    return null;
   }
-  return afficherFichierTutoriel(fichierTestTutoriel, "releve-exemple.csv");
+}
+
+/** Les correspondances choisies à l'écran (catégories, comptes, monnaies), pour les rendre après relecture. */
+function instantaneCorrespondancesImport() {
+  return {
+    categories: { ...importMappingCategories },
+    comptes: { ...importMappingComptes },
+    monnaies: { ...importMappingMonnaies },
+    confirmees: new Set(importCategoriesConfirmees),
+  };
+}
+
+function rendreCorrespondancesImport(instantane) {
+  if (!importApercu) return;
+  Object.assign(importMappingCategories, instantane.categories);
+  Object.assign(importMappingComptes, instantane.comptes);
+  Object.assign(importMappingMonnaies, instantane.monnaies);
+  instantane.confirmees.forEach((nom) => importCategoriesConfirmees.add(nom));
+  renderImportMappings();
+  appliquerMappingsLocalement();
+  renderImportApercu();
+}
+
+/**
+ * PRÉPARE L'ÉCRAN D'IMPORT POUR UNE ÉTAPE, dans un sens comme dans l'autre : le fichier de
+ * l'étape, sa configuration, puis LA ROUTE DU BOUTON DE RELECTURE (enregistrer le preset, relire
+ * le fichier). Rien n'est gardé de l'étape d'avant : ce qu'on y a déplacé, réglé ou retouché
+ * appartenait à son exemple.
+ *
+ * ON ÉCRIT DANS LE PRESET, et c'est permis ici seulement : le parcours se suit sur la base de
+ * découverte (cf. `baseDecouverte`), dont l'unique preset n'appartient à personne. Hors
+ * découverte, rien n'est écrit.
+ *
+ * Rend { charge } : faux quand l'utilisateur garde SON fichier plutôt que celui de l'étape.
+ */
+async function appliquerEtapeImport(etape, index) {
+  if (!tutorielSurBaseDecouverte) return { charge: false };
+  // La page Import qui vient de s'ouvrir finit d'abord de charger son preset.
+  await importSectionEnChargement.catch(() => {});
+  let fichier = null;
+  let nomAffiche = null;
+  if (etape.exemple) {
+    fichier = new File([csvExempleTutoriel(etape.exemple)], `${PREFIXE_FICHIER_EXEMPLE}${index + 1}.csv`, {
+      type: "text/csv",
+    });
+    nomAffiche = t(etape.exemple.titre);
+  } else if (etape.fichierTest) {
+    fichier = await chargerFichierTestTutoriel();
+    if (!fichier) return { charge: false };
+    nomAffiche = "releve-exemple.csv";
+  }
+
+  // UN FICHIER DÉPOSÉ PAR L'UTILISATEUR n'est remplacé qu'après accord ; refusé, l'étape le laisse
+  // tel quel, configuration comprise.
+  const fichierUtilisateur =
+    importApercu && importApercu.lignes.length > 0 && importFichierActuel && !fichierImportEstUnExemple();
+  if (
+    fichier &&
+    fichierUtilisateur &&
+    !confirm(
+      t("Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?")
+    )
+  ) {
+    return { charge: false };
+  }
+
+  // LES CORRESPONDANCES SURVIVENT À UN MÊME FICHIER RELU : les catégories rattachées à l'étape 18
+  // doivent l'être encore à l'étape 19, où l'on confirme.
+  const memeFichier = !!(fichier && importFichierActuel && importFichierActuel.name === fichier.name);
+  const correspondances = memeFichier ? instantaneCorrespondancesImport() : null;
+
+  if (fichier) {
+    // Le fichier de l'étape, repris de zéro : ni retouche de ligne, ni doublon décoché.
+    reinitialiserImport();
+    importFichierActuel = fichier;
+    document.getElementById("import-fichier-nom").textContent = nomAffiche;
+  } else if (fichierImportEstUnExemple()) {
+    reinitialiserImport();
+  }
+
+  poserConfigImportTutoriel(configEtapeImport(etape));
+  // Les réglages de lecture repartent de la détection automatique : c'est elle que l'étape des
+  // délimiteurs montre en échec, et elle seule qui doit l'être.
+  reinitialiserReglagesLecture();
+  lireReglagesLecture();
+  await enregistrerConfigurationImport({ relireToujours: true, message: null });
+  if (correspondances) rendreCorrespondancesImport(correspondances);
+  return { charge: !!fichier };
 }
 
 /* ---------- Les parcours ----------
@@ -555,12 +615,21 @@ const TUTORIEL_DECOUVERTE = etapesDecouverte();
  * (`noyau.tuto-import-<étape>`, « 2-1 » pour 2.1) ; les numéros sont ceux de la bulle, et le
  * texte du compte bancaire cite « l'étape 2.2 ».
  *
+ * IL SE LIT SUR LA BASE DE DÉCOUVERTE DE L'IMPORT (cf. base_decouverte.remplir_import) : deux
+ * comptes, les catégories livrées, et un seul preset, lié au Compte A. Sur la base de
+ * l'utilisateur, ce sont SES presets qui lisaient les fichiers du tutoriel — et aucun ne les
+ * décrivait.
+ *
  * TROIS FAÇONS DE MONTRER UN FICHIER, selon l'étape :
  *   - rien (étapes 1 à 3) : l'écran est vide, ou vidé s'il montrait un exemple ;
- *   - `fichierTest` : le relevé d'exemple de la notice, chargé d'office — c'est lui qui sert
- *     à tout le reste du tutoriel ;
- *   - `exemple` : un fichier dessiné pour un cas, avec ses colonnes posées à l'écran, pour les
- *     colonnes secondaires — le relevé de la notice n'en a aucune. */
+ *   - `fichierTest` : le relevé d'exemple de la notice — c'est lui qui sert à tout le reste
+ *     du tutoriel ;
+ *   - `exemple` : un fichier dessiné pour un cas (colonnes secondaires, délimiteur), avec sa
+ *     configuration.
+ *
+ * CHAQUE PASSAGE D'ÉTAPE, dans un sens comme dans l'autre, recharge le fichier de l'étape, pose
+ * sa configuration (`config`, celle du relevé par défaut — cf. configEtapeImport) et relit le
+ * fichier par la route du bouton de relecture (cf. appliquerEtapeImport). */
 const T_IMPORT = (cle) => texteAide(`noyau.tuto-import-${cle}`);
 
 const TUTORIEL_IMPORT = [
@@ -607,6 +676,8 @@ const TUTORIEL_IMPORT = [
     titre: "Le fichier vu par l'app",
     texte: T_IMPORT("5"),
     fichierTest: true,
+    // Les champs en face des mauvaises colonnes : c'est ce que l'étape apprend à corriger.
+    config: CONFIG_RELEVE_DESORDONNEE,
     siMasque:
       "Ce tableau apparaît dès qu'un fichier est déposé : reviens à cette étape à ce moment-là.",
   },
@@ -616,6 +687,7 @@ const TUTORIEL_IMPORT = [
     titre: "Les colonnes lues",
     texte: T_IMPORT("6"),
     fichierTest: true,
+    config: CONFIG_RELEVE_DESORDONNEE,
     avant: () => deplierBloc("#import-config-fichier"),
   },
   {
@@ -691,7 +763,13 @@ const TUTORIEL_IMPORT = [
     cible: "#import-reglages-lecture",
     titre: "Les réglages de lecture",
     texte: T_IMPORT("15"),
-    fichierTest: true,
+    // Un fichier que la détection lit mal : le panneau se déplie de lui-même, alerte comprise.
+    exemple: EXEMPLE_DELIMITEUR,
+    garderCible: true,
+    // Le panneau déplié est haut, alerte comprise : en bas de l'écran, la bulle se pose au-dessus
+    // sans le cacher.
+    defilement: "end",
+    placement: "dessus",
     avant: () => {
       deplierBloc("#import-config-fichier");
       deplierBloc("#import-reglages-lecture");
@@ -730,10 +808,9 @@ const TUTORIEL_IMPORT = [
     cible: "#import-mappings-bloc",
     titre: "La correspondance des catégories",
     texte: T_IMPORT("18"),
-    exemple: EXEMPLE_CATEGORIES,
-    // Le bloc visé n'existe que parce que l'exemple apporte des catégories inconnues : c'est
-    // lui qu'on désigne, pas le tableau du fichier.
-    garderCible: true,
+    // LE RELEVÉ LUI-MÊME : sur la base de découverte, aucune de ses catégories bancaires n'est
+    // encore rattachée, et ce qu'on y rattache ici sert à confirmer l'import à l'étape suivante.
+    fichierTest: true,
     siMasque:
       "Ce bloc n'apparaît que si le fichier apporte des catégories, des comptes ou des devises inconnus.",
   },
@@ -853,6 +930,9 @@ const TUTORIELS = [
     resume:
       "Régler un preset de bout en bout, colonnes secondaires comprises — avec, à chaque colonne, l'extrait de relevé qui la rend nécessaire.",
     etapes: TUTORIEL_IMPORT,
+    // SUR SA PROPRE BASE (cf. base_decouverte.remplir_import) : un seul preset, réglé pour les
+    // fichiers que le parcours montre, et qu'il peut réécrire à chaque étape.
+    baseDecouverte: true,
   },
   {
     id: "regles",
@@ -1115,25 +1195,18 @@ async function allerEtapeTutoriel(index) {
   ajusterOuverturesTutoriel(etape.ouvre || null);
   if (etape.avant) etape.avant();
 
-  // UN EXEMPLE SE MONTRE DANS L'APERÇU DU FICHIER, et c'est lui que la bulle
-  // désigne alors : le réglage dont parle l'étape se lit en regardant les
-  // colonnes du fichier.
+  // LE PARCOURS D'IMPORT REPOSE SON FICHIER ET SA CONFIGURATION à chaque étape, puis relit
+  // (cf. appliquerEtapeImport). Un exemple se montre dans l'aperçu du fichier, et c'est lui que
+  // la bulle désigne alors : le réglage dont parle l'étape se lit en regardant ses colonnes.
   let exempleCharge = false;
   let selecteurCible = etape.cible;
-  if (etape.exemple) {
-    exempleCharge = await montrerExempleTutoriel(etape.exemple, index);
+  if (parcours.id === "import") {
+    const { charge } = await appliquerEtapeImport(etape, index);
     if (jeton !== tutorielJeton) return;
+    exempleCharge = charge && !!etape.exemple;
     if (exempleCharge && !etape.garderCible) selecteurCible = "#import-apercu-fichier-bloc";
-  } else if (etape.fichierTest) {
-    // LE RELEVÉ DE LA NOTICE, chargé d'office : tout ce qui n'est pas une colonne
-    // secondaire se lit dessus. Rien n'est refait s'il est déjà à l'écran.
-    await montrerFichierTestTutoriel();
-    if (jeton !== tutorielJeton) return;
-  } else if (parcours.id === "import") {
-    // Avant le fichier : l'écran est vidé s'il montrait un exemple (on revient d'une
-    // étape plus loin), jamais s'il montre le fichier de l'utilisateur.
-    await restaurerImportTutoriel();
-    if (jeton !== tutorielJeton) return;
+    // La relecture a pu déplier ou replier des blocs : l'étape rouvre les siens.
+    if (etape.avant) etape.avant();
   }
 
   const cibles = ciblesEtape(selecteurCible, etape.premier && !exempleCharge);
@@ -1190,10 +1263,12 @@ async function allerEtapeTutoriel(index) {
 
 /* ---------- La base de découverte ----------
  *
- * LE PARCOURS « PRENDRE L'APPLICATION EN MAIN » SE LIT SUR UNE BASE FABRIQUÉE
- * (cf. backend/app/services/base_decouverte.py), même quand l'utilisateur a déjà
- * des données : ses chiffres n'illustreraient pas la phrase qu'on lit, et il n'y
- * a aucune raison de lui faire passer ses finances sous une bulle.
+ * LES PARCOURS « PRENDRE L'APPLICATION EN MAIN » ET « IMPORTER UN RELEVÉ » SE
+ * LISENT SUR UNE BASE FABRIQUÉE (cf. backend/app/services/base_decouverte.py),
+ * chacun sur la sienne, même quand l'utilisateur a déjà des données : ses
+ * chiffres n'illustreraient pas la phrase qu'on lit, ses presets ne liraient pas
+ * les fichiers du tutoriel, et il n'y a aucune raison de lui faire passer ses
+ * finances sous une bulle.
  *
  * LE SERVEUR EST LA SEULE MÉMOIRE DE « SUIS-JE DESSUS ? ». Entrer et sortir
  * rechargent la page, parce que tout ce que l'écran a chargé (comptes, soldes,
@@ -1205,12 +1280,22 @@ async function allerEtapeTutoriel(index) {
  */
 const CLE_SORTIE_DECOUVERTE = "budget-app.tutoriel-sortie";
 
-/** Vrai si la découverte est (déjà) active. Sinon la prépare et recharge la page : rend false. */
-async function entrerDecouverte() {
+// Vrai quand le serveur a confirmé être sur la base de découverte du parcours en cours : c'est la
+// condition pour que le parcours d'import écrive dans le preset (cf. appliquerEtapeImport).
+let tutorielSurBaseDecouverte = false;
+
+/**
+ * Vrai si la découverte du parcours `id` est (déjà) active. Sinon la prépare et recharge la
+ * page : rend false. CHAQUE PARCOURS A SA BASE : être sur celle d'un autre ne suffit pas.
+ */
+async function entrerDecouverte(id) {
   try {
     const etat = await apiFetch("/tutoriel/decouverte");
-    if (etat.actif) return true;
-    await apiFetch("/tutoriel/decouverte/entrer", { method: "POST" });
+    if (etat.actif && etat.parcours === id) {
+      tutorielSurBaseDecouverte = true;
+      return true;
+    }
+    await apiFetch(`/tutoriel/decouverte/entrer?parcours=${encodeURIComponent(id)}`, { method: "POST" });
     window.location.reload();
     return false;
   } catch (err) {
@@ -1269,10 +1354,12 @@ async function reprendreDecouverte() {
     return;
   }
   if (!etat.actif) return;
-  const parcours = TUTORIELS.find((p) => p.baseDecouverte);
+  // LE PARCOURS QUE LE SERVEUR A NOTÉ en fabriquant la base : deux parcours s'y lisent.
+  const parcours = TUTORIELS.find((p) => p.baseDecouverte && p.id === etat.parcours);
   if (!parcours) return;
   tutorielParcours = parcours;
   tutorielActif = true;
+  tutorielSurBaseDecouverte = true;
   const { etape } = progressionDe(parcours.id);
   allerEtapeTutoriel(Math.min(etape, parcours.etapes.length - 1));
 }
@@ -1291,7 +1378,7 @@ async function demarrerTutoriel(id, { reprendre = true } = {}) {
   if (!reprendre || termine) noterProgression(id, { etape: 0, termine: false });
   // La progression est écrite AVANT le rechargement qu'entraîne la base de
   // découverte : c'est elle que `reprendreDecouverte` relira.
-  if (parcours.baseDecouverte && !(await entrerDecouverte())) return;
+  if (parcours.baseDecouverte && !(await entrerDecouverte(parcours.id))) return;
   tutorielParcours = parcours;
   tutorielActif = true;
   allerEtapeTutoriel(reprendre && !termine ? Math.min(etape, parcours.etapes.length - 1) : 0);
@@ -1305,6 +1392,7 @@ async function demarrerTutoriel(id, { reprendre = true } = {}) {
 async function arreterTutoriel({ message = null } = {}) {
   const parcours = tutorielParcours;
   tutorielActif = false;
+  tutorielSurBaseDecouverte = false;
   tutorielJeton++;
   eteindreCibleTutoriel();
   // Ce que le tutoriel avait ouvert pour s'illustrer se referme avec lui.
@@ -1330,7 +1418,7 @@ async function arreterTutoriel({ message = null } = {}) {
     () => {
       if (!tutorielActif || !tutorielParcours) return;
       const etape = tutorielParcours.etapes[tutorielEtape];
-      const surExemple = etape.exemple && fichierImportEstUnExemple();
+      const surExemple = etape.exemple && !etape.garderCible && fichierImportEstUnExemple();
       const cibles = ciblesEtape(
         surExemple ? "#import-apercu-fichier-bloc" : etape.cible,
         !surExemple && etape.premier

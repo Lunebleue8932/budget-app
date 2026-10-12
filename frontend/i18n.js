@@ -4302,5 +4302,9 @@ Object.assign(TRADUCTIONS.en, {
     "A statement that never gives “the” amount",
   "Un relevé qui mélange les lignes passées et celles à venir":
     "A statement that mixes past and upcoming rows",
+  "Un relevé séparé par des virgules":
+    "A statement separated by commas",
+  "Cet export sépare ses colonnes par des virgules, et sa ligne de titre empêche l'app de le deviner : chaque ligne est lue d'un seul bloc. Choisis « , » comme délimiteur, puis relis le fichier.":
+    "This export separates its columns with commas, and its title row keeps the app from guessing it: each row is read as a single block. Choose “,” as the delimiter, then reread the file.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

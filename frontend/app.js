@@ -1839,7 +1839,7 @@ function chargerSousPageParametres(page) {
     loadComptes();
   }
   if (page === "parametres-correspondances") loadCorrespondances();
-  if (page === "parametres-import") loadImportSection();
+  if (page === "parametres-import") importSectionEnChargement = loadImportSection();
   if (page === "parametres-extensions") loadExtensions();
   // Sous-pages apportées par une extension : comme pour les écrans principaux,
   // le noyau ne les connaît pas par leur nom et demande à qui de droit.
@@ -11046,6 +11046,11 @@ document.getElementById("btn-import-preset-supprimer").addEventListener("click",
  * là où il n'a plus de sens : changement de preset, nouveau fichier, ou import
  * terminé.
  */
+// LE CHARGEMENT EN COURS DE LA PAGE IMPORT : le tutoriel d'import l'attend avant de poser son
+// fichier et sa configuration — sans quoi un chargement arrivé après coup les écrasait avec ceux
+// du preset (cf. tutoriel.js, appliquerEtapeImport).
+let importSectionEnChargement = Promise.resolve();
+
 async function loadImportSection() {
   const importEnCours = importApercu !== null;
   await refreshComptes();
@@ -12318,7 +12323,8 @@ async function enregistrerConfigurationImport({
     // que toutes les lignes affichaient "compte à mapper" à l'import.
     toggleImportCompteDefautBloc();
     await loadImportPresets();
-    showMessage(message, "success");
+    // `message: null` : enregistrer sans le dire (le tutoriel d'import, à chaque étape).
+    if (message) showMessage(message, "success");
     // Un fichier déjà chargé a été analysé avec l'ANCIENNE configuration : ses
     // couleurs de colonnes, ses en-têtes de propriété, ses lignes résolues et
     // ses doublons décrivent un import qui n'a plus cours. On le relit donc,

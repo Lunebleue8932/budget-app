@@ -1,4 +1,5 @@
-"""La base de DÉCOUVERTE : ce que le tutoriel « Prendre l'application en main » regarde.
+"""La base de DÉCOUVERTE : ce que regardent les tutoriels « Prendre l'application en main » et
+« Importer un relevé ».
 
 POURQUOI UNE BASE FABRIQUÉE, ET NON UN FICHIER LIVRÉ. Un `.db` embarqué resterait
 figé au schéma du jour de sa fabrication : la première migration le rendrait
@@ -21,6 +22,14 @@ CE QU'ELLE CONTIENT, et pourquoi :
    brute (étape 4) — sans elles, le bouton « d'où vient l'écart ? » n'apparaîtrait
    jamais.
 
+UNE SECONDE VARIANTE POUR L'IMPORT (`PARCOURS_IMPORT`, cf. `remplir_import`) : aucune
+opération, deux comptes COURANTS et UN SEUL preset, déjà lié au Compte A et réglé pour le relevé
+d'exemple de la notice. Le tutoriel d'import se suivait sur la base de l'utilisateur, avec SES
+presets : leurs colonnes et leurs lignes de tête ne décrivaient aucun des fichiers montrés, et la
+moitié des lignes tombaient en erreur dès l'aperçu — y compris le « délimiteur sans doute faux »,
+qui n'avait rien à faire là. Sur cette base, chaque étape peut aussi ENREGISTRER sa configuration
+dans le preset (cf. tutoriel.js), ce qu'on ne s'autoriserait jamais sur un preset réel.
+
 LES DATES SUIVENT LE JOUR OÙ ON LA FABRIQUE : un tutoriel qui s'ouvre sur un
 dashboard vide parce que les données datent de l'an dernier n'illustre rien. Dans
 le mois en cours, aucun jour n'est postérieur à aujourd'hui (sauf la dépense
@@ -39,6 +48,8 @@ from .. import crud, database, models, schemas
 from ..constants import (
     CATEGORIE_ENTREES_ARGENT,
     TYPE_COMPTE_COURANT,
+    DomaineImport,
+    ModeComparaison,
     TYPE_COMPTE_EPARGNE,
     Statut,
     TypeOperation,
@@ -47,6 +58,24 @@ from ..constants import (
 NOM_FICHIER = "budget-app-decouverte.db"
 NOM_COMPTE_A = "Compte A"
 NOM_COMPTE_B = "Compte B"
+
+# Les identifiants des parcours de tutoriel.js (`TUTORIELS[].id`) : c'est le parcours qui dit
+# quelle base fabriquer, et le serveur qui se souvient duquel est en cours.
+PARCOURS_PRISE_EN_MAIN = "decouverte"
+PARCOURS_IMPORT = "import"
+PARCOURS = (PARCOURS_PRISE_EN_MAIN, PARCOURS_IMPORT)
+
+# LE PRESET DU TUTORIEL D'IMPORT, réglé pour `frontend/exemples/releve-exemple.csv` : une ligne de
+# titre et la ligne des intitulés (deux lignes de tête), puis 1 Date, 3 Libellé, 5 Montant,
+# 7 Catégorie banque. Les étapes qui montrent un autre fichier posent la leur par-dessus.
+NOM_PRESET_IMPORT = "Ma banque"
+COLONNES_PRESET_IMPORT = [
+    {"index": 1, "propriete": "date"},
+    {"index": 3, "propriete": "nature"},
+    {"index": 5, "propriete": "montant"},
+    {"index": 7, "propriete": "categorie_banque"},
+]
+LIGNES_ENTETE_PRESET_IMPORT = 2
 
 
 def chemin_decouverte() -> Path:
@@ -189,8 +218,52 @@ def remplir(db, aujourdhui: date) -> None:
     )
 
 
-def fabriquer(chemin: Path | None = None, aujourdhui: date | None = None) -> Path:
-    """Fabrique (en l'écrasant) la base de découverte et rend son chemin.
+def remplir_import(db) -> None:
+    """La variante du tutoriel d'import : deux comptes courants, les catégories livrées (posées
+    par les migrations), et UN preset lié au Compte A.
+
+    LE PRESET EST CELUI QUE LES MIGRATIONS POSENT (« Défaut », 0014), renommé et réglé, et non un
+    second : le tutoriel montre la rangée des presets, et un « Défaut » vide à côté du sien
+    poserait une question qu'aucune étape n'explique."""
+    courant = db.query(models.TypeCompte).filter(models.TypeCompte.nom == TYPE_COMPTE_COURANT).one()
+    monnaie = crud.get_monnaies(db)[0]
+
+    def creer_compte(nom, solde):
+        return crud.create_compte(
+            db,
+            schemas.CompteCreate(
+                nom=nom,
+                type_id=courant.id,
+                monnaies=[schemas.CompteMonnaieInput(monnaie_id=monnaie.id, solde_initial=solde)],
+            ),
+        )
+
+    compte_a = creer_compte(NOM_COMPTE_A, 1500.00)
+    creer_compte(NOM_COMPTE_B, 800.00)
+
+    presets = crud.list_import_presets(db, DomaineImport.bancaire.value)
+    reglages = dict(
+        nom=NOM_PRESET_IMPORT,
+        compte_id=compte_a.id,
+        colonnes=COLONNES_PRESET_IMPORT,
+        colonnes_comparaison=[],
+        mode_comparaison=ModeComparaison.exclusion.value,
+        lignes_entete=LIGNES_ENTETE_PRESET_IMPORT,
+    )
+    if not presets:
+        crud.create_import_preset(db, **reglages)
+        return
+    for surnumeraire in presets[1:]:
+        crud.delete_import_preset(db, surnumeraire)
+    crud.update_import_preset(db, presets[0], **reglages)
+
+
+def fabriquer(
+    chemin: Path | None = None,
+    aujourdhui: date | None = None,
+    parcours: str = PARCOURS_PRISE_EN_MAIN,
+) -> Path:
+    """Fabrique (en l'écrasant) la base de découverte du `parcours` et rend son chemin.
 
     La base est créée par les migrations puis remplie dans une connexion à
     elle : l'application n'y bascule pas ici (cf. database.entrer_decouverte)."""
@@ -212,7 +285,10 @@ def fabriquer(chemin: Path | None = None, aujourdhui: date | None = None) -> Pat
 
     try:
         with sessionmaker(bind=moteur)() as db:
-            remplir(db, aujourdhui)
+            if parcours == PARCOURS_IMPORT:
+                remplir_import(db)
+            else:
+                remplir(db, aujourdhui)
     finally:
         moteur.dispose()
     return chemin

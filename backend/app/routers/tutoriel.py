@@ -1,9 +1,10 @@
-"""La base de DÉCOUVERTE du tutoriel « Prendre l'application en main ».
+"""La base de DÉCOUVERTE des tutoriels « Prendre l'application en main » et « Importer un relevé ».
 
 Trois routes, et aucune ne touche à la base de l'utilisateur ni à son profil :
 
-  - `GET  /tutoriel/decouverte`         : est-on sur la base de découverte ?
-  - `POST /tutoriel/decouverte/entrer`  : la fabrique et y bascule ;
+  - `GET  /tutoriel/decouverte`         : est-on sur la base de découverte, et pour quel parcours ?
+  - `POST /tutoriel/decouverte/entrer`  : fabrique celle du parcours demandé (`?parcours=`) et y
+                                          bascule ;
   - `POST /tutoriel/decouverte/quitter` : rejoint la base d'avant.
 
 AUCUNE MÉMORISATION (cf. database.py, « La base de DÉCOUVERTE ») : ces routes
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/tutoriel", tags=["tutoriel"])
 
 
 def _etat() -> dict:
-    return {"actif": database.en_decouverte()}
+    return {"actif": database.en_decouverte(), "parcours": database.parcours_decouverte()}
 
 
 @router.get("/decouverte")
@@ -29,12 +30,19 @@ def get_decouverte():
 
 
 @router.post("/decouverte/entrer")
-def entrer_decouverte():
+def entrer_decouverte(parcours: str = base_decouverte.PARCOURS_PRISE_EN_MAIN):
+    if parcours not in base_decouverte.PARCOURS:
+        raise HTTPException(status_code=400, detail=f"Parcours inconnu : {parcours}")
     if database.en_decouverte():
-        return _etat()
+        if database.parcours_decouverte() == parcours:
+            return _etat()
+        # UN AUTRE PARCOURS : sa base ne contient pas ce que celui-ci montre. On rejoint d'abord la
+        # vraie base, pour que la « base d'avant » reste celle de l'utilisateur et jamais une
+        # base de découverte.
+        quitter_decouverte()
     try:
-        chemin = base_decouverte.fabriquer()
-        database.entrer_decouverte(chemin)
+        chemin = base_decouverte.fabriquer(parcours=parcours)
+        database.entrer_decouverte(chemin, parcours)
     except (ValueError, OSError) as exc:
         raise HTTPException(
             status_code=500, detail=f"Impossible de préparer la base de découverte : {exc}"
