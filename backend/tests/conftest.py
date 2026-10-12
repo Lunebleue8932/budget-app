@@ -95,6 +95,31 @@ def pytest_collection_modifyitems(config, items):
         items[:] = gardes
 
 
+@pytest.fixture(scope="session", autouse=True)
+def base_native_presente():
+    """LA BASE NATIVE EXISTE PENDANT LA SUITE, même sur un clone neuf.
+
+    Les tests qui basculent de base reviennent, en sortant, à celle d'où ils sont partis — la
+    base native (`database.DEV_DB_PATH`), ou celle que le processus sert. Depuis que le dépôt ne
+    porte plus de base, un clone neuf (celui de la CI) n'en a aucune, et `changer_base`, qui
+    refuse à juste titre un fichier absent, faisait échouer ces tests sur leur seul retour. On la
+    crée donc si elle manque, et on la retire à la fin : la suite ne laisse rien derrière elle."""
+    from app import database
+
+    creees = []
+    for chemin in {database.get_chemin_actuel(), database.DEV_DB_PATH}:
+        if not chemin.exists():
+            database.creer_base_neuve(chemin)
+            creees.append(chemin)
+    yield
+    for chemin in creees:
+        for suffixe in ("", "-wal", "-shm", "-journal"):
+            try:
+                chemin.with_name(chemin.name + suffixe).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 @pytest.fixture(autouse=True)
 def extensions_allumees(request, monkeypatch):
     """Les tests s'exécutent avec les extensions ALLUMÉES.
