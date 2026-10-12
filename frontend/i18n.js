@@ -4306,5 +4306,19 @@ Object.assign(TRADUCTIONS.en, {
     "A statement separated by commas",
   "Cet export sépare ses colonnes par des virgules, et sa ligne de titre empêche l'app de le deviner : chaque ligne est lue d'un seul bloc. Choisis « , » comme délimiteur, puis relis le fichier.":
     "This export separates its columns with commas, and its title row keeps the app from guessing it: each row is read as a single block. Choose “,” as the delimiter, then reread the file.",
+  "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant dans le /bold(dossier de l'application) : mettre l'app à jour /bold(ÉCRASERAIT) ta base, et tu perdrais tes données. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.":
+    "Your accounts and transactions live in a single file. It currently sits in the /bold(application folder): updating the app would /bold(REWRITE) your database and cause you to lose your data. Give it a place elsewhere: it will be done once and for all.",
+  "Actuellement : {chemin}. Ce fichier sera DÉPLACÉ vers l'emplacement ci-dessus (rien n'est perdu, rien n'est copié en double).":
+    "Currently: {chemin}. This file will be MOVED to the location above (nothing is lost, nothing is duplicated).",
+  "Cet emplacement est encore dans le dossier de l'application ({dossier}) : une mise à jour écraserait toujours ta base. Choisis un dossier en dehors.":
+    "This location is still inside the application folder ({dossier}): an update would still overwrite your database. Choose a folder outside it.",
+  "Tes données ont été déplacées : elles ne sont plus dans le dossier de l'application, une mise à jour ne les touchera plus.":
+    "Your data has been moved: it is no longer in the application folder, and an update will no longer touch it.",
+  "Nouvelle base créée à l'emplacement choisi.":
+    "New database created at the chosen location.",
+  "Base existante ouverte à l'emplacement choisi.":
+    "Existing database opened at the chosen location.",
+  "Emplacement de la base mis à jour.":
+    "Database location updated.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

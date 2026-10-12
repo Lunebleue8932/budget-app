@@ -17470,7 +17470,8 @@ document.getElementById("btn-bdd-installer").addEventListener("click", async () 
       method: "POST",
       body: JSON.stringify({ chemin, deplacer_actuelle: etatActuel.a_risque }),
     });
-    sessionStorage.setItem("baseInstallee", etat.action || "");
+    sessionStorage.setItem("baseInstallee", etat.a_risque ? "a-risque" : etat.action || "");
+    sessionStorage.setItem("baseInstalleeDossier", etat.dossier_application || "");
     rechargerApresBascule(etat);
   } catch (err) {
     showMessage(err.message, "error");
@@ -17481,15 +17482,44 @@ function afficherInstallationBaseSiRecente() {
   const action = sessionStorage.getItem("baseInstallee");
   if (action === null) return;
   sessionStorage.removeItem("baseInstallee");
+  const dossier = sessionStorage.getItem("baseInstalleeDossier") || "";
+  sessionStorage.removeItem("baseInstalleeDossier");
+  if (action === "a-risque") {
+    showMessage(t(MESSAGE_BASE_ENCORE_A_RISQUE, { dossier }), "error", { persistent: true });
+    return;
+  }
   const phrases = {
     déplacée: "Tes données ont été déplacées : elles ne sont plus dans le dossier de l'application, une mise à jour ne les touchera plus.",
     créée: "Nouvelle base créée à l'emplacement choisi.",
     ouverte: "Base existante ouverte à l'emplacement choisi.",
   };
-  showMessage(phrases[action] || "Emplacement de la base mis à jour.", "success", {
+  showMessage(t(phrases[action] || "Emplacement de la base mis à jour."), "success", {
     persistent: true,
   });
 }
+
+function afficherCheminActuelModaleBdd(chemin) {
+  document.getElementById("modale-bdd-explication").textContent = t(
+    "Actuellement : {chemin}. Ce fichier sera DÉPLACÉ vers l'emplacement ci-dessus (rien n'est perdu, rien n'est copié en double).",
+    { chemin }
+  );
+}
+
+/** Le message sous le champ de la fenêtre, dans le paragraphe d'avertissement de l'import (son style). */
+function ecrireErreurModaleBdd(message) {
+  const erreur = document.getElementById("modale-bdd-erreur");
+  const paragraphe = document.createElement("p");
+  paragraphe.className = "import-avertissement";
+  paragraphe.textContent = traduireMessageServeur(message);
+  erreur.replaceChildren(paragraphe);
+  erreur.style.display = "";
+}
+
+/* UN EMPLACEMENT ENCORE À RISQUE : la base a bien été déplacée, mais toujours DANS le dossier de
+ * l'application (un sous-dossier, par exemple). Le serveur le dit (`a_risque`) ; rien ne l'aurait
+ * dit à l'écran, et l'utilisateur serait reparti rassuré vers une mise à jour qui l'écrase. */
+const MESSAGE_BASE_ENCORE_A_RISQUE =
+  "Cet emplacement est encore dans le dossier de l'application ({dossier}) : une mise à jour écraserait toujours ta base. Choisis un dossier en dehors.";
 
 /**
  * L'écran BLOQUANT du premier démarrage.
@@ -17521,9 +17551,7 @@ async function verifierEmplacementBase() {
 
   const champ = document.getElementById("modale-bdd-chemin");
   champ.value = etat.chemin_propose;
-  document.getElementById("modale-bdd-explication").textContent =
-    `Actuellement : ${etat.chemin_actuel}. Ce fichier sera DÉPLACÉ vers l'emplacement ci-dessus ` +
-    `(rien n'est perdu, rien n'est copié en double).`;
+  afficherCheminActuelModaleBdd(etat.chemin_actuel);
   // Le bouton n'apparaît que si le sélecteur du système répond présent : dans
   // un navigateur, il n'ouvrirait rien.
   document.getElementById("btn-modale-bdd-parcourir").style.display = selecteurNatifDisponible()
@@ -17571,11 +17599,18 @@ document.getElementById("btn-modale-bdd-valider").addEventListener("click", asyn
       // efface, serait le plus mauvais des deux mondes.
       body: JSON.stringify({ chemin, deplacer_actuelle: true }),
     });
+    if (etat.a_risque) {
+      // DÉPLACÉE, MAIS PAS À L'ABRI : la fenêtre reste ouverte, avec le nouveau chemin et la
+      // raison, et un second essai déplace la base depuis là où elle est maintenant.
+      afficherCheminActuelModaleBdd(etat.chemin_actuel);
+      ecrireErreurModaleBdd(t(MESSAGE_BASE_ENCORE_A_RISQUE, { dossier: etat.dossier_application }));
+      bouton.disabled = false;
+      return;
+    }
     sessionStorage.setItem("baseInstallee", etat.action || "");
     rechargerApresBascule(etat);
   } catch (err) {
-    erreur.textContent = err.message;
-    erreur.style.display = "";
+    ecrireErreurModaleBdd(err.message);
     bouton.disabled = false;
   }
 });

@@ -55,6 +55,10 @@ const TEXTES = {
   "noyau.camembert-vue-budget":
     "La répartition de tes dépenses rapportées à ton budget de la période.",
 
+  /* ----- L'écran de premier démarrage (#modale-bdd) ----- */
+  "noyau.modale-bdd-emplacement":
+    "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant dans le /bold(dossier de l'application) : mettre l'app à jour /bold(ÉCRASERAIT) ta base, et tu perdrais tes données. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.",
+
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":
     "Ce qu'on te doit - Ce que tu dois.",
@@ -459,7 +463,7 @@ const TEXTES = {
   "noyau.tuto-import-6":
     "Ici, tu peux changer la correspondance champ <-> colonne. Les champs présents suffisent pour la plupart des relevés. Quant au sélecteur, il permet d'activer ou de désactiver un champ lu par l'app. // /italic(Les champs Date, Nature et Montant sont essentiels et ne peuvent pas être désactivés.)",
   "noyau.tuto-import-7":
-    "Huit colonnes de plus, parfois nécessaires pour certains formats de fichiers plus complexes. // Leur fonctionnement est également plus complexe : les étapes suivantes du tutoriel couvrent chacun de ces champs, un par un.",
+    "Sept colonnes de plus, parfois nécessaires pour certains formats de fichiers plus complexes. // Leur fonctionnement est également plus complexe : les étapes suivantes du tutoriel couvrent chacun de ces champs, un par un.",
   "noyau.tuto-import-8":
     "Celui-ci est utile quand le fichier utilisé porte différents comptes bancaires. Si un compte est rattaché au preset (étape 2.2 du tutoriel), ce champ ne peut pas être activé. // Pour chaque nouveau compte lu, l'application te demandera vers quel compte de l'app il doit pointer. Tout ceci est enregistré dans Correspondances quand l'import est confirmé : pas besoin de le renseigner une autre fois.",
   "noyau.tuto-import-9":
@@ -475,7 +479,7 @@ const TEXTES = {
   "noyau.tuto-import-13":
     "C'est grâce à ces paramètres que l'application reconnaît des doublons. Deux manières de l'utiliser : /- Renseigner chaque colonne à comparer /- Renseigner chaque colonne à ne pas comparer // Un nom d'opération ou une catégorie pourraient bouger (s'ils sont modifiés sur l'app bancaire par exemple). // En général, sélectionner la comparaison des dates et des montants suffit. Si le fichier contient un libellé statique (celui que la banque assigne à l'opération par défaut), c'est aussi un bon candidat.",
   "noyau.tuto-import-14":
-    "Le fichier que tu importes aura parfois un en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.",
+    "Le fichier que tu importes aura parfois des lignes d'en-tête : celles-ci déclenchent un message d'erreur. Tu peux donc indiquer à l'app combien de lignes d'en-tête elle doit sauter.",
   "noyau.tuto-import-15":
     "C'est un réglage de derniers recours, et c'est le /bold(seul) qui ne s'enregistre pas avec le preset. L'app le déplie automatiquement quand la majorité des lignes sont illisibles : c'est souvent un signe qu'un délimiteur ou un caractère de décimale ne conviennent pas.",
   "noyau.tuto-import-note-15":

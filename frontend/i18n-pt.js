@@ -3526,5 +3526,19 @@ Object.assign(TRADUCTIONS.pt, {
     "Um extrato separado por vírgulas",
   "Cet export sépare ses colonnes par des virgules, et sa ligne de titre empêche l'app de le deviner : chaque ligne est lue d'un seul bloc. Choisis « , » comme délimiteur, puis relis le fichier.":
     "Esta exportação separa as colunas por vírgulas, e a linha de título impede o app de adivinhar: cada linha é lida como um único bloco. Escolha « , » como delimitador e depois releia o arquivo.",
+  "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant dans le /bold(dossier de l'application) : mettre l'app à jour /bold(ÉCRASERAIT) ta base, et tu perdrais tes données. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.":
+    "Suas contas e suas transações vivem em um único arquivo. Por enquanto, ele está na /bold(pasta do aplicativo): atualizar o app /bold(SOBRESCREVERIA) seu banco de dados, e você perderia seus dados. Escolha outro lugar para ele: isso será feito uma vez por todas.",
+  "Actuellement : {chemin}. Ce fichier sera DÉPLACÉ vers l'emplacement ci-dessus (rien n'est perdu, rien n'est copié en double).":
+    "Atualmente: {chemin}. Este arquivo será MOVIDO para o local acima (nada se perde, nada é copiado em dobro).",
+  "Cet emplacement est encore dans le dossier de l'application ({dossier}) : une mise à jour écraserait toujours ta base. Choisis un dossier en dehors.":
+    "Este local ainda está dentro da pasta do aplicativo ({dossier}): uma atualização ainda sobrescreveria seu banco de dados. Escolha uma pasta fora dela.",
+  "Tes données ont été déplacées : elles ne sont plus dans le dossier de l'application, une mise à jour ne les touchera plus.":
+    "Seus dados foram movidos: eles não estão mais na pasta do aplicativo, e uma atualização não vai mais mexer neles.",
+  "Nouvelle base créée à l'emplacement choisi.":
+    "Novo banco de dados criado no local escolhido.",
+  "Base existante ouverte à l'emplacement choisi.":
+    "Banco de dados existente aberto no local escolhido.",
+  "Emplacement de la base mis à jour.":
+    "Local do banco de dados atualizado.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

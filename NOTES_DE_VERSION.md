@@ -1,22 +1,22 @@
-# Virements internes mieux reconnus, moyenne de l'année, et la langue qui reste
+# Deux tutoriels guidés, et la vue d'ensemble des placements
 
 ## Nouveautés
 
-- **Les virements internes déjà connus sont reconnus à l'import.** Quand le relevé de l'autre compte arrive, l'app te demande « Même virement ? » : oui, la ligne n'est pas importée, non, elle l'est. À activer avec l'extension « Imports Avancés ».
-- **L'aperçu d'import se replie en sections.** Les doublons sont séparés (opérations classiques, virements internes), et les lignes refusées par la banque sont retenues pour les imports suivants.
-- **Le dépliant des semaines du dashboard a sa « Moyenne de l'année »** : ce qu'une semaine ordinaire coûte, par catégorie, sur toute l'année, à côté de la moyenne du mois.
-- **Les règles comparent le montant reçu et le montant envoyé**, avec des formules et une aide à l'écriture. Une ligne découpée par une règle se corrige directement dans l'aperçu.
-- **Chaque projet a sa cascade** : les entrées, puis chaque catégorie de dépense, puis ce qu'il reste.
+- **Deux tutoriels guidés**, dans Paramètres → Paramètres généraux : « Prendre l'application en main » et « Importer un relevé ». Ils se suivent sur des données d'exemple, jamais sur les tiennes.
+- **La vue d'ensemble des placements** montre où va ton argent : par classe d'actif, par zone, par secteur, et titre par titre, y compris à travers tes ETF.
+- **Le solde initial d'un compte se calcule à partir de son solde actuel** : plus besoin de remonter à la date d'ouverture.
+- **Le titre de chaque page reste affiché** quand tu fais défiler.
 
 ## Corrections
 
-- La langue choisie se retient d'un lancement à l'autre.
-- Une opération découpée apparaît dans un filtre par catégorie dès qu'une de ses parts correspond.
+- Le glisser-déposer des comptes et des catégories fonctionne à nouveau.
+- « D'où vient l'écart ? » n'affiche plus une avance déjà remboursée dans la période.
 
 ## À savoir avant de mettre à jour
 
 - La base se met à jour toute seule au premier lancement, après une copie de sécurité.
-- Pour la détection des virements, active l'extension dans Paramètres → Extensions.
+- Si ta base est encore dans le dossier de l'application, l'app te demande de la déplacer : fais-le, sinon une mise à jour l'écraserait.
+- La « Moyenne par semaine » est maintenant sur la page Budget.
 
 ---
 

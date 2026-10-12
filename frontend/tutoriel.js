@@ -276,6 +276,15 @@ const CONFIG_RELEVE_DESORDONNEE = {
   lignesEntete: 2,
 };
 
+/* L'ÉTAPE 5 VA PLUS LOIN : la date lit la colonne 2 (la référence), et TOUTES les lignes passent
+ * en « date illisible ». C'est voulu — on voit du premier coup d'œil qu'il faut changer quelque
+ * chose — mais l'alerte du délimiteur, qui se déclenche sur ce signe-là, est rangée
+ * (`sansAlerteLecture`) : le délimiteur n'y est pour rien. */
+const CONFIG_RELEVE_DATE_DECALEE = {
+  colonnes: [["date", 2], ["nature", 7], ["montant", 6], ["categorie_banque", 3]],
+  lignesEntete: 2,
+};
+
 /** La configuration qu'une étape du parcours d'import pose dans le preset. */
 function configEtapeImport(etape) {
   if (etape.exemple) {
@@ -419,8 +428,15 @@ async function appliquerEtapeImport(etape, index) {
   // délimiteurs montre en échec, et elle seule qui doit l'être.
   reinitialiserReglagesLecture();
   lireReglagesLecture();
+  const configurationOuverte = document.getElementById("import-config-fichier").open;
   await enregistrerConfigurationImport({ relireToujours: true, message: null });
   if (correspondances) rendreCorrespondancesImport(correspondances);
+  if (etape.sansAlerteLecture) {
+    // Ce que la relecture a déplié pour l'alerte du délimiteur est replié comme avant.
+    document.getElementById("import-reglages-lecture-alerte").style.display = "none";
+    document.getElementById("import-reglages-lecture").open = false;
+    document.getElementById("import-config-fichier").open = configurationOuverte;
+  }
   return { charge: !!fichier };
 }
 
@@ -677,7 +693,8 @@ const TUTORIEL_IMPORT = [
     texte: T_IMPORT("5"),
     fichierTest: true,
     // Les champs en face des mauvaises colonnes : c'est ce que l'étape apprend à corriger.
-    config: CONFIG_RELEVE_DESORDONNEE,
+    config: CONFIG_RELEVE_DATE_DECALEE,
+    sansAlerteLecture: true,
     siMasque:
       "Ce tableau apparaît dès qu'un fichier est déposé : reviens à cette étape à ce moment-là.",
   },
