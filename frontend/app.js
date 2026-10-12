@@ -15926,13 +15926,17 @@ document.getElementById("btn-import-supprimer-selection").addEventListener("clic
 function setBulleBlocageImport(raisons) {
   const bulle = document.getElementById("import-confirmer-bulle");
   const btn = document.getElementById("btn-import-confirmer");
-  const texte = raisons.filter(Boolean).join("\n\n");
+  // Une intro, puis une puce par raison (cf. textes.js, « /- ») : la bulle se lit d'un coup d'œil.
+  const retenues = raisons.filter(Boolean);
+  const intro = t(texteAide("noyau.import-blocage-intro"));
+  const texte = retenues.length ? intro + retenues.map((raison) => ` /- ${raison}`).join("") : "";
   if (texte) {
     bulle.dataset.info = texte;
   } else {
     delete bulle.dataset.info;
   }
-  btn.title = texte;
+  // Le `title` en lignes simples, sans les marqueurs de puce : il est lu tel quel.
+  btn.title = retenues.length ? [intro, ...retenues].join("\n") : "";
 }
 
 // Combien de lignes tombent sous le coup d'un contrôle, pour que le message dise
@@ -15955,7 +15959,7 @@ function updateBtnImportConfirmerEtat() {
   const btn = document.getElementById("btn-import-confirmer");
   if (!importApercu) {
     btn.disabled = true;
-    setBulleBlocageImport(["Aucun fichier analysé : sélectionne un relevé au-dessus."]);
+    setBulleBlocageImport([t(texteAide("noyau.import-blocage-aucun-fichier"))]);
     return;
   }
   // Les lignes refusées par la banque sont exclues des contrôles au même titre
@@ -15969,7 +15973,7 @@ function updateBtnImportConfirmerEtat() {
   );
   if (importApercu.lignes.length === 0) {
     btn.disabled = true;
-    setBulleBlocageImport(["Aucune ligne à importer : l'aperçu est vide."]);
+    setBulleBlocageImport([t(texteAide("noyau.import-blocage-apercu-vide"))]);
     return;
   }
   // !l.nom_banque_categorie : une ligne sans catégorie bancaire n'a rien à
@@ -16032,36 +16036,13 @@ function updateBtnImportConfirmerEtat() {
     (l) => !l.erreur && devisesAMapper(l).length > 0
   );
   setBulleBlocageImport([
-    categoriesOk
-      ? ""
-      : `${nbCategories} ligne(s) portent une catégorie bancaire encore proposée par défaut : ` +
-        "confirme-la (ou change-la) dans « Catégories bancaires à confirmer », plus haut.",
-    comptesOk
-      ? ""
-      : `${nbComptes} ligne(s) n'ont pas de compte : renseigne-le dans « Comptes bancaires à ` +
-        "faire correspondre », ou choisis un compte par défaut au-dessus de l'aperçu.",
-    monnaiesOk
-      ? ""
-      : `${nbMonnaies} ligne(s) portent une devise que l'app ne connaît pas encore : rattache-la ` +
-        "dans « Devises à faire correspondre ». Sans ça, la ligne serait libellée dans la " +
-        "monnaie principale de son compte, c'est-à-dire dans la mauvaise.",
-    lignesFraisIncoherents.length === 0
-      ? ""
-      : `${lignesFraisIncoherents.length} ligne(s) portent des frais dans une monnaie qui n'est ` +
-        "ni celle du montant reçu ni celle du montant envoyé. Retire la colonne « Frais » de la " +
-        "configuration avancée, ou corrige la colonne de devise qui la qualifie.",
-    jambesAChoisir.length === 0
-      ? ""
-      : `${jambesAChoisir.length} ligne(s) ressemblent à un virement déjà connu : réponds ` +
-        "« Oui » (même virement, non importé) ou « Non » dans « Virements déjà connus ».",
-    virementsIncomplets.length === 0
-      ? ""
-      : `${virementsIncomplets.length} virement(s) interne(s) n'ont qu'un seul compte : ouvre ` +
-        "« Modifier » et renseigne le compte en face, ou reclasse la ligne dans un autre type.",
-    rienDeSelectionne
-      ? ""
-      : `${importLignesSelectionnees.size} ligne(s) sont encore sélectionnées : supprime-les ou ` +
-        "décoche-les pour pouvoir importer.",
+    categoriesOk ? "" : t(texteAide("noyau.import-blocage-categories"), { n: nbCategories }),
+    comptesOk ? "" : t(texteAide("noyau.import-blocage-comptes"), { n: nbComptes }),
+    monnaiesOk ? "" : t(texteAide("noyau.import-blocage-devises"), { n: nbMonnaies }),
+    lignesFraisIncoherents.length === 0 ? "" : t(texteAide("noyau.import-blocage-frais"), { n: lignesFraisIncoherents.length }),
+    jambesAChoisir.length === 0 ? "" : t(texteAide("noyau.import-blocage-jambes"), { n: jambesAChoisir.length }),
+    virementsIncomplets.length === 0 ? "" : t(texteAide("noyau.import-blocage-virements"), { n: virementsIncomplets.length }),
+    rienDeSelectionne ? "" : t(texteAide("noyau.import-blocage-selection"), { n: importLignesSelectionnees.size }),
   ]);
 }
 

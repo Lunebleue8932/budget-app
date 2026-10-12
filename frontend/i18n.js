@@ -4320,5 +4320,25 @@ Object.assign(TRADUCTIONS.en, {
     "Existing database opened at the chosen location.",
   "Emplacement de la base mis à jour.":
     "Database location updated.",
+  "L'import est bloqué :":
+    "The import is blocked:",
+  "Aucun fichier lu : dépose ton relevé au-dessus.":
+    "No file read: drop your statement above.",
+  "L'aperçu est vide : il n'y a aucune ligne à importer.":
+    "The preview is empty: there is no row to import.",
+  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».":
+    "{n} row(s) with a category to confirm: tick Confirm in “Bank categories to confirm”.",
+  "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».":
+    "{n} row(s) without an account: choose it in “Bank accounts to map”.",
+  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».":
+    "{n} row(s) with an unknown currency: link it in “Currencies to map”.",
+  "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.":
+    "{n} row(s) with fees in a currency other than the amounts: check the Fees column of the preset.",
+  "{n} ligne(s) ressemblent à un virement déjà connu : réponds Oui ou Non dans « Virements déjà connus ».":
+    "{n} row(s) look like an already known transfer: answer Yes or No in “Transfers already known”.",
+  "{n} virement(s) interne(s) sans compte en face : renseigne-le avec Modifier.":
+    "{n} internal transfer(s) without the account on the other side: fill it in with Edit.",
+  "{n} ligne(s) encore sélectionnée(s) : supprime-les ou décoche-les.":
+    "{n} row(s) still selected: delete or untick them.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

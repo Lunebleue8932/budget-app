@@ -55,6 +55,29 @@ const TEXTES = {
   "noyau.camembert-vue-budget":
     "La répartition de tes dépenses rapportées à ton budget de la période.",
 
+  /* ----- Pourquoi « Confirmer l'import » est bloqué (bulle au survol du bouton) -----
+     `{n}` : le nombre de lignes concernées. Les raisons s'affichent en puces sous l'intro. */
+  "noyau.import-blocage-intro":
+    "L'import est bloqué :",
+  "noyau.import-blocage-aucun-fichier":
+    "Aucun fichier lu : dépose ton relevé au-dessus.",
+  "noyau.import-blocage-apercu-vide":
+    "L'aperçu est vide : il n'y a aucune ligne à importer.",
+  "noyau.import-blocage-categories":
+    "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».",
+  "noyau.import-blocage-comptes":
+    "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».",
+  "noyau.import-blocage-devises":
+    "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».",
+  "noyau.import-blocage-frais":
+    "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.",
+  "noyau.import-blocage-jambes":
+    "{n} ligne(s) ressemblent à un virement déjà connu : réponds Oui ou Non dans « Virements déjà connus ».",
+  "noyau.import-blocage-virements":
+    "{n} virement(s) interne(s) sans compte en face : renseigne-le avec Modifier.",
+  "noyau.import-blocage-selection":
+    "{n} ligne(s) encore sélectionnée(s) : supprime-les ou décoche-les.",
+
   /* ----- L'écran de premier démarrage (#modale-bdd) ----- */
   "noyau.modale-bdd-emplacement":
     "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant dans le /bold(dossier de l'application) : mettre l'app à jour /bold(ÉCRASERAIT) ta base, et tu perdrais tes données. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.",

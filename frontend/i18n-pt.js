@@ -3540,5 +3540,25 @@ Object.assign(TRADUCTIONS.pt, {
     "Banco de dados existente aberto no local escolhido.",
   "Emplacement de la base mis à jour.":
     "Local do banco de dados atualizado.",
+  "L'import est bloqué :":
+    "A importação está bloqueada:",
+  "Aucun fichier lu : dépose ton relevé au-dessus.":
+    "Nenhum arquivo lido: solte seu extrato acima.",
+  "L'aperçu est vide : il n'y a aucune ligne à importer.":
+    "A pré-visualização está vazia: não há nenhuma linha para importar.",
+  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».":
+    "{n} linha(s) com uma categoria a confirmar: marque Confirmar em « Categorias bancárias a confirmar ».",
+  "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».":
+    "{n} linha(s) sem conta: escolha-a em « Contas bancárias a associar ».",
+  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».":
+    "{n} linha(s) com uma moeda desconhecida: associe-a em « Moedas a associar ».",
+  "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.":
+    "{n} linha(s) com tarifas em uma moeda diferente da dos valores: verifique a coluna Tarifas do preset.",
+  "{n} ligne(s) ressemblent à un virement déjà connu : réponds Oui ou Non dans « Virements déjà connus ».":
+    "{n} linha(s) parecem uma transferência já conhecida: responda Sim ou Não em « Transferências já conhecidas ».",
+  "{n} virement(s) interne(s) sans compte en face : renseigne-le avec Modifier.":
+    "{n} transferência(s) interna(s) sem a conta do outro lado: preencha-a em Modificar.",
+  "{n} ligne(s) encore sélectionnée(s) : supprime-les ou décoche-les.":
+    "{n} linha(s) ainda selecionada(s): exclua-as ou desmarque-as.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

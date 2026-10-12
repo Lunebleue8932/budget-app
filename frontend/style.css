@@ -4780,6 +4780,13 @@ mark.recherche-marque-courante {
   display: inline-flex;
 }
 
+/* LE BOUTON DÉSACTIVÉ LAISSE PASSER LE POINTEUR. La boîte épouse le bouton au pixel près : sans
+   ceci, le survol tombait sur le bouton, qui ne le transmet à personne, et la bulle ne s'ouvrait
+   jamais. */
+.bulle-blocage > button:disabled {
+  pointer-events: none;
+}
+
 /* ---------- Regroupement par jour (page Opérations) ---------- */
 
 /* Un seul tableau par sous-section : l'en-tête de colonnes n'apparaît qu'en
