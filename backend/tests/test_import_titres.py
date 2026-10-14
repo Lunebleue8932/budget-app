@@ -290,6 +290,26 @@ def test_une_repartition_incomplete_reste_incomplete_et_l_apercu_le_dit(db_sessi
     assert sum(e.poids_pct for e in titre.repartition("zone")) == pytest.approx(80.0)
 
 
+def test_un_libelle_sans_poids_dans_une_repartition_est_ignore_et_signale(db_session, preset):
+    contenu = _fichier((ISIN_ETF, "ETF", None, None, None, "États-Unis 70 ; Europe"))
+    (ligne,) = _apercu(db_session, preset, contenu).lignes
+    assert ligne.statut == "cree" and not ligne.erreurs
+    assert any("Europe" in a and "ignoré" in a for a in ligne.avertissements)
+    _confirmer(db_session, preset, contenu)
+    titre = crud.get_titre_by_isin(db_session, ISIN_ETF)
+    assert [(e.etiquette.nom, e.poids_pct) for e in titre.repartition("zone")] == [("États-Unis", 70.0)]
+
+
+def test_une_repartition_sans_aucun_poids_lisible_ne_vide_pas_l_axe(db_session, preset):
+    _confirmer(db_session, preset, _fichier((ISIN_ETF, "ETF", None, None, None, "États-Unis 60 ; Europe 40")))
+    contenu = _fichier((ISIN_ETF, None, None, None, None, "États-Unis ; Europe"))
+    (ligne,) = _apercu(db_session, preset, contenu).lignes
+    assert ligne.statut == "inchange" and not ligne.erreurs
+    _confirmer(db_session, preset, contenu)
+    titre = crud.get_titre_by_isin(db_session, ISIN_ETF)
+    assert sum(e.poids_pct for e in titre.repartition("zone")) == pytest.approx(100.0)
+
+
 def test_des_poids_inferieurs_a_un_font_penser_a_des_fractions(db_session, preset):
     apercu = _apercu(db_session, preset, _fichier((ISIN_ETF, "ETF", None, None, None, "États-Unis 0,65 ; Europe 0,15")))
     assert any("fractions" in a for a in apercu.lignes[0].avertissements)
@@ -306,7 +326,6 @@ def test_des_poids_inferieurs_a_un_font_penser_a_des_fractions(db_session, prese
         ((ISIN_ETF, "X", "Franc imaginaire"), "monnaie"),
         ((ISIN_ETF, "X", None, None, None, "États-Unis 120"), "entre 0"),
         ((ISIN_ETF, "X", None, None, None, "États-Unis 70 ; Europe 60"), "dépasse 100"),
-        ((ISIN_ETF, "X", None, None, None, "États-Unis 70 ; Europe"), "poids manquant"),
         ((ISIN_ETF, "X", None, None, None, None, None, None, "PASUNISIN 10"), "ISIN valide"),
         ((ISIN_ETF, "X", None, None, None, None, None, None, f"{ISIN_MSFT} 60 ; {ISIN_APPLE} 50"), "dépasse 100"),
     ],

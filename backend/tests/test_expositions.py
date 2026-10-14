@@ -435,6 +435,15 @@ def test_un_libelle_sans_poids_au_milieu_d_une_liste_est_une_erreur():
         exposition.parser_repartition("États-Unis 65; Europe")
 
 
+def test_la_lecture_souple_d_une_repartition_ignore_un_libelle_sans_poids():
+    assert exposition.lire_repartition("États-Unis 65; Europe") == (
+        [("États-Unis", 65.0)],
+        ["poids manquant pour « Europe » : ignoré"],
+    )
+    assert exposition.lire_repartition("Finance") == ([("Finance", 100.0)], [])
+    assert exposition.lire_repartition("A ; B") [0] == []
+
+
 def test_une_cellule_de_composition_se_lit():
     assert exposition.parser_composition(f"{ISIN_MSFT} 15; {ISIN_GOOG}: 12,5 %") == {
         ISIN_MSFT: 15.0,

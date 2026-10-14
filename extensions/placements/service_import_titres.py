@@ -287,13 +287,19 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
         if _vide(cellule) or erreurs:
             continue
         try:
-            lignes = exposition.parser_repartition(_texte(cellule))
+            # Un libellé sans poids n'est pas une raison de refuser la ligne (cf. lire_repartition).
+            lignes, ignores = exposition.lire_repartition(_texte(cellule))
+            avertissements += ignores
             if en_direct:
                 lignes = exposition.verrouiller_action_en_direct(lignes)
             # Les étiquettes se jugent à leur clé : « états-unis » et « États-Unis » sont la même.
             exposition.valider_repartition([(_cle(nom_e), poids) for nom_e, poids in lignes])
         except exposition.ErreurExposition as erreur:
             erreurs.append(f"{NOMS_CHAMPS[propriete].lower()} : {erreur}")
+            continue
+        if not lignes:
+            # Aucun poids lisible : rien à poser, et surtout pas une répartition vide, qui
+            # viderait l'axe du titre (une cellule qui ne dit rien ne change rien).
             continue
         resolues = []
         for nom_e, poids in lignes:

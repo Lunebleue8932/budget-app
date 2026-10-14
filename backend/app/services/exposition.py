@@ -94,6 +94,28 @@ def parser_repartition(texte: object) -> list[tuple[str, float]]:
     return morceaux
 
 
+def lire_repartition(texte: object) -> tuple[list[tuple[str, float]], list[str]]:
+    """Une cellule d'exposition -> `([(libellé, poids)], avertissements)`, SANS refuser pour un poids absent.
+
+    La lecture de l'IMPORT DE TITRES, sœur de `lire_composition` : dans une liste de plusieurs
+    libellés, celui qui n'a pas de poids (« États-Unis 70 ; Europe ») est IGNORÉ et signalé, les
+    autres sont gardés — le manque reste « non renseigné » dans les graphes. Un libellé seul vaut
+    toujours 100 %. Si aucun libellé n'a de poids, la liste rendue est VIDE : rien n'est lisible,
+    et l'appelant ne doit surtout pas la poser (elle viderait l'axe). `parser_repartition`,
+    stricte, sert la saisie à la main."""
+    morceaux = []
+    for element in _elements(texte):
+        m = _ELEMENT.match(element)
+        if m and m.group("nom").strip():
+            morceaux.append((m.group("nom").strip(" :="), parser_poids(m.group("poids"))))
+        else:
+            morceaux.append((element.strip(" :="), None))
+    if len(morceaux) == 1 and morceaux[0][1] is None:
+        return [(morceaux[0][0], 100.0)], []
+    avertissements = [f"poids manquant pour « {nom} » : ignoré" for nom, poids in morceaux if poids is None]
+    return [(nom, poids) for nom, poids in morceaux if poids is not None], avertissements
+
+
 def parser_composition(texte: object) -> dict[str, float]:
     """Une cellule de composition -> `{ISIN: poids}`.
 
