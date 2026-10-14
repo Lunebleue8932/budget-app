@@ -70,6 +70,43 @@
   margin: 0 0 0.75rem;
 }
 
+/* « Action par action » en CARRÉS (treemap) : un cadre de proportion fixe, dans lequel
+   chaque tuile est posée en pourcentages (cf. ioRenderCarres). Le filet clair entre les
+   tuiles les sépare sans toucher à leur aire ; le texte est coupé plutôt que débordant. */
+.io-carres {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-width: 56rem;
+}
+
+.io-carre {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--bg-surface, #fff);
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.io-carre-nom {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.io-carre-part {
+  opacity: 0.9;
+}
+
 /* Un léger éclaircissement au survol, en plus de l'infobulle : elle dit ce
    qu'on regarde, celui-ci dit OÙ on regarde — une bulle qui suit le curseur ne
    désigne pas la part à elle seule. `.survolee` vient du survol de la ligne de

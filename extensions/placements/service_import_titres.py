@@ -66,7 +66,7 @@ NOMS_CHAMPS = {
     "composition": "Composition",
     "couverture_pct": "Couverture",
     "code_isin": "ISIN",
-    "cours": "Cours",
+    "lien_valeur": "Lien de la valeur",
 }
 
 # La feuille que l'import lit dans un classeur : celle du modèle. Par son NOM, et non la
@@ -76,10 +76,29 @@ FEUILLE_TITRES = "Titres"
 
 EXTENSION_COURS = "lecture-de-cours"
 
+# Les codes ISO de monnaie qu'un fichier écrit volontiers (« EUR », « USD »), et ce par quoi
+# l'application les connaît : le symbole ou le nom d'une monnaie qu'elle porte (« € », « Euro »).
+# Une monnaie nommée « EUR » dans l'application est reconnue d'elle-même, sans passer par ici.
+CODES_MONNAIE = {
+    "EUR": ("€", "euro"),
+    "USD": ("$", "dollar", "dollar americain"),
+    "GBP": ("£", "livre", "livre sterling"),
+    "JPY": ("¥", "yen"),
+    "CHF": ("chf", "franc suisse"),
+    "CAD": ("dollar canadien",),
+    "AUD": ("dollar australien",),
+    "CNY": ("yuan",),
+    "HKD": ("dollar de hong kong",),
+    "SEK": ("couronne suedoise",),
+    "NOK": ("couronne norvegienne",),
+    "DKK": ("couronne danoise",),
+}
 
-def cours_disponible() -> bool:
-    """La colonne « Cours » n'existe que pour qui a « Lecture de cours » : sans elle, le
-    modèle ne la porte pas et l'import ne la lit pas."""
+
+def lien_disponible() -> bool:
+    """La colonne « Lien de la valeur » n'existe que pour qui a « Lecture de cours » : c'est
+    cette extension qui relit le cours sur le lien. Sans elle, l'import ne propose pas la
+    colonne et ne la lit pas."""
     return extensions.est_active(EXTENSION_COURS)
 
 
@@ -112,13 +131,12 @@ def lire(contenu: bytes, preset, delimiteur: Optional[str]) -> list[dict]:
     )
 
 
-def _lire_cours(valeur) -> Optional[float]:
-    """Un cours en nombre, ou None s'il est illisible. Tolère le symbole ou le code de la
-    monnaie qu'un tableur ou un copier-coller ajoute volontiers (« 104,52 € », « USD 104.52 »)."""
-    if isinstance(valeur, (int, float)) and not isinstance(valeur, bool):
-        return float(valeur)
-    texte = re.sub(r"[^\d,.\-]", "", str(valeur))
-    return import_bancaire.parser_montant(texte) if texte else None
+def _lire_lien(valeur) -> Optional[str]:
+    """L'adresse de la page de cotation du titre (Google Finance, Yahoo Finance…), ou None
+    si la cellule n'est pas un lien web. Ce n'est PAS un cours : la colonne désigne la page
+    d'où l'extension « Lecture de cours » relira le cours, jamais le chiffre lui-même."""
+    texte = str(valeur).strip()
+    return texte if re.match(r"https?://\S+$", texte, re.IGNORECASE) else None
 
 
 # ---------- Ce que la base connaît ----------
@@ -143,12 +161,16 @@ class _Contexte:
             for axe in AxeTitre
         }
         self.monnaies = crud.get_monnaies(db)
-        self.cours_lu = cours_disponible()
+        self.lien_lu = lien_disponible()
         self.par_monnaie = {}
         for monnaie in self.monnaies:
             self.par_monnaie[_cle(monnaie.nom)] = monnaie
             if monnaie.symbole:
                 self.par_monnaie.setdefault(_cle(monnaie.symbole), monnaie)
+        for code, noms in CODES_MONNAIE.items():
+            connue = next((self.par_monnaie[_cle(n)] for n in noms if _cle(n) in self.par_monnaie), None)
+            if connue is not None:
+                self.par_monnaie.setdefault(_cle(code), connue)
 
     def etiquette(self, axe: str, nom: str):
         return self.etiquettes[axe].get(_cle(nom))
@@ -234,9 +256,11 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
         elif not existe:
             plan["monnaie_id"] = monnaie.id
     if not existe and "monnaie_id" not in plan and ctx.monnaies and not erreurs:
-        # La monnaie principale de l'application : celle que le fichier ne dit pas.
+        # La monnaie principale de l'application : celle que le fichier ne dit pas. Le titre
+        # en a besoin d'une (colonne obligatoire), mais l'avertissement n'est pas posé ici :
+        # il ne vaut que pour un titre qu'on peut détenir (cf. `_resoudre`).
         plan["monnaie_id"] = ctx.monnaies[0].id
-        avertissements.append(f"monnaie absente : « {ctx.monnaies[0].nom} » par défaut")
+        plan["monnaie_par_defaut"] = ctx.monnaies[0].nom
 
     # ---- L'enveloppe ----
     enveloppe = brute.get("enveloppe_brut")
@@ -334,23 +358,20 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
                         "apres": f"{len(composition)} ISIN, {sum(composition.values()):g} %",
                     }
                 )
-    # ---- Le cours (extension « Lecture de cours » seulement) ----
-    cours_cellule = brute.get("cours_brut")
-    if ctx.cours_lu and not _vide(cours_cellule) and not erreurs:
-        cours = _lire_cours(cours_cellule)
-        if cours is None or cours <= 0:
-            erreurs.append(f"cours « {_texte(cours_cellule)} » illisible : un nombre positif est attendu")
+    # ---- Le lien de la valeur (extension « Lecture de cours » seulement) ----
+    # La page d'où l'extension relira le cours (Google Finance…), jamais le cours lui-même.
+    lien_cellule = brute.get("lien_valeur_brut")
+    if ctx.lien_lu and not _vide(lien_cellule) and not erreurs:
+        lien = _lire_lien(lien_cellule)
+        if lien is None:
+            erreurs.append(
+                f"lien « {_texte(lien_cellule)} » illisible : une adresse commençant par http:// ou https:// est attendue"
+            )
         else:
-            plan["cours"] = cours
-            avant_v = titre.valeur if existe else None
-            if avant_v is None or round(avant_v, 6) != round(cours, 6):
-                changements.append(
-                    {
-                        "champ": "cours",
-                        "avant": f"{avant_v:g}" if avant_v else None,
-                        "apres": f"{cours:g}",
-                    }
-                )
+            plan["lien"] = lien
+            avant_l = titre.url_cours if existe else None
+            if avant_l != lien:
+                changements.append({"champ": "lien_valeur", "avant": avant_l, "apres": lien})
 
     if couverture is not None and not erreurs:
         plan["couverture"] = couverture
@@ -391,6 +412,21 @@ def _resoudre(db, preset, contenu: bytes, delimiteur: Optional[str]) -> tuple[li
     ctx = _Contexte(db)
     deja_vus: dict[str, int] = {}
     lignes = [_resoudre_ligne(ctx, brute, deja_vus) for brute in lire(contenu, preset, delimiteur)]
+
+    # LA MONNAIE PAR DÉFAUT NE SE SIGNALE PAS pour un titre qui n'est là que parce qu'un ETF le
+    # contient (le fichier le dit en laissant « Monnaie » vide) : on ne le détient pas, aucune
+    # opération ne dépend de sa cotation, et l'avertir sur chacun de ces dizaines de titres noie
+    # le seul qui compte — un titre qu'on pourrait acheter, dont la monnaie manque.
+    composants = {isin for titre in ctx.titres for isin in (titre.composition or {})} | {
+        isin
+        for l in lignes
+        if l["statut"] != "erreur"
+        for isin in (l["plan"].get("composition") or {})
+    }
+    for l in lignes:
+        defaut = l["plan"].get("monnaie_par_defaut")
+        if defaut and l["code_isin"] not in composants:
+            l["avertissements"].append(f"monnaie absente : « {defaut} » par défaut")
 
     # Les ISIN d'une composition que ni le fichier ni la base ne décrivent : l'ETF sera éclaté
     # sur des lignes dont on ne saura rien — à signaler, pas à refuser.
@@ -505,7 +541,7 @@ def confirmer(
 
         if plan["titre_id"] is None:
             titre = crud.create_titre(
-                db, plan["nom"], plan["monnaie_id"], plan.get("cours", 0.0), plan["isin"], enveloppe_id
+                db, plan["nom"], plan["monnaie_id"], 0.0, plan["isin"], enveloppe_id
             )
             ctx.par_isin[plan["isin"]] = titre
             ctx.index.ajouter(titre)
@@ -518,11 +554,13 @@ def confirmer(
                 code_isin=plan.get("isin_a_completer"),
                 monnaie_id=plan.get("monnaie_id"),
                 type_titre_id=enveloppe_id,
-                # Comme une saisie à la main : `cours_maj_le` date une lecture EN LIGNE,
-                # que ce fichier n'est pas.
-                valeur=plan.get("cours"),
             )
             resultat.mis_a_jour += 1
+
+        if "lien" in plan:
+            # Le cours lui-même n'est pas lu ici (aucun réseau dans l'import) : l'extension
+            # « Lecture de cours » le relira sur ce lien.
+            crud.definir_url_cours(db, titre, plan["lien"])
 
         for axe, lignes_repartition in plan["repartitions"].items():
             poids = [

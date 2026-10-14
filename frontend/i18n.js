@@ -1690,6 +1690,8 @@ const TRADUCTIONS = {
       "&larr; Back to investments",
     "Répartition par type de titre":
       "Breakdown by security type",
+    "Exposition par action":
+      "Exposure by stock",
     "Valeur du portefeuille":
       "Portfolio value",
     "Sans type":
@@ -3851,6 +3853,7 @@ const TRADUCTIONS = {
     "colonne": "column",
     "Couverture de la composition (%)": "Composition coverage (%)",
     "Composition (ISIN ; poids en %)": "Composition (ISIN ; weight in %)",
+    "Lien de la valeur": "Security link",
     "Monnaie": "Currency",
     "Modèle de l'application": "Application template",
     "Nom du nouveau format": "Name of the new format",

@@ -44,7 +44,7 @@ ISIN_APPLE = "US0378331005"
 
 ENTETE = [
     "ISIN", "Nom", "Monnaie", "Enveloppe", "Classe d'actif", "Zone géographique",
-    "Secteur", "Couverture", "Composition", "Cours",
+    "Secteur", "Couverture", "Composition", "Lien de la valeur",
 ]
 
 
@@ -115,6 +115,33 @@ def test_un_titre_sans_nom_prend_son_isin_et_la_monnaie_par_defaut_avec_avertiss
 
     _confirmer(db_session, preset, _fichier((ISIN_MSFT,)))
     assert crud.get_titre_by_isin(db_session, ISIN_MSFT).nom == ISIN_MSFT
+
+
+def test_un_composant_d_etf_sans_monnaie_est_cree_sans_avertissement(db_session, preset):
+    apercu = _apercu(
+        db_session,
+        preset,
+        _fichier(
+            (ISIN_ETF, "ETF World", "Euro", None, None, None, None, 60, f"{ISIN_MSFT} 4,7"),
+            (ISIN_MSFT, "Microsoft"),
+        ),
+    )
+    lignes = _lignes(apercu)
+    assert lignes[ISIN_MSFT].statut == "cree"
+    assert not any("monnaie" in a for a in lignes[ISIN_MSFT].avertissements)
+    # La monnaie reste obligatoire en base : celle de l'application, sans bruit.
+    _confirmer(db_session, preset, _fichier(
+        (ISIN_ETF, "ETF World", "Euro", None, None, None, None, 60, f"{ISIN_MSFT} 4,7"),
+        (ISIN_MSFT, "Microsoft"),
+    ))
+    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).monnaie_id == crud.get_monnaies(db_session)[0].id
+
+
+def test_un_code_iso_de_monnaie_est_reconnu(db_session, preset):
+    (ligne,) = _apercu(db_session, preset, _fichier((ISIN_MSFT, "Microsoft", "EUR"))).lignes
+    assert ligne.statut == "cree" and not ligne.erreurs
+    _confirmer(db_session, preset, _fichier((ISIN_MSFT, "Microsoft", "EUR")))
+    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).monnaie.nom == "Euro"
 
 
 def test_les_composants_d_un_etf_entrent_dans_la_base(db_session, preset):
@@ -416,52 +443,59 @@ def test_la_feuille_titres_est_lue_meme_si_une_autre_est_active(db_session, pres
     assert crud.get_titre_by_isin(db_session, ISIN_MSFT).nom == "Microsoft"
 
 
-# ---------- Le cours (extension « Lecture de cours ») ----------
+# ---------- Le lien de la valeur (extension « Lecture de cours ») ----------
+
+LIEN = "https://www.google.com/finance/quote/IWDA:AMS"
 
 
-def _avec_cours(*valeurs):
-    """Une ligne du fichier réduite à son ISIN et à son cours (dernière colonne)."""
-    isin, cours = valeurs
-    return (isin,) + (None,) * (len(ENTETE) - 2) + (cours,)
+def _avec_lien(isin, lien):
+    """Une ligne du fichier réduite à son ISIN et à son lien (dernière colonne)."""
+    return (isin,) + (None,) * (len(ENTETE) - 2) + (lien,)
 
 
-def test_le_cours_du_fichier_remplace_celui_du_titre(db_session, preset):
+def test_le_lien_du_fichier_est_pose_sur_le_titre_sans_toucher_a_son_cours(db_session, preset):
     titre = _titre(db_session, ISIN_ETF)
 
-    apercu = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "104,52 €")))
-    (ligne,) = apercu.lignes
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_lien(ISIN_ETF, LIEN))).lignes
     assert ligne.statut == "maj"
-    assert [(c.champ, c.avant, c.apres) for c in ligne.changements] == [("cours", "100", "104.52")]
+    assert [(c.champ, c.avant, c.apres) for c in ligne.changements] == [("lien_valeur", None, LIEN)]
 
-    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52)))
+    _confirmer(db_session, preset, _fichier(_avec_lien(ISIN_ETF, LIEN)))
     db_session.refresh(titre)
-    assert titre.valeur == 104.52
-    # Ce n'est pas une lecture en ligne : rien ne la date.
-    assert titre.cours_maj_le is None
+    assert titre.url_cours == LIEN
+    # Le cours reste celui d'avant : l'import ne lit rien en ligne.
+    assert titre.valeur == 100.0 and titre.cours_maj_le is None
 
 
-def test_un_titre_cree_par_le_fichier_prend_son_cours(db_session, preset):
-    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_MSFT, 410)))
-    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).valeur == 410.0
+def test_un_titre_cree_par_le_fichier_prend_son_lien(db_session, preset):
+    _confirmer(db_session, preset, _fichier(_avec_lien(ISIN_MSFT, LIEN)))
+    assert crud.get_titre_by_isin(db_session, ISIN_MSFT).url_cours == LIEN
 
 
-def test_un_cours_illisible_met_la_ligne_en_erreur(db_session, preset):
+def test_un_lien_deja_pose_est_inchange(db_session, preset):
+    crud.definir_url_cours(db_session, _titre(db_session, ISIN_ETF), LIEN)
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_lien(ISIN_ETF, LIEN))).lignes
+    assert ligne.statut == "inchange"
+
+
+@pytest.mark.parametrize("cellule", ["n.d.", 104.52, "www.google.com/finance"])
+def test_un_lien_illisible_met_la_ligne_en_erreur(db_session, preset, cellule):
     _titre(db_session, ISIN_ETF)
-    (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, "n.d."))).lignes
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_lien(ISIN_ETF, cellule))).lignes
     assert ligne.statut == "erreur"
-    assert any("cours" in e for e in ligne.erreurs)
+    assert any("lien" in e for e in ligne.erreurs)
 
 
-def test_sans_lecture_de_cours_la_colonne_cours_est_ignoree(db_session, preset, monkeypatch):
+def test_sans_lecture_de_cours_la_colonne_lien_est_ignoree(db_session, preset, monkeypatch):
     from app import extensions
 
     monkeypatch.setattr(extensions, "est_active", lambda extension_id: extension_id != "lecture-de-cours")
     titre = _titre(db_session, ISIN_ETF)
-    (ligne,) = _apercu(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52))).lignes
+    (ligne,) = _apercu(db_session, preset, _fichier(_avec_lien(ISIN_ETF, LIEN))).lignes
     assert ligne.statut == "inchange"
-    _confirmer(db_session, preset, _fichier(_avec_cours(ISIN_ETF, 104.52)))
+    _confirmer(db_session, preset, _fichier(_avec_lien(ISIN_ETF, LIEN)))
     db_session.refresh(titre)
-    assert titre.valeur == 100.0
+    assert titre.url_cours is None
 
 
 def test_les_titres_suivis_se_rangent_en_possedes_et_non_possedes(db_session):

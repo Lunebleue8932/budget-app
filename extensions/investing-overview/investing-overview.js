@@ -357,6 +357,110 @@ function ioNomPartTitre(part) {
   return part.nom;
 }
 
+/**
+ * LES CARRÉS (treemap) : une tuile par part, dont l'AIRE est proportionnelle à la valorisation.
+ * Un disque ne se lit plus au-delà d'une dizaine de parts — les petites ne sont que des fils —,
+ * alors que des aires se comparent d'un coup d'œil, même pour une quinzaine de titres.
+ *
+ * LA DISPOSITION EST « SQUARIFIÉE » (Bruls, Huizing, van Wijk) : on remplit une rangée tant
+ * qu'ajouter une tuile rapproche les tuiles du carré, puis on en ouvre une autre dans ce qui
+ * reste. Elle se calcule dans un repère `largeur × hauteur` quelconque ; l'écran la pose en
+ * pourcentages, si bien que le cadre (`aspect-ratio`) s'étire sans recalcul.
+ *
+ * Rend, dans l'ordre des parts reçues, { x, y, l, h } — ou null pour une part de valeur nulle.
+ */
+function ioDispositionCarres(parts, largeur, hauteur) {
+  const total = parts.reduce((somme, part) => somme + Math.max(part.valorisation, 0), 0);
+  const rectangles = parts.map(() => null);
+  if (!total) return rectangles;
+  const echelle = (largeur * hauteur) / total;
+  const restantes = parts
+    .map((part, i) => ({ i, aire: Math.max(part.valorisation, 0) * echelle }))
+    .filter((p) => p.aire > 0)
+    .sort((a, b) => b.aire - a.aire);
+
+  let libre = { x: 0, y: 0, l: largeur, h: hauteur };
+  // Le pire rapport de forme d'une rangée posée sur le petit côté du libre.
+  const pire = (rangee, cote) => {
+    const somme = rangee.reduce((s, p) => s + p.aire, 0);
+    const max = rangee[0].aire;
+    const min = rangee[rangee.length - 1].aire;
+    return Math.max((cote * cote * max) / (somme * somme), (somme * somme) / (cote * cote * min));
+  };
+  const poser = (rangee) => {
+    const somme = rangee.reduce((s, p) => s + p.aire, 0);
+    if (libre.l >= libre.h) {
+      // Une colonne à gauche, ses tuiles empilées.
+      const epaisseur = somme / libre.h;
+      let y = libre.y;
+      rangee.forEach((p) => {
+        const h = p.aire / epaisseur;
+        rectangles[p.i] = { x: libre.x, y, l: epaisseur, h };
+        y += h;
+      });
+      libre = { x: libre.x + epaisseur, y: libre.y, l: libre.l - epaisseur, h: libre.h };
+    } else {
+      // Une rangée en haut, ses tuiles côte à côte.
+      const epaisseur = somme / libre.l;
+      let x = libre.x;
+      rangee.forEach((p) => {
+        const l = p.aire / epaisseur;
+        rectangles[p.i] = { x, y: libre.y, l, h: epaisseur };
+        x += l;
+      });
+      libre = { x: libre.x, y: libre.y + epaisseur, l: libre.l, h: libre.h - epaisseur };
+    }
+  };
+
+  let rangee = [];
+  restantes.forEach((p) => {
+    const cote = Math.min(libre.l, libre.h);
+    if (!rangee.length || pire([...rangee, p], cote) <= pire(rangee, cote)) {
+      rangee.push(p);
+    } else {
+      poser(rangee);
+      rangee = [p];
+    }
+  });
+  if (rangee.length) poser(rangee);
+  return rectangles;
+}
+
+// Le cadre des carrés, en unités quelconques : seul le rapport compte (cf. .io-carres).
+const IO_CARRES_LARGEUR = 16;
+const IO_CARRES_HAUTEUR = 9;
+// Sous ces tailles (en % du cadre), une tuile ne porte plus de texte : son nom est dans la
+// légende, dessous, et dans l'infobulle.
+const IO_CARRES_MIN_NOM = { l: 9, h: 8 };
+
+/** Les carrés d'un bloc, à la place du disque : mêmes champs `data-*` que les parts du disque,
+ *  donc la même infobulle et la même surbrillance (cf. ioCablerSurvol). */
+function ioRenderCarres(bloc, axe) {
+  const conteneur = document.getElementById(`io-camembert-${axe}`);
+  const rectangles = ioDispositionCarres(bloc.parts, IO_CARRES_LARGEUR, IO_CARRES_HAUTEUR);
+  const tuiles = bloc.parts
+    .map((part, i) => {
+      const r = rectangles[i];
+      if (!r) return "";
+      const pct = {
+        x: (r.x / IO_CARRES_LARGEUR) * 100,
+        y: (r.y / IO_CARRES_HAUTEUR) * 100,
+        l: (r.l / IO_CARRES_LARGEUR) * 100,
+        h: (r.h / IO_CARRES_HAUTEUR) * 100,
+      };
+      const lisible = pct.l >= IO_CARRES_MIN_NOM.l && pct.h >= IO_CARRES_MIN_NOM.h;
+      const texte = lisible
+        ? `<span class="io-carre-nom">${escapeHtml(ioNomPart(part, axe))}</span>
+           <span class="io-carre-part">${formatPourcentage(part.part * 100)}</span>`
+        : "";
+      return `<div class="io-part io-carre" data-index="${i}" data-io-cle="${ioCle(part)}"
+          style="left:${pct.x}%;top:${pct.y}%;width:${pct.l}%;height:${pct.h}%;background:${ioCouleurPart(part)}">${texte}</div>`;
+    })
+    .join("");
+  conteneur.innerHTML = `<div class="io-carres" role="img"
+      aria-label="${escapeHtml(t("Exposition par action"))}">${tuiles}</div>`;
+}
+
 /** Le détail d'une part : d'où vient sa valeur (en direct, tel ETF) ou, pour la part non
  *  déterminée, quels ETF y contribuent (valeur × part non déterminée), les trois plus lourds. */
 function ioContenuInfobulleTitre(part, monnaieId, pourcentage) {
@@ -427,7 +531,7 @@ function ioRenderTitres() {
   document.getElementById("io-titres-masquer-bloc").style.display = aNonDetermine ? "" : "none";
   document.getElementById("io-titres-masquer").checked = ioMasquerNonDetermine;
   const vue = ioBlocTitres(bloc);
-  ioRenderCamembert(vue, "titre");
+  ioRenderCarres(vue, "titre");
   ioRenderLegende(vue, "titre");
   ioCablerSurvol(vue, "titre");
 }

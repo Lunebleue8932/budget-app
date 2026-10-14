@@ -810,7 +810,9 @@ PROPRIETES_IMPORT_TITRE = (
     "secteur",
     "couverture_pct",
     "composition",
-    "cours",
+    # Le lien de la page de cotation (Google Finance…), et non le cours : EN DERNIER, comme
+    # avant elle, pour que les formats enregistrés lisent toujours les mêmes colonnes.
+    "lien_valeur",
 )
 
 PROPRIETES_IMPORT_TITRE_OBLIGATOIRES = {"code_isin"}

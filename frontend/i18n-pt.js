@@ -974,6 +974,8 @@ TRADUCTIONS.pt = {
     "&larr; Voltar aos investimentos",
   "Répartition par type de titre":
     "Distribuição por tipo de título",
+  "Exposition par action":
+    "Exposição por ação",
   "Valeur du portefeuille":
     "Valor da carteira",
   "{n} comptes":
@@ -3183,6 +3185,7 @@ TRADUCTIONS.pt["Supprimer ce format"] = "Excluir este formato";
 TRADUCTIONS.pt["colonne"] = "coluna";
 TRADUCTIONS.pt["Couverture de la composition (%)"] = "Cobertura da composição (%)";
 TRADUCTIONS.pt["Composition (ISIN ; poids en %)"] = "Composição (ISIN ; peso em %)";
+TRADUCTIONS.pt["Lien de la valeur"] = "Link do título";
 TRADUCTIONS.pt["Monnaie"] = "Moeda";
 TRADUCTIONS.pt["Modèle de l'application"] = "Modelo do aplicativo";
 TRADUCTIONS.pt["Nom du nouveau format"] = "Nome do novo formato";

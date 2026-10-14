@@ -30,10 +30,10 @@ const IMT_PROPRIETES = [
   { cle: "composition", libelle: "Composition (ISIN ; poids en %)" },
   // EN DERNIER, comme au serveur : les formats enregistrés avant elle lisent toujours les
   // mêmes colonnes. Seulement pour qui a « Lecture de cours ».
-  { cle: "cours", libelle: "Cours", extension: "lecture-de-cours" },
+  { cle: "lien_valeur", libelle: "Lien de la valeur", extension: "lecture-de-cours" },
 ];
 
-// Le nombre de colonnes du premier modèle, celui d'avant « Cours » (cf. imtCompleterFormats).
+// Le nombre de colonnes du premier modèle, celui d'avant « Lien de la valeur » (cf. imtCompleterFormats).
 const IMT_NB_COLONNES_ORIGINE = 9;
 
 const IMT = {
@@ -48,7 +48,7 @@ function imtEl(id) {
   return document.getElementById(id);
 }
 
-/** Les propriétés qu'une colonne peut porter ICI : sans « Lecture de cours », pas de « Cours ». */
+/** Les propriétés qu'une colonne peut porter ICI : sans « Lecture de cours », pas de « Lien de la valeur ». */
 function imtProprietes() {
   return IMT_PROPRIETES.filter((p) => !p.extension || BudgetApp.extensions.estActive(p.extension));
 }
@@ -120,7 +120,7 @@ async function imtChargerPresets() {
 }
 
 /**
- * LES COLONNES ARRIVÉES APRÈS COUP (« Cours »). Un format qui lit EXACTEMENT les
+ * LES COLONNES ARRIVÉES APRÈS COUP (« Lien de la valeur »). Un format qui lit EXACTEMENT les
  * premières colonnes de la liste, dans l'ordre (celui que l'écran a créé, ou sa copie, à
  * neuf colonnes au moins), apprend à lire les suivantes. Sans cela, ces colonnes ne seraient
  * lues par personne. Un format composé à la main n'est pas touché. Rend true si un format a
