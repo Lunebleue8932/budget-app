@@ -144,6 +144,27 @@ def test_un_code_iso_de_monnaie_est_reconnu(db_session, preset):
     assert crud.get_titre_by_isin(db_session, ISIN_MSFT).monnaie.nom == "Euro"
 
 
+def test_un_poids_manquant_dans_la_composition_n_empeche_pas_l_import(db_session, preset):
+    contenu = _fichier(
+        (ISIN_ETF, "ETF World", None, None, None, None, None, 60, f"{ISIN_MSFT} 4,7 ; {ISIN_APPLE} ; ZZZ n.d."),
+    )
+    (ligne,) = _apercu(db_session, preset, contenu).lignes
+    assert ligne.statut == "cree" and not ligne.erreurs
+    assert any(ISIN_APPLE in a and "ignoré" in a for a in ligne.avertissements)
+
+    _confirmer(db_session, preset, contenu)
+    # L'élément sans poids est écarté, le reste est pris : les graphes montrent le manque.
+    assert crud.get_titre_by_isin(db_session, ISIN_ETF).composition == {ISIN_MSFT: 4.7}
+
+
+def test_une_composition_sans_aucun_poids_est_acceptee_et_ne_pose_rien(db_session, preset):
+    _titre(db_session, ISIN_ETF)
+    contenu = _fichier((ISIN_ETF, None, None, None, None, None, None, None, f"{ISIN_MSFT} ; {ISIN_APPLE}"))
+    (ligne,) = _apercu(db_session, preset, contenu).lignes
+    assert ligne.statut == "inchange" and not ligne.erreurs
+    assert len([a for a in ligne.avertissements if "poids manquant" in a]) == 2
+
+
 def test_les_composants_d_un_etf_entrent_dans_la_base(db_session, preset):
     """Les titres qu'on ne détient pas mais qui servent aux graphes : c'est l'objet de l'import."""
     contenu = _fichier(

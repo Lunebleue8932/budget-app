@@ -112,6 +112,53 @@ def parser_composition(texte: object) -> dict[str, float]:
     return resultat
 
 
+_ISIN_EN_TETE = re.compile(r"^([A-Za-z]{2}[A-Za-z0-9]{9}[0-9])\b[\s:=]*(.*)$")
+
+
+def lire_composition(texte: object) -> tuple[dict[str, float], list[str]]:
+    """Une cellule de composition -> `({ISIN: poids}, avertissements)`, SANS refuser pour un poids absent.
+
+    C'est la lecture de l'IMPORT DE TITRES. Un fichier de composition est rarement complet — un
+    ISIN sans pourcentage, une cellule « n.d. » — et les graphes savent déjà vivre d'une
+    composition incomplète (la part non renseignée reste visible, rien n'est redistribué).
+    Refuser le fichier entier pour cela fait perdre tout le reste : l'élément sans poids
+    utilisable est donc IGNORÉ, avec un avertissement, et les autres sont gardés.
+
+    Reste une erreur ce qui ne peut pas être vrai : un ISIN deux fois (lequel croire ?). La
+    validation (forme de l'ISIN, poids au-dessus de 100, somme) reste celle de
+    `valider_composition`. `parser_composition`, plus stricte, sert la saisie à la main.
+
+    L'ISIN est reconnu EN TÊTE de l'élément (douze caractères) : la regex de `parser_composition`
+    lirait « US5949181045 » seul comme l'ISIN « US » à 5 949 181 045 %."""
+    resultat: dict[str, float] = {}
+    avertissements: list[str] = []
+    for element in _elements(texte):
+        m = _ISIN_EN_TETE.match(element)
+        if m:
+            isin, reste = m.group(1).upper(), m.group(2).strip()
+        else:
+            m = _ELEMENT.match(element)
+            if not m or not m.group("nom").strip():
+                avertissements.append(f"poids manquant pour « {element} » : ignoré")
+                continue
+            isin, reste = normaliser_isin(m.group("nom").strip(" :=")), m.group("poids")
+        if isin in resultat:
+            raise ErreurExposition(f"l'ISIN {isin} figure deux fois")
+        if not reste:
+            avertissements.append(f"poids manquant pour {isin} : ignoré")
+            continue
+        try:
+            poids = parser_poids(reste)
+        except ErreurExposition:
+            avertissements.append(f"poids illisible pour {isin} (« {reste} ») : ignoré")
+            continue
+        if poids <= 0:
+            avertissements.append(f"poids nul pour {isin} : ignoré")
+            continue
+        resultat[isin] = poids
+    return resultat, avertissements
+
+
 _ACTION_EN_DIRECT = re.compile(r"^actions?\s+en\s+direct")
 
 

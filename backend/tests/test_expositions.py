@@ -442,6 +442,18 @@ def test_une_cellule_de_composition_se_lit():
     }
 
 
+def test_la_lecture_souple_ignore_un_poids_manquant_au_lieu_de_refuser():
+    composition, avertissements = exposition.lire_composition(f"{ISIN_MSFT} 15; {ISIN_GOOG}; US0378331005 n.d.; US0378331005")
+    assert composition == {ISIN_MSFT: 15.0}
+    assert [a for a in avertissements if ISIN_GOOG in a and "manquant" in a]
+    assert [a for a in avertissements if "illisible" in a]
+
+
+def test_la_lecture_souple_garde_un_isin_en_double_comme_erreur():
+    with pytest.raises(exposition.ErreurExposition):
+        exposition.lire_composition(f"{ISIN_MSFT} 15; {ISIN_MSFT} 10")
+
+
 def test_un_isin_en_double_dans_une_composition_est_une_erreur():
     with pytest.raises(exposition.ErreurExposition):
         exposition.parser_composition(f"{ISIN_MSFT} 15; {ISIN_MSFT} 10")

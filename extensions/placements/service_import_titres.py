@@ -335,7 +335,10 @@ def _resoudre_ligne(ctx: _Contexte, brute: dict, deja_vus: dict[str, int]) -> di
     if not _vide(cellule) and not erreurs:
         composition = None
         try:
-            composition = exposition.parser_composition(_texte(cellule))
+            # Un poids manquant n'est PAS une raison de refuser la ligne (cf. lire_composition) :
+            # l'élément est ignoré et signalé, le reste de la composition est pris.
+            composition, ignores = exposition.lire_composition(_texte(cellule))
+            avertissements += ignores
             couv_effective = couverture if couverture is not None else (titre.composition_couverture_pct if existe else None)
             avertissements += exposition.valider_composition(composition, couv_effective)
         except exposition.ErreurExposition as erreur:
