@@ -3563,5 +3563,13 @@ Object.assign(TRADUCTIONS.pt, {
     "{n} transferência(s) interna(s) sem a conta do outro lado: preencha-a em Modificar.",
   "{n} ligne(s) encore sélectionnée(s) : supprime-les ou décoche-les.":
     "{n} linha(s) ainda selecionada(s): exclua-as ou desmarque-as.",
+  "Informations à renseigner":
+    "Informações a preencher",
+  "{n} virement(s) déjà connu(s) à valider":
+    "{n} transferência(s) já conhecida(s) a confirmar",
+  "{n} ressemblance(s) à examiner":
+    "{n} semelhança(s) a examinar",
+  "Voir les lignes non traitées":
+    "Ver as linhas não tratadas",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

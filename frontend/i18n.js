@@ -4343,5 +4343,13 @@ Object.assign(TRADUCTIONS.en, {
     "{n} internal transfer(s) without the account on the other side: fill it in with Edit.",
   "{n} ligne(s) encore sélectionnée(s) : supprime-les ou décoche-les.":
     "{n} row(s) still selected: delete or untick them.",
+  "Informations à renseigner":
+    "Information to provide",
+  "{n} virement(s) déjà connu(s) à valider":
+    "{n} already known transfer(s) to confirm",
+  "{n} ressemblance(s) à examiner":
+    "{n} look-alike(s) to review",
+  "Voir les lignes non traitées":
+    "Go to the unhandled rows",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

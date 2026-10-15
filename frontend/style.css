@@ -305,6 +305,51 @@ header h1 {
   outline: none;
 }
 
+/* LE POP-UP DE L'IMPORT, sous la dernière page : une carte discrète, à l'accent de
+   l'application, dont la flèche mène aux lignes qui attendent une réponse. Il ne
+   dit rien tant qu'il n'y a rien à répondre (masqué par app.js). */
+.bulle-import {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.55rem 0.55rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  font-size: 0.82rem;
+}
+
+.bulle-import-texte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.bulle-import-fleche {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bulle-import-fleche:hover,
+.bulle-import-fleche:focus-visible {
+  background: var(--accent-hover);
+  outline: none;
+}
+
 /* Deux drapeaux carrés aux coins arrondis, comme deux boutons-icônes ordinaires
    de l'app : pas de fond ni de bordure au repos, un liseré au survol, et un
    contour plus marqué + une légère mise à l'échelle pour la langue active —

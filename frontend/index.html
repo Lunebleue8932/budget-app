@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=138" />
+  <link rel="stylesheet" href="style.css?v=139" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -117,6 +117,19 @@
       <button data-section="operations">Opérations</button>
       <button data-section="parametres">Paramètres</button>
     </nav>
+
+    <!-- LE POP-UP DE L'IMPORT, sous la dernière page de la barre. Il n'apparaît que
+         quand l'aperçu d'un import porte des lignes qui attendent une réponse : les
+         jambes de virement à confirmer et les ressemblances (les doublons, eux, sont
+         ignorés d'office et ne demandent rien). La flèche mène à ces lignes. -->
+    <div class="bulle-import" id="bulle-import" style="display:none">
+      <div class="bulle-import-texte">
+        <strong>Informations à renseigner</strong>
+        <span class="hint" id="bulle-import-detail"></span>
+      </div>
+      <button type="button" class="bulle-import-fleche" id="btn-bulle-import"
+              title="Voir les lignes non traitées" aria-label="Voir les lignes non traitées">&rarr;</button>
+    </div>
 
     <!-- FAIRE UN RETOUR, TOUT EN BAS ET SÉPARÉ DU RESTE.
          `margin-top: auto` le colle au pied de la colonne : ce n'est pas une
@@ -2716,10 +2729,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
   <script src="textes.js?v=44"></script>
-  <script src="i18n.js?v=95"></script>
-  <script src="i18n-pt.js?v=13"></script>
+  <script src="i18n.js?v=96"></script>
+  <script src="i18n-pt.js?v=14"></script>
   <script src="extensions.js?v=27"></script>
-  <script src="app.js?v=176"></script>
+  <script src="app.js?v=178"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas

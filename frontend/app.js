@@ -10715,10 +10715,42 @@ const importMappingMonnaies = {};
 const importCategoriesConfirmees = new Set();
 // Numéros de ligne (ImportLigne.ligne) cochées pour une action groupée
 // (suppression groupée, cf. btn-import-supprimer-selection). Les doublons
-// détectés y sont pré-inscrits à chaque analyse : une sélection non vide
-// bloque la confirmation, ce qui force à trancher sur chaque doublon --
-// le supprimer, ou le décocher pour l'importer volontairement.
+// détectés y sont pré-inscrits à chaque analyse. UN DOUBLON COCHÉ EST IGNORÉ :
+// il ne bloque rien, ne réclame ni catégorie ni compte ni devise, et n'est pas
+// importé (cf. ligneDoublonIgnoree). Le décocher l'importe volontairement. Toute
+// AUTRE ligne cochée bloque la confirmation, comme avant : la sélection sert
+// alors à une suppression groupée qu'on n'a pas encore faite.
 const importLignesSelectionnees = new Set();
+
+// Un doublon (de colonnes, y compris de virement) encore coché : ignoré par défaut.
+function ligneDoublonIgnoree(ligne) {
+  return ligne.doublon_de != null && importLignesSelectionnees.has(ligne.ligne);
+}
+
+// Les lignes que l'import LIRA réellement : l'aperçu moins les doublons ignorés
+// (les lignes supprimées à la main ont déjà quitté l'aperçu). Tout ce qui est
+// demandé à l'utilisateur — catégories, comptes, devises — se déduit d'elles.
+function lignesLuesParImport() {
+  return importApercu ? importApercu.lignes.filter((l) => !ligneDoublonIgnoree(l)) : [];
+}
+
+// Ce que l'import demande encore de rattacher : les listes du serveur, réduites
+// aux libellés qu'une ligne lue porte encore. Un libellé qui ne venait que de
+// lignes ignorées ou supprimées disparaît des demandes — et ne bloque rien.
+function demandesDeMapping() {
+  const lues = lignesLuesParImport();
+  const garder = (noms, champs) =>
+    (noms || []).filter((nom) => lues.some((l) => champs.some((champ) => l[champ] === nom)));
+  return {
+    categories: garder(importApercu.categories_inconnues, ["nom_banque_categorie"]),
+    comptes: garder(importApercu.comptes_inconnus, ["nom_banque_compte"]),
+    monnaies: garder(importApercu.monnaies_inconnues, [
+      "nom_banque_monnaie",
+      "nom_banque_monnaie_envoyee",
+      "nom_banque_monnaie_frais",
+    ]),
+  };
+}
 // Modifications manuelles ligne par ligne (bouton "Modifier" de l'aperçu),
 // envoyées telles quelles à la confirmation : numéro de ligne -> champs
 // modifiés (date/nature/montant/categorie_id/compte_id).
@@ -11097,6 +11129,7 @@ function reinitialiserImport() {
   // Les validations de lecture désignent, elles aussi, des lignes par leur numéro.
   Object.keys(importJambesValidees).forEach((k) => delete importJambesValidees[k]);
   Object.keys(importJambesDeclarees).forEach((k) => delete importJambesDeclarees[k]);
+  importRessemblancesVues.clear();
   // Les liaisons aussi : elles désignent des lignes par leur NUMÉRO, lequel ne
   // veut plus rien dire dans le fichier suivant.
   Object.keys(importLignesLiees).forEach((k) => delete importLignesLiees[k]);
@@ -11119,6 +11152,7 @@ function reinitialiserImport() {
   // ferait passer le suivant pour « déjà comparé ».
   veilleDoublonsSignature = null;
   renderVeilleDoublonsVirements([]);
+  majBulleInformationsImport();
 }
 
 // Point de passage unique du choix de fichier (bouton et glisser-déposer) :
@@ -12494,9 +12528,10 @@ async function executerPrevisualisation() {
     // numéros de ligne du fichier PRÉCÉDENT, qui ne désignent plus rien.
     veilleDoublonsSignature = null;
     veilleDoublonsParLigne = {};
-    // Doublons pré-sélectionnés : ils bloquent la confirmation tant qu'ils
-    // sont sélectionnés, ce qui force à les traiter (les supprimer d'un clic,
-    // ou les décocher pour les importer volontairement).
+    importRessemblancesVues.clear();
+    // Doublons pré-sélectionnés, donc IGNORÉS : ils ne bloquent rien et ne
+    // comptent pas dans les demandes de correspondance (cf. ligneDoublonIgnoree).
+    // Les décocher les importe volontairement.
     importApercu.lignes
       .filter((l) => l.doublon_de != null)
       .forEach((l) => importLignesSelectionnees.add(l.ligne));
@@ -13002,13 +13037,29 @@ function renderImportAvertissements() {
     .join("");
 }
 
+// La signature des demandes affichées : renderImportApercu ne reconstruit les
+// menus de correspondance que si elle change (cocher un doublon, supprimer une
+// ligne), jamais à chaque choix — le menu qu'on vient d'utiliser garderait sinon
+// le focus perdu sous le curseur.
+let importMappingsSignature = null;
+
+function signatureDemandesMapping() {
+  const d = demandesDeMapping();
+  return JSON.stringify([d.categories, d.comptes, d.monnaies]);
+}
+
+// Redessine les demandes de correspondance si, et seulement si, elles ont changé.
+function rafraichirDemandesMapping() {
+  if (importApercu && signatureDemandesMapping() !== importMappingsSignature) renderImportMappings();
+}
+
 function renderImportMappings() {
   const blocGeneral = document.getElementById("import-mappings-bloc");
-  const monnaiesInconnues = importApercu.monnaies_inconnues || [];
+  const demandes = demandesDeMapping();
+  importMappingsSignature = signatureDemandesMapping();
+  const monnaiesInconnues = demandes.monnaies;
   const aDesInconnus =
-    importApercu.categories_inconnues.length > 0 ||
-    importApercu.comptes_inconnus.length > 0 ||
-    monnaiesInconnues.length > 0;
+    demandes.categories.length > 0 || demandes.comptes.length > 0 || monnaiesInconnues.length > 0;
   blocGeneral.style.display = aDesInconnus ? "" : "none";
 
   const catBloc = document.getElementById("import-mappings-categories");
@@ -13021,8 +13072,11 @@ function renderImportMappings() {
   // n'est affiché, il n'y a pas UN compte à nommer.
   const compteDuReleve = compteDuPresetImport() ?? (compteIdDefautChoisi() ? Number(compteIdDefautChoisi()) : null);
   const provenance = compteDuReleve != null ? nomCompte(compteDuReleve) : null;
-  importApercu.categories_inconnues.forEach((nomBanque) => {
-    const ligneAssociee = importApercu.lignes.find((l) => l.nom_banque_categorie === nomBanque);
+  demandes.categories.forEach((nomBanque) => {
+    // Une ligne lue d'abord : la suggestion d'un doublon ignoré n'a rien à dire.
+    const ligneAssociee =
+      lignesLuesParImport().find((l) => l.nom_banque_categorie === nomBanque) ||
+      importApercu.lignes.find((l) => l.nom_banque_categorie === nomBanque);
     const suggestion = ligneAssociee ? ligneAssociee.categorie_id : null;
     // Un choix déjà fait l'emporte sur la suggestion : ce bloc est reconstruit
     // à chaque retour sur la page (cf. loadImportSection), et repartir de la
@@ -13043,7 +13097,7 @@ function renderImportMappings() {
 
   const compteBloc = document.getElementById("import-mappings-comptes");
   compteBloc.innerHTML = "";
-  importApercu.comptes_inconnus.forEach((nomBanque) => {
+  demandes.comptes.forEach((nomBanque) => {
     compteBloc.appendChild(
       creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, () => {
         appliquerMappingsLocalement();
@@ -13102,7 +13156,7 @@ function renderImportMonnaiesResolues() {
 // automatiques, ce qui écraserait les choix de select déjà faits à la main.
 document.getElementById("btn-import-mappings-tout-confirmer").addEventListener("click", () => {
   if (!importApercu) return;
-  importApercu.categories_inconnues.forEach((nomBanque) =>
+  demandesDeMapping().categories.forEach((nomBanque) =>
     importCategoriesConfirmees.add(nomBanque)
   );
   document
@@ -13598,6 +13652,78 @@ function toggleSousSection(containerId, nombreLignes) {
   document.getElementById(containerId).style.display = nombreLignes > 0 ? "" : "none";
 }
 
+// Les lignes qu'un virement déjà connu rappelle (la veille de ressemblance).
+function lignesRessemblancesDeLApercu() {
+  return importApercu.lignes.filter(
+    (l) =>
+      l.doublon_de == null &&
+      // La jambe manquante PRIME sur la ressemblance (ordre : doublon de colonnes,
+      // jambe manquante, ressemblance) : la ligne a déjà son panneau de décision.
+      l.jambe_manquante_id == null &&
+      veilleDoublonsParLigne[l.ligne] != null
+  );
+}
+
+/* ---------- LE POP-UP « INFORMATIONS À RENSEIGNER » ----------
+ *
+ * Les doublons sont ignorés d'office et ne demandent rien. Restent deux sortes de
+ * lignes qui attendent une réponse de l'utilisateur sans qu'aucune case ne la
+ * réclame à l'écran : les JAMBES de virement reconnues (« Oui » ou « Non », qui
+ * bloquent l'import) et les RESSEMBLANCES (qui ne bloquent rien, mais qu'on veut
+ * avoir vues). Le pop-up, dans la barre des pages, les annonce où que l'on soit ;
+ * sa flèche ouvre l'import et mène à elles.
+ *
+ * UNE RESSEMBLANCE N'A PAS D'ÉTAT « TRAITÉ » : la laisser telle quelle, c'est
+ * l'importer, ce qui est une réponse valable. Elle compte donc comme traitée dès
+ * qu'elle est déclarée « même virement », supprimée — ou VUE, c'est-à-dire que la
+ * flèche y a mené (`importRessemblancesVues`). Sans cela le pop-up resterait
+ * affiché pour qui a choisi de les importer.
+ */
+const importRessemblancesVues = new Set();
+
+function ressemblancesAExaminer() {
+  return lignesRessemblancesDeLApercu().filter(
+    (l) => !ligneDeclareeVirementConnu(l) && !importRessemblancesVues.has(l.ligne)
+  );
+}
+
+function jambesAConfirmer() {
+  return importApercu.lignes.filter(
+    (l) => !ligneRefuseeParStatut(l) && !ligneDoublonIgnoree(l) && validationJambe(l) === null
+  );
+}
+
+function majBulleInformationsImport() {
+  const bulle = document.getElementById("bulle-import");
+  if (!bulle) return;
+  const jambes = importApercu ? jambesAConfirmer().length : 0;
+  const ressemblances = importApercu ? ressemblancesAExaminer().length : 0;
+  bulle.style.display = jambes + ressemblances > 0 ? "" : "none";
+  document.getElementById("bulle-import-detail").textContent = [
+    jambes > 0 ? t("{n} virement(s) déjà connu(s) à valider", { n: jambes }) : "",
+    ressemblances > 0 ? t("{n} ressemblance(s) à examiner", { n: ressemblances }) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// La flèche : ouvre l'import et amène aux lignes non traitées — les jambes à
+// confirmer d'abord, puisque ce sont elles qui bloquent.
+document.getElementById("btn-bulle-import").addEventListener("click", async () => {
+  if (!importApercu) return;
+  const cible = jambesAConfirmer().length > 0 ? "import-jambes-bloc" : "import-apercu-section-ressemblances";
+  // Les ressemblances sont vues dès qu'on y est mené (cf. le commentaire ci-dessus).
+  ressemblancesAExaminer().forEach((l) => importRessemblancesVues.add(l.ligne));
+  switchSection("parametres", { sousSection: "parametres-import" });
+  await importSectionEnChargement;
+  const bloc = document.getElementById(cible);
+  if (bloc) {
+    bloc.open = true;
+    bloc.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  majBulleInformationsImport();
+});
+
 function renderImportApercu() {
   document.getElementById("import-apercu-bloc").style.display = "";
   document.getElementById("import-apercu-nombre").textContent = importApercu.lignes.length;
@@ -13620,14 +13746,7 @@ function renderImportApercu() {
   // est alors identique à une ligne déjà importée, ce qui est plus fort qu'une
   // ressemblance et appelle un autre geste (la supprimer). Elle ne figure donc
   // que dans « Doublons détectés », jamais dans les deux.
-  const lignesRessemblances = importApercu.lignes.filter(
-    (l) =>
-      l.doublon_de == null &&
-      // La jambe manquante PRIME sur la ressemblance (ordre : doublon de colonnes,
-      // jambe manquante, ressemblance) : la ligne a déjà son panneau de décision.
-      l.jambe_manquante_id == null &&
-      veilleDoublonsParLigne[l.ligne] != null
-  );
+  const lignesRessemblances = lignesRessemblancesDeLApercu();
   document.getElementById("import-apercu-nombre-ressemblances").textContent =
     lignesRessemblances.length;
   remplirApercuTbodyRessemblances("import-apercu-liste-ressemblances", lignesRessemblances);
@@ -13673,9 +13792,14 @@ function renderImportApercu() {
     .getElementById("import-apercu-bloc")
     .classList.toggle("sans-compte-banque", importApercu.lignes.every((l) => !l.nom_banque_compte));
 
+  // Cocher un doublon, le décocher ou supprimer une ligne change ce que l'import
+  // lit : les demandes de correspondance suivent.
+  rafraichirDemandesMapping();
+
   updateBtnImportSupprimerSelectionEtat();
   updateBtnImportConfirmerEtat();
   majVeilleDoublonsVirements();
+  majBulleInformationsImport();
 }
 
 /* ---------- LES DÉPENSES PRÉVUES RECONNUES DANS LE RELEVÉ ----------
@@ -14479,7 +14603,11 @@ function creerLigneApercuAffichage(ligne, infoType, { lectureSeule = false } = {
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) importLignesSelectionnees.add(ligne.ligne);
         else importLignesSelectionnees.delete(ligne.ligne);
+        // Cocher ou décocher un doublon change ce que l'import lira : les demandes
+        // de correspondance suivent, sans redessiner tout l'aperçu.
+        rafraichirDemandesMapping();
         updateBtnImportSupprimerSelectionEtat();
+        majBulleInformationsImport();
       });
     }
   }
@@ -15965,11 +16093,13 @@ function updateBtnImportConfirmerEtat() {
   // Les lignes refusées par la banque sont exclues des contrôles au même titre
   // que les lignes de règlement : elles ne seront pas importées, exiger qu'elles
   // soient complètes appellerait des corrections sans objet.
+  // Les doublons ignorés (cochés) n'en sont pas non plus : l'import ne les lira pas.
   const lignesActives = importApercu.lignes.filter(
     (l) =>
       !infoTypeOperationLigne(l).reglement &&
       !ligneRefuseeParStatut(l) &&
-      !ligneDeclareeVirementConnu(l)
+      !ligneDeclareeVirementConnu(l) &&
+      !ligneDoublonIgnoree(l)
   );
   if (importApercu.lignes.length === 0) {
     btn.disabled = true;
@@ -16009,7 +16139,12 @@ function updateBtnImportConfirmerEtat() {
   // Une jambe reconnue demande « Oui » ou « Non » : l'import est bloqué tant que
   // l'une reste « à choisir » (même refus côté serveur, cf. confirmer).
   const jambesAChoisir = lignesActives.filter((l) => validationJambe(l) === null);
-  const rienDeSelectionne = importLignesSelectionnees.size === 0;
+  // Seules les lignes cochées qui ne sont pas des doublons bloquent : un doublon
+  // coché est ignoré, il n'y a rien à trancher.
+  const nbSelectionBloquante = importApercu.lignes.filter(
+    (l) => importLignesSelectionnees.has(l.ligne) && !ligneDoublonIgnoree(l)
+  ).length;
+  const rienDeSelectionne = nbSelectionBloquante === 0;
   btn.disabled = !(
     jambesAChoisir.length === 0 &&
     categoriesOk &&
@@ -16042,7 +16177,7 @@ function updateBtnImportConfirmerEtat() {
     lignesFraisIncoherents.length === 0 ? "" : t(texteAide("noyau.import-blocage-frais"), { n: lignesFraisIncoherents.length }),
     jambesAChoisir.length === 0 ? "" : t(texteAide("noyau.import-blocage-jambes"), { n: jambesAChoisir.length }),
     virementsIncomplets.length === 0 ? "" : t(texteAide("noyau.import-blocage-virements"), { n: virementsIncomplets.length }),
-    rienDeSelectionne ? "" : t(texteAide("noyau.import-blocage-selection"), { n: importLignesSelectionnees.size }),
+    rienDeSelectionne ? "" : t(texteAide("noyau.import-blocage-selection"), { n: nbSelectionBloquante }),
   ]);
 }
 
@@ -16059,17 +16194,20 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
   if (importReglageSeparateurDecimal)
     formData.append("separateur_decimal", importReglageSeparateurDecimal);
   ajouterColonnesLues(formData);
+  // Seules les correspondances ENCORE DEMANDÉES partent : celle d'un libellé qui ne
+  // venait que de doublons ignorés ou de lignes supprimées n'a pas à être mémorisée.
+  const demandes = demandesDeMapping();
   const categories = {};
   Object.entries(importMappingCategories).forEach(([nom, categorieId]) => {
-    if (categorieId) categories[nom] = categorieId;
+    if (categorieId && demandes.categories.includes(nom)) categories[nom] = categorieId;
   });
   const comptes = {};
   Object.entries(importMappingComptes).forEach(([nom, id]) => {
-    if (id) comptes[nom] = id;
+    if (id && demandes.comptes.includes(nom)) comptes[nom] = id;
   });
   const monnaies = {};
   Object.entries(importMappingMonnaies).forEach(([nom, id]) => {
-    if (id) monnaies[nom] = id;
+    if (id && demandes.monnaies.includes(nom)) monnaies[nom] = id;
   });
   // UNE LIGNE DE RÈGLEMENT NE PART AVEC CE CONFIRM QUE SI ELLE EST LIÉE.
   //
@@ -16085,7 +16223,12 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
   const lignesReglementNumeros = importApercu.lignes
     .filter((l) => infoTypeOperationLigne(l).reglement && !importLignesLiees[l.ligne])
     .map((l) => l.ligne);
-  const lignesSupprimeesPourCeConfirm = [...new Set([...importLignesSupprimees, ...lignesReglementNumeros])];
+  // LES DOUBLONS IGNORÉS PARTENT AUSSI, comme supprimés : le serveur ne les lira
+  // pas, et ils n'entrent donc ni en base ni au stock anti-doublons (ils y sont déjà).
+  const doublonsIgnores = importApercu.lignes.filter(ligneDoublonIgnoree).map((l) => l.ligne);
+  const lignesSupprimeesPourCeConfirm = [
+    ...new Set([...importLignesSupprimees, ...lignesReglementNumeros, ...doublonsIgnores]),
+  ];
 
   formData.append(
     "mappings",
