@@ -476,7 +476,11 @@ function renderTitresSuivis() {
 async function loadPlacements() {
   // On rouvre toujours la page sur le portefeuille, jamais sur le volet d'import
   // laissé ouvert d'une visite précédente (cf. import-placements.js).
-  if (typeof afficherVuePlacements === "function") afficherVuePlacements(false);
+  // …SAUF quand la flèche du pop-up « Informations à renseigner » vient d'y mener
+  // (cf. implOuvertureDemandee, import-placements.js) : le volet d'import reste alors.
+  if (typeof afficherVuePlacements === "function") {
+    afficherVuePlacements(typeof implOuvertureDemandee !== "undefined" && implOuvertureDemandee);
+  }
   try {
     await refreshMonnaies();
     fillMonnaiesSelect(document.getElementById("titre-monnaie"), state.monnaies);

@@ -13693,37 +13693,64 @@ function jambesAConfirmer() {
   );
 }
 
+// LES SOURCES DU POP-UP : l'import bancaire (ci-dessous) et, par
+// `enregistrerSourceInfosImport`, celui d'une extension (Placements financiers).
+// Une source dit combien de jambes et de ressemblances attendent (`compter`) et
+// sait mener à elles (`ouvrir`, qui marque aussi les ressemblances comme vues).
+const sourcesInfosImport = {
+  bancaire: {
+    compter: () => ({
+      jambes: importApercu ? jambesAConfirmer().length : 0,
+      ressemblances: importApercu ? ressemblancesAExaminer().length : 0,
+    }),
+    ouvrir: async (cible) => {
+      // Les ressemblances sont vues dès qu'on y est mené (cf. le commentaire ci-dessus).
+      ressemblancesAExaminer().forEach((l) => importRessemblancesVues.add(l.ligne));
+      switchSection("parametres", { sousSection: "parametres-import" });
+      await importSectionEnChargement;
+      const bloc = document.getElementById(
+        cible === "jambes" ? "import-jambes-bloc" : "import-apercu-section-ressemblances"
+      );
+      if (bloc) {
+        bloc.open = true;
+        bloc.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+  },
+};
+
+function enregistrerSourceInfosImport(id, source) {
+  sourcesInfosImport[id] = source;
+}
+
 function majBulleInformationsImport() {
   const bulle = document.getElementById("bulle-import");
   if (!bulle) return;
-  const jambes = importApercu ? jambesAConfirmer().length : 0;
-  const ressemblances = importApercu ? ressemblancesAExaminer().length : 0;
-  bulle.style.display = jambes + ressemblances > 0 ? "" : "none";
+  const total = { jambes: 0, ressemblances: 0 };
+  Object.values(sourcesInfosImport).forEach((source) => {
+    const c = source.compter();
+    total.jambes += c.jambes;
+    total.ressemblances += c.ressemblances;
+  });
+  bulle.style.display = total.jambes + total.ressemblances > 0 ? "" : "none";
   document.getElementById("bulle-import-detail").textContent = [
-    jambes > 0 ? t("{n} virement(s) déjà connu(s) à valider", { n: jambes }) : "",
-    ressemblances > 0 ? t("{n} ressemblance(s) à examiner", { n: ressemblances }) : "",
+    total.jambes > 0 ? t("{n} virement(s) déjà connu(s) à valider", { n: total.jambes }) : "",
+    total.ressemblances > 0 ? t("{n} ressemblance(s) à examiner", { n: total.ressemblances }) : "",
   ]
     .filter(Boolean)
     .join(" · ");
 }
 
-// La flèche : ouvre l'import et amène aux lignes non traitées — les jambes à
-// confirmer d'abord, puisque ce sont elles qui bloquent.
+// La flèche : mène aux lignes non traitées — les jambes à confirmer d'abord,
+// puisque ce sont elles qui bloquent.
 document.getElementById("btn-bulle-import").addEventListener("click", async () => {
-  if (!importApercu) return;
-  const cible = jambesAConfirmer().length > 0 ? "import-jambes-bloc" : "import-apercu-section-ressemblances";
-  // Les ressemblances sont vues dès qu'on y est mené (cf. le commentaire ci-dessus).
-  ressemblancesAExaminer().forEach((l) => importRessemblancesVues.add(l.ligne));
-  switchSection("parametres", { sousSection: "parametres-import" });
-  await importSectionEnChargement;
-  const bloc = document.getElementById(cible);
-  if (bloc) {
-    bloc.open = true;
-    bloc.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const sources = Object.values(sourcesInfosImport);
+  const avecJambes = sources.find((source) => source.compter().jambes > 0);
+  const source = avecJambes || sources.find((source) => source.compter().ressemblances > 0);
+  if (!source) return;
+  await source.ouvrir(avecJambes ? "jambes" : "ressemblances");
   majBulleInformationsImport();
 });
-
 function renderImportApercu() {
   document.getElementById("import-apercu-bloc").style.display = "";
   document.getElementById("import-apercu-nombre").textContent = importApercu.lignes.length;

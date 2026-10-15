@@ -214,6 +214,73 @@ function implJambesAChoisir() {
 const implLignesSelectionnees = new Set();
 let implLigneEnEdition = null;
 
+// UN DOUBLON COCHÉ EST IGNORÉ (même règle que l'import bancaire, cf. app.js,
+// ligneDoublonIgnoree) : il ne bloque rien, ne demande pas de titre à créer, et
+// part avec les lignes supprimées à la confirmation. Le décocher l'importe.
+// Seules les autres lignes cochées (un titre déjà détenu, une sélection faite pour
+// une suppression groupée) bloquent encore.
+function implDoublonIgnore(ligne) {
+  return (
+    ligne.doublon_de !== null &&
+    ligne.doublon_de !== undefined &&
+    implLignesSelectionnees.has(ligne.ligne)
+  );
+}
+
+// Les lignes que l'import LIRA : ni supprimées, ni doublons ignorés.
+function implLignesLues() {
+  return implApercu
+    ? implApercu.lignes.filter((l) => !implLignesSupprimees.has(l.ligne) && !implDoublonIgnore(l))
+    : [];
+}
+
+function implSelectionBloquante() {
+  return implApercu
+    ? implApercu.lignes.filter(
+        (l) => implLignesSelectionnees.has(l.ligne) && !implDoublonIgnore(l)
+      ).length
+    : implLignesSelectionnees.size;
+}
+
+// Les ressemblances n'ont pas d'état « traité » : elles sont vues dès que la flèche
+// du pop-up y a mené (cf. app.js, majBulleInformationsImport).
+const implRessemblancesVues = new Set();
+// Vrai le temps que la flèche du pop-up ouvre la page Placements sur son volet d'import.
+let implOuvertureDemandee = false;
+
+function implRessemblancesAExaminer() {
+  return implLignesLues().filter(
+    (l) =>
+      !l.jambe_manquante && implSuspectsParLigne[l.ligne] && !implRessemblancesVues.has(l.ligne)
+  );
+}
+
+// LE POP-UP « INFORMATIONS À RENSEIGNER » de la barre des pages (cf. app.js,
+// sourcesInfosImport) : les virements reconnus à valider et les transferts déjà
+// connus de cet import. Sa flèche ouvre la page Placements sur le volet d'import,
+// puis mène à la première section qui attend une réponse.
+enregistrerSourceInfosImport("placements", {
+  compter: () => ({
+    jambes: implApercu
+      ? implLignesLues().filter((l) => implValidationJambe(l) === null).length
+      : 0,
+    ressemblances: implApercu ? implRessemblancesAExaminer().length : 0,
+  }),
+  ouvrir: async (cible) => {
+    implRessemblancesAExaminer().forEach((l) => implRessemblancesVues.add(l.ligne));
+    // loadPlacements rouvre toujours le portefeuille : on lui dit de garder l'import.
+    implOuvertureDemandee = true;
+    switchSection("comptes-globale", { sousSection: "comptes-globale-placements" });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    implOuvertureDemandee = false;
+    afficherVuePlacements(true);
+    const bloc = document.getElementById(
+      cible === "jambes" ? "impl-apercu-section-jambe" : "impl-apercu-section-ressemblance"
+    );
+    if (bloc) bloc.scrollIntoView({ behavior: "smooth", block: "start" });
+  },
+});
+
 /* ---------- Utilitaires ---------- */
 
 function implUrl(chemin) {
@@ -598,10 +665,12 @@ async function enregistrerImplConfiguration() {
 function reinitialiserImpl() {
   implFichier = null;
   implApercu = null;
+  majBulleInformationsImport();
   Object.keys(implOverrides).forEach((k) => delete implOverrides[k]);
   implLignesSupprimees.clear();
   Object.keys(implJambesValidees).forEach((k) => delete implJambesValidees[k]);
   implLignesSelectionnees.clear();
+  implRessemblancesVues.clear();
   implLigneEnEdition = null;
   implReglageDelimiteur = null;
   implReglageSeparateurDecimal = null;
@@ -678,6 +747,7 @@ async function analyserFichierImpl() {
   implLignesSupprimees.clear();
   Object.keys(implJambesValidees).forEach((k) => delete implJambesValidees[k]);
   implLignesSelectionnees.clear();
+  implRessemblancesVues.clear();
   implLigneEnEdition = null;
   try {
     implApercu = await apiFetchForm(implUrl("/previsualiser"), implFormDataFichier());
@@ -685,8 +755,8 @@ async function analyserFichierImpl() {
     showMessage(err.message, "error");
     return;
   }
-  // Les doublons sont pré-sélectionnés : tant qu'une ligne reste sélectionnée,
-  // la confirmation est bloquée. L'utilisateur supprime, ou décoche.
+  // Les doublons sont pré-sélectionnés, donc IGNORÉS : ils ne bloquent rien (cf.
+  // implDoublonIgnore). L'utilisateur peut les décocher pour les importer.
   implApercu.lignes
     .filter((l) => l.doublon_de !== null && l.doublon_de !== undefined)
     .forEach((l) => implLignesSelectionnees.add(l.ligne));
@@ -795,9 +865,28 @@ function renderImplAvertissements() {
     .join("");
 }
 
+// Le nom sous lequel le serveur annonce un titre à créer (cf. _nom_du_titre_a_creer),
+// comparé sans casse ni accents comme il dédoublonne.
+function implCleTitre(nom) {
+  return String(nom || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function renderImplTitresACreer() {
   const bloc = document.getElementById("impl-titres-a-creer-bloc");
-  const noms = (implApercu && implApercu.titres_a_creer) || [];
+  // LES TITRES À CRÉER SE DÉDUISENT DES LIGNES LUES : un titre qui ne venait que
+  // de doublons ignorés ou de lignes supprimées n'est ni annoncé ni créé.
+  const cles = new Set(
+    implLignesLues()
+      .filter((l) => l.titre_a_creer)
+      .map((l) => implCleTitre(l.nom_valeur || l.code_isin))
+  );
+  const noms = ((implApercu && implApercu.titres_a_creer) || []).filter((nom) =>
+    cles.has(implCleTitre(nom))
+  );
   if (noms.length === 0) {
     bloc.style.display = "none";
     return;
@@ -1274,6 +1363,8 @@ function renderImplApercu() {
     return;
   }
   bloc.style.display = "";
+  // Les titres à créer suivent ce que l'import lira (doublons ignorés, suppressions).
+  renderImplTitresACreer();
   const groupes = implGroupes();
   const total = Object.values(groupes).reduce((n, l) => n + l.length, 0);
   document.getElementById("impl-apercu-nombre").textContent = total;
@@ -1313,6 +1404,8 @@ function brancherEcouteursApercuImpl() {
       const numero = Number(input.dataset.selection);
       if (input.checked) implLignesSelectionnees.add(numero);
       else implLignesSelectionnees.delete(numero);
+      // Un doublon coché ou décoché change les titres que l'import créera.
+      renderImplTitresACreer();
       updateBoutonsSelectionImpl();
     });
   });
@@ -1381,19 +1474,20 @@ async function relireApercuImpl() {
 }
 
 function updateBoutonsSelectionImpl() {
+  majBulleInformationsImport();
   const nb = implLignesSelectionnees.size;
   document.getElementById("impl-selection-nombre").textContent = nb;
   document.getElementById("btn-impl-supprimer-selection").disabled = nb === 0;
   const bouton = document.getElementById("btn-impl-confirmer");
   const blocage = document.getElementById("impl-blocage");
-  // La confirmation reste bloquée tant qu'une ligne est sélectionnée : c'est
-  // ce qui force à trancher sur les doublons plutôt qu'à les importer par
-  // inadvertance.
+  // La confirmation reste bloquée tant qu'une ligne est sélectionnée, SAUF un
+  // doublon : coché, il est ignoré (cf. implDoublonIgnore).
   // ET TANT QU'UN « MÊME VIREMENT ? » RESTE À CHOISIR : le serveur refuserait l'import.
+  const bloquantes = implSelectionBloquante();
   const aChoisir = implJambesAChoisir();
-  bouton.disabled = nb > 0 || aChoisir > 0 || bouton.dataset.envoi === "1";
+  bouton.disabled = bloquantes > 0 || aChoisir > 0 || bouton.dataset.envoi === "1";
   blocage.textContent =
-    nb > 0
+    bloquantes > 0
       ? t("Supprime ou décoche les lignes sélectionnées pour pouvoir confirmer.")
       : aChoisir > 0
         ? t("Réponds à « Même virement ? » pour les {n} virement(s) reconnu(s).", { n: aChoisir })
@@ -1412,7 +1506,13 @@ async function confirmerImportImpl() {
     "overrides",
     JSON.stringify({
       lignes: implOverrides,
-      lignes_supprimees: [...implLignesSupprimees],
+      // Les doublons ignorés partent comme supprimés : le serveur ne les lira pas.
+      lignes_supprimees: [
+        ...new Set([
+          ...implLignesSupprimees,
+          ...(implApercu?.lignes || []).filter(implDoublonIgnore).map((l) => l.ligne),
+        ]),
+      ],
       comptes: {},
       // Une clé par ligne que l'écran a montrée comme reconnue (null = à choisir).
       jambes_validees: Object.fromEntries(
