@@ -41,6 +41,7 @@ from ..constants import (
     LIBELLES_SENS_SORTIE,
     LIBELLES_STATUT_DEFAUT,
 )
+from .affectation_colonnes import affecter
 from .controle_solde import controler_solde
 from .entetes import SCORE_SYNONYME, dictionnaire, groupe_principal, scores_proprietes
 from .import_bancaire import normaliser_libelle, parser_date
@@ -424,27 +425,14 @@ def detecter_colonnes(
             imposer(lecture["colonne_montant"], "montant")
             imposer(lecture["colonne_sens"], "sens")
 
-    # L'ATTRIBUTION : du plus sûr au moins sûr, une propriété par colonne et
-    # une colonne par propriété. Le montant et le couple débit/crédit
-    # s'excluent (cf. constants.PROPRIETES_MONTANT_SCINDE).
-    candidats = sorted(
-        ((v, index, prop) for index, s in scores.items() for prop, v in s.items()),
-        reverse=True,
-    )
-    retenue: dict[int, str] = {}
-    prises: set[str] = set()
-    for valeur, index, prop in candidats:
-        if index in retenue or valeur < 0.35:
-            continue
-        if prop and prop in prises:
-            continue
-        if prop == "montant" and prises & {"montant_debit", "montant_credit"}:
-            continue
-        if prop in ("montant_debit", "montant_credit") and "montant" in prises:
-            continue
-        retenue[index] = prop
-        if prop:
-            prises.add(prop)
+    # L'ATTRIBUTION, globale et sous contraintes (cf. services/
+    # affectation_colonnes) : une propriété par colonne et une colonne par
+    # propriété, une seule lecture du montant, et ce que le test du solde a
+    # vérifié posé d'office.
+    verrous = {
+        index: prop for index, s in scores.items() for prop, v in s.items() if v >= _VERROU
+    }
+    retenue, faibles = affecter(scores, verrous)
 
     colonnes = []
     for p in profils:
@@ -464,7 +452,8 @@ def detecter_colonnes(
         second = max([v for prop, v in classees if prop != choix] + [0.0])
         # SÛRE quand les indices convergent nettement : un intitulé reconnu ET
         # une forme compatible, ou une forme sans concurrence.
-        certaine = premier >= 1.0 and premier - second >= 0.4
+        # Jamais pour un champ obligatoire comblé faute de mieux.
+        certaine = premier >= 1.0 and premier - second >= 0.4 and choix not in faibles
         colonnes.append(
             {
                 "index": p.index,
@@ -504,6 +493,9 @@ def detecter_colonnes(
         "mode_montants": _mode_montants(retenue, profils),
         # Le solde de contrôle (cf. services/controle_solde), ou None.
         "colonne_solde": solde.colonne if solde else None,
+        # Les champs obligatoires qu'aucune colonne ne portait avec assez
+        # d'assurance, comblés au seuil abaissé (cf. affectation_colonnes).
+        "champs_faibles": faibles,
         "solde": solde.en_dict() if solde else None,
         "colonnes": colonnes,
         "configuration": [

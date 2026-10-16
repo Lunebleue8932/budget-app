@@ -43,6 +43,7 @@
     "banque_b/milliers",
     "banque_b/permuter",
     "banque_b/renommer",
+    "banque_b/sans_intitules",
     "banque_b/sans_solde",
     "banque_b/separateur_tabulation",
     "banque_b/separateur_virgule",
@@ -97,6 +98,6 @@
     "banque_d/separateur_virgule",
     "banque_d/titres"
   ],
-  "colonnes_correctes": 518,
+  "colonnes_correctes": 520,
   "colonnes": 521
 }

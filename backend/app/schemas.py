@@ -1623,6 +1623,9 @@ class DetectionColonnesRead(BaseModel):
     # le test a vérifié (ordre, moment, lecture des montants, taux, statut).
     colonne_solde: Optional[int] = None
     solde: Optional[dict] = None
+    # Les champs obligatoires comblés faute de mieux, seuil abaissé (cf.
+    # services/affectation_colonnes) : jamais présentés comme sûrs.
+    champs_faibles: list[str] = Field(default_factory=list)
     # Les feuilles d'un classeur et, pour chacune, le nombre de lignes qui ont
     # la forme d'une opération ; celle qui a été lue, celle qui est proposée.
     feuilles: list[dict] = Field(default_factory=list)
