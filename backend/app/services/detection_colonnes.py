@@ -34,6 +34,7 @@ total ou de solde final sous les opérations. Chacun est RENDU avec les
 colonnes, pour que l'écran puisse le montrer et le corriger.
 """
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Optional
 
 from ..constants import (
@@ -43,7 +44,15 @@ from ..constants import (
 )
 from .affectation_colonnes import affecter
 from .controle_solde import controler_solde
-from .entetes import SCORE_SYNONYME, dictionnaire, groupe_principal, scores_proprietes
+from .entetes import (
+    SCORE_FLOU_MIN,
+    SCORE_MOT_CLE,
+    SCORE_SYNONYME,
+    dictionnaire,
+    groupe_principal,
+    mots_entete,
+    scores_proprietes,
+)
 from .import_bancaire import normaliser_libelle, parser_date
 from .lecture_dates import format_dates, lire_date, ordre_dates
 from .lecture_fichier import lire_fichier
@@ -107,9 +116,39 @@ class _Profil:
     distinctes: int = 0
     longueur_moyenne: float = 0.0
     vides_ou_zero: list = field(default_factory=list)  # par ligne : la cellule est-elle vide/0 ?
+    # LES STATISTIQUES DE CONTENU, dernier niveau de preuve (cf. _scores_forme) :
+    jetons_bancaires: int = 0  # « CB … », « VIR … », « PRLV … »
+    types_operation: int = 0  # « Paiement par carte », « Virement reçu »…
+    categories_app: int = 0  # une catégorie que l'application connaît
+    entiers_longs: int = 0  # un numéro : six chiffres ou plus, rien d'autre
+    similarite: float = 1.0  # ressemblance moyenne de deux valeurs voisines
 
     def part(self, compte: int) -> float:
         return compte / self.remplies if self.remplies else 0.0
+
+
+# LES MOTS QUI OUVRENT UN LIBELLÉ BANCAIRE : presque chaque ligne d'un relevé en
+# porte un en tête. Une colonne qui en est pleine est le libellé.
+_JETONS_BANCAIRES = {
+    "cb", "carte", "vir", "virement", "prlv", "prelevement", "sepa", "retrait", "dab",
+    "chq", "cheque", "paiement", "facture", "inst", "achat", "remise", "avoir",
+}
+# LES TYPES D'OPÉRATION, écrits en entier (cf. normaliser_libelle) : une colonne
+# qui n'en contient que quelques-uns RESSEMBLE à une catégorie — peu de valeurs,
+# très répétées — sans en être une. La catégorie dit à quoi a servi l'argent,
+# le type dit comment il a bougé.
+_TYPES_OPERATION = {
+    "carte", "cb", "cartebancaire", "paiementcarte", "paiementparcarte", "achatcarte",
+    "virement", "vir", "virementrecu", "virementemis", "virementinstantane", "virementsepa",
+    "prelevement", "prlv", "prelevementsepa", "cheque", "chq", "remisedecheque",
+    "retrait", "retraitdespeces", "retraitdab", "retraitespeces", "dab", "depot",
+    "depotdespeces", "versement", "frais", "fraisbancaires", "commission", "interets",
+    "avoir", "remboursement",
+}
+# Un numéro (référence, identifiant) : au moins six chiffres, sans séparateur.
+_CHIFFRES_NUMERO = 6
+# Combien de valeurs voisines comparer pour juger de leur ressemblance.
+_PAIRES_COMPAREES = 40
 
 
 def _est_devise(texte: str) -> bool:
@@ -122,17 +161,26 @@ def _ligne_des_intitules(lignes: list[tuple]) -> Optional[int]:
     """L'indice de la ligne d'intitulés, ou None si le fichier n'en a pas.
 
     C'est la ligne, parmi les premières, dont le plus de cellules sont des
-    intitulés CONNUS EN ENTIER (exacts ou synonymes du dictionnaire) — au moins
-    deux, pour qu'une ligne de titre (« Relevé de compte ») ne passe pas pour
-    une ligne d'intitulés."""
-    meilleure, meilleur_score = None, 1
+    intitulés connus : un intitulé reconnu EN ENTIER (exact ou synonyme du
+    dictionnaire) compte pour un, un intitulé seulement reconnaissable (un
+    mot-clé, une faute de frappe) pour moitié. Il en faut plus d'un, pour
+    qu'une ligne de titre (« Relevé de compte ») ne passe pas pour une ligne
+    d'intitulés — et une ligne qui porte une date est une opération, jamais
+    des intitulés."""
+    meilleure, meilleur_score = None, 1.0
     for i, ligne in enumerate(lignes[:_TETE_MAX]):
-        score = 0
+        score = 0.0
         for cellule in ligne:
             if cellule in (None, ""):
                 continue
-            if max(scores_proprietes(cellule).values(), default=0.0) >= SCORE_SYNONYME:
+            if parser_date(cellule) is not None:
+                score = 0.0
+                break
+            reconnue = max(scores_proprietes(cellule).values(), default=0.0)
+            if reconnue >= SCORE_SYNONYME:
                 score += 1
+            elif reconnue >= SCORE_FLOU_MIN:
+                score += 0.5
         if score > meilleur_score:
             meilleure, meilleur_score = i, score
     return meilleure
@@ -196,11 +244,15 @@ def _profiler(
     separateur_decimal=None,
     separateur_milliers=None,
     format_date=None,
+    categories_app: frozenset = frozenset(),
 ) -> list[_Profil]:
     largeur = max([len(l) for l in lignes_donnees] + [len(entetes)] + [0])
     profils = [_Profil(index=j + 1, entete=str(entetes[j]).strip() if j < len(entetes) and entetes[j] is not None else "")
                for j in range(largeur)]
     valeurs: list[set] = [set() for _ in range(largeur)]
+    # Les premières valeurs DISTINCTES, dans leur ordre d'apparition : de quoi
+    # comparer des valeurs voisines (cf. _PAIRES_COMPAREES).
+    premieres: list[list] = [[] for _ in range(largeur)]
     longueurs: list[int] = [0] * largeur
     for ligne in lignes_donnees:
         for j in range(largeur):
@@ -212,6 +264,8 @@ def _profiler(
             if not texte:
                 continue
             profil.remplies += 1
+            if texte not in valeurs[j] and len(premieres[j]) <= _PAIRES_COMPAREES:
+                premieres[j].append(texte)
             valeurs[j].add(texte)
             longueurs[j] += len(texte)
             if len(profil.exemples) < 3 and texte not in profil.exemples:
@@ -229,6 +283,15 @@ def _profiler(
             if _est_devise(texte):
                 profil.devises += 1
             norm = normaliser_libelle(texte)
+            mots = mots_entete(texte)
+            if mots and (mots[0] in _JETONS_BANCAIRES or mots[:2][-1] in _JETONS_BANCAIRES):
+                profil.jetons_bancaires += 1
+            if norm in _TYPES_OPERATION:
+                profil.types_operation += 1
+            if norm in categories_app:
+                profil.categories_app += 1
+            if texte.isdigit() and len(texte) >= _CHIFFRES_NUMERO:
+                profil.entiers_longs += 1
             if norm in _MOTS_SENS:
                 profil.mots_sens += 1
             if norm in _MOTS_STATUT:
@@ -236,6 +299,11 @@ def _profiler(
     for j, profil in enumerate(profils):
         profil.distinctes = len(valeurs[j])
         profil.longueur_moyenne = longueurs[j] / profil.remplies if profil.remplies else 0.0
+        voisines = list(zip(premieres[j], premieres[j][1:]))
+        if voisines:
+            profil.similarite = sum(
+                SequenceMatcher(None, a, b).ratio() for a, b in voisines
+            ) / len(voisines)
     return profils
 
 
@@ -276,6 +344,28 @@ def _scores_forme(p: _Profil) -> dict[str, float]:
         if p.distinctes <= max(12, p.remplies // 3):
             s["categorie_banque"] = 0.45 if ratio < 0.5 else 0.25
             s["compte_banque"] = 0.2 if p.distinctes <= 5 else 0.05
+        # LE LIBELLÉ s'ouvre sur « CB », « VIR », « PRLV »… et deux libellés
+        # voisins se ressemblent peu. Un libellé RÉPÉTÉ (le loyer chaque mois)
+        # reste normal : la diversité se juge sur l'ensemble, pas ligne à ligne.
+        if p.part(p.jetons_bancaires) >= 0.3:
+            s["nature"] += 0.15
+        if p.similarite < 0.5 and ratio > 0.5:
+            s["nature"] += 0.1
+        # LE TYPE D'OPÉRATION ressemble à une catégorie et n'en est pas une :
+        # proposé en « ne pas importer » (une colonne dummy le lira au besoin).
+        # Une catégorie que l'application connaît déjà, à l'inverse, en est une.
+        if p.part(p.types_operation) >= 0.6:
+            s["categorie_banque"] = 0.1
+            s["nature"] = min(s["nature"], 0.2)
+            s[""] = 0.5
+        elif p.part(p.categories_app) >= 0.5:
+            s["categorie_banque"] = s.get("categorie_banque", 0.0) + 0.3
+    # UNE RÉFÉRENCE : un numéro presque toujours différent, sans décimales. Ce
+    # n'est pas un montant, et ça ne s'importe pas.
+    if p.part(p.entiers_longs) >= 0.8 and p.distinctes / p.remplies >= 0.95:
+        for propriete in ("montant", "montant_debit", "montant_credit", "frais", "montant_initial"):
+            s.pop(propriete, None)
+        s[""] = 0.6
     return s
 
 
@@ -299,7 +389,9 @@ def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
 
 
 def detecter_colonnes(
-    lignes: list[tuple], separateur_decimal: Optional[str] = None
+    lignes: list[tuple],
+    separateur_decimal: Optional[str] = None,
+    categories: Optional[list[str]] = None,
 ) -> dict:
     """{lignes_entete, colonnes: [{index, entete, exemples, propositions,
     certaine}], configuration: [{index, propriete}]}.
@@ -327,7 +419,10 @@ def detecter_colonnes(
     pied = _lignes_de_pied(corps, format_date)
     operations = corps[: len(corps) - pied]
     donnees = operations[:_ECHANTILLON]
-    profils = _profiler(donnees, entetes, decimal, milliers, format_date)
+    # LES CATÉGORIES DE L'APPLICATION, quand l'appelant les donne : une colonne
+    # qui les écrit est la catégorie de la banque.
+    connues = frozenset(normaliser_libelle(c) for c in (categories or []) if c)
+    profils = _profiler(donnees, entetes, decimal, milliers, format_date, connues)
 
     scores: dict[int, dict[str, float]] = {}
     presque_vides: list[int] = []
@@ -353,7 +448,13 @@ def detecter_colonnes(
         # quand il le dit au moins aussi sûrement qu'il nomme une propriété.
         ignore = entete.get("", 0.0)
         reconnue = max((v for k, v in entete.items() if k), default=0.0)
-        a_ignorer = ignore > 0 and ignore >= reconnue
+        # Au moins un mot-clé : un intitulé qui RESSEMBLE seulement à « solde »
+        # ou « référence » (cf. entetes._scores_flous) n'est qu'un indice.
+        a_ignorer = ignore >= SCORE_MOT_CLE and ignore >= reconnue
+        # Ce que l'intitulé (faiblement) et la forme disent de « ne pas importer ».
+        faible = max(forme.get("", 0.0), 0.0 if a_ignorer else ignore)
+        if faible:
+            s[""] = max(s.get("", 0.0), faible)
         if a_ignorer or (not p.remplies):
             s = {k: v * 0.3 for k, v in s.items()}
             s[""] = 1.2 if a_ignorer else 0.9
@@ -524,12 +625,13 @@ def detecter_fichier(
     delimiteur: Optional[str] = None,
     feuille: Optional[str] = None,
     separateur_decimal: Optional[str] = None,
+    categories: Optional[list[str]] = None,
 ) -> dict:
     """`detecter_colonnes` sur un fichier entier : ce qu'elle rend, plus ce
     que la lecture a appris (cf. services/lecture_fichier) — format, encodage,
     délimiteur, feuilles d'un classeur et celle qui est proposée."""
     lecture = lire_fichier(contenu, delimiteur, feuille)
-    resultat = detecter_colonnes(lecture.lignes, separateur_decimal)
+    resultat = detecter_colonnes(lecture.lignes, separateur_decimal, categories)
     resultat.update(
         format=lecture.format,
         encodage=lecture.encodage,

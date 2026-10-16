@@ -135,8 +135,9 @@ def test_les_intitules_voisins_ne_se_confondent_pas(entete, pas_ce_groupe):
 
 
 def test_les_mots_cles_se_lisent_en_mots_entiers():
-    # « dateur » contient « date » en lettres, pas en mots.
-    assert "date" not in scores_groupes("Dateur")
+    # « dateur » contient « date » en lettres, pas en mots : pas de mot-clé.
+    # Il lui RESSEMBLE, ce qui ne vaut qu'un indice faible (cf. _scores_flous).
+    assert scores_groupes("Dateur").get("date", 0.0) < SCORE_MOT_CLE
 
 
 def test_un_intitule_inconnu_ne_vaut_rien():

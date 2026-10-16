@@ -492,7 +492,15 @@ async def detecter_colonnes(
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     contenu = await fichier.read()
     try:
-        return detection_colonnes.detecter_fichier(contenu, delimiteur, feuille, separateur_decimal)
+        return detection_colonnes.detecter_fichier(
+            contenu,
+            delimiteur,
+            feuille,
+            separateur_decimal,
+            # Une colonne qui écrit les catégories de l'application est la
+            # catégorie de la banque (cf. detection_colonnes._scores_forme).
+            categories=[c.nom for c in crud.get_categories(db)],
+        )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
 

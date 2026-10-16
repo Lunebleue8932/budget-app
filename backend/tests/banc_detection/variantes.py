@@ -104,6 +104,35 @@ def renommer(r: Releve, rng: random.Random) -> Releve:
     return v
 
 
+def fautes(r: Releve, rng: random.Random) -> Releve:
+    """Une faute de frappe dans chaque intitulé : sur son plus long mot (cinq
+    lettres au moins), une lettre en moins, doublée, ou échangée avec sa
+    voisine — jamais la première, qu'un œil ne rate pas."""
+    v = r.copie("fautes")
+    if v.entetes is None:
+        return v
+
+    def abimer(intitule: str) -> str:
+        mots = intitule.split(" ")
+        j = max(range(len(mots)), key=lambda k: len(mots[k]))
+        mot = mots[j]
+        if len(mot) < 5:
+            return intitule
+        i = rng.randint(1, len(mot) - 2)
+        faute = rng.choice(("manque", "double", "echange"))
+        if faute == "manque":
+            mot = mot[:i] + mot[i + 1:]
+        elif faute == "double":
+            mot = mot[:i] + mot[i] + mot[i:]
+        else:
+            mot = mot[:i] + mot[i + 1] + mot[i] + mot[i + 2:]
+        mots[j] = mot
+        return " ".join(mots)
+
+    v.entetes = [abimer(e) for e in v.entetes]
+    return v
+
+
 def sans_intitules(r: Releve, rng: random.Random) -> Releve:
     v = r.copie("sans_intitules")
     v.entetes = None
@@ -279,6 +308,7 @@ def inverser_ordre(r: Releve, rng: random.Random) -> Releve:
 TRANSFORMATIONS: dict[str, Callable[[Releve, random.Random], Releve]] = {
     "permuter": permuter,
     "renommer": renommer,
+    "fautes": fautes,
     "titres": titres,
     "avec_solde": avec_solde,
     "sans_solde": sans_solde,

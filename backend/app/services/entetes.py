@@ -23,6 +23,10 @@ référence, date de valeur…). `scores_groupes` en tire un score GRADUÉ :
   - 0,6  : il CONTIENT l'un de ses `mots_cles`, sans aucun de ses `exclus_si` ;
   - 0    : sinon.
 
+  - 0,3 à 0,5 : rien de tout cela, mais l'intitulé RESSEMBLE à un exact ou un
+    synonyme (« Libelé », « Montnat », « Date operaton ») — le dernier niveau,
+    pour les fautes de frappe et les abréviations (cf. `_scores_flous`) ;
+
 RÈGLE DE DISTINCTION : un intitulé reconnu en entier (≥ 0,9) par un groupe ne
 compte plus, par ses seuls mots-clés, pour les autres. « Date valeur » est une
 date de valeur, pas une date d'opération qui contiendrait « date » ;
@@ -30,6 +34,7 @@ date de valeur, pas une date d'opération qui contiendrait « date » ;
 """
 import json
 import re
+from difflib import SequenceMatcher
 import sys
 import unicodedata
 from functools import lru_cache
@@ -49,6 +54,13 @@ _UNITES = {"eur", "euro", "euros", "usd", "gbp", "brl", "chf"}
 SCORE_EXACT = 1.0
 SCORE_SYNONYME = 0.9
 SCORE_MOT_CLE = 0.6
+# LA RESSEMBLANCE (fautes de frappe) : toujours sous un mot-clé, a fortiori
+# sous un synonyme ou un exact. En dessous du seuil, deux intitulés courts se
+# ressemblent trop facilement (« débit » et « crédit »).
+SCORE_FLOU_MIN = 0.3
+SCORE_FLOU_MAX = 0.5
+SEUIL_RESSEMBLANCE = 0.88
+_LONGUEUR_FLOUE = 4
 
 # Données lues à l'exécution, jamais importées : en application packagée, elles
 # sont sous sys._MEIPASS (cf. desktop/budget_app.spec, destination "app").
@@ -112,12 +124,94 @@ def dictionnaire() -> dict:
     return groupes
 
 
-def scores_groupes(entete) -> dict[str, float]:
-    """{groupe: score} pour un intitulé, groupes à 0 omis (cf. le docstring du
-    module pour l'échelle et la règle de distinction)."""
-    formes = _formes(entete)
+def _jaro_winkler(a: str, b: str) -> float:
+    """Similarité de Jaro-Winkler, 0 à 1 : les caractères communs à peu près à
+    la même place, avec une prime aux débuts identiques — ce qui convient aux
+    fautes de frappe et aux abréviations (« montnat », « libel »)."""
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    portee = max(len(a), len(b)) // 2 - 1
+    vus_a, vus_b = [False] * len(a), [False] * len(b)
+    communs = 0
+    for i, c in enumerate(a):
+        for j in range(max(0, i - portee), min(len(b), i + portee + 1)):
+            if not vus_b[j] and b[j] == c:
+                vus_a[i] = vus_b[j] = True
+                communs += 1
+                break
+    if not communs:
+        return 0.0
+    ordre_a = [c for c, vu in zip(a, vus_a) if vu]
+    ordre_b = [c for c, vu in zip(b, vus_b) if vu]
+    transpositions = sum(x != y for x, y in zip(ordre_a, ordre_b)) / 2
+    jaro = (communs / len(a) + communs / len(b) + (communs - transpositions) / communs) / 3
+    prefixe = 0
+    for x, y in zip(a[:4], b[:4]):
+        if x != y:
+            break
+        prefixe += 1
+    return jaro + prefixe * 0.1 * (1 - jaro)
+
+
+def _ressemblance(a: str, b: str) -> float:
+    """La meilleure de deux mesures : Jaro-Winkler sur l'écriture entière, et
+    le rapport de séquences sur les mots triés (l'ordre des mots ne compte
+    pas). PAS de comparaison d'ensembles de mots : « date valuer » y
+    contiendrait « date », et la règle de distinction serait perdue."""
+    tries_a, tries_b = " ".join(sorted(a.split())), " ".join(sorted(b.split()))
+    return max(_jaro_winkler(a, b), SequenceMatcher(None, tries_a, tries_b).ratio())
+
+
+def _exclu(mots: list[str], exclus: set[str]) -> bool:
+    """Un mot de l'intitulé est l'un des `exclus_si` du groupe — ou lui
+    ressemble au point d'en être une faute de frappe : « date valuer » reste une
+    date de valeur, la règle de distinction ne cède pas à une coquille."""
+    return any(
+        m in exclus
+        or (len(m) >= _LONGUEUR_FLOUE + 1 and any(_jaro_winkler(m, e) >= SEUIL_RESSEMBLANCE for e in exclus))
+        for m in mots
+    )
+
+
+def _scores_flous(entete) -> dict[str, float]:
+    """{groupe: score} du SEUL groupe dont un exact ou un synonyme ressemble le
+    plus à l'intitulé, au-delà du seuil ; {} sinon. N'est consulté que pour un
+    intitulé que rien d'autre ne reconnaît."""
+    formes = {f for f in _formes(entete) if len(f) >= _LONGUEUR_FLOUE}
     if not formes:
         return {}
+    mots = set(mots_entete(entete))
+    meilleur, meilleure = None, SEUIL_RESSEMBLANCE
+    for nom, groupe in dictionnaire().items():
+        if _exclu(list(mots), groupe["exclus_si"]):
+            continue
+        for connue in groupe["exacts"] | groupe["synonymes"]:
+            if len(connue) < _LONGUEUR_FLOUE:
+                continue
+            ressemblance = max(_ressemblance(f, connue) for f in formes)
+            if ressemblance > meilleure:
+                meilleur, meilleure = nom, ressemblance
+    if meilleur is None:
+        return {}
+    part = (meilleure - SEUIL_RESSEMBLANCE) / (1 - SEUIL_RESSEMBLANCE)
+    return {meilleur: round(SCORE_FLOU_MIN + part * (SCORE_FLOU_MAX - SCORE_FLOU_MIN), 3)}
+
+
+def scores_groupes(entete) -> dict[str, float]:
+    """{groupe: score} pour un intitulé, groupes à 0 omis (cf. le docstring du
+    module pour l'échelle et la règle de distinction). Mis en cache : la
+    ressemblance compare l'intitulé à tout le dictionnaire, et la détection
+    pose la question pour chaque cellule des premières lignes."""
+    return dict(_scores_groupes("" if entete is None else str(entete)))
+
+
+@lru_cache(maxsize=4096)
+def _scores_groupes(entete: str) -> tuple:
+    formes = _formes(entete)
+    if not formes:
+        return ()
     mots = [m for m in mots_entete(entete) if m not in _UNITES]
     entiers: dict[str, float] = {}
     partiels: dict[str, float] = {}
@@ -126,11 +220,11 @@ def scores_groupes(entete) -> dict[str, float]:
             entiers[nom] = SCORE_EXACT
         elif formes & groupe["synonymes"]:
             entiers[nom] = SCORE_SYNONYME
-        elif not (set(mots) & groupe["exclus_si"]) and any(
+        elif not _exclu(mots, groupe["exclus_si"]) and any(
             _contient(mots, cle) for cle in groupe["mots_cles"]
         ):
             partiels[nom] = SCORE_MOT_CLE
-    return entiers or partiels
+    return tuple((entiers or partiels or _scores_flous(entete)).items())
 
 
 def scores_proprietes(entete) -> dict[str, float]:
