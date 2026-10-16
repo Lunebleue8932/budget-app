@@ -2367,14 +2367,14 @@ def test_parser_montant_avec_separateur_decimal_virgule_lit_les_milliers_en_poin
 
 
 def test_lire_lignes_brutes_avec_un_delimiteur_impose(db_session):
-    """Un délimiteur hors des trois candidats de la détection automatique
-    (« ; », tabulation, « , ») n'est lu correctement qu'en le précisant."""
+    """Un délimiteur hors des candidats de la détection automatique (« ; »,
+    tabulation, « | », « , ») n'est lu correctement qu'en le précisant."""
     contenu = (
-        "|".join(f"Colonne {i}" for i in range(1, 13)) + "\r\n"
-        "01/07/2026|||Courses||Alimentation|-45,2|||CC Perso||\r\n"
+        "#".join(f"Colonne {i}" for i in range(1, 13)) + "\r\n"
+        "01/07/2026###Courses##Alimentation#-45,2###CC Perso##\r\n"
     ).encode("utf-8")
 
-    # Sans le préciser : la détection automatique ne reconnaît pas "|", et
+    # Sans le préciser : la détection automatique ne reconnaît pas "#", et
     # relit tout sur une seule colonne.
     sans_delimiteur = import_bancaire.lire_lignes_brutes(
         contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1
@@ -2382,36 +2382,65 @@ def test_lire_lignes_brutes_avec_un_delimiteur_impose(db_session):
     assert sans_delimiteur[0]["nature"] is None
 
     avec_delimiteur = import_bancaire.lire_lignes_brutes(
-        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1, delimiteur="|"
+        contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1, delimiteur="#"
     )
     assert avec_delimiteur[0]["nature"] == "Courses"
     assert avec_delimiteur[0]["montant_brut"] == "-45,2"
 
 
+def test_le_tube_est_detecte_seul(db_session):
+    """« | » fait partie des délimiteurs que la détection reconnaît."""
+    contenu = (
+        "|".join(f"Colonne {i}" for i in range(1, 13)) + "\r\n"
+        "01/07/2026|||Courses||Alimentation|-45,2|||CC Perso||\r\n"
+    ).encode("utf-8")
+    lignes = import_bancaire.lire_lignes_brutes(contenu, COLONNES_IMPORT_PAR_DEFAUT, lignes_entete=1)
+    assert lignes[0]["nature"] == "Courses"
+
+
+def test_le_delimiteur_se_detecte_malgre_les_lignes_de_titre(db_session):
+    """Un relevé qui ouvre sur des lignes sans délimiteur (titre, titulaire,
+    ligne vide) : le découpage majoritaire l'emporte."""
+    echantillon = (
+        "Relevé de compte\r\nM. DUPONT\r\n\r\n"
+        "Date,Libellé,Montant\r\n01/07/2026,Courses,-45.20\r\n02/07/2026,Essence,-60.50\r\n"
+    )
+    assert import_bancaire._detecter_delimiteur(echantillon) == ","
+
+
 def test_previsualiser_avec_delimiteur_et_separateur_decimal_impose(db_session):
-    """Bout en bout : un relevé pipe-délimité en format anglo-saxon (virgule
-    de milliers, point décimal) reste illisible par défaut et se résout une
-    fois les deux réglages précisés — le scénario que le frontend propose
-    quand l'aperçu détecte une majorité de lignes en erreur."""
+    """Bout en bout : un relevé à délimiteur exotique en format anglo-saxon
+    (virgule de milliers, point décimal) reste illisible par défaut et se
+    résout une fois le délimiteur précisé — le séparateur décimal, lui, se lit
+    désormais sur le fichier (cf. separateur_decimal_du_fichier), et le
+    préciser à la main donne le même résultat."""
     compte = _make_compte(db_session)
     preset = _make_preset(db_session)
     crud.set_mapping_compte(db_session, preset.id, "CC Perso", compte.id)
 
     contenu = (
-        "|".join(f"Colonne {i}" for i in range(1, 13)) + "\r\n"
-        "01/07/2026|||Courses||Alimentation|-1,234.56|||CC Perso||\r\n"
+        "#".join(f"Colonne {i}" for i in range(1, 13)) + "\r\n"
+        "01/07/2026###Courses##Alimentation#-1,234.56###CC Perso##\r\n"
     ).encode("utf-8")
 
     rate = import_bancaire.previsualiser(db_session, preset.id, contenu)
     assert rate.lignes[0].erreur is not None
     assert "illisible" in rate.lignes[0].erreur
 
-    reussi = import_bancaire.previsualiser(
-        db_session, preset.id, contenu, delimiteur="|", separateur_decimal="."
-    )
-    assert reussi.lignes[0].erreur is None
-    assert reussi.lignes[0].montant == 1234.56
-    assert reussi.lignes[0].compte_id == compte.id
+    for reglages in ({"delimiteur": "#"}, {"delimiteur": "#", "separateur_decimal": "."}):
+        reussi = import_bancaire.previsualiser(db_session, preset.id, contenu, **reglages)
+        assert reussi.lignes[0].erreur is None
+        assert reussi.lignes[0].montant == 1234.56
+        assert reussi.lignes[0].compte_id == compte.id
+
+
+def test_les_milliers_a_point_se_lisent_sans_reglage(db_session):
+    """« 1.234,56 » : la lecture permissive y échouait ; le format des nombres
+    se lit maintenant sur le fichier. Un fichier qu'elle lisait déjà est lu
+    exactement comme avant (aucun séparateur décimal imposé)."""
+    assert import_bancaire.separateur_decimal_du_fichier([("01/07/2026", "-1.234,56")]) == ","
+    assert import_bancaire.separateur_decimal_du_fichier([("01/07/2026", "-1 234,56")]) is None
+    assert import_bancaire.separateur_decimal_du_fichier([("01/07/2026", "-45.20")]) is None
 
 
 # ---------- Annulation d'un import (retour en arrière depuis l'historique) ----------

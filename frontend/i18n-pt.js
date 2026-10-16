@@ -472,6 +472,8 @@ TRADUCTIONS.pt = {
     "Predefinição “{preset}” selecionada, arquivo relido.",
   "Intitulés retenus pour ce preset.":
     "Cabeçalhos memorizados para esta predefinição.",
+  "Feuille du classeur":
+    "Aba da planilha",
   "Un CSV écrit à l'anglo-saxonne":
     "Um CSV escrito à maneira anglo-saxã",
   "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -2878,6 +2880,12 @@ TRADUCTIONS.pt = {
     "Aplicar atualiza as colunas, sem salvar a predefinição. Atenção: se você pressionar Salvar a predefinição, sua predefinição antiga será substituída pela configuração atual.",
   "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.":
     "A maioria das linhas está ilegível; você pode usar a detecção automática de colunas para ajudar a resolver isso.",
+  "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.":
+    "Esta planilha tem várias abas: “{feuille}” é a que mais se parece com um extrato, é ela que está sendo lida. Você pode escolher outra aqui.",
+  "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
+    "{n} linha(s) abaixo das transações não são transações (total, saldo final): vão aparecer com erro na prévia, para excluir.",
+  "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
+    "As datas deste arquivo são escritas com o mês na frente (01/25/2026): a importação ainda não sabe lê-las.",
   "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
     "Este arquivo se parece com a predefinição “{preset}” (cabeçalhos {pourcentage}% idênticos). Mudar?",
   "Le preset « {preset} » lit ce fichier, contrairement à celui qui est sélectionné. Basculer ?":

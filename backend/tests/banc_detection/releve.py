@@ -50,6 +50,10 @@ from app.services.import_bancaire import (
     normaliser_libelle,
     parser_date,
 )
+from app.services.lecture_montants import centimes as lire_centimes, texte_montant
+
+# L'écriture des dates, de strftime au code que rend la détection.
+FORMATS_DATE = {"%d/%m/%Y": "jma", "%Y-%m-%d": "amj", "%m/%d/%Y": "mja"}
 
 # Ce que l'import doit faire de chaque rôle. "" = ne pas importer.
 PROPRIETE_DU_ROLE = {
@@ -86,33 +90,15 @@ def mode_montants(roles: list[str]) -> str:
     return "algebrique"
 
 
-def centimes(texte: str, separateur_decimal: str) -> Optional[int]:
+def centimes(
+    texte: str, separateur_decimal: str, separateur_milliers: Optional[str] = None
+) -> Optional[int]:
     """« 1 234,56 € », « (12,50) », « 12,50- » → centimes signés ; None si la
-    cellule n'est pas un montant. Le séparateur décimal est CONNU ici (il est
-    dans le mapping attendu) : le banc n'a rien à deviner."""
-    t = texte.strip()
-    for parasite in (" ", " ", " ", "€", "EUR", "+"):
-        t = t.replace(parasite, "")
-    if not t:
-        return None
-    negatif = False
-    if t.startswith("(") and t.endswith(")"):
-        negatif, t = True, t[1:-1]
-    if t.endswith("-"):
-        negatif, t = True, t[:-1]
-    if t.startswith("-"):
-        negatif, t = not negatif, t[1:]
-    t = t.replace("." if separateur_decimal == "," else ",", "")
-    entier, _, decimales = t.partition(separateur_decimal)
-    if not (entier or decimales) or not (entier + decimales).isdigit() or len(decimales) > 2:
-        return None
-    valeur = int(entier or "0") * 100 + int((decimales + "00")[:2])
-    return -valeur if negatif else valeur
-
-
-def texte_montant(valeur: int, separateur_decimal: str) -> str:
-    signe = "-" if valeur < 0 else ""
-    return f"{signe}{abs(valeur) // 100}{separateur_decimal}{abs(valeur) % 100:02d}"
+    cellule n'est pas un montant. Les séparateurs sont CONNUS ici (ils sont
+    dans le mapping attendu) : le banc n'a rien à deviner. La lecture est celle
+    de l'application (services/lecture_montants) : la vérité attendue et la
+    détection lisent les nombres de la même façon."""
+    return lire_centimes(texte, separateur_decimal, separateur_milliers or None)
 
 
 @dataclass
@@ -125,6 +111,7 @@ class Releve:
     pied: list[list[str]] = field(default_factory=list)
     separateur: str = ";"  # ou "xlsx"
     separateur_decimal: str = ","
+    separateur_milliers: str = ""
     encodage: str = "utf-8"
     ordre: str = "croissant"
     format_date: str = "%d/%m/%Y"
@@ -151,9 +138,13 @@ class Releve:
             "proprietes": [PROPRIETE_DU_ROLE[r] for r in self.roles],
             "mode_montants": self.mode,
             "separateur": self.separateur,
-            "separateur_decimal": self.separateur_decimal,
-            "encodage": self.encodage,
+            # Un classeur porte des nombres et des dates TYPÉS : ni séparateur
+            # décimal, ni encodage, ni écriture des dates à deviner.
+            "separateur_decimal": None if self.separateur == "xlsx" else self.separateur_decimal,
+            "encodage": "" if self.separateur == "xlsx" else self.encodage,
+            "format_date": None if self.separateur == "xlsx" else FORMATS_DATE.get(self.format_date),
             "ordre": self.ordre,
+            "lignes_pied": len(self.pied),
         }
 
     # ---------- Les montants ----------
@@ -164,7 +155,11 @@ class Releve:
         sep = self.separateur_decimal
         nets: list[Optional[int]] = []
         for ligne in self.lignes:
-            lus = {r: centimes(ligne[j], sep) for j, r in enumerate(self.roles) if r in ROLES_MONTANT}
+            lus = {
+                r: centimes(ligne[j], sep, self.separateur_milliers)
+                for j, r in enumerate(self.roles)
+                if r in ROLES_MONTANT
+            }
             if self.mode == "algebrique":
                 nets.append(lus.get("montant"))
             elif self.mode == "montant_sens":
@@ -215,7 +210,7 @@ class Releve:
                 if role in ROLES_DATE and texte:
                     valeurs.append(datetime.strptime(texte, self.format_date))
                 elif role in ROLES_MONTANT and texte:
-                    valeur = centimes(texte, self.separateur_decimal)
+                    valeur = centimes(texte, self.separateur_decimal, self.separateur_milliers)
                     valeurs.append(float(Decimal(valeur) / 100) if valeur is not None else texte)
                 else:
                     valeurs.append(texte)
@@ -273,6 +268,7 @@ def charger(chemin_attendu: Path) -> tuple[bytes, Releve]:
         separateur=attendu["separateur"],
         separateur_decimal=sep_dec,
         encodage=attendu["encodage"],
+        format_date={v: k for k, v in FORMATS_DATE.items()}.get(attendu.get("format_date"), "%d/%m/%Y"),
         ordre=attendu["ordre"],
     )
     return contenu, releve

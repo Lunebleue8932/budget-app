@@ -281,6 +281,15 @@ const TEXTES = {
   /* Le bandeau de reconnaissance du preset, au-dessus de l'aperçu (cf.
      renderImportReconnaissance). `{preset}` : le nom du preset proposé ;
      `{pourcentage}` : la ressemblance de ses intitulés avec ceux du fichier. */
+  /* Ce que la lecture du fichier a appris (cf. lireFeuillesImport,
+     renderImportDetection). `{feuille}` : le nom de la feuille proposée ;
+     `{n}` : un nombre de lignes. */
+  "noyau.feuille-proposee":
+    "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.",
+  "noyau.detection-lignes-pied":
+    "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.",
+  "noyau.detection-dates-mois-devant":
+    "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.",
   "noyau.reconnaissance-basculer":
     "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?",
   "noyau.reconnaissance-basculer-lecture":

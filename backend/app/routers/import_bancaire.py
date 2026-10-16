@@ -12,7 +12,7 @@ from ..constants import (
     ModeComparaison,
 )
 from ..database import get_db
-from ..services import detection_colonnes, import_bancaire, reconnaissance_presets
+from ..services import detection_colonnes, import_bancaire, lecture_fichier, reconnaissance_presets
 
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -406,6 +406,7 @@ async def previsualiser(
     delimiteur: Optional[str] = Form(None),
     separateur_decimal: Optional[str] = Form(None),
     colonnes: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """`colonnes` : les colonnes que l'ÉCRAN affiche, en JSON, quand elles ne
@@ -427,6 +428,7 @@ async def previsualiser(
             delimiteur=delimiteur,
             separateur_decimal=separateur_decimal,
             colonnes=colonnes_lues,
+            feuille=feuille,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
@@ -440,21 +442,23 @@ async def detecter_colonnes(
     fichier: UploadFile = File(...),
     delimiteur: Optional[str] = Form(None),
     separateur_decimal: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Ce que l'application devine des colonnes d'un fichier (cf.
-    services/detection_colonnes). Lecture seule : ni le preset ni rien
-    d'autre n'est écrit. Scopée au preset comme les autres routes de lecture,
-    pour que l'écran l'appelle comme elles."""
+    services/detection_colonnes), et de sa lecture : encodage, délimiteur,
+    séparateurs des nombres, écriture des dates, ordre, feuilles d'un
+    classeur. Lecture seule : ni le preset ni rien d'autre n'est écrit. Scopée
+    au preset comme les autres routes de lecture, pour que l'écran l'appelle
+    comme elles."""
     _get_preset_ou_404(db, preset_id)
     delimiteur = _valider_delimiteur(delimiteur)
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     contenu = await fichier.read()
     try:
-        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+        return detection_colonnes.detecter_fichier(contenu, delimiteur, feuille, separateur_decimal)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
-    return detection_colonnes.detecter_colonnes(lignes, separateur_decimal)
 
 
 @router.post("/reconnaitre-preset", response_model=schemas.ReconnaissancePresetRead)
@@ -463,6 +467,7 @@ async def reconnaitre_preset(
     preset_id: Optional[int] = Form(None),
     delimiteur: Optional[str] = Form(None),
     separateur_decimal: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Quel preset bancaire lit ce fichier, comparé au preset sélectionné
@@ -475,9 +480,13 @@ async def reconnaitre_preset(
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     contenu = await fichier.read()
     try:
-        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur, feuille)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    # Le fichier est lu comme l'aperçu le lira (cf. import_bancaire.
+    # separateur_decimal_du_fichier) : un preset ne doit pas échouer ici sur
+    # des milliers que l'aperçu, lui, saura lire.
+    separateur_decimal = separateur_decimal or import_bancaire.separateur_decimal_du_fichier(lignes)
     ajustements = [
         reconnaissance_presets.ajuster(
             preset,
@@ -495,11 +504,38 @@ async def reconnaitre_preset(
     return reconnaissance_presets.reconnaitre(ajustements, preset_id).en_dict()
 
 
+@router.post("/lecture-fichier", response_model=schemas.LectureFichierRead)
+async def lecture_fichier_route(
+    fichier: UploadFile = File(...),
+    delimiteur: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
+):
+    """Ce qu'on sait d'un fichier avant d'en lire les colonnes (cf. services/
+    lecture_fichier) : format, encodage, délimiteur, et pour un classeur ses
+    feuilles, celle qui serait lue et celle qui ressemble le plus à un relevé.
+    L'écran s'en sert pour proposer la feuille, jamais pour la choisir seul."""
+    delimiteur = _valider_delimiteur(delimiteur)
+    contenu = await fichier.read()
+    try:
+        lecture = lecture_fichier.lire_fichier(contenu, delimiteur, feuille)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    return {
+        "format": lecture.format,
+        "encodage": lecture.encodage,
+        "separateur": lecture.separateur,
+        "feuilles": lecture.feuilles,
+        "feuille": lecture.feuille,
+        "feuille_proposee": lecture.feuille_proposee,
+    }
+
+
 @router.post("/presets/{preset_id}/signature", response_model=schemas.ImportPresetRead)
 async def memoriser_signature(
     preset_id: int,
     fichier: UploadFile = File(...),
     delimiteur: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Retient sur le preset la signature de CE fichier (intitulés, largeur,
@@ -510,7 +546,7 @@ async def memoriser_signature(
     delimiteur = _valider_delimiteur(delimiteur)
     contenu = await fichier.read()
     try:
-        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur, feuille)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
     if reconnaissance_presets.memoriser_signature(preset, lignes, fichier.filename, ecraser=True):
@@ -519,7 +555,9 @@ async def memoriser_signature(
     return preset
 
 
-def _completer_signature(db: Session, preset_id: int, contenu: bytes, delimiteur, nom_fichier) -> None:
+def _completer_signature(
+    db: Session, preset_id: int, contenu: bytes, delimiteur, nom_fichier, feuille=None
+) -> None:
     """À LA PREMIÈRE RÉUTILISATION d'un preset qui n'a pas encore de
     signature (antérieur à la migration 0085), on retient celle du fichier
     qu'il vient d'importer. Ce qui est déjà mémorisé n'est pas touché : seul
@@ -529,7 +567,7 @@ def _completer_signature(db: Session, preset_id: int, contenu: bytes, delimiteur
     au suivant."""
     try:
         preset = crud.get_import_preset(db, preset_id)
-        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur, feuille)
         if reconnaissance_presets.memoriser_signature(preset, lignes, nom_fichier, ecraser=False):
             db.commit()
     except Exception:
@@ -569,6 +607,7 @@ async def confirmer(
     delimiteur: Optional[str] = Form(None),
     separateur_decimal: Optional[str] = Form(None),
     colonnes: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """`colonnes` : LES MÊMES que celles de l'aperçu qu'on confirme. L'écran les
@@ -595,6 +634,7 @@ async def confirmer(
             delimiteur=delimiteur,
             separateur_decimal=separateur_decimal,
             colonnes=colonnes_lues,
+            feuille=feuille,
         )
     except import_bancaire.ImportBloque as exc:
         # Le fichier est parfaitement lisible : c'est la configuration du preset
@@ -604,7 +644,7 @@ async def confirmer(
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
-    _completer_signature(db, preset_id, contenu, delimiteur, fichier.filename)
+    _completer_signature(db, preset_id, contenu, delimiteur, fichier.filename, feuille)
     return resultat
 
 
@@ -616,6 +656,7 @@ async def enregistrer_ligne_brute(
     operation_id: int = Form(...),
     delimiteur: Optional[str] = Form(None),
     import_historique_id: Optional[int] = Form(None),
+    feuille: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Déclare qu'une ligne du fichier a créé une opération, pour que le même
@@ -632,7 +673,8 @@ async def enregistrer_ligne_brute(
     contenu = await fichier.read()
     try:
         trouvee = import_bancaire.enregistrer_ligne_brute(
-            db, preset_id, contenu, ligne, operation_id, delimiteur, import_historique_id
+            db, preset_id, contenu, ligne, operation_id, delimiteur, import_historique_id,
+            feuille=feuille,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")

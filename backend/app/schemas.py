@@ -1605,6 +1605,35 @@ class DetectionColonnesRead(BaseModel):
     lignes_entete: int = 0
     colonnes: list[ColonneDetectee] = Field(default_factory=list)
     configuration: list[dict] = Field(default_factory=list)
+    # CE QUE LA LECTURE A APPRIS (cf. services/lecture_fichier, lecture_montants,
+    # lecture_dates). None : rien ne le dit, ou sans objet (un classeur n'a ni
+    # encodage ni séparateur décimal à deviner).
+    lignes_pied: int = 0
+    format: Optional[str] = None  # « csv » ou « xlsx »
+    encodage: Optional[str] = None
+    separateur: Optional[str] = None
+    separateur_decimal: Optional[str] = None
+    separateur_milliers: Optional[str] = None
+    format_date: Optional[str] = None  # « jma », « mja » ou « amj »
+    format_date_certain: bool = False
+    ordre: Optional[str] = None  # « croissant » ou « decroissant »
+    # Les feuilles d'un classeur et, pour chacune, le nombre de lignes qui ont
+    # la forme d'une opération ; celle qui a été lue, celle qui est proposée.
+    feuilles: list[dict] = Field(default_factory=list)
+    feuille: Optional[str] = None
+    feuille_proposee: Optional[str] = None
+
+
+class LectureFichierRead(BaseModel):
+    """Ce qu'on sait d'un fichier avant d'en lire les colonnes (cf. services/
+    lecture_fichier). `feuilles` : [{nom, operations}], vide pour un CSV."""
+
+    format: str
+    encodage: str = ""
+    separateur: str = ""
+    feuilles: list[dict] = Field(default_factory=list)
+    feuille: Optional[str] = None
+    feuille_proposee: Optional[str] = None
 
 
 class AjustementPreset(BaseModel):

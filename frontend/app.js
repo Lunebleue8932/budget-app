@@ -10697,6 +10697,11 @@ let importApercu = null; // dernier ImportPreview reçu du serveur
 // automatique, le comportement par défaut.
 let importReglageDelimiteur = null;
 let importReglageSeparateurDecimal = null;
+// LA FEUILLE D'UN CLASSEUR qui porte le relevé (cf. services/lecture_fichier) :
+// null = la feuille active. À l'ouverture d'un classeur à plusieurs feuilles,
+// celle qui ressemble le plus à un relevé est PROPOSÉE ici, visiblement, et se
+// change dans les réglages de lecture (cf. lireFeuillesImport).
+let importFeuille = null;
 // Trace du dernier import confirmé (ImportHistorique.id), le temps d'y
 // rattacher les règlements liés — seules opérations d'un import à naître
 // APRÈS lui, une par une (cf. le stock anti-doublons du serveur). Sans ce
@@ -11184,6 +11189,8 @@ const DELIMITEURS_FORMULAIRE = { PV: ";", VIRGULE: ",", TAB: "\t" };
 function reinitialiserReglagesLecture() {
   importReglageDelimiteur = null;
   importReglageSeparateurDecimal = null;
+  importFeuille = null;
+  document.getElementById("import-reglage-feuille-champ").style.display = "none";
   const details = document.getElementById("import-reglages-lecture");
   details.open = false;
   document.getElementById("import-reglages-lecture-alerte").style.display = "none";
@@ -11265,6 +11272,7 @@ function renderImportReglagesLecture() {
   if (importReglageDelimiteur) resumeMorceaux.push(`délimiteur « ${importReglageDelimiteur} »`);
   if (importReglageSeparateurDecimal)
     resumeMorceaux.push(`décimale « ${importReglageSeparateurDecimal} »`);
+  if (importFeuille) resumeMorceaux.push(`feuille « ${importFeuille} »`);
   resume.textContent = resumeMorceaux.length ? `— ${resumeMorceaux.join(", ")}` : "";
 
   if (detecterProblemeLecture(lignes)) {
@@ -12476,9 +12484,55 @@ async function analyserFichierImport() {
   ) {
     return;
   }
+  await lireFeuillesImport();
   await reconnaitrePresetImport();
   await executerPrevisualisation();
 }
+
+/**
+ * UN CLASSEUR À PLUSIEURS FEUILLES : laquelle porte le relevé ? Le serveur
+ * compte, feuille par feuille, les lignes qui ont la forme d'une opération
+ * (une date et un nombre), et propose la mieux pourvue. Elle est retenue et
+ * AFFICHÉE dans les réglages de lecture, qui s'ouvrent quand elle n'est pas la
+ * feuille active — celle qu'on aurait lue sans rien demander.
+ */
+async function lireFeuillesImport() {
+  importFeuille = null;
+  document.getElementById("import-reglage-feuille-champ").style.display = "none";
+  const formData = new FormData();
+  formData.append("fichier", importFichierActuel);
+  let lecture;
+  try {
+    lecture = await apiFetchForm("/import/lecture-fichier", formData);
+  } catch (err) {
+    // L'aperçu, juste après, dira ce qui ne va pas avec ce fichier.
+    return;
+  }
+  if (lecture.format !== "xlsx" || lecture.feuilles.length < 2) return;
+  const select = document.getElementById("import-reglage-feuille");
+  select.innerHTML = lecture.feuilles
+    .map((f) => `<option value="${escapeHtml(f.nom)}">${escapeHtml(f.nom)}</option>`)
+    .join("");
+  importFeuille = lecture.feuille_proposee || lecture.feuille;
+  select.value = importFeuille;
+  document.getElementById("import-reglage-feuille-aide").textContent = t(
+    texteAide("noyau.feuille-proposee"),
+    { feuille: importFeuille }
+  );
+  document.getElementById("import-reglage-feuille-champ").style.display = "";
+  if (importFeuille !== lecture.feuille) {
+    document.getElementById("import-config-fichier").open = true;
+    document.getElementById("import-reglages-lecture").open = true;
+  }
+  renderImportReglagesLecture();
+}
+
+document.getElementById("import-reglage-feuille").addEventListener("change", async (e) => {
+  importFeuille = e.target.value || null;
+  if (!importFichierActuel) return;
+  await reconnaitrePresetImport();
+  await executerPrevisualisation();
+});
 
 /**
  * L'aller-retour de prévisualisation lui-même : envoie le fichier, repart d'un
@@ -12520,6 +12574,7 @@ async function executerPrevisualisation() {
   const compteDefaut = compteIdDefautChoisi();
   if (compteDefaut) formData.append("compte_id_defaut", compteDefaut);
   if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
   if (importReglageSeparateurDecimal)
     formData.append("separateur_decimal", importReglageSeparateurDecimal);
   ajouterColonnesLues(formData);
@@ -12875,6 +12930,7 @@ async function detecterColonnesImport() {
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
   if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
   if (importReglageSeparateurDecimal)
     formData.append("separateur_decimal", importReglageSeparateurDecimal);
   try {
@@ -12930,6 +12986,20 @@ function renderImportDetection() {
     <p class="hint">${escapeHtml(
       t("Lignes de tête : {n}", { n: importDetection.lignes_entete })
     )}</p>
+    ${
+      importDetection.lignes_pied
+        ? `<p class="hint">${escapeHtml(
+            t(texteAide("noyau.detection-lignes-pied"), { n: importDetection.lignes_pied })
+          )}</p>`
+        : ""
+    }
+    ${
+      importDetection.format_date === "mja"
+        ? `<p class="import-avertissement">${escapeHtml(
+            t(texteAide("noyau.detection-dates-mois-devant"))
+          )}</p>`
+        : ""
+    }
     ${lignes}
     <p class="hint import-detection-avertissement">${escapeHtml(
       t(texteAide("noyau.detection-colonnes-enregistrer"))
@@ -13032,6 +13102,7 @@ async function reconnaitrePresetImport() {
   formData.append("fichier", importFichierActuel);
   if (importPresetId != null) formData.append("preset_id", importPresetId);
   if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
   if (importReglageSeparateurDecimal)
     formData.append("separateur_decimal", importReglageSeparateurDecimal);
   try {
@@ -13139,6 +13210,7 @@ async function memoriserSignatureImport() {
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
   if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
   try {
     await apiFetchForm(importUrl("/signature"), formData);
     return true;
@@ -16424,6 +16496,7 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
   // l'identique, sans quoi la confirmation verrait d'autres lignes en erreur
   // que celles déjà traitées (cf. services/import_bancaire.confirmer).
   if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
   if (importReglageSeparateurDecimal)
     formData.append("separateur_decimal", importReglageSeparateurDecimal);
   ajouterColonnesLues(formData);

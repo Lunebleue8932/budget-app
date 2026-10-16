@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
-from app.services.detection_colonnes import detecter_colonnes
+from app.services.detection_colonnes import detecter_fichier
 from app.services.import_bancaire import _lire_toutes_les_lignes
 from app.services.reconnaissance_presets import ajuster, memoriser_signature, reconnaitre
 
@@ -34,7 +34,21 @@ from .variantes import Cas, tous_les_cas
 
 REFERENCE = Path(__file__).parent / "reference.json"
 # Ce que la détection ne rend pas encore, et qu'on mesurera dès qu'elle le rendra.
-_EXTRAS = ("mode_montants", "ordre", "separateur", "separateur_decimal", "encodage")
+_EXTRAS = (
+    "mode_montants", "ordre", "separateur", "separateur_decimal", "encodage", "format_date",
+    "lignes_pied",
+)
+# Deux encodages qui ne diffèrent que sur des octets absents du fichier le
+# lisent à l'identique : les confondre n'est pas une erreur.
+_ENCODAGES_VOISINS = {"cp1252", "latin-1"}
+
+
+def _meme_extra(cle: str, attendu, obtenu, contenu: bytes) -> bool:
+    if attendu == obtenu:
+        return True
+    if cle == "encodage" and {attendu, obtenu} <= _ENCODAGES_VOISINS:
+        return contenu.decode("cp1252", errors="replace") == contenu.decode("latin-1")
+    return False
 
 
 @dataclass
@@ -65,8 +79,7 @@ def evaluer(cas: Cas) -> Resultat:
     attendu = cas.attendu
     r = Resultat(cas, colonnes=len(attendu["proprietes"]))
     try:
-        lignes = _lire_toutes_les_lignes(cas.contenu)
-        detection = detecter_colonnes(lignes)
+        detection = detecter_fichier(cas.contenu)
     except Exception as exc:  # un plantage est un échec à lister, pas à subir
         r.erreur = f"{type(exc).__name__}: {exc}"
         return r
@@ -88,8 +101,10 @@ def evaluer(cas: Cas) -> Resultat:
             f"attendu {attendu['lignes_entete'] + 1}"
         )
     for cle in _EXTRAS:
-        if cle in detection:
-            r.extras[cle] = detection[cle] == attendu[cle]
+        # Ce que la détection ne rend pas encore, ou que le cas ne fixe pas
+        # (un classeur n'a pas de séparateur décimal), ne se mesure pas.
+        if cle in detection and attendu.get(cle) is not None:
+            r.extras[cle] = _meme_extra(cle, attendu[cle], detection[cle], cas.contenu)
             if not r.extras[cle]:
                 r.ecarts.append(f"{cle} : attendu {attendu[cle]}, obtenu {detection[cle]}")
     return r
@@ -173,11 +188,12 @@ def _base_du_cas(cas: Cas) -> str:
 
 def _meme_lecture(cas: Cas, base: Cas) -> bool:
     """Le preset de la base sait-il lire ce cas ? Oui tant que les colonnes,
-    les lignes de tête et le séparateur décimal n'ont pas bougé."""
+    les lignes de tête, le séparateur décimal et l'écriture des dates n'ont pas
+    bougé — l'import ne lit pas les dates mois devant (« 01/25/2026 »)."""
     return all(
         cas.attendu[cle] == base.attendu[cle]
         for cle in ("proprietes", "lignes_entete", "separateur_decimal")
-    )
+    ) and cas.attendu["format_date"] != "mja"
 
 
 def evaluer_reconnaissance(cas: list[Cas]) -> tuple[int, int, list[str]]:

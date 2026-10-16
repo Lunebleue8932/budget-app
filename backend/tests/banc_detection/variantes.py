@@ -14,6 +14,7 @@ from __future__ import annotations
 import random
 import unicodedata
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -125,6 +126,7 @@ def separateur(r: Releve, sep: str) -> Releve:
                     ligne[j] = texte_montant(valeur, decimal)
         v.pied = []  # un total réécrit à moitié ne testerait rien
         v.separateur_decimal = decimal
+        v.separateur_milliers = ""
     v.separateur = sep
     return v
 
@@ -220,6 +222,51 @@ def en_envoye_recu(r: Releve, rng: random.Random) -> Releve:
     return _en_couple(r, "en_envoye_recu", ["envoye", "recu"], ["Envoyé", "Reçu"])
 
 
+def _en_csv(v: Releve) -> None:
+    """Un classeur devient un CSV « ; » : les transformations qui jouent sur
+    l'ÉCRITURE des nombres ou des dates n'ont pas de sens sur des cellules
+    typées."""
+    if v.separateur == "xlsx":
+        v.separateur = ";"
+        if v.separateur_decimal != ",":
+            for ligne in v.lignes:
+                for j in v.colonnes(*ROLES_MONTANT):
+                    valeur = centimes(ligne[j], v.separateur_decimal, v.separateur_milliers)
+                    if valeur is not None:
+                        ligne[j] = texte_montant(valeur, ",")
+            v.separateur_decimal = ","
+
+
+def milliers(r: Releve, rng: random.Random) -> Releve:
+    """Les montants avec séparateur de milliers : espace, espace insécable ou
+    point derrière une virgule décimale ; virgule ou apostrophe derrière un
+    point. C'est là que « 1.234 » devient ambigu."""
+    v = r.copie("milliers")
+    _en_csv(v)
+    choix = (" ", "\u00a0", ".") if v.separateur_decimal == "," else (",", "'")
+    nouveau = rng.choice(choix)
+    for ligne in v.lignes:
+        for j in v.colonnes(*ROLES_MONTANT):
+            valeur = centimes(ligne[j], v.separateur_decimal, v.separateur_milliers)
+            if valeur is not None:
+                ligne[j] = texte_montant(valeur, v.separateur_decimal, nouveau)
+    v.pied = []
+    v.separateur_milliers = nouveau
+    return v
+
+
+def dates_mj(r: Releve, rng: random.Random) -> Releve:
+    """Les dates à l'américaine, mois devant : « 01/25/2026 »."""
+    v = r.copie("dates_mj")
+    _en_csv(v)
+    for ligne in v.lignes:
+        for j in v.colonnes("date", "date_valeur"):
+            if ligne[j]:
+                ligne[j] = datetime.strptime(ligne[j], v.format_date).strftime("%m/%d/%Y")
+    v.format_date = "%m/%d/%Y"
+    return v
+
+
 def inverser_ordre(r: Releve, rng: random.Random) -> Releve:
     v = r.copie("inverser_ordre")
     v.lignes = v.lignes[::-1]
@@ -240,6 +287,8 @@ TRANSFORMATIONS: dict[str, Callable[[Releve, random.Random], Releve]] = {
     "en_debit_credit": en_debit_credit,
     "en_envoye_recu": en_envoye_recu,
     "inverser_ordre": inverser_ordre,
+    "milliers": milliers,
+    "dates_mj": dates_mj,
     "sans_intitules": sans_intitules,
 }
 _COMBINABLES = [n for n in TRANSFORMATIONS if n != "sans_intitules"]

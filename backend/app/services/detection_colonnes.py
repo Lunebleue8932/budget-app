@@ -25,6 +25,13 @@ un essai.
 
 CE QUE ÇA NE LIT JAMAIS : les montants en tant que tels. On regarde si une
 cellule A LA FORME d'un montant, jamais ce qu'elle vaut.
+
+LA LECTURE AVANT LES COLONNES (`detecter_fichier`) : encodage, délimiteur,
+feuille d'un classeur (services/lecture_fichier), puis, sur les cellules
+elles-mêmes, séparateur décimal et de milliers (services/lecture_montants),
+écriture des dates et ordre du fichier (services/lecture_dates), lignes de
+total ou de solde final sous les opérations. Chacun est RENDU avec les
+colonnes, pour que l'écran puisse le montrer et le corriger.
 """
 from dataclasses import dataclass, field
 from typing import Optional
@@ -35,7 +42,10 @@ from ..constants import (
     LIBELLES_STATUT_DEFAUT,
 )
 from .entetes import SCORE_SYNONYME, dictionnaire, groupe_principal, scores_proprietes
-from .import_bancaire import normaliser_libelle, parser_date, parser_montant
+from .import_bancaire import normaliser_libelle, parser_date
+from .lecture_dates import format_dates, lire_date, ordre_dates
+from .lecture_fichier import lire_fichier
+from .lecture_montants import centimes, format_nombres
 
 # Combien de lignes de données on examine : assez pour qu'une colonne rare ne
 # passe pas pour vide, assez peu pour qu'un relevé de dix ans se lise vite.
@@ -128,7 +138,41 @@ def _premiere_ligne_de_donnees(lignes: list[tuple]) -> int:
     return 0
 
 
-def _profiler(lignes_donnees: list[tuple], entetes: list, separateur_decimal) -> list[_Profil]:
+# Au-delà, ce qui suit les opérations n'est plus un pied de relevé mais un
+# fichier qui mêle autre chose : on n'y touche pas.
+_PIED_MAX = 10
+
+
+def _lignes_de_pied(corps: list[tuple], format_date) -> int:
+    """Combien de lignes, SOUS les opérations, n'en sont pas : un total, un
+    solde final, une mention légale. Ce sont les dernières lignes dont la
+    colonne de dates — celle qui en porte le plus — n'en porte pas."""
+    echantillon = corps[:_ECHANTILLON]
+    largeur = max((len(l) for l in echantillon), default=0)
+    if not largeur:
+        return 0
+
+    def est_une_date(ligne, j):
+        return j < len(ligne) and lire_date(ligne[j], format_date) is not None
+
+    colonne = max(range(largeur), key=lambda j: sum(est_une_date(l, j) for l in echantillon))
+    if not any(est_une_date(l, colonne) for l in echantillon):
+        return 0
+    pied = 0
+    for ligne in reversed(corps):
+        if pied >= _PIED_MAX or est_une_date(ligne, colonne):
+            break
+        pied += 1
+    return pied if pied < len(corps) else 0
+
+
+def _profiler(
+    lignes_donnees: list[tuple],
+    entetes: list,
+    separateur_decimal=None,
+    separateur_milliers=None,
+    format_date=None,
+) -> list[_Profil]:
     largeur = max([len(l) for l in lignes_donnees] + [len(entetes)] + [0])
     profils = [_Profil(index=j + 1, entete=str(entetes[j]).strip() if j < len(entetes) and entetes[j] is not None else "")
                for j in range(largeur)]
@@ -139,7 +183,7 @@ def _profiler(lignes_donnees: list[tuple], entetes: list, separateur_decimal) ->
             cellule = ligne[j] if j < len(ligne) else None
             texte = "" if cellule is None else str(cellule).strip()
             profil = profils[j]
-            montant = parser_montant(cellule, separateur_decimal) if texte else None
+            montant = centimes(cellule, separateur_decimal, separateur_milliers) if texte else None
             profil.vides_ou_zero.append(not texte or montant == 0)
             if not texte:
                 continue
@@ -148,16 +192,15 @@ def _profiler(lignes_donnees: list[tuple], entetes: list, separateur_decimal) ->
             longueurs[j] += len(texte)
             if len(profil.exemples) < 3 and texte not in profil.exemples:
                 profil.exemples.append(texte)
-            if parser_date(cellule) is not None:
+            if lire_date(cellule, format_date) is not None:
                 profil.dates += 1
             elif montant is not None:
                 profil.nombres += 1
                 if montant < 0:
                     profil.negatifs += 1
                 # Un montant a des centimes ; un numéro de référence non.
-                if isinstance(cellule, float) and not cellule.is_integer():
-                    profil.decimales += 1
-                elif any(sep in texte for sep in (",", ".")):
+                decimal = separateur_decimal or ","
+                if montant % 100 or (isinstance(cellule, str) and decimal in texte):
                     profil.decimales += 1
             if _est_devise(texte):
                 profil.devises += 1
@@ -247,8 +290,20 @@ def detecter_colonnes(
     else:
         entetes = []
         debut = _premiere_ligne_de_donnees(lignes)
-    donnees = [l for l in lignes[debut:] if any(c not in (None, "") for c in l)][:_ECHANTILLON]
-    profils = _profiler(donnees, entetes, separateur_decimal)
+    corps = [l for l in lignes[debut:] if any(c not in (None, "") for c in l)]
+    cellules = [c for l in corps[:_ECHANTILLON] for c in l if c not in (None, "")]
+    # LE FORMAT DES NOMBRES ET DES DATES se lit sur tout l'échantillon : une
+    # cellule seule ne dit pas si « 1.234 » vaut mille ou un, si « 03/04 » est
+    # en avril ou en mars. Un séparateur décimal imposé à la main l'emporte.
+    if separateur_decimal:
+        decimal, milliers = separateur_decimal, None
+    else:
+        decimal, milliers = format_nombres(cellules)
+    format_date, format_date_certain = format_dates(cellules)
+    pied = _lignes_de_pied(corps, format_date)
+    operations = corps[: len(corps) - pied]
+    donnees = operations[:_ECHANTILLON]
+    profils = _profiler(donnees, entetes, decimal, milliers, format_date)
 
     scores: dict[int, dict[str, float]] = {}
     presque_vides: list[int] = []
@@ -371,12 +426,52 @@ def detecter_colonnes(
             }
         )
 
+    # L'ORDRE DU FICHIER, lu sur la colonne retenue pour la date.
+    colonne_date = next((index for index, prop in retenue.items() if prop == "date"), None)
+    ordre = None
+    if colonne_date is not None:
+        ordre = ordre_dates(
+            lire_date(l[colonne_date - 1], format_date) if colonne_date <= len(l) else None
+            for l in operations
+        )
+
     return {
         # En lignes PHYSIQUES, vides comprises : c'est ce que compte
         # ImportPreset.lignes_entete, et ce qu'Excel numérote.
         "lignes_entete": debut,
+        # Les lignes NON VIDES qui suivent les opérations sans en être.
+        "lignes_pied": pied,
+        "separateur_decimal": decimal,
+        "separateur_milliers": milliers,
+        # « jma », « mja », « amj », ou None pour des dates déjà typées.
+        "format_date": format_date,
+        "format_date_certain": format_date_certain,
+        # « croissant », « decroissant », ou None quand l'ordre est mêlé.
+        "ordre": ordre,
         "colonnes": colonnes,
         "configuration": [
             {"index": index, "propriete": prop} for index, prop in sorted(retenue.items()) if prop
         ],
     }
+
+
+def detecter_fichier(
+    contenu: bytes,
+    delimiteur: Optional[str] = None,
+    feuille: Optional[str] = None,
+    separateur_decimal: Optional[str] = None,
+) -> dict:
+    """`detecter_colonnes` sur un fichier entier : ce qu'elle rend, plus ce
+    que la lecture a appris (cf. services/lecture_fichier) — format, encodage,
+    délimiteur, feuilles d'un classeur et celle qui est proposée."""
+    lecture = lire_fichier(contenu, delimiteur, feuille)
+    resultat = detecter_colonnes(lecture.lignes, separateur_decimal)
+    resultat.update(
+        format=lecture.format,
+        encodage=lecture.encodage,
+        separateur=lecture.separateur,
+        feuilles=lecture.feuilles,
+        feuille=lecture.feuille,
+        feuille_proposee=lecture.feuille_proposee,
+    )
+    return resultat

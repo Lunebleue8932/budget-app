@@ -171,6 +171,7 @@ exprimable, plus rien n'était relisible. La 0026 les a ramenés à des proprié
 import csv
 import io
 import re
+from collections import Counter
 from datetime import date as date_type, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
@@ -183,6 +184,7 @@ import unicodedata
 
 from .. import crud, extensions, models, schemas
 from . import rapprochement_previsionnel, regles_categorisation
+from .lecture_montants import format_nombres
 from ..constants import (
     DEVISE_PAR_MONTANT_AVANCE,
     LIBELLES_SENS_ENTREE,
@@ -446,6 +448,21 @@ def parser_montant(valeur, separateur_decimal: Optional[str] = None) -> Optional
         return None
 
 
+def separateur_decimal_du_fichier(lignes: list[tuple]) -> Optional[str]:
+    """Le séparateur décimal à imposer à la lecture de ce fichier, ou None pour
+    garder la lecture permissive de parser_montant.
+
+    Celle-ci lit « 1 234,56 », « -45,2 » et « 45.20 » sans réglage ; elle
+    échoue dès qu'un POINT ou une VIRGULE sépare les milliers (« 1.234,56 »,
+    « 1,234.56 ») — une ligne sur dix d'un relevé, toutes celles de plus de
+    mille euros. Le format des nombres se lit alors sur le fichier entier
+    (services/lecture_montants.format_nombres), et seulement dans ce cas : un
+    fichier que la lecture permissive lisait déjà est lu exactement comme
+    avant."""
+    decimal, milliers = format_nombres(c for l in lignes[:_ECHANTILLON_FORMAT] for c in l)
+    return decimal if milliers in (",", ".") else None
+
+
 def _texte(valeur) -> str:
     return str(valeur).strip() if valeur is not None else ""
 
@@ -619,35 +636,46 @@ def _decoder_texte(contenu: bytes) -> str:
 
 # Ordre de préférence à égalité : ";" est le standard des exports bancaires
 # français, "," le plus piégeux (il est aussi le séparateur décimal français).
-_DELIMITEURS_CANDIDATS = (";", "\t", ",")
+_DELIMITEURS_CANDIDATS = (";", "\t", "|", ",")
+# Assez de lignes pour dépasser les lignes de titre d'un relevé (titulaire,
+# numéro de compte, période…) et trouver ses opérations.
+_ECHANTILLON_DELIMITEUR = 40
+# Les lignes sur lesquelles se lit le format des nombres d'un fichier.
+_ECHANTILLON_FORMAT = 300
 
 
 def _detecter_delimiteur(echantillon: str) -> str:
-    """Choisit le délimiteur qui découpe l'échantillon en un nombre de colonnes
-    à la fois stable d'une ligne à l'autre et le plus grand possible.
+    """Le délimiteur qui découpe LE PLUS DE LIGNES en un même nombre de
+    colonnes (au moins deux), à égalité celui qui en fait le plus.
 
     csv.Sniffer ne convient pas ici : sur un relevé français sans en-tête, les
     montants à virgule décimale ("-45,2") lui font élire "," alors que les
     vraies colonnes sont séparées par ";". Compter les colonnes est bien plus
     fiable — le bon délimiteur produit le même découpage sur toutes les
-    lignes, le mauvais un découpage erratique.
+    opérations, le mauvais un découpage erratique ou plus étroit.
+
+    LA MAJORITÉ, ET NON L'UNANIMITÉ : un relevé qui ouvre sur « Relevé de
+    compte », le nom du titulaire et une ligne vide n'a, sur ces lignes-là,
+    aucun délimiteur. Exiger le même découpage partout les faisait toutes
+    échouer, et le fichier retombait sur ";" quel que fût le sien. Les
+    guillemets sont respectés (csv.reader) : une virgule dans un libellé
+    entre guillemets ne découpe rien.
     """
     lignes = [ligne for ligne in echantillon.splitlines() if ligne.strip()]
     if not lignes:
         return ";"
 
-    meilleur = ";"
-    meilleur_score = 0
+    meilleur, meilleur_score = ";", (0, 0)
     for delimiteur in _DELIMITEURS_CANDIDATS:
-        nb_colonnes = [len(ligne.split(delimiteur)) for ligne in lignes]
-        # Un délimiteur absent donne 1 colonne partout : stable, mais inutile.
-        if min(nb_colonnes) < 2 or len(set(nb_colonnes)) != 1:
+        largeurs = Counter(
+            len(champs) for champs in csv.reader(lignes, delimiter=delimiteur) if len(champs) >= 2
+        )
+        if not largeurs:
             continue
-        if nb_colonnes[0] > meilleur_score:
-            meilleur, meilleur_score = delimiteur, nb_colonnes[0]
-
-    # Aucun candidat régulier (échantillon d'une seule ligne tronquée, guillemets
-    # contenant le délimiteur...) : repli sur le standard français.
+        # La largeur la plus fréquente, et à fréquence égale la plus grande.
+        largeur, frequence = max(largeurs.items(), key=lambda kv: (kv[1], kv[0]))
+        if (frequence, largeur) > meilleur_score:
+            meilleur, meilleur_score = delimiteur, (frequence, largeur)
     return meilleur
 
 
@@ -656,13 +684,13 @@ def _lire_lignes_csv(contenu: bytes, delimiteur: Optional[str] = None) -> list[t
     automatique se trompe — un relevé qui n'utilise ni ";", ni ",", ni la
     tabulation, ou dont l'échantillon ne suffit pas à trancher — l'utilisateur
     peut l'imposer à la main, comme le ferait l'import CSV d'Excel. Sans lui,
-    comportement inchangé : détection sur les 20 premières lignes."""
+    détection sur les premières lignes (cf. _detecter_delimiteur)."""
     texte = _decoder_texte(contenu)
     if delimiteur is None:
         # Échantillon en lignes entières (et non une tranche de caractères,
         # qui couperait la dernière ligne en plein milieu et fausserait le
         # comptage de colonnes de _detecter_delimiteur).
-        echantillon = "\n".join(texte.splitlines()[:20])
+        echantillon = "\n".join(texte.splitlines()[:_ECHANTILLON_DELIMITEUR])
         delimiteur = _detecter_delimiteur(echantillon)
     return [tuple(ligne) for ligne in csv.reader(io.StringIO(texte), delimiter=delimiteur)]
 
@@ -2499,6 +2527,7 @@ def previsualiser(
     delimiteur: Optional[str] = None,
     separateur_decimal: Optional[str] = None,
     colonnes: Optional[list] = None,
+    feuille: Optional[str] = None,
 ) -> schemas.ImportPreview:
     """`delimiteur` et `separateur_decimal` (None par défaut, tous les deux) :
     réglages de LECTURE que l'utilisateur peut préciser à la main quand l'app
@@ -2512,7 +2541,11 @@ def previsualiser(
     réorganiser les colonnes — en déplaçant les en-têtes de l'aperçu, ou en
     corrigeant leurs numéros — et de VOIR le résultat avant de décider de
     l'enregistrer. Rien n'est écrit : le preset ne change qu'au moment où on le
-    demande (cf. PresetAvecColonnes)."""
+    demande (cf. PresetAvecColonnes).
+
+    `feuille` encore : la feuille d'un classeur que l'écran a choisie (cf.
+    services/lecture_fichier, qui propose la plus plausible). None = la feuille
+    active, comme toujours."""
     preset = crud.get_import_preset(db, preset_id)
     if colonnes is not None:
         preset = PresetAvecColonnes(preset, colonnes)
@@ -2522,6 +2555,11 @@ def previsualiser(
 
     # Monnaies et règles : chargées une seule fois pour tout le fichier plutôt
     # qu'à chaque ligne.
+    # Sans réglage à la main, le format des nombres se lit sur le fichier
+    # (cf. separateur_decimal_du_fichier).
+    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(
+        _lire_toutes_les_lignes(contenu, delimiteur, feuille)
+    )
     contexte = ContextePreset(db, preset, separateur_decimal)
 
     lignes = []
@@ -2531,6 +2569,7 @@ def previsualiser(
         preset.colonnes,
         preset.lignes_entete,
         delimiteur,
+        feuille=feuille,
     ):
         doublon = detecter_doublon(
             brute["donnees_completes"],
@@ -2605,6 +2644,7 @@ def previsualiser(
             preset.colonnes,
             preset.lignes_entete,
             delimiteur,
+            feuille=feuille,
         ),
         avertissements=avertissements_configuration(preset),
     )
@@ -3168,8 +3208,10 @@ def confirmer(
     delimiteur: Optional[str] = None,
     separateur_decimal: Optional[str] = None,
     colonnes: Optional[list] = None,
+    feuille: Optional[str] = None,
 ) -> schemas.ImportResultat:
-    # `delimiteur` / `separateur_decimal` / `colonnes` : cf. previsualiser,
+    # `delimiteur` / `separateur_decimal` / `colonnes` / `feuille` : cf.
+    # previsualiser,
     # mêmes réglages — et TOUS LES TROIS doivent être ceux avec lesquels
     # l'aperçu confirmé a été construit, sans quoi le fichier serait relu
     # autrement à la confirmation qu'à l'aperçu (mêmes lignes en erreur qu'avant,
@@ -3199,6 +3241,11 @@ def confirmer(
     colonnes_comparaison = preset.colonnes_comparaison
     mode_comparaison = preset.mode_comparaison
 
+    # Sans réglage à la main, le format des nombres se lit sur le fichier
+    # (cf. separateur_decimal_du_fichier).
+    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(
+        _lire_toutes_les_lignes(contenu, delimiteur, feuille)
+    )
     contexte = ContextePreset(db, preset, separateur_decimal)
     ids_types = crud.id_type_par_code(db)
 
@@ -3209,6 +3256,7 @@ def confirmer(
         preset.colonnes,
         preset.lignes_entete,
         delimiteur,
+        feuille=feuille,
     ):
         doublon = detecter_doublon(
             brute["donnees_completes"],
@@ -3732,6 +3780,7 @@ def enregistrer_ligne_brute(
     operation_id: int,
     delimiteur: Optional[str] = None,
     import_historique_id: Optional[int] = None,
+    feuille: Optional[str] = None,
 ) -> bool:
     """Ajoute au stock anti-doublons UNE ligne du fichier, celle qui a créé
     `operation_id`. Renvoie False si le fichier ne porte pas ce numéro.
@@ -3771,7 +3820,7 @@ def enregistrer_ligne_brute(
     correspondrait plus à celle que l'utilisateur a vue et liée."""
     preset = crud.get_import_preset(db, preset_id)
     for brute in lire_lignes_brutes(
-        contenu, preset.colonnes, preset.lignes_entete, delimiteur
+        contenu, preset.colonnes, preset.lignes_entete, delimiteur, feuille=feuille
     ):
         if brute["ligne"] == numero_ligne:
             crud.create_ligne_import_brute(

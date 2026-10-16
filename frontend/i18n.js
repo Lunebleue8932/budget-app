@@ -958,6 +958,7 @@ const TRADUCTIONS = {
       "Preset “{preset}” created: check the guessed columns, then save the configuration.",
     "Preset « {preset} » sélectionné, fichier relu.": "Preset “{preset}” selected, file re-read.",
     "Intitulés retenus pour ce preset.": "Headers remembered for this preset.",
+    "Feuille du classeur": "Workbook sheet",
 
     "Un CSV écrit à l'anglo-saxonne": "A CSV written the English-speaking way",
     "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -3541,6 +3542,15 @@ const TRADUCTIONS = {
     // noyau.detection-colonnes-suggestion
     "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.":
       "Most lines are unreadable; you can use automatic column detection to help fix this.",
+    // noyau.feuille-proposee
+    "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.":
+      "This workbook has several sheets: “{feuille}” looks the most like a statement, so it is the one being read. You can pick another one here.",
+    // noyau.detection-lignes-pied
+    "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
+      "{n} row(s) below the transactions are not transactions (total, closing balance): they will show as errors in the preview, to be deleted.",
+    // noyau.detection-dates-mois-devant
+    "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
+      "The dates in this file are written month first (01/25/2026): the import cannot read them yet.",
     // noyau.reconnaissance-basculer
     "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
       "This file looks like the “{preset}” preset (headers {pourcentage}% identical). Switch?",
