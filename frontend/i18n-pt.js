@@ -3643,5 +3643,11 @@ Object.assign(TRADUCTIONS.pt, {
     "Todas as correspondências estão confirmadas.",
   "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
     "Cada coluna reúne as transações de uma mesma categoria do seu banco. Escolha a categoria do app que lhes corresponde com a roda (clique, ou ↑ ↓) e confirme (botão, ou Ctrl+Enter): a coluna seguinte assume. -- O app sugere uma categoria a partir do nome, de palavras-chave e de semelhanças; ele nunca classifica nada sem a sua aprovação, mesmo quando tem certeza. -- Depois de confirmada, a correspondência é memorizada para este formato de arquivo: as próximas importações não perguntarão de novo.",
+  "Format reconnu : {banque}":
+    "Formato reconhecido: {banque}",
+  "d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.":
+    "com base nos títulos das colunas — confira a pré-visualização antes de importar.",
+  "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
+    "Formato reconhecido: {banque}. “Adivinhar as colunas” propõe a leitura adequada a esta exportação.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

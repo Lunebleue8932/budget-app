@@ -4427,5 +4427,11 @@ Object.assign(TRADUCTIONS.en, {
     "All the matches are confirmed.",
   "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
     "Each column gathers the transactions of one category from your bank. Pick the app category that matches them with the wheel (click, or ↑ ↓), then confirm (button, or Ctrl+Enter): the next column takes over. -- The app suggests a category from the name, keywords and similarities; it never classifies anything without your approval, even when it is sure. -- Once confirmed, the match is remembered for this file format: the next imports will not ask again.",
+  "Format reconnu : {banque}":
+    "Recognised format: {banque}",
+  "d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.":
+    "based on the column headers — check the preview before importing.",
+  "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
+    "Recognised format: {banque}. “Guess the columns” suggests the reading that suits this export.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

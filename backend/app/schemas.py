@@ -1618,6 +1618,9 @@ class DetectionColonnesRead(BaseModel):
     lignes_entete: int = 0
     colonnes: list[ColonneDetectee] = Field(default_factory=list)
     configuration: list[dict] = Field(default_factory=list)
+    # L'export d'une banque connue, reconnu à ses intitulés (cf. services/formats_bancaires) :
+    # {id, banque}, ou None. Quand il l'est, `colonnes` et `configuration` en sont tirées.
+    format_reconnu: Optional[dict] = None
 
 
 class ApercuFichier(BaseModel):

@@ -12623,6 +12623,7 @@ async function executerPrevisualisation() {
     importDetection = null;
     renderImportDetection();
     majSuggestionDetection();
+    proposerFormatConnu();
     document.getElementById("import-resultat").style.display = "none";
   } catch (err) {
     showMessage(err.message, "error");
@@ -12997,6 +12998,17 @@ function renderImportDetection() {
     <div class="import-detection-titre">${t("Ce que l'application devine")}<i class="info-bulle" tabindex="0" data-info="${escapeHtml(
       t(texteAide("noyau.detection-colonnes"))
     )}">i</i></div>
+    ${
+      // LE FORMAT D'UNE BANQUE CONNUE (cf. services/formats_bancaires) : dit d'où viennent les
+      // colonnes « sûres » ci-dessous, pour qu'on vérifie l'aperçu plutôt que de croire.
+      importDetection.format_reconnu
+        ? `<p class="import-detection-format"><strong>${escapeHtml(
+            t("Format reconnu : {banque}", { banque: importDetection.format_reconnu.banque })
+          )}</strong> <span class="hint">${escapeHtml(
+            t("d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.")
+          )}</span></p>`
+        : ""
+    }
     <p class="hint">${escapeHtml(
       t("Lignes de tête : {n}", { n: importDetection.lignes_entete })
     )}</p>
@@ -13070,6 +13082,37 @@ document.getElementById("import-detection").addEventListener("click", (e) => {
  * presque rien : plus de la moitié des lignes en erreur, c'est le signe d'un
  * preset qui n'a jamais vu ce format — et le moment où deviner rend service.
  */
+/**
+ * L'EXPORT D'UNE BANQUE CONNUE, signalé dès la lecture du fichier : la détection tourne en
+ * silence (lecture seule, rien n'est enregistré), et si elle reconnaît le format sans que le
+ * preset le lise déjà ainsi, la suggestion « Deviner les colonnes » s'allume avec le nom de la
+ * banque. Un échec ne dit rien : c'est un plus, jamais une étape.
+ */
+async function proposerFormatConnu() {
+  if (!importFichierActuel || !importApercu) return;
+  const formData = new FormData();
+  formData.append("fichier", importFichierActuel);
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importReglageSeparateurDecimal)
+    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  try {
+    const detection = await apiFetchForm(importUrl("/detecter-colonnes"), formData);
+    if (!detection.format_reconnu || importDetection) return;
+    const cle = (colonnes) =>
+      JSON.stringify(colonnes.map((c) => [c.index, c.propriete]).sort((a, b) => a[0] - b[0]));
+    if (cle(detection.configuration) === cle(importConfigColonnes || [])) return;
+    const suggestion = document.getElementById("import-detection-suggestion");
+    suggestion.textContent = t(
+      "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.",
+      { banque: detection.format_reconnu.banque }
+    );
+    suggestion.style.display = "";
+    document.getElementById("btn-import-detecter").classList.add("a-relire");
+  } catch (err) {
+    // Silencieux : la suggestion est un plus.
+  }
+}
+
 function majSuggestionDetection() {
   const suggestion = document.getElementById("import-detection-suggestion");
   const lignes = (importApercu && importApercu.lignes) || [];

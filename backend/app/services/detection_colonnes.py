@@ -34,6 +34,7 @@ from ..constants import (
     LIBELLES_SENS_SORTIE,
     LIBELLES_STATUT_DEFAUT,
 )
+from . import formats_bancaires
 from .import_bancaire import normaliser_libelle, parser_date, parser_montant
 
 # Combien de lignes de données on examine : assez pour qu'une colonne rare ne
@@ -375,7 +376,7 @@ def detecter_colonnes(
             }
         )
 
-    return {
+    resultat = {
         # En lignes PHYSIQUES, vides comprises : c'est ce que compte
         # ImportPreset.lignes_entete, et ce qu'Excel numérote.
         "lignes_entete": debut,
@@ -383,4 +384,49 @@ def detecter_colonnes(
         "configuration": [
             {"index": index, "propriete": prop} for index, prop in sorted(retenue.items()) if prop
         ],
+        "format_reconnu": None,
+    }
+    return _appliquer_format_connu(resultat, lignes)
+
+
+def _appliquer_format_connu(resultat: dict, lignes: list[tuple]) -> dict:
+    """Si l'export est celui d'une banque connue (cf. formats_bancaires), ses colonnes PRIMENT
+    sur la devinette : elles sont sûres, les autres colonnes passent en « ne pas importer »
+    (avec les lectures qu'on leur proposait, au cas où).
+
+    LA PROPOSITION SEULEMENT, comme tout ici : rien n'est enregistré, et l'écran dit quel format
+    a été reconnu pour qu'on vérifie l'aperçu."""
+    connu = formats_bancaires.reconnaitre(lignes)
+    if connu is None:
+        return resultat
+    par_index = {c["index"]: c["propriete"] for c in connu["configuration"]}
+    colonnes = []
+    for colonne in resultat["colonnes"]:
+        propriete = par_index.get(colonne["index"])
+        if propriete:
+            colonnes.append(
+                {
+                    **colonne,
+                    "propositions": [{"propriete": propriete, "confiance": 1.6}],
+                    "certaine": True,
+                }
+            )
+            continue
+        autres = [
+            p
+            for p in colonne["propositions"]
+            if p["propriete"] is not None and p["propriete"] not in par_index.values()
+        ]
+        colonnes.append(
+            {
+                **colonne,
+                "propositions": [{"propriete": None, "confiance": 1.0}] + autres[:2],
+                "certaine": False,
+            }
+        )
+    return {
+        "lignes_entete": connu["lignes_entete"],
+        "colonnes": colonnes,
+        "configuration": connu["configuration"],
+        "format_reconnu": {"id": connu["id"], "banque": connu["banque"]},
     }
