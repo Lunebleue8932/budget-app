@@ -303,3 +303,85 @@ def detail_imprevues(
         }
         for op in lignes
     ]
+
+
+# ---------- Les dépenses d'UNE catégorie, période après période ----------
+
+
+def _periodes_avec_entrees(db: Session) -> set:
+    """Les (année, mois) où la base porte AU MOINS UNE opération, de n'importe quelle
+    catégorie, monnaie ou statut. C'est elle qui décide quels mois on affiche : un mois
+    sans la moindre entrée n'est pas un mois « à zéro », c'est un mois qui n'existe pas
+    encore dans les données (avant le premier relevé, ou après le dernier)."""
+    lignes = (
+        db.query(func.strftime("%Y-%m", models.Operation.date)).distinct().all()
+    )
+    return {(int(cle[:4]), int(cle[5:7])) for (cle,) in lignes if cle}
+
+
+def depenses_d_une_categorie(
+    db: Session, categorie_id: int, monnaie_id: int, annee: int, vue: str = "mois"
+) -> Optional[dict]:
+    """Ce que UNE catégorie pèse, mois par mois (les douze de `annee`) ou année par année.
+
+    EN BUDGET, JAMAIS EN BRUT : chaque valeur est la barre que dessine l'histogramme du
+    dashboard pour la même période (`soldes.get_depenses_par_categorie`) — une dépense
+    amortie est étalée sur ses mois, une remboursable ne pèse que son reste à charge, une
+    opération découpée apporte sa part. Le « brut » (ce qui est sorti du compte à sa date)
+    est l'autre lecture du noyau (`soldes.get_variation_brute`) : elle ne se découpe pas
+    par catégorie, et la mélanger ici ferait mentir ce graphe face à celui du dessus.
+
+    ON NE MONTRE PAS UNE PÉRIODE SANS ENTRÉE : si la base ne porte aucune opération ce mois-là
+    (pas seulement dans la catégorie : aucune, toutes catégories confondues) et que le calcul
+    rend zéro, la période est écartée et comptée dans `masquees`. Un mois sans entrée dans
+    la catégorie mais où l'on a vécu garde sa barre à zéro : c'est une information. À
+    l'inverse, une période qui n'a pas d'opération datée mais que l'amortissement d'un achat
+    d'avant recouvre porte une valeur — elle reste.
+
+    Rend None si la catégorie n'existe pas."""
+    categorie = db.get(models.Categorie, categorie_id)
+    if categorie is None:
+        return None
+    presentes = _periodes_avec_entrees(db)
+    if vue == "annee":
+        cibles = [(a, None) for a in soldes.annees_couvertes(db)]
+    else:
+        cibles = [(annee, mois) for mois in range(1, 13)]
+
+    periodes = []
+    masquees = 0
+    for a, m in cibles:
+        if m is None:
+            a_des_entrees = any((a, mois) in presentes for mois in range(1, 13))
+        else:
+            a_des_entrees = (a, m) in presentes
+        ligne = next(
+            (
+                d
+                for d in soldes.get_depenses_par_categorie(db, a, m, monnaie_id)
+                if d.get("categorie") == categorie.nom and not d.get("colonne_speciale")
+            ),
+            None,
+        )
+        total = ligne["total_reel"] if ligne else 0.0
+        if not a_des_entrees and not total:
+            masquees += 1
+            continue
+        periodes.append(
+            {
+                "annee": a,
+                "mois": m,
+                "total": total,
+                "budget_alloue": ligne["budget_alloue"] if ligne else 0.0,
+            }
+        )
+    return {
+        "categorie_id": categorie.id,
+        "categorie": categorie.nom,
+        "couleur_index": categorie.couleur_index,
+        "monnaie_id": monnaie_id,
+        "vue": vue,
+        "annee": annee,
+        "periodes": periodes,
+        "masquees": masquees,
+    }

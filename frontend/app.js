@@ -6056,14 +6056,25 @@ document.addEventListener("click", (evenement) => {
  * appelant. Ce que les deux PARTAGENT — le bouton, le panneau, la façon de se
  * refermer — est dans la feuille de style, où c'est déjà commun.
  */
-function creerMenuCases(conteneur, { libelle, options, coches, onChange, toutSelectionner = false }) {
+function creerMenuCases(
+  conteneur,
+  { libelle, options, coches, onChange, toutSelectionner = false, unique = false }
+) {
   conteneur.innerHTML = "";
   conteneur.classList.add("filtre-menu");
 
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.className = "filtre-menu-bouton";
-  bouton.textContent = `${libelle} ▾`;
+  // UN CHOIX UNIQUE (`unique`) : le même bouton et le même panneau, mais des boutons
+  // radio — une seule option à la fois, et le bouton PORTE le libellé de celle qui est
+  // choisie (le graphe « une catégorie » de la page Budget).
+  const libelleBouton = () => {
+    if (!unique) return libelle;
+    const choix = options.find((o) => !o.titre && choisies.has(o.cle));
+    return choix ? choix.libelle : libelle;
+  };
+  const nomRadio = `menu-unique-${Math.random().toString(36).slice(2)}`;
   bouton.setAttribute("aria-haspopup", "true");
   bouton.setAttribute("aria-expanded", "false");
 
@@ -6072,6 +6083,7 @@ function creerMenuCases(conteneur, { libelle, options, coches, onChange, toutSel
   panneau.hidden = true;
 
   const choisies = new Set(coches);
+  bouton.textContent = `${libelleBouton()} ▾`;
   const cases = [];
   // DES INTERTITRES (`{ titre }`) peuvent ranger les options en groupes — les comptes
   // par type, dans le sélecteur des projets. Ils ne se cochent pas et ne comptent pas.
@@ -6114,13 +6126,23 @@ function creerMenuCases(conteneur, { libelle, options, coches, onChange, toutSel
     }
     const ligne = document.createElement("label");
     const caseACocher = document.createElement("input");
-    caseACocher.type = "checkbox";
+    caseACocher.type = unique ? "radio" : "checkbox";
+    if (unique) caseACocher.name = nomRadio;
     caseACocher.checked = choisies.has(cle);
     // UNE OPTION VERROUILLÉE RESTE VISIBLE, cochée et inerte. La retirer de la
     // liste aurait laissé croire qu'elle se cache aussi, et fait chercher
     // longtemps la case qui n'existe pas.
     caseACocher.disabled = Boolean(verrouillee);
     caseACocher.addEventListener("change", () => {
+      if (unique) {
+        choisies.clear();
+        choisies.add(cle);
+        bouton.textContent = `${libelleBouton()} ▾`;
+        panneau.hidden = true;
+        bouton.setAttribute("aria-expanded", "false");
+        onChange(new Set(choisies));
+        return;
+      }
       if (caseACocher.checked) choisies.add(cle);
       else choisies.delete(cle);
       majEtat();
