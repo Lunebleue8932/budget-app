@@ -9,8 +9,8 @@ numéros à la main était la première marche de l'import, et la plus haute.
 
 DEUX INDICES, ET ILS SE CROISENT :
 
-  - L'INTITULÉ de la colonne, quand le fichier en a un (`_MOTS_CLES`, en
-    français et en anglais). C'est le plus sûr : une banque qui écrit « Débit »
+  - L'INTITULÉ de la colonne, quand le fichier en a un (le dictionnaire de
+    services/entetes, en français, anglais et portugais). C'est le plus sûr : une banque qui écrit « Débit »
     en tête de colonne ne laisse aucun doute ;
   - LA FORME DES CELLULES : la part de dates, de nombres, de textes répétés ou
     tous différents, de codes de devise. C'est ce qui sauve un fichier sans
@@ -34,6 +34,7 @@ from ..constants import (
     LIBELLES_SENS_SORTIE,
     LIBELLES_STATUT_DEFAUT,
 )
+from .entetes import SCORE_SYNONYME, dictionnaire, groupe_principal, scores_proprietes
 from .import_bancaire import normaliser_libelle, parser_date, parser_montant
 
 # Combien de lignes de données on examine : assez pour qu'une colonne rare ne
@@ -42,40 +43,18 @@ _ECHANTILLON = 200
 # Jusqu'où on cherche la ligne des intitulés (cf. MAX_LIGNES_ENTETE).
 _TETE_MAX = 20
 
-# LES INTITULÉS RECONNUS, par propriété, déjà normalisés (minuscules, sans
-# accents ni espaces — cf. normaliser_libelle). Un intitulé reconnu vaut un
-# indice fort ; il est comparé EN ENTIER, puis comme morceau (« dateoperation »
-# contient « date »), le second valant moins.
-_MOTS_CLES: dict[str, tuple[str, ...]] = {
-    "date": ("date", "dateoperation", "datedoperation", "datecomptable", "bookingdate",
-             "transactiondate", "jour", "createdon", "completeddate"),
-    "nature": ("libelle", "libelleoperation", "nature", "description", "intitule",
-               "label", "details", "detail", "designation", "communication", "motif",
-               "merchant", "beneficiaire", "payee", "reference"),
-    "categorie_banque": ("categorie", "category", "souscategorie", "rubrique",
-                         "typedoperation", "typeoperation"),
-    "montant": ("montant", "amount", "somme", "valeur", "montanteur", "net"),
-    "montant_debit": ("debit", "montantdebit", "debiteur", "sortie", "sorties",
-                      "withdrawal", "withdrawals", "moneyout", "paidout"),
-    "montant_credit": ("credit", "montantcredit", "crediteur", "entree", "entrees",
-                       "deposit", "deposits", "moneyin", "paidin"),
-    "sens": ("sens", "debitcredit", "dc", "direction", "type"),
-    "monnaie": ("devise", "monnaie", "currency", "ccy", "targetcurrency"),
-    "compte_banque": ("compte", "account", "numerodecompte", "iban", "accountname"),
-    "statut": ("etat", "statut", "status", "state"),
-    "frais": ("frais", "fee", "fees", "commission", "totalfees"),
-    "montant_initial": ("montantenvoye", "envoye", "sourceamount", "amountsent", "sent"),
-    "monnaie_initiale": ("deviseenvoyee", "monnaieenvoyee", "sourcecurrency"),
-    "monnaie_frais": ("devisedesfrais", "devisefrais", "feecurrency"),
-}
-# Ce qui ne s'importe jamais, et qu'on reconnaît pour le dire plutôt que de le
-# prendre pour un montant : un solde courant est un nombre sur chaque ligne.
-_A_IGNORER = ("solde", "soldeapres", "balance", "runningbalance", "numero",
-              "reference", "id", "transactionid", "cheque", "numerodecheque")
+# LES PROPRIÉTÉS QU'UN INTITULÉ PEUT DÉSIGNER : celles du dictionnaire
+# (app/synonymes_entetes.json, cf. services/entetes), qui dit aussi lesquelles
+# ne s'importent pas — un solde courant est un nombre sur chaque ligne, le
+# reconnaître pour le dire évite de le prendre pour un montant.
+def _proprietes_connues() -> list[str]:
+    return sorted({g["propriete"] for g in dictionnaire().values() if g["propriete"]})
 
-# Un intitulé qui CONTIENT l'un de ces mots ne s'importe pas non plus :
-# « Solde après opération », « Running balance ».
-_A_IGNORER_MORCEAUX = ("solde", "balance")
+
+# Une colonne dont deux montants sont remplis sur plus d'une ligne sur vingt
+# n'est pas un couple débit/crédit.
+_PART_REMPLIES_ENSEMBLE = 0.05
+
 
 # LES PROPRIÉTÉS QUI ONT UNE FORME : une date, un nombre, un code de devise, un
 # mot du vocabulaire « Sens » ou « État ». Pour elles, un intitulé que la forme
@@ -121,34 +100,20 @@ def _est_devise(texte: str) -> bool:
     }
 
 
-def _score_entete(entete_norm: str, propriete: str) -> float:
-    """1 si l'intitulé EST un des mots de la propriété, 0,6 s'il en contient
-    un (un mot d'au moins quatre lettres : « dc » contenu dans n'importe quoi
-    ne veut rien dire), 0 sinon."""
-    if not entete_norm:
-        return 0.0
-    mots = _MOTS_CLES.get(propriete, ())
-    if entete_norm in mots:
-        return 1.0
-    if any(len(mot) >= 4 and mot in entete_norm for mot in mots):
-        return 0.6
-    return 0.0
-
-
 def _ligne_des_intitules(lignes: list[tuple]) -> Optional[int]:
     """L'indice de la ligne d'intitulés, ou None si le fichier n'en a pas.
 
     C'est la ligne, parmi les premières, dont le plus de cellules sont des
-    intitulés CONNUS — au moins deux, pour qu'une ligne de titre (« Relevé de
-    compte ») ne passe pas pour une ligne d'intitulés."""
+    intitulés CONNUS EN ENTIER (exacts ou synonymes du dictionnaire) — au moins
+    deux, pour qu'une ligne de titre (« Relevé de compte ») ne passe pas pour
+    une ligne d'intitulés."""
     meilleure, meilleur_score = None, 1
     for i, ligne in enumerate(lignes[:_TETE_MAX]):
         score = 0
         for cellule in ligne:
-            norm = normaliser_libelle(str(cellule)) if cellule not in (None, "") else ""
-            if norm and (
-                any(_score_entete(norm, p) >= 1.0 for p in _MOTS_CLES) or norm in _A_IGNORER
-            ):
+            if cellule in (None, ""):
+                continue
+            if max(scores_proprietes(cellule).values(), default=0.0) >= SCORE_SYNONYME:
                 score += 1
         if score > meilleur_score:
             meilleure, meilleur_score = i, score
@@ -259,8 +224,8 @@ def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
             exclusives = all(va or vb for va, vb in lignes)
             couvrantes = all(not (va and vb) for va, vb in zip(a.vides_ou_zero, b.vides_ou_zero))
             if exclusives and couvrantes and a.remplies and b.remplies:
-                norm_b = normaliser_libelle(b.entete)
-                if _score_entete(norm_b, "montant_debit") > _score_entete(norm_b, "montant_credit"):
+                entete_b = scores_proprietes(b.entete)
+                if entete_b.get("montant_debit", 0.0) > entete_b.get("montant_credit", 0.0):
                     return b, a
                 return a, b
     return None
@@ -286,16 +251,17 @@ def detecter_colonnes(
     profils = _profiler(donnees, entetes, separateur_decimal)
 
     scores: dict[int, dict[str, float]] = {}
+    presque_vides: list[int] = []
     for p in profils:
-        norm = normaliser_libelle(p.entete)
+        entete = scores_proprietes(p.entete)
         forme = _scores_forme(p)
         s: dict[str, float] = {}
-        for propriete in _MOTS_CLES:
-            valeur = forme.get(propriete, 0.0) + _score_entete(norm, propriete)
+        for propriete in _proprietes_connues():
+            valeur = forme.get(propriete, 0.0) + entete.get(propriete, 0.0)
             # UN INTITULÉ QUE LA FORME CONTREDIT NE COMPTE QUE POUR MOITIÉ :
             # une colonne « Date » remplie de texte n'est pas une date.
             if (
-                _score_entete(norm, propriete)
+                entete.get(propriete)
                 and propriete in _PROPRIETES_A_FORME
                 and not forme.get(propriete)
             ):
@@ -303,18 +269,36 @@ def detecter_colonnes(
             if valeur > 0.05:
                 s[propriete] = round(min(valeur, 1.6), 3)
         # « Solde », « Référence » : ne s'importent pas, et le dire est une
-        # réponse — sans quoi un solde courant passerait pour un montant.
-        a_ignorer = norm in _A_IGNORER or any(m in norm for m in _A_IGNORER_MORCEAUX)
+        # réponse — sans quoi un solde courant passerait pour un montant. Le
+        # dictionnaire les range PARMI CE QUI NE S'IMPORTE PAS, et c'est retenu
+        # quand il le dit au moins aussi sûrement qu'il nomme une propriété.
+        ignore = entete.get("", 0.0)
+        reconnue = max((v for k, v in entete.items() if k), default=0.0)
+        a_ignorer = ignore > 0 and ignore >= reconnue
         if a_ignorer or (not p.remplies):
             s = {k: v * 0.3 for k, v in s.items()}
             s[""] = 1.2 if a_ignorer else 0.9
-        # UNE COLONNE PRESQUE VIDE (moins d'une ligne sur trois) n'est le plus
-        # souvent rien qu'on veuille lire : « ne pas importer » est proposé en
-        # premier, les autres lectures restent offertes.
-        elif donnees and p.remplies / len(donnees) < 0.34:
-            s[""] = max(s.values(), default=0) + 0.1
+        elif donnees and p.remplies / len(donnees) < 0.34 and reconnue < SCORE_SYNONYME:
+            presque_vides.append(p.index)
         scores[p.index] = s
 
+    # ENVOYÉ / REÇU : une ligne n'en remplit d'ordinaire qu'un, et c'est alors
+    # un débit/crédit sous d'autres intitulés (ce que dit le dictionnaire).
+    # Remplis ENSEMBLE, ils décrivent au contraire une conversion de devises :
+    # ce qui part (« montant envoyé » de l'app) et ce qui arrive (le montant).
+    envoye = next((p for p in profils if groupe_principal(p.entete) == "envoye"), None)
+    recu = next((p for p in profils if groupe_principal(p.entete) == "recu"), None)
+    if envoye and recu and donnees:
+        ensemble = sum(
+            1 for ve, vr in zip(envoye.vides_ou_zero, recu.vides_ou_zero) if not ve and not vr
+        )
+        if ensemble / len(donnees) > _PART_REMPLIES_ENSEMBLE:
+            for profil, avant, apres in (
+                (envoye, "montant_debit", "montant_initial"),
+                (recu, "montant_credit", "montant"),
+            ):
+                s = scores[profil.index]
+                s[apres] = max(s.get(apres, 0.0), s.pop(avant, 0.0))
 
     # LE MONTANT SCINDÉ PRIME sur deux montants concurrents : c'est la seule
     # lecture qui rende compte des deux colonnes à la fois.
@@ -323,6 +307,18 @@ def detecter_colonnes(
         debit, credit = scinde
         scores[debit.index]["montant_debit"] = max(scores[debit.index].get("montant_debit", 0), 1.1)
         scores[credit.index]["montant_credit"] = max(scores[credit.index].get("montant_credit", 0), 1.1)
+
+    # UNE COLONNE PRESQUE VIDE (moins d'une ligne sur trois) n'est le plus
+    # souvent rien qu'on veuille lire : « ne pas importer » est proposé en
+    # premier, les autres lectures restent offertes. Une preuve FAIBLE, donc
+    # jamais contre une plus forte : ni contre un intitulé reconnu en entier
+    # (écarté plus haut), ni contre un couple débit/crédit — dont l'une des
+    # deux colonnes est presque toujours la moins remplie.
+    for index in presque_vides:
+        if scinde and index in (scinde[0].index, scinde[1].index):
+            continue
+        s = scores[index]
+        s[""] = max(s.values(), default=0) + 0.1
 
     # L'ATTRIBUTION : du plus sûr au moins sûr, une propriété par colonne et
     # une colonne par propriété. Le montant et le couple débit/crédit

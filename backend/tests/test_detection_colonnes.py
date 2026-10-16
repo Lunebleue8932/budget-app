@@ -93,6 +93,21 @@ def test_sans_intitules_la_forme_suffit_mais_reste_incertaine():
 
 
 def test_deux_colonnes_de_dates_restent_une_hypothese():
+    """Deux dates que le dictionnaire ne départage pas : la seconde reste à
+    trancher à l'écran."""
+    lignes = [
+        ("Date opération", "Date d'envoi", "Libellé", "Montant"),
+        ("02/09/2026", "03/09/2026", "CARREFOUR", "-45,20"),
+        ("05/09/2026", "05/09/2026", "SALAIRE", "2150,00"),
+    ]
+    resultat = detecter_colonnes(lignes)
+    assert _config(resultat)["date"] == 1
+    assert not _colonne(resultat, 2)["certaine"]
+
+
+def test_la_date_de_valeur_ne_s_importe_pas():
+    """« Date valeur » n'est pas une date d'opération qui contiendrait le mot
+    « date » : le dictionnaire la reconnaît, et elle ne s'importe pas."""
     lignes = [
         ("Date opération", "Date valeur", "Libellé", "Montant"),
         ("02/09/2026", "03/09/2026", "CARREFOUR", "-45,20"),
@@ -100,7 +115,7 @@ def test_deux_colonnes_de_dates_restent_une_hypothese():
     ]
     resultat = detecter_colonnes(lignes)
     assert _config(resultat)["date"] == 1
-    assert not _colonne(resultat, 2)["certaine"]
+    assert _colonne(resultat, 2)["propositions"][0]["propriete"] is None
 
 
 def test_le_fichier_d_exemple_de_la_notice(db_session):

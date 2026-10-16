@@ -1,0 +1,187 @@
+{
+  "_lisez_moi": [
+    "LES INTITULÉS DE COLONNES QUE LA DÉTECTION RECONNAÎT (cf. app/services/entetes.py).",
+    "Un GROUPE par sens de colonne. `propriete` : la propriété d'import qu'il désigne ; vide = la colonne ne s'importe pas (solde, référence…), et le dire est une réponse.",
+    "`exacts` (score 1) et `synonymes` (0,9) : l'intitulé ENTIER, comparé après normalisation — minuscules, sans accents ni ponctuation, sans mots vides (de, la, of…) ni unités (eur, €…). « Date de l'opération (EUR) » s'écrit donc ici « date operation ».",
+    "`mots_cles` (0,6) : l'intitulé CONTIENT ces mots, dans l'ordre. `exclus_si` : un mot qui interdit ce rapprochement-là (« date » mais pas « date valeur »).",
+    "Un intitulé reconnu ENTIER par un groupe ne compte plus, par ses seuls mots-clés, pour un autre : c'est la règle qui sépare « libellé » de « libellé complémentaire ».",
+    "Enrichir : ajouter l'intitulé tel que la banque l'écrit, normalisé à la main comme ci-dessus. Les intitulés réels se relèvent sur les relevés, pas de mémoire."
+  ],
+  "groupes": {
+    "date": {
+      "propriete": "date",
+      "exacts": ["date"],
+      "synonymes": [
+        "date operation", "date ope", "date comptable", "date comptabilisation",
+        "date transaction", "date mouvement", "date effet", "jour",
+        "transaction date", "booking date", "posting date", "created on", "completed date",
+        "data", "data transacao", "data lancamento", "data movimento"
+      ],
+      "mots_cles": ["date", "data"],
+      "exclus_si": ["valeur", "value", "valor"]
+    },
+    "date_valeur": {
+      "propriete": "",
+      "exacts": ["date valeur"],
+      "synonymes": ["valeur", "value date", "data valor"],
+      "mots_cles": ["valeur", "value date", "data valor"],
+      "exclus_si": []
+    },
+    "nature": {
+      "propriete": "nature",
+      "exacts": ["libelle"],
+      "synonymes": [
+        "libelle operation", "libelle simplifie", "libelle court", "nature", "nature operation",
+        "description", "intitule", "designation", "label", "communication", "motif",
+        "beneficiaire", "detail ecriture", "payee", "merchant", "transaction description",
+        "descricao", "historico", "lancamento"
+      ],
+      "mots_cles": ["libelle", "description"],
+      "exclus_si": ["complementaire", "complement", "detail", "details"]
+    },
+    "detail": {
+      "propriete": "",
+      "exacts": ["detail"],
+      "synonymes": [
+        "details", "libelle complementaire", "complement", "complement libelle",
+        "informations complementaires", "information complementaire", "info complementaire",
+        "libelle detaille", "additional information", "informacoes adicionais"
+      ],
+      "mots_cles": ["complementaire", "complement"],
+      "exclus_si": []
+    },
+    "categorie": {
+      "propriete": "categorie_banque",
+      "exacts": ["categorie"],
+      "synonymes": [
+        "sous categorie", "rubrique", "categorie operation", "type operation",
+        "category", "categoria"
+      ],
+      "mots_cles": ["categorie", "category", "categoria"],
+      "exclus_si": []
+    },
+    "montant": {
+      "propriete": "montant",
+      "exacts": ["montant"],
+      "synonymes": [
+        "montant operation", "montant euros", "somme", "net",
+        "amount", "transaction amount", "valor", "quantia"
+      ],
+      "mots_cles": ["montant", "amount"],
+      "exclus_si": ["debit", "credit", "envoye", "recu", "initial", "origine", "source", "frais", "solde"]
+    },
+    "debit": {
+      "propriete": "montant_debit",
+      "exacts": ["debit"],
+      "synonymes": [
+        "montant debit", "debiteur", "sortie", "sorties", "depenses",
+        "withdrawal", "withdrawals", "money out", "paid out", "debito", "saida", "saidas"
+      ],
+      "mots_cles": ["debit"],
+      "exclus_si": ["credit"]
+    },
+    "credit": {
+      "propriete": "montant_credit",
+      "exacts": ["credit"],
+      "synonymes": [
+        "montant credit", "crediteur", "entree", "entrees", "recettes",
+        "deposit", "deposits", "money in", "paid in", "credito", "entrada", "entradas"
+      ],
+      "mots_cles": ["credit"],
+      "exclus_si": ["debit"]
+    },
+    "envoye": {
+      "propriete": "montant_debit",
+      "exacts": ["envoye"],
+      "synonymes": ["montant envoye", "sent", "amount sent", "enviado", "valor enviado"],
+      "mots_cles": ["envoye"],
+      "exclus_si": ["devise", "monnaie", "currency"]
+    },
+    "recu": {
+      "propriete": "montant_credit",
+      "exacts": ["recu"],
+      "synonymes": ["montant recu", "received", "amount received", "recebido", "valor recebido"],
+      "mots_cles": ["recu"],
+      "exclus_si": ["devise", "monnaie", "currency"]
+    },
+    "sens": {
+      "propriete": "sens",
+      "exacts": ["sens"],
+      "synonymes": [
+        "debit credit", "credit debit", "d c", "dc", "type", "type mouvement",
+        "sens operation", "direction", "tipo"
+      ],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "devise": {
+      "propriete": "monnaie",
+      "exacts": ["devise"],
+      "synonymes": ["monnaie", "currency", "ccy", "target currency", "moeda"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "compte": {
+      "propriete": "compte_banque",
+      "exacts": ["compte"],
+      "synonymes": ["numero compte", "iban", "account", "account name", "conta"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "statut": {
+      "propriete": "statut",
+      "exacts": ["statut"],
+      "synonymes": ["etat", "status", "state", "situacao"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "frais": {
+      "propriete": "frais",
+      "exacts": ["frais"],
+      "synonymes": ["commission", "commissions", "fee", "fees", "total fees", "taxa", "tarifa"],
+      "mots_cles": ["frais", "fee", "fees"],
+      "exclus_si": ["devise", "monnaie", "currency"]
+    },
+    "montant_initial": {
+      "propriete": "montant_initial",
+      "exacts": ["montant initial"],
+      "synonymes": ["montant origine", "montant source", "montant devise origine", "source amount", "original amount"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "monnaie_initiale": {
+      "propriete": "monnaie_initiale",
+      "exacts": ["devise envoyee"],
+      "synonymes": ["monnaie envoyee", "devise origine", "monnaie origine", "source currency", "original currency"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "monnaie_frais": {
+      "propriete": "monnaie_frais",
+      "exacts": ["devise frais"],
+      "synonymes": ["monnaie frais", "fee currency"],
+      "mots_cles": [],
+      "exclus_si": []
+    },
+    "solde": {
+      "propriete": "",
+      "exacts": ["solde"],
+      "synonymes": [
+        "solde apres operation", "solde courant", "solde comptable", "nouveau solde",
+        "balance", "running balance", "saldo"
+      ],
+      "mots_cles": ["solde", "balance", "saldo"],
+      "exclus_si": []
+    },
+    "reference": {
+      "propriete": "",
+      "exacts": ["reference"],
+      "synonymes": [
+        "ref", "numero", "numero operation", "n operation", "no operation", "id", "identifiant", "transaction id",
+        "cheque", "numero cheque", "referencia"
+      ],
+      "mots_cles": ["reference"],
+      "exclus_si": []
+    }
+  }
+}

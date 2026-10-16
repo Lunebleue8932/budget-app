@@ -46,6 +46,9 @@ donnees = [
     # verrait donc pas tout seul. Destination "app" pour retomber au même
     # endroit que `__file__` d'`app/extensions.py` une fois figé.
     (str(BACKEND / "app" / "extensions_catalogue.json"), "app"),
+    # Dictionnaire des intitulés de colonnes (cf. app/services/entetes.py) :
+    # même cas, lu à l'exécution, même destination.
+    (str(BACKEND / "app" / "synonymes_entetes.json"), "app"),
 ]
 
 # LES EXTENSIONS NE SONT PAS EMBARQUÉES, et c'est délibéré. L'application est
