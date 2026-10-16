@@ -2025,6 +2025,123 @@ document.getElementById("reglage-monnaies-eteintes")?.addEventListener("change",
   }
 });
 
+
+/* ---------- Exporter ses données, et les copies de sécurité ----------
+ *
+ * L'EXPORT : le serveur rend le fichier (`GET /export?format=`), l'écran l'enregistre. Dans la fenêtre de
+ * bureau un lien `download` ne fait rien — on passe donc par le sélecteur « enregistrer sous » du système
+ * (`ApiBureau.enregistrer_octets`) ; dans un navigateur, par un lien temporaire.
+ *
+ * LES COPIES : un dossier retenu sur CE poste (cf. config_utilisateur), vérifié par le serveur (absolu,
+ * écrivable, hors du dossier de l'application). L'application en fait d'elle-même au démarrage puis au
+ * plus une fois par jour ; « Sauvegarder maintenant » en fait une tout de suite.
+ */
+function octetsEnBase64(octets) {
+  let binaire = "";
+  const pas = 0x8000;
+  for (let i = 0; i < octets.length; i += pas) {
+    binaire += String.fromCharCode.apply(null, octets.subarray(i, i + pas));
+  }
+  return btoa(binaire);
+}
+
+async function exporterDonnees(format) {
+  try {
+    const reponse = await fetch(`/export?format=${encodeURIComponent(format)}`);
+    if (!reponse.ok) {
+      const erreur = await reponse.json().catch(() => null);
+      throw new Error((erreur && erreur.detail) || `Erreur ${reponse.status}`);
+    }
+    const disposition = reponse.headers.get("Content-Disposition") || "";
+    const nom = (disposition.match(/filename="([^"]+)"/) || [])[1] || `budget-export.${format}`;
+    const octets = new Uint8Array(await reponse.arrayBuffer());
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.enregistrer_octets) {
+      const chemin = await window.pywebview.api.enregistrer_octets(nom, octetsEnBase64(octets));
+      if (chemin) showMessage(t("Export enregistré : {chemin}", { chemin }), "success");
+      return;
+    }
+    const lien = document.createElement("a");
+    lien.href = URL.createObjectURL(new Blob([octets]));
+    lien.download = nom;
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(lien.href), 10000);
+    showMessage(t("Export prêt : {nom}", { nom }), "success");
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+function renderEtatSauvegarde(etat) {
+  document.getElementById("sauvegarde-dossier").value = etat.dossier || "";
+  const ligne = document.getElementById("sauvegarde-etat");
+  if (!etat.dossier) {
+    ligne.textContent = t("Aucun dossier choisi : aucune copie n'est faite.");
+  } else if (etat.derniere) {
+    ligne.textContent = t("Dernière copie : {nom} ({date}). Les {n} plus récentes sont gardées.", {
+      nom: etat.derniere.nom,
+      date: new Date(etat.derniere.date).toLocaleString(langue()),
+      n: etat.garder,
+    });
+  } else {
+    ligne.textContent = t("Aucune copie pour l'instant : la première est faite au prochain démarrage, ou tout de suite avec « Sauvegarder maintenant ».");
+  }
+  document.getElementById("btn-sauvegarde-maintenant").disabled = !etat.dossier;
+}
+
+async function chargerEtatSauvegarde() {
+  try {
+    renderEtatSauvegarde(await apiFetch("/sauvegardes"));
+  } catch (err) {
+    document.getElementById("sauvegarde-etat").textContent = err.message;
+  }
+  document.getElementById("btn-sauvegarde-parcourir").style.display = selecteurNatifDisponible()
+    ? ""
+    : "none";
+}
+
+document.querySelectorAll("#reglage-export-bloc [data-export]").forEach((bouton) => {
+  bouton.addEventListener("click", () => exporterDonnees(bouton.dataset.export));
+});
+
+document.getElementById("btn-sauvegarde-parcourir")?.addEventListener("click", async () => {
+  const actuel = document.getElementById("sauvegarde-dossier").value;
+  const chemin = await choisirCheminNatif("choisir_dossier", actuel);
+  if (chemin) document.getElementById("sauvegarde-dossier").value = chemin;
+});
+
+document.getElementById("btn-sauvegarde-enregistrer")?.addEventListener("click", async () => {
+  try {
+    const dossier = document.getElementById("sauvegarde-dossier").value.trim();
+    const etat = await apiFetch("/sauvegardes/dossier", {
+      method: "PUT",
+      body: JSON.stringify({ dossier: dossier || null }),
+    });
+    renderEtatSauvegarde(etat);
+    showMessage(
+      dossier
+        ? etat.memorise
+          ? t("Dossier de sauvegarde enregistré.")
+          : t("Dossier accepté pour cette session, mais il n'a pas pu être mémorisé.")
+        : t("Copies de sécurité désactivées."),
+      etat.memorise ? "success" : "error"
+    );
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+});
+
+document.getElementById("btn-sauvegarde-maintenant")?.addEventListener("click", async () => {
+  try {
+    const etat = await apiFetch("/sauvegardes/maintenant", { method: "POST" });
+    renderEtatSauvegarde(etat);
+    showMessage(t("Copie faite : {nom}", { nom: etat.fichier }), "success");
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+});
+
 function loadParametresGeneraux() {
   majAffichageTheme();
   majAffichageMonnaieDefaut();
@@ -2034,7 +2151,7 @@ function loadParametresGeneraux() {
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
   if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();
-
+  chargerEtatSauvegarde();
 }
 
 document.getElementById("reglage-touche-gel")?.addEventListener("keydown", (e) => {

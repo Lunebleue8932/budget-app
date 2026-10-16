@@ -6997,3 +6997,17 @@ body input[type="checkbox"]:disabled {
 
 .corr-confirmer { margin-top: auto; }
 .corr-confirmer kbd { font: inherit; opacity: 0.8; }
+
+/* ---------- Export des données et copies de sécurité (Paramètres généraux) ---------- */
+.reglage-export,
+.reglage-sauvegarde {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reglage-sauvegarde input[type="text"] {
+  flex: 1 1 18rem;
+  min-width: 12rem;
+}

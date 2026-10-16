@@ -1,4 +1,5 @@
 import sys
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
@@ -19,19 +20,31 @@ from .routers import (
     categories,
     comptes,
     dashboard,
+    export_donnees,
     extensions,
     import_bancaire,
     monnaies,
     operations,
     parametres_base,
     preferences,
+    sauvegardes,
     tutoriel,
     types_comptes,
     types_operation,
     virements,
 )
 
-app = FastAPI(title="Budget App")
+@asynccontextmanager
+async def _cycle_de_vie(_app: FastAPI):
+    """Les copies de sécurité automatiques : une au démarrage (si la dernière a plus de 20 h), puis
+    une veille toutes les 30 minutes. Sans dossier retenu, ça ne fait rien."""
+    from .services import sauvegardes as service_sauvegardes
+
+    service_sauvegardes.demarrer_automatique()
+    yield
+
+
+app = FastAPI(title="Budget App", lifespan=_cycle_de_vie)
 
 app.include_router(monnaies.router)
 app.include_router(comptes.router)
@@ -53,6 +66,10 @@ app.include_router(preferences.router)
 # remplace). Choisir où ranger ses données n'est plus un outil de mise au point
 # mais la seule chose qui les protège — cf. routers/parametres_base.py.
 app.include_router(parametres_base.router)
+# L'export de toutes les données (JSON, CSV, Excel) et les copies de sécurité dans un dossier choisi :
+# DU NOYAU, comme la base qu'ils protègent. Cf. services/export_donnees et services/sauvegardes.
+app.include_router(export_donnees.router)
+app.include_router(sauvegardes.router)
 # La base de découverte du tutoriel : fabriquée et quittée à la demande, jamais mémorisée.
 app.include_router(tutoriel.router)
 

@@ -3649,5 +3649,37 @@ Object.assign(TRADUCTIONS.pt, {
     "com base nos títulos das colunas — confira a pré-visualização antes de importar.",
   "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
     "Formato reconhecido: {banque}. “Adivinhar as colunas” propõe a leitura adequada a esta exportação.",
+  "Exporter mes données":
+    "Exportar meus dados",
+  "CSV (un fichier par table)":
+    "CSV (um arquivo por tabela)",
+  "Excel (une feuille par table)":
+    "Excel (uma planilha por tabela)",
+  "Copies de sécurité":
+    "Cópias de segurança",
+  "Sauvegarder maintenant":
+    "Fazer backup agora",
+  "Export enregistré : {chemin}":
+    "Exportação salva: {chemin}",
+  "Export prêt : {nom}":
+    "Exportação pronta: {nom}",
+  "Aucun dossier choisi : aucune copie n'est faite.":
+    "Nenhuma pasta escolhida: nenhum backup é feito.",
+  "Dernière copie : {nom} ({date}). Les {n} plus récentes sont gardées.":
+    "Último backup: {nom} ({date}). Os {n} mais recentes são mantidos.",
+  "Aucune copie pour l'instant : la première est faite au prochain démarrage, ou tout de suite avec « Sauvegarder maintenant ».":
+    "Nenhum backup ainda: o primeiro é feito na próxima inicialização, ou agora com “Fazer backup agora”.",
+  "Dossier de sauvegarde enregistré.":
+    "Pasta de backup salva.",
+  "Dossier accepté pour cette session, mais il n'a pas pu être mémorisé.":
+    "Pasta aceita para esta sessão, mas não pôde ser memorizada.",
+  "Copies de sécurité désactivées.":
+    "Backups desativados.",
+  "Copie faite : {nom}":
+    "Backup feito: {nom}",
+  "Sort toutes tes données de l'application, table par table, dans un fichier que tu peux lire sans elle. -- JSON : un seul fichier, toutes les tables. -- CSV : une archive .zip avec un fichier par table (séparateur « ; », lisible par Excel). -- Excel : un classeur, une feuille par table. -- C'est une photographie pour lire ou garder tes données ailleurs ; ces fichiers ne se réimportent pas. Pour pouvoir RESTAURER, utilise les copies de sécurité juste en dessous.":
+    "Exporta todos os seus dados do aplicativo, tabela por tabela, para um arquivo que você pode ler sem ele. -- JSON: um único arquivo, todas as tabelas. -- CSV: um arquivo .zip com um arquivo por tabela (separador “;”, legível pelo Excel). -- Excel: uma pasta de trabalho, uma planilha por tabela. -- É uma fotografia para ler ou guardar seus dados em outro lugar; esses arquivos não podem ser reimportados. Para poder RESTAURAR, use os backups logo abaixo.",
+  "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
+    "Escolha uma pasta do seu computador (outro disco, uma pasta sincronizada, um pendrive…): o app guarda nela, sozinho, uma cópia completa da sua base na inicialização e, depois, no máximo uma vez por dia enquanto estiver aberto. -- As 30 cópias mais recentes são mantidas; as mais antigas são apagadas, e somente as que o app fez. -- Para restaurar: Base de dados → “Alternar para este arquivo”, e escolha a cópia desejada. -- Evite a pasta do aplicativo: uma atualização a substitui.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

@@ -1615,6 +1615,31 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <div id="tutoriels-liste" class="tutoriels-liste"></div>
         </div>
 
+        <!-- EXPORTER SES DONNÉES, ET LES COPIES DE SÉCURITÉ. Deux gestes voisins, deux questions
+             différentes : l'export sort TOUTES les tables dans un format qu'on lit sans l'application
+             (JSON, CSV — une archive à un fichier par table —, Excel — une feuille par table) ; les
+             copies, elles, sont des bases complètes qu'on peut rouvrir, faites d'elles-mêmes dans un
+             dossier qu'on choisit. Cf. services/export_donnees et services/sauvegardes. -->
+        <div class="reglage-bloc" id="reglage-export-bloc">
+          <label>Exporter mes données<i class="info-bulle" tabindex="0" data-info-cle="noyau.export-donnees">i</i></label>
+          <div class="reglage-export">
+            <button type="button" data-export="json">JSON</button>
+            <button type="button" data-export="csv">CSV (un fichier par table)</button>
+            <button type="button" data-export="xlsx">Excel (une feuille par table)</button>
+          </div>
+        </div>
+
+        <div class="reglage-bloc" id="reglage-sauvegarde-bloc">
+          <label for="sauvegarde-dossier">Copies de sécurité<i class="info-bulle" tabindex="0" data-info-cle="noyau.sauvegardes">i</i></label>
+          <div class="reglage-sauvegarde">
+            <input type="text" id="sauvegarde-dossier" placeholder="ex. D:\Sauvegardes\Budget" autocomplete="off" />
+            <button type="button" id="btn-sauvegarde-parcourir" style="display:none">Parcourir…</button>
+            <button type="button" class="primary" id="btn-sauvegarde-enregistrer">Enregistrer</button>
+            <button type="button" id="btn-sauvegarde-maintenant">Sauvegarder maintenant</button>
+          </div>
+          <p class="hint" id="sauvegarde-etat"></p>
+        </div>
+
         <!-- BASE DE DONNÉES — venue de `extensions-dev/base-de-donnees/`, qui
              n'existe plus, puis d'un onglet à elle. Ce panneau était un outil de
              développeur tant que l'emplacement par défaut de la base était sûr ;

@@ -4433,5 +4433,39 @@ Object.assign(TRADUCTIONS.en, {
     "based on the column headers — check the preview before importing.",
   "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
     "Recognised format: {banque}. “Guess the columns” suggests the reading that suits this export.",
+  "Exporter mes données":
+    "Export my data",
+  "CSV (un fichier par table)":
+    "CSV (one file per table)",
+  "Excel (une feuille par table)":
+    "Excel (one sheet per table)",
+  "Copies de sécurité":
+    "Backups",
+  "Sauvegarder maintenant":
+    "Back up now",
+  "Export enregistré : {chemin}":
+    "Export saved: {chemin}",
+  "Export prêt : {nom}":
+    "Export ready: {nom}",
+  "Aucun dossier choisi : aucune copie n'est faite.":
+    "No folder chosen: no backup is made.",
+  "Dernière copie : {nom} ({date}). Les {n} plus récentes sont gardées.":
+    "Latest backup: {nom} ({date}). The {n} most recent are kept.",
+  "Aucune copie pour l'instant : la première est faite au prochain démarrage, ou tout de suite avec « Sauvegarder maintenant ».":
+    "No backup yet: the first is made at the next start, or right now with “Back up now”.",
+  "Dossier de sauvegarde enregistré.":
+    "Backup folder saved.",
+  "Dossier accepté pour cette session, mais il n'a pas pu être mémorisé.":
+    "Folder accepted for this session, but it could not be remembered.",
+  "Copies de sécurité désactivées.":
+    "Backups switched off.",
+  "Copie faite : {nom}":
+    "Backup made: {nom}",
+  "Parcourir…":
+    "Browse…",
+  "Sort toutes tes données de l'application, table par table, dans un fichier que tu peux lire sans elle. -- JSON : un seul fichier, toutes les tables. -- CSV : une archive .zip avec un fichier par table (séparateur « ; », lisible par Excel). -- Excel : un classeur, une feuille par table. -- C'est une photographie pour lire ou garder tes données ailleurs ; ces fichiers ne se réimportent pas. Pour pouvoir RESTAURER, utilise les copies de sécurité juste en dessous.":
+    "Exports all your data from the application, table by table, into a file you can read without it. -- JSON: a single file, all the tables. -- CSV: a .zip archive with one file per table (“;” separator, readable by Excel). -- Excel: one workbook, one sheet per table. -- It is a snapshot to read or keep your data elsewhere; these files cannot be re-imported. To be able to RESTORE, use the backups right below.",
+  "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
+    "Choose a folder on your computer (another disk, a synced folder, a USB key…): the app stores a complete copy of your database there by itself at startup, then at most once a day while it stays open. -- The 30 most recent copies are kept; older ones are deleted, and only those the app made. -- To restore: Database → “Switch to this file”, and pick the copy you want. -- Avoid the application folder: an update replaces it.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES
