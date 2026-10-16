@@ -3559,8 +3559,8 @@ const TRADUCTIONS = {
     "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.":
       "This workbook has several sheets: “{feuille}” looks the most like a statement, so it is the one being read. You can pick another one here.",
     // noyau.detection-lignes-pied
-    "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
-      "{n} row(s) below the transactions are not transactions (total, closing balance): they will show as errors in the preview, to be deleted.",
+    "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : « Appliquer ces colonnes » les écarte de l'import.":
+      "{n} row(s) below the transactions are not transactions (total, closing balance): “Apply these columns” leaves them out of the import.",
     // noyau.controle-avant-import
     "Ce que l'import fera de ce fichier, en chiffres, avant d'écrire quoi que ce soit. Si le relevé porte une colonne de solde, l'application recalcule ses variations avec ta configuration : un écart signale un signe, une décimale ou une colonne mal attribuée.":
       "What the import will do with this file, in figures, before writing anything. If the statement has a balance column, the app recomputes its changes with your configuration: a gap points to a sign, a decimal or a column set the wrong way.",
@@ -3574,8 +3574,11 @@ const TRADUCTIONS = {
     "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
       "Column {colonne} is a balance: from one row to the next, it changes by exactly the transaction amount ({taux}% of {intervalles} intervals). It is not imported; it will be used to check the import.",
     // noyau.detection-dates-mois-devant
-    "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
-      "The dates in this file are written month first (01/25/2026): the import cannot read them yet.",
+    "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import les lira ainsi.":
+      "The dates in this file are written month first (01/25/2026): the import will read them that way.",
+    // noyau.dates-mois-devant-detectees
+    "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : elles sont lues ainsi. Choisis « Jour devant » si ce n'est pas le cas.":
+      "The dates in this file are written month first (01/25/2026): they are read that way. Choose “Day first” if that is not the case.",
     // noyau.reconnaissance-basculer
     "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
       "This file looks like the “{preset}” preset (headers {pourcentage}% identical). Switch?",
@@ -4410,5 +4413,18 @@ Object.assign(TRADUCTIONS.en, {
     "{n} look-alike(s) to review",
   "Voir les lignes non traitées":
     "Go to the unhandled rows",
+  // Lignes de pied et ordre des dates (cf. index.html, § Import).
+  "Lignes de pied à ne pas importer":
+    "Footer rows to skip",
+  "Ordre des dates":
+    "Date order",
+  "Jour devant — 25/01/2026":
+    "Day first — 25/01/2026",
+  "Mois devant — 01/25/2026":
+    "Month first — 01/25/2026",
+  "dates mois devant":
+    "dates month first",
+  "dates jour devant":
+    "dates day first",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

@@ -9,6 +9,7 @@ from .constants import (
     CHAMPS_REGLE_VALIDES,
     id_colonne_dummy_regle,
     MAX_LIGNES_ENTETE,
+    MAX_LIGNES_PIED,
     NB_MAX_PARTS_DECOUPE,
     OPERATEURS_NOMBRE,
     operateurs_admis,
@@ -1703,10 +1704,16 @@ class ApercuFichier(BaseModel):
     # preset saute. Les montrer sans le dire ferait croire que l'import les a
     # lues.
     lignes_entete: int = 0
+    # De même pour les DERNIÈRES lignes (cf. ImportPreset.lignes_pied).
+    lignes_pied: int = 0
 
 
 class ImportPreview(BaseModel):
     lignes: list[ImportLigne]
+    # L'ordre des dates retenu pour cette lecture (cf. import_bancaire.
+    # format_date_du_fichier) : « mja » quand le fichier écrit le mois devant,
+    # « jma » quand on l'a imposé, None pour la lecture ordinaire jour devant.
+    format_date: Optional[str] = None
     # LE CONTRÔLE AVANT IMPORT (cf. services/controle_import) : lignes lues,
     # rejetées et pourquoi, doublons, période, totaux en centimes, contrôle du
     # solde, anomalies. None s'il n'a pas pu se calculer.
@@ -2101,6 +2108,9 @@ class ImportPresetRead(BaseModel):
     # se voie tout de suite, au lieu de rendre un aperçu vide sans raison
     # visible.
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
+    # De même au bas du fichier (migration 0086) : un total, un solde final
+    # sous les opérations. Comptées en lignes non vides.
+    lignes_pied: int = 0
     # Vocabulaire de la colonne « Sens » propre à ce relevé. Listes vides =
     # celui du code (constants.LIBELLES_SENS_*), en français.
     libelles_sens_sortie: list[str] = Field(default_factory=list)
@@ -2147,6 +2157,7 @@ class ImportPresetCreate(BaseModel):
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
+    lignes_pied: int = Field(default=0, ge=0, le=MAX_LIGNES_PIED)
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code
@@ -2178,6 +2189,9 @@ class ImportPresetUpdate(BaseModel):
     colonnes_comparaison: list[int] = Field(default_factory=list)
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
+    # None = ne pas y toucher, comme `colonnes_dummy` : les appelants qui ne
+    # le connaissent pas (l'import de placements) ne remettent rien à zéro.
+    lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_PIED)
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code

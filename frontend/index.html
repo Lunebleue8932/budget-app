@@ -1991,6 +1991,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             Lignes de tête à ne pas importer
             <input type="number" id="import-lignes-entete" min="0" max="20" step="1" value="0" />
           </label>
+          <!-- Et au BAS du fichier : un total, un solde final sous les
+               opérations. Comptées en lignes non vides depuis la dernière. -->
+          <label class="import-option-ligne">
+            Lignes de pied à ne pas importer
+            <input type="number" id="import-lignes-pied" min="0" max="20" step="1" value="0" />
+          </label>
         </details>
 
         <!-- Réglages de LECTURE en dernier recours, JAMAIS MÉMORISÉS sur le
@@ -2036,6 +2042,17 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               <option value=",">Virgule — 1234,56</option>
               <option value=".">Point — 1234.56</option>
             </select>
+          </div>
+          <!-- L'ordre jour/mois : lu sur la colonne de dates du fichier, et
+               dit dessous quand c'est le mois qui est devant. -->
+          <div class="import-reglage-champ">
+            <label for="import-reglage-format-date">Ordre des dates</label>
+            <select id="import-reglage-format-date">
+              <option value="">Détecter automatiquement</option>
+              <option value="jma">Jour devant — 25/01/2026</option>
+              <option value="mja">Mois devant — 01/25/2026</option>
+            </select>
+            <p class="hint" id="import-reglage-format-date-aide" style="display:none"></p>
           </div>
         </details>
 

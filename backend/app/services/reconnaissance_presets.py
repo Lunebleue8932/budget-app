@@ -44,7 +44,13 @@ from difflib import SequenceMatcher
 from typing import Optional
 
 from .entetes import normaliser_entete
-from .import_bancaire import normaliser_libelle, parser_date, parser_montant, vocabulaire_sens
+from .import_bancaire import (
+    format_date_du_fichier,
+    normaliser_libelle,
+    parser_date,
+    parser_montant,
+    vocabulaire_sens,
+)
 
 # Assez de lignes pour qu'un taux de lecture veuille dire quelque chose, assez
 # peu pour que comparer dix presets reste instantané.
@@ -229,21 +235,28 @@ class Lecture:
     lignes: int
 
 
-def lire_avec_preset(preset, lignes: list[tuple], separateur_decimal=None) -> Lecture:
+def lire_avec_preset(
+    preset, lignes: list[tuple], separateur_decimal=None, format_date=None
+) -> Lecture:
     """Ce que donne le fichier lu avec ce preset : la part des lignes dont la
     date se lit et dont le montant est un nombre, et si le MODE de lecture des
-    montants du preset a un sens sur ce fichier."""
+    montants du preset a un sens sur ce fichier. Les dates se lisent dans
+    l'ordre que l'aperçu retiendrait (cf. import_bancaire.
+    format_date_du_fichier), sauf ordre imposé à la main."""
     index = {c["propriete"]: c["index"] for c in (preset.colonnes or []) if c.get("propriete")}
     donnees = _donnees(lignes, preset.lignes_entete or 0)
     if not donnees or "date" not in index:
         return Lecture(0.0, False, len(donnees))
+    format_date = format_date or format_date_du_fichier(
+        lignes, preset.colonnes, preset.lignes_entete or 0
+    )
     scinde = "montant_debit" in index and "montant_credit" in index
     sortie, entree = vocabulaire_sens(preset)
 
     lisibles = 0
     doubles = 0
     for ligne in donnees:
-        if parser_date(_cellule(ligne, index["date"])) is None:
+        if parser_date(_cellule(ligne, index["date"]), format_date) is None:
             continue
         if scinde:
             debit = parser_montant(_cellule(ligne, index["montant_debit"]), separateur_decimal)
@@ -330,11 +343,12 @@ def ajuster(
     nom_fichier: Optional[str] = None,
     motif_par_defaut: Optional[str] = None,
     separateur_decimal=None,
+    format_date=None,
 ) -> Ajustement:
     """Le score d'un preset devant un fichier. `motif_par_defaut` : le motif à
     supposer quand le preset n'en a pas mémorisé (celui du dernier fichier
     importé sous ce preset, cf. crud.get_dernier_nom_fichier)."""
-    lecture = lire_avec_preset(preset, lignes, separateur_decimal)
+    lecture = lire_avec_preset(preset, lignes, separateur_decimal, format_date)
     resultat = Ajustement(preset.id, preset.nom, lecture.validite, lecture.mode_compatible)
     observee = signature_fichier(lignes, preset.lignes_entete or 0)
     if preset.signature_entetes is not None:

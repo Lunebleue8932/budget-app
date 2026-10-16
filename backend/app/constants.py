@@ -380,6 +380,9 @@ class ModeComparaison(str, enum.Enum):
 # « 1 » soit refusé tout de suite, plutôt que de rendre un aperçu vide dont rien
 # n'expliquerait la cause.
 MAX_LIGNES_ENTETE = 20
+# De même pour les lignes de PIED (migration 0086) : un total, un solde final,
+# une mention légale sous les opérations.
+MAX_LIGNES_PIED = 20
 
 
 # ---------- Colonne « Sens » ----------

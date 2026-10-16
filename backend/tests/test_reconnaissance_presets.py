@@ -186,6 +186,7 @@ def test_la_route_compare_tous_les_presets(db_session, presets):
             preset_id=par_nom["banque_a"].id,
             delimiteur=None,
             separateur_decimal=None,
+            format_date=None,
             db=db_session,
         )
     )
@@ -207,6 +208,7 @@ def test_le_motif_d_un_preset_ancien_se_lit_dans_son_historique(db_session):
             preset_id=ancien.id,
             delimiteur=None,
             separateur_decimal=None,
+            format_date=None,
             db=db_session,
         )
     )

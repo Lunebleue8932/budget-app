@@ -10697,6 +10697,10 @@ let importApercu = null; // dernier ImportPreview reçu du serveur
 // automatique, le comportement par défaut.
 let importReglageDelimiteur = null;
 let importReglageSeparateurDecimal = null;
+// L'ORDRE DES DATES, de la même famille : « jma » ou « mja » imposé à la main,
+// null pour le laisser se lire sur la colonne de dates du fichier (l'aperçu
+// renvoie celui qu'il a retenu, cf. ImportPreview.format_date).
+let importReglageFormatDate = null;
 // LA FEUILLE D'UN CLASSEUR qui porte le relevé (cf. services/lecture_fichier) :
 // null = la feuille active. À l'ouverture d'un classeur à plusieurs feuilles,
 // celle qui ressemble le plus à un relevé est PROPOSÉE ici, visiblement, et se
@@ -11191,6 +11195,7 @@ const DELIMITEURS_FORMULAIRE = { PV: ";", VIRGULE: ",", TAB: "\t" };
 function reinitialiserReglagesLecture() {
   importReglageDelimiteur = null;
   importReglageSeparateurDecimal = null;
+  importReglageFormatDate = null;
   importFeuille = null;
   document.getElementById("import-reglage-feuille-champ").style.display = "none";
   const details = document.getElementById("import-reglages-lecture");
@@ -11199,6 +11204,8 @@ function reinitialiserReglagesLecture() {
   document.getElementById("import-reglages-lecture-resume").textContent = "";
   document.getElementById("import-reglage-delimiteur").value = "";
   document.getElementById("import-reglage-separateur-decimal").value = "";
+  document.getElementById("import-reglage-format-date").value = "";
+  document.getElementById("import-reglage-format-date-aide").style.display = "none";
   const autre = document.getElementById("import-reglage-delimiteur-autre");
   autre.value = "";
   autre.style.display = "none";
@@ -11228,6 +11235,23 @@ function separateurDecimalChoisi() {
   return document.getElementById("import-reglage-separateur-decimal").value || null;
 }
 
+function formatDateChoisi() {
+  return document.getElementById("import-reglage-format-date").value || null;
+}
+
+/**
+ * Les réglages de lecture d'une requête sur le fichier ouvert : aperçu,
+ * reconnaissance, confirmation. Tous les trois doivent lire le fichier de la
+ * même façon, sans quoi on confirmerait autre chose que ce qu'on a relu.
+ */
+function ajouterReglagesLecture(formData) {
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
+  if (importReglageSeparateurDecimal)
+    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  if (importReglageFormatDate) formData.append("format_date", importReglageFormatDate);
+}
+
 // CHANGER L'UN DES DEUX RÉGLAGES ALLUME LE BOUTON DE RELECTURE du tableau du
 // fichier (les deux flèches), seul bouton qui relit : il n'y a plus de bouton
 // « Relire avec ces réglages » à côté des champs. Le bouton lit les réglages au
@@ -11236,6 +11260,7 @@ function separateurDecimalChoisi() {
   "import-reglage-delimiteur",
   "import-reglage-delimiteur-autre",
   "import-reglage-separateur-decimal",
+  "import-reglage-format-date",
 ].forEach((id) => {
   document.getElementById(id).addEventListener("change", () => {
     importApercuAReloire = true;
@@ -11247,6 +11272,7 @@ function separateurDecimalChoisi() {
 function lireReglagesLecture() {
   importReglageDelimiteur = delimiteurChoisi();
   importReglageSeparateurDecimal = separateurDecimalChoisi();
+  importReglageFormatDate = formatDateChoisi();
 }
 
 /**
@@ -11275,7 +11301,21 @@ function renderImportReglagesLecture() {
   if (importReglageSeparateurDecimal)
     resumeMorceaux.push(`décimale « ${importReglageSeparateurDecimal} »`);
   if (importFeuille) resumeMorceaux.push(`feuille « ${importFeuille} »`);
+  // L'ordre des dates se montre dès qu'il n'est pas l'ordinaire jour devant,
+  // imposé à la main OU lu sur le fichier : des dates mois devant lues sans le
+  // dire, c'est exactement ce qu'on viendrait chercher ici.
+  const formatDate = importReglageFormatDate || (importApercu && importApercu.format_date);
+  if (formatDate === "mja") resumeMorceaux.push(t("dates mois devant"));
+  else if (importReglageFormatDate === "jma") resumeMorceaux.push(t("dates jour devant"));
   resume.textContent = resumeMorceaux.length ? `— ${resumeMorceaux.join(", ")}` : "";
+
+  // Lu sur le fichier, et non imposé : la phrase dit pourquoi et comment
+  // revenir en arrière.
+  const aideDate = document.getElementById("import-reglage-format-date-aide");
+  const detecteMoisDevant =
+    !importReglageFormatDate && importApercu && importApercu.format_date === "mja";
+  aideDate.textContent = detecteMoisDevant ? t(texteAide("noyau.dates-mois-devant-detectees")) : "";
+  aideDate.style.display = detecteMoisDevant ? "" : "none";
 
   if (detecterProblemeLecture(lignes)) {
     // LA SECTION PARENTE AUSSI. Les réglages de lecture vivent désormais au
@@ -11362,7 +11402,21 @@ function lignesEnteteDe(config) {
 
 /** Ce que le champ affiche, borné comme le serveur le borne. */
 function lignesEnteteSaisies() {
-  const champ = document.getElementById("import-lignes-entete");
+  return nombreDeLignesSaisi("import-lignes-entete");
+}
+
+/** Les lignes de pied d'un preset (total, solde final sous les opérations). */
+function lignesPiedDe(config) {
+  const valeur = Number(config?.lignes_pied);
+  return Number.isFinite(valeur) && valeur > 0 ? Math.floor(valeur) : 0;
+}
+
+function lignesPiedSaisies() {
+  return nombreDeLignesSaisi("import-lignes-pied");
+}
+
+function nombreDeLignesSaisi(id) {
+  const champ = document.getElementById(id);
   const valeur = Math.floor(Number(champ?.value));
   if (!Number.isFinite(valeur) || valeur <= 0) return 0;
   return Math.min(valeur, Number(champ.max) || valeur);
@@ -11386,6 +11440,7 @@ function signatureApercu(config) {
     colonnes_comparaison: config.colonnes_comparaison || [],
     mode_comparaison: config.mode_comparaison,
     lignes_entete: lignesEnteteDe(config),
+    lignes_pied: lignesPiedDe(config),
     compte_id: config.compte_id ?? null,
     // Les mots-clés de sens décident du SIGNE de chaque montant, ceux d'état de
     // ce qui est importé ou non : en changer relit forcément le fichier
@@ -11408,6 +11463,7 @@ async function loadImportConfiguration() {
   importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
   document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
+  document.getElementById("import-lignes-pied").value = lignesPiedDe(config);
   updateResumeLignesEntete();
   renderImportVocabulaires(config);
   renderImportConfig();
@@ -12207,7 +12263,7 @@ function updateResumeConfigDoublons() {
 // il se dit — « rien n'est ignoré » plutôt qu'un bandeau vide, qui se lirait
 // comme un réglage qu'on n'a pas encore regardé.
 function updateResumeLignesEntete() {
-  const n = lignesEnteteSaisies();
+  const n = lignesEnteteSaisies() + lignesPiedSaisies();
   document.getElementById("import-lignes-entete-resume").textContent =
     n === 0 ? t("aucune ligne ignorée") : t("{n} ligne(s) ignorée(s)", { n });
 }
@@ -12273,6 +12329,7 @@ document.getElementById("import-mode-comparaison").addEventListener("change", ()
 // Le bandeau de la section suit le champ, pas seulement l'enregistrement :
 // replier après avoir tapé « 3 » doit montrer « 3 ligne(s) ignorée(s) ».
 document.getElementById("import-lignes-entete").addEventListener("input", updateResumeLignesEntete);
+document.getElementById("import-lignes-pied").addEventListener("input", updateResumeLignesEntete);
 
 /**
  * Enregistre la configuration du preset, puis relit le fichier si l'aperçu
@@ -12341,6 +12398,7 @@ async function enregistrerConfigurationImport({
         colonnes_comparaison: importConfigColonnesComparaison,
         mode_comparaison: modeComparaisonChoisi(),
         lignes_entete: lignesEnteteSaisies(),
+        lignes_pied: lignesPiedSaisies(),
         ...vocabulairesSaisis(),
       }),
     });
@@ -12358,6 +12416,7 @@ async function enregistrerConfigurationImport({
     importConfigColonnesComparaison = [...(config.colonnes_comparaison || [])];
     document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
     document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
+    document.getElementById("import-lignes-pied").value = lignesPiedDe(config);
     // Réaffichés depuis la réponse : le serveur a retiré les entrées vides et
     // les doublons, l'utilisateur doit voir ce qui a réellement été retenu.
     renderImportVocabulaires(config);
@@ -12575,10 +12634,7 @@ async function executerPrevisualisation() {
   formData.append("fichier", importFichierActuel);
   const compteDefaut = compteIdDefautChoisi();
   if (compteDefaut) formData.append("compte_id_defaut", compteDefaut);
-  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
-  if (importFeuille) formData.append("feuille", importFeuille);
-  if (importReglageSeparateurDecimal)
-    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  ajouterReglagesLecture(formData);
   ajouterColonnesLues(formData);
   try {
     importApercu = await apiFetchForm(importUrl("/previsualiser"), formData);
@@ -12786,7 +12842,10 @@ function renderApercuFichier() {
       // Les lignes de tête ignorées sont montrées mais barrées : voir qu'elles
       // sont bien exclues vaut mieux que de les faire disparaître
       // silencieusement.
-      const estEnteteIgnoree = index < (apercu.lignes_entete || 0);
+      // Les lignes de pied (total, solde final) de même, au bas du fichier.
+      const estEnteteIgnoree =
+        index < (apercu.lignes_entete || 0) ||
+        index >= apercu.lignes.length - (apercu.lignes_pied || 0);
       // Le numéro de ligne DU FICHIER, celui qu'Excel affiche : c'est lui que
       // citent les erreurs de l'aperçu (« ligne 15 »).
       const cellules = [`<td class="apercu-num-ligne">${index + 1}</td>`];
@@ -13055,6 +13114,7 @@ function appliquerDetectionImport() {
   }
   importConfigColonnes = colonnes;
   document.getElementById("import-lignes-entete").value = importDetection.lignes_entete;
+  document.getElementById("import-lignes-pied").value = importDetection.lignes_pied || 0;
   updateResumeLignesEntete();
   importApercuAReloire = true;
   importDetection = null;
@@ -13115,10 +13175,7 @@ async function reconnaitrePresetImport() {
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
   if (importPresetId != null) formData.append("preset_id", importPresetId);
-  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
-  if (importFeuille) formData.append("feuille", importFeuille);
-  if (importReglageSeparateurDecimal)
-    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  ajouterReglagesLecture(formData);
   try {
     importReconnaissance = await apiFetchForm("/import/reconnaitre-preset", formData);
   } catch (err) {
@@ -16631,10 +16688,7 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
   // Mêmes réglages qu'à l'aperçu confirmé : le fichier doit être relu à
   // l'identique, sans quoi la confirmation verrait d'autres lignes en erreur
   // que celles déjà traitées (cf. services/import_bancaire.confirmer).
-  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
-  if (importFeuille) formData.append("feuille", importFeuille);
-  if (importReglageSeparateurDecimal)
-    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  ajouterReglagesLecture(formData);
   ajouterColonnesLues(formData);
   // Seules les correspondances ENCORE DEMANDÉES partent : celle d'un libellé qui ne
   // venait que de doublons ignorés ou de lignes supprimées n'a pas à être mémorisée.

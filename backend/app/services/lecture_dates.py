@@ -57,20 +57,9 @@ def format_dates(valeurs) -> tuple[Optional[str], bool]:
 
 
 def lire_date(valeur, format_date: Optional[str] = None) -> Optional[date]:
-    """La date d'une cellule selon le format de sa colonne. Seul « mja » a
-    besoin d'être lu à part : les deux autres sont ceux que l'import sait déjà
-    lire (import_bancaire.parser_date)."""
-    if format_date == "mja" and not isinstance(valeur, (date, datetime)) and valeur is not None:
-        m = _DATE_NUMERIQUE.match(str(valeur))
-        if m:
-            mois, jour, annee = (int(x) for x in m.groups())
-            if annee < 100:
-                annee += 2000
-            try:
-                return date(annee, mois, jour)
-            except ValueError:
-                return None
-    return parser_date(valeur)
+    """La date d'une cellule selon le format de sa colonne, lue exactement
+    comme l'import la lira (import_bancaire.parser_date)."""
+    return parser_date(valeur, format_date)
 
 
 def ordre_dates(dates) -> Optional[str]:

@@ -2908,8 +2908,8 @@ TRADUCTIONS.pt = {
     "A maioria das linhas está ilegível; você pode usar a detecção automática de colunas para ajudar a resolver isso.",
   "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.":
     "Esta planilha tem várias abas: “{feuille}” é a que mais se parece com um extrato, é ela que está sendo lida. Você pode escolher outra aqui.",
-  "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
-    "{n} linha(s) abaixo das transações não são transações (total, saldo final): vão aparecer com erro na prévia, para excluir.",
+  "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : « Appliquer ces colonnes » les écarte de l'import.":
+    "{n} linha(s) abaixo das transações não são transações (total, saldo final): “Aplicar estas colunas” as deixa fora da importação.",
   "Ce que l'import fera de ce fichier, en chiffres, avant d'écrire quoi que ce soit. Si le relevé porte une colonne de solde, l'application recalcule ses variations avec ta configuration : un écart signale un signe, une décimale ou une colonne mal attribuée.":
     "O que a importação vai fazer com este arquivo, em números, antes de gravar qualquer coisa. Se o extrato tem uma coluna de saldo, o aplicativo recalcula as variações com a sua configuração: uma diferença indica um sinal, uma casa decimal ou uma coluna mal atribuída.",
   "Le solde du relevé (colonne n° {colonne}) est retrouvé sur {taux} % de {intervalles} intervalles : la configuration lit correctement les montants.":
@@ -2918,8 +2918,10 @@ TRADUCTIONS.pt = {
     "O saldo do extrato (coluna {colonne}) não bate com os valores lidos em {nombre} intervalo(s): um sinal, uma casa decimal ou uma coluna provavelmente está mal atribuída. Revise a configuração e depois releia o arquivo.",
   "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
     "A coluna {colonne} é um saldo: de uma linha para a outra, ele varia exatamente o valor das transações ({taux}% de {intervalles} intervalos). Ele não é importado; vai servir para conferir a importação.",
-  "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
-    "As datas deste arquivo são escritas com o mês na frente (01/25/2026): a importação ainda não sabe lê-las.",
+  "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import les lira ainsi.":
+    "As datas deste arquivo são escritas com o mês na frente (01/25/2026): a importação vai lê-las assim.",
+  "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : elles sont lues ainsi. Choisis « Jour devant » si ce n'est pas le cas.":
+    "As datas deste arquivo são escritas com o mês na frente (01/25/2026): elas são lidas assim. Escolha “Dia na frente” se não for o caso.",
   "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
     "Este arquivo se parece com a predefinição “{preset}” (cabeçalhos {pourcentage}% idênticos). Mudar?",
   "Le preset « {preset} » lit ce fichier, contrairement à celui qui est sélectionné. Basculer ?":
@@ -3643,5 +3645,17 @@ Object.assign(TRADUCTIONS.pt, {
     "{n} semelhança(s) a examinar",
   "Voir les lignes non traitées":
     "Ver as linhas não tratadas",
+  "Lignes de pied à ne pas importer":
+    "Linhas de rodapé a não importar",
+  "Ordre des dates":
+    "Ordem das datas",
+  "Jour devant — 25/01/2026":
+    "Dia na frente — 25/01/2026",
+  "Mois devant — 01/25/2026":
+    "Mês na frente — 01/25/2026",
+  "dates mois devant":
+    "datas com o mês na frente",
+  "dates jour devant":
+    "datas com o dia na frente",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

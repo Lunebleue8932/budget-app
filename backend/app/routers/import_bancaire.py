@@ -59,6 +59,19 @@ def _valider_separateur_decimal(separateur_decimal: Optional[str]) -> Optional[s
     return separateur_decimal
 
 
+def _valider_format_date(format_date: Optional[str]) -> Optional[str]:
+    """L'ordre des dates imposé à la main (cf. import_bancaire.parser_date), ou
+    None pour le laisser se lire sur le fichier."""
+    if format_date is None or format_date == "":
+        return None
+    if format_date not in import_bancaire.FORMATS_DATE_LISIBLES:
+        raise HTTPException(
+            status_code=400,
+            detail="L'ordre des dates doit être « jma » (jour devant) ou « mja » (mois devant)",
+        )
+    return format_date
+
+
 def _valider_compte_lie(db: Session, compte_id: Optional[int]) -> None:
     """Un preset lié à un compte inexistant affecterait toutes ses lignes à
     rien : refusé à l'enregistrement plutôt que découvert au premier import."""
@@ -346,6 +359,7 @@ def create_preset(payload: schemas.ImportPresetCreate, db: Session = Depends(get
         [c.model_dump() for c in payload.colonnes],
         payload.colonnes_comparaison,
         lignes_entete=payload.lignes_entete,
+        lignes_pied=payload.lignes_pied,
         compte_id=payload.compte_id,
         mode_comparaison=payload.mode_comparaison.value,
         **_vocabulaires_nettoyes(payload),
@@ -376,6 +390,7 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
         colonnes_comparaison=payload.colonnes_comparaison,
         mode_comparaison=payload.mode_comparaison.value,
         lignes_entete=payload.lignes_entete,
+        lignes_pied=payload.lignes_pied,
         compte_id=payload.compte_id,
         **_vocabulaires_nettoyes(payload),
     )
@@ -407,6 +422,7 @@ async def previsualiser(
     separateur_decimal: Optional[str] = Form(None),
     colonnes: Optional[str] = Form(None),
     feuille: Optional[str] = Form(None),
+    format_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """`colonnes` : les colonnes que l'ÉCRAN affiche, en JSON, quand elles ne
@@ -417,6 +433,7 @@ async def previsualiser(
     _get_preset_ou_404(db, preset_id)
     delimiteur = _valider_delimiteur(delimiteur)
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
     colonnes_lues = _valider_colonnes_essai(colonnes)
     try:
@@ -429,6 +446,7 @@ async def previsualiser(
             separateur_decimal=separateur_decimal,
             colonnes=colonnes_lues,
             feuille=feuille,
+            format_date=format_date,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
@@ -443,6 +461,7 @@ async def controle_avant_import(
     separateur_decimal: Optional[str] = Form(None),
     colonnes: Optional[str] = Form(None),
     feuille: Optional[str] = Form(None),
+    format_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Le contrôle avant import seul (cf. services/controle_import) : ce que
@@ -452,6 +471,7 @@ async def controle_avant_import(
     _get_preset_ou_404(db, preset_id)
     delimiteur = _valider_delimiteur(delimiteur)
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
     colonnes_lues = _valider_colonnes_essai(colonnes)
     try:
@@ -464,6 +484,7 @@ async def controle_avant_import(
             separateur_decimal=separateur_decimal,
             colonnes=colonnes_lues,
             feuille=feuille,
+            format_date=format_date,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
@@ -512,6 +533,7 @@ async def reconnaitre_preset(
     delimiteur: Optional[str] = Form(None),
     separateur_decimal: Optional[str] = Form(None),
     feuille: Optional[str] = Form(None),
+    format_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Quel preset bancaire lit ce fichier, comparé au preset sélectionné
@@ -522,6 +544,7 @@ async def reconnaitre_preset(
     presets qu'elle compare."""
     delimiteur = _valider_delimiteur(delimiteur)
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
     try:
         lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur, feuille)
@@ -542,6 +565,7 @@ async def reconnaitre_preset(
             if preset.motif_nom_fichier
             else reconnaissance_presets.motif_nom_fichier(crud.get_dernier_nom_fichier(db, preset.id)),
             separateur_decimal=separateur_decimal,
+            format_date=format_date,
         )
         for preset in crud.list_import_presets(db, DomaineImport.bancaire.value)
     ]
@@ -652,6 +676,7 @@ async def confirmer(
     separateur_decimal: Optional[str] = Form(None),
     colonnes: Optional[str] = Form(None),
     feuille: Optional[str] = Form(None),
+    format_date: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """`colonnes` : LES MÊMES que celles de l'aperçu qu'on confirme. L'écran les
@@ -661,6 +686,7 @@ async def confirmer(
     _get_preset_ou_404(db, preset_id)
     delimiteur = _valider_delimiteur(delimiteur)
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
     colonnes_lues = _valider_colonnes_essai(colonnes)
     try:
@@ -679,6 +705,7 @@ async def confirmer(
             separateur_decimal=separateur_decimal,
             colonnes=colonnes_lues,
             feuille=feuille,
+            format_date=format_date,
         )
     except import_bancaire.ImportBloque as exc:
         # Le fichier est parfaitement lisible : c'est la configuration du preset

@@ -188,12 +188,13 @@ def _base_du_cas(cas: Cas) -> str:
 
 def _meme_lecture(cas: Cas, base: Cas) -> bool:
     """Le preset de la base sait-il lire ce cas ? Oui tant que les colonnes,
-    les lignes de tête, le séparateur décimal et l'écriture des dates n'ont pas
-    bougé — l'import ne lit pas les dates mois devant (« 01/25/2026 »)."""
+    les lignes de tête et le séparateur décimal n'ont pas bougé. L'écriture des
+    dates peut changer : l'ordre jour/mois se lit sur le fichier (cf.
+    import_bancaire.format_date_du_fichier)."""
     return all(
         cas.attendu[cle] == base.attendu[cle]
         for cle in ("proprietes", "lignes_entete", "separateur_decimal")
-    ) and cas.attendu["format_date"] != "mja"
+    )
 
 
 def evaluer_reconnaissance(cas: list[Cas]) -> tuple[int, int, list[str]]:

@@ -119,6 +119,7 @@ def test_la_route_n_ecrit_rien(db_session):
             separateur_decimal=None,
             colonnes=None,
             feuille=None,
+            format_date=None,
             db=db_session,
         )
     )

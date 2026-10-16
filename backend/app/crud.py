@@ -2662,6 +2662,7 @@ def create_import_preset(
     lignes_entete: int = 0,
     compte_id: Optional[int] = None,
     mode_comparaison: Optional[str] = None,
+    lignes_pied: int = 0,
     libelles_sens_sortie: Optional[list[str]] = None,
     libelles_sens_entree: Optional[list[str]] = None,
     libelles_statut_execute: Optional[list[str]] = None,
@@ -2696,6 +2697,7 @@ def create_import_preset(
         colonnes_comparaison=colonnes_comparaison or [],
         mode_comparaison=mode_comparaison or ModeComparaison.exclusion.value,
         lignes_entete=lignes_entete,
+        lignes_pied=lignes_pied,
         libelles_sens_sortie=libelles_sens_sortie or [],
         libelles_sens_entree=libelles_sens_entree or [],
         libelles_statut_execute=libelles_statut_execute or [],
@@ -2727,6 +2729,7 @@ def update_import_preset(
     colonnes_comparaison: Optional[list[int]] = None,
     mode_comparaison: Optional[str] = None,
     lignes_entete: Optional[int] = None,
+    lignes_pied: Optional[int] = None,
     compte_id=_INCHANGE,
     libelles_sens_sortie: Optional[list[str]] = None,
     libelles_sens_entree: Optional[list[str]] = None,
@@ -2753,6 +2756,8 @@ def update_import_preset(
         preset.mode_comparaison = mode_comparaison
     if lignes_entete is not None:
         preset.lignes_entete = lignes_entete
+    if lignes_pied is not None:
+        preset.lignes_pied = lignes_pied
     if libelles_sens_sortie is not None:
         preset.libelles_sens_sortie = libelles_sens_sortie
     if libelles_sens_entree is not None:

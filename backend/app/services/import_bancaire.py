@@ -254,6 +254,24 @@ _FORMATS_DATE = (
     "%d.%m.%y",
 )
 
+# LES MÊMES, MOIS DEVANT (« 01/25/2026 »), pour un fichier dont la colonne de
+# dates l'écrit ainsi (cf. format_date_du_fichier). L'année devant ne change
+# pas : « 2026-01-25 » ne se lit que d'une façon.
+_FORMATS_DATE_MOIS_DEVANT = (
+    "%m/%d/%Y",
+    "%Y-%m-%d",
+    "%m-%d-%Y",
+    "%m.%d.%Y",
+    "%Y/%m/%d",
+    "%m/%d/%y",
+    "%m-%d-%y",
+    "%m.%d.%y",
+)
+
+# Les ordres des dates qu'un fichier peut imposer à la lecture (cf.
+# parser_date) : jour devant, le défaut, ou mois devant.
+FORMATS_DATE_LISIBLES = ("jma", "mja")
+
 # LES MOIS ÉCRITS EN LETTRES, français et anglais. « 15 sept. 2026 »,
 # « 3 Jan 2026 », « Sep 15, 2026 » : aucun format numérique ne les lit, et la
 # ligne entière tombait en « date illisible » — sur un relevé entier, cela
@@ -362,14 +380,20 @@ def _parser_date_en_lettres(texte: str) -> Optional[date_type]:
         return None
 
 
-def parser_date(valeur) -> Optional[date_type]:
+def parser_date(valeur, format_date: Optional[str] = None) -> Optional[date_type]:
     """La date d'une ligne, HEURE RETIRÉE.
 
     Une opération bancaire est datée du jour, jamais de la minute : l'app ne
     stocke qu'une date (models.Operation.date), et tout ce qui s'affiche —
     aperçu compris — est donc au même format partout. Les relevés qui
     horodatent (« 14/07/2026 09:32 », fréquent chez les néobanques) sont lus en
-    ignorant simplement ce qui suit la date."""
+    ignorant simplement ce qui suit la date.
+
+    `format_date` : « mja » pour un fichier qui écrit le MOIS DEVANT
+    (« 01/25/2026 »). Une cellule seule ne le dit pas — « 03/04/2026 » se lit
+    des deux façons —, c'est donc le fichier entier qui en décide (cf.
+    format_date_du_fichier), ou l'utilisateur. None ou « jma » : jour devant,
+    comme toujours."""
     if valeur is None:
         return None
     if isinstance(valeur, datetime):
@@ -382,8 +406,9 @@ def parser_date(valeur) -> Optional[date_type]:
     # la retirer d'abord permet de garder UNE liste de formats de date, au lieu
     # de la dupliquer avec et sans heure, à la minute et à la seconde.
     date_seule = texte.replace("T", " ", 1).split(" ", 1)[0]
+    formats = _FORMATS_DATE_MOIS_DEVANT if format_date == "mja" else _FORMATS_DATE
     for candidat in (texte, date_seule):
-        for fmt in _FORMATS_DATE:
+        for fmt in formats:
             try:
                 return datetime.strptime(candidat, fmt).date()
             except ValueError:
@@ -461,6 +486,33 @@ def separateur_decimal_du_fichier(lignes: list[tuple]) -> Optional[str]:
     avant."""
     decimal, milliers = format_nombres(c for l in lignes[:_ECHANTILLON_FORMAT] for c in l)
     return decimal if milliers in (",", ".") else None
+
+
+def format_date_du_fichier(
+    lignes: list[tuple], colonnes_config: list[dict], lignes_entete: int = 0
+) -> Optional[str]:
+    """L'ordre des dates à imposer à la lecture de ce fichier : « mja » quand
+    sa colonne de dates s'écrit À COUP SÛR mois devant (une date au moins y
+    met plus de 12 en deuxième place, aucune en première — cf. services/
+    lecture_dates.format_dates), None sinon, pour garder la lecture jour
+    devant. Une colonne qui ne départage pas reste lue à la française : la
+    lire autrement sur une simple présomption changerait des dates qui se
+    lisaient."""
+    # Importé ici et non en tête : lecture_dates lit parser_date dans ce module.
+    from .lecture_dates import format_dates
+
+    index = next(
+        (c["index"] for c in colonnes_config or [] if c.get("propriete") == "date"), None
+    )
+    if not index:
+        return None
+    cellules = (
+        ligne[index - 1]
+        for ligne in lignes[max(0, lignes_entete or 0) :]
+        if ligne is not None and len(ligne) >= index
+    )
+    format_date, certain = format_dates(cellules)
+    return "mja" if format_date == "mja" and certain else None
 
 
 def _texte(valeur) -> str:
@@ -733,6 +785,7 @@ def lire_lignes_brutes(
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
     feuille: Optional[str] = None,
+    lignes_pied: int = 0,
 ) -> list[dict]:
     """`lignes_entete` (ImportPreset) : combien de lignes de TÊTE ne sont pas
     des données. Zéro pour les formats qui commencent par une opération — les
@@ -741,6 +794,11 @@ def lire_lignes_brutes(
     une ligne vide avant leurs intitulés de colonnes. `ligne` reste dans tous
     les cas le numéro de ligne physique dans le fichier (1-based), donc
     directement comparable à ce que l'utilisateur voit dans Excel.
+
+    `lignes_pied` (ImportPreset) : de même, combien de lignes de PIED — un
+    total, un solde final sous les opérations. Comptées en lignes NON VIDES
+    depuis le bas : une banque laisse volontiers une ligne blanche avant son
+    total, et la compter ferait garder le total en écartant une ligne vide.
 
     `delimiteur` : cf. _lire_lignes_csv, à qui c'est simplement transmis.
     `feuille` : cf. _lire_lignes_xlsx.
@@ -789,7 +847,8 @@ def lire_lignes_brutes(
             if valeur not in (None, "")
         }
         lignes.append(brute)
-    return lignes
+    pied = max(0, lignes_pied or 0)
+    return lignes[: len(lignes) - pied] if pied else lignes
 
 
 # Caractères de largeur nulle : jamais visibles, parfois présents dans un
@@ -1608,15 +1667,24 @@ class ContextePreset:
         "lit_la_monnaie_frais",
         "lit_montant_scinde",
         "separateur_decimal",
+        "format_date",
         "index_dummy",
     )
 
-    def __init__(self, db, preset, separateur_decimal: Optional[str] = None):
+    def __init__(
+        self,
+        db,
+        preset,
+        separateur_decimal: Optional[str] = None,
+        format_date: Optional[str] = None,
+    ):
         self.preset = preset
         self.preset_id = preset.id
-        # Réglage de LA REQUÊTE (pas du preset, jamais mémorisé) : cf.
-        # parser_montant, dont c'est le seul consommateur via _resoudre_ligne.
+        # Réglages de LA REQUÊTE (pas du preset, jamais mémorisés) : cf.
+        # parser_montant et parser_date, dont _resoudre_ligne est le seul
+        # consommateur.
         self.separateur_decimal = separateur_decimal
+        self.format_date = format_date
         # Compte auquel le preset est lié, s'il l'est (cf. models.ImportPreset.
         # compte_id) : il court-circuite alors toute la résolution du compte.
         self.compte_lie_id = preset.compte_id
@@ -1933,7 +2001,7 @@ def _resoudre_ligne(
 ) -> schemas.ImportLigne:
     preset_id = contexte.preset_id
 
-    date_op = parser_date(brute["date_brute"])
+    date_op = parser_date(brute["date_brute"], contexte.format_date)
     nature = _texte(brute["nature"])
     nom_categorie_banque = _texte(brute["categorie_banque"])
     nom_compte_banque = _texte(brute["compte_banque"])
@@ -2385,6 +2453,7 @@ def construire_apercu_fichier(
     delimiteur: Optional[str] = None,
     propriete_vers_cle: Optional[dict] = None,
     feuille: Optional[str] = None,
+    lignes_pied: int = 0,
 ) -> schemas.ApercuFichier:
     """Le fichier tel quel (lignes non vides), INTÉGRAL, avec la propriété
     affectée à chaque colonne — de quoi vérifier visuellement que la
@@ -2433,6 +2502,9 @@ def construire_apercu_fichier(
         proprietes_par_colonne=proprietes,
         total_lignes=len(toutes),
         lignes_entete=lignes_entete_affichees,
+        # En lignes non vides, comme l'aperçu les affiche (cf.
+        # lire_lignes_brutes) : le réglage, borné à ce qui reste sous la tête.
+        lignes_pied=min(max(0, lignes_pied or 0), len(toutes) - lignes_entete_affichees),
     )
 
 
@@ -2545,6 +2617,7 @@ def previsualiser(
     separateur_decimal: Optional[str] = None,
     colonnes: Optional[list] = None,
     feuille: Optional[str] = None,
+    format_date: Optional[str] = None,
 ) -> schemas.ImportPreview:
     """`delimiteur` et `separateur_decimal` (None par défaut, tous les deux) :
     réglages de LECTURE que l'utilisateur peut préciser à la main quand l'app
@@ -2552,6 +2625,11 @@ def previsualiser(
     ou « montant illisible » dans l'aperçu qui en résulte) — jamais mémorisés
     sur le preset, ils ne valent que pour cet essai. Cf. _lire_lignes_csv et
     parser_montant, à qui ils sont simplement transmis.
+
+    `format_date` (« jma » ou « mja ») est de la même famille : l'ordre du jour
+    et du mois dans les dates. Absent, il se lit sur la colonne de dates du
+    fichier (cf. format_date_du_fichier), et l'aperçu renvoie celui qu'il a
+    retenu, pour que l'écran puisse le montrer.
 
     `colonnes` est de la même famille : ce que l'écran a SOUS LES YEUX, qui n'est
     pas forcément ce que le preset porte en base. C'est ce qui permet de
@@ -2576,7 +2654,10 @@ def previsualiser(
     # (cf. separateur_decimal_du_fichier).
     brutes = _lire_toutes_les_lignes(contenu, delimiteur, feuille)
     separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(brutes)
-    contexte = ContextePreset(db, preset, separateur_decimal)
+    format_date = format_date or format_date_du_fichier(
+        brutes, preset.colonnes, preset.lignes_entete
+    )
+    contexte = ContextePreset(db, preset, separateur_decimal, format_date)
 
     lignes = []
     lignes_existantes = {}
@@ -2586,6 +2667,7 @@ def previsualiser(
         preset.lignes_entete,
         delimiteur,
         feuille=feuille,
+        lignes_pied=preset.lignes_pied,
     ):
         doublon = detecter_doublon(
             brute["donnees_completes"],
@@ -2662,8 +2744,10 @@ def previsualiser(
             preset.lignes_entete,
             delimiteur,
             feuille=feuille,
+            lignes_pied=preset.lignes_pied,
         ),
         avertissements=avertissements_configuration(preset),
+        format_date=format_date,
     )
 
 
@@ -3226,9 +3310,10 @@ def confirmer(
     separateur_decimal: Optional[str] = None,
     colonnes: Optional[list] = None,
     feuille: Optional[str] = None,
+    format_date: Optional[str] = None,
 ) -> schemas.ImportResultat:
-    # `delimiteur` / `separateur_decimal` / `colonnes` / `feuille` : cf.
-    # previsualiser,
+    # `delimiteur` / `separateur_decimal` / `colonnes` / `feuille` /
+    # `format_date` : cf. previsualiser,
     # mêmes réglages — et TOUS LES TROIS doivent être ceux avec lesquels
     # l'aperçu confirmé a été construit, sans quoi le fichier serait relu
     # autrement à la confirmation qu'à l'aperçu (mêmes lignes en erreur qu'avant,
@@ -3260,10 +3345,12 @@ def confirmer(
 
     # Sans réglage à la main, le format des nombres se lit sur le fichier
     # (cf. separateur_decimal_du_fichier).
-    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(
-        _lire_toutes_les_lignes(contenu, delimiteur, feuille)
+    brutes = _lire_toutes_les_lignes(contenu, delimiteur, feuille)
+    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(brutes)
+    format_date = format_date or format_date_du_fichier(
+        brutes, preset.colonnes, preset.lignes_entete
     )
-    contexte = ContextePreset(db, preset, separateur_decimal)
+    contexte = ContextePreset(db, preset, separateur_decimal, format_date)
     ids_types = crud.id_type_par_code(db)
 
     lignes = []
@@ -3274,6 +3361,7 @@ def confirmer(
         preset.lignes_entete,
         delimiteur,
         feuille=feuille,
+        lignes_pied=preset.lignes_pied,
     ):
         doublon = detecter_doublon(
             brute["donnees_completes"],
@@ -3837,7 +3925,12 @@ def enregistrer_ligne_brute(
     correspondrait plus à celle que l'utilisateur a vue et liée."""
     preset = crud.get_import_preset(db, preset_id)
     for brute in lire_lignes_brutes(
-        contenu, preset.colonnes, preset.lignes_entete, delimiteur, feuille=feuille
+        contenu,
+        preset.colonnes,
+        preset.lignes_entete,
+        delimiteur,
+        feuille=feuille,
+        lignes_pied=preset.lignes_pied,
     ):
         if brute["ligne"] == numero_ligne:
             crud.create_ligne_import_brute(
