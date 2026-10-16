@@ -154,6 +154,11 @@ def creer_objectif(payload: schemas_obj.ObjectifCreate, db: Session = Depends(ge
         visible_dashboard=payload.visible_dashboard,
         ordre=ordre,
         filtres=[filtre.model_dump(mode="json") for filtre in payload.filtres],
+        date_debut=payload.date_debut,
+        date_fin=payload.date_fin,
+        # Le jour de la création sert de début à une deadline sans date de début
+        # (cf. service_objectifs.fenetre_objectif).
+        cree_le=date_type.today(),
     )
     db.add(objectif)
     db.commit()
@@ -219,6 +224,29 @@ def modifier_objectif(
     # pas la mutation d'une liste JSON, seulement son remplacement.
     if payload.filtres is not None:
         objectif.filtres = [filtre.model_dump(mode="json") for filtre in payload.filtres]
+    # LES DATES SE POSENT ENSEMBLE OU SE RETIRENT ENSEMBLE. Une fin seule (deadline) est
+    # admise ; un début sans fin ne l'est pas, et la cohérence se juge sur ce que
+    # l'objectif VAUDRA, pas sur le seul corps de la requête.
+    if payload.dates_effacees:
+        objectif.date_debut = None
+        objectif.date_fin = None
+    elif (
+        payload.date_debut is not None
+        or payload.date_fin is not None
+        or payload.date_debut_effacee
+    ):
+        debut = payload.date_debut if payload.date_debut is not None else objectif.date_debut
+        if payload.date_debut_effacee:
+            debut = None
+        fin = payload.date_fin if payload.date_fin is not None else objectif.date_fin
+        try:
+            schemas_obj._verifier_fenetre(debut, fin)
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
+        objectif.date_debut = debut
+        objectif.date_fin = fin
+        if objectif.cree_le is None:
+            objectif.cree_le = date_type.today()
 
     db.commit()
     db.refresh(objectif)

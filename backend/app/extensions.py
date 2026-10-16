@@ -178,6 +178,17 @@ class Extension:
         return [str(identifiant) for identifiant in valeur]
 
     @property
+    def remplace(self) -> list[str]:
+        """Identifiants d'anciennes extensions que celle-ci a absorbées (« Projets » et
+        « Objectifs » sont devenues « Projets et objectifs »). Sert UNE fois, au
+        démarrage : `rattraper_etat_avant_opt_in` en reprend l'état d'activation, pour
+        que la fusion n'éteigne rien chez qui s'en servait."""
+        valeur = self.manifeste.get("remplace") or []
+        if not isinstance(valeur, list):
+            return []
+        return [str(identifiant) for identifiant in valeur]
+
+    @property
     def navigation(self) -> Optional[dict]:
         """Où l'extension s'accroche dans l'interface, ou None si elle n'ajoute
         aucun écran. Deux formes possibles, cf. le frontend :
@@ -637,12 +648,24 @@ def rattraper_etat_avant_opt_in() -> None:
     pour elle.
     """
     etat = _charger_etat()
+    modifie = False
     manquantes = etat["annoncees"] - set(etat["actives"])
-    if not manquantes:
-        return
     for extension_id in manquantes:
         etat["actives"][extension_id] = True
-    _ecrire_etat(etat)
+        modifie = True
+    # LES EXTENSIONS FONDUES : une extension qui en remplace d'autres hérite de leur état.
+    # Allumée si l'une des anciennes l'était, et annoncée (elle n'a rien de neuf pour qui
+    # s'en servait déjà). Sans décision enregistrée pour la nouvelle seulement : un choix
+    # explicite, dans un sens ou l'autre, n'est jamais écrasé.
+    for extension in decouvrir().values():
+        if not extension.remplace or extension.id in etat["actives"]:
+            continue
+        if any(etat["actives"].get(ancienne, False) for ancienne in extension.remplace):
+            etat["actives"][extension.id] = True
+            etat["annoncees"].add(extension.id)
+            modifie = True
+    if modifie:
+        _ecrire_etat(etat)
 
 
 def definir_active(extension_id: str, actif: bool) -> None:

@@ -1,0 +1,33 @@
+{
+  "numero": 8,
+  "nom": "Projets et objectifs",
+  "description": "Deux outils pour décider à l'avance, réunis sur une même page de Budget. LES PROJETS regroupent des opérations déjà saisies par événement — un voyage, un déménagement — pour lire d'un coup ce qu'ils ont coûté, à travers les catégories et les comptes. LES OBJECTIFS sont les règles chiffrées que le budget ne sait pas écrire : « pas plus de quatre sorties par semaine », « mes courses sous 40 € en moyenne », « ce voyage ne doit pas dépasser 2 000 € d'ici le 31 décembre ». Un objectif peut se borner dans le temps (date de début et de fin) et se comparer à un maximum à ne pas dépasser ou à un minimum à atteindre. Ceux qu'on choisit s'affichent sous les graphes du dashboard. L'extension ne crée, ne modifie et ne supprime aucune opération et ne refuse jamais rien : elle constate. Nécessite « Budget », dont elle est un onglet.",
+  "version": "2.0.0",
+  "remplace": [
+    "projets",
+    "objectifs"
+  ],
+  "requiert_une_de": [
+    "analyse-budget"
+  ],
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": [
+      "projets.css",
+      "objectifs.css",
+      "projets-objectifs.css"
+    ],
+    "js": [
+      "projets.js",
+      "objectifs.js",
+      "projets-objectifs.js"
+    ]
+  },
+  "navigation": {
+    "type": "onglet",
+    "hote_section": "budget",
+    "sous_section": "projets-objectifs",
+    "libelle": "Projets et objectifs"
+  }
+}

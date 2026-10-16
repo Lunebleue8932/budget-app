@@ -2104,6 +2104,14 @@ class ObjectifKpi(Base):
     # restaurant », ou ne compter que le week-end, sans inventer une catégorie
     # pour chaque règle qu'on se donne.
     filtres = Column(JSON, nullable=False, default=list)
+    # UNE FENÊTRE DANS LE TEMPS (migration 0084), facultative. Avec une `date_fin`,
+    # l'objectif n'est plus un rythme (par semaine, par mois) mais un TOTAL sur la
+    # fenêtre, comparé à la cible : un maximum à ne pas dépasser ou un minimum à
+    # atteindre (`sens`). `date_debut` absente, la fenêtre commence à `cree_le` — un
+    # objectif ne se voit pas attribuer les dépenses d'avant qu'on se le fixe.
+    date_debut = Column(Date, nullable=True)
+    date_fin = Column(Date, nullable=True)
+    cree_le = Column(Date, nullable=True)
 
     categorie = relationship("Categorie")
     sous_filtre = relationship("SousFiltre")

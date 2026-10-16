@@ -211,6 +211,9 @@ function objLibellePeriode(fenetre) {
   if (fenetre.kind === "semaine") {
     return `${formatDateCourte(fenetre.debut)} → ${formatDateCourte(fenetre.fin)}`;
   }
+  if (fenetre.kind === "periode") {
+    return `${formatDateCourte(fenetre.debut)} → ${formatDateCourte(fenetre.fin)}`;
+  }
   if (fenetre.kind === "mois") return mois(fenetre.debut);
   if (fenetre.kind === "annee") return fenetre.debut.slice(0, 4);
   return `${t("Depuis")} ${mois(fenetre.debut).toLowerCase()}`;
@@ -328,6 +331,15 @@ function objDetailMesure(mesure) {
   // sur le mois voisin, et le dire évite de chercher une dépense au mauvais
   // endroit), le mois, l'année ou « depuis… ».
   morceaux.push(escapeHtml(objLibellePeriode(mesure.fenetre)));
+  if (mesure.jours_restants != null) {
+    morceaux.push(
+      mesure.jours_restants === 0
+        ? t("Terminé")
+        : mesure.jours_restants === 1
+        ? t("1 jour restant")
+        : t("{n} jours restants", { n: mesure.jours_restants })
+    );
+  }
 
   const enSemaine = mesure.fenetre.kind === "semaine";
   const dansLaPeriode = enSemaine ? t("dépenses cette semaine") : t("dépenses sur la période");
@@ -357,6 +369,8 @@ function objDetailMesure(mesure) {
 
 /** La bascule posée sur chaque carte : l'actuelle, et la moyennée. */
 function objBasculeVues(mesure) {
+  // UN OBJECTIF BORNÉ N'A QU'UNE LECTURE : sa fenêtre. Rien à basculer.
+  if (mesure.date_fin) return "";
   const vue = objVue(mesure.objectif_id);
   const bouton = (valeur) =>
     `<button type="button" class="${vue === valeur ? "actif" : ""}"
@@ -558,11 +572,14 @@ function majChampsObjectif() {
   const mesure = document.getElementById("objectif-mesure").value;
   const cadence = document.getElementById("objectif-cadence").value;
   objRemplirPerimetre();
-  document.getElementById("objectif-ligne-cadence").style.display = objMesureCumule(
-    mesure
-  )
-    ? ""
-    : "none";
+  const avecDates = document.getElementById("objectif-avec-dates").checked;
+  document.getElementById("objectif-ligne-dates").style.display = avecDates ? "" : "none";
+  document.getElementById("objectif-dates-aide").textContent = avecDates
+    ? t("Sans date de début, on compte à partir de la création de l'objectif.")
+    : "";
+  // Avec des dates, c'est un total sur la fenêtre : la cadence ne veut plus rien dire.
+  document.getElementById("objectif-ligne-cadence").style.display =
+    objMesureCumule(mesure) && !avecDates ? "" : "none";
 
   const avecCible = document.getElementById("objectif-avec-cible").checked;
   document.getElementById("objectif-ligne-sens").style.display = avecCible ? "" : "none";
@@ -573,7 +590,9 @@ function majChampsObjectif() {
   if (mesure === "part_depenses") unite = "%";
   else if (objMesureEstMonetaire(mesure)) unite = symboleMonnaie(monnaieId) || "";
   else unite = t("dépenses");
-  const suffixe = objMesureCumule(mesure)
+  const suffixe = avecDates
+    ? ` ${t("au total sur la période")}`
+    : objMesureCumule(mesure)
     ? ` ${cadence === "semaine" ? t("par semaine") : t("par mois")}`
     : "";
   document.getElementById("objectif-cible-unite").textContent = `${unite}${suffixe}`;
@@ -602,6 +621,11 @@ function objOuvrirEditeur(objectif) {
   const avecCible = objectif ? objectif.cible != null : true;
   document.getElementById("objectif-avec-cible").checked = avecCible;
   document.getElementById("objectif-cible").value = avecCible && objectif ? objectif.cible : "";
+  document.getElementById("objectif-avec-dates").checked = !!(objectif && objectif.date_fin);
+  document.getElementById("objectif-date-debut").value =
+    objectif && objectif.date_debut ? objectif.date_debut : "";
+  document.getElementById("objectif-date-fin").value =
+    objectif && objectif.date_fin ? objectif.date_fin : "";
   // LES MONNAIES AVANT TOUT LE RESTE : l'unité de la cible lit le symbole de
   // celle qui est choisie, et `objRemplirMonnaies` garde la valeur en place.
   objRemplirMonnaies();
@@ -643,7 +667,7 @@ function objRenderListe() {
  *  tourne. Un échec ne dit rien ici : on retombe sur une liste sans projets,
  *  et le reste de l'écran fonctionne. */
 async function objChargerProjets() {
-  if (!BudgetApp.extensions.estActive("projets")) {
+  if (!BudgetApp.extensions.estActive("projets-objectifs")) {
     objProjets = [];
     return;
   }
@@ -818,8 +842,23 @@ async function objEnregistrer() {
     champ: f.champ,
     valeur: objDefinitionFiltre(f.champ)?.saisie === "montant" ? Number(f.valeur) : String(f.valeur).trim(),
   }));
+  const avecDates = document.getElementById("objectif-avec-dates").checked;
+  const dateDebut = document.getElementById("objectif-date-debut").value;
+  const dateFin = document.getElementById("objectif-date-fin").value;
+  if (avecDates && !dateFin) {
+    showMessage(t("Indique la date de fin."), "error");
+    return;
+  }
+  if (avecDates && dateDebut && dateFin < dateDebut) {
+    showMessage(t("La date de fin précède la date de début."), "error");
+    return;
+  }
   const corps = {
     nom,
+    date_debut: avecDates && dateDebut ? dateDebut : null,
+    date_fin: avecDates ? dateFin : null,
+    dates_effacees: !avecDates,
+    date_debut_effacee: avecDates && !dateDebut,
     mesure: document.getElementById("objectif-mesure").value,
     cadence: document.getElementById("objectif-cadence").value,
     sens: document.getElementById("objectif-sens").value,
@@ -876,7 +915,7 @@ document.getElementById("btn-objectif-nouveau")?.addEventListener("click", () =>
 );
 document.getElementById("btn-objectif-annuler")?.addEventListener("click", objFermerEditeur);
 document.getElementById("btn-objectif-enregistrer")?.addEventListener("click", objEnregistrer);
-["objectif-mesure", "objectif-cadence", "objectif-monnaie-champ", "objectif-avec-cible"]
+["objectif-mesure", "objectif-cadence", "objectif-monnaie-champ", "objectif-avec-cible", "objectif-avec-dates"]
   .forEach((id) =>
     document.getElementById(id)?.addEventListener("change", majChampsObjectif)
   );
@@ -965,7 +1004,7 @@ function objOuvrirDepuisCarte(carte) {
     // DEPUIS LE DASHBOARD : la page s'ouvre dans l'onglet Objectifs de la page
     // Budget, avec le niveau (mois ou année) que le sélecteur affichait.
     objDetailEnAttente = { objectifId, ...objContexteDashboard };
-    switchSection("budget", { sousSection: "budget-objectifs" });
+    switchSection("budget", { sousSection: "budget-projets-objectifs" });
     return;
   }
   // DEPUIS LA PAGE DES OBJECTIFS : le mois en cours, qu'elle mesure déjà.
@@ -978,7 +1017,7 @@ document.getElementById("btn-objectif-fermer")?.addEventListener("click", objFer
 async function objRendreDashboard(annee, mois) {
   const bloc = document.getElementById("dashboard-objectifs");
   if (!bloc) return;
-  if (!BudgetApp.extensions.estActive("objectifs")) {
+  if (!BudgetApp.extensions.estActive("projets-objectifs")) {
     bloc.innerHTML = "";
     bloc.style.display = "none";
     return;
@@ -1038,7 +1077,3 @@ if (typeof loadDashboardData === "function" && !window.objDashboardGreffe) {
   };
 }
 
-// L'enregistrement auprès du noyau, en FIN de fichier : `loadObjectifs` doit
-// exister au moment où on la référence. Le chargeur est rappelé à chaque
-// ouverture de l'onglet — les dépenses ont pu changer depuis.
-BudgetApp.extensions.enregistrer("objectifs", { chargeur: loadObjectifs });

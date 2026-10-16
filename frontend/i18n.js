@@ -4351,5 +4351,43 @@ Object.assign(TRADUCTIONS.en, {
     "{n} look-alike(s) to review",
   "Voir les lignes non traitées":
     "Go to the unhandled rows",
+  "Limiter dans le temps":
+    "Limit in time",
+  "1 jour restant":
+    "1 day left",
+  "{n} jours restants":
+    "{n} days left",
+  "Sans date de début, on compte à partir de la création de l'objectif.":
+    "Without a start date, counting starts when the goal is created.",
+  "au total sur la période":
+    "in total over the period",
+  "Indique la date de fin.":
+    "Enter the end date.",
+  "La date de fin précède la date de début.":
+    "The end date is before the start date.",
+  "Donne une date de début et une date de fin à ton objectif, ou seulement une date de fin (une deadline). -- L'objectif n'est plus un rythme (par semaine, par mois) : c'est un total sur toute la période, comparé à ta cible. -- Ne pas dépasser : un maximum à ne pas franchir. Atteindre au moins : un minimum à atteindre avant la fin. -- Sans date de début, on compte à partir du jour où tu as créé l'objectif : les dépenses d'avant ne comptent pas.":
+    "Give your goal a start date and an end date, or only an end date (a deadline). -- The goal is no longer a rhythm (per week, per month): it is a total over the whole period, compared with your target. -- Do not exceed: a maximum you must not cross. Reach at least: a minimum to reach before the end. -- Without a start date, counting starts the day you created the goal: earlier spending does not count.",
+  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un objectif peut aussi se borner dans le temps : tu lui donnes une date de début et une date de fin (ou seulement une deadline), et un montant maximum à ne pas dépasser ou minimum à atteindre sur toute la période.":
+    "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category. // This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month). A goal can also be limited in time: you give it a start date and an end date (or just a deadline), and a maximum amount not to exceed or a minimum amount to reach over the whole period.",
+  "Projets et objectifs":
+    "Projects and goals",
+  "Une catégorie dans le temps":
+    "One category over time",
+  "Voir":
+    "View",
+  "Les mois de l'année":
+    "The months of the year",
+  "Année par année":
+    "Year by year",
+  "Catégorie":
+    "Category",
+  "Aucune catégorie de dépense.":
+    "No spending category.",
+  "Aucune opération en base sur cette période.":
+    "No transactions in the database for this period.",
+  "{n} période(s) sans aucune opération ne sont pas affichées.":
+    "{n} period(s) with no transactions at all are not shown.",
+  "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.":
+    "Spending by category, month by month: the category of your choice, over the months of the year in the top bar, or year by year. -- The calculation is the one used by the chart above and by the dashboard: an amortised expense is spread over its months, a reimbursable expense only counts for what remains on you, a split transaction contributes its share. -- A month in which the database holds no transactions at all (in any category) is not shown: it does not exist yet in your data. A month with transactions but nothing in this category keeps its bar at zero.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

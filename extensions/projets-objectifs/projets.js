@@ -733,7 +733,3 @@ document.getElementById("projet-filtre-texte").addEventListener("keydown", (e) =
   }
 });
 
-// L'enregistrement auprès du noyau, en FIN de fichier : `loadProjets` doit
-// exister au moment où on la référence. Le chargeur est rappelé à chaque
-// ouverture de l'onglet — les opérations ont pu changer depuis.
-BudgetApp.extensions.enregistrer("projets", { chargeur: loadProjets });

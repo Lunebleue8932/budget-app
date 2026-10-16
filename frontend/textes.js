@@ -194,6 +194,8 @@ const TEXTES = {
   /* ----- Extension « Budget » -----
      L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
+  "analyse-budget.depenses-categorie":
+    "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.",
   "analyse-budget.graphes":
     "« Comparer avec » te permet de comparer deux périodes de même durée.",
   "analyse-budget.previsions":
@@ -398,6 +400,8 @@ const TEXTES = {
     "Les objectifs cochés s'affichent sous les graphes du dashboard, sur la période et la monnaie que tu y regardes. Les autres restent ici. C'est devant tes dépenses du mois qu'on se demande si on tient sa règle — mais un bloc qui grandit sans fin finirait par repousser les graphes hors de l'écran.",
   "objectifs.filtres":
     "Des conditions que chaque dépense doit remplir pour être comptée : un montant minimum ou maximum, un mot présent ou absent du libellé, les jours de semaine ou le week-end. -- Toutes s'appliquent ensemble. -- Un objectif filtré compte les dépenses ligne par ligne : une dépense amortie y pèse entièrement sur le mois où elle a été faite.",
+  "objectifs.dates":
+    "Donne une date de début et une date de fin à ton objectif, ou seulement une date de fin (une deadline). -- L'objectif n'est plus un rythme (par semaine, par mois) : c'est un total sur toute la période, comparé à ta cible. -- Ne pas dépasser : un maximum à ne pas franchir. Atteindre au moins : un minimum à atteindre avant la fin. -- Sans date de début, on compte à partir du jour où tu as créé l'objectif : les dépenses d'avant ne comptent pas.",
   "objectifs.page-objectif":
     "Toutes les opérations qui entrent dans le chiffre de la carte, sur la vue choisie : la plus grosse d'abord. Le montant retenu est ce que chacune pèse dans l'objectif — son reste à charge si elle est remboursable, sa part si elle est découpée, la part du mois si elle est amortie (son montant réel est écrit en dessous, et le nombre de mois d'amortissement entre crochets après la date). La somme des montants retenus est le chiffre de la carte, avant d'être ramenée à la cadence ou divisée par le nombre de dépenses selon ce que l'objectif mesure.",
   "objectifs.dashboard":
@@ -1042,6 +1046,8 @@ Object.assign(TEXTES, {
     "Te permet de classifier comme tel et suivre l'argent qu'on t'a prêté (intérêts compris). Le fonctionnement de ces types d'opérations est similaire aux opérations remboursables / remboursements.",
   "projets.description":
     "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories.",
+  "projets-objectifs.description":
+    "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un objectif peut aussi se borner dans le temps : tu lui donnes une date de début et une date de fin (ou seulement une deadline), et un montant maximum à ne pas dépasser ou minimum à atteindre sur toute la période.",
   "regles.description":
     "L'une des extensions phares de l'application. Ta banque fournit un libellé conséquent pour des dépenses récurrentes, que tu dois renommer sans cesse ? Tu voudrais automatiser les modifications récurrentes que tu fais ? L'extension règle t'apporte la flexibilité de faire /bold(ce que tu veux).",
   "suivi-remboursements.description":

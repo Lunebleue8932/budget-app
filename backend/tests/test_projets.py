@@ -30,8 +30,8 @@ from .conftest import (
     get_type_id,
 )
 
-service = charger_module_extension("projets", "service_projets.py")
-routeur = charger_module_extension("projets", "routeur_projets.py")
+service = charger_module_extension("projets-objectifs", "service_projets.py")
+routeur = charger_module_extension("projets-objectifs", "routeur_projets.py")
 
 
 # ---------- Outillage ----------

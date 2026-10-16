@@ -6,6 +6,7 @@ la valeur constatée, la valeur ramenée à sa cadence et la cible proratisée, 
 qu'aucun de ces trois chiffres seul ne se lit sans les autres (cf.
 service_objectifs.mesurer).
 """
+from datetime import date as date_type
 from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -74,6 +75,23 @@ class ObjectifBase(BaseModel):
     ordre: int = 0
     # Tous à passer ; vide = aucun filtre (cf. models.ObjectifKpi.filtres).
     filtres: list[FiltreObjectif] = Field(default_factory=list)
+    # LA FENÊTRE (migration 0084) : avec une `date_fin`, l'objectif est un TOTAL sur
+    # [début, fin] comparé à la cible (maximum ou minimum, selon `sens`). Une date de
+    # début seule n'a pas de sens : une fenêtre se ferme.
+    date_debut: Optional[date_type] = None
+    date_fin: Optional[date_type] = None
+
+    @model_validator(mode="after")
+    def _fenetre_coherente(self):
+        _verifier_fenetre(self.date_debut, self.date_fin)
+        return self
+
+
+def _verifier_fenetre(debut: Optional[date_type], fin: Optional[date_type]) -> None:
+    if debut is not None and fin is None:
+        raise ValueError("Une date de début demande une date de fin.")
+    if debut is not None and fin is not None and fin < debut:
+        raise ValueError("La date de fin précède la date de début.")
 
 
 class ObjectifCreate(ObjectifBase):
@@ -111,6 +129,13 @@ class ObjectifUpdate(BaseModel):
     # UNE LISTE REMPLACE LES FILTRES, `None` n'y touche pas — et une liste vide
     # les retire tous.
     filtres: Optional[list[FiltreObjectif]] = None
+    # Les dates se posent ensemble ou se retirent ensemble (`dates_effacees`) : `None`
+    # veut dire « ne change pas », comme partout.
+    date_debut: Optional[date_type] = None
+    date_fin: Optional[date_type] = None
+    dates_effacees: bool = False
+    # Retire la seule date de début (la fin reste : c'est alors une deadline).
+    date_debut_effacee: bool = False
 
 
 class ObjectifRead(ObjectifBase):
@@ -189,6 +214,12 @@ class ObjectifMesureRead(BaseModel):
     atteint: bool = True
     avancement: float = 0.0
     filtres: list[FiltreObjectif] = Field(default_factory=list)
+    # La fenêtre de l'objectif, quand il en a une (migration 0084). `date_debut` est
+    # celle qui sert vraiment (celle de la création à défaut d'une saisie) ;
+    # `jours_restants` vaut None hors fenêtre bornée, 0 une fois la fin passée.
+    date_debut: Optional[str] = None
+    date_fin: Optional[str] = None
+    jours_restants: Optional[int] = None
     # LES DEUX VUES, toujours rendues (cf. service_objectifs.fenetres_de_lecture) :
     # l'ACTUELLE (la période propre de l'objectif — la semaine ou le mois) et la
     # MOYENNÉE (une fenêtre plus large, ramenée à la cadence). Les champs de tête

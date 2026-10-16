@@ -163,7 +163,7 @@ def test_l_histogramme_d_un_projet_laisse_changes_et_frais_a_leurs_colonnes(db_s
 
     from .conftest import charger_module_extension
 
-    service_projets = charger_module_extension("projets", "service_projets.py")
+    service_projets = charger_module_extension("projets-objectifs", "service_projets.py")
     euro = get_monnaie_id(db_session)
     franc = creer_monnaie(db_session, "Franc suisse", "CHF").id
     a = creer_compte(db_session, "Courant", monnaies=[(euro, 0)])

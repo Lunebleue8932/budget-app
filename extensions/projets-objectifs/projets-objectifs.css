@@ -1,0 +1,51 @@
+/* ---------- « Projets et objectifs » : une page découpée en deux ---------- */
+
+/* Deux moitiés côte à côte quand la place le permet, l'une sous l'autre sinon. */
+.po-grille {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .po-grille {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.po-moitie {
+  min-width: 0;
+}
+
+/* Un séparateur discret entre les deux moitiés, côte à côte comme empilées. */
+.po-moitie + .po-moitie {
+  border-top: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+  padding-top: 16px;
+}
+
+@media (min-width: 1100px) {
+  .po-moitie + .po-moitie {
+    border-top: none;
+    padding-top: 0;
+    border-left: 1px solid var(--border, rgba(128, 128, 128, 0.3));
+    padding-left: 24px;
+  }
+}
+
+/* Un détail ouvert : toute la largeur, et l'autre moitié se range. */
+.po-grille.po-detail-projet,
+.po-grille.po-detail-objectif {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.po-grille.po-detail-projet #po-moitie-objectifs,
+.po-grille.po-detail-objectif #po-moitie-projets {
+  display: none;
+}
+
+.po-grille.po-detail-projet .po-moitie + .po-moitie,
+.po-grille.po-detail-objectif .po-moitie + .po-moitie {
+  border: none;
+  padding: 0;
+}

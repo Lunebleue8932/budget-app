@@ -276,6 +276,29 @@ def _fenetre(kind: str, debut: date_type, fin: date_type, annee=None, mois=None)
     return {"kind": kind, "debut": debut, "fin": fin, "annee": annee, "mois": mois}
 
 
+def est_borne(objectif: models.ObjectifKpi) -> bool:
+    """Vrai quand l'objectif porte sa propre fenêtre (migration 0084)."""
+    return objectif.date_fin is not None
+
+
+def fenetre_objectif(
+    db: Session, objectif: models.ObjectifKpi, aujourdhui: Optional[date_type] = None
+) -> dict:
+    """La fenêtre d'un objectif borné : [début, fin], kind « periode ».
+
+    SANS DATE DE DÉBUT, ELLE COMMENCE À LA CRÉATION de l'objectif (une deadline compte ce
+    qu'on dépense APRÈS se l'être fixée), et à défaut de date de création — ce qui ne
+    peut arriver que sur un objectif écrit à la main en base — au premier mois de
+    l'historique. Une fin avant ce début donne une fenêtre vide, jamais une erreur."""
+    aujourdhui = aujourdhui or date_type.today()
+    debut = (
+        objectif.date_debut
+        or objectif.cree_le
+        or premier_jour_de_l_historique(db, objectif.monnaie_id, aujourdhui)
+    )
+    return _fenetre("periode", debut, max(debut, objectif.date_fin))
+
+
 def fenetre_tout(db: Session, monnaie_id: int, aujourdhui: date_type) -> dict:
     """La fenêtre « tout l'historique » : du premier mois où l'on a dépensé à la
     fin de l'année en cours (cf. `fenetres_de_lecture`)."""
@@ -324,6 +347,11 @@ def fenetres_de_lecture(
     étalé sur les mois à venir), et la fenêtre doit tomber d'accord avec lui. Ce
     sont les UNITÉS qui ne comptent que le temps écoulé."""
     aujourdhui = aujourdhui or date_type.today()
+    if est_borne(objectif):
+        # UN OBJECTIF BORNÉ NE SUIT PAS LE SÉLECTEUR : sa fenêtre est la sienne, les
+        # deux vues sont la même.
+        fenetre = fenetre_objectif(db, objectif, aujourdhui)
+        return {"actuelle": fenetre, "moyennee": fenetre}
     cadence = _cadence_de_lecture(objectif)
     if tout:
         return _fenetres_tout(db, objectif, cadence, aujourdhui)
@@ -370,7 +398,7 @@ def _semantique(objectif: models.ObjectifKpi, fenetre: dict) -> str:
     (le calcul du dashboard ne sait pas lire une semaine qui déborde d'un mois)."""
     sur_lignes = objectif.sous_filtre_id is not None or bool(objectif.filtres)
     if (
-        fenetre["kind"] == "semaine"
+        fenetre["kind"] in ("semaine", "periode")
         or sur_lignes
         or objectif.mesure in (MesureObjectif.nombre.value, MesureObjectif.montant_moyen.value)
     ):
@@ -435,13 +463,18 @@ def mesurer_fenetre(
     # se moyenne sur les week-ends écoulés, pas sur les semaines de calendrier (cf.
     # lignes_depenses.unites_fenetre).
     jours_filtre = _jours_du_filtre(objectif)
-    unites = unites_fenetre(
-        cadence, fenetre["debut"], fenetre["fin"], aujourdhui, jours_filtre=jours_filtre
-    )
-    unites_periode = unites_fenetre(
-        cadence, fenetre["debut"], fenetre["fin"], aujourdhui, ecoulees=False,
-        jours_filtre=jours_filtre,
-    )
+    if fenetre["kind"] == "periode":
+        # UNE FENÊTRE BORNÉE EST UN TOTAL, jamais un rythme : une seule unité, rien à
+        # diviser, la cible est comparée telle quelle.
+        unites = unites_periode = 1.0
+    else:
+        unites = unites_fenetre(
+            cadence, fenetre["debut"], fenetre["fin"], aujourdhui, jours_filtre=jours_filtre
+        )
+        unites_periode = unites_fenetre(
+            cadence, fenetre["debut"], fenetre["fin"], aujourdhui, ecoulees=False,
+            jours_filtre=jours_filtre,
+        )
     semantique = _semantique(objectif, fenetre)
     echantillon = 0
 
@@ -515,7 +548,9 @@ def mesurer(
     d'après ce que l'objectif compte. Les DEUX VUES — `actuelle` et `moyennee`,
     cf. `fenetres_de_lecture` — sont rendues à côté, avec leurs bornes : c'est
     ce que l'écran bascule, et ce que la page d'un objectif détaille."""
-    if tout:
+    if est_borne(objectif):
+        fenetre_periode = fenetre_objectif(db, objectif, aujourdhui)
+    elif tout:
         fenetre_periode = fenetre_tout(db, objectif.monnaie_id, aujourdhui or date_type.today())
     else:
         debut, fin = bornes_periode(annee, mois)
@@ -546,6 +581,15 @@ def mesurer(
         "atteint": periode["atteint"],
         "avancement": periode["avancement"],
         "filtres": list(objectif.filtres or []),
+        "date_debut": (
+            fenetres["actuelle"]["debut"].isoformat() if est_borne(objectif) else None
+        ),
+        "date_fin": objectif.date_fin.isoformat() if objectif.date_fin else None,
+        "jours_restants": (
+            max(0, (objectif.date_fin - (aujourdhui or date_type.today())).days)
+            if est_borne(objectif)
+            else None
+        ),
         "actuelle": mesurer_fenetre(db, objectif, fenetres["actuelle"], aujourdhui),
         "moyennee": mesurer_fenetre(db, objectif, fenetres["moyennee"], aujourdhui),
     }

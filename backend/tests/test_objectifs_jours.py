@@ -20,7 +20,7 @@ from app.services import lignes_depenses
 
 from .conftest import charger_module_extension, creer_compte, get_categorie_id, get_monnaie_id, get_type_id
 
-service = charger_module_extension("objectifs", "service_objectifs.py")
+service = charger_module_extension("projets-objectifs", "service_objectifs.py")
 
 # 2026-10-05 est un LUNDI ; le 1er octobre 2026 est un jeudi, le week-end vécu est donc les 3 et 4.
 LUNDI = date(2026, 10, 5)
