@@ -1,0 +1,12 @@
+{
+  "fichier": "releve_banque_a.csv",
+  "lignes_entete": 4,
+  "intitules": true,
+  "lignes_pied": 0,
+  "colonnes": ["date", "date_valeur", "nature", "debit", "credit", "solde"],
+  "separateur": ";",
+  "separateur_decimal": ",",
+  "encodage": "cp1252",
+  "ordre": "decroissant",
+  "feuille": null
+}

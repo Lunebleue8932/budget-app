@@ -106,3 +106,10 @@ backend/scripts/
 # l'instant. Posée ou retirée par local-extras/appliquer.py ; ce dossier ne voyage jamais
 # avec le dépôt, et un crochet pre-commit local refuse de commiter tant qu'elle est posée.
 local-extras/
+
+# ---------- BANC DE TEST DE LA DÉTECTION ----------
+#
+# Les relevés réels, même anonymisés, restent des relevés : ils ne quittent pas
+# la machine. Seuls le générateur de variantes et le script de rejeu sont
+# versionnés.
+backend/tests/banc_detection/releves/
