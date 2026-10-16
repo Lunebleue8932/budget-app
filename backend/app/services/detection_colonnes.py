@@ -41,6 +41,7 @@ from ..constants import (
     LIBELLES_SENS_SORTIE,
     LIBELLES_STATUT_DEFAUT,
 )
+from .controle_solde import controler_solde
 from .entetes import SCORE_SYNONYME, dictionnaire, groupe_principal, scores_proprietes
 from .import_bancaire import normaliser_libelle, parser_date
 from .lecture_dates import format_dates, lire_date, ordre_dates
@@ -64,6 +65,12 @@ def _proprietes_connues() -> list[str]:
 # Une colonne dont deux montants sont remplis sur plus d'une ligne sur vingt
 # n'est pas un couple débit/crédit.
 _PART_REMPLIES_ENSEMBLE = 0.05
+
+# LE TEST DU SOLDE (services/controle_solde) décide ou départage : vérifié, il
+# VERROUILLE — son score dépasse tout ce que les intitulés et la forme peuvent
+# donner ; probable, il ajoute un bonus, sans plus.
+_VERROU = 2.5
+_BONUS_PROBABLE = 0.3
 
 
 # LES PROPRIÉTÉS QUI ONT UNE FORME : une date, un nombre, un code de devise, un
@@ -164,6 +171,22 @@ def _lignes_de_pied(corps: list[tuple], format_date) -> int:
             break
         pied += 1
     return pied if pied < len(corps) else 0
+
+
+def _ordre_des_dates(operations: list[tuple], format_date) -> Optional[str]:
+    """L'ordre que dit la colonne qui porte le plus de dates, avant toute
+    attribution : le test du solde en a besoin pour départager deux lectures
+    qu'il ne distingue pas (cf. services/controle_solde)."""
+    echantillon = operations[:_ECHANTILLON]
+    largeur = max((len(l) for l in echantillon), default=0)
+    if not largeur:
+        return None
+    dates = [
+        [lire_date(l[j], format_date) if j < len(l) else None for l in echantillon]
+        for j in range(largeur)
+    ]
+    colonne = max(range(largeur), key=lambda j: sum(d is not None for d in dates[j]))
+    return ordre_dates(dates[colonne])
 
 
 def _profiler(
@@ -375,6 +398,32 @@ def detecter_colonnes(
         s = scores[index]
         s[""] = max(s.values(), default=0) + 0.1
 
+    # LE TEST DU SOLDE, la preuve la plus forte : un solde qui varie
+    # exactement du montant net des opérations ne laisse de doute ni sur sa
+    # colonne, ni sur la façon de lire les montants, ni sur les signes.
+    solde = controler_solde(operations, decimal, milliers, _ordre_des_dates(operations, format_date))
+    if solde:
+
+        def imposer(index: int, propriete: str) -> None:
+            s = scores.setdefault(index, {})
+            if solde.statut == "verifie":
+                s[propriete] = _VERROU
+            else:
+                s[propriete] = round(s.get(propriete, 0.0) + _BONUS_PROBABLE, 3)
+
+        # Le solde ne s'importe pas : il reste le solde de CONTRÔLE, rendu
+        # plus bas pour l'aperçu avant import.
+        imposer(solde.colonne, "")
+        lecture = solde.lecture.en_dict()
+        if lecture["mode"] == "algebrique":
+            imposer(lecture["colonnes"][0], "montant")
+        elif lecture["mode"] == "debit_credit":
+            imposer(lecture["colonne_debit"], "montant_debit")
+            imposer(lecture["colonne_credit"], "montant_credit")
+        else:
+            imposer(lecture["colonne_montant"], "montant")
+            imposer(lecture["colonne_sens"], "sens")
+
     # L'ATTRIBUTION : du plus sûr au moins sûr, une propriété par colonne et
     # une colonne par propriété. Le montant et le couple débit/crédit
     # s'excluent (cf. constants.PROPRIETES_MONTANT_SCINDE).
@@ -426,10 +475,13 @@ def detecter_colonnes(
             }
         )
 
-    # L'ORDRE DU FICHIER, lu sur la colonne retenue pour la date.
+    # L'ORDRE DU FICHIER : celui que le solde a vérifié, sinon celui que dit
+    # la monotonie de la colonne retenue pour la date.
     colonne_date = next((index for index, prop in retenue.items() if prop == "date"), None)
     ordre = None
-    if colonne_date is not None:
+    if solde and solde.statut == "verifie":
+        ordre = solde.ordre
+    elif colonne_date is not None:
         ordre = ordre_dates(
             lire_date(l[colonne_date - 1], format_date) if colonne_date <= len(l) else None
             for l in operations
@@ -448,11 +500,31 @@ def detecter_colonnes(
         "format_date_certain": format_date_certain,
         # « croissant », « decroissant », ou None quand l'ordre est mêlé.
         "ordre": ordre,
+        # Comment le relevé écrit ses montants, d'après les colonnes retenues.
+        "mode_montants": _mode_montants(retenue, profils),
+        # Le solde de contrôle (cf. services/controle_solde), ou None.
+        "colonne_solde": solde.colonne if solde else None,
+        "solde": solde.en_dict() if solde else None,
         "colonnes": colonnes,
         "configuration": [
             {"index": index, "propriete": prop} for index, prop in sorted(retenue.items()) if prop
         ],
     }
+
+
+def _mode_montants(retenue: dict[int, str], profils: list[_Profil]) -> Optional[str]:
+    """« algebrique », « montant_sens », « debit_credit » ou « envoye_recu »
+    (le même couple, sous ses intitulés à lui) ; None sans montant."""
+    proprietes = {prop: index for index, prop in retenue.items() if prop}
+    if "montant_debit" in proprietes and "montant_credit" in proprietes:
+        entetes = {p.index: p.entete for p in profils}
+        groupes = {
+            groupe_principal(entetes.get(proprietes[p], "")) for p in ("montant_debit", "montant_credit")
+        }
+        return "envoye_recu" if groupes == {"envoye", "recu"} else "debit_credit"
+    if "montant" in proprietes:
+        return "montant_sens" if "sens" in proprietes else "algebrique"
+    return None
 
 
 def detecter_fichier(

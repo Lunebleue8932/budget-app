@@ -288,6 +288,10 @@ const TEXTES = {
     "Ce classeur a plusieurs feuilles : « {feuille} » est celle qui ressemble le plus à un relevé, c'est elle qui est lue. Tu peux en choisir une autre ici.",
   "noyau.detection-lignes-pied":
     "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.",
+  /* `{colonne}` : son numéro ; `{taux}` : la part des intervalles où le solde
+     varie exactement du montant des opérations ; `{intervalles}` : leur nombre. */
+  "noyau.detection-solde":
+    "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.",
   "noyau.detection-dates-mois-devant":
     "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.",
   "noyau.reconnaissance-basculer":

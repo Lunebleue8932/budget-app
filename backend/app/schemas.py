@@ -1617,6 +1617,12 @@ class DetectionColonnesRead(BaseModel):
     format_date: Optional[str] = None  # « jma », « mja » ou « amj »
     format_date_certain: bool = False
     ordre: Optional[str] = None  # « croissant » ou « decroissant »
+    # « algebrique », « montant_sens », « debit_credit » ou « envoye_recu ».
+    mode_montants: Optional[str] = None
+    # LE SOLDE DE CONTRÔLE (cf. services/controle_solde) : sa colonne, et ce que
+    # le test a vérifié (ordre, moment, lecture des montants, taux, statut).
+    colonne_solde: Optional[int] = None
+    solde: Optional[dict] = None
     # Les feuilles d'un classeur et, pour chacune, le nombre de lignes qui ont
     # la forme d'une opération ; celle qui a été lue, celle qui est proposée.
     feuilles: list[dict] = Field(default_factory=list)

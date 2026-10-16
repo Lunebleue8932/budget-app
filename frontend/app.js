@@ -12994,6 +12994,17 @@ function renderImportDetection() {
         : ""
     }
     ${
+      importDetection.solde
+        ? `<p class="hint">${escapeHtml(
+            t(texteAide("noyau.detection-solde"), {
+              colonne: importDetection.solde.colonne,
+              taux: Math.round(importDetection.solde.taux * 100),
+              intervalles: importDetection.solde.intervalles,
+            })
+          )}</p>`
+        : ""
+    }
+    ${
       importDetection.format_date === "mja"
         ? `<p class="import-avertissement">${escapeHtml(
             t(texteAide("noyau.detection-dates-mois-devant"))

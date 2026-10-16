@@ -2884,6 +2884,8 @@ TRADUCTIONS.pt = {
     "Esta planilha tem várias abas: “{feuille}” é a que mais se parece com um extrato, é ela que está sendo lida. Você pode escolher outra aqui.",
   "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
     "{n} linha(s) abaixo das transações não são transações (total, saldo final): vão aparecer com erro na prévia, para excluir.",
+  "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
+    "A coluna {colonne} é um saldo: de uma linha para a outra, ele varia exatamente o valor das transações ({taux}% de {intervalles} intervalos). Ele não é importado; vai servir para conferir a importação.",
   "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
     "As datas deste arquivo são escritas com o mês na frente (01/25/2026): a importação ainda não sabe lê-las.",
   "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":

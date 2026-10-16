@@ -3548,6 +3548,9 @@ const TRADUCTIONS = {
     // noyau.detection-lignes-pied
     "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
       "{n} row(s) below the transactions are not transactions (total, closing balance): they will show as errors in the preview, to be deleted.",
+    // noyau.detection-solde
+    "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
+      "Column {colonne} is a balance: from one row to the next, it changes by exactly the transaction amount ({taux}% of {intervalles} intervals). It is not imported; it will be used to check the import.",
     // noyau.detection-dates-mois-devant
     "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":
       "The dates in this file are written month first (01/25/2026): the import cannot read them yet.",

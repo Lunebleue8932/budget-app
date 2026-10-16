@@ -36,7 +36,7 @@ REFERENCE = Path(__file__).parent / "reference.json"
 # Ce que la détection ne rend pas encore, et qu'on mesurera dès qu'elle le rendra.
 _EXTRAS = (
     "mode_montants", "ordre", "separateur", "separateur_decimal", "encodage", "format_date",
-    "lignes_pied",
+    "lignes_pied", "colonne_solde",
 )
 # Deux encodages qui ne diffèrent que sur des octets absents du fichier le
 # lisent à l'identique : les confondre n'est pas une erreur.

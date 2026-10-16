@@ -136,7 +136,10 @@ class Releve:
         return {
             "lignes_entete": self.lignes_entete,
             "proprietes": [PROPRIETE_DU_ROLE[r] for r in self.roles],
-            "mode_montants": self.mode,
+            # Sans intitulés, rien ne distingue « envoyé/reçu » de « débit/crédit ».
+            "mode_montants": "debit_credit"
+            if self.mode == "envoye_recu" and self.entetes is None
+            else self.mode,
             "separateur": self.separateur,
             # Un classeur porte des nombres et des dates TYPÉS : ni séparateur
             # décimal, ni encodage, ni écriture des dates à deviner.
@@ -145,6 +148,7 @@ class Releve:
             "format_date": None if self.separateur == "xlsx" else FORMATS_DATE.get(self.format_date),
             "ordre": self.ordre,
             "lignes_pied": len(self.pied),
+            "colonne_solde": self.roles.index("solde") + 1 if "solde" in self.roles else None,
         }
 
     # ---------- Les montants ----------
