@@ -311,12 +311,13 @@ def test_previsualiser_liste_les_categories_et_comptes_inconnus(db_session):
 
     preview = import_bancaire.previsualiser(db_session, preset.id, contenu)
 
-    # "Alimentation" reste signalée comme à confirmer même si une valeur par
-    # défaut (Autres) lui a déjà été proposée ; le compte, lui, n'a pas de
+    # "Alimentation" reste signalée comme à confirmer même si une catégorie lui a déjà été
+    # proposée — le classement intelligent (cf. services/categorisation_intelligente) présélectionne
+    # « Alimentaire », faute de quoi ce serait le repli « Autres » ; le compte, lui, n'a pas de
     # valeur par défaut sensée et reste donc bloquant tant qu'il n'est pas mappé.
     assert preview.categories_inconnues == ["Alimentation"]
     assert preview.comptes_inconnus == ["CC Perso"]
-    assert preview.lignes[0].categorie_id == get_categorie_id(db_session, "Autres")
+    assert preview.lignes[0].categorie_id == get_categorie_id(db_session, "Alimentaire")
     assert preview.lignes[0].categorie_suggestion_auto is True
     assert preview.lignes[0].compte_id is None
 

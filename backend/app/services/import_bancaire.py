@@ -182,7 +182,7 @@ from pydantic import ValidationError
 import unicodedata
 
 from .. import crud, extensions, models, schemas
-from . import rapprochement_previsionnel, regles_categorisation
+from . import categorisation_intelligente, rapprochement_previsionnel, regles_categorisation
 from ..constants import (
     DEVISE_PAR_MONTANT_AVANCE,
     LIBELLES_SENS_ENTREE,
@@ -2588,6 +2588,14 @@ def previsualiser(
     categories_inconnues = sorted(
         {l.nom_banque_categorie for l in lignes if l.nom_banque_categorie and l.categorie_suggestion_auto}
     )
+    # LE CLASSEMENT INTELLIGENT (cf. services/categorisation_intelligente), seulement pour ce que
+    # la table des correspondances ne connaît pas encore. Une proposition « forte » PRÉSÉLECTIONNE
+    # la catégorie sur les lignes concernées ; ce n'est jamais appliqué seul — la ligne reste « à
+    # confirmer » (`categorie_suggestion_auto`), et rien n'est écrit dans la table avant le clic.
+    propositions_categories = {
+        nom: categorisation_intelligente.proposer(db, nom) for nom in categories_inconnues
+    }
+    lignes = _preselectionner_propositions(db, lignes, propositions_categories)
     comptes_inconnus = sorted(
         {l.nom_banque_compte for l in lignes if l.nom_banque_compte and l.compte_id is None}
     )
@@ -2597,6 +2605,7 @@ def previsualiser(
         previsionnelles=previsionnelles,
         jambes_manquantes=jambes_manquantes,
         categories_inconnues=categories_inconnues,
+        propositions_categories=propositions_categories,
         comptes_inconnus=comptes_inconnus,
         monnaies_inconnues=_monnaies_inconnues(lignes),
         monnaies_resolues=_monnaies_resolues(lignes, contexte.monnaies),
@@ -2608,6 +2617,39 @@ def previsualiser(
         ),
         avertissements=avertissements_configuration(preset),
     )
+
+
+def _preselectionner_propositions(db, lignes: list, propositions: dict) -> list:
+    """Pose la catégorie proposée (statut « forte ») sur les lignes qui n'en ont que le repli.
+
+    GARDES : seul un type à catégorie libre reçoit une catégorie ; et une proposition dont le
+    sens (entrée / dépense) contredit celui de la ligne est laissée de côté pour CETTE ligne —
+    un « salaire » ne range pas une dépense dans une catégorie d'entrée."""
+    forte = {
+        nom: p["propositions"][0]
+        for nom, p in propositions.items()
+        if p["statut"] == "forte" and p["propositions"]
+    }
+    if not forte:
+        return lignes
+    categories = {c.id: c for c in db.query(models.Categorie).all()}
+    sortie = []
+    for ligne in lignes:
+        proposition = forte.get(ligne.nom_banque_categorie)
+        if (
+            proposition is None
+            or not ligne.categorie_suggestion_auto
+            or TypeOperation(ligne.type_code) not in TYPES_AVEC_CATEGORIE_LIBRE
+        ):
+            sortie.append(ligne)
+            continue
+        cible = categories.get(proposition["categorie_id"])
+        est_entree_ligne = ligne.montant_signe is not None and ligne.montant_signe > 0
+        if cible is None or bool(cible.est_entree) != est_entree_ligne:
+            sortie.append(ligne)
+            continue
+        sortie.append(ligne.model_copy(update={"categorie_id": cible.id}))
+    return sortie
 
 
 def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:

@@ -3607,5 +3607,41 @@ Object.assign(TRADUCTIONS.pt, {
     "{n} período(s) sem nenhuma transação não são exibidos.",
   "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.":
     "Despesas por categoria, mês a mês: a categoria que você escolher, nos meses do ano da barra superior, ou ano a ano. -- O cálculo é o do gráfico acima e o do dashboard: uma despesa amortizada é distribuída pelos seus meses, uma despesa reembolsável conta apenas o que sobra para você, uma transação dividida contribui com a sua parte. -- Um mês em que a base não tem nenhuma transação (em nenhuma categoria) não é exibido: ele ainda não existe nos seus dados. Um mês com transações mas nada nesta categoria mantém a barra em zero.",
+  "Revenir aux mots-clés livrés":
+    "Restaurar as palavras-chave padrão",
+  "Mots-clés livrés rétablis":
+    "Palavras-chave padrão restauradas",
+  "Aucun mot-clé : cette catégorie ne sera jamais proposée d'après un libellé.":
+    "Nenhuma palavra-chave: esta categoria nunca será sugerida a partir de um rótulo.",
+  "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.":
+    "As palavras que fazem esta categoria ser sugerida quando você importa um extrato: se a categoria do seu banco (ou o seu rótulo) se parece com uma delas — “supermercado”, “padaria”, “restaurante”… — o app sugere esta categoria, que você confirma ou não. -- Nada é classificado sem a sua validação. -- As palavras padrão cobrem francês, inglês e português do Brasil. Assim que você edita a lista, a sua substitui a original; “Restaurar as palavras-chave padrão” a traz de volta.",
+  "Classer les catégories de ta banque":
+    "Classificar as categorias do seu banco",
+  "Classer avec les opérations concernées":
+    "Classificar com as transações envolvidas",
+  "Confirmer les propositions fortes":
+    "Confirmar as sugestões fortes",
+  "Proposition forte":
+    "Sugestão forte",
+  "Suggestion":
+    "Sugestão",
+  "À classer":
+    "A classificar",
+  "Ton choix":
+    "Sua escolha",
+  "Confirmée":
+    "Confirmada",
+  "… et {n} autres opérations":
+    "… e mais {n} transações",
+  "Catégorie de l'app pour « {nom} »":
+    "Categoria do app para “{nom}”",
+  "{n} catégorie(s) à confirmer":
+    "{n} categoria(s) a confirmar",
+  "Tout est confirmé.":
+    "Tudo confirmado.",
+  "Toutes les correspondances sont confirmées.":
+    "Todas as correspondências estão confirmadas.",
+  "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
+    "Cada coluna reúne as transações de uma mesma categoria do seu banco. Escolha a categoria do app que lhes corresponde com a roda (clique, ou ↑ ↓) e confirme (botão, ou Ctrl+Enter): a coluna seguinte assume. -- O app sugere uma categoria a partir do nome, de palavras-chave e de semelhanças; ele nunca classifica nada sem a sua aprovação, mesmo quando tem certeza. -- Depois de confirmada, a correspondência é memorizada para este formato de arquivo: as próximas importações não perguntarão de novo.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

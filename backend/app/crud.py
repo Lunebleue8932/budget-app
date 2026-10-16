@@ -612,6 +612,32 @@ def migrer_operations_vers_autres(db: Session, categorie_a_supprimer: models.Cat
     db.commit()
 
 
+def set_categorie_mots_cles(
+    db: Session, db_categorie: models.Categorie, mots_cles: Optional[list]
+) -> models.Categorie:
+    """Pose les mots-clés d'une catégorie (migration 0085), ou revient aux livrés avec None.
+
+    NETTOYÉS À L'ÉCRITURE : espaces retirés, vides et doublons (à la normalisation près) écartés.
+    UNE ROUTE À PART, comme le drapeau d'entrée : renommer une catégorie ne doit jamais effacer
+    une liste qu'on a écrite."""
+    from app.services.categorisation_intelligente import normaliser
+
+    if mots_cles is None:
+        db_categorie.mots_cles_perso = None
+    else:
+        vus, propres = set(), []
+        for mot in mots_cles:
+            mot = str(mot).strip()
+            cle = normaliser(mot)
+            if cle and cle not in vus:
+                vus.add(cle)
+                propres.append(mot)
+        db_categorie.mots_cles_perso = propres
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
 def set_categorie_est_entree(
     db: Session, db_categorie: models.Categorie, est_entree: bool
 ) -> models.Categorie:

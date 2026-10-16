@@ -163,6 +163,19 @@ class CategorieRead(BaseModel):
     # opérations sont des entrées d'argent, elle n'a donc pas de barre dans
     # l'histogramme des dépenses et pas de budget à se voir attribuer.
     est_entree: bool = False
+    # LES MOTS-CLÉS qui font proposer cette catégorie à l'import (cf.
+    # models.Categorie.mots_cles_perso, migration 0085) : ceux de l'utilisateur, sinon les
+    # livrés. `mots_cles_personnalises` dit lesquels, pour que l'écran propose « Revenir aux
+    # mots-clés livrés » seulement quand ça a un sens.
+    mots_cles: list[str] = Field(default_factory=list)
+    mots_cles_personnalises: bool = False
+
+
+class CategorieMotsClesUpdate(BaseModel):
+    """Les mots-clés d'une catégorie, isolés comme le drapeau d'entrée : renommer ne doit
+    jamais les toucher. `None` revient aux mots-clés livrés ; une liste (même vide) les remplace."""
+
+    mots_cles: Optional[list[str]] = None
 
 
 class CategorieEntreeUpdate(BaseModel):
@@ -1630,9 +1643,30 @@ class ApercuFichier(BaseModel):
     lignes_entete: int = 0
 
 
+class PropositionCategorieImport(BaseModel):
+    """Une catégorie de l'app proposée pour un libellé du relevé (cf.
+    services/categorisation_intelligente)."""
+
+    categorie_id: int
+    nom: str
+    score: float
+    via: Optional[str] = None
+
+
+class PropositionsLibelleImport(BaseModel):
+    """Ce que le classement intelligent propose pour UN libellé de catégorie bancaire :
+    « forte » (une proposition présélectionnée), « suggestions » (jusqu'à trois à choisir) ou
+    « a_classer » (rien d'assez proche). Toujours à confirmer, jamais appliqué seul."""
+
+    statut: str
+    propositions: list[PropositionCategorieImport] = Field(default_factory=list)
+
+
 class ImportPreview(BaseModel):
     lignes: list[ImportLigne]
     categories_inconnues: list[str]
+    # Une proposition par libellé de `categories_inconnues` (même clés).
+    propositions_categories: dict[str, PropositionsLibelleImport] = Field(default_factory=dict)
     comptes_inconnus: list[str]
     # Libellés de devise lus dans le fichier qu'aucune correspondance mémorisée
     # ni aucun nom/symbole de monnaie ne permet de rattacher (cf.

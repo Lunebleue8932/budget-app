@@ -4389,5 +4389,43 @@ Object.assign(TRADUCTIONS.en, {
     "{n} period(s) with no transactions at all are not shown.",
   "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.":
     "Spending by category, month by month: the category of your choice, over the months of the year in the top bar, or year by year. -- The calculation is the one used by the chart above and by the dashboard: an amortised expense is spread over its months, a reimbursable expense only counts for what remains on you, a split transaction contributes its share. -- A month in which the database holds no transactions at all (in any category) is not shown: it does not exist yet in your data. A month with transactions but nothing in this category keeps its bar at zero.",
+  "Mots-clés":
+    "Keywords",
+  "Revenir aux mots-clés livrés":
+    "Restore the default keywords",
+  "Mots-clés livrés rétablis":
+    "Default keywords restored",
+  "Aucun mot-clé : cette catégorie ne sera jamais proposée d'après un libellé.":
+    "No keyword: this category will never be suggested from a label.",
+  "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.":
+    "The words that make this category suggested when you import a statement: if your bank's category (or its label) looks like one of them — “supermarket”, “bakery”, “restaurant”… — the app suggests this category, which you may confirm or not. -- Nothing is ever classified without your approval. -- The default words cover French, English and Brazilian Portuguese. As soon as you edit the list, yours replaces the original; “Restore the default keywords” brings it back.",
+  "Classer les catégories de ta banque":
+    "Sort your bank's categories",
+  "Classer avec les opérations concernées":
+    "Sort with the transactions involved",
+  "Confirmer les propositions fortes":
+    "Confirm the strong suggestions",
+  "Proposition forte":
+    "Strong suggestion",
+  "Suggestion":
+    "Suggestion",
+  "À classer":
+    "To sort",
+  "Ton choix":
+    "Your choice",
+  "Confirmée":
+    "Confirmed",
+  "… et {n} autres opérations":
+    "… and {n} more transactions",
+  "Catégorie de l'app pour « {nom} »":
+    "App category for “{nom}”",
+  "{n} catégorie(s) à confirmer":
+    "{n} categor(y/ies) to confirm",
+  "Tout est confirmé.":
+    "Everything is confirmed.",
+  "Toutes les correspondances sont confirmées.":
+    "All the matches are confirmed.",
+  "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
+    "Each column gathers the transactions of one category from your bank. Pick the app category that matches them with the wheel (click, or ↑ ↓), then confirm (button, or Ctrl+Enter): the next column takes over. -- The app suggests a category from the name, keywords and similarities; it never classifies anything without your approval, even when it is sure. -- Once confirmed, the match is remembered for this file format: the next imports will not ask again.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

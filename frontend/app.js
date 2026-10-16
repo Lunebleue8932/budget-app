@@ -6845,6 +6845,8 @@ function resetCategorieForm() {
   delete document.getElementById("categorie-nom").dataset.nomInitial;
   document.getElementById("categorie-entree-bloc").style.display = "none";
   document.getElementById("categorie-entree").checked = false;
+  document.getElementById("categorie-mots-cles-bloc").style.display = "none";
+  motsClesCategorieLivres = true;
   document.getElementById("form-categorie-titre").textContent = t("Ajouter une catégorie");
   document.getElementById("categorie-annuler").style.display = "none";
   document.getElementById("categorie-etat").style.display = "none";
@@ -6887,6 +6889,40 @@ function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apre
   };
 }
 
+// Vrai tant qu'on n'a pas touché aux mots-clés d'une catégorie qui garde ceux qui sont livrés :
+// seuls un ajout, un retrait ou « Revenir aux mots-clés livrés » les font réécrire.
+let motsClesCategorieLivres = true;
+let motsClesCategorieInitiaux = [];
+
+function assurerEditeurMotsClesCategorie() {
+  creerEditeurMotsCles("categorie-mots-cles", {
+    conteneur: "categorie-mots-cles-bloc",
+    libelles: { mots: "Mots-clés" },
+    vide: "Aucun mot-clé : cette catégorie ne sera jamais proposée d'après un libellé.",
+    onChange: () => {
+      motsClesCategorieLivres = false;
+      document.getElementById("categorie-mots-cles-livres").style.display = "";
+    },
+  });
+}
+
+document.getElementById("categorie-mots-cles-livres").addEventListener("click", async () => {
+  const id = document.getElementById("categorie-id").value;
+  if (!id) return;
+  try {
+    await apiFetch(`/categories/${id}/mots-cles`, {
+      method: "PUT",
+      body: JSON.stringify({ mots_cles: null }),
+    });
+    showMessage(t("Mots-clés livrés rétablis"), "success");
+    await refreshCategories();
+    fillCategorieForm(state.categories.find((c) => c.id === Number(id)), null);
+    renderCategories();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+});
+
 function fillCategorieForm(categorie, ancre) {
   ouvrirFormulaireEnLigne("form-categorie", "form-categorie-titre", ancre);
   document.getElementById("categorie-id").value = categorie.id;
@@ -6904,6 +6940,15 @@ function fillCategorieForm(categorie, ancre) {
   champNom.dataset.nomInitial = categorie.nom;
   document.getElementById("categorie-entree-bloc").style.display = "";
   document.getElementById("categorie-entree").checked = !!categorie.est_entree;
+  // Les mots-clés : l'éditeur ne s'initialise qu'ici, à la première ouverture (cf. la note sur
+  // `assurerEditeurRapprochement` : un éditeur déclaré trop tôt atteint des `const` de ce fichier
+  // dans leur zone morte).
+  assurerEditeurMotsClesCategorie();
+  document.getElementById("categorie-mots-cles-bloc").style.display = "";
+  chargerMotsCles("categorie-mots-cles", { mots: categorie.mots_cles || [] });
+  motsClesCategorieLivres = !categorie.mots_cles_personnalises;
+  document.getElementById("categorie-mots-cles-livres").style.display =
+    categorie.mots_cles_personnalises ? "" : "none";
   document.getElementById("form-categorie-titre").textContent = `Modifier "${categorie.nom}"`;
   document.getElementById("categorie-annuler").style.display = "inline-block";
   cablerBoutonEtat("categorie-etat", {
@@ -7060,6 +7105,15 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
         await apiFetch(`/categories/${id}/entree`, {
           method: "PUT",
           body: JSON.stringify({ est_entree: entree }),
+        });
+      }
+      // LES MOTS-CLÉS, SEULEMENT S'ILS ONT BOUGÉ : une catégorie qui garde les livrés ne doit pas
+      // se retrouver avec une liste « à soi » parce qu'on a corrigé son nom.
+      if (!motsClesCategorieLivres) {
+        const mots = (motsClesSaisis("categorie-mots-cles").mots || []);
+        await apiFetch(`/categories/${id}/mots-cles`, {
+          method: "PUT",
+          body: JSON.stringify({ mots_cles: mots }),
         });
       }
       showMessage(t("Catégorie modifiée"), "success");
@@ -12562,6 +12616,9 @@ async function executerPrevisualisation() {
     renderImportReglagesLecture();
     renderImportMappings();
     renderImportApercu();
+    // LE TABLEAU DES CORRESPONDANCES s'ouvre de lui-même quand le fichier porte des catégories
+    // bancaires encore inconnues : c'est là qu'on voit quelles opérations elles rassemblent.
+    ouvrirCorrespondances();
     // Une détection ouverte décrivait le fichier d'AVANT la relecture.
     importDetection = null;
     renderImportDetection();
@@ -13274,6 +13331,369 @@ function appliquerMappingsLocalement() {
     });
   });
 }
+
+
+/* ---------- LE TABLEAU DES CORRESPONDANCES (pop-up de l'import) ----------
+ *
+ * LA QUESTION qu'on se pose devant « Alimentation et restauration » : lesquelles de mes
+ * opérations sont concernées ? Les lignes de correspondance de la page n'en montraient aucune. Ce
+ * pop-up pose UNE COLONNE par catégorie de la banque — plusieurs à l'écran, défilant à
+ * l'horizontale — avec les opérations qu'elle rassemble, la catégorie de l'app proposée par le
+ * serveur (cf. services/categorisation_intelligente) et un bouton « Confirmer ».
+ *
+ * LE CHOIX SE FAIT À LA MOLETTE, comme les minutes d'un minuteur de téléphone : une liste verticale
+ * qui accroche sa ligne au centre, cinq lignes visibles, les propositions en tête. ↑ / ↓ la
+ * déplacent, Ctrl+Entrée confirme la colonne COURANTE (celle qui a le focus, cernée) et passe à la
+ * suivante. Le clic sur le bouton fait la même chose.
+ *
+ * RIEN N'EST NEUF CÔTÉ ÉTAT : confirmer écrit dans `importMappingCategories` et
+ * `importCategoriesConfirmees`, exactement ce que faisaient les lignes de la page — c'est
+ * l'import confirmé qui écrit ensuite dans la table des correspondances (palier 1). JAMAIS
+ * d'application silencieuse : même une proposition forte attend son clic.
+ */
+const CORR_HAUTEUR_OPTION = 30;
+let corrNoms = [];
+let corrCourante = -1;
+
+function corrOuvert() {
+  return document.getElementById("modale-correspondances").style.display !== "none";
+}
+
+function corrValeur(nom) {
+  if (importMappingCategories[nom] != null) return importMappingCategories[nom];
+  const ligne = importApercu.lignes.find((l) => l.nom_banque_categorie === nom);
+  return ligne ? ligne.categorie_id : null;
+}
+
+function corrPropositions(nom) {
+  return (importApercu.propositions_categories || {})[nom] || { statut: "a_classer", propositions: [] };
+}
+
+/** Les options de la molette : les propositions d'abord (dans l'ordre du serveur), puis le reste
+ *  des catégories proposables. La catégorie déjà choisie en fait toujours partie. */
+function corrOptions(nom) {
+  const propositions = corrPropositions(nom).propositions;
+  const ids = new Set(propositions.map((p) => p.categorie_id));
+  const proposees = propositions
+    .map((p) => {
+      const c = state.categories.find((x) => x.id === p.categorie_id);
+      return c ? { id: c.id, nom: c.nom, proposee: true } : null;
+    })
+    .filter(Boolean);
+  const autres = categoriesProposables(corrValeur(nom))
+    .filter((c) => !ids.has(c.id))
+    .map((c) => ({ id: c.id, nom: c.nom, proposee: false }));
+  return [...proposees, ...autres];
+}
+
+/** Le libellé de l'état d'une colonne : de quoi sait-on que cette catégorie est la bonne ? */
+function corrStatut(nom) {
+  const { statut, propositions } = corrPropositions(nom);
+  const choisie = corrValeur(nom);
+  if (propositions.length && choisie === propositions[0].categorie_id) {
+    if (statut === "forte") return { cle: "forte", texte: t("Proposition forte") };
+    if (statut === "suggestions") return { cle: "suggestions", texte: t("Suggestion") };
+  }
+  if (propositions.some((p) => p.categorie_id === choisie)) {
+    return { cle: "suggestions", texte: t("Suggestion") };
+  }
+  return { cle: "choix", texte: statut === "a_classer" && !propositions.length ? t("À classer") : t("Ton choix") };
+}
+
+function corrColonne(i) {
+  return document.querySelector(`#correspondances-board [data-corr-i="${i}"]`);
+}
+
+function corrOperationsHtml(nom) {
+  const lignes = lignesLuesParImport().filter((l) => l.nom_banque_categorie === nom);
+  const visibles = lignes.slice(0, 60);
+  const html = visibles
+    .map((l) => {
+      const montant = l.montant_signe != null ? l.montant_signe : l.montant;
+      return `<div class="corr-operation">
+        <div>
+          <div class="corr-operation-nature" title="${escapeHtml(l.nature || "")}">${escapeHtml(l.nature || "—")}</div>
+          <div class="corr-operation-date">${l.date ? formatDateCourte(l.date) : ""}</div>
+        </div>
+        <div class="corr-operation-montant">${montant != null ? formatMontant(montant, l.monnaie_id) : ""}</div>
+      </div>`;
+    })
+    .join("");
+  const reste = lignes.length - visibles.length;
+  return (
+    html +
+    (reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autres opérations", { n: reste }))}</p>` : "")
+  );
+}
+
+function corrColonneHtml(nom, i) {
+  const options = corrOptions(nom);
+  const choisie = corrValeur(nom);
+  const statut = corrStatut(nom);
+  const confirmee = importCategoriesConfirmees.has(nom);
+  const nombre = lignesLuesParImport().filter((l) => l.nom_banque_categorie === nom).length;
+  return `
+    <section class="corr-colonne ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
+      <div>
+        <div class="corr-banque">${escapeHtml(nom)}</div>
+        <div class="hint">${escapeHtml(t("{n} opération(s)", { n: nombre }))}</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0"
+             aria-label="${escapeHtml(t("Catégorie de l'app pour « {nom} »", { nom }))}">
+          ${options
+            .map(
+              (o) => `<div class="corr-roue-option ${o.proposee ? "corr-roue-proposee" : ""} ${
+                o.id === choisie ? "corr-roue-choisie" : ""
+              }" role="option" data-id="${o.id}" aria-selected="${o.id === choisie}">${escapeHtml(
+                libelleCategorie(o.nom)
+              )}</div>`
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="corr-operations">${corrOperationsHtml(nom)}</div>
+      <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
+        confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+      }</span> <kbd>(Ctrl+Entrée)</kbd></button>
+    </section>`;
+}
+
+/** Une proposition forte non encore confirmée, et toujours le choix de la colonne. */
+function corrFortePrete(nom) {
+  const { statut, propositions } = corrPropositions(nom);
+  return (
+    statut === "forte" &&
+    propositions.length > 0 &&
+    corrValeur(nom) === propositions[0].categorie_id &&
+    !importCategoriesConfirmees.has(nom)
+  );
+}
+
+function corrMajCompteur() {
+  const restantes = corrNoms.filter((nom) => !importCategoriesConfirmees.has(nom)).length;
+  document.getElementById("correspondances-compteur").textContent = restantes
+    ? t("{n} catégorie(s) à confirmer", { n: restantes })
+    : t("Tout est confirmé.");
+  document.getElementById("btn-correspondances-fortes").disabled = !corrNoms.some((nom) =>
+    corrFortePrete(nom)
+  );
+}
+
+function corrMajBouton(i) {
+  const colonne = corrColonne(i);
+  if (!colonne) return;
+  const confirmee = importCategoriesConfirmees.has(corrNoms[i]);
+  colonne.classList.toggle("corr-confirmee", confirmee);
+  colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+}
+
+function renderCorrespondances() {
+  corrNoms = demandesDeMapping().categories;
+  const board = document.getElementById("correspondances-board");
+  board.innerHTML = corrNoms.map((nom, i) => corrColonneHtml(nom, i)).join("");
+  corrNoms.forEach((nom, i) => corrCentrerRoue(i, false));
+  corrMajCompteur();
+}
+
+function corrCentrerRoue(i, doux) {
+  const colonne = corrColonne(i);
+  if (!colonne) return;
+  const roue = colonne.querySelector(".corr-roue");
+  const options = [...roue.children];
+  const rang = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
+}
+
+function corrDefinirCourante(i, { focus = false } = {}) {
+  corrCourante = i;
+  document
+    .querySelectorAll("#correspondances-board .corr-colonne")
+    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
+  const colonne = corrColonne(i);
+  if (!colonne) return;
+  colonne.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  if (focus) colonne.querySelector(".corr-roue").focus({ preventScroll: true });
+}
+
+/** Choisit une catégorie pour la colonne `i` : redemande une confirmation. */
+function corrChoisir(i, categorieId, { defiler = true } = {}) {
+  const nom = corrNoms[i];
+  importMappingCategories[nom] = categorieId;
+  importCategoriesConfirmees.delete(nom);
+  const colonne = corrColonne(i);
+  if (!colonne) return;
+  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = Number(o.dataset.id) === categorieId;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  const statut = corrStatut(nom);
+  const pastille = colonne.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  corrMajBouton(i);
+  if (defiler) corrCentrerRoue(i, true);
+  corrMajCompteur();
+}
+
+function corrAppliquer() {
+  appliquerMappingsLocalement();
+  renderImportMappings();
+  renderImportApercu();
+}
+
+function corrProchaineNonConfirmee(apres) {
+  const suivante = corrNoms.findIndex((n, k) => k > apres && !importCategoriesConfirmees.has(n));
+  return suivante !== -1 ? suivante : corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n));
+}
+
+function corrConfirmer(i) {
+  if (i < 0 || i >= corrNoms.length) return;
+  const nom = corrNoms[i];
+  const choisie = corrValeur(nom);
+  if (!choisie) return;
+  importMappingCategories[nom] = choisie;
+  importCategoriesConfirmees.add(nom);
+  corrMajBouton(i);
+  corrAppliquer();
+  corrMajCompteur();
+  const cible = corrProchaineNonConfirmee(i);
+  if (cible === -1) {
+    showMessage(t("Toutes les correspondances sont confirmées."), "success");
+    fermerCorrespondances();
+    return;
+  }
+  corrDefinirCourante(cible, { focus: true });
+}
+
+function corrConfirmerFortes() {
+  corrNoms.forEach((nom, i) => {
+    if (!corrFortePrete(nom)) return;
+    importCategoriesConfirmees.add(nom);
+    corrMajBouton(i);
+  });
+  corrAppliquer();
+  corrMajCompteur();
+  const premiere = corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n));
+  if (premiere === -1) {
+    showMessage(t("Toutes les correspondances sont confirmées."), "success");
+    fermerCorrespondances();
+  } else {
+    corrDefinirCourante(premiere, { focus: true });
+  }
+}
+
+function ouvrirCorrespondances() {
+  if (!importApercu || !demandesDeMapping().categories.length) return;
+  // Les menus de la page sèment `importMappingCategories` depuis les propositions du serveur.
+  renderImportMappings();
+  renderCorrespondances();
+  document.getElementById("modale-correspondances").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  const premiere = Math.max(0, corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n)));
+  corrDefinirCourante(premiere, { focus: true });
+}
+
+function fermerCorrespondances() {
+  document.getElementById("modale-correspondances").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+  corrCourante = -1;
+  if (importApercu) corrAppliquer();
+}
+
+(function initCorrespondances() {
+  const board = document.getElementById("correspondances-board");
+  document.getElementById("btn-import-correspondances").addEventListener("click", ouvrirCorrespondances);
+  document.getElementById("btn-correspondances-fermer").addEventListener("click", fermerCorrespondances);
+  document.getElementById("btn-correspondances-terminer").addEventListener("click", fermerCorrespondances);
+  document.getElementById("btn-correspondances-fortes").addEventListener("click", corrConfirmerFortes);
+
+  board.addEventListener("click", (e) => {
+    const bouton = e.target.closest("[data-corr-confirmer]");
+    if (bouton) {
+      corrConfirmer(Number(bouton.dataset.corrConfirmer));
+      return;
+    }
+    const option = e.target.closest(".corr-roue-option");
+    if (option) {
+      const i = Number(option.closest("[data-corr-i]").dataset.corrI);
+      corrDefinirCourante(i);
+      corrChoisir(i, Number(option.dataset.id));
+    }
+  });
+
+  // Entrer dans une colonne (clic, Tab) la rend courante : c'est elle que Ctrl+Entrée confirme.
+  board.addEventListener("focusin", (e) => {
+    const colonne = e.target.closest("[data-corr-i]");
+    if (colonne && Number(colonne.dataset.corrI) !== corrCourante) {
+      corrDefinirCourante(Number(colonne.dataset.corrI));
+    }
+  });
+  board.addEventListener("mousedown", (e) => {
+    const colonne = e.target.closest("[data-corr-i]");
+    if (colonne) corrDefinirCourante(Number(colonne.dataset.corrI));
+  });
+
+  // La molette se pose où l'on s'arrête : le défilement fini, la ligne centrée est le choix. Les
+  // événements `scroll` ne remontent pas, d'où la phase de capture.
+  board.addEventListener(
+    "scroll",
+    (e) => {
+      const roue = e.target;
+      if (!roue.classList || !roue.classList.contains("corr-roue")) return;
+      clearTimeout(roue._corrMinuteur);
+      roue._corrMinuteur = setTimeout(() => {
+        const options = [...roue.children];
+        const rang = Math.min(
+          options.length - 1,
+          Math.max(0, Math.round(roue.scrollTop / CORR_HAUTEUR_OPTION))
+        );
+        const i = Number(roue.closest("[data-corr-i]").dataset.corrI);
+        const id = Number(options[rang].dataset.id);
+        if (id !== corrValeur(corrNoms[i])) corrChoisir(i, id, { defiler: false });
+      }, 90);
+    },
+    true
+  );
+
+  // ↑ / ↓ déplacent la molette de la colonne ; ← / → passent d'une colonne à l'autre.
+  board.addEventListener("keydown", (e) => {
+    const roue = e.target.closest(".corr-roue");
+    if (!roue || e.ctrlKey || e.metaKey) return;
+    const i = Number(roue.closest("[data-corr-i]").dataset.corrI);
+    const options = [...roue.children];
+    const rang = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
+    let nouveau = null;
+    if (e.key === "ArrowDown") nouveau = Math.min(options.length - 1, rang + 1);
+    else if (e.key === "ArrowUp") nouveau = Math.max(0, rang - 1);
+    else if (e.key === "Home") nouveau = 0;
+    else if (e.key === "End") nouveau = options.length - 1;
+    if (nouveau !== null) {
+      e.preventDefault();
+      corrChoisir(i, Number(options[nouveau].dataset.id));
+      return;
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const voisine = i + (e.key === "ArrowRight" ? 1 : -1);
+      if (voisine >= 0 && voisine < corrNoms.length) {
+        e.preventDefault();
+        corrDefinirCourante(voisine, { focus: true });
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (!corrOuvert()) return;
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      corrConfirmer(corrCourante);
+    } else if (e.key === "Escape") {
+      fermerCorrespondances();
+    }
+  });
+})();
 
 // (libellé lu dans le fichier, monnaie résolue) pour les trois colonnes de
 // devise d'une ligne — miroir de _CHAMPS_MONNAIE côté serveur.

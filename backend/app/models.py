@@ -155,6 +155,24 @@ class Categorie(Base):
     # garde sa barre, elle a quelque chose à dire ; une catégorie éteinte à
     # zéro n'a plus rien à dire du tout.
     active = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+    # LES MOTS-CLÉS DE LA CATÉGORIE (migration 0085) : ce qui permet à l'import de proposer cette
+    # catégorie pour un libellé de relevé (« supermarché » → Alimentaire), cf.
+    # services/categorisation_intelligente. NULL = « pas de liste à moi », et ce sont alors les
+    # mots-clés livrés qui servent ; une liste, même vide, est un CHOIX et remplace les livrés en
+    # entier. Du texte que l'application ne lit que pour PROPOSER : aucun solde, aucun KPI, aucune
+    # barre n'en dépend.
+    mots_cles_perso = Column(JSON, nullable=True)
+
+    @property
+    def mots_cles(self) -> list:
+        """Les mots-clés en vigueur (les siens, sinon les livrés)."""
+        from app.services.categorisation_intelligente import mots_cles_de
+
+        return mots_cles_de(self)
+
+    @property
+    def mots_cles_personnalises(self) -> bool:
+        return self.mots_cles_perso is not None
 
     __table_args__ = (
         CheckConstraint(

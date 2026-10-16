@@ -153,6 +153,20 @@ def set_entree_categorie(
     return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
 
 
+@router.put("/{categorie_id}/mots-cles", response_model=schemas.CategorieRead)
+def set_mots_cles_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieMotsClesUpdate,
+    db: Session = Depends(get_db),
+):
+    """Les mots-clés qui font proposer cette catégorie à l'import (migration 0085). `null` revient
+    aux mots-clés livrés ; une liste, même vide, les remplace en entier."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return crud.set_categorie_mots_cles(db, db_categorie, updates.mots_cles)
+
+
 @router.put("/{categorie_id}/etat", response_model=schemas.CategorieRead)
 def set_etat_categorie(
     categorie_id: int,

@@ -250,6 +250,10 @@ const TEXTES = {
     "Chaque monnaie du compte garde son propre solde, non mélangé aux autres.",
   "noyau.categories-de-depenses":
     "Les dépenses se rangent dans ces catégories. Les réordonner change l'ordre d'apparition sur le dashboard. Eteindre une catégorie agit comme si elle n'existait plus à partir de l'extinction, tout en la conservant comme la catégorie des dépenses à laquelle elle est attribuée.",
+  "noyau.categorie-mots-cles":
+    "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.",
+  "noyau.import-correspondances":
+    "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.",
   "noyau.categorie-entree":
     "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
   "noyau.correspondances-memorisees":
