@@ -6468,6 +6468,53 @@ body input[type="checkbox"]:disabled {
   opacity: 0.85;
 }
 
+/* ---------- LE CONTRÔLE AVANT IMPORT (écran d'import) ----------
+   Des chiffres d'abord, lisibles d'un coup d'œil ; le contrôle du solde
+   ensuite, vert quand il retrouve le relevé, en avertissement sinon. */
+.import-controle {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 0.8rem 1rem;
+  margin: 0.8rem 0;
+}
+
+.import-controle-titre {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.import-controle-chiffres {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.import-controle-chiffre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.import-controle-chiffre span {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.import-controle-liste {
+  margin: 0.3rem 0 0.5rem;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.import-controle-ok {
+  color: var(--positif);
+  font-size: 0.85rem;
+  margin: 0.3rem 0;
+}
+
 /* ---------- LE PRESET QUI LIT CE FICHIER (écran d'import) ----------
    Une proposition, pas une erreur : le ton d'accent pour « un autre preset
    convient mieux », celui d'avertissement pour des intitulés qui ont bougé ou

@@ -290,6 +290,15 @@ const TEXTES = {
     "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.",
   /* `{colonne}` : son numéro ; `{taux}` : la part des intervalles où le solde
      varie exactement du montant des opérations ; `{intervalles}` : leur nombre. */
+  /* Le contrôle avant import (cf. renderImportControle). `{colonne}` : le
+     numéro de la colonne de solde ; `{taux}` et `{intervalles}` : la part des
+     intervalles retrouvés et leur nombre ; `{nombre}` : les intervalles en écart. */
+  "noyau.controle-avant-import":
+    "Ce que l'import fera de ce fichier, en chiffres, avant d'écrire quoi que ce soit. Si le relevé porte une colonne de solde, l'application recalcule ses variations avec ta configuration : un écart signale un signe, une décimale ou une colonne mal attribuée.",
+  "noyau.controle-solde-ok":
+    "Le solde du relevé (colonne n° {colonne}) est retrouvé sur {taux} % de {intervalles} intervalles : la configuration lit correctement les montants.",
+  "noyau.controle-solde-ecart":
+    "Le solde du relevé (colonne n° {colonne}) ne correspond pas aux montants lus sur {nombre} intervalle(s) : un signe, une décimale ou une colonne est sans doute mal attribué. Revois la configuration, puis relis le fichier.",
   "noyau.detection-solde":
     "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.",
   "noyau.detection-dates-mois-devant":

@@ -1707,6 +1707,10 @@ class ApercuFichier(BaseModel):
 
 class ImportPreview(BaseModel):
     lignes: list[ImportLigne]
+    # LE CONTRÔLE AVANT IMPORT (cf. services/controle_import) : lignes lues,
+    # rejetées et pourquoi, doublons, période, totaux en centimes, contrôle du
+    # solde, anomalies. None s'il n'a pas pu se calculer.
+    controle: Optional[dict] = None
     categories_inconnues: list[str]
     comptes_inconnus: list[str]
     # Libellés de devise lus dans le fichier qu'aucune correspondance mémorisée

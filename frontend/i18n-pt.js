@@ -474,6 +474,32 @@ TRADUCTIONS.pt = {
     "Cabeçalhos memorizados para esta predefinição.",
   "Feuille du classeur":
     "Aba da planilha",
+  "Contrôle avant import":
+    "Verificação antes da importação",
+  "Lignes lues":
+    "Linhas lidas",
+  "Rejetées":
+    "Rejeitadas",
+  "Doublons":
+    "Duplicadas",
+  "Débits":
+    "Débitos",
+  "Crédits":
+    "Créditos",
+  "du {debut} au {fin}":
+    "de {debut} a {fin}",
+  "{motif} : {n} ligne(s) — lignes {lignes}":
+    "{motif}: {n} linha(s) — linhas {lignes}",
+  "Lignes {debut} à {fin} : le solde varie de {variation}, les montants lus font {lus}.":
+    "Linhas {debut} a {fin}: o saldo varia {variation}, os valores lidos somam {lus}.",
+  "Revoir la configuration":
+    "Revisar a configuração",
+  "Dates hors plage : lignes {lignes}":
+    "Datas fora do intervalo: linhas {lignes}",
+  "Montants inhabituellement élevés : lignes {lignes}":
+    "Valores excepcionalmente altos: linhas {lignes}",
+  "{n} ligne(s) vide(s) au milieu des opérations":
+    "{n} linha(s) vazia(s) no meio das transações",
   "Un CSV écrit à l'anglo-saxonne":
     "Um CSV escrito à maneira anglo-saxã",
   "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -2884,6 +2910,12 @@ TRADUCTIONS.pt = {
     "Esta planilha tem várias abas: “{feuille}” é a que mais se parece com um extrato, é ela que está sendo lida. Você pode escolher outra aqui.",
   "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
     "{n} linha(s) abaixo das transações não são transações (total, saldo final): vão aparecer com erro na prévia, para excluir.",
+  "Ce que l'import fera de ce fichier, en chiffres, avant d'écrire quoi que ce soit. Si le relevé porte une colonne de solde, l'application recalcule ses variations avec ta configuration : un écart signale un signe, une décimale ou une colonne mal attribuée.":
+    "O que a importação vai fazer com este arquivo, em números, antes de gravar qualquer coisa. Se o extrato tem uma coluna de saldo, o aplicativo recalcula as variações com a sua configuração: uma diferença indica um sinal, uma casa decimal ou uma coluna mal atribuída.",
+  "Le solde du relevé (colonne n° {colonne}) est retrouvé sur {taux} % de {intervalles} intervalles : la configuration lit correctement les montants.":
+    "O saldo do extrato (coluna {colonne}) é reencontrado em {taux}% de {intervalles} intervalos: a configuração lê os valores corretamente.",
+  "Le solde du relevé (colonne n° {colonne}) ne correspond pas aux montants lus sur {nombre} intervalle(s) : un signe, une décimale ou une colonne est sans doute mal attribué. Revois la configuration, puis relis le fichier.":
+    "O saldo do extrato (coluna {colonne}) não bate com os valores lidos em {nombre} intervalo(s): um sinal, uma casa decimal ou uma coluna provavelmente está mal atribuída. Revise a configuração e depois releia o arquivo.",
   "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
     "A coluna {colonne} é um saldo: de uma linha para a outra, ele varia exatamente o valor das transações ({taux}% de {intervalles} intervalos). Ele não é importado; vai servir para conferir a importação.",
   "Les dates de ce fichier s'écrivent mois devant (01/25/2026) : l'import ne sait pas encore les lire.":

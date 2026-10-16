@@ -11104,6 +11104,7 @@ async function loadImportSection() {
     await loadImportHistorique();
     renderApercuFichier();
     renderImportAvertissements();
+    renderImportControle();
     renderImportMappings();
     renderImportApercu();
     return;
@@ -11155,6 +11156,7 @@ function reinitialiserImport() {
   document.getElementById("import-detection-suggestion").style.display = "none";
   importReconnaissance = null;
   renderImportReconnaissance();
+  document.getElementById("import-controle").style.display = "none";
   reinitialiserReglagesLecture();
   importDernierHistoriqueId = null;
 
@@ -12601,6 +12603,7 @@ async function executerPrevisualisation() {
       .forEach((l) => importLignesSelectionnees.add(l.ligne));
     renderApercuFichier();
     renderImportAvertissements();
+    renderImportControle();
     renderImportReglagesLecture();
     renderImportMappings();
     renderImportApercu();
@@ -13311,6 +13314,128 @@ document.getElementById("btn-import-apercu-relire").addEventListener("click", as
     relireToujours: true,
     message: t("Configuration enregistrée, fichier relu."),
   });
+});
+
+/**
+ * LE CONTRÔLE AVANT IMPORT, calculé avec l'aperçu (cf. services/
+ * controle_import) : combien de lignes, combien rejetées et pourquoi, quelle
+ * période, combien sort et combien entre — et surtout, quand le relevé porte un
+ * solde, si les montants tels que la configuration les lit le retrouvent. Un
+ * écart y désigne une erreur de lecture que l'aperçu ligne à ligne ne montre
+ * pas : le bouton ramène à la configuration, et la relecture refait le contrôle.
+ */
+function renderImportControle() {
+  const bloc = document.getElementById("import-controle");
+  const c = importApercu && importApercu.controle;
+  if (!c) {
+    bloc.style.display = "none";
+    bloc.innerHTML = "";
+    return;
+  }
+  const euros = (centimes) => formatMontant(centimes / 100);
+  const chiffre = (libelle, valeur) =>
+    `<div class="import-controle-chiffre"><span>${escapeHtml(libelle)}</span><strong>${escapeHtml(
+      String(valeur)
+    )}</strong></div>`;
+  const periode =
+    c.date_debut && c.date_fin
+      ? t("du {debut} au {fin}", { debut: formatDate(c.date_debut), fin: formatDate(c.date_fin) })
+      : "—";
+  const listeLignes = (lignes, total) =>
+    lignes.join(", ") + (total > lignes.length ? "…" : "");
+
+  const motifs = c.motifs_rejet.length
+    ? `<ul class="import-controle-liste">${c.motifs_rejet
+        .map(
+          (m) =>
+            `<li>${escapeHtml(
+              t("{motif} : {n} ligne(s) — lignes {lignes}", {
+                motif: m.motif,
+                n: m.nombre,
+                lignes: listeLignes(m.lignes, m.nombre),
+              })
+            )}</li>`
+        )
+        .join("")}</ul>`
+    : "";
+
+  let solde = "";
+  const s = c.controle_solde;
+  if (s && s.statut === "ok") {
+    solde = `<p class="import-controle-ok">${escapeHtml(
+      t(texteAide("noyau.controle-solde-ok"), {
+        colonne: s.colonne,
+        taux: Math.round(s.taux * 100),
+        intervalles: s.intervalles,
+      })
+    )}</p>`;
+  } else if (s) {
+    solde = `<div class="import-avertissement">
+        <p>${escapeHtml(
+          t(texteAide("noyau.controle-solde-ecart"), { colonne: s.colonne, nombre: s.nombre_ecarts })
+        )}</p>
+        <ul class="import-controle-liste">${s.ecarts
+          .map(
+            (e) =>
+              `<li>${escapeHtml(
+                t("Lignes {debut} à {fin} : le solde varie de {variation}, les montants lus font {lus}.", {
+                  debut: e.ligne_debut,
+                  fin: e.ligne_fin,
+                  variation: euros(e.variation_du_solde),
+                  lus: euros(e.montants_lus),
+                })
+              )}</li>`
+          )
+          .join("")}</ul>
+        <button type="button" data-controle="configuration">${t("Revoir la configuration")}</button>
+      </div>`;
+  }
+
+  const a = c.anomalies;
+  const anomalies = [
+    a.nombre_dates_hors_plage
+      ? t("Dates hors plage : lignes {lignes}", {
+          lignes: listeLignes(a.dates_hors_plage, a.nombre_dates_hors_plage),
+        })
+      : "",
+    a.nombre_montants_aberrants
+      ? t("Montants inhabituellement élevés : lignes {lignes}", {
+          lignes: listeLignes(a.montants_aberrants, a.nombre_montants_aberrants),
+        })
+      : "",
+    a.lignes_vides ? t("{n} ligne(s) vide(s) au milieu des opérations", { n: a.lignes_vides }) : "",
+  ].filter(Boolean);
+
+  bloc.innerHTML = `
+    <div class="import-controle-titre">${t("Contrôle avant import")}<i class="info-bulle" tabindex="0" data-info="${escapeHtml(
+      t(texteAide("noyau.controle-avant-import"))
+    )}">i</i></div>
+    <div class="import-controle-chiffres">
+      ${chiffre(t("Lignes lues"), c.lignes_lues)}
+      ${chiffre(t("Rejetées"), c.lignes_rejetees)}
+      ${chiffre(t("Doublons"), c.doublons)}
+      ${chiffre(t("Période"), periode)}
+      ${chiffre(t("Débits"), euros(c.total_debits))}
+      ${chiffre(t("Crédits"), euros(c.total_credits))}
+      ${chiffre(t("Solde net"), euros(c.solde_net))}
+    </div>
+    ${motifs}
+    ${solde}
+    ${
+      anomalies.length
+        ? `<ul class="import-controle-liste import-controle-anomalies">${anomalies
+            .map((x) => `<li>${escapeHtml(x)}</li>`)
+            .join("")}</ul>`
+        : ""
+    }`;
+  bloc.style.display = "";
+}
+
+document.getElementById("import-controle").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-controle='configuration']")) return;
+  const configuration = document.getElementById("import-config-fichier");
+  configuration.open = true;
+  configuration.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 // Ce que la configuration laisse d'ambigu sans être faux (montant envoyé ou frais

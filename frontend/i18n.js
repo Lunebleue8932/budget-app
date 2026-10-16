@@ -959,6 +959,19 @@ const TRADUCTIONS = {
     "Preset « {preset} » sélectionné, fichier relu.": "Preset “{preset}” selected, file re-read.",
     "Intitulés retenus pour ce preset.": "Headers remembered for this preset.",
     "Feuille du classeur": "Workbook sheet",
+    "Contrôle avant import": "Pre-import check",
+    "Lignes lues": "Rows read",
+    "Rejetées": "Rejected",
+    "Doublons": "Duplicates",
+    "Débits": "Debits",
+    "Crédits": "Credits",
+    "du {debut} au {fin}": "from {debut} to {fin}",
+    "{motif} : {n} ligne(s) — lignes {lignes}": "{motif}: {n} row(s) — rows {lignes}",
+    "Lignes {debut} à {fin} : le solde varie de {variation}, les montants lus font {lus}.": "Rows {debut} to {fin}: the balance changes by {variation}, the amounts read add up to {lus}.",
+    "Revoir la configuration": "Review the configuration",
+    "Dates hors plage : lignes {lignes}": "Dates out of range: rows {lignes}",
+    "Montants inhabituellement élevés : lignes {lignes}": "Unusually large amounts: rows {lignes}",
+    "{n} ligne(s) vide(s) au milieu des opérations": "{n} empty row(s) among the transactions",
 
     "Un CSV écrit à l'anglo-saxonne": "A CSV written the English-speaking way",
     "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -3548,6 +3561,15 @@ const TRADUCTIONS = {
     // noyau.detection-lignes-pied
     "{n} ligne(s) sous les opérations n'en sont pas (total, solde final) : elles apparaîtront en erreur dans l'aperçu, à supprimer.":
       "{n} row(s) below the transactions are not transactions (total, closing balance): they will show as errors in the preview, to be deleted.",
+    // noyau.controle-avant-import
+    "Ce que l'import fera de ce fichier, en chiffres, avant d'écrire quoi que ce soit. Si le relevé porte une colonne de solde, l'application recalcule ses variations avec ta configuration : un écart signale un signe, une décimale ou une colonne mal attribuée.":
+      "What the import will do with this file, in figures, before writing anything. If the statement has a balance column, the app recomputes its changes with your configuration: a gap points to a sign, a decimal or a column set the wrong way.",
+    // noyau.controle-solde-ok
+    "Le solde du relevé (colonne n° {colonne}) est retrouvé sur {taux} % de {intervalles} intervalles : la configuration lit correctement les montants.":
+      "The statement's balance (column {colonne}) is matched on {taux}% of {intervalles} intervals: the configuration reads the amounts correctly.",
+    // noyau.controle-solde-ecart
+    "Le solde du relevé (colonne n° {colonne}) ne correspond pas aux montants lus sur {nombre} intervalle(s) : un signe, une décimale ou une colonne est sans doute mal attribué. Revois la configuration, puis relis le fichier.":
+      "The statement's balance (column {colonne}) does not match the amounts read on {nombre} interval(s): a sign, a decimal or a column is probably set the wrong way. Review the configuration, then read the file again.",
     // noyau.detection-solde
     "La colonne n° {colonne} est un solde : d'une ligne à l'autre, il varie exactement du montant des opérations ({taux} % de {intervalles} intervalles). Il ne s'importe pas, il servira à contrôler l'import.":
       "Column {colonne} is a balance: from one row to the next, it changes by exactly the transaction amount ({taux}% of {intervalles} intervals). It is not imported; it will be used to check the import.",

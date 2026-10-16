@@ -434,6 +434,42 @@ async def previsualiser(
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
 
 
+@router.post("/presets/{preset_id}/controle")
+async def controle_avant_import(
+    preset_id: int,
+    fichier: UploadFile = File(...),
+    compte_id_defaut: Optional[int] = Form(None),
+    delimiteur: Optional[str] = Form(None),
+    separateur_decimal: Optional[str] = Form(None),
+    colonnes: Optional[str] = Form(None),
+    feuille: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Le contrôle avant import seul (cf. services/controle_import) : ce que
+    l'import ferait de ce fichier, chiffré. Les mêmes réglages que l'aperçu, et
+    comme lui, RIEN n'est écrit. L'écran, lui, le reçoit avec l'aperçu
+    (`ImportPreview.controle`) et n'a pas besoin de cette route."""
+    _get_preset_ou_404(db, preset_id)
+    delimiteur = _valider_delimiteur(delimiteur)
+    separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    contenu = await fichier.read()
+    colonnes_lues = _valider_colonnes_essai(colonnes)
+    try:
+        apercu = import_bancaire.previsualiser(
+            db,
+            preset_id,
+            contenu,
+            compte_id_defaut=compte_id_defaut,
+            delimiteur=delimiteur,
+            separateur_decimal=separateur_decimal,
+            colonnes=colonnes_lues,
+            feuille=feuille,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    return apercu.controle
+
+
 @router.post(
     "/presets/{preset_id}/detecter-colonnes", response_model=schemas.DetectionColonnesRead
 )

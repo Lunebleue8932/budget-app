@@ -2519,6 +2519,23 @@ def avertissements_configuration(preset) -> list[str]:
     return messages
 
 
+def _controle_ou_rien(lignes, brutes, preset, separateur_decimal) -> Optional[dict]:
+    """Le contrôle avant import de l'aperçu (cf. services/controle_import), ou
+    None s'il échoue : c'est un résumé, il ne doit jamais empêcher de voir
+    l'aperçu lui-même.
+
+    Importé ici et non en tête : le contrôle s'appuie sur le test du solde,
+    qui lit lui-même ce module."""
+    from .controle_import import controler_import
+
+    try:
+        return controler_import(
+            lignes, brutes, preset.colonnes, preset.lignes_entete or 0, separateur_decimal
+        )
+    except Exception:
+        return None
+
+
 def previsualiser(
     db,
     preset_id: int,
@@ -2557,9 +2574,8 @@ def previsualiser(
     # qu'à chaque ligne.
     # Sans réglage à la main, le format des nombres se lit sur le fichier
     # (cf. separateur_decimal_du_fichier).
-    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(
-        _lire_toutes_les_lignes(contenu, delimiteur, feuille)
-    )
+    brutes = _lire_toutes_les_lignes(contenu, delimiteur, feuille)
+    separateur_decimal = separateur_decimal or separateur_decimal_du_fichier(brutes)
     contexte = ContextePreset(db, preset, separateur_decimal)
 
     lignes = []
@@ -2631,6 +2647,7 @@ def previsualiser(
         {l.nom_banque_compte for l in lignes if l.nom_banque_compte and l.compte_id is None}
     )
     return schemas.ImportPreview(
+        controle=_controle_ou_rien(lignes, brutes, preset, separateur_decimal),
         lignes=lignes,
         lignes_existantes=lignes_existantes,
         previsionnelles=previsionnelles,
