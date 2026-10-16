@@ -3876,6 +3876,22 @@ def get_date_dernier_import(db: Session, preset_id: int) -> Optional[datetime]:
     )
 
 
+def get_dernier_nom_fichier(db: Session, preset_id: int) -> Optional[str]:
+    """Le nom du dernier fichier importé sous ce preset : de quoi deviner le
+    motif de nom d'un preset qui n'en a pas encore mémorisé (cf.
+    services/reconnaissance_presets)."""
+    return (
+        db.query(models.ImportHistorique.nom_fichier)
+        .filter(
+            models.ImportHistorique.preset_id == preset_id,
+            models.ImportHistorique.nom_fichier.isnot(None),
+        )
+        .order_by(models.ImportHistorique.date_import.desc())
+        .limit(1)
+        .scalar()
+    )
+
+
 def get_import_historique_entree(
     db: Session, historique_id: int
 ) -> Optional[models.ImportHistorique]:

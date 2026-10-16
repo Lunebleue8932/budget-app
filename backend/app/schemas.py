@@ -1607,6 +1607,43 @@ class DetectionColonnesRead(BaseModel):
     configuration: list[dict] = Field(default_factory=list)
 
 
+class AjustementPreset(BaseModel):
+    """Ce que vaut un preset devant un fichier (cf. services/
+    reconnaissance_presets.Ajustement). Les champs à None : le preset n'a pas
+    encore mémorisé de quoi en juger."""
+
+    preset_id: int
+    nom: str
+    validite: float
+    mode_compatible: bool
+    entetes: Optional[float] = None
+    entetes_identiques: Optional[bool] = None
+    colonnes_identiques: Optional[bool] = None
+    nom_fichier: Optional[float] = None
+    passe: bool
+
+
+class EcartEntete(BaseModel):
+    """Une colonne dont l'intitulé a changé depuis la dernière lecture. Un côté
+    vide : colonne apparue ou disparue."""
+
+    index: int
+    avant: str = ""
+    maintenant: str = ""
+
+
+class ReconnaissancePresetRead(BaseModel):
+    """Quel preset lit ce fichier (cf. services/reconnaissance_presets).
+    `decision` : appliquer | ecarts | basculer | aucun. Rien n'est enregistré,
+    rien n'est basculé : c'est l'écran qui propose."""
+
+    decision: str
+    preset_selectionne: Optional[int] = None
+    propose: Optional[AjustementPreset] = None
+    ecarts: list[EcartEntete] = Field(default_factory=list)
+    ajustements: list[AjustementPreset] = Field(default_factory=list)
+
+
 class ApercuFichier(BaseModel):
 
     """Le fichier tel qu'il est, avant toute interprétation : sert à vérifier

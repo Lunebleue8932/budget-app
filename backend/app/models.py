@@ -1225,6 +1225,16 @@ class ImportPreset(Base):
     # qu'il fallait supprimer à la main à chaque import.
     lignes_entete = Column(Integer, nullable=False, default=0)
 
+    # LA SIGNATURE DU FICHIER QUE CE PRESET LIT (migration 0085), pour le
+    # reconnaître à l'ouverture d'un fichier (services/reconnaissance_presets) :
+    # les intitulés normalisés de la ligne d'en-tête, la largeur du fichier, la
+    # forme de son nom. NULL tant que le preset n'a pas été réutilisé depuis la
+    # migration — il est alors jugé sur la lecture du fichier seule, jamais
+    # écarté pour autant.
+    signature_entetes = Column(JSON, nullable=True)
+    nombre_colonnes = Column(Integer, nullable=True)
+    motif_nom_fichier = Column(String, nullable=True)
+
     # Vocabulaire de la colonne « Sens » DE CETTE BANQUE : ["Débit", "D"…] et
     # ["Crédit", "C"…]. Listes vides (défaut) = on retombe sur
     # constants.LIBELLES_SENS_SORTIE / _ENTREE, qui couvrent le vocabulaire

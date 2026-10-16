@@ -946,6 +946,18 @@ const TRADUCTIONS = {
       "“{propriete}” is chosen for two columns: keep it on one only.",
     "Colonnes appliquées à l'écran : relis le fichier pour voir le résultat, puis enregistre la configuration pour les garder.":
       "Columns applied on screen: re-read the file to see the result, then save the configuration to keep them.",
+    "Basculer sur « {preset} »": "Switch to “{preset}”",
+    "Garder « {preset} »": "Keep “{preset}”",
+    "Retenir ces intitulés": "Remember these headers",
+    "Créer un preset pour ce fichier": "Create a preset for this file",
+    "Colonne n° {n} : nouvelle colonne « {maintenant} »": "Column {n}: new column “{maintenant}”",
+    "Colonne n° {n} : « {avant} » a disparu": "Column {n}: “{avant}” is gone",
+    "Colonne n° {n} : « {avant} » devient « {maintenant} »": "Column {n}: “{avant}” becomes “{maintenant}”",
+    "Nom du nouveau preset (ex. nom de la banque) :": "Name of the new preset (e.g. the bank's name):",
+    "Preset « {preset} » créé : vérifie les colonnes devinées, puis enregistre la configuration.":
+      "Preset “{preset}” created: check the guessed columns, then save the configuration.",
+    "Preset « {preset} » sélectionné, fichier relu.": "Preset “{preset}” selected, file re-read.",
+    "Intitulés retenus pour ce preset.": "Headers remembered for this preset.",
 
     "Un CSV écrit à l'anglo-saxonne": "A CSV written the English-speaking way",
     "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -3529,6 +3541,18 @@ const TRADUCTIONS = {
     // noyau.detection-colonnes-suggestion
     "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.":
       "Most lines are unreadable; you can use automatic column detection to help fix this.",
+    // noyau.reconnaissance-basculer
+    "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
+      "This file looks like the “{preset}” preset (headers {pourcentage}% identical). Switch?",
+    // noyau.reconnaissance-basculer-lecture
+    "Le preset « {preset} » lit ce fichier, contrairement à celui qui est sélectionné. Basculer ?":
+      "The “{preset}” preset can read this file, unlike the selected one. Switch?",
+    // noyau.reconnaissance-ecarts
+    "Ce fichier se lit avec le preset sélectionné, mais certains intitulés ont changé depuis la dernière fois :":
+      "This file can be read with the selected preset, but some headers have changed since last time:",
+    // noyau.reconnaissance-aucun
+    "Aucun preset ne sait lire ce fichier. Crée-lui un preset : l'application devinera ses colonnes, sans toucher aux presets de tes autres banques.":
+      "No preset can read this file. Create a preset for it: the app will guess its columns, without touching the presets of your other banks.",
     // noyau.le-fichier-tel-qu-il-est
     "Les colonnes lues sont colorées et portent l'information que l'app en tire en en-tête. Deux façons de modifier : glisser un en-tête sur un autre pour échanger les deux ou saisir les numéros dans « Configuration du fichier » au-dessus.":
       "The columns read are coloured and carry, in the header, the information the app takes from them. Two ways to change them: drag a header onto another to swap the two, or enter the numbers in “File configuration” above.",

@@ -2052,6 +2052,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="import-dropzone-nom" id="import-fichier-nom"></p>
       </div>
 
+      <!-- LE PRESET QUI LIT CE FICHIER (cf. services/reconnaissance_presets) :
+           un autre preset le reconnaît, des intitulés ont changé depuis la
+           dernière lecture, ou aucun preset ne le lit. Jamais de bascule
+           silencieuse : l'écran propose, il ne change rien de lui-même. -->
+      <div id="import-reconnaissance" class="import-reconnaissance" style="display:none"></div>
+
       <!-- Ce que la configuration laisse d'ambigu sans être faux (un montant
            initial ou des frais lus sans leur devise) : affiché au-dessus de
            l'aperçu, jamais bloquant. -->

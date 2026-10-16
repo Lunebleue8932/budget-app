@@ -10900,6 +10900,9 @@ function estProprieteAvancee(propriete) {
 
 let importPresets = []; // [{id, nom, colonnes, colonnes_comparaison, mode_comparaison}]
 let importPresetId = null;
+// Ce que la reconnaissance des presets dit du fichier ouvert (cf.
+// reconnaitrePresetImport) ; null tant qu'aucun fichier n'est analysé.
+let importReconnaissance = null;
 
 const COLONNES_PRESET_PAR_DEFAUT = [
   { index: 1, propriete: "date" },
@@ -11145,6 +11148,8 @@ function reinitialiserImport() {
   importDetection = null;
   document.getElementById("import-detection").style.display = "none";
   document.getElementById("import-detection-suggestion").style.display = "none";
+  importReconnaissance = null;
+  renderImportReconnaissance();
   reinitialiserReglagesLecture();
   importDernierHistoriqueId = null;
 
@@ -12356,6 +12361,9 @@ async function enregistrerConfigurationImport({
     // corrigé, qui faisait que compte_id_defaut n'était jamais transmis et
     // que toutes les lignes affichaient "compte à mapper" à l'import.
     toggleImportCompteDefautBloc();
+    // La configuration vient d'être réglée SUR CE FICHIER : c'est désormais à
+    // lui que le preset doit ressembler, pour être reconnu au prochain.
+    if (importFichierActuel) await memoriserSignatureImport();
     await loadImportPresets();
     // `message: null` : enregistrer sans le dire (le tutoriel d'import, à chaque étape).
     if (message) showMessage(message, "success");
@@ -12468,6 +12476,7 @@ async function analyserFichierImport() {
   ) {
     return;
   }
+  await reconnaitrePresetImport();
   await executerPrevisualisation();
 }
 
@@ -12995,10 +13004,207 @@ function majSuggestionDetection() {
   const suggestion = document.getElementById("import-detection-suggestion");
   const lignes = (importApercu && importApercu.lignes) || [];
   const enErreur = lignes.filter((l) => l.erreur).length;
-  const proposer = lignes.length > 0 && enErreur / lignes.length > 0.5 && !importDetection;
+  // Quand AUCUN preset ne lit le fichier, le bandeau de reconnaissance le dit
+  // déjà, avec la même invitation : pas deux fois.
+  const aucunPreset = importReconnaissance && importReconnaissance.decision === "aucun";
+  const proposer =
+    lignes.length > 0 && enErreur / lignes.length > 0.5 && !importDetection && !aucunPreset;
   suggestion.style.display = proposer ? "" : "none";
   document.getElementById("btn-import-detecter").classList.toggle("a-relire", proposer);
 }
+
+/* ----- La reconnaissance du preset (cf. services/reconnaissance_presets) -----
+ *
+ * À chaque fichier ouvert, TOUS les presets sont comparés à lui : leur lecture
+ * du fichier, les intitulés qu'ils ont mémorisés, leur largeur, la forme du nom
+ * de fichier. Le preset sélectionné reste celui qui lit l'aperçu, toujours :
+ * quand un autre fait nettement mieux, l'écran le PROPOSE et ne bascule jamais
+ * de lui-même. Les trois bandeaux possibles :
+ *
+ *   - basculer : un autre preset lit ce fichier, ou le reconnaît exactement ;
+ *   - ecarts   : le preset sélectionné le lit, mais des intitulés ont changé ;
+ *   - aucun    : aucun preset ne le lit — deviner les colonnes, dans un preset
+ *                neuf plutôt que par-dessus celui d'une autre banque.
+ */
+async function reconnaitrePresetImport() {
+  importReconnaissance = null;
+  const formData = new FormData();
+  formData.append("fichier", importFichierActuel);
+  if (importPresetId != null) formData.append("preset_id", importPresetId);
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importReglageSeparateurDecimal)
+    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  try {
+    importReconnaissance = await apiFetchForm("/import/reconnaitre-preset", formData);
+  } catch (err) {
+    // Une reconnaissance manquée n'empêche rien : l'aperçu se fait avec le
+    // preset sélectionné, comme avant.
+    importReconnaissance = null;
+  }
+  renderImportReconnaissance();
+}
+
+function nomPresetImport(id) {
+  const preset = importPresets.find((p) => p.id === id);
+  return preset ? preset.nom : "";
+}
+
+function ecartEnteteLisible(ecart) {
+  if (!ecart.avant) {
+    return t("Colonne n° {n} : nouvelle colonne « {maintenant} »", {
+      n: ecart.index,
+      maintenant: ecart.maintenant,
+    });
+  }
+  if (!ecart.maintenant) {
+    return t("Colonne n° {n} : « {avant} » a disparu", { n: ecart.index, avant: ecart.avant });
+  }
+  return t("Colonne n° {n} : « {avant} » devient « {maintenant} »", {
+    n: ecart.index,
+    avant: ecart.avant,
+    maintenant: ecart.maintenant,
+  });
+}
+
+function renderImportReconnaissance() {
+  const bandeau = document.getElementById("import-reconnaissance");
+  const r = importReconnaissance;
+  if (!r || r.decision === "appliquer" || (r.decision === "ecarts" && !r.ecarts.length)) {
+    bandeau.style.display = "none";
+    bandeau.innerHTML = "";
+    return;
+  }
+  let texte = "";
+  let detail = "";
+  let actions = "";
+  if (r.decision === "basculer") {
+    const preset = r.propose.nom;
+    texte =
+      r.propose.entetes != null
+        ? t(texteAide("noyau.reconnaissance-basculer"), {
+            preset,
+            pourcentage: Math.round(r.propose.entetes * 100),
+          })
+        : t(texteAide("noyau.reconnaissance-basculer-lecture"), { preset });
+    actions = `
+      <button type="button" class="primary" data-reconnaissance="basculer">${escapeHtml(
+        t("Basculer sur « {preset} »", { preset })
+      )}</button>
+      <button type="button" data-reconnaissance="fermer">${escapeHtml(
+        t("Garder « {preset} »", { preset: nomPresetImport(r.preset_selectionne) })
+      )}</button>`;
+  } else if (r.decision === "ecarts") {
+    texte = t(texteAide("noyau.reconnaissance-ecarts"));
+    detail = `<ul>${r.ecarts
+      .map((e) => `<li>${escapeHtml(ecartEnteteLisible(e))}</li>`)
+      .join("")}</ul>`;
+    actions = `
+      <button type="button" data-reconnaissance="retenir">${t("Retenir ces intitulés")}</button>
+      <button type="button" data-reconnaissance="fermer">${t("Fermer")}</button>`;
+  } else {
+    texte = t(texteAide("noyau.reconnaissance-aucun"));
+    actions = `
+      <button type="button" class="primary" data-reconnaissance="creer">${t(
+        "Créer un preset pour ce fichier"
+      )}</button>
+      <button type="button" data-reconnaissance="deviner">${t("Deviner les colonnes")}</button>
+      <button type="button" data-reconnaissance="fermer">${t("Fermer")}</button>`;
+  }
+  bandeau.className = `import-reconnaissance import-reconnaissance-${r.decision}`;
+  bandeau.innerHTML = `
+    <p>${escapeHtml(texte)}</p>
+    ${detail}
+    <div class="actions">${actions}</div>`;
+  bandeau.style.display = "";
+}
+
+/**
+ * Passe sur un autre preset SANS lâcher le fichier : sa configuration, ses
+ * correspondances et son historique se chargent, puis le fichier est relu
+ * avec lui. Changer de preset par ses pastilles, à l'inverse, repart de zéro.
+ */
+async function basculerPresetImport(presetId) {
+  importPresetId = presetId;
+  memoriserPresetActuel();
+  renderImportPresetChips();
+  importReconnaissance = null;
+  renderImportReconnaissance();
+  await loadImportConfiguration();
+  await loadImportMappingsOverview();
+  await loadImportHistorique();
+  await executerPrevisualisation();
+}
+
+async function memoriserSignatureImport() {
+  const formData = new FormData();
+  formData.append("fichier", importFichierActuel);
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  try {
+    await apiFetchForm(importUrl("/signature"), formData);
+    return true;
+  } catch (err) {
+    // La configuration, elle, est enregistrée : une signature manquée se
+    // rattrapera au prochain import.
+    return false;
+  }
+}
+
+/**
+ * AUCUN PRESET NE LIT CE FICHIER : on lui en crée un, sans lâcher le fichier,
+ * et on devine ses colonnes. Deviner par-dessus le preset sélectionné, puis
+ * enregistrer, aurait écrasé le format d'une autre banque.
+ */
+async function creerPresetPourFichierImport() {
+  const nom = prompt(t("Nom du nouveau preset (ex. nom de la banque) :"));
+  if (!nom || !nom.trim()) return;
+  try {
+    const preset = await apiFetch("/import/presets", {
+      method: "POST",
+      body: JSON.stringify({
+        nom: nom.trim(),
+        colonnes: COLONNES_PRESET_PAR_DEFAUT,
+        colonnes_comparaison: [],
+      }),
+    });
+    importPresets = await apiFetch("/import/presets");
+    await basculerPresetImport(preset.id);
+    document.getElementById("import-config-fichier").open = true;
+    await detecterColonnesImport();
+    showMessage(
+      t("Preset « {preset} » créé : vérifie les colonnes devinées, puis enregistre la configuration.", {
+        preset: preset.nom,
+      }),
+      "success"
+    );
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+document.getElementById("import-reconnaissance").addEventListener("click", async (e) => {
+  const bouton = e.target.closest("[data-reconnaissance]");
+  if (!bouton || !importReconnaissance) return;
+  const action = bouton.dataset.reconnaissance;
+  if (action === "basculer") {
+    const cible = importReconnaissance.propose;
+    await basculerPresetImport(cible.preset_id);
+    showMessage(t("Preset « {preset} » sélectionné, fichier relu.", { preset: cible.nom }), "success");
+  } else if (action === "retenir") {
+    if (await memoriserSignatureImport()) {
+      importReconnaissance = null;
+      renderImportReconnaissance();
+      showMessage(t("Intitulés retenus pour ce preset."), "success");
+    }
+  } else if (action === "creer") {
+    await creerPresetPourFichierImport();
+  } else if (action === "deviner") {
+    await detecterColonnesImport();
+  } else if (action === "fermer") {
+    importReconnaissance = null;
+    renderImportReconnaissance();
+    majSuggestionDetection();
+  }
+});
 
 document.getElementById("btn-import-apercu-relire").innerHTML = ICONE_RELIRE;
 // CE BOUTON ENREGISTRE AVANT DE RELIRE, et c'est ce qui le rend fiable : la

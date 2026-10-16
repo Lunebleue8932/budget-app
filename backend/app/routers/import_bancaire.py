@@ -12,7 +12,7 @@ from ..constants import (
     ModeComparaison,
 )
 from ..database import get_db
-from ..services import detection_colonnes, import_bancaire
+from ..services import detection_colonnes, import_bancaire, reconnaissance_presets
 
 
 router = APIRouter(prefix="/import", tags=["import"])
@@ -457,6 +457,85 @@ async def detecter_colonnes(
     return detection_colonnes.detecter_colonnes(lignes, separateur_decimal)
 
 
+@router.post("/reconnaitre-preset", response_model=schemas.ReconnaissancePresetRead)
+async def reconnaitre_preset(
+    fichier: UploadFile = File(...),
+    preset_id: Optional[int] = Form(None),
+    delimiteur: Optional[str] = Form(None),
+    separateur_decimal: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Quel preset bancaire lit ce fichier, comparé au preset sélectionné
+    (`preset_id`) — cf. services/reconnaissance_presets. Lecture seule, et
+    jamais de bascule : l'écran propose, l'utilisateur choisit.
+
+    Pas scopée à un preset comme les autres routes de lecture : c'est TOUS les
+    presets qu'elle compare."""
+    delimiteur = _valider_delimiteur(delimiteur)
+    separateur_decimal = _valider_separateur_decimal(separateur_decimal)
+    contenu = await fichier.read()
+    try:
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    ajustements = [
+        reconnaissance_presets.ajuster(
+            preset,
+            lignes,
+            fichier.filename,
+            # Un preset d'avant la migration 0085 n'a pas mémorisé son motif :
+            # celui du dernier fichier qu'il a importé en tient lieu.
+            motif_par_defaut=None
+            if preset.motif_nom_fichier
+            else reconnaissance_presets.motif_nom_fichier(crud.get_dernier_nom_fichier(db, preset.id)),
+            separateur_decimal=separateur_decimal,
+        )
+        for preset in crud.list_import_presets(db, DomaineImport.bancaire.value)
+    ]
+    return reconnaissance_presets.reconnaitre(ajustements, preset_id).en_dict()
+
+
+@router.post("/presets/{preset_id}/signature", response_model=schemas.ImportPresetRead)
+async def memoriser_signature(
+    preset_id: int,
+    fichier: UploadFile = File(...),
+    delimiteur: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Retient sur le preset la signature de CE fichier (intitulés, largeur,
+    forme du nom), en remplaçant la précédente. Appelée par l'écran quand la
+    configuration vient d'être enregistrée sur un fichier ouvert : c'est
+    désormais à ce fichier-là que le preset doit ressembler."""
+    preset = _get_preset_ou_404(db, preset_id)
+    delimiteur = _valider_delimiteur(delimiteur)
+    contenu = await fichier.read()
+    try:
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    if reconnaissance_presets.memoriser_signature(preset, lignes, fichier.filename, ecraser=True):
+        db.commit()
+        db.refresh(preset)
+    return preset
+
+
+def _completer_signature(db: Session, preset_id: int, contenu: bytes, delimiteur, nom_fichier) -> None:
+    """À LA PREMIÈRE RÉUTILISATION d'un preset qui n'a pas encore de
+    signature (antérieur à la migration 0085), on retient celle du fichier
+    qu'il vient d'importer. Ce qui est déjà mémorisé n'est pas touché : seul
+    l'enregistrement de la configuration le remplace (cf. memoriser_signature).
+
+    Jamais bloquant : l'import est fait, une signature manquée se rattrapera
+    au suivant."""
+    try:
+        preset = crud.get_import_preset(db, preset_id)
+        lignes = import_bancaire._lire_toutes_les_lignes(contenu, delimiteur)
+        if reconnaissance_presets.memoriser_signature(preset, lignes, nom_fichier, ecraser=False):
+            db.commit()
+    except Exception:
+        db.rollback()
+
+
 def _valider_colonnes_essai(colonnes: Optional[str]):
     """Les colonnes d'un essai de lecture, ou None si la requête n'en donne pas.
 
@@ -506,7 +585,7 @@ async def confirmer(
     except Exception:
         raise HTTPException(status_code=400, detail="mappings invalide (JSON attendu)")
     try:
-        return import_bancaire.confirmer(
+        resultat = import_bancaire.confirmer(
             db,
             preset_id,
             contenu,
@@ -525,6 +604,8 @@ async def confirmer(
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Fichier illisible : {exc}")
+    _completer_signature(db, preset_id, contenu, delimiteur, fichier.filename)
+    return resultat
 
 
 @router.post("/presets/{preset_id}/lignes-brutes", status_code=201)

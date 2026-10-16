@@ -24,9 +24,11 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.services.detection_colonnes import detecter_colonnes
 from app.services.import_bancaire import _lire_toutes_les_lignes
+from app.services.reconnaissance_presets import ajuster, memoriser_signature, reconnaitre
 
 from .variantes import Cas, tous_les_cas
 
@@ -139,6 +141,79 @@ def bilan(resultats: list[Resultat], tout: bool = False) -> str:
     return "\n".join(lignes)
 
 
+# ---------- La reconnaissance des presets ----------
+
+
+def _preset_de(nom: str, identifiant: int, cas: Cas):
+    """Le preset qu'un utilisateur aurait réglé sur ce relevé, avec sa
+    signature mémorisée — un objet qui en a les attributs, sans base."""
+    attendu = cas.attendu
+    preset = SimpleNamespace(
+        id=identifiant,
+        nom=nom,
+        colonnes=[
+            {"index": i, "propriete": p}
+            for i, p in enumerate(attendu["proprietes"], start=1)
+            if p
+        ],
+        lignes_entete=attendu["lignes_entete"],
+        signature_entetes=None,
+        nombre_colonnes=None,
+        motif_nom_fichier=None,
+        libelles_sens_sortie=[],
+        libelles_sens_entree=[],
+    )
+    memoriser_signature(preset, _lire_toutes_les_lignes(cas.contenu), None, ecraser=True)
+    return preset
+
+
+def _base_du_cas(cas: Cas) -> str:
+    return cas.nom.split("/", 1)[0]
+
+
+def _meme_lecture(cas: Cas, base: Cas) -> bool:
+    """Le preset de la base sait-il lire ce cas ? Oui tant que les colonnes,
+    les lignes de tête et le séparateur décimal n'ont pas bougé."""
+    return all(
+        cas.attendu[cle] == base.attendu[cle]
+        for cle in ("proprietes", "lignes_entete", "separateur_decimal")
+    )
+
+
+def evaluer_reconnaissance(cas: list[Cas]) -> tuple[int, int, list[str]]:
+    """Sur chaque cas que le preset de sa base sait lire : ce preset
+    sélectionné, il doit être gardé (`appliquer` ou `ecarts`) ; un autre
+    sélectionné, il doit être PROPOSÉ (`basculer`). (réussites, essais,
+    échecs)."""
+    bases = {c.nom: c for c in cas if "/" not in c.nom}
+    presets = {nom: _preset_de(nom, i, c) for i, (nom, c) in enumerate(bases.items(), start=1)}
+    noms = list(presets)
+    reussites, essais, echecs = 0, 0, []
+    for c in cas:
+        base = bases.get(_base_du_cas(c))
+        if base is None or not _meme_lecture(c, base):
+            continue
+        lignes = _lire_toutes_les_lignes(c.contenu)
+        ajustements = [ajuster(p, lignes) for p in presets.values()]
+        bon = presets[base.nom]
+        autre = presets[noms[(noms.index(base.nom) + 1) % len(noms)]]
+        garde = reconnaitre(ajustements, bon.id)
+        essais += 1
+        if garde.decision in ("appliquer", "ecarts"):
+            reussites += 1
+        else:
+            echecs.append(f"{c.nom} (bon preset sélectionné) : {garde.decision}")
+        if len(noms) > 1:
+            propose = reconnaitre(ajustements, autre.id)
+            essais += 1
+            if propose.decision == "basculer" and propose.propose.preset_id == bon.id:
+                reussites += 1
+            else:
+                cible = propose.propose.nom if propose.propose else "-"
+                echecs.append(f"{c.nom} (mauvais preset sélectionné) : {propose.decision} → {cible}")
+    return reussites, essais, echecs
+
+
 def charger_reference() -> dict:
     if not REFERENCE.exists():
         return {"parfaits": []}
@@ -159,8 +234,17 @@ def main() -> int:
     parser.add_argument("--enregistrer", action="store_true", help="figer les réussites synthétiques")
     args = parser.parse_args()
 
-    resultats = [evaluer(cas) for cas in tous_les_cas()]
+    cas = tous_les_cas()
+    resultats = [evaluer(c) for c in cas]
     print(bilan(resultats, args.tout))
+
+    reussites, essais, echecs = evaluer_reconnaissance(cas)
+    print()
+    print(f"Reconnaissance des presets : {_pourcentage(reussites, essais)}")
+    for echec in echecs if args.tout else echecs[:10]:
+        print(f"  {echec}")
+    if not args.tout and len(echecs) > 10:
+        print(f"  … et {len(echecs) - 10} autres (--tout)")
 
     perdus = regressions(resultats, charger_reference())
     print()

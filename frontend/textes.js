@@ -278,6 +278,17 @@ const TEXTES = {
     "Appliquer met à jour les colonnes, sans enregistrer le preset. Attention : si tu appuies sur Enregistrer le preset, ton ancien preset sera remplacé par la configuration actuelle.",
   "noyau.detection-colonnes-suggestion":
     "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.",
+  /* Le bandeau de reconnaissance du preset, au-dessus de l'aperçu (cf.
+     renderImportReconnaissance). `{preset}` : le nom du preset proposé ;
+     `{pourcentage}` : la ressemblance de ses intitulés avec ceux du fichier. */
+  "noyau.reconnaissance-basculer":
+    "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?",
+  "noyau.reconnaissance-basculer-lecture":
+    "Le preset « {preset} » lit ce fichier, contrairement à celui qui est sélectionné. Basculer ?",
+  "noyau.reconnaissance-ecarts":
+    "Ce fichier se lit avec le preset sélectionné, mais certains intitulés ont changé depuis la dernière fois :",
+  "noyau.reconnaissance-aucun":
+    "Aucun preset ne sait lire ce fichier. Crée-lui un preset : l'application devinera ses colonnes, sans toucher aux presets de tes autres banques.",
   "noyau.le-fichier-tel-qu-il-est":
     "Les colonnes lues sont colorées et portent l'information que l'app en tire en en-tête. Deux façons de modifier : glisser un en-tête sur un autre pour échanger les deux ou saisir les numéros dans « Configuration du fichier » au-dessus.",
   "noyau.categories-bancaires-a-confirmer":

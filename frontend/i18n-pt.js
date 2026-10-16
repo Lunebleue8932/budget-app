@@ -450,6 +450,28 @@ TRADUCTIONS.pt = {
     "“{propriete}” foi escolhida para duas colunas: mantenha-a em apenas uma.",
   "Colonnes appliquées à l'écran : relis le fichier pour voir le résultat, puis enregistre la configuration pour les garder.":
     "Colunas aplicadas na tela: releia o arquivo para ver o resultado, depois salve a configuração para mantê-las.",
+  "Basculer sur « {preset} »":
+    "Mudar para “{preset}”",
+  "Garder « {preset} »":
+    "Manter “{preset}”",
+  "Retenir ces intitulés":
+    "Memorizar estes cabeçalhos",
+  "Créer un preset pour ce fichier":
+    "Criar uma predefinição para este arquivo",
+  "Colonne n° {n} : nouvelle colonne « {maintenant} »":
+    "Coluna {n}: nova coluna “{maintenant}”",
+  "Colonne n° {n} : « {avant} » a disparu":
+    "Coluna {n}: “{avant}” sumiu",
+  "Colonne n° {n} : « {avant} » devient « {maintenant} »":
+    "Coluna {n}: “{avant}” passa a ser “{maintenant}”",
+  "Nom du nouveau preset (ex. nom de la banque) :":
+    "Nome da nova predefinição (ex.: nome do banco):",
+  "Preset « {preset} » créé : vérifie les colonnes devinées, puis enregistre la configuration.":
+    "Predefinição “{preset}” criada: confira as colunas adivinhadas e depois salve a configuração.",
+  "Preset « {preset} » sélectionné, fichier relu.":
+    "Predefinição “{preset}” selecionada, arquivo relido.",
+  "Intitulés retenus pour ce preset.":
+    "Cabeçalhos memorizados para esta predefinição.",
   "Un CSV écrit à l'anglo-saxonne":
     "Um CSV escrito à maneira anglo-saxã",
   "Le tutoriel va afficher un fichier d'exemple à la place de celui que tu as chargé (rien n'a été importé). Continuer ?":
@@ -2856,6 +2878,14 @@ TRADUCTIONS.pt = {
     "Aplicar atualiza as colunas, sem salvar a predefinição. Atenção: se você pressionar Salvar a predefinição, sua predefinição antiga será substituída pela configuração atual.",
   "La plupart des lignes sont illisibles, tu peux utiliser la détectection automatique de colonnes pour t'aider à régler ce souci.":
     "A maioria das linhas está ilegível; você pode usar a detecção automática de colunas para ajudar a resolver isso.",
+  "Ce fichier ressemble au preset « {preset} » (en-têtes identiques à {pourcentage} %). Basculer ?":
+    "Este arquivo se parece com a predefinição “{preset}” (cabeçalhos {pourcentage}% idênticos). Mudar?",
+  "Le preset « {preset} » lit ce fichier, contrairement à celui qui est sélectionné. Basculer ?":
+    "A predefinição “{preset}” consegue ler este arquivo, ao contrário da selecionada. Mudar?",
+  "Ce fichier se lit avec le preset sélectionné, mais certains intitulés ont changé depuis la dernière fois :":
+    "Este arquivo é lido com a predefinição selecionada, mas alguns cabeçalhos mudaram desde a última vez:",
+  "Aucun preset ne sait lire ce fichier. Crée-lui un preset : l'application devinera ses colonnes, sans toucher aux presets de tes autres banques.":
+    "Nenhuma predefinição consegue ler este arquivo. Crie uma para ele: o aplicativo vai adivinhar as colunas, sem mexer nas predefinições dos seus outros bancos.",
   "Les colonnes lues sont colorées et portent l'information que l'app en tire en en-tête. Deux façons de modifier : glisser un en-tête sur un autre pour échanger les deux ou saisir les numéros dans « Configuration du fichier » au-dessus.":
     "As colunas lidas são coloridas e trazem no cabeçalho a informação que o app extrai delas. Duas formas de modificar: arrastar um cabeçalho sobre outro para trocar os dois, ou digitar os números em « Configuração do arquivo » acima.",
   "Les nouveaux libellés apparaîtront ici, pour que tu renseignes vers quelle catégorie de l'app ils pointent. Une fois fait, confirme en cochant la case.":

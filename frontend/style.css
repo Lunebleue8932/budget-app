@@ -6468,6 +6468,40 @@ body input[type="checkbox"]:disabled {
   opacity: 0.85;
 }
 
+/* ---------- LE PRESET QUI LIT CE FICHIER (écran d'import) ----------
+   Une proposition, pas une erreur : le ton d'accent pour « un autre preset
+   convient mieux », celui d'avertissement pour des intitulés qui ont bougé ou
+   un fichier qu'aucun preset ne lit. */
+.import-reconnaissance {
+  border-left: 3px solid var(--accent-light);
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  margin: 0.8rem 0;
+  font-size: 0.88rem;
+}
+
+.import-reconnaissance-ecarts,
+.import-reconnaissance-aucun {
+  border-left-color: var(--badge-remboursable-text);
+}
+
+.import-reconnaissance p {
+  margin: 0 0 0.4rem;
+}
+
+.import-reconnaissance ul {
+  margin: 0 0 0.5rem;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.import-reconnaissance .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* ---------- DEVINER LES COLONNES (écran d'import) ---------- */
 #btn-import-detecter.a-relire {
   color: var(--accent-light);
