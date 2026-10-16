@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 # Imports ABSOLUS vers le noyau : ce module n'est pas un sous-paquet de `app`,
 # il est chargé par chemin de fichier (cf. extensions/README.md).
-from app import crud, schemas
+from app import crud, models, schemas
 from app.database import get_db
 from app.routers.operations import _build_operation_read
 
@@ -48,6 +48,29 @@ def _verifier_nom_libre(db: Session, nom: str, sauf_id: int | None = None) -> No
         raise HTTPException(status_code=400, detail=f"Un projet « {nom} » existe déjà")
 
 
+def _periode_et_montants(db: Session, payload: schemas.SousFiltreBase) -> dict:
+    """Ce que le formulaire dit de la période et du montant à tenir, prêt à écrire.
+
+    LA MONNAIE NE SERT QU'AVEC UN MONTANT : sans maximum ni minimum elle est effacée. Avec un montant
+    et sans monnaie, c'est la première monnaie de l'app — un seul choix possible tant que
+    l'extension « Monnaies » n'a rien ajouté."""
+    monnaie_id = payload.monnaie_cible_id
+    if payload.montant_max is None and payload.montant_min is None:
+        monnaie_id = None
+    elif monnaie_id is None:
+        premiere = db.query(models.Monnaie).order_by(models.Monnaie.id).first()
+        monnaie_id = premiere.id if premiere else None
+    elif db.get(models.Monnaie, monnaie_id) is None:
+        raise HTTPException(status_code=404, detail="Monnaie introuvable")
+    return {
+        "date_debut": payload.date_debut,
+        "date_fin": payload.date_fin,
+        "montant_max": payload.montant_max,
+        "montant_min": payload.montant_min,
+        "monnaie_cible_id": monnaie_id,
+    }
+
+
 @router.get("", response_model=list[schemas.SousFiltreRead])
 def list_projets(db: Session = Depends(get_db)):
     return [service.lire_sous_filtre(sf) for sf in crud.list_sous_filtres(db)]
@@ -57,7 +80,9 @@ def list_projets(db: Session = Depends(get_db)):
 def create_projet(payload: schemas.SousFiltreCreate, db: Session = Depends(get_db)):
     nom = payload.nom.strip()
     _verifier_nom_libre(db, nom)
-    sous_filtre = crud.create_sous_filtre(db, nom=nom, description=payload.description)
+    sous_filtre = crud.create_sous_filtre(
+        db, nom=nom, description=payload.description, **_periode_et_montants(db, payload)
+    )
     return service.lire_sous_filtre(sous_filtre)
 
 
@@ -81,7 +106,13 @@ def update_projet(
     sous_filtre = _get_sous_filtre_ou_404(db, projet_id)
     nom = payload.nom.strip()
     _verifier_nom_libre(db, nom, sauf_id=projet_id)
-    crud.update_sous_filtre(db, sous_filtre, nom=nom, description=payload.description)
+    crud.update_sous_filtre(
+        db,
+        sous_filtre,
+        nom=nom,
+        description=payload.description,
+        **_periode_et_montants(db, payload),
+    )
     return service.lire_sous_filtre(sous_filtre)
 
 

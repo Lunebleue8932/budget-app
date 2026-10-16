@@ -1980,6 +1980,18 @@ class SousFiltre(Base):
     # en tête, un projet clos descend : c'est un classement de lecture, comme
     # celui des comptes et des catégories.
     ordre = Column(Integer, nullable=False, default=0)
+    # UNE PÉRIODE ET UN MONTANT À TENIR (migration 0084), tout facultatif. Les dates ne FILTRENT
+    # rien — un projet reste les opérations qu'on y a versées — : elles disent où on en est (jours
+    # restants) et bornent le sélecteur d'opérations. `montant_max` est le plafond des DÉPENSES du
+    # projet, `montant_min` le seuil que ses ENTRÉES doivent atteindre, tous deux dans la monnaie
+    # `monnaie_cible_id` (un projet peut toucher plusieurs monnaies, jamais additionnées).
+    date_debut = Column(Date, nullable=True)
+    date_fin = Column(Date, nullable=True)
+    montant_max = Column(Float, nullable=True)
+    montant_min = Column(Float, nullable=True)
+    monnaie_cible_id = Column(
+        Integer, ForeignKey("monnaie.id", ondelete="SET NULL"), nullable=True
+    )
 
     operations = relationship(
         "Operation",
@@ -2122,15 +2134,6 @@ class ObjectifKpi(Base):
     # restaurant », ou ne compter que le week-end, sans inventer une catégorie
     # pour chaque règle qu'on se donne.
     filtres = Column(JSON, nullable=False, default=list)
-    # UNE FENÊTRE DANS LE TEMPS (migration 0084), facultative. Avec une `date_fin`,
-    # l'objectif n'est plus un rythme (par semaine, par mois) mais un TOTAL sur la
-    # fenêtre, comparé à la cible : un maximum à ne pas dépasser ou un minimum à
-    # atteindre (`sens`). `date_debut` absente, la fenêtre commence à `cree_le` — un
-    # objectif ne se voit pas attribuer les dépenses d'avant qu'on se le fixe.
-    date_debut = Column(Date, nullable=True)
-    date_fin = Column(Date, nullable=True)
-    cree_le = Column(Date, nullable=True)
-
     categorie = relationship("Categorie")
     sous_filtre = relationship("SousFiltre")
     monnaie = relationship("Monnaie")

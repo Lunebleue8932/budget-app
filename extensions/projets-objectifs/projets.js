@@ -270,6 +270,92 @@ function renderWaterfallProjet() {
   });
 }
 
+/* ---------- La période et le montant à tenir ----------
+ *
+ * LA PÉRIODE NE FILTRE RIEN : un projet reste les opérations qu'on y a versées. Elle dit où on en est
+ * (« 76 jours restants ») et borne le sélecteur d'opérations. LE MAXIMUM SE COMPARE AUX DÉPENSES du
+ * projet, LE MINIMUM À SES ENTRÉES, dans la monnaie visée (cf. service_projets.suivi_du_projet).
+ */
+function projetPeriodeTexte(projet) {
+  const debut = projet.date_debut ? formatDateCourte(projet.date_debut) : null;
+  const fin = projet.date_fin ? formatDateCourte(projet.date_fin) : null;
+  if (debut && fin) return `${debut} → ${fin}`;
+  if (fin) return `${t("Jusqu'au")} ${fin}`;
+  if (debut) return `${t("Depuis le")} ${debut}`;
+  return "";
+}
+
+function projetPhaseTexte(projet) {
+  if (projet.phase === "termine") return t("terminé");
+  if (projet.phase === "a_venir") return t("à venir");
+  if (projet.jours_restants == null) return "";
+  if (projet.jours_restants === 0) return t("dernier jour");
+  return projet.jours_restants === 1
+    ? t("1 jour restant")
+    : t("{n} jours restants", { n: projet.jours_restants });
+}
+
+function projetBarreHtml(valeur, borne, tenu) {
+  const pourcent = borne > 0 ? Math.min(100, (valeur / borne) * 100) : valeur > 0 ? 100 : 0;
+  return `<div class="projet-barre" role="img" aria-label="${Math.round(pourcent)} %">
+      <div class="projet-barre-remplissage ${tenu ? "projet-barre-tenue" : "projet-barre-manquee"}"
+           style="width:${pourcent}%"></div>
+    </div>`;
+}
+
+function projetSuiviHtml(projet) {
+  const lignes = [];
+  const periode = projetPeriodeTexte(projet);
+  if (periode) {
+    const phase = projetPhaseTexte(projet);
+    lignes.push(
+      `<div class="projet-suivi-periode">${escapeHtml(periode)}${
+        phase ? ` · <span class="projet-suivi-phase">${escapeHtml(phase)}</span>` : ""
+      }</div>`
+    );
+  }
+  const suivi = projet.suivi;
+  if (suivi && suivi.montant_max != null) {
+    lignes.push(`<div class="projet-suivi-ligne">
+      <span>${escapeHtml(
+        t("Dépenses : {a} sur {b} maximum", {
+          a: formatMontant(suivi.depenses, suivi.monnaie_id),
+          b: formatMontant(suivi.montant_max, suivi.monnaie_id),
+        })
+      )} <strong class="${suivi.max_tenu ? "projet-etat-tenu" : "projet-etat-manque"}">${escapeHtml(
+        suivi.max_tenu ? t("tenu") : t("dépassé")
+      )}</strong></span>
+      ${projetBarreHtml(suivi.depenses, suivi.montant_max, suivi.max_tenu)}
+    </div>`);
+  }
+  if (suivi && suivi.montant_min != null) {
+    lignes.push(`<div class="projet-suivi-ligne">
+      <span>${escapeHtml(
+        t("Entrées : {a} sur {b} à atteindre", {
+          a: formatMontant(suivi.entrees, suivi.monnaie_id),
+          b: formatMontant(suivi.montant_min, suivi.monnaie_id),
+        })
+      )} <strong class="${suivi.min_atteint ? "projet-etat-tenu" : "projet-etat-manque"}">${escapeHtml(
+        suivi.min_atteint ? t("atteint") : t("à atteindre")
+      )}</strong></span>
+      ${projetBarreHtml(suivi.entrees, suivi.montant_min, suivi.min_atteint)}
+    </div>`);
+  }
+  return lignes.join("");
+}
+
+function projetRemplirMonnaies(valeur) {
+  const select = document.getElementById("projet-monnaie-cible");
+  const monnaies = (state.monnaies || []).filter((m) => m.active !== false);
+  fillSelect(
+    select,
+    monnaies.map((m) => ({ value: m.id, label: `${m.nom} (${m.symbole})` }))
+  );
+  if (valeur != null && monnaies.some((m) => m.id === valeur)) select.value = String(valeur);
+  // UNE SEULE MONNAIE : rien à demander. Le champ reparaît avec une seconde devise.
+  document.getElementById("projet-ligne-monnaie").style.display = monnaies.length > 1 ? "" : "none";
+}
+
 function renderProjets() {
   document.getElementById("projet-detail").style.display = "none";
   const bloc = document.getElementById("projets-liste");
@@ -298,6 +384,7 @@ function renderProjets() {
           n: projet.nombre_operations,
         })}</div>
         <div class="projet-totaux">${totauxHtml(projet.totaux)}</div>
+        <div class="projet-suivi">${projetSuiviHtml(projet)}</div>
       </div>
       <div class="projet-carte-actions">
         <button type="button" class="primary" data-action="ouvrir">${t("Ouvrir")}</button>
@@ -346,6 +433,13 @@ function ouvrirEditeurProjet(projet = null) {
   document.getElementById("projet-id").value = projet ? projet.id : "";
   document.getElementById("projet-nom").value = projet ? projet.nom : "";
   document.getElementById("projet-description").value = projet ? projet.description : "";
+  document.getElementById("projet-date-debut").value = (projet && projet.date_debut) || "";
+  document.getElementById("projet-date-fin").value = (projet && projet.date_fin) || "";
+  document.getElementById("projet-montant-max").value =
+    projet && projet.montant_max != null ? projet.montant_max : "";
+  document.getElementById("projet-montant-min").value =
+    projet && projet.montant_min != null ? projet.montant_min : "";
+  projetRemplirMonnaies(projet ? projet.monnaie_cible_id : null);
   document.getElementById("projet-nom").focus();
 }
 
@@ -374,6 +468,7 @@ async function ouvrirProjet(projet) {
   const description = document.getElementById("projet-detail-description");
   description.textContent = projetOuvert.description;
   description.style.display = projetOuvert.description ? "" : "none";
+  document.getElementById("projet-detail-suivi").innerHTML = projetSuiviHtml(projetOuvert);
   const totaux = document.getElementById("projet-detail-totaux");
   totaux.innerHTML = totauxCartesHtml(projetOuvert.totaux);
   // L'info-bulle de la carte vient de textes.js (`data-info-cle`), posée après coup.
@@ -522,6 +617,12 @@ function projetOptionsComptes() {
 
 function ouvrirSelecteurProjet() {
   document.getElementById("projet-selecteur").style.display = "";
+  // LA PÉRIODE DU PROJET BORNE LA RECHERCHE d'opérations à verser, tant qu'on n'a pas choisi
+  // d'autres dates : c'est ce qu'on cherche presque toujours (les dépenses du séjour).
+  const filtreDebut = document.getElementById("projet-filtre-debut");
+  const filtreFin = document.getElementById("projet-filtre-fin");
+  if (projetOuvert && !filtreDebut.value && projetOuvert.date_debut) filtreDebut.value = projetOuvert.date_debut;
+  if (projetOuvert && !filtreFin.value && projetOuvert.date_fin) filtreFin.value = projetOuvert.date_fin;
   // Les trois listes sont reconstruites à l'ouverture : comptes, types et catégories
   // ont pu changer depuis la dernière fois.
   projetPoserFiltre(
@@ -665,9 +766,26 @@ document.getElementById("btn-projet-enregistrer").addEventListener("click", asyn
     showMessage(t("Donne un nom au projet."), "error");
     return;
   }
+  const dateDebut = document.getElementById("projet-date-debut").value;
+  const dateFin = document.getElementById("projet-date-fin").value;
+  if (dateDebut && dateFin && dateFin < dateDebut) {
+    showMessage(t("La date de fin précède la date de début."), "error");
+    return;
+  }
+  const nombre = (id) => {
+    const brut = document.getElementById(id).value;
+    return brut === "" ? null : Number(brut);
+  };
   const payload = {
     nom,
     description: document.getElementById("projet-description").value.trim(),
+    // Le formulaire renvoie TOUJOURS ses champs : null efface, c'est ainsi qu'on retire une date ou
+    // un montant.
+    date_debut: dateDebut || null,
+    date_fin: dateFin || null,
+    montant_max: nombre("projet-montant-max"),
+    montant_min: nombre("projet-montant-min"),
+    monnaie_cible_id: Number(document.getElementById("projet-monnaie-cible").value) || null,
   };
   const id = document.getElementById("projet-id").value;
   try {

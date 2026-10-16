@@ -3571,24 +3571,14 @@ Object.assign(TRADUCTIONS.pt, {
     "{n} semelhança(s) a examinar",
   "Voir les lignes non traitées":
     "Ver as linhas não tratadas",
-  "Limiter dans le temps":
-    "Limitar no tempo",
   "1 jour restant":
     "1 dia restante",
   "{n} jours restants":
     "{n} dias restantes",
-  "Sans date de début, on compte à partir de la création de l'objectif.":
-    "Sem data de início, a contagem começa na criação da meta.",
-  "au total sur la période":
-    "no total do período",
   "Indique la date de fin.":
     "Informe a data de término.",
   "La date de fin précède la date de début.":
     "A data de término é anterior à data de início.",
-  "Donne une date de début et une date de fin à ton objectif, ou seulement une date de fin (une deadline). -- L'objectif n'est plus un rythme (par semaine, par mois) : c'est un total sur toute la période, comparé à ta cible. -- Ne pas dépasser : un maximum à ne pas franchir. Atteindre au moins : un minimum à atteindre avant la fin. -- Sans date de début, on compte à partir du jour où tu as créé l'objectif : les dépenses d'avant ne comptent pas.":
-    "Dê uma data de início e uma data de término à sua meta, ou apenas uma data de término (um prazo). -- A meta deixa de ser um ritmo (por semana, por mês): é um total sobre todo o período, comparado com o seu alvo. -- Não ultrapassar: um máximo a não ultrapassar. Atingir pelo menos: um mínimo a atingir antes do fim. -- Sem data de início, a contagem começa no dia em que você criou a meta: os gastos anteriores não contam.",
-  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un objectif peut aussi se borner dans le temps : tu lui donnes une date de début et une date de fin (ou seulement une deadline), et un montant maximum à ne pas dépasser ou minimum à atteindre sur toute la période.":
-    "Uma viagem, um investimento em uma atividade sob diversas formas, reformas? Difícil acompanhar isso só com categorias. Você pode então criar um projeto e adicionar a ele todas as transações que quiser. Você obtém então uma visão detalhada do que o seu projeto custou a você - ou rendeu - classificada em categorias. // Esta extensão permite criar metas personalizadas para gerenciar suas despesas como você quiser. Você pode criar indicadores personalizados levando em conta a frequência, o valor médio, o valor total, uma participação, para entender e agir com mais detalhe do que com simples limites em categorias (ex: minhas compras de mercado devem ficar em 300 € em média por mês / miro no máximo 2 saídas a restaurante por semana / poupo pelo menos 50 € por mês). Uma meta também pode ser limitada no tempo: você define uma data de início e uma data de término (ou apenas um prazo), e um valor máximo a não ultrapassar ou mínimo a atingir em todo o período.",
   "Projets et objectifs":
     "Projetos e metas",
   "Une catégorie dans le temps":
@@ -3681,5 +3671,39 @@ Object.assign(TRADUCTIONS.pt, {
     "Exporta todos os seus dados do aplicativo, tabela por tabela, para um arquivo que você pode ler sem ele. -- JSON: um único arquivo, todas as tabelas. -- CSV: um arquivo .zip com um arquivo por tabela (separador “;”, legível pelo Excel). -- Excel: uma pasta de trabalho, uma planilha por tabela. -- É uma fotografia para ler ou guardar seus dados em outro lugar; esses arquivos não podem ser reimportados. Para poder RESTAURAR, use os backups logo abaixo.",
   "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
     "Escolha uma pasta do seu computador (outro disco, uma pasta sincronizada, um pendrive…): o app guarda nela, sozinho, uma cópia completa da sua base na inicialização e, depois, no máximo uma vez por dia enquanto estiver aberto. -- As 30 cópias mais recentes são mantidas; as mais antigas são apagadas, e somente as que o app fez. -- Para restaurar: Base de dados → “Alternar para este arquivo”, e escolha a cópia desejada. -- Evite a pasta do aplicativo: uma atualização a substitui.",
+  "Depuis le":
+    "Desde",
+  "terminé":
+    "concluído",
+  "à venir":
+    "a iniciar",
+  "dernier jour":
+    "último dia",
+  "Dépenses : {a} sur {b} maximum":
+    "Despesas: {a} de {b} no máximo",
+  "Entrées : {a} sur {b} à atteindre":
+    "Entradas: {a} de {b} a atingir",
+  "dépassé":
+    "ultrapassado",
+  "atteint":
+    "atingido",
+  "à atteindre":
+    "a atingir",
+  "Montant maximum":
+    "Valor máximo",
+  "Minimum":
+    "Mínimo",
+  "Monnaie de ces montants":
+    "Moeda desses valores",
+  "à ne pas dépasser":
+    "a não ultrapassar",
+  "La période du projet : une date de début et une date de fin, ou seulement une date de fin (une deadline). -- Elle ne trie aucune opération : un projet reste ce que tu y as versé. Elle te dit où tu en es (les jours restants) et sert de point de départ quand tu cherches des opérations à y ajouter.":
+    "O período do projeto: uma data de início e uma data de término, ou apenas uma data de término (um prazo). -- Ele não filtra nenhuma transação: um projeto continua sendo o que você colocou nele. Ele mostra em que ponto você está (dias restantes) e serve de ponto de partida quando você procura transações para adicionar.",
+  "Ce que les DÉPENSES du projet ne doivent pas dépasser. La carte compare ce qui est sorti à ce plafond, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "O que as DESPESAS do projeto não devem ultrapassar. O cartão compara o que saiu com esse teto, na moeda escolhida. Deixe vazio para não se impor nada.",
+  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un projet peut aussi avoir une période (une date de début et une date de fin, ou seulement une deadline) et un montant maximum à ne pas dépasser, ou minimum à atteindre.":
+    "Uma viagem, um investimento em uma atividade sob diversas formas, reformas? Difícil acompanhar isso só com categorias. Você pode então criar um projeto e adicionar a ele todas as transações que quiser. Você obtém então uma visão detalhada do que o seu projeto custou a você - ou rendeu - classificada em categorias. // Esta extensão permite criar metas personalizadas para gerenciar suas despesas como você quiser. Você pode criar indicadores personalizados levando em conta a frequência, o valor médio, o valor total, uma participação, para entender e agir com mais detalhe do que com simples limites em categorias (ex: minhas compras de mercado devem ficar em 300 € em média por mês / miro no máximo 2 saídas a restaurante por semana / poupo pelo menos 50 € por mês). Um projeto também pode ter um período (uma data de início e uma data de término, ou apenas um prazo) e um valor máximo a não ultrapassar, ou mínimo a atingir.",
+  "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "O que as ENTRADAS do projeto devem atingir (uma vaquinha, receitas). O cartão compara o que entrou com esse limite, na moeda escolhida. Deixe vazio para não se impor nada.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

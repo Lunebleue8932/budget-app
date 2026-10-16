@@ -4351,24 +4351,14 @@ Object.assign(TRADUCTIONS.en, {
     "{n} look-alike(s) to review",
   "Voir les lignes non traitées":
     "Go to the unhandled rows",
-  "Limiter dans le temps":
-    "Limit in time",
   "1 jour restant":
     "1 day left",
   "{n} jours restants":
     "{n} days left",
-  "Sans date de début, on compte à partir de la création de l'objectif.":
-    "Without a start date, counting starts when the goal is created.",
-  "au total sur la période":
-    "in total over the period",
   "Indique la date de fin.":
     "Enter the end date.",
   "La date de fin précède la date de début.":
     "The end date is before the start date.",
-  "Donne une date de début et une date de fin à ton objectif, ou seulement une date de fin (une deadline). -- L'objectif n'est plus un rythme (par semaine, par mois) : c'est un total sur toute la période, comparé à ta cible. -- Ne pas dépasser : un maximum à ne pas franchir. Atteindre au moins : un minimum à atteindre avant la fin. -- Sans date de début, on compte à partir du jour où tu as créé l'objectif : les dépenses d'avant ne comptent pas.":
-    "Give your goal a start date and an end date, or only an end date (a deadline). -- The goal is no longer a rhythm (per week, per month): it is a total over the whole period, compared with your target. -- Do not exceed: a maximum you must not cross. Reach at least: a minimum to reach before the end. -- Without a start date, counting starts the day you created the goal: earlier spending does not count.",
-  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un objectif peut aussi se borner dans le temps : tu lui donnes une date de début et une date de fin (ou seulement une deadline), et un montant maximum à ne pas dépasser ou minimum à atteindre sur toute la période.":
-    "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category. // This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month). A goal can also be limited in time: you give it a start date and an end date (or just a deadline), and a maximum amount not to exceed or a minimum amount to reach over the whole period.",
   "Projets et objectifs":
     "Projects and goals",
   "Une catégorie dans le temps":
@@ -4467,5 +4457,39 @@ Object.assign(TRADUCTIONS.en, {
     "Exports all your data from the application, table by table, into a file you can read without it. -- JSON: a single file, all the tables. -- CSV: a .zip archive with one file per table (“;” separator, readable by Excel). -- Excel: one workbook, one sheet per table. -- It is a snapshot to read or keep your data elsewhere; these files cannot be re-imported. To be able to RESTORE, use the backups right below.",
   "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
     "Choose a folder on your computer (another disk, a synced folder, a USB key…): the app stores a complete copy of your database there by itself at startup, then at most once a day while it stays open. -- The 30 most recent copies are kept; older ones are deleted, and only those the app made. -- To restore: Database → “Switch to this file”, and pick the copy you want. -- Avoid the application folder: an update replaces it.",
+  "Depuis le":
+    "Since",
+  "terminé":
+    "finished",
+  "à venir":
+    "upcoming",
+  "dernier jour":
+    "last day",
+  "Dépenses : {a} sur {b} maximum":
+    "Spending: {a} of {b} maximum",
+  "Entrées : {a} sur {b} à atteindre":
+    "Income: {a} of {b} to reach",
+  "dépassé":
+    "exceeded",
+  "atteint":
+    "reached",
+  "à atteindre":
+    "to reach",
+  "Montant maximum":
+    "Maximum amount",
+  "Minimum":
+    "Minimum",
+  "Monnaie de ces montants":
+    "Currency of these amounts",
+  "à ne pas dépasser":
+    "not to exceed",
+  "La période du projet : une date de début et une date de fin, ou seulement une date de fin (une deadline). -- Elle ne trie aucune opération : un projet reste ce que tu y as versé. Elle te dit où tu en es (les jours restants) et sert de point de départ quand tu cherches des opérations à y ajouter.":
+    "The project's period: a start date and an end date, or just an end date (a deadline). -- It does not sort any transaction: a project remains what you put into it. It tells you where you stand (days left) and is the starting point when you look for transactions to add.",
+  "Ce que les DÉPENSES du projet ne doivent pas dépasser. La carte compare ce qui est sorti à ce plafond, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "What the project's SPENDING must not exceed. The card compares what went out with this ceiling, in the chosen currency. Leave empty to set yourself nothing.",
+  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un projet peut aussi avoir une période (une date de début et une date de fin, ou seulement une deadline) et un montant maximum à ne pas dépasser, ou minimum à atteindre.":
+    "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category. // This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month). A project can also have a period (a start date and an end date, or just a deadline) and a maximum amount not to exceed, or a minimum to reach.",
+  "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "What the project's INCOME must reach (a pot, takings). The card compares what came in with this threshold, in the chosen currency. Leave empty to set yourself nothing.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

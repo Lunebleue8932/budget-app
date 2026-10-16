@@ -18,6 +18,8 @@ virement interne dont les DEUX écritures sont versées dans le projet s'y annul
 donc de lui-même, ce qui est bien ce qu'il vaut : l'argent n'a pas quitté le
 patrimoine.
 """
+from datetime import date as date_type
+
 from sqlalchemy.orm import object_session
 
 from app import models
@@ -254,6 +256,54 @@ def _jambe_en_face(operation):
     )
 
 
+# Un centime de tolérance : « 500,00 € dépensés sur 500 € » est tenu, pas dépassé d'un arrondi.
+_TOLERANCE_MONTANT = 0.005
+
+
+def periode_du_projet(sous_filtre, aujourdhui: date_type | None = None) -> tuple[str | None, int | None]:
+    """(phase, jours restants) d'un projet.
+
+    La phase est « a_venir » avant la date de début, « termine » après la date de fin, « en_cours »
+    entre les deux ; None sans aucune date. Les jours restants courent jusqu'à la date de fin (0 une
+    fois passée), None sans date de fin."""
+    debut, fin = sous_filtre.date_debut, sous_filtre.date_fin
+    if debut is None and fin is None:
+        return None, None
+    aujourdhui = aujourdhui or date_type.today()
+    if fin is not None and aujourdhui > fin:
+        phase = "termine"
+    elif debut is not None and aujourdhui < debut:
+        phase = "a_venir"
+    else:
+        phase = "en_cours"
+    restants = max(0, (fin - aujourdhui).days) if fin is not None else None
+    return phase, restants
+
+
+def suivi_du_projet(sous_filtre, totaux: list[dict]) -> dict | None:
+    """Où en est le projet face à son montant à tenir, ou None quand aucun montant n'est posé.
+
+    LE MAXIMUM SE COMPARE AUX DÉPENSES, LE MINIMUM AUX ENTRÉES — dans la seule monnaie visée : un
+    projet peut toucher plusieurs monnaies, et l'app n'en additionne jamais deux. Un projet sans
+    aucune opération dans cette monnaie a zéro dépense et zéro entrée."""
+    if sous_filtre.montant_max is None and sous_filtre.montant_min is None:
+        return None
+    monnaie_id = sous_filtre.monnaie_cible_id
+    total = next((t for t in totaux if t["monnaie_id"] == monnaie_id), None)
+    depenses = total["depenses"] if total else 0.0
+    entrees = total["entrees"] if total else 0.0
+    maximum, minimum = sous_filtre.montant_max, sous_filtre.montant_min
+    return {
+        "monnaie_id": monnaie_id,
+        "depenses": depenses,
+        "entrees": entrees,
+        "montant_max": maximum,
+        "montant_min": minimum,
+        "max_tenu": None if maximum is None else depenses <= maximum + _TOLERANCE_MONTANT,
+        "min_atteint": None if minimum is None else entrees >= minimum - _TOLERANCE_MONTANT,
+    }
+
+
 def lire_sous_filtre(sous_filtre, db=None) -> dict:
     """Le projet tel que l'écran le lit : ses champs, son compte d'opérations et
     ses totaux — et ses CASCADES quand `db` est fourni (le projet ouvert : la
@@ -270,11 +320,20 @@ def lire_sous_filtre(sous_filtre, db=None) -> dict:
     totaux = totaux_par_monnaie(sous_filtre)
     for total in totaux:
         total["depenses_par_categorie"] = par_monnaie.get(total["monnaie_id"], [])
+    phase, jours_restants = periode_du_projet(sous_filtre)
     return {
         "id": sous_filtre.id,
         "nom": sous_filtre.nom,
         "description": sous_filtre.description,
         "ordre": sous_filtre.ordre,
+        "date_debut": sous_filtre.date_debut,
+        "date_fin": sous_filtre.date_fin,
+        "montant_max": sous_filtre.montant_max,
+        "montant_min": sous_filtre.montant_min,
+        "monnaie_cible_id": sous_filtre.monnaie_cible_id,
+        "phase": phase,
+        "jours_restants": jours_restants,
+        "suivi": suivi_du_projet(sous_filtre, totaux),
         "nombre_operations": len(sous_filtre.operations),
         # L'histogramme est rangé DANS le total de sa monnaie : c'est déjà la
         # ligne par monnaie que l'écran affiche, et deux listes parallèles à

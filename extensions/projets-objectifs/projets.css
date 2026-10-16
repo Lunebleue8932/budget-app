@@ -201,3 +201,46 @@
   align-items: center;
   gap: 0.5rem;
 }
+
+/* ---------- La période et le montant à tenir d'un projet ---------- */
+.projet-suivi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.projet-suivi:empty {
+  display: none;
+}
+
+.projet-suivi-periode {
+  color: var(--text-secondary);
+}
+
+.projet-suivi-phase {
+  font-weight: 600;
+}
+
+.projet-suivi-ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.projet-barre {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.2);
+  overflow: hidden;
+}
+
+.projet-barre-remplissage {
+  height: 100%;
+}
+
+.projet-barre-tenue { background: var(--accent, #3b82f6); }
+.projet-barre-manquee { background: #d9534f; }
+.projet-etat-tenu { color: var(--accent, #3b82f6); }
+.projet-etat-manque { color: #d9534f; }

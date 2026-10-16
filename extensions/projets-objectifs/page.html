@@ -39,6 +39,25 @@
       <label for="projet-description">Description</label>
       <input type="text" id="projet-description" placeholder="ex. du 3 au 17 août, Rome et Naples" />
     </div>
+    <!-- LA PÉRIODE ET LE MONTANT À TENIR (migration 0084), tout facultatif. Une date de fin seule
+         est une deadline ; les dates ne filtrent aucune opération. Le maximum se compare aux
+         dépenses du projet, le minimum à ses entrées. -->
+    <div class="regle-champ-ligne">
+      <label for="projet-date-debut">Du<i class="info-bulle" tabindex="0" data-info-cle="projets.periode">i</i></label>
+      <input type="date" id="projet-date-debut" />
+      <label for="projet-date-fin">Au</label>
+      <input type="date" id="projet-date-fin" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="projet-montant-max">Montant maximum<i class="info-bulle" tabindex="0" data-info-cle="projets.montant-max">i</i></label>
+      <input type="number" id="projet-montant-max" step="0.01" min="0" placeholder="à ne pas dépasser" />
+      <label for="projet-montant-min">Minimum<i class="info-bulle" tabindex="0" data-info-cle="projets.montant-min">i</i></label>
+      <input type="number" id="projet-montant-min" step="0.01" min="0" placeholder="à atteindre" />
+    </div>
+    <div class="regle-champ-ligne" id="projet-ligne-monnaie" style="display:none">
+      <label for="projet-monnaie-cible">Monnaie de ces montants</label>
+      <select id="projet-monnaie-cible"></select>
+    </div>
     <div class="actions">
       <button type="button" class="primary" id="btn-projet-enregistrer">Enregistrer</button>
       <button type="button" id="btn-projet-annuler">Annuler</button>
@@ -54,6 +73,8 @@
       <button type="button" id="btn-projet-fermer">&larr; Retour aux projets</button>
     </div>
     <p class="hint" id="projet-detail-description"></p>
+    <!-- La période et ce que le projet doit tenir, quand il en a (cf. projets.js, projetSuiviHtml). -->
+    <div id="projet-detail-suivi" class="projet-suivi"></div>
 
     <div class="projet-totaux" id="projet-detail-totaux"></div>
 
@@ -197,23 +218,6 @@
         <option value="semaine">Semaine</option>
         <option value="mois" selected>Mois</option>
       </select>
-    </div>
-
-    <!-- BORNER L'OBJECTIF DANS LE TEMPS (migration 0084). Avec des dates, l'objectif
-         n'est plus un rythme mais un TOTAL sur la fenêtre, comparé à un maximum ou à
-         un minimum : la cadence n'a alors plus rien à dire et se masque. Une date de
-         fin seule est une deadline, et compte à partir de la création. -->
-    <div class="regle-champ-ligne">
-      <label for="objectif-avec-dates">Limiter dans le temps<i class="info-bulle" tabindex="0" data-info-cle="objectifs.dates">i</i></label>
-      <input type="checkbox" id="objectif-avec-dates" />
-    </div>
-
-    <div class="regle-champ-ligne" id="objectif-ligne-dates" style="display:none">
-      <label for="objectif-date-debut">Du</label>
-      <input type="date" id="objectif-date-debut" />
-      <label for="objectif-date-fin">Au</label>
-      <input type="date" id="objectif-date-fin" />
-      <span class="hint" id="objectif-dates-aide"></span>
     </div>
 
     <!-- SE FIXER UNE CIBLE EST FACULTATIF (migration 0070). Un projet qu'on
