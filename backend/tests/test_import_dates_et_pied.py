@@ -6,7 +6,7 @@ PIED (total, solde final) sous les opérations.
   jamais mémorisé sur le preset, lu sur la colonne de dates du fichier quand
   rien ne l'impose (cf. import_bancaire.format_date_du_fichier).
 - Les lignes de pied sont un réglage du PRESET, comme les lignes de tête
-  (ImportPreset.lignes_pied, migration 0086).
+  (ImportPreset.lignes_pied, migration 0087).
 """
 from datetime import date
 

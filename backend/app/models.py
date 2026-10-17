@@ -1224,13 +1224,13 @@ class ImportPreset(Base):
     # suivantes arrivaient dans l'aperçu comme autant d'opérations illisibles
     # qu'il fallait supprimer à la main à chaque import.
     lignes_entete = Column(Integer, nullable=False, default=0)
-    # ET COMBIEN DE LIGNES DE PIED (migration 0086) : un total, un solde final
+    # ET COMBIEN DE LIGNES DE PIED (migration 0087) : un total, un solde final
     # sous les opérations, que l'import lisait comme autant d'opérations en
     # erreur à supprimer à la main. Comptées en lignes NON VIDES depuis le bas
     # (cf. services/import_bancaire.lire_lignes_brutes).
     lignes_pied = Column(Integer, nullable=False, default=0, server_default="0")
 
-    # LA SIGNATURE DU FICHIER QUE CE PRESET LIT (migration 0085), pour le
+    # LA SIGNATURE DU FICHIER QUE CE PRESET LIT (migration 0086), pour le
     # reconnaître à l'ouverture d'un fichier (services/reconnaissance_presets) :
     # les intitulés normalisés de la ligne d'en-tête, la largeur du fichier, la
     # forme de son nom. NULL tant que le preset n'a pas été réutilisé depuis la

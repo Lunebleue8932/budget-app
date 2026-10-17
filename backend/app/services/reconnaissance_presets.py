@@ -32,7 +32,7 @@ CE QUI EST PROPOSÉ (`Reconnaissance.decision`) — JAMAIS DE BASCULE SILENCIEUS
   - `aucun` : aucun preset ne lit ce fichier ; c'est le moment de la détection
     des colonnes, puis d'un nouveau preset.
 
-UN PRESET SANS SIGNATURE (antérieur à la migration 0085, jamais réutilisé
+UN PRESET SANS SIGNATURE (antérieur à la migration 0086, jamais réutilisé
 depuis) n'est jamais écarté pour cela : il est jugé sur la lecture seule.
 """
 from __future__ import annotations

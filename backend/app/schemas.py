@@ -2108,7 +2108,7 @@ class ImportPresetRead(BaseModel):
     # se voie tout de suite, au lieu de rendre un aperçu vide sans raison
     # visible.
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
-    # De même au bas du fichier (migration 0086) : un total, un solde final
+    # De même au bas du fichier (migration 0087) : un total, un solde final
     # sous les opérations. Comptées en lignes non vides.
     lignes_pied: int = 0
     # Vocabulaire de la colonne « Sens » propre à ce relevé. Listes vides =

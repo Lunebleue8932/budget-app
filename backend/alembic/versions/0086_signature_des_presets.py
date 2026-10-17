@@ -17,16 +17,15 @@ fichier sous la main. Ils le sont à leur prochaine réutilisation (import
 confirmé, configuration enregistrée), et un preset sans signature n'est jamais
 écarté pour autant — il est jugé sur la lecture du fichier seule.
 
-Revision ID: 0085
-Revises: 0083
+Revision ID: 0086
+Revises: 0085
 Create Date: 2026-10-16
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0085"
-# 0084 est en cours sur une autre branche : à rebrancher dessus à la fusion.
-down_revision = "0083"
+revision = "0086"
+down_revision = "0085"
 branch_labels = None
 depends_on = None
 

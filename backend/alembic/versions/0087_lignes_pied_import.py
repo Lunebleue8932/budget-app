@@ -11,15 +11,15 @@ CE QUI EST AJOUTÉ. `lignes_pied`, compté en lignes NON VIDES depuis le bas
 (cf. services/import_bancaire.lire_lignes_brutes). Zéro pour tous les presets
 existants : ils lisent exactement ce qu'ils lisaient.
 
-Revision ID: 0086
-Revises: 0085
+Revision ID: 0087
+Revises: 0086
 Create Date: 2026-10-17
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0086"
-down_revision = "0085"
+revision = "0087"
+down_revision = "0086"
 branch_labels = None
 depends_on = None
 

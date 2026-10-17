@@ -559,7 +559,7 @@ async def reconnaitre_preset(
             preset,
             lignes,
             fichier.filename,
-            # Un preset d'avant la migration 0085 n'a pas mémorisé son motif :
+            # Un preset d'avant la migration 0086 n'a pas mémorisé son motif :
             # celui du dernier fichier qu'il a importé en tient lieu.
             motif_par_defaut=None
             if preset.motif_nom_fichier
@@ -627,7 +627,7 @@ def _completer_signature(
     db: Session, preset_id: int, contenu: bytes, delimiteur, nom_fichier, feuille=None
 ) -> None:
     """À LA PREMIÈRE RÉUTILISATION d'un preset qui n'a pas encore de
-    signature (antérieur à la migration 0085), on retient celle du fichier
+    signature (antérieur à la migration 0086), on retient celle du fichier
     qu'il vient d'importer. Ce qui est déjà mémorisé n'est pas touché : seul
     l'enregistrement de la configuration le remplace (cf. memoriser_signature).
 
