@@ -13289,6 +13289,27 @@ function detOptions(entree) {
     id: detIdPropriete(p.propriete),
     niveau: rang === 0 && detEstForte(colonne) ? "forte" : "suggestion",
   }));
+  // UN CHAMP DÉJÀ PROPOSÉ FORTEMENT AILLEURS PASSE APRÈS « NE PAS IMPORTER » : dans cette colonne, il est
+  // plus probable que la colonne soit ignorée que qu'elle lise un champ qu'une autre colonne porte déjà.
+  // Seules les propositions d'après la première bougent, et seulement si « Ne pas importer » les suit.
+  const ailleursFort = (id) =>
+    id !== DET_AUCUNE &&
+    detColonnes.some(
+      (e) =>
+        e.colonne !== colonne &&
+        detEstForte(e.colonne) &&
+        e.colonne.propositions[0] &&
+        detIdPropriete(e.colonne.propositions[0].propriete) === id
+    );
+  const rangAucune = proposees.findIndex((o) => o.id === DET_AUCUNE);
+  if (rangAucune > 1) {
+    const reculent = proposees.filter((o, rang) => rang > 0 && rang < rangAucune && ailleursFort(o.id));
+    if (reculent.length) {
+      const reste = proposees.filter((o) => !reculent.includes(o));
+      const apres = reste.findIndex((o) => o.id === DET_AUCUNE) + 1;
+      proposees.splice(0, proposees.length, ...reste.slice(0, apres), ...reculent, ...reste.slice(apres));
+    }
+  }
   const ids = new Set(proposees.map((o) => o.id));
   const toutes = [
     DET_AUCUNE,
