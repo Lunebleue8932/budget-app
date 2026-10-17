@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=139" />
+  <link rel="stylesheet" href="style.css?v=140" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -131,6 +131,14 @@
               title="Voir les lignes non traitées" aria-label="Voir les lignes non traitées">&rarr;</button>
     </div>
 
+    <!-- LA DÉMO, juste au-dessus du retour : une porte, pas une page. Elle ouvre l'application
+         remplie de données fictives (cf. frontend/sandbox.js) ; une fois dedans, ce bloc disparaît
+         et c'est la pastille jaune de chaque en-tête qui porte le chemin du retour. -->
+    <div class="barre-demo" data-sandbox-entree>
+      <button type="button" id="btn-sandbox-entrer">Essayer la démo</button>
+      <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
+    </div>
+
     <!-- FAIRE UN RETOUR, TOUT EN BAS ET SÉPARÉ DU RESTE.
          `margin-top: auto` le colle au pied de la colonne : ce n'est pas une
          page de plus, c'est une sortie — on n'y va pas en naviguant, on y va
@@ -192,6 +200,14 @@
         <p class="modale-texte" data-texte-cle="noyau.modale-bdd-tutoriels"></p>
       </div>
 
+      <!-- LA DÉMO, avant de ranger quoi que ce soit : pas un troisième « point » (le titre en
+           annonce deux), une sortie. Dans la démo cette fenêtre disparaît d'elle-même, la base de
+           l'utilisateur n'étant pas celle qu'on regarde, et elle revient à la sortie. -->
+      <div class="modale-demo" data-sandbox-entree>
+        <button type="button" id="btn-modale-bdd-demo">Voir la démo d'abord</button>
+        <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
+      </div>
+
       <div class="modale-actions">
         <!-- MASQUÉ PAR DÉFAUT : le sélecteur du système n'existe que dans
              l'application de bureau (window.pywebview.api, cf. ApiBureau dans
@@ -203,6 +219,20 @@
         <button type="button" class="primary" id="btn-modale-bdd-valider">
           Ranger mes données ici
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LE RAPPEL DE LA DÉMO : une seule fenêtre, réécrite à chaque usage (cf. sandbox.js,
+       `demanderAccordSandbox`). Elle précède les gestes importants (confirmer un import…) et la
+       réinitialisation de la démo. -->
+  <div id="modale-sandbox" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-sandbox" role="dialog" aria-modal="true" aria-labelledby="modale-sandbox-titre">
+      <h2 id="modale-sandbox-titre">Tu es dans la démo</h2>
+      <p class="modale-texte" id="modale-sandbox-texte"></p>
+      <div class="modale-actions">
+        <button type="button" id="btn-modale-sandbox-annuler">Annuler</button>
+        <button type="button" class="primary" id="btn-modale-sandbox-continuer">Continuer dans la démo</button>
       </div>
     </div>
   </div>
@@ -2890,11 +2920,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=44"></script>
-  <script src="i18n.js?v=96"></script>
-  <script src="i18n-pt.js?v=14"></script>
+  <script src="textes.js?v=45"></script>
+  <script src="i18n.js?v=97"></script>
+  <script src="i18n-pt.js?v=15"></script>
   <script src="extensions.js?v=27"></script>
-  <script src="app.js?v=179"></script>
+  <script src="app.js?v=180"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
@@ -2906,5 +2936,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        parce qu'il ne porte pas le comportement de l'application mais la bulle
        qui la montre, plus la mémoire de ce qu'on en a déjà parcouru. -->
   <script src="tutoriel.js?v=8"></script>
+  <!-- APRÈS app.js, comme les deux précédents : la démo appelle `apiFetch`, `showMessage`, `t`,
+       `texteAide` et `ecrireTexteAide`. Elle pose la pastille jaune dans l'en-tête de chaque
+       page et le rappel qui précède les gestes importants (`BudgetApp.confirmerEnSandbox`). -->
+  <script src="sandbox.js?v=1"></script>
 </body>
 </html>

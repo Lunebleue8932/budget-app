@@ -88,6 +88,22 @@ const TEXTES = {
   "noyau.modale-bdd-tutoriels":
     "Des tutoriels guidés t'apprennent à te servir de l'application en cliquant, devant l'écran : la prise en main, puis l'import d'un premier relevé. Tu les trouves dans /bold(Paramètres → Paramètres généraux), au même endroit que la notice.",
 
+  /* ----- La démo (sandbox) ----- */
+  "noyau.sandbox-entree":
+    "La démo est l'application remplie de données fictives : des comptes, plusieurs mois d'opérations, des budgets, des prévisions. Tu vois ce qu'elle sait faire sans rien importer. // Ta vraie base n'est jamais ouverte pendant ce temps, et tu en reviens en un clic. Ce que tu saisis dans la démo y reste jusqu'à ce que tu la réinitialises.",
+  "noyau.sandbox-pastille":
+    "Tu es dans la démo : tout ce que tu vois est fictif, et ta vraie base n'est ni lue ni modifiée. Tu peux y saisir ce que tu veux, c'est gardé jusqu'à la réinitialisation. // /bold(Revenir à mes données) te ramène sur ta base. Si tu fermes l'application ici, elle se rouvre sur ta vraie base.",
+  "noyau.sandbox-rappel":
+    "Cette action s'applique à des données FICTIVES, pas aux tiennes. Pour travailler sur ta vraie base, reviens d'abord avec /bold(Revenir à mes données).",
+  "noyau.sandbox-reinitialiser":
+    "Ce que tu as saisi dans la démo sera effacé, et elle repartira avec des données fraîches. Tes vraies données ne sont pas touchées.",
+  "noyau.sandbox-version":
+    "Une nouvelle version de la démo est disponible, avec de quoi montrer les dernières fonctionnalités. Réinitialise-la pour en profiter : ce que tu y as saisi sera effacé.",
+  "noyau.sandbox-ancienne":
+    "Les dates de la démo commencent à dater, et le mois en cours se vide. Réinitialise-la pour la remettre à jour : ce que tu y as saisi sera effacé.",
+  "noyau.sandbox-refaite":
+    "La démo précédente n'a pas pu être rouverte : elle a été refaite.",
+
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":
     "Ce qu'on te doit - Ce que tu dois.",

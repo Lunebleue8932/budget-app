@@ -132,6 +132,13 @@ def _refuser_en_decouverte() -> None:
             status_code=409,
             detail="Termine ou quitte le tutoriel avant de changer de base de données.",
         )
+    # Même raison pour la démo : y changer de base ferait mémoriser, à la place de la vraie, le
+    # fichier de démo.
+    if database.en_sandbox():
+        raise HTTPException(
+            status_code=409,
+            detail="Quitte d'abord la démo avant de changer de base de données.",
+        )
 
 
 @router.get("/base", response_model=schemas.BaseDonneesRead)

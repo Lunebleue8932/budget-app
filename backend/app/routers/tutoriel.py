@@ -33,6 +33,11 @@ def get_decouverte():
 def entrer_decouverte(parcours: str = base_decouverte.PARCOURS_PRISE_EN_MAIN):
     if parcours not in base_decouverte.PARCOURS:
         raise HTTPException(status_code=400, detail=f"Parcours inconnu : {parcours}")
+    # Les deux bases temporaires ne s'empilent pas : la « base d'avant » du tutoriel serait la démo.
+    if database.en_sandbox():
+        raise HTTPException(
+            status_code=409, detail="Quitte d'abord la démo pour lancer le tutoriel."
+        )
     if database.en_decouverte():
         if database.parcours_decouverte() == parcours:
             return _etat()

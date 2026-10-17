@@ -27,6 +27,7 @@ from .routers import (
     operations,
     parametres_base,
     preferences,
+    sandbox,
     sauvegardes,
     tutoriel,
     types_comptes,
@@ -72,6 +73,9 @@ app.include_router(export_donnees.router)
 app.include_router(sauvegardes.router)
 # La base de découverte du tutoriel : fabriquée et quittée à la demande, jamais mémorisée.
 app.include_router(tutoriel.router)
+# La sandbox (la démo) : même mécanique que la base de découverte, mais persistante et jamais
+# mémorisée dans le profil.
+app.include_router(sandbox.router)
 
 
 def _monter_extensions() -> list[str]:

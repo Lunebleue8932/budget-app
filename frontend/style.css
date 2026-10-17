@@ -7238,3 +7238,167 @@ body input[type="checkbox"]:disabled {
   flex: 1 1 18rem;
   min-width: 12rem;
 }
+
+
+/* ---------- LA DÉMO (la sandbox, cf. frontend/sandbox.js) ----------
+ *
+ * LA PASTILLE EST JAUNE, AU MILIEU DE L'EN-TÊTE FIGÉ DE CHAQUE PAGE, et entourée d'un contour arrondi :
+ * on ne doit pas pouvoir oublier où l'on est. Le jaune est celui des badges « remboursable » - une
+ * couleur que rien d'autre ne porte seule dans l'application, ni le rouge des erreurs ni le bleu des
+ * actions. Posée en `absolute` dans `.page-entete` (qui est `sticky`, donc un repère de position) :
+ * elle suit l'en-tête au défilement sans prendre de place dans sa mise en page.
+ */
+.pastille-sandbox {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.9rem;
+  border: 2px solid var(--badge-remboursable-text);
+  border-radius: 999px;
+  background: var(--badge-remboursable-bg);
+  color: var(--badge-remboursable-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.pastille-sandbox-titre {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pastille-sandbox .info-bulle {
+  border-color: var(--badge-remboursable-text);
+  color: var(--badge-remboursable-text);
+}
+
+.pastille-sandbox-bouton {
+  padding: 0.18rem 0.65rem;
+  border: 1px solid var(--badge-remboursable-text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--badge-remboursable-text);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pastille-sandbox-bouton:hover:not(:disabled),
+.pastille-sandbox-bouton:focus-visible {
+  background: var(--badge-remboursable-text);
+  color: var(--bg-page);
+  outline: none;
+}
+
+.pastille-sandbox-bouton.principal {
+  background: var(--badge-remboursable-text);
+  color: var(--bg-page);
+}
+
+.pastille-sandbox-bouton.principal:hover:not(:disabled),
+.pastille-sandbox-bouton.principal:focus-visible {
+  filter: brightness(1.12);
+}
+
+/* Une démo à rafraîchir : le bouton se remplit, sans bruit de plus. */
+.pastille-sandbox-bouton.a-rafraichir {
+  box-shadow: 0 0 0 2px var(--badge-remboursable-bg);
+  text-decoration: underline;
+}
+
+.pastille-sandbox-bouton:disabled,
+body.sandbox-occupee .pastille-sandbox-bouton {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* En fenêtre étroite elle ne tient plus au milieu sans recouvrir le titre : elle prend sa ligne. */
+@media (max-width: 1100px) {
+  .pastille-sandbox {
+    position: static;
+    transform: none;
+    width: fit-content;
+    margin: 0 0 0.4rem;
+  }
+}
+
+/* Sous 860px l'en-tête n'est plus `sticky` : il reste un repère de position pour ce qu'il porte. */
+@media (max-width: 860px) {
+  .page-entete {
+    position: relative;
+  }
+}
+
+/* LA PORTE D'ENTRÉE, dans la barre latérale : au-dessus du retour (qui garde sa marge auto tant
+   qu'il est seul). Discrète, au même jaune que la pastille qu'elle ouvre. */
+.barre-demo {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+}
+
+.barre-demo + .barre-feedback {
+  margin-top: 0.25rem;
+}
+
+.barre-demo button {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--badge-remboursable-text);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--badge-remboursable-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.barre-demo button:hover:not(:disabled),
+.barre-demo button:focus-visible {
+  background: var(--badge-remboursable-bg);
+  outline: none;
+}
+
+.barre-demo button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* La même porte dans la fenêtre de premier lancement. */
+.modale-demo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.9rem;
+}
+
+.modale-demo button {
+  padding: 0.4rem 0.8rem;
+  border: 1px dashed var(--badge-remboursable-text);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--badge-remboursable-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modale-demo button:hover:not(:disabled) {
+  background: var(--badge-remboursable-bg);
+}
+
+/* Le rappel de la démo : un filet jaune, le même signe que la pastille. */
+.modale.modale-sandbox {
+  border-color: var(--badge-remboursable-text);
+}
+
+.modale-sandbox h2 {
+  color: var(--badge-remboursable-text);
+}

@@ -4616,3 +4616,40 @@ Object.assign(TRADUCTIONS.en, {
     "One column per category of your bank, with the transactions it gathers: enough to decide. The table opens by itself when a file is read. // The wheel ranks the app's categories by what the app thinks of them: /bold(Strong suggestion) in blue, /bold(Suggestion) in yellow, then /italic(Your choice). It always starts with the closest, and the app looks at the category name as well as the transaction names. // Nothing is sorted without your consent: even a strong suggestion waits for your click on /bold(Confirm). /bold(Confirm the strong suggestions) validates them all at once.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES
+
+// >>> TRADUCTIONS AJOUTÉES : la démo (sandbox)
+Object.assign(TRADUCTIONS.en, {
+  "Mode démo": "Demo mode",
+  "Préparation de la démo…": "Preparing the demo…",
+  "Revenir à mes données": "Back to my data",
+  "Réinitialiser": "Reset",
+  "Essayer la démo": "Try the demo",
+  "Voir la démo d'abord": "See the demo first",
+  "Tu es dans la démo": "You are in the demo",
+  "Continuer dans la démo": "Continue in the demo",
+  "Réinitialiser la démo ?": "Reset the demo?",
+  "La démo est l'application remplie de données fictives : des comptes, plusieurs mois d'opérations, des budgets, des prévisions. Tu vois ce qu'elle sait faire sans rien importer. // Ta vraie base n'est jamais ouverte pendant ce temps, et tu en reviens en un clic. Ce que tu saisis dans la démo y reste jusqu'à ce que tu la réinitialises.":
+    "The demo is the app filled with made-up data: accounts, several months of transactions, budgets, forecasts. You see what it can do without importing anything. // Your real database is never opened meanwhile, and you get back to it in one click. What you enter in the demo stays there until you reset it.",
+  "Tu es dans la démo : tout ce que tu vois est fictif, et ta vraie base n'est ni lue ni modifiée. Tu peux y saisir ce que tu veux, c'est gardé jusqu'à la réinitialisation. // /bold(Revenir à mes données) te ramène sur ta base. Si tu fermes l'application ici, elle se rouvre sur ta vraie base.":
+    "You are in the demo: everything you see is made up, and your real database is neither read nor changed. You can enter anything you like, it is kept until the reset. // /bold(Back to my data) takes you back to your database. If you close the app here, it reopens on your real database.",
+  "Cette action s'applique à des données FICTIVES, pas aux tiennes. Pour travailler sur ta vraie base, reviens d'abord avec /bold(Revenir à mes données).":
+    "This action applies to MADE-UP data, not yours. To work on your real database, first go back with /bold(Back to my data).",
+  "Ce que tu as saisi dans la démo sera effacé, et elle repartira avec des données fraîches. Tes vraies données ne sont pas touchées.":
+    "What you entered in the demo will be erased, and it will start over with fresh data. Your real data is not touched.",
+  "Une nouvelle version de la démo est disponible, avec de quoi montrer les dernières fonctionnalités. Réinitialise-la pour en profiter : ce que tu y as saisi sera effacé.":
+    "A new version of the demo is available, with something to show the latest features. Reset it to get it: what you entered in it will be erased.",
+  "Les dates de la démo commencent à dater, et le mois en cours se vide. Réinitialise-la pour la remettre à jour : ce que tu y as saisi sera effacé.":
+    "The demo's dates are getting old, and the current month is emptying out. Reset it to bring it up to date: what you entered in it will be erased.",
+  "La démo précédente n'a pas pu être rouverte : elle a été refaite.":
+    "The previous demo could not be reopened: it has been rebuilt.",
+  // Messages du serveur
+  "Quitte d'abord la démo pour lancer le tutoriel.": "Leave the demo first to start the tutorial.",
+  "Quitte d'abord la démo avant de changer de base de données.":
+    "Leave the demo first before changing database.",
+  "Quitte la démo avant de faire une copie de ta base.":
+    "Leave the demo before making a copy of your database.",
+  "Termine ou quitte le tutoriel avant d'ouvrir la démo.":
+    "Finish or leave the tutorial before opening the demo.",
+  "La démo n'est pas ouverte.": "The demo is not open.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : la démo

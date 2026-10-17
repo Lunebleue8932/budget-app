@@ -565,6 +565,11 @@ def changer_base(chemin: str) -> Path:
         _decouverte["chemin"] = None
         _decouverte["avant"] = None
         _decouverte["parcours"] = None
+    # Même chose pour la sandbox : la quitter, c'est basculer sur la base d'avant, et cette
+    # bascule-là doit la déclarer terminée (cf. « La SANDBOX » plus bas).
+    if _sandbox["chemin"] is not None and nouveau_chemin != _sandbox["chemin"]:
+        _sandbox["chemin"] = None
+        _sandbox["avant"] = None
     return nouveau_chemin
 
 
@@ -608,6 +613,10 @@ def entrer_decouverte(chemin: Path, parcours: str | None = None) -> Path:
     si on y est déjà (le tutoriel peut être relancé sans passer par la sortie)."""
     if en_decouverte():
         return _etat.chemin
+    # La « base d'avant » d'un tutoriel doit être celle de l'utilisateur : depuis la sandbox,
+    # quitter le tutoriel ramènerait sur la démo sans que celle-ci se sache encore ouverte.
+    if en_sandbox():
+        raise ValueError("Quitte d'abord la démo pour lancer le tutoriel.")
     avant = _etat.chemin
     basculee = changer_base(str(chemin))
     _decouverte["chemin"] = basculee
@@ -634,6 +643,65 @@ def quitter_decouverte() -> Path:
             annexe.unlink(missing_ok=True)
         except OSError:
             pass
+    return retour
+
+
+# ---------- La SANDBOX (la démo, remplie de données fictives) ----------
+#
+# POURQUOI. Au premier lancement la base est vide : l'utilisateur ne voit rien de ce que
+# l'application sait faire. La sandbox est une base DE DÉMONSTRATION, fabriquée par
+# l'application (cf. services/base_sandbox.py), où l'on peut regarder, essayer et saisir ce
+# qu'on veut sans toucher à ses vraies données.
+#
+# CE QUI LA DIFFÈRE DE LA BASE DE DÉCOUVERTE (même mécanique, deux durées de vie) : celle des
+# tutoriels est fabriquée à chaque entrée dans le dossier temporaire et supprimée à la sortie ;
+# la sandbox, elle, SURVIT — l'utilisateur peut y avoir saisi des choses qu'il veut retrouver. Son
+# fichier vit dans le dossier de configuration du poste (cf. base_sandbox.chemin_sandbox), jamais à
+# côté de la base de l'utilisateur ni dans le dossier de l'application, que la mise à jour remplace.
+#
+# CE QUI LA REND SÛRE, comme la découverte :
+#   - un FICHIER À PART : la vraie base n'est ni ouverte, ni lue, ni écrite pendant la démo — on se
+#     contente de retenir son chemin, pour la rejoindre en sortant ;
+#   - AUCUNE MÉMORISATION dans le profil (cf. routers/sandbox.py) : fermer l'application en pleine
+#     démo suffit à retrouver sa vraie base au lancement suivant, qui résout toujours son chemin
+#     depuis le profil et jamais depuis cet état. Le fichier de démo, lui, reste là pour la
+#     prochaine fois ;
+#   - les routes qui changent de base ou font une copie de sécurité refusent pendant la démo.
+_sandbox: dict = {"chemin": None, "avant": None}
+
+
+def en_sandbox() -> bool:
+    return _sandbox["chemin"] is not None and _etat.chemin == _sandbox["chemin"]
+
+
+def entrer_sandbox(chemin: Path) -> Path:
+    """Bascule sur la base de démo déjà fabriquée à `chemin`. Sans effet si on y est déjà.
+
+    `ValueError` si un tutoriel est en cours : les deux bases temporaires ne s'empilent pas (la
+    « base d'avant » de l'une serait l'autre), l'utilisateur sort de l'une avant d'entrer dans
+    l'autre."""
+    if en_sandbox():
+        return _etat.chemin
+    if en_decouverte():
+        raise ValueError("Termine ou quitte le tutoriel avant d'ouvrir la démo.")
+    avant = _etat.chemin
+    basculee = changer_base(str(chemin))
+    _sandbox["chemin"] = basculee
+    _sandbox["avant"] = avant
+    return basculee
+
+
+def quitter_sandbox() -> Path:
+    """Rejoint la base qu'on avait quittée en entrant. Le fichier de démo n'est PAS supprimé : ce
+    qu'on y a saisi est encore là à la prochaine visite (cf. `reinitialiser` pour le refaire).
+    Sans effet hors sandbox."""
+    if not en_sandbox():
+        return _etat.chemin
+    # `changer_base` déclare déjà la sandbox terminée en quittant son fichier ; les deux lignes
+    # d'après le redisent, au cas où la base d'avant serait (par erreur) le fichier de démo.
+    retour = changer_base(str(_sandbox["avant"]))
+    _sandbox["chemin"] = None
+    _sandbox["avant"] = None
     return retour
 
 

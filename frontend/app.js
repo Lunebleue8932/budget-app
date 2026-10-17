@@ -2071,6 +2071,8 @@ function octetsEnBase64(octets) {
 }
 
 async function exporterDonnees(format) {
+  // Dans la démo, c'est un export de données fictives : le rappel évite de le ranger parmi les vraies.
+  if (BudgetApp.confirmerEnSandbox && !(await BudgetApp.confirmerEnSandbox("export"))) return;
   try {
     const reponse = await fetch(`/export?format=${encodeURIComponent(format)}`);
     if (!reponse.ok) {
@@ -17870,6 +17872,9 @@ function updateBtnImportConfirmerEtat() {
 
 document.getElementById("btn-import-confirmer").addEventListener("click", async () => {
   if (!importFichierActuel || !importApercu) return;
+  // DANS LA DÉMO, un rappel avant d'écrire : l'import s'appliquerait à des données fictives
+  // (cf. sandbox.js). Hors démo, la fonction répond oui sans rien afficher.
+  if (BudgetApp.confirmerEnSandbox && !(await BudgetApp.confirmerEnSandbox("import"))) return;
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
   const compteDefaut = compteIdDefautChoisi();

@@ -3841,3 +3841,40 @@ Object.assign(TRADUCTIONS.pt, {
     "Uma coluna por categoria do seu banco, com as transações que ela reúne: o suficiente para decidir. A tabela abre sozinha quando um arquivo é lido. // A roda ordena as categorias do app pelo que o app pensa delas: /bold(Sugestão forte) em azul, /bold(Sugestão) em amarelo, depois /italic(Sua escolha). Ela sempre começa pela mais próxima, e o app olha o nome da categoria e também o das transações. // Nada é classificado sem a sua aprovação: até uma sugestão forte espera o seu clique em /bold(Confirmar). /bold(Confirmar as sugestões fortes) valida todas de uma vez.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES
+
+// >>> TRADUCTIONS AJOUTÉES : la démo (sandbox)
+Object.assign(TRADUCTIONS.pt, {
+  "Mode démo": "Modo demonstração",
+  "Préparation de la démo…": "Preparando a demonstração…",
+  "Revenir à mes données": "Voltar aos meus dados",
+  "Réinitialiser": "Reiniciar",
+  "Essayer la démo": "Experimentar a demonstração",
+  "Voir la démo d'abord": "Ver a demonstração primeiro",
+  "Tu es dans la démo": "Você está na demonstração",
+  "Continuer dans la démo": "Continuar na demonstração",
+  "Réinitialiser la démo ?": "Reiniciar a demonstração?",
+  "La démo est l'application remplie de données fictives : des comptes, plusieurs mois d'opérations, des budgets, des prévisions. Tu vois ce qu'elle sait faire sans rien importer. // Ta vraie base n'est jamais ouverte pendant ce temps, et tu en reviens en un clic. Ce que tu saisis dans la démo y reste jusqu'à ce que tu la réinitialises.":
+    "A demonstração é o app cheio de dados fictícios: contas, vários meses de transações, orçamentos, previsões. Você vê o que ele sabe fazer sem importar nada. // Seu banco de dados real nunca é aberto enquanto isso, e você volta a ele com um clique. O que você registra na demonstração fica lá até você reiniciá-la.",
+  "Tu es dans la démo : tout ce que tu vois est fictif, et ta vraie base n'est ni lue ni modifiée. Tu peux y saisir ce que tu veux, c'est gardé jusqu'à la réinitialisation. // /bold(Revenir à mes données) te ramène sur ta base. Si tu fermes l'application ici, elle se rouvre sur ta vraie base.":
+    "Você está na demonstração: tudo o que você vê é fictício, e seu banco de dados real não é lido nem alterado. Você pode registrar o que quiser, fica guardado até a reinicialização. // /bold(Voltar aos meus dados) leva você de volta ao seu banco de dados. Se você fechar o app aqui, ele reabre no seu banco de dados real.",
+  "Cette action s'applique à des données FICTIVES, pas aux tiennes. Pour travailler sur ta vraie base, reviens d'abord avec /bold(Revenir à mes données).":
+    "Esta ação vale para dados FICTÍCIOS, não para os seus. Para trabalhar no seu banco de dados real, volte antes com /bold(Voltar aos meus dados).",
+  "Ce que tu as saisi dans la démo sera effacé, et elle repartira avec des données fraîches. Tes vraies données ne sont pas touchées.":
+    "O que você registrou na demonstração será apagado, e ela recomeça com dados novos. Seus dados reais não são tocados.",
+  "Une nouvelle version de la démo est disponible, avec de quoi montrer les dernières fonctionnalités. Réinitialise-la pour en profiter : ce que tu y as saisi sera effacé.":
+    "Há uma nova versão da demonstração, com o que mostrar das últimas funcionalidades. Reinicie-a para aproveitar: o que você registrou nela será apagado.",
+  "Les dates de la démo commencent à dater, et le mois en cours se vide. Réinitialise-la pour la remettre à jour : ce que tu y as saisi sera effacé.":
+    "As datas da demonstração estão ficando antigas, e o mês atual se esvazia. Reinicie-a para atualizá-la: o que você registrou nela será apagado.",
+  "La démo précédente n'a pas pu être rouverte : elle a été refaite.":
+    "Não foi possível reabrir a demonstração anterior: ela foi refeita.",
+  // Messages du serveur
+  "Quitte d'abord la démo pour lancer le tutoriel.": "Saia da demonstração antes para iniciar o tutorial.",
+  "Quitte d'abord la démo avant de changer de base de données.":
+    "Saia da demonstração antes de trocar de banco de dados.",
+  "Quitte la démo avant de faire une copie de ta base.":
+    "Saia da demonstração antes de fazer uma cópia do seu banco de dados.",
+  "Termine ou quitte le tutoriel avant d'ouvrir la démo.":
+    "Termine ou saia do tutorial antes de abrir a demonstração.",
+  "La démo n'est pas ouverte.": "A demonstração não está aberta.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : la démo

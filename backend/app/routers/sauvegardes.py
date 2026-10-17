@@ -58,6 +58,10 @@ def sauvegarder_maintenant():
         raise HTTPException(
             status_code=409, detail="Termine ou quitte le tutoriel avant de faire une copie."
         )
+    if database.en_sandbox():
+        raise HTTPException(
+            status_code=409, detail="Quitte la démo avant de faire une copie de ta base."
+        )
     try:
         fichier = sauvegardes.sauvegarder(dossier)
     except sauvegardes.ErreurSauvegarde as exc:

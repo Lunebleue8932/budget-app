@@ -144,7 +144,14 @@ def sauvegarder_si_due() -> Optional[Path]:
     Jamais d'exception — cf. l'en-tête du module."""
     try:
         dossier = dossier_configure()
-        if dossier is None or database.en_decouverte() or not est_due(dossier):
+        # Ni un tutoriel ni la démo ne se copient : leurs copies chasseraient les vraies du dossier
+        # (on n'en garde que `GARDER`).
+        if (
+            dossier is None
+            or database.en_decouverte()
+            or database.en_sandbox()
+            or not est_due(dossier)
+        ):
             return None
         return sauvegarder(dossier)
     except Exception:
