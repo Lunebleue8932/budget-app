@@ -12991,7 +12991,9 @@ async function executerPrevisualisation() {
     // qu'on ouvre d'abord (elle rouvrira les correspondances derrière). Sinon, LE TABLEAU DES
     // CORRESPONDANCES s'ouvre de lui-même quand le fichier porte des catégories bancaires encore
     // inconnues : c'est là qu'on voit quelles opérations elles rassemblent.
-    if (!(await proposerDetectionAvantCorrespondances())) ouvrirCorrespondances();
+    // PENDANT UN TUTORIEL, les tableaux ne s'ouvrent que sur les étapes qui en parlent : ouverts à
+    // chaque relecture, ils cacheraient ce que la bulle désigne.
+    if (!(await proposerDetectionAvantCorrespondances()) && !tutorielEnCours()) ouvrirCorrespondances();
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -13307,6 +13309,11 @@ let importDetection = null;
 // Une fois par fichier : appliquer, relire puis retomber sur le même constat ne doit pas rouvrir le
 // tableau en boucle. Remis à faux à chaque nouveau fichier (cf. reinitialiserImport).
 let importDetectionProposee = false;
+
+/** Un tutoriel est en cours : c'est lui qui décide quand montrer les tableaux (cf. tutoriel.js). */
+function tutorielEnCours() {
+  return typeof tutorielActif !== "undefined" && tutorielActif;
+}
 
 function libelleProprieteImport(propriete) {
   if (!propriete) return t("Ne pas importer");
@@ -13660,7 +13667,7 @@ async function proposerDetectionAvantCorrespondances() {
   if (!importFichierActuel || !importApercu || importDetectionProposee) return false;
   // JAMAIS PENDANT UN TUTORIEL : ses fichiers sont lus de travers exprès (étapes 5, 6 et 15), et un
   // tableau qui s'ouvre de lui-même au milieu d'une étape la ferait dérailler.
-  if (typeof tutorielActif !== "undefined" && tutorielActif) return false;
+  if (tutorielEnCours()) return false;
   // UNE SEULE FOIS PAR FICHIER, bon ou mauvais constat : les relectures qui suivent sont des
   // retouches voulues (un délimiteur, des colonnes), pas une première lecture à deviner.
   importDetectionProposee = true;

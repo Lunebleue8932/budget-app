@@ -571,10 +571,14 @@ const TEXTES = {
     "Les modifications faites au preset ne sont pas enregistrées par défaut : ça te permet de tester sans endommager ton preset. // Enregistrer conserve l'état actuel de la configuration dans ton preset.",
   "noyau.tuto-import-16-2":
     "Ce bouton relit le fichier et /bold(enregistre) ton preset dans la foulée.",
-  "noyau.tuto-import-17":
-    "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app te montre un panneau avec différentes propositions pour l'allocation champs <-> colonnes, tu peux alors faire les dernières modifications et enregistrer le preset.",
-  "noyau.tuto-import-18":
-    "À chaque fois qu'une catégorie apparaît pour la première fois, l'app te demande à quelle catégorie de l'app la relier. Une fois enregistré, plus besoin d'y toucher ; tu peux néanmoins la modifier dans l'onglet Correspondances.",
+  "noyau.tuto-import-17-1":
+    "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app t'ouvre un tableau avec ses propositions pour l'allocation champs <-> colonnes. Il s'ouvre aussi de lui-même, avant le classement des catégories, quand elle lit mal ton fichier.",
+  "noyau.tuto-import-17-2":
+    "Une colonne du tableau par colonne de ton fichier, avec un extrait de son contenu. La molette propose le champ à lire : /bold(Proposition forte) en bleu quand l'app est sûre, /bold(Suggestion) en jaune quand elle hésite, puis le reste (/italic(Ton choix)). // Fais tourner la molette avec ↑ et ↓ (ou clique), puis confirme la colonne avec Ctrl+Entrée : la suivante prend le relais. Ces touches se changent dans Paramètres généraux. // /bold(Appliquer ces colonnes) relit le fichier sans toucher à ton preset : c'est /italic(Enregistrer la configuration) qui le fera, si tu le veux.",
+  "noyau.tuto-import-18-1":
+    "À chaque fois qu'une catégorie apparaît pour la première fois, l'app te demande à quelle catégorie de l'app la relier. Une fois enregistré, plus besoin d'y toucher ; tu peux néanmoins la modifier dans l'onglet Correspondances. // /italic(Le bouton « Classer avec les opérations concernées » ouvre le même choix sous forme de tableau : c'est l'étape suivante.)",
+  "noyau.tuto-import-18-2":
+    "Une colonne par catégorie de ta banque, avec les opérations qu'elle rassemble : de quoi trancher. Le tableau s'ouvre de lui-même à la lecture d'un fichier. // La molette range les catégories de l'app selon ce que l'app en pense : /bold(Proposition forte) en bleu, /bold(Suggestion) en jaune, puis /italic(Ton choix). Elle commence toujours par la plus proche, et l'app regarde le nom de la catégorie comme celui des opérations. // Rien n'est classé sans ton accord : même une proposition forte attend ton clic sur /bold(Confirmer). /bold(Confirmer les propositions fortes) les valide d'un coup.",
   "noyau.tuto-import-19":
     "Ça y est, tu as tout configuré. Il ne reste plus qu'à cliquer sur /bold(Confirmer l'import) pour que les opérations s'écrivent en base. // L'historique d'importation se trouve en bas de page : si tu veux revenir en arrière, il suffit de supprimer une importation. Ta base se retrouve alors dans l'état qui précédait l'importation.",
   "noyau.import-compte-banque-preset-lie":

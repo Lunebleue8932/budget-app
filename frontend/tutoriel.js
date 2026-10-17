@@ -324,6 +324,28 @@ function poserConfigImportTutoriel({ colonnes, lignesEntete, delie = false }) {
   toggleImportCompteDefautBloc();
 }
 
+/**
+ * Les deux tableaux de l'import (colonnes du fichier, catégories de la banque) ne se montrent que sur
+ * les étapes qui les décrivent (`tableau: "detection" | "correspondances"`), et se referment à
+ * chaque changement d'étape. Fermer les correspondances applique ce qu'on y a choisi (comme leur
+ * croix) : c'est ce qui permet de le retrouver à l'étape suivante.
+ */
+function fermerTableauxTutoriel() {
+  if (typeof detOuvert === "function" && detOuvert()) fermerDetection();
+  if (typeof corrOuvert === "function" && corrOuvert()) fermerCorrespondances();
+  // Le tableau se range en bas pendant une étape (cf. ouvrirTableauTutoriel) : rendu à son centre.
+  document.querySelectorAll(".modale-fond-basse").forEach((f) => f.classList.remove("modale-fond-basse"));
+}
+
+async function ouvrirTableauTutoriel(tableau) {
+  if (tableau === "detection") await detecterColonnesImport();
+  else ouvrirCorrespondances();
+  // LE TABLEAU SE RANGE EN BAS : la bulle de l'étape prend le haut de l'écran au lieu de cacher
+  // les premières colonnes.
+  const fond = document.getElementById(tableau === "detection" ? "modale-detection" : "modale-correspondances");
+  if (fond) fond.classList.add("modale-fond-basse");
+}
+
 /** Vide l'écran d'import d'un fichier d'exemple (le fichier de l'utilisateur n'est jamais touché). */
 async function restaurerImportTutoriel() {
   if (fichierImportEstUnExemple()) reinitialiserImport();
@@ -812,24 +834,47 @@ const TUTORIEL_IMPORT = [
       "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.",
   },
   {
-    numero: "17",
+    numero: "17.1",
     cible: "#btn-import-detecter",
     titre: "Deviner les colonnes",
-    texte: T_IMPORT("17"),
+    texte: T_IMPORT("17-1"),
     fichierTest: true,
     siMasque:
       "Ce bouton apparaît au-dessus du tableau du fichier, donc une fois un fichier lu.",
   },
   {
-    numero: "18",
+    numero: "17.2",
+    // LE TABLEAU DES COLONNES, ouvert par l'étape : le même que celui des catégories (étape 18.2).
+    cible: "#modale-detection .modale",
+    titre: "Le tableau des colonnes",
+    texte: T_IMPORT("17-2"),
+    fichierTest: true,
+    tableau: "detection",
+    placement: "dessus",
+    discret: true,
+  },
+  {
+    numero: "18.1",
     cible: "#import-mappings-bloc",
     titre: "La correspondance des catégories",
-    texte: T_IMPORT("18"),
+    texte: T_IMPORT("18-1"),
     // LE RELEVÉ LUI-MÊME : sur la base de découverte, aucune de ses catégories bancaires n'est
     // encore rattachée, et ce qu'on y rattache ici sert à confirmer l'import à l'étape suivante.
     fichierTest: true,
     siMasque:
       "Ce bloc n'apparaît que si le fichier apporte des catégories, des comptes ou des devises inconnus.",
+  },
+  {
+    numero: "18.2",
+    // LE TABLEAU DES CATÉGORIES, ouvert par l'étape.
+    cible: "#modale-correspondances .modale",
+    titre: "Le tableau des catégories",
+    texte: T_IMPORT("18-2"),
+    fichierTest: true,
+    tableau: "correspondances",
+    placement: "dessus",
+    siMasque:
+      "Ce tableau ne s'ouvre que si le fichier apporte des catégories bancaires inconnues.",
   },
   {
     numero: "19",
@@ -1199,6 +1244,7 @@ async function allerEtapeTutoriel(index) {
 
   const etape = parcours.etapes[index];
   eteindreCibleTutoriel();
+  if (parcours.id === "import") fermerTableauxTutoriel();
 
   // LA PAGE D'ABORD, puis ce que l'étape y ouvre : un formulaire ne s'ouvre pas
   // sur un écran qu'on n'affiche pas encore. Un écran qui vient de changer de
@@ -1224,6 +1270,10 @@ async function allerEtapeTutoriel(index) {
     if (exempleCharge && !etape.garderCible) selecteurCible = "#import-apercu-fichier-bloc";
     // La relecture a pu déplier ou replier des blocs : l'étape rouvre les siens.
     if (etape.avant) etape.avant();
+    if (etape.tableau) {
+      await ouvrirTableauTutoriel(etape.tableau);
+      if (jeton !== tutorielJeton) return;
+    }
   }
 
   const cibles = ciblesEtape(selecteurCible, etape.premier && !exempleCharge);
@@ -1412,6 +1462,7 @@ async function arreterTutoriel({ message = null } = {}) {
   tutorielSurBaseDecouverte = false;
   tutorielJeton++;
   eteindreCibleTutoriel();
+  fermerTableauxTutoriel();
   // Ce que le tutoriel avait ouvert pour s'illustrer se referme avec lui.
   ajusterOuverturesTutoriel(null);
   // L'EXEMPLE REPART AVEC LE TUTORIEL : un relevé qui n'existe pas ne doit pas

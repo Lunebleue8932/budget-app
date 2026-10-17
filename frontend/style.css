@@ -6178,6 +6178,11 @@ td.apercu-col-hors-fichier {
   z-index: 5;
 }
 
+/* Pendant une étape de tutoriel, le tableau de l'import se range en bas de l'écran : la bulle prend le haut. */
+.modale-fond.modale-fond-basse {
+  align-items: flex-end;
+}
+
 .tutoriel-bulle {
   position: fixed;
   z-index: 1200;
