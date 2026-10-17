@@ -238,6 +238,27 @@
        dashboard, son camembert et un sélecteur de période — on change de mois
        sans refermer. HORS DE TOUTE <section> : deux écrans l'ouvrent, et une
        section éteinte la cacherait (cf. ouvrirFenetreMonnaieEteinte). -->
+  <!-- LE TABLEAU DES CORRESPONDANCES (import) : une colonne par catégorie de la banque, avec les
+       opérations concernées, la catégorie proposée par l'app dans un sélecteur à molette, et un
+       bouton Confirmer. Cf. app.js, « LE TABLEAU DES CORRESPONDANCES ». -->
+  <div id="modale-correspondances" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-correspondances" role="dialog" aria-modal="true"
+         aria-labelledby="modale-correspondances-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-correspondances-titre">Classer les catégories de ta banque</h2>
+        <button type="button" id="btn-correspondances-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <p class="modale-texte" data-texte-cle="noyau.import-correspondances"></p>
+      <p class="hint" id="correspondances-compteur"></p>
+      <div id="correspondances-board" class="corr-board"></div>
+      <div class="modale-actions">
+        <button type="button" id="btn-correspondances-fortes">Confirmer les propositions fortes</button>
+        <button type="button" id="btn-correspondances-terminer" class="primary">Terminer</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modale-monnaie-eteinte" class="modale-fond" style="display:none" role="presentation">
     <div class="modale modale-monnaie-eteinte" role="dialog" aria-modal="true"
          aria-labelledby="modale-monnaie-eteinte-titre">
@@ -1594,6 +1615,31 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <div id="tutoriels-liste" class="tutoriels-liste"></div>
         </div>
 
+        <!-- EXPORTER SES DONNÉES, ET LES COPIES DE SÉCURITÉ. Deux gestes voisins, deux questions
+             différentes : l'export sort TOUTES les tables dans un format qu'on lit sans l'application
+             (JSON, CSV — une archive à un fichier par table —, Excel — une feuille par table) ; les
+             copies, elles, sont des bases complètes qu'on peut rouvrir, faites d'elles-mêmes dans un
+             dossier qu'on choisit. Cf. services/export_donnees et services/sauvegardes. -->
+        <div class="reglage-bloc" id="reglage-export-bloc">
+          <label>Exporter mes données<i class="info-bulle" tabindex="0" data-info-cle="noyau.export-donnees">i</i></label>
+          <div class="reglage-export">
+            <button type="button" data-export="json">JSON</button>
+            <button type="button" data-export="csv">CSV (un fichier par table)</button>
+            <button type="button" data-export="xlsx">Excel (une feuille par table)</button>
+          </div>
+        </div>
+
+        <div class="reglage-bloc" id="reglage-sauvegarde-bloc">
+          <label for="sauvegarde-dossier">Copies de sécurité<i class="info-bulle" tabindex="0" data-info-cle="noyau.sauvegardes">i</i></label>
+          <div class="reglage-sauvegarde">
+            <input type="text" id="sauvegarde-dossier" placeholder="ex. D:\Sauvegardes\Budget" autocomplete="off" />
+            <button type="button" id="btn-sauvegarde-parcourir" style="display:none">Parcourir…</button>
+            <button type="button" class="primary" id="btn-sauvegarde-enregistrer">Enregistrer</button>
+            <button type="button" id="btn-sauvegarde-maintenant">Sauvegarder maintenant</button>
+          </div>
+          <p class="hint" id="sauvegarde-etat"></p>
+        </div>
+
         <!-- BASE DE DONNÉES — venue de `extensions-dev/base-de-donnees/`, qui
              n'existe plus, puis d'un onglet à elle. Ce panneau était un outil de
              développeur tant que l'emplacement par défaut de la base était sûr ;
@@ -1699,6 +1745,27 @@ relancer Marie pour les 40 € du restaurant"></textarea>
               <input type="checkbox" id="categorie-entree" />
               <span>Catégorie d'entrée<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-entree">i</i></span>
             </label>
+          </div>
+          <!-- LES MOTS-CLÉS (migration 0085) : ce qui fait proposer cette catégorie à l'import quand
+               un libellé du relevé y ressemble. Même éditeur que les mots-clés des colonnes
+               « Sens » et « État » ; masqué à la création, comme la case d'entrée. -->
+          <div class="full-width" id="categorie-mots-cles-bloc" style="display:none">
+            <div class="import-vocabulaire-champ" data-vocabulaire="mots">
+              <div class="import-vocabulaire-entete">
+                <label for="categorie-mot-cle">Mots-clés<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-mots-cles">i</i></label>
+                <div class="import-vocabulaire-saisie">
+                  <input type="text" id="categorie-mot-cle" placeholder="ex. supermarché" spellcheck="false" />
+                  <button type="button" class="import-vocabulaire-ajouter" data-action="ajouter"
+                          title="Ajouter ce mot-clé" aria-label="Ajouter ce mot-clé">+</button>
+                </div>
+                <details class="import-vocabulaire-actualisation">
+                  <summary>Actualisation</summary>
+                  <div class="import-vocabulaire-menu" data-role="menu"></div>
+                </details>
+              </div>
+              <div class="import-vocabulaire-jetons" data-role="jetons"></div>
+              <button type="button" id="categorie-mots-cles-livres" style="display:none">Revenir aux mots-clés livrés</button>
+            </div>
           </div>
           <!-- Même raison que pour un compte : le double-clic ouvre déjà ce
                formulaire, et éteindre se décide en regardant la catégorie. -->
@@ -2135,6 +2202,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
                    une devant quinze libellés est un travail que ce bouton existe
                    pour éviter — encore faut-il le voir. -->
               <button type="button" class="primary" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
+              <!-- LE TABLEAU DES CORRESPONDANCES : les mêmes catégories, avec les opérations
+                   concernées sous les yeux. S'ouvre tout seul à la lecture d'un fichier. -->
+              <button type="button" id="btn-import-correspondances">Classer avec les opérations concernées</button>
             </div>
             <div id="import-mappings-categories" class="import-mappings"></div>
           </div>

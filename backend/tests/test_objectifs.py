@@ -47,7 +47,7 @@ from .conftest import creer_compte, get_categorie_id, get_monnaie_id, get_type_i
 
 
 def _charger(nom):
-    racine = pathlib.Path(__file__).resolve().parents[2] / "extensions" / "objectifs"
+    racine = pathlib.Path(__file__).resolve().parents[2] / "extensions" / "projets-objectifs"
     if str(racine) not in sys.path:
         sys.path.insert(0, str(racine))
     spec = importlib.util.spec_from_file_location(nom, racine / f"{nom}.py")

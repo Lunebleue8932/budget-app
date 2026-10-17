@@ -124,6 +124,25 @@
     </div>
     <div id="ab-legende" class="histogramme-cadre legende-cadre"></div>
 
+    <!-- ---------- UNE CATÉGORIE, PÉRIODE APRÈS PÉRIODE ----------
+         Sous la comparaison de deux mois : ce que UNE catégorie pèse, mois après mois sur
+         l'année de la barre du haut (ou année après année). Le même calcul que
+         l'histogramme au-dessus — amortissement étalé, reste à charge, parts de découpe —
+         et les périodes sans la moindre opération en base ne s'affichent pas. Le sélecteur
+         est celui du filtre de catégories du dashboard, en choix unique. -->
+    <h3>Une catégorie dans le temps<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.depenses-categorie">i</i></h3>
+    <div class="selecteur-contexte ab-contexte ab-graphes-periode">
+      <span id="ab-cat-selecteur"></span>
+      <label for="ab-cat-vue">Voir
+        <select id="ab-cat-vue">
+          <option value="mois">Les mois de l'année</option>
+          <option value="annee">Année par année</option>
+        </select>
+      </label>
+    </div>
+    <p class="hint ab-graphes-legende" id="ab-cat-legende"></p>
+    <div id="ab-cat-histogramme" class="histogramme-cadre"></div>
+
     <!-- ---------- CE QU'ON A MIS DE CÔTÉ ---------- -->
     <h3>Ce que tu as mis de côté<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.epargne">i</i></h3>
 

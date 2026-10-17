@@ -6934,3 +6934,161 @@ body input[type="checkbox"]:disabled {
   }
 }
 
+
+/* ---------- LE TABLEAU DES CORRESPONDANCES (import) ----------
+ *
+ * Une COLONNE par catégorie de la banque, rangées côte à côte et défilant à l'horizontale : on en
+ * voit plusieurs à la fois. Chaque colonne porte la catégorie de l'app proposée dans un sélecteur
+ * à molette (celui d'un minuteur de téléphone : cinq options visibles, la choisie au centre), les
+ * opérations concernées, et son bouton « Confirmer ». La colonne COURANTE est cernée : c'est elle
+ * que Ctrl+Entrée confirme. */
+.modale.modale-correspondances {
+  max-width: min(96vw, 78rem);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.corr-board {
+  display: flex;
+  gap: 0.9rem;
+  overflow-x: auto;
+  padding: 0.3rem 0.2rem 0.8rem;
+  min-height: 0;
+  flex: 1 1 auto;
+  scroll-snap-type: x proximity;
+}
+
+.corr-colonne {
+  flex: 0 0 17.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  background: var(--bg-surface-2, var(--bg-surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  scroll-snap-align: center;
+  max-height: 62vh;
+}
+
+.corr-colonne.corr-courante {
+  border-color: var(--accent, #3b82f6);
+  box-shadow: 0 0 0 1px var(--accent, #3b82f6);
+}
+
+.corr-colonne.corr-confirmee {
+  opacity: 0.72;
+}
+
+.corr-banque {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.corr-statut {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.corr-statut-forte { color: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); }
+.corr-statut-suggestions { color: #d99a2b; border-color: #d99a2b; }
+
+/* Le sélecteur à molette : cinq lignes de 30 px, la ligne choisie au centre sous une bande. */
+.corr-roue-cadre {
+  position: relative;
+  height: 150px;
+  flex: 0 0 auto;
+}
+
+.corr-roue-cadre::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 60px;
+  height: 30px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(127, 127, 127, 0.1);
+  pointer-events: none;
+}
+
+.corr-roue {
+  height: 150px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  padding: 60px 0;
+  box-sizing: border-box;
+  scrollbar-width: none;
+  outline: none;
+}
+
+.corr-roue::-webkit-scrollbar { display: none; }
+
+.corr-roue:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent, #3b82f6);
+  border-radius: var(--radius);
+}
+
+.corr-roue-option {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 0.6rem;
+  scroll-snap-align: center;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.corr-roue-option.corr-roue-proposee { font-style: italic; }
+.corr-roue-option.corr-roue-choisie { color: var(--text-primary, inherit); font-weight: 600; }
+
+.corr-operations {
+  flex: 1 1 auto;
+  min-height: 3rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.corr-operation {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) / 1.5);
+  font-size: 0.8rem;
+}
+
+.corr-operation-nature { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.corr-operation-date { color: var(--text-secondary); font-size: 0.72rem; }
+.corr-operation-montant { white-space: nowrap; }
+
+.corr-confirmer { margin-top: auto; }
+.corr-confirmer kbd { font: inherit; opacity: 0.8; }
+
+/* ---------- Export des données et copies de sécurité (Paramètres généraux) ---------- */
+.reglage-export,
+.reglage-sauvegarde {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reglage-sauvegarde input[type="text"] {
+  flex: 1 1 18rem;
+  min-width: 12rem;
+}

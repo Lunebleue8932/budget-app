@@ -125,6 +125,30 @@ def lire_imprevues(
     )
 
 
+# ---------- Les dépenses d'une catégorie ----------
+
+
+@router.get("/depenses-categorie", response_model=schemas_ab.DepensesCategorieRead)
+def lire_depenses_categorie(
+    monnaie_id: int,
+    categorie_id: int,
+    annee: Optional[int] = None,
+    vue: str = Query("mois", pattern="^(mois|annee)$"),
+    db: Session = Depends(get_db),
+):
+    """Une catégorie, période après période : les douze mois de `annee` (`vue=mois`) ou
+    chaque année couverte (`vue=annee`), en BUDGET — le calcul de l'histogramme du
+    dashboard — et sans les périodes où la base ne porte aucune opération (cf.
+    service_analyse_budget.depenses_d_une_categorie)."""
+    _monnaie_ou_404(db, monnaie_id)
+    resultat = service.depenses_d_une_categorie(
+        db, categorie_id, monnaie_id, _annee_demandee(annee), vue
+    )
+    if resultat is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return schemas_ab.DepensesCategorieRead(**resultat)
+
+
 # ---------- Le solde prévisionnel ----------
 
 

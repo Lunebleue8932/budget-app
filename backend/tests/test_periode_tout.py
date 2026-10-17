@@ -234,7 +234,7 @@ def test_la_route_refuse_une_vue_inconnue(db_session):
 
 
 def _charger_objectifs():
-    racine = pathlib.Path(__file__).resolve().parents[2] / "extensions" / "objectifs"
+    racine = pathlib.Path(__file__).resolve().parents[2] / "extensions" / "projets-objectifs"
     if str(racine) not in sys.path:
         sys.path.insert(0, str(racine))
     spec = importlib.util.spec_from_file_location(

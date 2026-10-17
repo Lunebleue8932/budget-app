@@ -643,7 +643,7 @@ function objRenderListe() {
  *  tourne. Un échec ne dit rien ici : on retombe sur une liste sans projets,
  *  et le reste de l'écran fonctionne. */
 async function objChargerProjets() {
-  if (!BudgetApp.extensions.estActive("projets")) {
+  if (!BudgetApp.extensions.estActive("projets-objectifs")) {
     objProjets = [];
     return;
   }
@@ -965,7 +965,7 @@ function objOuvrirDepuisCarte(carte) {
     // DEPUIS LE DASHBOARD : la page s'ouvre dans l'onglet Objectifs de la page
     // Budget, avec le niveau (mois ou année) que le sélecteur affichait.
     objDetailEnAttente = { objectifId, ...objContexteDashboard };
-    switchSection("budget", { sousSection: "budget-objectifs" });
+    switchSection("budget", { sousSection: "budget-projets-objectifs" });
     return;
   }
   // DEPUIS LA PAGE DES OBJECTIFS : le mois en cours, qu'elle mesure déjà.
@@ -978,7 +978,7 @@ document.getElementById("btn-objectif-fermer")?.addEventListener("click", objFer
 async function objRendreDashboard(annee, mois) {
   const bloc = document.getElementById("dashboard-objectifs");
   if (!bloc) return;
-  if (!BudgetApp.extensions.estActive("objectifs")) {
+  if (!BudgetApp.extensions.estActive("projets-objectifs")) {
     bloc.innerHTML = "";
     bloc.style.display = "none";
     return;
@@ -1038,7 +1038,3 @@ if (typeof loadDashboardData === "function" && !window.objDashboardGreffe) {
   };
 }
 
-// L'enregistrement auprès du noyau, en FIN de fichier : `loadObjectifs` doit
-// exister au moment où on la référence. Le chargeur est rappelé à chaque
-// ouverture de l'onglet — les dépenses ont pu changer depuis.
-BudgetApp.extensions.enregistrer("objectifs", { chargeur: loadObjectifs });

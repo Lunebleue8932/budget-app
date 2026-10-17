@@ -155,6 +155,24 @@ class Categorie(Base):
     # garde sa barre, elle a quelque chose à dire ; une catégorie éteinte à
     # zéro n'a plus rien à dire du tout.
     active = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+    # LES MOTS-CLÉS DE LA CATÉGORIE (migration 0085) : ce qui permet à l'import de proposer cette
+    # catégorie pour un libellé de relevé (« supermarché » → Alimentaire), cf.
+    # services/categorisation_intelligente. NULL = « pas de liste à moi », et ce sont alors les
+    # mots-clés livrés qui servent ; une liste, même vide, est un CHOIX et remplace les livrés en
+    # entier. Du texte que l'application ne lit que pour PROPOSER : aucun solde, aucun KPI, aucune
+    # barre n'en dépend.
+    mots_cles_perso = Column(JSON, nullable=True)
+
+    @property
+    def mots_cles(self) -> list:
+        """Les mots-clés en vigueur (les siens, sinon les livrés)."""
+        from app.services.categorisation_intelligente import mots_cles_de
+
+        return mots_cles_de(self)
+
+    @property
+    def mots_cles_personnalises(self) -> bool:
+        return self.mots_cles_perso is not None
 
     __table_args__ = (
         CheckConstraint(
@@ -1977,6 +1995,18 @@ class SousFiltre(Base):
     # en tête, un projet clos descend : c'est un classement de lecture, comme
     # celui des comptes et des catégories.
     ordre = Column(Integer, nullable=False, default=0)
+    # UNE PÉRIODE ET UN MONTANT À TENIR (migration 0084), tout facultatif. Les dates ne FILTRENT
+    # rien — un projet reste les opérations qu'on y a versées — : elles disent où on en est (jours
+    # restants) et bornent le sélecteur d'opérations. `montant_max` est le plafond des DÉPENSES du
+    # projet, `montant_min` le seuil que ses ENTRÉES doivent atteindre, tous deux dans la monnaie
+    # `monnaie_cible_id` (un projet peut toucher plusieurs monnaies, jamais additionnées).
+    date_debut = Column(Date, nullable=True)
+    date_fin = Column(Date, nullable=True)
+    montant_max = Column(Float, nullable=True)
+    montant_min = Column(Float, nullable=True)
+    monnaie_cible_id = Column(
+        Integer, ForeignKey("monnaie.id", ondelete="SET NULL"), nullable=True
+    )
 
     operations = relationship(
         "Operation",
@@ -2119,7 +2149,6 @@ class ObjectifKpi(Base):
     # restaurant », ou ne compter que le week-end, sans inventer une catégorie
     # pour chaque règle qu'on se donne.
     filtres = Column(JSON, nullable=False, default=list)
-
     categorie = relationship("Categorie")
     sous_filtre = relationship("SousFiltre")
     monnaie = relationship("Monnaie")

@@ -3657,5 +3657,139 @@ Object.assign(TRADUCTIONS.pt, {
     "datas com o mês na frente",
   "dates jour devant":
     "datas com o dia na frente",
+  "1 jour restant":
+    "1 dia restante",
+  "{n} jours restants":
+    "{n} dias restantes",
+  "Indique la date de fin.":
+    "Informe a data de término.",
+  "La date de fin précède la date de début.":
+    "A data de término é anterior à data de início.",
+  "Projets et objectifs":
+    "Projetos e metas",
+  "Une catégorie dans le temps":
+    "Uma categoria ao longo do tempo",
+  "Voir":
+    "Ver",
+  "Les mois de l'année":
+    "Os meses do ano",
+  "Année par année":
+    "Ano a ano",
+  "Aucune catégorie de dépense.":
+    "Nenhuma categoria de despesa.",
+  "Aucune opération en base sur cette période.":
+    "Nenhuma transação na base neste período.",
+  "{n} période(s) sans aucune opération ne sont pas affichées.":
+    "{n} período(s) sem nenhuma transação não são exibidos.",
+  "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.":
+    "Despesas por categoria, mês a mês: a categoria que você escolher, nos meses do ano da barra superior, ou ano a ano. -- O cálculo é o do gráfico acima e o do dashboard: uma despesa amortizada é distribuída pelos seus meses, uma despesa reembolsável conta apenas o que sobra para você, uma transação dividida contribui com a sua parte. -- Um mês em que a base não tem nenhuma transação (em nenhuma categoria) não é exibido: ele ainda não existe nos seus dados. Um mês com transações mas nada nesta categoria mantém a barra em zero.",
+  "Revenir aux mots-clés livrés":
+    "Restaurar as palavras-chave padrão",
+  "Mots-clés livrés rétablis":
+    "Palavras-chave padrão restauradas",
+  "Aucun mot-clé : cette catégorie ne sera jamais proposée d'après un libellé.":
+    "Nenhuma palavra-chave: esta categoria nunca será sugerida a partir de um rótulo.",
+  "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.":
+    "As palavras que fazem esta categoria ser sugerida quando você importa um extrato: se a categoria do seu banco (ou o seu rótulo) se parece com uma delas — “supermercado”, “padaria”, “restaurante”… — o app sugere esta categoria, que você confirma ou não. -- Nada é classificado sem a sua validação. -- As palavras padrão cobrem francês, inglês e português do Brasil. Assim que você edita a lista, a sua substitui a original; “Restaurar as palavras-chave padrão” a traz de volta.",
+  "Classer les catégories de ta banque":
+    "Classificar as categorias do seu banco",
+  "Classer avec les opérations concernées":
+    "Classificar com as transações envolvidas",
+  "Confirmer les propositions fortes":
+    "Confirmar as sugestões fortes",
+  "Proposition forte":
+    "Sugestão forte",
+  "Suggestion":
+    "Sugestão",
+  "À classer":
+    "A classificar",
+  "Ton choix":
+    "Sua escolha",
+  "Confirmée":
+    "Confirmada",
+  "… et {n} autres opérations":
+    "… e mais {n} transações",
+  "Catégorie de l'app pour « {nom} »":
+    "Categoria do app para “{nom}”",
+  "{n} catégorie(s) à confirmer":
+    "{n} categoria(s) a confirmar",
+  "Tout est confirmé.":
+    "Tudo confirmado.",
+  "Toutes les correspondances sont confirmées.":
+    "Todas as correspondências estão confirmadas.",
+  "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
+    "Cada coluna reúne as transações de uma mesma categoria do seu banco. Escolha a categoria do app que lhes corresponde com a roda (clique, ou ↑ ↓) e confirme (botão, ou Ctrl+Enter): a coluna seguinte assume. -- O app sugere uma categoria a partir do nome, de palavras-chave e de semelhanças; ele nunca classifica nada sem a sua aprovação, mesmo quando tem certeza. -- Depois de confirmada, a correspondência é memorizada para este formato de arquivo: as próximas importações não perguntarão de novo.",
+  "Format reconnu : {banque}":
+    "Formato reconhecido: {banque}",
+  "d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.":
+    "com base nos títulos das colunas — confira a pré-visualização antes de importar.",
+  "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
+    "Formato reconhecido: {banque}. “Adivinhar as colunas” propõe a leitura adequada a esta exportação.",
+  "Exporter mes données":
+    "Exportar meus dados",
+  "CSV (un fichier par table)":
+    "CSV (um arquivo por tabela)",
+  "Excel (une feuille par table)":
+    "Excel (uma planilha por tabela)",
+  "Copies de sécurité":
+    "Cópias de segurança",
+  "Sauvegarder maintenant":
+    "Fazer backup agora",
+  "Export enregistré : {chemin}":
+    "Exportação salva: {chemin}",
+  "Export prêt : {nom}":
+    "Exportação pronta: {nom}",
+  "Aucun dossier choisi : aucune copie n'est faite.":
+    "Nenhuma pasta escolhida: nenhum backup é feito.",
+  "Dernière copie : {nom} ({date}). Les {n} plus récentes sont gardées.":
+    "Último backup: {nom} ({date}). Os {n} mais recentes são mantidos.",
+  "Aucune copie pour l'instant : la première est faite au prochain démarrage, ou tout de suite avec « Sauvegarder maintenant ».":
+    "Nenhum backup ainda: o primeiro é feito na próxima inicialização, ou agora com “Fazer backup agora”.",
+  "Dossier de sauvegarde enregistré.":
+    "Pasta de backup salva.",
+  "Dossier accepté pour cette session, mais il n'a pas pu être mémorisé.":
+    "Pasta aceita para esta sessão, mas não pôde ser memorizada.",
+  "Copies de sécurité désactivées.":
+    "Backups desativados.",
+  "Copie faite : {nom}":
+    "Backup feito: {nom}",
+  "Sort toutes tes données de l'application, table par table, dans un fichier que tu peux lire sans elle. -- JSON : un seul fichier, toutes les tables. -- CSV : une archive .zip avec un fichier par table (séparateur « ; », lisible par Excel). -- Excel : un classeur, une feuille par table. -- C'est une photographie pour lire ou garder tes données ailleurs ; ces fichiers ne se réimportent pas. Pour pouvoir RESTAURER, utilise les copies de sécurité juste en dessous.":
+    "Exporta todos os seus dados do aplicativo, tabela por tabela, para um arquivo que você pode ler sem ele. -- JSON: um único arquivo, todas as tabelas. -- CSV: um arquivo .zip com um arquivo por tabela (separador “;”, legível pelo Excel). -- Excel: uma pasta de trabalho, uma planilha por tabela. -- É uma fotografia para ler ou guardar seus dados em outro lugar; esses arquivos não podem ser reimportados. Para poder RESTAURAR, use os backups logo abaixo.",
+  "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
+    "Escolha uma pasta do seu computador (outro disco, uma pasta sincronizada, um pendrive…): o app guarda nela, sozinho, uma cópia completa da sua base na inicialização e, depois, no máximo uma vez por dia enquanto estiver aberto. -- As 30 cópias mais recentes são mantidas; as mais antigas são apagadas, e somente as que o app fez. -- Para restaurar: Base de dados → “Alternar para este arquivo”, e escolha a cópia desejada. -- Evite a pasta do aplicativo: uma atualização a substitui.",
+  "Depuis le":
+    "Desde",
+  "terminé":
+    "concluído",
+  "à venir":
+    "a iniciar",
+  "dernier jour":
+    "último dia",
+  "Dépenses : {a} sur {b} maximum":
+    "Despesas: {a} de {b} no máximo",
+  "Entrées : {a} sur {b} à atteindre":
+    "Entradas: {a} de {b} a atingir",
+  "dépassé":
+    "ultrapassado",
+  "atteint":
+    "atingido",
+  "à atteindre":
+    "a atingir",
+  "Montant maximum":
+    "Valor máximo",
+  "Minimum":
+    "Mínimo",
+  "Monnaie de ces montants":
+    "Moeda desses valores",
+  "à ne pas dépasser":
+    "a não ultrapassar",
+  "La période du projet : une date de début et une date de fin, ou seulement une date de fin (une deadline). -- Elle ne trie aucune opération : un projet reste ce que tu y as versé. Elle te dit où tu en es (les jours restants) et sert de point de départ quand tu cherches des opérations à y ajouter.":
+    "O período do projeto: uma data de início e uma data de término, ou apenas uma data de término (um prazo). -- Ele não filtra nenhuma transação: um projeto continua sendo o que você colocou nele. Ele mostra em que ponto você está (dias restantes) e serve de ponto de partida quando você procura transações para adicionar.",
+  "Ce que les DÉPENSES du projet ne doivent pas dépasser. La carte compare ce qui est sorti à ce plafond, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "O que as DESPESAS do projeto não devem ultrapassar. O cartão compara o que saiu com esse teto, na moeda escolhida. Deixe vazio para não se impor nada.",
+  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un projet peut aussi avoir une période (une date de début et une date de fin, ou seulement une deadline) et un montant maximum à ne pas dépasser, ou minimum à atteindre.":
+    "Uma viagem, um investimento em uma atividade sob diversas formas, reformas? Difícil acompanhar isso só com categorias. Você pode então criar um projeto e adicionar a ele todas as transações que quiser. Você obtém então uma visão detalhada do que o seu projeto custou a você - ou rendeu - classificada em categorias. // Esta extensão permite criar metas personalizadas para gerenciar suas despesas como você quiser. Você pode criar indicadores personalizados levando em conta a frequência, o valor médio, o valor total, uma participação, para entender e agir com mais detalhe do que com simples limites em categorias (ex: minhas compras de mercado devem ficar em 300 € em média por mês / miro no máximo 2 saídas a restaurante por semana / poupo pelo menos 50 € por mês). Um projeto também pode ter um período (uma data de início e uma data de término, ou apenas um prazo) e um valor máximo a não ultrapassar, ou mínimo a atingir.",
+  "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "O que as ENTRADAS do projeto devem atingir (uma vaquinha, receitas). O cartão compara o que entrou com esse limite, na moeda escolhida. Deixe vazio para não se impor nada.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

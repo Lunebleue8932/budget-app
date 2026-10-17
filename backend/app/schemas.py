@@ -164,6 +164,19 @@ class CategorieRead(BaseModel):
     # opérations sont des entrées d'argent, elle n'a donc pas de barre dans
     # l'histogramme des dépenses et pas de budget à se voir attribuer.
     est_entree: bool = False
+    # LES MOTS-CLÉS qui font proposer cette catégorie à l'import (cf.
+    # models.Categorie.mots_cles_perso, migration 0085) : ceux de l'utilisateur, sinon les
+    # livrés. `mots_cles_personnalises` dit lesquels, pour que l'écran propose « Revenir aux
+    # mots-clés livrés » seulement quand ça a un sens.
+    mots_cles: list[str] = Field(default_factory=list)
+    mots_cles_personnalises: bool = False
+
+
+class CategorieMotsClesUpdate(BaseModel):
+    """Les mots-clés d'une catégorie, isolés comme le drapeau d'entrée : renommer ne doit
+    jamais les toucher. `None` revient aux mots-clés livrés ; une liste (même vide) les remplace."""
+
+    mots_cles: Optional[list[str]] = None
 
 
 class CategorieEntreeUpdate(BaseModel):
@@ -1632,6 +1645,9 @@ class DetectionColonnesRead(BaseModel):
     feuilles: list[dict] = Field(default_factory=list)
     feuille: Optional[str] = None
     feuille_proposee: Optional[str] = None
+    # L'export d'une banque connue, reconnu à ses intitulés (cf. services/formats_bancaires) :
+    # {id, banque}, ou None. Quand il l'est, `colonnes` et `configuration` en sont tirées.
+    format_reconnu: Optional[dict] = None
 
 
 class LectureFichierRead(BaseModel):
@@ -1708,6 +1724,25 @@ class ApercuFichier(BaseModel):
     lignes_pied: int = 0
 
 
+class PropositionCategorieImport(BaseModel):
+    """Une catégorie de l'app proposée pour un libellé du relevé (cf.
+    services/categorisation_intelligente)."""
+
+    categorie_id: int
+    nom: str
+    score: float
+    via: Optional[str] = None
+
+
+class PropositionsLibelleImport(BaseModel):
+    """Ce que le classement intelligent propose pour UN libellé de catégorie bancaire :
+    « forte » (une proposition présélectionnée), « suggestions » (jusqu'à trois à choisir) ou
+    « a_classer » (rien d'assez proche). Toujours à confirmer, jamais appliqué seul."""
+
+    statut: str
+    propositions: list[PropositionCategorieImport] = Field(default_factory=list)
+
+
 class ImportPreview(BaseModel):
     lignes: list[ImportLigne]
     # L'ordre des dates retenu pour cette lecture (cf. import_bancaire.
@@ -1719,6 +1754,8 @@ class ImportPreview(BaseModel):
     # solde, anomalies. None s'il n'a pas pu se calculer.
     controle: Optional[dict] = None
     categories_inconnues: list[str]
+    # Une proposition par libellé de `categories_inconnues` (même clés).
+    propositions_categories: dict[str, PropositionsLibelleImport] = Field(default_factory=dict)
     comptes_inconnus: list[str]
     # Libellés de devise lus dans le fichier qu'aucune correspondance mémorisée
     # ni aucun nom/symbole de monnaie ne permet de rattacher (cf.
@@ -2733,6 +2770,22 @@ class SousFiltreBase(BaseModel):
     # Ce que le projet recouvre, en une phrase. Sans sémantique : jamais lue,
     # ni filtrée, ni sommée par l'application.
     description: str = ""
+    # LA PÉRIODE (migration 0084) : facultative, une date de fin seule est une deadline. Elle ne
+    # filtre aucune opération.
+    date_debut: Optional[date_type] = None
+    date_fin: Optional[date_type] = None
+    # LE MONTANT À TENIR : un maximum que les dépenses ne doivent pas dépasser, un minimum que les
+    # entrées doivent atteindre — l'un, l'autre, les deux, ou aucun. Dans `monnaie_cible_id` (la
+    # première monnaie à défaut, cf. le routeur).
+    montant_max: Optional[float] = Field(default=None, ge=0)
+    montant_min: Optional[float] = Field(default=None, ge=0)
+    monnaie_cible_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def _periode_coherente(self):
+        if self.date_debut and self.date_fin and self.date_fin < self.date_debut:
+            raise ValueError("La date de fin précède la date de début.")
+        return self
 
 
 class SousFiltreCreate(SousFiltreBase):
@@ -2833,6 +2886,20 @@ class PeriodeRead(BaseModel):
     mois: int
 
 
+class SousFiltreSuivi(BaseModel):
+    """Où en est un projet face à son montant à tenir, dans `monnaie_id` : ses dépenses contre le
+    maximum, ses entrées contre le minimum. `max_tenu` / `min_atteint` valent None quand le montant
+    correspondant n'est pas posé."""
+
+    monnaie_id: int
+    depenses: float = 0.0
+    entrees: float = 0.0
+    montant_max: Optional[float] = None
+    montant_min: Optional[float] = None
+    max_tenu: Optional[bool] = None
+    min_atteint: Optional[bool] = None
+
+
 class SousFiltreRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -2840,6 +2907,16 @@ class SousFiltreRead(BaseModel):
     nom: str
     description: str
     ordre: int
+    date_debut: Optional[date_type] = None
+    date_fin: Optional[date_type] = None
+    montant_max: Optional[float] = None
+    montant_min: Optional[float] = None
+    monnaie_cible_id: Optional[int] = None
+    # « a_venir », « en_cours » ou « termine » d'après la période et la date du jour ; None sans
+    # période. `jours_restants` : jusqu'à la date de fin (0 une fois passée), None sans date de fin.
+    phase: Optional[str] = None
+    jours_restants: Optional[int] = None
+    suivi: Optional[SousFiltreSuivi] = None
     # Combien d'opérations le projet regroupe, et ce qu'elles pèsent : les deux
     # seules choses qu'on veut lire sur une carte de projet sans l'ouvrir.
     nombre_operations: int = 0

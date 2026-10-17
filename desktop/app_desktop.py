@@ -308,6 +308,38 @@ class ApiBureau:
             return None
         return chemin
 
+    def enregistrer_octets(self, nom_propose: str, contenu_base64: str) -> str | None:
+        """Écrit un fichier BINAIRE (l'export des données : archive CSV, classeur Excel) à l'endroit que
+        l'utilisateur désigne. Même raison d'être que `enregistrer_texte` : un lien `download` ne fait
+        rien dans la fenêtre embarquée. Le contenu arrive en base64, seule forme qu'un pont JavaScript
+        sait transporter. Rend le chemin écrit, ou None si l'utilisateur annule ou si l'écriture échoue."""
+        import base64
+
+        chemin = self._dialogue("enregistrer", nom_propose)
+        if not chemin:
+            return None
+        try:
+            Path(chemin).write_bytes(base64.b64decode(contenu_base64))
+        except (OSError, ValueError):
+            return None
+        return chemin
+
+    def choisir_dossier(self, chemin_propose: str = "") -> str | None:
+        """Sélecteur de DOSSIER du système, pour les copies de sécurité : on désigne un dossier
+        existant (un disque externe, un dossier synchronisé), jamais un fichier. None si annulé."""
+        import webview
+
+        try:
+            resultat = webview.windows[0].create_file_dialog(
+                webview.FOLDER_DIALOG,
+                directory=chemin_propose if chemin_propose and Path(chemin_propose).is_dir() else "",
+            )
+        except Exception:
+            return None
+        if not resultat:
+            return None
+        return resultat if isinstance(resultat, str) else resultat[0]
+
     def _dialogue(self, mode: str, chemin_propose: str, file_types=()) -> str | None:
         # Importé ICI et pas en tête de module : `webview` tire les
         # bibliothèques graphiques du système, et tout ce qui précède

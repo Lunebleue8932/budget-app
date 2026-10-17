@@ -4426,5 +4426,145 @@ Object.assign(TRADUCTIONS.en, {
     "dates month first",
   "dates jour devant":
     "dates day first",
+  "1 jour restant":
+    "1 day left",
+  "{n} jours restants":
+    "{n} days left",
+  "Indique la date de fin.":
+    "Enter the end date.",
+  "La date de fin précède la date de début.":
+    "The end date is before the start date.",
+  "Projets et objectifs":
+    "Projects and goals",
+  "Une catégorie dans le temps":
+    "One category over time",
+  "Voir":
+    "View",
+  "Les mois de l'année":
+    "The months of the year",
+  "Année par année":
+    "Year by year",
+  "Catégorie":
+    "Category",
+  "Aucune catégorie de dépense.":
+    "No spending category.",
+  "Aucune opération en base sur cette période.":
+    "No transactions in the database for this period.",
+  "{n} période(s) sans aucune opération ne sont pas affichées.":
+    "{n} period(s) with no transactions at all are not shown.",
+  "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.":
+    "Spending by category, month by month: the category of your choice, over the months of the year in the top bar, or year by year. -- The calculation is the one used by the chart above and by the dashboard: an amortised expense is spread over its months, a reimbursable expense only counts for what remains on you, a split transaction contributes its share. -- A month in which the database holds no transactions at all (in any category) is not shown: it does not exist yet in your data. A month with transactions but nothing in this category keeps its bar at zero.",
+  "Mots-clés":
+    "Keywords",
+  "Revenir aux mots-clés livrés":
+    "Restore the default keywords",
+  "Mots-clés livrés rétablis":
+    "Default keywords restored",
+  "Aucun mot-clé : cette catégorie ne sera jamais proposée d'après un libellé.":
+    "No keyword: this category will never be suggested from a label.",
+  "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.":
+    "The words that make this category suggested when you import a statement: if your bank's category (or its label) looks like one of them — “supermarket”, “bakery”, “restaurant”… — the app suggests this category, which you may confirm or not. -- Nothing is ever classified without your approval. -- The default words cover French, English and Brazilian Portuguese. As soon as you edit the list, yours replaces the original; “Restore the default keywords” brings it back.",
+  "Classer les catégories de ta banque":
+    "Sort your bank's categories",
+  "Classer avec les opérations concernées":
+    "Sort with the transactions involved",
+  "Confirmer les propositions fortes":
+    "Confirm the strong suggestions",
+  "Proposition forte":
+    "Strong suggestion",
+  "Suggestion":
+    "Suggestion",
+  "À classer":
+    "To sort",
+  "Ton choix":
+    "Your choice",
+  "Confirmée":
+    "Confirmed",
+  "… et {n} autres opérations":
+    "… and {n} more transactions",
+  "Catégorie de l'app pour « {nom} »":
+    "App category for “{nom}”",
+  "{n} catégorie(s) à confirmer":
+    "{n} categor(y/ies) to confirm",
+  "Tout est confirmé.":
+    "Everything is confirmed.",
+  "Toutes les correspondances sont confirmées.":
+    "All the matches are confirmed.",
+  "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.":
+    "Each column gathers the transactions of one category from your bank. Pick the app category that matches them with the wheel (click, or ↑ ↓), then confirm (button, or Ctrl+Enter): the next column takes over. -- The app suggests a category from the name, keywords and similarities; it never classifies anything without your approval, even when it is sure. -- Once confirmed, the match is remembered for this file format: the next imports will not ask again.",
+  "Format reconnu : {banque}":
+    "Recognised format: {banque}",
+  "d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.":
+    "based on the column headers — check the preview before importing.",
+  "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.":
+    "Recognised format: {banque}. “Guess the columns” suggests the reading that suits this export.",
+  "Exporter mes données":
+    "Export my data",
+  "CSV (un fichier par table)":
+    "CSV (one file per table)",
+  "Excel (une feuille par table)":
+    "Excel (one sheet per table)",
+  "Copies de sécurité":
+    "Backups",
+  "Sauvegarder maintenant":
+    "Back up now",
+  "Export enregistré : {chemin}":
+    "Export saved: {chemin}",
+  "Export prêt : {nom}":
+    "Export ready: {nom}",
+  "Aucun dossier choisi : aucune copie n'est faite.":
+    "No folder chosen: no backup is made.",
+  "Dernière copie : {nom} ({date}). Les {n} plus récentes sont gardées.":
+    "Latest backup: {nom} ({date}). The {n} most recent are kept.",
+  "Aucune copie pour l'instant : la première est faite au prochain démarrage, ou tout de suite avec « Sauvegarder maintenant ».":
+    "No backup yet: the first is made at the next start, or right now with “Back up now”.",
+  "Dossier de sauvegarde enregistré.":
+    "Backup folder saved.",
+  "Dossier accepté pour cette session, mais il n'a pas pu être mémorisé.":
+    "Folder accepted for this session, but it could not be remembered.",
+  "Copies de sécurité désactivées.":
+    "Backups switched off.",
+  "Copie faite : {nom}":
+    "Backup made: {nom}",
+  "Parcourir…":
+    "Browse…",
+  "Sort toutes tes données de l'application, table par table, dans un fichier que tu peux lire sans elle. -- JSON : un seul fichier, toutes les tables. -- CSV : une archive .zip avec un fichier par table (séparateur « ; », lisible par Excel). -- Excel : un classeur, une feuille par table. -- C'est une photographie pour lire ou garder tes données ailleurs ; ces fichiers ne se réimportent pas. Pour pouvoir RESTAURER, utilise les copies de sécurité juste en dessous.":
+    "Exports all your data from the application, table by table, into a file you can read without it. -- JSON: a single file, all the tables. -- CSV: a .zip archive with one file per table (“;” separator, readable by Excel). -- Excel: one workbook, one sheet per table. -- It is a snapshot to read or keep your data elsewhere; these files cannot be re-imported. To be able to RESTORE, use the backups right below.",
+  "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.":
+    "Choose a folder on your computer (another disk, a synced folder, a USB key…): the app stores a complete copy of your database there by itself at startup, then at most once a day while it stays open. -- The 30 most recent copies are kept; older ones are deleted, and only those the app made. -- To restore: Database → “Switch to this file”, and pick the copy you want. -- Avoid the application folder: an update replaces it.",
+  "Depuis le":
+    "Since",
+  "terminé":
+    "finished",
+  "à venir":
+    "upcoming",
+  "dernier jour":
+    "last day",
+  "Dépenses : {a} sur {b} maximum":
+    "Spending: {a} of {b} maximum",
+  "Entrées : {a} sur {b} à atteindre":
+    "Income: {a} of {b} to reach",
+  "dépassé":
+    "exceeded",
+  "atteint":
+    "reached",
+  "à atteindre":
+    "to reach",
+  "Montant maximum":
+    "Maximum amount",
+  "Minimum":
+    "Minimum",
+  "Monnaie de ces montants":
+    "Currency of these amounts",
+  "à ne pas dépasser":
+    "not to exceed",
+  "La période du projet : une date de début et une date de fin, ou seulement une date de fin (une deadline). -- Elle ne trie aucune opération : un projet reste ce que tu y as versé. Elle te dit où tu en es (les jours restants) et sert de point de départ quand tu cherches des opérations à y ajouter.":
+    "The project's period: a start date and an end date, or just an end date (a deadline). -- It does not sort any transaction: a project remains what you put into it. It tells you where you stand (days left) and is the starting point when you look for transactions to add.",
+  "Ce que les DÉPENSES du projet ne doivent pas dépasser. La carte compare ce qui est sorti à ce plafond, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "What the project's SPENDING must not exceed. The card compares what went out with this ceiling, in the chosen currency. Leave empty to set yourself nothing.",
+  "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un projet peut aussi avoir une période (une date de début et une date de fin, ou seulement une deadline) et un montant maximum à ne pas dépasser, ou minimum à atteindre.":
+    "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category. // This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month). A project can also have a period (a start date and an end date, or just a deadline) and a maximum amount not to exceed, or a minimum to reach.",
+  "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
+    "What the project's INCOME must reach (a pot, takings). The card compares what came in with this threshold, in the chosen currency. Leave empty to set yourself nothing.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

@@ -1,0 +1,311 @@
+<!-- Écran de l'extension « Projets et objectifs ».
+
+     UN SEUL ONGLET DE LA PAGE BUDGET (navigation.type = "onglet", hote_section =
+     "budget"), DÉCOUPÉ EN DEUX MOITIÉS : les PROJETS à gauche, les OBJECTIFS à droite
+     (l'un au-dessus de l'autre sur un écran étroit). Les deux répondent à la même
+     question — qu'est-ce que je décide À L'AVANCE — là où le dashboard ne fait que
+     constater. Chaque moitié garde son fonctionnement d'avant : une liste, et une page de
+     détail qui la remplace.
+
+     QUAND UN DÉTAIL S'OUVRE, il prend toute la largeur et l'autre moitié se range
+     (projets-objectifs.js, `poMajDisposition`) : un tableau d'opérations ne tient pas dans
+     une demi-page.
+
+     D'où la dépendance déclarée (`requiert_une_de`) : sans l'extension « Budget », cette
+     page n'existe pas et un onglet n'a pas d'hôte. Le noyau grise la case, refuse
+     l'allumage et éteint l'extension avec sa dépendance.
+
+     C'est une `.sous-section` : c'est le gestionnaire délégué de app.js qui la montre et la
+     cache, exactement comme un onglet du noyau. Les identifiants restent préfixés `projet-`
+     et `objectif-` : les deux écrans partagent le même document. -->
+<div id="sous-section-budget-projets-objectifs" class="sous-section">
+  <div id="po-grille" class="po-grille">
+    <div id="po-moitie-projets" class="po-moitie">
+  <h3>Projets<i class="info-bulle" tabindex="0" data-info-cle="projets.projets">i</i></h3>
+  <div class="actions">
+    <button type="button" class="primary" id="btn-projet-nouveau">+ Nouveau projet</button>
+  </div>
+
+  <!-- Le formulaire de création/renommage. Replié tant qu'on ne l'ouvre pas :
+       la liste est ce qu'on vient lire. -->
+  <div id="projet-editeur" class="regle-editeur" style="display:none">
+    <h4 id="projet-editeur-titre">Nouveau projet</h4>
+    <input type="hidden" id="projet-id" />
+    <div class="regle-champ-ligne">
+      <label for="projet-nom">Nom</label>
+      <input type="text" id="projet-nom" placeholder="ex. Vacances Italie" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="projet-description">Description</label>
+      <input type="text" id="projet-description" placeholder="ex. du 3 au 17 août, Rome et Naples" />
+    </div>
+    <!-- LA PÉRIODE ET LE MONTANT À TENIR (migration 0084), tout facultatif. Une date de fin seule
+         est une deadline ; les dates ne filtrent aucune opération. Le maximum se compare aux
+         dépenses du projet, le minimum à ses entrées. -->
+    <div class="regle-champ-ligne">
+      <label for="projet-date-debut">Du<i class="info-bulle" tabindex="0" data-info-cle="projets.periode">i</i></label>
+      <input type="date" id="projet-date-debut" />
+      <label for="projet-date-fin">Au</label>
+      <input type="date" id="projet-date-fin" />
+    </div>
+    <div class="regle-champ-ligne">
+      <label for="projet-montant-max">Montant maximum<i class="info-bulle" tabindex="0" data-info-cle="projets.montant-max">i</i></label>
+      <input type="number" id="projet-montant-max" step="0.01" min="0" placeholder="à ne pas dépasser" />
+      <label for="projet-montant-min">Minimum<i class="info-bulle" tabindex="0" data-info-cle="projets.montant-min">i</i></label>
+      <input type="number" id="projet-montant-min" step="0.01" min="0" placeholder="à atteindre" />
+    </div>
+    <div class="regle-champ-ligne" id="projet-ligne-monnaie" style="display:none">
+      <label for="projet-monnaie-cible">Monnaie de ces montants</label>
+      <select id="projet-monnaie-cible"></select>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="btn-projet-enregistrer">Enregistrer</button>
+      <button type="button" id="btn-projet-annuler">Annuler</button>
+    </div>
+  </div>
+
+  <div id="projets-liste" class="projets-liste"></div>
+
+  <!-- ----- Le projet ouvert ----- -->
+  <div id="projet-detail" style="display:none">
+    <div class="projet-detail-entete">
+      <h3 id="projet-detail-nom"></h3>
+      <button type="button" id="btn-projet-fermer">&larr; Retour aux projets</button>
+    </div>
+    <p class="hint" id="projet-detail-description"></p>
+    <!-- La période et ce que le projet doit tenir, quand il en a (cf. projets.js, projetSuiviHtml). -->
+    <div id="projet-detail-suivi" class="projet-suivi"></div>
+
+    <div class="projet-totaux" id="projet-detail-totaux"></div>
+
+    <!-- L'HISTOGRAMME DU PROJET : le même graphe que celui du dashboard, sur
+         les seules opérations que le projet regroupe. Le total dit ce que le
+         voyage a coûté ; lui dit en quoi — hébergement, restaurants,
+         transports — ce qu'aucune somme unique ne peut montrer.
+
+         Rempli par projets.js, une section par monnaie (l'app n'en additionne
+         jamais deux). Vide tant que le projet n'a aucune sortie : un cadre sans
+         barre n'apprendrait rien. -->
+    <!-- LA CASCADE DU PROJET (waterfall) : les entrées, puis chaque catégorie de
+         dépense qui les entame, puis ce qu'il en reste. C'est la lecture
+         « entrées contre dépenses » que ni le total ni l'histogramme ne donnent
+         d'un coup d'œil. Une section par monnaie, comme l'histogramme. -->
+    <h4 id="projet-waterfall-titre" style="display:none">Entrées et dépenses<i class="info-bulle" tabindex="0" data-info-cle="projets.cascade">i</i></h4>
+    <div id="projet-waterfall"></div>
+
+    <h4 id="projet-histogramme-titre" style="display:none">Répartition par catégorie<i class="info-bulle" tabindex="0" data-info-cle="projets.repartition-par-categorie">i</i></h4>
+    <!-- Chaque histogramme porte la LÉGENDE du dashboard, aux mêmes couleurs. -->
+    <div id="projet-histogramme"></div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-projet-ajouter-operations">
+        + Ajouter des opérations
+      </button>
+    </div>
+
+    <!-- ----- Le sélecteur d'opérations ----- -->
+    <div id="projet-selecteur" class="projet-selecteur" style="display:none">
+      <h4>Ajouter des opérations<i class="info-bulle" tabindex="0" data-info-cle="projets.ajouter-des-operations">i</i></h4>
+      <div class="projet-selecteur-filtres">
+        <label for="projet-filtre-debut">Du
+          <input type="date" id="projet-filtre-debut" />
+        </label>
+        <label for="projet-filtre-fin">Au
+          <input type="date" id="projet-filtre-fin" />
+        </label>
+        <!-- PLUSIEURS COMPTES, TYPES ET CATÉGORIES À LA FOIS : le menu à cocher du
+             noyau (creerMenuCases), avec les pastilles de couleur du filtre du
+             dashboard pour les catégories. Tout coché = aucun filtre. -->
+        <span id="projet-filtre-comptes"></span>
+        <span id="projet-filtre-types"></span>
+        <span id="projet-filtre-categories"></span>
+        <label for="projet-filtre-texte">Nature contient
+          <input type="text" id="projet-filtre-texte" placeholder="ex. hôtel" spellcheck="false" />
+        </label>
+        <button type="button" class="primary" id="btn-projet-filtrer">Chercher</button>
+      </div>
+
+      <div class="actions barre-selection">
+        <button type="button" id="btn-projet-tout-selectionner">Tout sélectionner</button>
+        <button type="button" class="primary" id="btn-projet-verser" disabled>
+          Ajouter au projet (<span id="projet-selection-nombre">0</span>)
+        </button>
+        <button type="button" id="btn-projet-selecteur-fermer">Fermer</button>
+      </div>
+
+      <div class="apercu-fichier-defilement">
+        <table>
+          <thead>
+            <tr>
+              <th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th>
+              <th>Catégorie</th><th>Sélection</th>
+            </tr>
+          </thead>
+          <tbody id="projet-candidats-liste"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="projet-candidats-info"></p>
+    </div>
+
+    <h4>Opérations du projet — <span id="projet-detail-nombre"></span></h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Nature</th><th>Montant</th><th>Compte</th><th>Date</th>
+          <th>Catégorie</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="projet-operations-liste"></tbody>
+    </table>
+  </div>
+    </div>
+
+    <div id="po-moitie-objectifs" class="po-moitie">
+  <!-- DEUX VUES DANS UN MÊME ONGLET, jamais ensemble : la LISTE des objectifs
+       (où on les crée, les modifie, les relit) et la PAGE D'UN OBJECTIF, qu'on
+       ouvre en cliquant sa carte — sur cet écran comme au dashboard. Même
+       procédé que l'onglet « Projets » : le détail remplace la liste, et un
+       bouton y ramène (cf. objectifs.js, `objMontreVuePage`). -->
+  <div id="objectifs-vue-liste">
+  <h3>Objectifs<i class="info-bulle" tabindex="0" data-info-cle="objectifs.objectifs">i</i></h3>
+
+  <div class="actions">
+    <button type="button" class="primary" id="btn-objectif-nouveau">+ Nouvel objectif</button>
+  </div>
+
+  <!-- Le formulaire de création / modification. Replié tant qu'on ne l'ouvre
+       pas : la liste est ce qu'on vient lire. -->
+  <div id="objectif-editeur" class="regle-editeur" style="display:none">
+    <h4 id="objectif-editeur-titre">Nouvel objectif</h4>
+    <input type="hidden" id="objectif-id" />
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-nom">Nom</label>
+      <input type="text" id="objectif-nom" placeholder="ex. Sorties restaurant" />
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-mesure">Ce qu'on mesure<i class="info-bulle" tabindex="0" data-info-cle="objectifs.mesure">i</i></label>
+      <select id="objectif-mesure">
+        <option value="nombre">Nombre de dépenses</option>
+        <option value="montant_total">Montant total</option>
+        <option value="montant_moyen">Montant moyen d'une dépense</option>
+        <option value="part_depenses">Part des dépenses</option>
+      </select>
+    </div>
+
+    <!-- LE PÉRIMÈTRE, EN UNE SEULE LISTE : toutes les dépenses, une CATÉGORIE
+         ou un PROJET. Les options sont posées par le JS, en deux groupes —
+         une catégorie classe par NATURE, un projet regroupe par ÉVÉNEMENT, et
+         les deux se croisent (l'hôtel d'un voyage est dans « Loisirs » ET dans
+         « Italie »). D'où une liste et non deux : on choisit un axe, jamais les
+         deux à la fois, et le serveur le refuse (cf. models.ObjectifKpi). -->
+    <div class="regle-champ-ligne">
+      <label for="objectif-perimetre">Sur<i class="info-bulle" tabindex="0" data-info-cle="objectifs.perimetre">i</i></label>
+      <select id="objectif-perimetre">
+        <option value="">Toutes les dépenses</option>
+      </select>
+    </div>
+
+    <!-- LA CADENCE NE PARAÎT QUE POUR LES MESURES QUI CUMULENT. Un montant
+         MOYEN et une PART sont des rapports : ils ne grandissent pas avec la
+         durée, et « par semaine » n'y voudrait rien dire. Masquer le champ est
+         plus honnête que le laisser sans effet (cf. objectifs.js,
+         majChampsObjectif). -->
+    <div class="regle-champ-ligne" id="objectif-ligne-cadence">
+      <label for="objectif-cadence">Par<i class="info-bulle" tabindex="0" data-info-cle="objectifs.cadence">i</i></label>
+      <select id="objectif-cadence">
+        <option value="semaine">Semaine</option>
+        <option value="mois" selected>Mois</option>
+      </select>
+    </div>
+
+    <!-- SE FIXER UNE CIBLE EST FACULTATIF (migration 0070). Un projet qu'on
+         commence à suivre est le cas ordinaire : on veut voir ce qu'il coûte,
+         mois après mois, bien avant de savoir ce qu'on s'autorise. Sans cette
+         case, il fallait inventer un nombre — et l'objectif annonçait aussitôt
+         « tenu » ou « manqué » sur une règle que personne ne s'était donnée. -->
+    <div class="regle-champ-ligne">
+      <label for="objectif-avec-cible">Se fixer une cible<i class="info-bulle" tabindex="0" data-info-cle="objectifs.avec-cible">i</i></label>
+      <input type="checkbox" id="objectif-avec-cible" checked />
+    </div>
+
+    <div class="regle-champ-ligne" id="objectif-ligne-sens">
+      <label for="objectif-sens">Objectif</label>
+      <select id="objectif-sens">
+        <option value="max">Ne pas dépasser</option>
+        <option value="min">Atteindre au moins</option>
+      </select>
+    </div>
+
+    <div class="regle-champ-ligne" id="objectif-ligne-cible">
+      <label for="objectif-cible">Cible</label>
+      <input type="number" id="objectif-cible" step="0.01" min="0" />
+      <span class="hint" id="objectif-cible-unite"></span>
+    </div>
+
+    <!-- LES FILTRES, POSÉS UN PAR UN (migration 0073). Aucun n'est affiché
+         d'office : « + Ajouter un filtre » propose ceux qui restent, et chaque
+         ligne posée a sa croix pour la retirer (cf. app.js,
+         creerMenuAjoutChamp). Cinq filtres affichés d'avance auraient fait de
+         ce formulaire un inventaire, pour la seule ligne qu'on vient écrire. -->
+    <div class="regle-champ-ligne objectif-filtres-ligne">
+      <label>Filtres<i class="info-bulle" tabindex="0" data-info-cle="objectifs.filtres">i</i></label>
+      <div class="objectif-filtres-bloc">
+        <div id="objectif-filtres"></div>
+        <div id="objectif-filtres-ajout"></div>
+      </div>
+    </div>
+
+    <div class="regle-champ-ligne" id="objectif-ligne-monnaie">
+      <label for="objectif-monnaie-champ">Monnaie</label>
+      <select id="objectif-monnaie-champ"></select>
+    </div>
+
+    <div class="regle-champ-ligne">
+      <label for="objectif-visible">Afficher au dashboard<i class="info-bulle" tabindex="0" data-info-cle="objectifs.visible-dashboard">i</i></label>
+      <input type="checkbox" id="objectif-visible" checked />
+    </div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-objectif-enregistrer">Enregistrer</button>
+      <button type="button" id="btn-objectif-annuler">Annuler</button>
+    </div>
+  </div>
+
+  <div id="objectifs-liste" class="obj-liste"></div>
+  </div>
+
+  <!-- ----- La page d'un objectif ----- -->
+  <div id="objectif-detail" style="display:none">
+    <div class="objectif-detail-entete">
+      <h3 id="objectif-detail-titre"></h3>
+      <!-- LE TOTAL RETENU EN HAUT À DROITE, sous le retour, dans une carte : c'est le
+           chiffre qu'on vient chercher, il ne doit pas attendre le bas d'une longue liste. -->
+      <div class="objectif-detail-actions">
+        <button type="button" id="btn-objectif-fermer">&larr; Retour aux objectifs</button>
+        <div class="kpi-card objectif-detail-total" id="objectif-detail-total" hidden>
+          <div class="kpi-label">Total retenu</div>
+          <div class="kpi-valeur" id="objectif-detail-total-valeur"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LA CARTE, telle qu'on vient de la quitter, avec sa bascule : la liste
+         dessous suit la vue choisie. -->
+    <div id="objectif-detail-carte" class="obj-liste"></div>
+
+    <h4>Opérations qui entrent en compte — <span id="objectif-detail-nombre"></span><i class="info-bulle" tabindex="0" data-info-cle="objectifs.page-objectif">i</i></h4>
+    <p class="hint" id="objectif-detail-vide" style="display:none">Aucune opération n'entre en compte sur cette période.</p>
+    <table id="objectif-detail-tableau">
+      <thead>
+        <tr>
+          <th>Date</th><th>Nature</th><th>Compte</th><th>Catégorie</th><th>Montant retenu</th>
+        </tr>
+      </thead>
+      <tbody id="objectif-detail-liste"></tbody>
+    </table>
+  </div>
+    </div>
+  </div>
+</div>

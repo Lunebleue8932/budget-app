@@ -50,6 +50,12 @@ CLE_CHEMIN_BASE_DEV = "chemin_base_dev"
 CLE_LANGUE = "langue"
 LANGUES_ADMISES = ("fr", "en", "pt")
 
+# LE DOSSIER DES COPIES DE SÉCURITÉ (cf. services/sauvegardes). Un réglage de POSTE — il désigne un
+# dossier de CETTE machine —, donc ici et non dans la base. Même règle que le chemin de la base :
+# une installation de mise au point lit et écrit sa PROPRE clé, jamais celle de la vraie application.
+CLE_DOSSIER_SAUVEGARDE = "dossier_sauvegarde"
+CLE_DOSSIER_SAUVEGARDE_DEV = "dossier_sauvegarde_dev"
+
 
 def dossier_config() -> Path:
     """Le dossier de configuration de l'utilisateur, selon les conventions du
@@ -135,6 +141,34 @@ def oublier_chemin_base(dev: bool = False) -> bool:
     par défaut, et redemandera où ranger la base au prochain lancement."""
     contenu = lire()
     contenu.pop(CLE_CHEMIN_BASE_DEV if dev else CLE_CHEMIN_BASE, None)
+    try:
+        dossier_config().mkdir(parents=True, exist_ok=True)
+        fichier_config().write_text(
+            json.dumps(contenu, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        return True
+    except OSError:
+        return False
+
+
+def dossier_sauvegarde(dev: bool = False) -> Path | None:
+    """Le dossier des copies de sécurité retenu sur ce poste, ou None."""
+    valeur = lire().get(CLE_DOSSIER_SAUVEGARDE_DEV if dev else CLE_DOSSIER_SAUVEGARDE)
+    if not isinstance(valeur, str) or not valeur.strip():
+        return None
+    try:
+        return Path(valeur).expanduser()
+    except (OSError, ValueError):
+        return None
+
+
+def memoriser_dossier_sauvegarde(chemin: Path | None, dev: bool = False) -> bool:
+    """Retient (ou, avec None, oublie) le dossier des copies. False si rien n'a pu être écrit."""
+    cle = CLE_DOSSIER_SAUVEGARDE_DEV if dev else CLE_DOSSIER_SAUVEGARDE
+    if chemin is not None:
+        return ecrire(**{cle: str(chemin)})
+    contenu = lire()
+    contenu.pop(cle, None)
     try:
         dossier_config().mkdir(parents=True, exist_ok=True)
         fichier_config().write_text(

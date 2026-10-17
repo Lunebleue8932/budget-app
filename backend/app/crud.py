@@ -612,6 +612,32 @@ def migrer_operations_vers_autres(db: Session, categorie_a_supprimer: models.Cat
     db.commit()
 
 
+def set_categorie_mots_cles(
+    db: Session, db_categorie: models.Categorie, mots_cles: Optional[list]
+) -> models.Categorie:
+    """Pose les mots-clés d'une catégorie (migration 0085), ou revient aux livrés avec None.
+
+    NETTOYÉS À L'ÉCRITURE : espaces retirés, vides et doublons (à la normalisation près) écartés.
+    UNE ROUTE À PART, comme le drapeau d'entrée : renommer une catégorie ne doit jamais effacer
+    une liste qu'on a écrite."""
+    from app.services.categorisation_intelligente import normaliser
+
+    if mots_cles is None:
+        db_categorie.mots_cles_perso = None
+    else:
+        vus, propres = set(), []
+        for mot in mots_cles:
+            mot = str(mot).strip()
+            cle = normaliser(mot)
+            if cle and cle not in vus:
+                vus.add(cle)
+                propres.append(mot)
+        db_categorie.mots_cles_perso = propres
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
 def set_categorie_est_entree(
     db: Session, db_categorie: models.Categorie, est_entree: bool
 ) -> models.Categorie:
@@ -3784,13 +3810,27 @@ def get_sous_filtre_par_nom(db: Session, nom: str) -> Optional[models.SousFiltre
     return db.query(models.SousFiltre).filter(models.SousFiltre.nom == nom).first()
 
 
+CHAMPS_PERIODE_ET_MONTANTS_PROJET = (
+    "date_debut",
+    "date_fin",
+    "montant_max",
+    "montant_min",
+    "monnaie_cible_id",
+)
+
+
 def create_sous_filtre(
-    db: Session, *, nom: str, description: str = "", ordre: Optional[int] = None
+    db: Session, *, nom: str, description: str = "", ordre: Optional[int] = None, **periode
 ) -> models.SousFiltre:
     if ordre is None:
         ordre_max = db.query(func.max(models.SousFiltre.ordre)).scalar()
         ordre = (ordre_max + 1) if ordre_max is not None else 0
-    sous_filtre = models.SousFiltre(nom=nom, description=description, ordre=ordre)
+    sous_filtre = models.SousFiltre(
+        nom=nom,
+        description=description,
+        ordre=ordre,
+        **{k: v for k, v in periode.items() if k in CHAMPS_PERIODE_ET_MONTANTS_PROJET},
+    )
     db.add(sous_filtre)
     db.commit()
     db.refresh(sous_filtre)
@@ -3800,7 +3840,9 @@ def create_sous_filtre(
 def update_sous_filtre(
     db: Session, sous_filtre: models.SousFiltre, **champs
 ) -> models.SousFiltre:
-    for nom_champ in ("nom", "description", "ordre"):
+    # La période et les montants se REMPLACENT quand ils sont fournis, None compris : c'est ainsi
+    # qu'on les retire (le formulaire renvoie toujours tous ses champs).
+    for nom_champ in ("nom", "description", "ordre", *CHAMPS_PERIODE_ET_MONTANTS_PROJET):
         if nom_champ in champs:
             setattr(sous_filtre, nom_champ, champs[nom_champ])
     db.commit()

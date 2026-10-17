@@ -194,6 +194,8 @@ const TEXTES = {
   /* ----- Extension « Budget » -----
      L'espace de noms reste `analyse-budget`, l'identifiant du DOSSIER : c'est
      lui que porte `data-info-cle`, et il ne s'affiche nulle part. */
+  "analyse-budget.depenses-categorie":
+    "Dépenses par catégorie, mois par mois : la catégorie de ton choix, sur les mois de l'année de la barre du haut, ou année par année. -- Le calcul est celui du graphe du dessus et du dashboard : une dépense amortie est étalée sur ses mois, une dépense remboursable ne compte que pour ce qu'il te reste à charge, une opération découpée apporte sa part. -- Un mois où la base ne contient aucune opération (dans aucune catégorie) n'est pas affiché : il n'existe pas encore dans tes données. Un mois avec des opérations mais rien dans cette catégorie garde sa barre à zéro.",
   "analyse-budget.graphes":
     "« Comparer avec » te permet de comparer deux périodes de même durée.",
   "analyse-budget.previsions":
@@ -248,6 +250,14 @@ const TEXTES = {
     "Chaque monnaie du compte garde son propre solde, non mélangé aux autres.",
   "noyau.categories-de-depenses":
     "Les dépenses se rangent dans ces catégories. Les réordonner change l'ordre d'apparition sur le dashboard. Eteindre une catégorie agit comme si elle n'existait plus à partir de l'extinction, tout en la conservant comme la catégorie des dépenses à laquelle elle est attribuée.",
+  "noyau.categorie-mots-cles":
+    "Les mots qui font proposer cette catégorie quand tu importes un relevé : si la catégorie de ta banque (ou son libellé) ressemble à l'un d'eux — « supermarché », « boulangerie », « restaurant »… — l'app te propose cette catégorie, que tu confirmes ou non. -- Rien n'est jamais classé sans ta validation. -- Les mots livrés par défaut couvrent le français, l'anglais et le portugais du Brésil. Dès que tu modifies la liste, c'est la tienne qui remplace celle d'origine ; « Revenir aux mots-clés livrés » la remet.",
+  "noyau.import-correspondances":
+    "Chaque colonne rassemble les opérations d'une même catégorie de ta banque. Choisis la catégorie de l'app qui leur correspond avec la molette (clique, ou ↑ ↓), puis confirme (bouton, ou Ctrl+Entrée) : la colonne suivante prend le relais. -- L'app propose une catégorie d'après le nom, des mots-clés et des ressemblances ; elle ne classe jamais rien sans ton accord, même quand elle est sûre. -- Une fois confirmée, la correspondance est mémorisée pour ce format de fichier : les prochains imports n'en redemandent rien.",
+  "noyau.export-donnees":
+    "Sort toutes tes données de l'application, table par table, dans un fichier que tu peux lire sans elle. -- JSON : un seul fichier, toutes les tables. -- CSV : une archive .zip avec un fichier par table (séparateur « ; », lisible par Excel). -- Excel : un classeur, une feuille par table. -- C'est une photographie pour lire ou garder tes données ailleurs ; ces fichiers ne se réimportent pas. Pour pouvoir RESTAURER, utilise les copies de sécurité juste en dessous.",
+  "noyau.sauvegardes":
+    "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.",
   "noyau.categorie-entree":
     "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
   "noyau.correspondances-memorisees":
@@ -448,6 +458,12 @@ const TEXTES = {
     "Où l'argent du projet a été DÉPENSÉ, catégorie par catégorie. Un virement entre tes comptes dans la même monnaie n'y figure pas : l'argent a changé de compte, rien n'a été dépensé. Un change vers une autre monnaie a sa colonne grise /italic(Conversion vers…), et les frais de virements internes la leur, en gris foncé. Pour voir où l'argent est PARTI, lis la cascade juste au-dessus.",
   "projets.bilan":
     "Ce que le projet a rapporté moins ce qu'il a coûté, catégorie par catégorie, frais de virement compris. Les virements vers ou depuis l'épargne et les conversions entre monnaies n'y comptent pas : l'argent a changé de place, il n'a pas été dépensé. La cascade juste en dessous les montre toujours.",
+  "projets.periode":
+    "La période du projet : une date de début et une date de fin, ou seulement une date de fin (une deadline). -- Elle ne trie aucune opération : un projet reste ce que tu y as versé. Elle te dit où tu en es (les jours restants) et sert de point de départ quand tu cherches des opérations à y ajouter.",
+  "projets.montant-max":
+    "Ce que les DÉPENSES du projet ne doivent pas dépasser. La carte compare ce qui est sorti à ce plafond, dans la monnaie choisie. Laisse vide pour ne rien te fixer.",
+  "projets.montant-min":
+    "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.",
   "projets.cascade":
     "Ce que le projet a fait entrer et sortir, marche par marche : les catégories (les entrées en blanc, ou en noir sur le thème clair, puis les dépenses de la plus lourde à la plus légère), l'épargne et les placements, les frais de virements internes en gris foncé et les conversions vers d'autres monnaies en gris, puis le solde. Sous zéro, le projet a coûté plus qu'il n'a rapporté. Une cascade par monnaie.",
   "projets.ajouter-des-operations":
@@ -1080,6 +1096,8 @@ Object.assign(TEXTES, {
     "Te permet de classifier comme tel et suivre l'argent qu'on t'a prêté (intérêts compris). Le fonctionnement de ces types d'opérations est similaire aux opérations remboursables / remboursements.",
   "projets.description":
     "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories.",
+  "projets-objectifs.description":
+    "Un voyage, un investissement dans une activité sous différentes formes, des rénovations ? Difficile de suivre ça avec seulement des catégories. Tu peux donc créer un projet, et y rajouter toutes les opérations que tu veux. Tu obtiens alors une vue détaillée de ce que ton projet t'a coûté - ou rapporté - classifié en catégories. // Cette extension te permet de créer des objectifs personnalisés pour gérer tes dépenses comme tu le souhaites. Tu peux créer des indicateurs personnalisés prenant en compte la fréquence, le montant moyen, le montant total, une part, pour comprendre et agir plus en détails qu'avec de simples limites sur des catégories (ex : mes courses devraient 300€ en moyenne par mois / je vise 2 sorties resto max par semaine / j'épargne au moins 50€ par mois). Un projet peut aussi avoir une période (une date de début et une date de fin, ou seulement une deadline) et un montant maximum à ne pas dépasser, ou minimum à atteindre.",
   "regles.description":
     "L'une des extensions phares de l'application. Ta banque fournit un libellé conséquent pour des dépenses récurrentes, que tu dois renommer sans cesse ? Tu voudrais automatiser les modifications récurrentes que tu fais ? L'extension règle t'apporte la flexibilité de faire /bold(ce que tu veux).",
   "suivi-remboursements.description":

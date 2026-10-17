@@ -187,3 +187,25 @@ class SoldePrevisionnelRead(BaseModel):
     solde_fin: float = 0.0
     # Le seuil du matelas, pour le tracer en pointillé (0 = aucun).
     matelas: float = 0.0
+
+
+class DepensePeriodeRead(BaseModel):
+    """Une barre du graphe « une catégorie, période après période » : `mois` absent veut
+    dire l'année entière."""
+
+    annee: int
+    mois: Optional[int] = None
+    total: float = 0.0
+    budget_alloue: float = 0.0
+
+
+class DepensesCategorieRead(BaseModel):
+    categorie_id: int
+    categorie: str
+    couleur_index: Optional[int] = None
+    monnaie_id: int
+    vue: str
+    annee: int
+    periodes: list[DepensePeriodeRead] = Field(default_factory=list)
+    # Combien de périodes ont été écartées faute de la moindre opération en base.
+    masquees: int = 0

@@ -83,7 +83,7 @@ let abBudgetTotalExplicite = true;
  * ABSOLUE : sans elle, un mois négatif se lirait comme une barre courte vers le
  * haut.
  */
-function abHistogramme(conteneur, valeurs, monnaieId, { libelle }) {
+function abHistogramme(conteneur, valeurs, monnaieId, { libelle, couleur = null }) {
   if (!conteneur) return;
   conteneur.innerHTML = "";
   const max = Math.max(1, ...valeurs.map((v) => Math.abs(v.valeur)));
@@ -115,7 +115,8 @@ function abHistogramme(conteneur, valeurs, monnaieId, { libelle }) {
         <g class="ab-barre" style="--retard:${i * 26}ms">
           <title>${escapeHtml(titre)}</title>
           <rect class="${classe}" x="${centre - largeurBarre / 2}" y="${y}"
-                width="${largeurBarre}" height="${Math.max(h, 0.5)}" rx="2" />
+                width="${largeurBarre}" height="${Math.max(h, 0.5)}" rx="2"
+                ${couleur ? `style="fill:${couleur}"` : ""} />
           <text class="ab-barre-libelle" x="${centre}" y="${hauteur - 16}"
                 text-anchor="middle" font-size="10">${escapeHtml(v.libelle)}</text>
         </g>`;
@@ -570,10 +571,104 @@ async function abRenderGraphes() {
       legende.push(t("Aucun budget posé sur cette période : le camembert rapporte chaque catégorie au total dépensé."));
     }
     document.getElementById("ab-graphes-legende").textContent = legende.join(" — ");
+    abRenderCategorie();
   } catch (err) {
     showMessage(err.message, "error");
   }
 }
+
+/* ---------- UNE CATÉGORIE, PÉRIODE APRÈS PÉRIODE ----------
+ *
+ * Sous la comparaison de deux mois : les dépenses d'UNE catégorie — celle qu'on choisit
+ * dans le menu, le même que le filtre de catégories du dashboard mais à choix unique —
+ * pour chaque mois de l'année de la barre du haut, ou année par année. Le serveur fait le
+ * calcul (`/analyse-budget/depenses-categorie`) : c'est celui de l'histogramme, en
+ * budget, et il n'envoie pas les périodes où la base ne porte aucune opération.
+ */
+const abCat = { categorieId: null, vue: "mois", sequence: 0 };
+
+function abCategoriesChoisissables() {
+  // Les catégories d'entrée ne portent aucune dépense : leur graphe serait toujours vide.
+  return (state.categories || []).filter((c) => !c.est_entree);
+}
+
+function abLibelleBarreCategorie(p) {
+  return p.mois ? MOIS_COURTS_FR[p.mois - 1] : String(p.annee);
+}
+
+async function abRenderCategorie() {
+  const conteneur = document.getElementById("ab-cat-histogramme");
+  if (!conteneur || abMonnaieId == null) return;
+  const categories = abCategoriesChoisissables();
+  const legende = document.getElementById("ab-cat-legende");
+  if (!categories.length) {
+    conteneur.innerHTML = "";
+    legende.textContent = t("Aucune catégorie de dépense.");
+    return;
+  }
+  if (!categories.some((c) => c.id === abCat.categorieId)) abCat.categorieId = categories[0].id;
+  document.getElementById("ab-cat-vue").value = abCat.vue;
+
+  // Le menu se reconstruit à chaque rendu : la liste des catégories a pu changer.
+  creerMenuCases(document.getElementById("ab-cat-selecteur"), {
+    libelle: t("Catégorie"),
+    unique: true,
+    coches: [abCat.categorieId],
+    options: categories.map((c, i) => ({
+      cle: c.id,
+      libelle: libelleCategorie(c.nom),
+      couleur: couleurBarre(c, i),
+    })),
+    onChange: (choix) => {
+      abCat.categorieId = [...choix][0];
+      abRenderCategorie();
+    },
+  });
+
+  // Une réponse en retard (changement rapide de catégorie) ne doit pas écraser la suivante.
+  const sequence = ++abCat.sequence;
+  try {
+    const parametres = new URLSearchParams({
+      monnaie_id: abMonnaieId,
+      categorie_id: abCat.categorieId,
+      annee: abPeriode.annee,
+      vue: abCat.vue,
+    });
+    const data = await apiFetch(`/analyse-budget/depenses-categorie?${parametres}`);
+    if (sequence !== abCat.sequence) return;
+    const titre =
+      abCat.vue === "annee"
+        ? libelleCategorie(data.categorie)
+        : `${libelleCategorie(data.categorie)} — ${abPeriode.annee}`;
+    if (!data.periodes.length) {
+      conteneur.innerHTML = "";
+      legende.textContent = t("Aucune opération en base sur cette période.");
+      return;
+    }
+    legende.textContent = data.masquees
+      ? t("{n} période(s) sans aucune opération ne sont pas affichées.", { n: data.masquees })
+      : "";
+    abHistogramme(
+      conteneur,
+      data.periodes.map((p) => ({
+        libelle: abLibelleBarreCategorie(p),
+        valeur: p.total,
+      })),
+      abMonnaieId,
+      {
+        libelle: titre,
+        couleur: couleurCategorie(data.couleur_index ?? 0),
+      }
+    );
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+document.getElementById("ab-cat-vue")?.addEventListener("change", (e) => {
+  abCat.vue = e.target.value;
+  abRenderCategorie();
+});
 
 document.getElementById("ab-comparer")?.addEventListener("change", (e) => {
   abGraphes.comparer = e.target.checked;
