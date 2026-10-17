@@ -343,50 +343,6 @@ function resteCellEtRowClass(montantDu, montantARembourser, monnaieId) {
 /* ---------- Navigation dans l'arborescence des filtres (année ↔ mois) ---------- */
 
 /**
- * Deux flèches qui montent et descendent d'un niveau : ▲ regroupe le mois dans
- * son année, ▼ redescend au mois. Utilisées à l'identique par la page Opérations
- * et par le dashboard, qui filtrent tous deux sur (année, mois).
- *
- * `vue` vaut "mois" ou "annee" ; `onChange` reçoit la vue demandée. La flèche
- * déjà au bout reste affichée mais désactivée : les deux sens sont ainsi
- * toujours au même endroit, plutôt qu'un bouton qui se déplace d'un clic à
- * l'autre.
- */
-function renderFlechesPeriode(el, vue, onChange) {
-  if (!el) return;
-  el.innerHTML = "";
-  [
-    ["▲", "annee", "Filtrer sur l'année entière"],
-    ["▼", "mois", "Filtrer sur un mois"],
-  ].forEach(([glyphe, cible, titre]) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "periode-fleche";
-    btn.textContent = glyphe;
-    btn.title = titre;
-    btn.disabled = vue === cible;
-    btn.addEventListener("click", () => onChange(cible));
-    el.appendChild(btn);
-  });
-}
-
-/**
- * Grise le niveau qui ne pilote PAS le filtre, sans le masquer : en vue mois,
- * l'année reste lisible (sinon on ne sait plus lequel des douze mois de quelle
- * année on regarde) ; en vue année, les mois montrent ce que l'année recouvre.
- * Le niveau grisé reste cliquable — cf. .sous-onglets.en-veille.
- *
- * EN VUE « TOUT », LES DEUX DORMENT : aucun des deux niveaux ne borne plus rien
- * (cf. operationDansPeriode). Ils restent affichés, et cliquables — c'est par
- * eux qu'on redescend dans le temps. Seule la page Opérations connaît ce
- * troisième cran ; ailleurs, `vue` ne vaut jamais "tout" et rien ne change.
- */
-function appliquerVeillePeriode(elAnnees, elMois, vue) {
-  if (elAnnees) elAnnees.classList.toggle("en-veille", vue === "mois" || vue === "tout");
-  if (elMois) elMois.classList.toggle("en-veille", vue === "annee" || vue === "tout");
-}
-
-/**
  * La période sur laquelle une page s'ouvre : LE MOIS COURANT, et le plus récent
  * disponible seulement s'il manque à la liste.
  *
@@ -10038,9 +9994,9 @@ function comparateurOperation(critere, budget = false) {
 // comportement attendu quand on dépouille un mois donné.
 //
 // `vue` est le niveau de l'arborescence qui filtre réellement : "mois" ne garde
-// que le mois choisi, "annee" toute l'année (les flèches du sélecteur montent et
-// descendent d'un cran, cf. renderFlechesPeriode). L'autre niveau n'est jamais
-// oublié — on reste dans un mois DE cette année — il est seulement grisé.
+// que le mois choisi, "annee" toute l'année (la pastille ronde du sélecteur dit lequel,
+// cf. creerArbrePeriode). L'autre niveau n'est jamais
+// oublié — on reste dans un mois DE cette année.
 //
 // « TOUT » EST LE TROISIÈME CRAN, et il n'existe que sur cette page : plus
 // aucune borne de date, toutes les opérations de la base. Il a été ajouté avec
@@ -10050,7 +10006,9 @@ function comparateurOperation(critere, budget = false) {
 // l'arborescence, et le laisser sur le mois en cours aurait rendu un tableau
 // vide qui ne dit pas pourquoi. Le dashboard, lui, ne le connaît pas : sa vue
 // voyage jusqu'au serveur, où elle vaut "mois" ou "annee" et rien d'autre.
-const operationsPeriode = { annee: null, mois: null, vue: "mois" };
+// `niveau` et `moisDeplie` sont ceux de l'arbre de période partagé avec le dashboard (cf. creerArbrePeriode) ;
+// `niveau` est recopié depuis `vue` à chaque rendu.
+const operationsPeriode = { annee: null, mois: null, vue: "mois", niveau: "mois", moisDeplie: true };
 
 function operationDansPeriode(op) {
   if (operationsPeriode.vue === "tout") return true;
@@ -10288,11 +10246,8 @@ function trierEtRerender(onglet) {
 // type), mais tous pilotent le même état : changer de mois dans un onglet le
 // change partout, sinon revenir sur un onglet afficherait un autre mois.
 //
-// Implémentation dédiée plutôt que l'arbre de période du dashboard
-// (renderArbrePeriode) : celui-ci gère une rangée unique d'éléments et
-// recharge les données à chaque geste, ce qui provoquerait ici six rendus en
-// cascade et laisserait les cinq autres sélecteurs désynchronisés au
-// changement d'année.
+// Le sélecteur est celui du dashboard (creerArbrePeriode, avec « Tout »), posé six fois - un par onglet -
+// sur un seul état : à chaque geste, les six sont redessinés ensemble.
 let periodesOperations = [];
 
 async function initSelecteursPeriodeOperations() {
@@ -10348,86 +10303,20 @@ function moisOngletsOperations(annee) {
 }
 
 function renderSelecteursPeriodeOperations() {
-  const annees = anneesOngletsOperations();
-  const moisDispo = moisOngletsOperations(operationsPeriode.annee);
-
+  // LE MÊME ARBRE QUE LE DASHBOARD (creerArbrePeriode) : Tout, l'année, le mois, une pastille ronde sur
+  // le niveau qui filtre. `niveau` et `vue` disent ici la même chose (« tout », « annee » ou « mois »).
+  // Les six onglets pilotent le MÊME état : chaque geste le modifie en place, puis `surChangement`
+  // redessine les six arbres et les listes d'un coup (cf. appliquerPeriodeOperations).
+  operationsPeriode.niveau = operationsPeriode.vue;
   Object.keys(COLONNES_OPERATIONS).forEach((onglet) => {
-    const elAnnees = document.getElementById(`operations-periode-annees-${onglet}`);
-    const elMois = document.getElementById(`operations-periode-mois-${onglet}`);
-    const elFleches = document.getElementById(`operations-periode-fleches-${onglet}`);
-    if (!elAnnees || !elMois) return;
-
-    // Les six sélecteurs pilotent le même état : la vue change partout à la
-    // fois, comme le mois et l'année.
-    renderFlechesPeriode(elFleches, operationsPeriode.vue, (vue) => {
-      if (vue === operationsPeriode.vue) return;
-      operationsPeriode.vue = vue;
-      appliquerPeriodeOperations();
-    });
-    appliquerVeillePeriode(elAnnees, elMois, operationsPeriode.vue);
-
-    elAnnees.innerHTML = "";
-    // « TOUT » EN TÊTE DE LA RANGÉE DES ANNÉES, et non une troisième flèche :
-    // ce n'est pas un cran de plus dans l'arborescence des dates, c'est le
-    // choix de n'en prendre aucune. Un onglet le dit ; une flèche l'aurait
-    // rangé dans la même file que « l'année » et « le mois », dont il n'est pas
-    // le voisin. Les deux flèches restent actives à côté et redescendent dans
-    // l'année affichée — c'est par elles, ou par un onglet, qu'on en sort.
-    const btnTout = document.createElement("button");
-    btnTout.type = "button";
-    btnTout.className = "periode-tout";
-    btnTout.textContent = t("Tout");
-    btnTout.title = t("Toutes les périodes, sans borne de date");
-    if (operationsPeriode.vue === "tout") btnTout.classList.add("active");
-    btnTout.addEventListener("click", () => {
-      if (operationsPeriode.vue === "tout") return;
-      operationsPeriode.vue = "tout";
-      appliquerPeriodeOperations();
-    });
-    elAnnees.appendChild(btnTout);
-
-    annees.forEach((a) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = a;
-      if (a === operationsPeriode.annee && operationsPeriode.vue !== "tout") {
-        btn.classList.add("active");
-      }
-      btn.addEventListener("click", () => {
-        operationsPeriode.annee = a;
-        const dispo = moisDisponiblesOperations(a);
-        if (!dispo.includes(operationsPeriode.mois)) {
-          operationsPeriode.mois = dispo[dispo.length - 1] ?? operationsPeriode.mois;
-        }
-        // Cliquer une année quand on regardait TOUT redescend à cette année :
-        // même geste que cliquer un mois grisé, et pour la même raison — on
-        // désigne ce qu'on veut voir, pas un niveau d'arborescence.
-        if (operationsPeriode.vue === "tout") operationsPeriode.vue = "annee";
-        appliquerPeriodeOperations();
-      });
-      elAnnees.appendChild(btn);
-    });
-
-    elMois.innerHTML = "";
-    moisDispo.forEach((m) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = MOIS_COURTS_FR[m - 1];
-      // Allumé même en vue année, où la rangée dort : on reste dans un mois DE
-      // cette année, et l'oublier ferait perdre le fil en redescendant. En vue
-      // « tout », en revanche, plus rien n'est allumé nulle part — c'est ce qui
-      // distingue « toute l'année 2026 » de « toutes les périodes ».
-      if (m === operationsPeriode.mois && operationsPeriode.vue !== "tout") {
-        btn.classList.add("active");
-      }
-      btn.addEventListener("click", () => {
-        operationsPeriode.mois = m;
-        // Cliquer un mois grisé (vue année ou « tout ») redescend au mois :
-        // c'est le geste naturel pour désigner celui qu'on veut voir.
-        operationsPeriode.vue = "mois";
-        appliquerPeriodeOperations();
-      });
-      elMois.appendChild(btn);
+    const hote = document.getElementById(`operations-periode-${onglet}`);
+    if (!hote) return;
+    creerArbrePeriode(hote, {
+      etat: operationsPeriode,
+      annees: anneesOngletsOperations,
+      moisDisponibles: moisOngletsOperations,
+      avecTout: true,
+      surChangement: () => appliquerPeriodeOperations(),
     });
   });
 }

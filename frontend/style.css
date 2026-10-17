@@ -1399,72 +1399,14 @@ form .operation-cases input[type="checkbox"] {
   padding: 0.3rem 0.6rem;
 }
 
-/* ---------- Navigation dans l'arborescence des filtres (année ↔ mois) ---------- */
+/* ---------- Le sélecteur de période (arbre : Tout, année, mois) ----------
 
-/* Deux niveaux, un seul actif à la fois, et les flèches qui passent de l'un à
-   l'autre. Le niveau inactif n'est PAS masqué : en vue mois, l'année reste
-   lisible (sinon on ne sait plus lequel des douze mois de quelle année on
-   regarde) ; en vue année, les mois restent là pour montrer ce que l'année
-   recouvre. Il est simplement mis en veille. */
+   Le même au dashboard, sur la page Budget, dans les fenêtres et sur la page Opérations
+   (cf. creerArbrePeriode) : une pastille ronde sur le niveau qui filtre. */
 .periode-selecteur {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-}
-
-.periode-niveaux {
-  flex: 1;
-  min-width: 0;
-}
-
-.periode-fleches {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding-top: 0.35rem;
-}
-
-.periode-fleche {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  line-height: 1;
-  padding: 0.15rem 0.35rem;
-  font-size: 0.7rem;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.periode-fleche:hover:not(:disabled) {
-  color: var(--accent-light);
-  border-color: var(--accent-light);
-}
-
-/* Déjà au bout de l'arborescence : la flèche reste visible pour que les deux
-   sens soient toujours au même endroit, mais elle ne fait plus rien. */
-.periode-fleche:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-/* Le niveau qui ne pilote pas le filtre : présent, lisible, mais visiblement en
-   retrait — y compris son onglet actif, qui ne doit plus se lire comme LE
-   filtre en vigueur. Il reste cliquable : cliquer un mois grisé redescend au
-   mois, et changer d'année en vue mois doit rester possible. */
-.sous-onglets.en-veille button {
-  color: var(--text-muted);
-  opacity: 0.65;
-}
-
-.sous-onglets.en-veille button.active {
-  color: var(--text-secondary);
-  font-weight: normal;
-  border-bottom-color: var(--border);
-}
-
-.sous-onglets.en-veille button:hover {
-  color: var(--text-primary);
-  opacity: 1;
 }
 
 /* UN CHAMP QUE LE TYPE COURANT NE CONCERNE PAS, dans un formulaire où il reste
@@ -1477,17 +1419,10 @@ form .operation-cases input[type="checkbox"] {
   pointer-events: none;
 }
 
-/* ---------- « Tout », le cran sans borne de date (page Opérations) ----------
+/* ---------- « Tout », le cran sans borne de date ----------
  *
- * IL VIT DANS LA RANGÉE DES ANNÉES sans en être une : un FILET le sépare de
- * celles qui suivent, parce qu'il ne se compare pas à elles — 2026 est une
- * année parmi d'autres, « Tout » est le refus d'en choisir une.
- *
- * ET IL NE DORT JAMAIS. En vue « tout », les deux rangées passent en veille
- * (plus aucun de leurs onglets ne borne quoi que ce soit, cf.
- * appliquerVeillePeriode) — mais lui EST le filtre en vigueur. Grisé avec ses
- * voisins, il aurait laissé un écran où rien n'est allumé nulle part, sans rien
- * pour dire ce qu'on regarde. */
+ * IL A SA PROPRE LIGNE dans l'arbre de période, et un FILET le sépare de ce qui le suit :
+ * 2026 est une année parmi d'autres, « Tout » est le refus d'en choisir une. */
 /* Qualifié par `.sous-onglets` : la règle générique des onglets pose `border:
    none` et un `padding` complet, et elle est PLUS SPÉCIFIQUE qu'une classe
    seule — le filet et l'écart n'auraient jamais paru. */
@@ -1495,17 +1430,6 @@ form .operation-cases input[type="checkbox"] {
   margin-right: 0.35rem;
   padding-right: 0.85rem;
   border-right: 1px solid var(--border-soft);
-}
-
-.sous-onglets.en-veille button.periode-tout,
-.sous-onglets.en-veille button.periode-tout.active {
-  color: var(--accent-light);
-  opacity: 1;
-}
-
-.sous-onglets.en-veille button.periode-tout.active {
-  font-weight: bold;
-  border-bottom-color: var(--accent-light);
 }
 
 .tri {
