@@ -65,6 +65,12 @@
   white-space: nowrap;
 }
 
+/* L'épingle n'est pas un bouton de texte : pas de remplissage, et au bout de la colonne. */
+.projet-carte-actions .epingle {
+  padding: 0;
+  align-self: flex-end;
+}
+
 /* Les totaux : une ligne PAR MONNAIE (l'app n'en additionne jamais deux). Les
    deux montants côte à côte, les entrées en retrait — un projet coûte, le plus
    souvent, et c'est la dépense qu'on vient lire. */

@@ -60,11 +60,10 @@ function renderMonnaies() {
     const eteinte = monnaie.active === false;
     row.className = eteinte ? "import-mapping-row ligne-eteinte" : "import-mapping-row";
     row.dataset.id = monnaie.id;
-    // UNE SEULE ACTION DANS LA LIGNE. « Modifier » ne faisait que répéter le
-    // double-clic, et « Éteindre » est passé dans le formulaire : cet écran est
-    // fait pour être lu.
+    // « Modifier » répète le double-clic, mais se voit ; « Éteindre » est dans le formulaire.
     row.innerHTML = `
       <span class="import-mapping-nom">${escapeHtml(monnaie.nom)} — ${escapeHtml(monnaie.symbole)}</span>
+      <button type="button" data-action="modifier-monnaie" data-id="${monnaie.id}">${t("Modifier")}</button>
       <button type="button" data-action="supprimer-monnaie" data-id="${monnaie.id}" class="danger">${t("Supprimer")}</button>
     `;
     bloc.appendChild(row);
@@ -96,6 +95,11 @@ function renderMonnaies() {
     });
   };
   activerEditionDoubleClic(bloc, editerMonnaie);
+  bloc.querySelectorAll("button[data-action='modifier-monnaie']").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      editerMonnaie(Number(btn.dataset.id), btn.closest("[data-id]"))
+    );
+  });
 
   bloc.querySelectorAll("button[data-action='supprimer-monnaie']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -352,11 +356,30 @@ function renderTauxMonnaies() {
       <span class="hint">${escapeHtml(couple.monnaie_source_nom)} &rarr;
         ${escapeHtml(couple.monnaie_cible_nom)}</span>
       ${provenance}
+      <button type="button" data-taux-modifier="${couple.id}">${t("Modifier")}</button>
       <button type="button" class="danger" data-taux-supprimer="${couple.id}">${t(
         "Supprimer"
       )}</button>
     `;
     bloc.appendChild(ligne);
+  });
+
+  // MODIFIER UN TAUX, c'est le ressaisir : le formulaire (replié) s'ouvre sur ce couple, à la main,
+  // avec le taux actuel - enregistrer met le couple à jour (PUT), cf. le mode « à la main ».
+  bloc.querySelectorAll("button[data-taux-modifier]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const couple = tauxMonnaies.find((c) => c.id === Number(btn.dataset.tauxModifier));
+      if (!couple) return;
+      document.getElementById("creation-taux").open = true;
+      modeTauxActif = "manuel";
+      renderModesTaux();
+      document.getElementById("monnaie-taux-source").value = String(couple.monnaie_source_id);
+      document.getElementById("monnaie-taux-cible").value = String(couple.monnaie_cible_id);
+      const champ = document.getElementById("monnaie-taux-valeur");
+      champ.value = couple.taux == null ? "" : couple.taux;
+      champ.scrollIntoView({ block: "center", behavior: "smooth" });
+      champ.focus();
+    });
   });
 
   bloc.querySelectorAll("button[data-taux-supprimer]").forEach((btn) => {

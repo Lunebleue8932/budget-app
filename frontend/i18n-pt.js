@@ -3823,6 +3823,10 @@ Object.assign(TRADUCTIONS.pt, {
     "A tabela das categorias",
   "Remboursements":
     "Reembolsos",
+  "Épingler au dashboard":
+    "Fixar no dashboard",
+  "Retirer du dashboard":
+    "Remover do dashboard",
   "Annuler la confirmation":
     "Cancelar a confirmação",
   "Déjà prise par la colonne {n}":

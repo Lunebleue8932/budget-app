@@ -598,10 +598,15 @@
            que je tiens ma règle ? » est une question qu'on se pose APRÈS avoir vu
            ce qui s'est passé. Vide et sans hauteur tant qu'aucune extension n'y
            met rien, et tant qu'aucun objectif n'a été coché pour le dashboard. -->
-      <div id="dashboard-objectifs" style="display:none"></div>
-      <!-- LES PROJETS COCHÉS « Afficher au dashboard » (extension « Projets et objectifs »), sous les
-           objectifs : même réserve, même raison. Vide tant qu'aucun projet n'est coché. -->
-      <div id="dashboard-projets" style="display:none"></div>
+      <!-- LES OBJECTIFS ET LES PROJETS ÉPINGLÉS SE PARTAGENT UNE LIGNE (`.dashboard-epingles`) : deux
+           blocs de la même famille, côte à côte plutôt que l'un sous l'autre. Un bloc vide est masqué
+           et laisse toute la place à l'autre. -->
+      <div class="dashboard-epingles">
+        <div id="dashboard-objectifs" style="display:none"></div>
+        <!-- LES PROJETS ÉPINGLÉS (extension « Projets et objectifs »), même réserve, même raison.
+             Vide tant qu'aucun projet n'est épinglé. -->
+        <div id="dashboard-projets" style="display:none"></div>
+      </div>
 
       <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
            Ouverte APRÈS une saisie, jamais au chargement : c'est une réaction à

@@ -387,12 +387,34 @@ function renderProjets() {
         <div class="projet-suivi">${projetSuiviHtml(projet)}</div>
       </div>
       <div class="projet-carte-actions">
+        ${epingleHtml(projet.visible_dashboard, 'data-action="epingler"')}
         <button type="button" class="primary" data-action="ouvrir">${t("Ouvrir")}</button>
         <button type="button" data-action="modifier">${t("Renommer")}</button>
         <button type="button" class="danger" data-action="supprimer">${t("Supprimer")}</button>
       </div>
     `;
 
+    carte.querySelector("[data-action='epingler']").addEventListener("click", async () => {
+      try {
+        // Le formulaire renvoie toujours tous ses champs (cf. SousFiltreUpdate) : on renvoie ceux du projet.
+        await apiFetch(`${PROJETS_BASE}/${projet.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            nom: projet.nom,
+            description: projet.description,
+            date_debut: projet.date_debut,
+            date_fin: projet.date_fin,
+            montant_max: projet.montant_max,
+            montant_min: projet.montant_min,
+            monnaie_cible_id: projet.monnaie_cible_id,
+            visible_dashboard: !projet.visible_dashboard,
+          }),
+        });
+        await loadProjets();
+      } catch (err) {
+        showMessage(err.message, "error");
+      }
+    });
     carte
       .querySelector("[data-action='ouvrir']")
       .addEventListener("click", () => ouvrirProjet(projet));
@@ -440,7 +462,6 @@ function ouvrirEditeurProjet(projet = null) {
   document.getElementById("projet-montant-min").value =
     projet && projet.montant_min != null ? projet.montant_min : "";
   projetRemplirMonnaies(projet ? projet.monnaie_cible_id : null);
-  document.getElementById("projet-visible").checked = Boolean(projet && projet.visible_dashboard);
   document.getElementById("projet-nom").focus();
 }
 
@@ -787,7 +808,8 @@ document.getElementById("btn-projet-enregistrer").addEventListener("click", asyn
     montant_max: nombre("projet-montant-max"),
     montant_min: nombre("projet-montant-min"),
     monnaie_cible_id: Number(document.getElementById("projet-monnaie-cible").value) || null,
-    visible_dashboard: document.getElementById("projet-visible").checked,
+    // L'ÉPINGLE EST SUR LA CARTE : une modification garde l'état actuel, un projet neuf n'est pas épinglé.
+    visible_dashboard: Boolean(projets.find((p) => p.id === Number(id))?.visible_dashboard),
   };
   const id = document.getElementById("projet-id").value;
   try {
@@ -868,6 +890,11 @@ function projetCarteDashboardHtml(projet) {
     <div class="projet-carte projet-carte-dashboard" data-projet-ouvrir="${projet.id}" role="button" tabindex="0">
       <div class="projet-carte-corps">
         <div class="projet-carte-nom">${escapeHtml(projet.nom)}</div>
+        ${
+          projet.description
+            ? `<div class="projet-carte-description">${escapeHtml(projet.description)}</div>`
+            : ""
+        }
         <div class="projet-carte-compte">${t("{n} opération(s)", { n: projet.nombre_operations })}</div>
         <div class="projet-totaux">${totauxHtml(projet.totaux)}</div>
         <div class="projet-suivi">${projetSuiviHtml(projet)}</div>

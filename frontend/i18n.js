@@ -4598,6 +4598,10 @@ Object.assign(TRADUCTIONS.en, {
     "The category table",
   "Remboursements":
     "Reimbursements",
+  "Épingler au dashboard":
+    "Pin to the dashboard",
+  "Retirer du dashboard":
+    "Remove from the dashboard",
   "Annuler la confirmation":
     "Cancel the confirmation",
   "Déjà prise par la colonne {n}":

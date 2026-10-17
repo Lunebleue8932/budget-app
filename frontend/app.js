@@ -981,6 +981,18 @@ const ICONE_CHEVRON_BAS = `
 // Échappement pour toute valeur insérée via innerHTML qui ne vient pas de
 // l'app elle-même — typiquement le contenu brut d'un fichier importé, sur
 // lequel on n'a aucune garantie (un libellé bancaire peut contenir < ou &).
+/**
+ * Le bouton ÉPINGLE d'une carte (projet, objectif) : épinglé, la carte se pose sous les graphes du
+ * dashboard. Un bouton à bascule (`aria-pressed`), peint en accent quand c'est le cas ; `attributs`
+ * porte ce qui permet au parent de le retrouver (`data-…="id"`). Le pictogramme est celui de
+ * `img/pin-svgrepo-com.svg`, repris en masque pour suivre la couleur du thème.
+ */
+function epingleHtml(epingle, attributs) {
+  const texte = epingle ? t("Retirer du dashboard") : t("Épingler au dashboard");
+  return `<button type="button" class="epingle ${epingle ? "epingle-actif" : ""}" ${attributs}
+      aria-pressed="${Boolean(epingle)}" title="${escapeHtml(texte)}" aria-label="${escapeHtml(texte)}"></button>`;
+}
+
 function escapeHtml(valeur) {
   return String(valeur ?? "")
     .replace(/&/g, "&amp;")
@@ -6825,9 +6837,9 @@ function construireLigneCompte(compte) {
       .filter((m) => m.active !== false)
       .map((m) => formatMontant(m.solde_initial, m.monnaie_id))
       .join(" · ")}</span>
-    <!-- UNE SEULE ACTION DANS LA LIGNE. « Modifier » ne faisait que répéter le
-         double-clic, et « Éteindre » est passé dans le formulaire — c'est là
-         qu'on regarde le compte au moment de le décider. -->
+    <!-- « Modifier » répète le double-clic, mais se voit : le geste ne se découvre pas. « Éteindre »
+         est dans le formulaire — c'est là qu'on regarde le compte au moment de le décider. -->
+    <button type="button" data-action="edit" data-id="${compte.id}">${t("Modifier")}</button>
     <button type="button" data-action="delete" data-id="${compte.id}" class="danger">${t("Supprimer")}</button>
   `;
   // Déplaçable par sa poignée seulement : le nom du compte reste copiable.
@@ -6836,9 +6848,15 @@ function construireLigneCompte(compte) {
 }
 
 function cablerActionsComptes(conteneur) {
-  activerEditionDoubleClic(conteneur, (id, ligne) => {
+  const editerCompte = (id, ligne) => {
     const compte = state.comptes.find((c) => c.id === id);
     if (compte) fillCompteForm(compte, ligne);
+  };
+  activerEditionDoubleClic(conteneur, editerCompte);
+  conteneur.querySelectorAll("button[data-action='edit']").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      editerCompte(Number(btn.dataset.id), btn.closest("[data-id]"))
+    );
   });
 
   conteneur.querySelectorAll("button[data-action='delete']").forEach((btn) => {
@@ -7255,11 +7273,8 @@ function renderCategories() {
         // d'avant, vide plutôt que remplie de zéros.
         c.est_entree ? `<span class="badge-aucun">${t("entrée")}</span>` : ""
       }</td>
-      <!-- UNE SEULE ACTION DANS LA LISTE, la seule qui n'a pas sa place
-           ailleurs. « Modifier » ne faisait que répéter le double-clic, et
-           « Éteindre » est passé dans le formulaire : trois boutons par ligne
-           sur un écran qu'on vient LIRE, c'est deux de trop. -->
-      <td>${deleteAction}</td>
+      <!-- « Modifier » répète le double-clic, mais se voit ; « Éteindre » est dans le formulaire. -->
+      <td><button data-action="edit" data-id="${c.id}">${t("Modifier")}</button> ${deleteAction}</td>
     `;
     // Déplaçable par sa poignée seulement : le nom de la catégorie reste
     // copiable.
@@ -7273,6 +7288,11 @@ function renderCategories() {
     fillCategorieForm(categorie, ligne);
   };
   activerEditionDoubleClic(body, editerCategorie);
+  body.querySelectorAll("button[data-action='edit']").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      editerCategorie(Number(btn.dataset.id), btn.closest("tr[data-id]"))
+    );
+  });
 
   body.querySelectorAll("button[data-action='delete']").forEach((btn) => {
     btn.addEventListener("click", async () => {

@@ -4049,10 +4049,14 @@ tr.ligne-apercu-edition td.ligne-edition-actions button {
    bordure grise, flèches — seule saisie de toute l'application à ne pas suivre
    le thème, et juste à côté de champs qui le suivent. */
 .regle-editeur input[type="number"],
+/* LE SÉLECTEUR DE DATE AUSSI (période d'un projet) : sans règle, il gardait le style natif du
+   navigateur à côté de champs qui suivent le thème. */
+.regle-editeur input[type="date"],
 .regle-editeur select,
 .regle-editeur textarea,
 .regle-champ-ligne input[type="text"],
 .regle-champ-ligne input[type="number"],
+.regle-champ-ligne input[type="date"],
 .regle-champ-ligne textarea,
 .regle-champ-ligne select {
   background: var(--bg-surface-alt);
@@ -5571,6 +5575,51 @@ body.modale-ouverte {
 
    L'opacité suit celle du libellé : discrète sur un onglet au repos, pleine sur
    l'onglet actif — le logo appartient au bouton, il ne s'en détache pas. */
+/* Le bouton ÉPINGLE des cartes de projet et d'objectif (cf. epingleHtml, app.js). */
+.epingle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.epingle::before {
+  content: "";
+  width: 1.05rem;
+  height: 1.05rem;
+  background-color: currentColor;
+  -webkit-mask: url("/img/pin-svgrepo-com.svg") center / contain no-repeat;
+  mask: url("/img/pin-svgrepo-com.svg") center / contain no-repeat;
+}
+
+.epingle:hover {
+  color: var(--text-primary);
+}
+
+.epingle.epingle-actif {
+  color: var(--accent-light);
+}
+
+/* Les objectifs et les projets épinglés au dashboard : sur la même ligne, à parts égales, et l'un
+   sous l'autre seulement quand la place manque. */
+.dashboard-epingles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: flex-start;
+}
+
+.dashboard-epingles > div {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
 .onglet-logo {
   width: 1em;
   height: 1em;

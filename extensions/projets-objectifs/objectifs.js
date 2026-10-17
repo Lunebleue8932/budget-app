@@ -377,6 +377,7 @@ function objCarteHtml(mesureServeur, options = {}) {
   const comparateur = mesure.sens === "max" ? "≤" : "≥";
   const actions = options.editable
     ? `<span class="obj-carte-actions">
+         ${epingleHtml(mesure.visible_dashboard, `data-objectif-epingler="${mesure.objectif_id}"`)}
          <button type="button" class="lien" data-objectif-modifier="${mesure.objectif_id}">${t(
            "Modifier"
          )}</button>
@@ -608,9 +609,6 @@ function objOuvrirEditeur(objectif) {
   document.getElementById("objectif-monnaie-champ").value = String(
     objectif ? objectif.monnaie_id : objMonnaieParDefaut
   );
-  document.getElementById("objectif-visible").checked = objectif
-    ? objectif.visible_dashboard
-    : true;
   // APRÈS la monnaie et AVANT le périmètre : `majChampsObjectif` reconstruit la
   // liste du périmètre, et le poser plus tôt le ferait effacer.
   majChampsObjectif();
@@ -837,7 +835,9 @@ async function objEnregistrer() {
     monnaie_id:
       Number(document.getElementById("objectif-monnaie-champ").value) ||
       objMonnaieParDefaut,
-    visible_dashboard: document.getElementById("objectif-visible").checked,
+    // L'ÉPINGLE EST SUR LA CARTE, plus dans le formulaire : une modification n'y touche pas (`None`
+    // ne change rien côté serveur), et un objectif neuf n'est épinglé qu'à la demande.
+    ...(id ? {} : { visible_dashboard: false }),
     filtres,
   };
   try {
@@ -895,7 +895,24 @@ document.getElementById("objectifs-liste")?.addEventListener("click", (e) => {
   }
   const supprimer = e.target.closest("[data-objectif-supprimer]");
   if (supprimer) objSupprimer(supprimer.dataset.objectifSupprimer);
+  const epingle = e.target.closest("[data-objectif-epingler]");
+  if (epingle) objEpingler(Number(epingle.dataset.objectifEpingler));
 });
+
+/** Épingler / désépingler un objectif au dashboard : une modification partielle, rien d'autre ne bouge. */
+async function objEpingler(id) {
+  const mesure = objMesures.find((m) => m.objectif_id === id);
+  if (!mesure) return;
+  try {
+    await apiFetch(`${OBJECTIFS_BASE}/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ visible_dashboard: !mesure.visible_dashboard }),
+    });
+    await loadObjectifs();
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+}
 
 /* ---------- La greffe du dashboard ----------
  *
