@@ -111,6 +111,7 @@ class _Profil:
     dates: int = 0
     nombres: int = 0
     negatifs: int = 0
+    positifs: int = 0
     decimales: int = 0
     devises: int = 0
     mots_sens: int = 0
@@ -151,6 +152,13 @@ _TYPES_OPERATION = {
 _CHIFFRES_NUMERO = 6
 # Un sens dont moins d'une valeur sur cinq est du vocabulaire n'en est pas un.
 _PART_SENS_MINIMALE = 0.2
+# UNE COLONNE QUI PORTE LA MÊME VALEUR SUR TOUTES LES LIGNES ne dit rien de l'opération (le nom du
+# compte, un « Non » de pointage, une date d'export) : à partir de ce nombre de lignes remplies,
+# elle n'est ni un libellé, ni une date, ni un montant.
+_LIGNES_CONSTANTE_MIN = 3
+_VALEURS_OUI_NON = {
+    "oui", "non", "yes", "no", "sim", "nao", "true", "false", "vrai", "faux", "o", "n", "y", "x",
+}
 # Le compte du relevé figure sur (presque) chaque ligne.
 _REMPLISSAGE_COMPTE = 0.8
 # Combien de valeurs voisines comparer pour juger de leur ressemblance.
@@ -296,6 +304,8 @@ def _profiler(
                 profil.nombres += 1
                 if montant < 0:
                     profil.negatifs += 1
+                elif montant > 0:
+                    profil.positifs += 1
                 # Un montant a des centimes ; un numéro de référence non.
                 decimal = separateur_decimal or ","
                 if montant % 100 or (isinstance(cellule, str) and decimal in texte):
@@ -327,26 +337,46 @@ def _profiler(
     return profils
 
 
-def _scores_forme(p: _Profil) -> dict[str, float]:
+def _a_forme_de_montant(p: _Profil) -> bool:
+    """Des nombres, avec des centimes ou des signes : ce qu'un montant ressemble."""
+    return bool(p.remplies) and p.part(p.nombres) >= 0.8 and bool(p.decimales or p.negatifs)
+
+
+def _scores_forme(p: _Profil, montant_unique: bool = False) -> dict[str, float]:
     """Ce que la FORME des cellules dit de la colonne, propriété par propriété.
 
     Des scores et non un verdict : une colonne de nombres peut être un montant,
-    un débit, des frais — c'est l'intitulé, ou le voisinage, qui tranche."""
+    un débit, des frais — c'est l'intitulé, ou le voisinage, qui tranche.
+
+    `montant_unique` : c'est la SEULE colonne du fichier qui ait la forme d'un montant (hors solde).
+    Un montant seul se lit comme un montant : proposer « débit », « crédit », « frais » ou « montant
+    d'origine » pour une colonne qui n'a personne à qui s'apparier n'a pas de sens."""
     if not p.remplies:
         return {}
     s: dict[str, float] = {}
     part_dates = p.part(p.dates)
     part_nombres = p.part(p.nombres)
+    constante = p.remplies >= _LIGNES_CONSTANTE_MIN and p.distinctes == 1
     if part_dates >= 0.8:
-        s["date"] = 0.7
+        s["date"] = 0.2 if constante else 0.7
+        if constante:
+            s[""] = 0.6
     # UN MONTANT A DES CENTIMES quelque part ; une colonne d'entiers est plus
     # souvent un numéro qu'une somme.
     if part_nombres >= 0.8 and (p.decimales or p.negatifs):
-        s["montant"] = 0.6 if p.negatifs else 0.4
-        s["montant_debit"] = 0.25
-        s["montant_credit"] = 0.25
-        s["frais"] = 0.15
-        s["montant_initial"] = 0.15
+        if constante:
+            s[""] = 0.5
+        else:
+            s["montant"] = 0.6 if p.negatifs else 0.4
+            # UN DÉBIT (ou un crédit, ou des frais) A UN SEUL SIGNE : une colonne qui mêle des
+            # montants négatifs ET positifs est un montant algébrique, rien d'autre.
+            signes_mixtes = p.negatifs > 0 and p.positifs > 0
+            if not montant_unique and not signes_mixtes:
+                s["montant_debit"] = 0.25
+                s["montant_credit"] = 0.25
+                s["frais"] = 0.15
+            if not montant_unique:
+                s["montant_initial"] = 0.15
     if p.part(p.devises) >= 0.8:
         s["monnaie"] = 0.7
         s["monnaie_initiale"] = 0.3
@@ -356,7 +386,15 @@ def _scores_forme(p: _Profil) -> dict[str, float]:
     if p.part(p.mots_statut) >= 0.8 and p.distinctes <= 4:
         s["statut"] = 0.8
     texte = part_dates < 0.5 and part_nombres < 0.5 and p.part(p.devises) < 0.5
-    if texte:
+    if texte and constante:
+        # Le nom du compte du relevé, ou un « Non » de pointage : le même texte partout. Ce n'est pas
+        # un libellé (il ne distingue aucune opération) ni une catégorie (elle ne classe rien) ;
+        # le compte du relevé, lui, est bien la même valeur sur chaque ligne - sauf si c'est un oui
+        # ou un non, qui est un indicateur (pointage, rapproché) et non un compte.
+        s[""] = 0.6
+        if normaliser_libelle(p.exemples[0]) not in _VALEURS_OUI_NON:
+            s["compte_banque"] = 0.65
+    elif texte:
         ratio = p.distinctes / p.remplies
         # LE LIBELLÉ change presque à chaque ligne et s'écrit long ; LA
         # CATÉGORIE revient souvent et s'écrit court.
@@ -389,6 +427,36 @@ def _scores_forme(p: _Profil) -> dict[str, float]:
             s.pop(propriete, None)
         s[""] = 0.6
     return s
+
+
+def _ecarter_les_sous_categories(
+    profils: list[_Profil], lignes: list[tuple], scores: dict[int, dict[str, float]]
+) -> None:
+    """Retire « catégorie » à la colonne qui n'en détaille qu'une autre.
+
+    Deux colonnes de classement (« Catégorie », « Sous-catégorie ») ont la même forme : peu de valeurs,
+    très répétées. Ce qui les distingue est une DÉPENDANCE : chaque sous-catégorie ne s'écrit que sous
+    une catégorie, jamais sous deux. Quand B dépend ainsi de A et en a davantage de valeurs, B est
+    le détail de A, et c'est A que l'application doit lire. B garde « ne pas importer » en premier."""
+    classantes = [
+        p for p in profils
+        if scores.get(p.index, {}).get("categorie_banque", 0.0) >= 0.2 and p.distinctes >= 2
+    ]
+    for a in classantes:
+        for b in classantes:
+            if a.index == b.index or b.distinctes <= a.distinctes:
+                continue
+            sous = {}
+            for ligne in lignes:
+                va = ligne[a.index - 1] if a.index <= len(ligne) else None
+                vb = ligne[b.index - 1] if b.index <= len(ligne) else None
+                if va in (None, "") or vb in (None, ""):
+                    continue
+                sous.setdefault(str(vb).strip(), set()).add(str(va).strip())
+            if sous and all(len(parents) == 1 for parents in sous.values()):
+                s = scores[b.index]
+                s["categorie_banque"] = round(s["categorie_banque"] * 0.3, 3)
+                s[""] = max(s.get("", 0.0), s["categorie_banque"] + 0.2)
 
 
 def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
@@ -450,11 +518,25 @@ def detecter_colonnes(
     connues = frozenset(normaliser_libelle(c) for c in (categories or []) if c)
     profils = _profiler(donnees, entetes, decimal, milliers, format_date, connues)
 
+    # LE TEST DU SOLDE d'abord : il dit quelle colonne est un solde, donc laquelle n'est PAS un
+    # montant (cf. plus bas pour ce qu'il impose).
+    solde = controler_solde(operations, decimal, milliers, _ordre_des_dates(operations, format_date))
+    colonne_solde = solde.colonne if solde else None
+    # LES COLONNES QUI ONT LA FORME D'UN MONTANT, hors solde et hors ce que l'intitulé range parmi
+    # ce qui ne s'importe pas : s'il n'y en a qu'une, c'est LE montant.
+    colonnes_montant = [
+        p.index
+        for p in profils
+        if _a_forme_de_montant(p)
+        and p.index != colonne_solde
+        and scores_proprietes(p.entete).get("", 0.0) < SCORE_MOT_CLE
+    ]
+
     scores: dict[int, dict[str, float]] = {}
     presque_vides: list[int] = []
     for p in profils:
         entete = scores_proprietes(p.entete)
-        forme = _scores_forme(p)
+        forme = _scores_forme(p, montant_unique=colonnes_montant == [p.index])
         s: dict[str, float] = {}
         for propriete in _proprietes_connues():
             valeur = forme.get(propriete, 0.0) + entete.get(propriete, 0.0)
@@ -550,10 +632,13 @@ def detecter_colonnes(
         s = scores[index]
         s[""] = max(s.values(), default=0) + 0.1
 
+    # UNE SOUS-CATÉGORIE N'EST PAS LA CATÉGORIE : de deux colonnes qui classent, celle dont chaque
+    # valeur ne figure que sous UNE valeur de l'autre (et qui en a davantage) la détaille.
+    _ecarter_les_sous_categories(profils, donnees, scores)
+
     # LE TEST DU SOLDE, la preuve la plus forte : un solde qui varie
     # exactement du montant net des opérations ne laisse de doute ni sur sa
     # colonne, ni sur la façon de lire les montants, ni sur les signes.
-    solde = controler_solde(operations, decimal, milliers, _ordre_des_dates(operations, format_date))
     if solde:
 
         def imposer(index: int, propriete: str) -> None:

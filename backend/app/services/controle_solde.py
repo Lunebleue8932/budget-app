@@ -66,6 +66,7 @@ SEUIL_VERIFIE = 0.9
 SEUIL_PROBABLE = 0.6
 _INTERVALLES_VERIFIE = 10
 _INTERVALLES_NON_NULS = 3
+_INTERVALLES_VERIFIE_PARFAIT = 4
 
 ORDRES = ("croissant", "decroissant")
 MOMENTS = ("apres", "avant")
@@ -117,7 +118,11 @@ class ResultatSolde:
     statut: str = field(init=False)
 
     def __post_init__(self):
-        if self.taux >= SEUIL_VERIFIE and self.intervalles >= _INTERVALLES_VERIFIE:
+        # Dix intervalles à 90 %, OU quelques-uns qui tiennent TOUS au centime : quatre égalités
+        # exactes de suite ne sont pas un hasard, et un petit relevé n'en a pas dix.
+        if (
+            self.taux >= SEUIL_VERIFIE and self.intervalles >= _INTERVALLES_VERIFIE
+        ) or (self.taux == 1.0 and self.intervalles_non_nuls >= _INTERVALLES_VERIFIE_PARFAIT):
             self.statut = "verifie"
         else:
             self.statut = "probable"
@@ -187,6 +192,31 @@ def _lectures(valeurs, textes, numeriques, solde) -> list[tuple[LectureMontants,
     return lectures
 
 
+def _un_solde_par_jour(soldes: list, moment: str) -> list:
+    """Un même solde répété sur des lignes CONSÉCUTIVES est un solde de jour, pas de ligne.
+
+    UNE BANQUE QUI DONNE LE SOLDE DU JOUR le recopie sur chacune des opérations de la journée.
+    Comparé ligne à ligne, il ne varie pas d'une opération à l'autre alors que les montants, eux,
+    bougent : aucun intervalle ne tient, et le solde le plus net du fichier passait inaperçu. On ne
+    garde donc qu'UNE ligne par série - la DERNIÈRE si le solde est celui d'après les opérations
+    (fin de journée), la PREMIÈRE s'il est celui d'avant (début de journée) - et les intervalles se
+    comptent d'une journée à l'autre. Un solde qui change à chaque ligne n'est pas touché."""
+    sortie = list(soldes)
+    i, n = 0, len(soldes)
+    while i < n:
+        j = i
+        if soldes[i] is not None:
+            while j + 1 < n and soldes[j + 1] == soldes[i]:
+                j += 1
+        if j > i:
+            garder = j if moment == "apres" else i
+            for k in range(i, j + 1):
+                if k != garder:
+                    sortie[k] = None
+        i = j + 1
+    return sortie
+
+
 def _essayer(soldes: list, nets: list[int], moment: str) -> tuple[int, int, int]:
     """(intervalles, égalités, égalités où le solde bouge), lignes dans l'ordre
     chronologique."""
@@ -249,7 +279,9 @@ def controler_solde(
                 soldes = valeurs[solde] if ordre == "croissant" else valeurs[solde][::-1]
                 chrono = nets if ordre == "croissant" else nets[::-1]
                 for moment in MOMENTS:
-                    intervalles, egalites, non_nulles = _essayer(soldes, chrono, moment)
+                    intervalles, egalites, non_nulles = _essayer(
+                        _un_solde_par_jour(soldes, moment), chrono, moment
+                    )
                     if not intervalles or non_nulles < _INTERVALLES_NON_NULS:
                         continue
                     taux = egalites / intervalles
