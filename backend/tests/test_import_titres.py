@@ -179,6 +179,24 @@ def test_les_composants_d_un_etf_entrent_dans_la_base(db_session, preset):
     assert etf.composition_couverture_pct == 60.0
 
 
+def test_une_composition_ecrite_un_couple_isin_poids_par_ligne_est_lue(db_session, preset):
+    """« ISIN ; poids », un couple par ligne dans la cellule : le format du fichier que
+    l'application fait préparer. Le « ; » ne doit pas séparer l'ISIN de son poids."""
+    contenu = _fichier(
+        (
+            ISIN_ETF, "ETF World", None, None, None, "États-Unis 72.94 ; Europe 5.65", None, 60.04,
+            f"{ISIN_MSFT} ; 8.07\n{ISIN_APPLE} ; 7.7",
+        ),
+    )
+    (ligne,) = _apercu(db_session, preset, contenu).lignes
+    assert ligne.statut == "cree" and not ligne.erreurs
+    assert not [a for a in ligne.avertissements if "poids" in a and "ignoré" in a]
+
+    _confirmer(db_session, preset, contenu)
+    etf = crud.get_titre_by_isin(db_session, ISIN_ETF)
+    assert etf.composition == {ISIN_MSFT: 8.07, ISIN_APPLE: 7.7}
+
+
 # ---------- L'aperçu n'écrit rien ----------
 
 

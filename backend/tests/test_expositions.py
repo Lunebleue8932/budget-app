@@ -458,6 +458,39 @@ def test_la_lecture_souple_ignore_un_poids_manquant_au_lieu_de_refuser():
     assert [a for a in avertissements if "illisible" in a]
 
 
+def test_un_couple_isin_poids_par_ligne_se_lit_meme_separe_par_un_point_virgule():
+    """« ISIN ; poids », un couple par ligne : le « ; » sépare aussi deux éléments, et le poids
+    se retrouvait seul — toute la composition était alors ignorée, élément par élément."""
+    texte = f"{ISIN_MSFT} ; 8.07\n{ISIN_GOOG} ; 7,7\nUS0378331005 ; 6.18"
+    attendu = {ISIN_MSFT: 8.07, ISIN_GOOG: 7.7, "US0378331005": 6.18}
+    composition, avertissements = exposition.lire_composition(texte)
+    assert composition == attendu
+    assert avertissements == []
+    assert exposition.parser_composition(texte) == attendu
+
+
+def test_recoller_un_poids_ne_touche_pas_a_un_poids_deja_ecrit_ni_a_un_isin_sans_poids():
+    # Le poids déjà écrit garde son nombre isolé à part : « 20 » n'est pas celui de MSFT.
+    composition, avertissements = exposition.lire_composition(f"{ISIN_MSFT} 15 ; 20")
+    assert composition == {ISIN_MSFT: 15.0}
+    assert [a for a in avertissements if "20" in a]
+    # Un ISIN sans poids suivi d'un autre ISIN reste sans poids.
+    composition, avertissements = exposition.lire_composition(f"{ISIN_GOOG} ; {ISIN_MSFT} ; 15")
+    assert composition == {ISIN_MSFT: 15.0}
+    assert [a for a in avertissements if ISIN_GOOG in a and "manquant" in a]
+
+
+def test_un_couple_libelle_poids_separe_par_un_point_virgule_se_lit_aussi():
+    assert exposition.lire_repartition("États-Unis ; 65\nEurope ; 15") == (
+        [("États-Unis", 65.0), ("Europe", 15.0)],
+        [],
+    )
+    assert exposition.parser_repartition("États-Unis ; 65 % ; Europe ; 12,5") == [
+        ("États-Unis", 65.0),
+        ("Europe", 12.5),
+    ]
+
+
 def test_la_lecture_souple_garde_un_isin_en_double_comme_erreur():
     with pytest.raises(exposition.ErreurExposition):
         exposition.lire_composition(f"{ISIN_MSFT} 15; {ISIN_MSFT} 10")

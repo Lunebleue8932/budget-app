@@ -65,12 +65,48 @@ def parser_poids(texte: object) -> float:
         raise ErreurExposition(f"« {texte} » n'est pas un pourcentage") from None
 
 
-def _elements(texte: object) -> list[str]:
+_NOMBRE_SEUL = re.compile(r"^-?\d+(?:[.,]\d+)?\s*%?$")
+_ISIN_SEUL = re.compile(r"^[A-Za-z]{2}[A-Za-z0-9]{9}[0-9]$")
+
+
+def _recoller_poids(elements: list[str], sans_poids) -> list[str]:
+    """Rend à son libellé le poids qu'un « ; » en a séparé.
+
+    LE « ; » SERT DEUX FOIS. Il sépare deux éléments (« États-Unis 65 ; Europe 15 »), et c'est
+    aussi ce que mettent les fichiers qui écrivent UN COUPLE PAR LIGNE : « FR0000073272 ; 12.56 »,
+    un saut de ligne entre deux couples. Découpé sans précaution, chaque couple devient deux
+    éléments — un ISIN sans poids, puis un poids sans ISIN — et toute la composition est
+    ignorée, élément par élément, avec autant d'avertissements.
+
+    Un élément qui n'est QUE un nombre est donc recollé à celui qui le précède, à condition que
+    celui-ci n'ait pas déjà son poids (`sans_poids`) : « A 10 ; 20 » garde son « 20 » à part."""
+    resultat: list[str] = []
+    for element in elements:
+        if resultat and _NOMBRE_SEUL.match(element) and sans_poids(resultat[-1]):
+            resultat[-1] = f"{resultat[-1]} {element}"
+        else:
+            resultat.append(element)
+    return resultat
+
+
+def _elements(texte: object, sans_poids=None) -> list[str]:
     """Les éléments d'une cellule : séparés par « ; », une barre verticale ou un
-    saut de ligne. La virgule n'en est PAS un — c'est le séparateur décimal."""
+    saut de ligne. La virgule n'en est PAS un — c'est le séparateur décimal.
+
+    Avec `sans_poids`, un poids isolé par le séparateur est rendu à son libellé
+    (cf. `_recoller_poids`)."""
     if texte is None:
         return []
-    return [e.strip() for e in re.split(r"[;|\n]+", str(texte)) if e.strip()]
+    elements = [e.strip() for e in re.split(r"[;|\n]+", str(texte)) if e.strip()]
+    return _recoller_poids(elements, sans_poids) if sans_poids else elements
+
+
+def _libelle_sans_poids(element: str) -> bool:
+    return not _ELEMENT.match(element)
+
+
+def _isin_sans_poids(element: str) -> bool:
+    return bool(_ISIN_SEUL.match(element))
 
 
 def parser_repartition(texte: object) -> list[tuple[str, float]]:
@@ -80,7 +116,7 @@ def parser_repartition(texte: object) -> list[tuple[str, float]]:
     ou « États-Unis: 65 % ; Europe: 15 % » valent ce qu'elles disent. Un libellé
     SANS poids au milieu d'une liste est une erreur : on ne devine pas ce qu'il reste."""
     morceaux = []
-    for element in _elements(texte):
+    for element in _elements(texte, _libelle_sans_poids):
         m = _ELEMENT.match(element)
         if m and m.group("nom").strip():
             morceaux.append((m.group("nom").strip(" :="), parser_poids(m.group("poids"))))
@@ -104,7 +140,7 @@ def lire_repartition(texte: object) -> tuple[list[tuple[str, float]], list[str]]
     et l'appelant ne doit surtout pas la poser (elle viderait l'axe). `parser_repartition`,
     stricte, sert la saisie à la main."""
     morceaux = []
-    for element in _elements(texte):
+    for element in _elements(texte, _libelle_sans_poids):
         m = _ELEMENT.match(element)
         if m and m.group("nom").strip():
             morceaux.append((m.group("nom").strip(" :="), parser_poids(m.group("poids"))))
@@ -123,7 +159,7 @@ def parser_composition(texte: object) -> dict[str, float]:
     poids est une erreur. Le même ISIN deux fois aussi : laquelle des deux lignes
     croire ?"""
     resultat: dict[str, float] = {}
-    for element in _elements(texte):
+    for element in _elements(texte, _isin_sans_poids):
         m = _ELEMENT.match(element)
         if not m or not m.group("nom").strip():
             raise ErreurExposition(f"poids manquant pour « {element} »")
@@ -154,7 +190,7 @@ def lire_composition(texte: object) -> tuple[dict[str, float], list[str]]:
     lirait « US5949181045 » seul comme l'ISIN « US » à 5 949 181 045 %."""
     resultat: dict[str, float] = {}
     avertissements: list[str] = []
-    for element in _elements(texte):
+    for element in _elements(texte, _isin_sans_poids):
         m = _ISIN_EN_TETE.match(element)
         if m:
             isin, reste = m.group(1).upper(), m.group(2).strip()
