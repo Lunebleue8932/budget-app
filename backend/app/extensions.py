@@ -409,9 +409,8 @@ def dependances_satisfaites(extension_id: str) -> bool:
     requises = _DEPENDANCES.get(extension_id) or []
     if not requises:
         return True
-    actives = _charger_etat()["actives"]
     return any(
-        identifiant in _PRESENTES and actives.get(identifiant, False)
+        identifiant in _PRESENTES and bool(_decision(identifiant))
         for identifiant in requises
     )
 
@@ -522,14 +521,22 @@ def obstacle_a_la_desactivation(extension_id: str, db) -> Optional[str]:
 
 # ---------- État : activation, et annonce déjà faite ----------
 #
-# Persisté DANS UN FICHIER À CÔTÉ DE LA BASE, et non dans la base elle-même :
-# ce sont des préférences de l'INSTALLATION, pas des données du budget. Les
-# stocker en base ferait changer les extensions actives en même temps que la
-# base de données (cf. l'extension de développement « Base de données »), ce
-# qui n'a aucun sens — et le ferait disparaître à la première restauration de
-# sauvegarde.
+# L'ACTIVATION A DEUX SOURCES, la base d'abord (migration 0089, table `extension_etat`), le
+# fichier d'installation ensuite :
 #
-# Deux informations, deux clés :
+#   1. UNE LIGNE EN BASE DÉCIDE, pour la base servie. C'est ce qui permet à la démo (cf.
+#      services/base_sandbox.py) d'allumer ses extensions sans toucher à celles de l'utilisateur :
+#      chacun a sa table, dans sa base. Le revers, assumé : changer de base change les extensions
+#      allumées.
+#   2. SANS LIGNE, c'EST L'ANCIEN COMPORTEMENT — le fichier `extensions.json` à côté de la base de
+#      développement, réglage de l'installation. Une base d'avant la migration n'a aucune ligne,
+#      et rien ne change pour son utilisateur tant qu'il n'a pas touché à une case. Dans la démo,
+#      une extension sans ligne est allumée, sauf celles de `EXTENSIONS_ETEINTES_EN_DEMO`.
+#
+# L'ANNONCE (`annoncees`), elle, reste dans le fichier : « l'utilisateur a vu la fenêtre » décrit
+# l'installation, pas le budget. Dans la démo elle se tait (cf. `est_annoncee`).
+#
+# Le fichier garde deux informations, deux clés :
 #
 #     {"actives": {"placements": false}, "annoncees": ["placements"]}
 #
@@ -602,6 +609,56 @@ def _ecrire_etat(etat: dict) -> None:
     fichier.write_text(json.dumps(contenu, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+# Les extensions que la DÉMO n'allume pas. « Lecture de cours » est la seule qui sorte sur le
+# réseau (elle lit des cotations sur des adresses) : une démo n'a rien à lire, et n'a pas à faire
+# partir de requête.
+EXTENSIONS_ETEINTES_EN_DEMO = {"lecture-de-cours"}
+
+
+def _decision_en_base(extension_id: str) -> Optional[bool]:
+    """Ce que la base SERVIE a décidé pour cette extension, ou None (pas de ligne — ou pas de
+    base lisible : table pas encore migrée, base absente). Ne lève jamais : `est_active` est
+    appelée sur chaque requête, et une base d'avant la migration doit continuer de servir."""
+    from . import database, models
+
+    try:
+        with database._etat.SessionLocal() as db:
+            ligne = db.get(models.ExtensionEtat, extension_id)
+            return None if ligne is None else bool(ligne.active)
+    except Exception:  # noqa: BLE001 — cf. docstring
+        return None
+
+
+def _ecrire_decision_en_base(extension_id: str, actif: bool) -> bool:
+    """Pose la décision dans la base servie. False si c'est impossible (table pas migrée)."""
+    from . import database, models
+
+    try:
+        with database._etat.SessionLocal() as db:
+            ligne = db.get(models.ExtensionEtat, extension_id)
+            if ligne is None:
+                db.add(models.ExtensionEtat(extension_id=extension_id, active=actif))
+            else:
+                ligne.active = actif
+            db.commit()
+        return True
+    except Exception:  # noqa: BLE001 — l'appelant retombe sur le fichier
+        return False
+
+
+def _decision(extension_id: str) -> Optional[bool]:
+    """La décision prise pour cette extension, toutes sources confondues : la base d'abord, puis
+    le défaut de la démo, puis le fichier d'installation. None = jamais décidée (donc éteinte)."""
+    en_base = _decision_en_base(extension_id)
+    if en_base is not None:
+        return en_base
+    from . import database
+
+    if database.en_sandbox():
+        return extension_id not in EXTENSIONS_ETEINTES_EN_DEMO
+    return _charger_etat()["actives"].get(extension_id)
+
+
 def est_active(extension_id: str) -> bool:
     """INACTIVE PAR DÉFAUT : une extension ne tourne qu'après un OUI explicite.
 
@@ -621,7 +678,7 @@ def est_active(extension_id: str) -> bool:
     L'extension reste bien sûr VISIBLE dans les Paramètres, avec sa
     description : elle est découvrable, simplement pas en marche.
     """
-    if not _charger_etat()["actives"].get(extension_id, False):
+    if not _decision(extension_id):
         return False
     # Une extension dont la dépendance vient d'être éteinte s'éteint AVEC ELLE,
     # sans qu'on ait à toucher sa case : sa greffe n'a plus d'hôte, et laisser
@@ -669,6 +726,13 @@ def rattraper_etat_avant_opt_in() -> None:
 
 
 def definir_active(extension_id: str, actif: bool) -> None:
+    """Enregistre la décision DANS LA BASE servie. Le fichier d'installation n'est écrit que si la
+    base ne peut pas la porter (table pas encore migrée) — et jamais depuis la démo : ce qu'on y
+    allume ou éteint ne doit pas devenir l'état de l'utilisateur."""
+    from . import database
+
+    if _ecrire_decision_en_base(extension_id, actif) or database.en_sandbox():
+        return
     etat = _charger_etat()
     etat["actives"][extension_id] = actif
     _ecrire_etat(etat)
@@ -676,7 +740,12 @@ def definir_active(extension_id: str, actif: bool) -> None:
 
 def est_annoncee(extension_id: str) -> bool:
     """Vrai si l'utilisateur a déjà vu — et fermé — la fenêtre annonçant cette
-    extension au lancement."""
+    extension au lancement. DANS LA DÉMO, toujours vrai : ses extensions sont déjà allumées, et
+    une fenêtre d'annonce par-dessus une démo n'annoncerait rien."""
+    from . import database
+
+    if database.en_sandbox():
+        return True
     return extension_id in _charger_etat()["annoncees"]
 
 
@@ -689,6 +758,11 @@ def marquer_annoncees(identifiants: list[str]) -> None:
     pas indéfiniment au fil des essais, et une extension retirée puis remise
     est de nouveau annoncée — la remettre est un geste délibéré, dont on veut
     la confirmation qu'il a été pris en compte."""
+    from . import database
+
+    if database.en_sandbox():
+        # Rien n'est annoncé dans la démo (cf. est_annoncee) : on n'écrit pas non plus.
+        return
     presentes = set(decouvrir())
     etat = _charger_etat()
     etat["annoncees"] = (etat["annoncees"] | set(identifiants)) & presentes

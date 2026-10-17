@@ -2215,3 +2215,25 @@ class PreferenceInterface(Base):
 
     cle = Column(String, primary_key=True)
     valeur = Column(JSON, nullable=False)
+
+
+class ExtensionEtat(Base):
+    """Une extension ALLUMÉE OU ÉTEINTE POUR CETTE BASE (migration 0089).
+
+    UNE DÉCISION, PAS UN INVENTAIRE : une ligne n'existe que si l'état a été décidé pour cette base
+    (par l'utilisateur, dans Paramètres → Extensions, ou par la démo, qui allume les siennes). Pas
+    de ligne veut dire « pas décidé ici » — et non « éteinte » : l'application retombe alors sur le
+    fichier d'installation (cf. extensions.est_active). Une base d'avant la migration n'a aucune
+    ligne et se comporte exactement comme avant.
+
+    C'EST CE QUI PERMET À LA DÉMO D'ALLUMER SES EXTENSIONS sans toucher à celles de l'utilisateur :
+    chacun a sa table, dans sa base. Le revers, assumé : changer de base change les extensions
+    allumées, avec ses données.
+
+    Le serveur ne lit rien d'autre ici que ce booléen ; l'extension elle-même n'est jamais décrite en
+    base (son nom, sa version viennent de son manifeste)."""
+
+    __tablename__ = "extension_etat"
+
+    extension_id = Column(String, primary_key=True)
+    active = Column(Boolean, nullable=False)

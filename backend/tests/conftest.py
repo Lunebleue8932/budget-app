@@ -54,6 +54,11 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers",
+        "etat_en_base: laisse l'état d'activation des extensions se lire et s'écrire dans la base "
+        "servie (table extension_etat) ; sans lui, les tests ne voient que le fichier d'installation",
+    )
+    config.addinivalue_line(
+        "markers",
         "migrations: test lent qui rejoue alembic dans un sous-processus (écarté par défaut, "
         "cf. pytest_collection_modifyitems)",
     )
@@ -118,6 +123,24 @@ def base_native_presente():
                 chemin.with_name(chemin.name + suffixe).unlink(missing_ok=True)
             except OSError:
                 pass
+
+
+@pytest.fixture(autouse=True)
+def extensions_sans_etat_en_base(request, monkeypatch):
+    """Les tests ne lisent ni n'écrivent la table `extension_etat` de la base servie.
+
+    Sans cela, un test qui appelle `definir_active` poserait une ligne dans la base NATIVE
+    (`backend/data/dev`, partagée par toute la suite et par le serveur de dev) : l'extension
+    resterait éteinte, ou allumée, pour tout ce qui vient après. Le mécanisme de fichier est celui
+    que les tests d'extensions exercent ; la table a ses propres tests (marqueur `etat_en_base`),
+    qui travaillent sur une base à eux."""
+    if "etat_en_base" in request.keywords:
+        return
+
+    from app import extensions
+
+    monkeypatch.setattr(extensions, "_decision_en_base", lambda extension_id: None)
+    monkeypatch.setattr(extensions, "_ecrire_decision_en_base", lambda extension_id, actif: False)
 
 
 @pytest.fixture(autouse=True)

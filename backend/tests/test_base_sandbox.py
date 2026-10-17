@@ -104,6 +104,16 @@ def test_la_demo_contient_de_quoi_montrer_l_application(demo_fr):
             "decoupees": db.query(models.OperationDecoupe).count(),
             "amorties": db.query(models.Operation).filter(models.Operation.amorti.is_(True)).count(),
             "imprevues": db.query(models.Operation).filter(models.Operation.imprevue.is_(True)).count(),
+            "mois_imprevues": len(
+                {
+                    (o.date.year, o.date.month)
+                    for o in db.query(models.Operation).filter(models.Operation.imprevue.is_(True))
+                }
+            ),
+            "projet_epingle": db.query(models.SousFiltre).one().visible_dashboard,
+            "objectifs_sur_projet": db.query(models.ObjectifKpi)
+            .filter(models.ObjectifKpi.sous_filtre_id.isnot(None))
+            .count(),
             "remboursables": db.query(models.Operation)
             .join(models.TypeOperationDB)
             .filter(models.TypeOperationDB.code == "remboursable")
@@ -132,11 +142,16 @@ def test_la_demo_contient_de_quoi_montrer_l_application(demo_fr):
     # Treize mois de réel, du plus ancien au mois en cours : de quoi comparer deux mois.
     assert len(lu["mois"]) == 13
     assert lu["virements"] >= 30
-    assert lu["decoupees"] == 2 and lu["amorties"] == 1 and lu["imprevues"] == 1
+    assert lu["decoupees"] == 2 and lu["amorties"] == 1
+    # Des imprévues sur presque tous les mois : de quoi tirer une moyenne.
+    assert lu["imprevues"] >= 10 and lu["mois_imprevues"] >= 10
     assert lu["remboursables"] == 2 and lu["liens"] == 1
     assert lu["previsionnelles"] >= 5 and lu["recurrentes"] >= 4
     assert lu["projets"] == 1 and lu["dans_projet"] >= 8
-    assert lu["objectifs"] == 3
+    # Les objectifs disent ce qui se RÉPÈTE ; le voyage, qui n'a lieu qu'une fois, est un projet
+    # (épinglé au dashboard), pas un objectif.
+    assert lu["objectifs"] == 2 and lu["objectifs_sur_projet"] == 0
+    assert lu["projet_epingle"] is True
     assert lu["titres"] == 3 and lu["mouvements"] == 5
     # Rien de « réel » n'a lieu après le jour de fabrication.
     assert lu["plus_recente_reelle"] <= AUJOURDHUI
@@ -403,3 +418,101 @@ def test_une_installation_de_mise_au_point_a_son_propre_dossier_de_demo(profil, 
     assert base_sandbox.dossier_sandbox() == profil / "sandbox-dev"
     monkeypatch.setattr(database, "mode_developpement", lambda: False)
     assert base_sandbox.dossier_sandbox() == profil / "sandbox"
+
+
+# ---------- Les extensions : allumées dans la démo, sans toucher à celles de l'utilisateur ----------
+
+
+def test_la_demo_allume_les_extensions_sauf_lecture_de_cours(demo_fr):
+    from app import extensions
+
+    lignes = _lire(
+        demo_fr, lambda db: {e.extension_id: e.active for e in db.query(models.ExtensionEtat).all()}
+    )
+    presentes = {
+        i for i, e in extensions.decouvrir().items() if e.type != extensions.TYPE_DEVELOPPEUR
+    }
+    assert presentes <= set(lignes)
+    assert lignes["lecture-de-cours"] is False
+    assert all(actif for identifiant, actif in lignes.items() if identifiant != "lecture-de-cours")
+    # Les extensions de développement ne sont pas une démo.
+    assert not {i for i, e in extensions.decouvrir().items() if e.type == extensions.TYPE_DEVELOPPEUR} & set(
+        lignes
+    )
+
+
+@pytest.mark.extensions_reelles
+@pytest.mark.etat_en_base
+def test_dans_la_demo_les_extensions_tournent_et_celles_de_l_utilisateur_ne_bougent_pas(
+    vraie_base, tmp_path, monkeypatch
+):
+    import json
+
+    from app import extensions
+
+    fichier = tmp_path / "extensions.json"
+    fichier.write_text(
+        json.dumps({"actives": {"placements": False}, "annoncees": []}), encoding="utf-8"
+    )
+    monkeypatch.setattr(extensions, "_fichier_etat", lambda: fichier)
+    extensions.decouvrir()
+
+    # Chez l'utilisateur : ce que dit le fichier d'installation (pas de ligne en base).
+    assert extensions.est_active("placements") is False
+
+    sandbox.entrer_sandbox("fr")
+    assert extensions.est_active("placements") is True
+    assert extensions.est_active("analyse-budget") is True
+    assert extensions.est_active("lecture-de-cours") is False
+    # Éteindre une extension dans la démo l'éteint dans la démo seulement.
+    extensions.definir_active("analyse-budget", False)
+    assert extensions.est_active("analyse-budget") is False
+    # Rien n'est annoncé dans la démo, et rien n'est écrit dans le fichier d'installation.
+    assert extensions.est_annoncee("placements") is True
+    extensions.marquer_annoncees(["placements"])
+
+    sandbox.quitter_sandbox()
+    assert json.loads(fichier.read_text(encoding="utf-8")) == {"actives": {"placements": False}, "annoncees": []}
+    assert extensions.est_active("placements") is False
+    assert extensions.est_active("analyse-budget") is False  # le fichier ne la connaît pas
+
+
+@pytest.mark.extensions_reelles
+@pytest.mark.etat_en_base
+def test_une_decision_en_base_prime_sur_le_fichier_et_ne_l_ecrit_pas(vraie_base, tmp_path, monkeypatch):
+    import json
+
+    from app import extensions
+
+    fichier = tmp_path / "extensions.json"
+    fichier.write_text(json.dumps({"actives": {"placements": True}}), encoding="utf-8")
+    monkeypatch.setattr(extensions, "_fichier_etat", lambda: fichier)
+    extensions.decouvrir()
+    assert extensions.est_active("placements") is True  # pas de ligne : le fichier
+
+    extensions.definir_active("placements", False)
+    assert extensions.est_active("placements") is False  # la ligne décide
+    with database._etat.SessionLocal() as db:
+        assert db.get(models.ExtensionEtat, "placements").active is False
+    assert json.loads(fichier.read_text(encoding="utf-8")) == {"actives": {"placements": True}}
+
+
+@pytest.mark.extensions_reelles
+@pytest.mark.etat_en_base
+def test_une_base_sans_la_table_retombe_sur_le_fichier(vraie_base, tmp_path, monkeypatch):
+    """Une base d'avant la migration 0089 continue de servir, exactement comme avant."""
+    import json
+
+    from app import extensions
+
+    fichier = tmp_path / "extensions.json"
+    fichier.write_text(json.dumps({"actives": {"placements": True}}), encoding="utf-8")
+    monkeypatch.setattr(extensions, "_fichier_etat", lambda: fichier)
+    extensions.decouvrir()
+    with database._etat.engine.begin() as connexion:
+        connexion.execute(text("DROP TABLE extension_etat"))
+
+    assert extensions.est_active("placements") is True
+    extensions.definir_active("placements", False)  # la base ne peut pas : le fichier
+    assert extensions.est_active("placements") is False
+    assert json.loads(fichier.read_text(encoding="utf-8"))["actives"]["placements"] is False

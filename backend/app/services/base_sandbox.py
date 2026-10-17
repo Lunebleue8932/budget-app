@@ -27,7 +27,9 @@ CE QU'ELLE CONTIENT, en une phrase par bloc (une fonction `_remplir_*` chacun) :
  - une dépense DÉCOUPÉE, une AMORTIE, une IMPRÉVUE, une REMBOURSABLE (réglée en partie) ;
  - des PRÉVISIONNELLES et des RÉCURRENTES, qui nourrissent le solde prévisionnel ;
  - des BUDGETS par catégorie, un budget total, des objectifs de répartition, un matelas ;
- - un PROJET (le voyage) et trois OBJECTIFS, dont un sur le projet ;
+ - un PROJET (le voyage, qui n'a lieu qu'une fois) et deux OBJECTIFS (ce qui se répète) ;
+ - des dépenses IMPRÉVUES sur presque tous les mois, pour qu'une moyenne ait un sens ;
+ - les EXTENSIONS allumées, dans la table `extension_etat` de la démo (sauf « Lecture de cours ») ;
  - un portefeuille de TITRES avec leurs répartitions, des intérêts perçus, des règles d'import.
 
 TOUT SUIT LE JOUR OÙ ON LA FABRIQUE, et la langue d'interface du moment : les libellés (comptes,
@@ -67,7 +69,7 @@ from . import base_decouverte
 
 # À incrémenter quand la démo gagne de quoi montrer une fonctionnalité nouvelle : une démo plus
 # ancienne est alors proposée au rafraîchissement.
-VERSION = 1
+VERSION = 2
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45
@@ -145,6 +147,17 @@ _L = {
     ),
     "assurance": ("Assurance habitation", "Home insurance", "Seguro residencial"),
     "velo": ("Réparation du vélo", "Bike repair", "Conserto da bicicleta"),
+    "pneu": ("Pneu crevé et réparation", "Flat tyre repair", "Pneu furado e conserto"),
+    "amende": ("Amende de stationnement", "Parking fine", "Multa de estacionamento"),
+    "plomberie": ("Dépannage plomberie", "Plumber call-out", "Chamado de encanador"),
+    "veto": ("Frais vétérinaire", "Vet bill", "Veterinário"),
+    "lunettes": ("Lunettes cassées", "Broken glasses", "Óculos quebrados"),
+    "cadeau": ("Cadeau oublié", "Forgotten gift", "Presente esquecido"),
+    "train": (
+        "Train de dernière minute",
+        "Last-minute train ticket",
+        "Passagem de trem de última hora",
+    ),
     "anniversaire": (
         "Restaurant d'anniversaire",
         "Birthday dinner",
@@ -182,7 +195,6 @@ _L = {
         "Average grocery basket",
         "Valor médio das compras",
     ),
-    "obj_voyage": ("Budget du voyage", "Trip budget", "Orçamento da viagem"),
     "regle_courses": ("Courses au supermarché", "Supermarket groceries", "Compras no mercado"),
     "regle_streaming": ("Abonnement streaming", "Streaming subscription", "Assinatura de streaming"),
     "regle_note": (
@@ -556,6 +568,9 @@ def _remplir_voyage(c: _Contexte) -> models.SousFiltre:
         monnaie_cible_id=c.euro.id,
     )
     crud.ajouter_operations_au_sous_filtre(c.db, projet, ids)
+    # Épinglé au dashboard (migration 0088) : le plafond du voyage se lit sans ouvrir la page Budget.
+    projet.visible_dashboard = True
+    c.db.commit()
     return projet
 
 
@@ -586,10 +601,31 @@ def _remplir_cas_particuliers(c: _Contexte) -> None:
         amortissement_debut=il_y_a_quatre_mois,
         amortissement_fin=_reculer(c.aujourdhui, -7),
     )
-    # UNE IMPRÉVUE : l'étiquette que lit l'extension « Budget ».
-    c.operation(
-        c.au_plus(mois_dernier, 20), c.t("velo"), "Transports", 85.0, c.courant, imprevue=True
-    )
+    # DES IMPRÉVUES SUR PRESQUE TOUS LES MOIS : l'étiquette que lit l'extension « Budget », qui en
+    # tire une moyenne. Une seule dépense imprévue ne dit rien d'une moyenne ; une par mois, de
+    # montants qui varient, en fait une vraie. (mois avant, libellé, catégorie, montant, jour.)
+    for mois_avant, nature, categorie, montant, jour in (
+        (12, "cadeau", "Loisirs", 52.0, 9),
+        (11, "pneu", "Transports", 68.0, 6),
+        (10, "train", "Transports", 47.0, 20),
+        (9, "amende", "Transports", 35.0, 13),
+        (8, "plomberie", "Charges fixes", 142.0, 18),
+        (6, "veto", CATEGORIE_AUTRES, 96.0, 10),
+        (5, "lunettes", "Santé", 120.0, 22),
+        (4, "cadeau", "Loisirs", 45.0, 4),
+        (3, "train", "Transports", 58.0, 7),
+        (2, "amende", "Transports", 35.0, 15),
+        (1, "velo", "Transports", 85.0, 20),
+        (0, "cadeau", "Loisirs", 38.0, 2),
+    ):
+        c.operation(
+            c.au_plus(_reculer(c.aujourdhui, mois_avant), jour),
+            c.t(nature),
+            categorie,
+            montant,
+            c.courant,
+            imprevue=True,
+        )
 
     # LES REMBOURSABLES : l'une réglée en partie, l'autre qu'on attend encore.
     type_remboursable = crud.get_type_operation_par_code(db, TypeOperation.remboursable.value)
@@ -678,7 +714,10 @@ def _remplir_budgets(c: _Contexte) -> None:
     db.commit()
 
 
-def _remplir_objectifs(c: _Contexte, projet: models.SousFiltre) -> None:
+def _remplir_objectifs(c: _Contexte) -> None:
+    """DES OBJECTIFS POUR CE QUI SE RÉPÈTE (chaque mois, chaque semaine), un PROJET pour ce qui n'a
+    lieu qu'une fois : le budget du voyage est le plafond du projet (cf. `_remplir_voyage`), pas un
+    objectif."""
     db = c.db
     for ordre, champs in enumerate(
         (
@@ -694,12 +733,6 @@ def _remplir_objectifs(c: _Contexte, projet: models.SousFiltre) -> None:
                 cible=65.0,
                 categorie_id=c.categories["Alimentaire"].id,
             ),
-            dict(
-                nom=c.t("obj_voyage"),
-                mesure=MesureObjectif.montant_total.value,
-                cible=1300.0,
-                sous_filtre_id=projet.id,
-            ),
         )
     ):
         db.add(
@@ -714,6 +747,32 @@ def _remplir_objectifs(c: _Contexte, projet: models.SousFiltre) -> None:
             )
         )
     db.commit()
+
+
+def _remplir_extensions(c: _Contexte) -> None:
+    """LES EXTENSIONS SONT ALLUMÉES DANS LA DÉMO (sauf celles de `extensions.EXTENSIONS_ETEINTES_EN_DEMO`,
+    qui sortent sur le réseau). L'état vit dans la table `extension_etat` de la démo : celle de
+    l'utilisateur n'est jamais touchée, c'est la raison d'être de cette table (migration 0089).
+
+    Une ligne par extension PRÉSENTE ou connue du catalogue. Une extension ajoutée plus tard n'a pas
+    de ligne et prend le défaut de la démo (allumée), cf. extensions._decision."""
+    from .. import extensions
+
+    # Les extensions de DÉVELOPPEMENT n'en font pas partie : ce sont des outils de la machine de
+    # celui qui développe, pas quelque chose à montrer.
+    identifiants = {
+        identifiant
+        for identifiant, extension in extensions.decouvrir().items()
+        if extension.type != extensions.TYPE_DEVELOPPEUR
+    } | {entree.get("id") for entree in extensions.catalogue() if entree.get("id")}
+    for identifiant in sorted(identifiants):
+        c.db.add(
+            models.ExtensionEtat(
+                extension_id=identifiant,
+                active=identifiant not in extensions.EXTENSIONS_ETEINTES_EN_DEMO,
+            )
+        )
+    c.db.commit()
 
 
 def _remplir_divers(c: _Contexte) -> None:
@@ -781,11 +840,12 @@ def remplir(db, aujourdhui: date, langue: str = "fr") -> None:
     _remplir_comptes_et_categories(c)
     _remplir_treize_mois(c)
     _remplir_virements_et_titres(c)
-    projet = _remplir_voyage(c)
+    _remplir_voyage(c)
     _remplir_cas_particuliers(c)
     _remplir_previsions(c)
     _remplir_budgets(c)
-    _remplir_objectifs(c, projet)
+    _remplir_objectifs(c)
+    _remplir_extensions(c)
     _remplir_divers(c)
     crud.set_preference_interface(
         db,
