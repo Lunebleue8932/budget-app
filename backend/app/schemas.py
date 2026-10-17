@@ -2174,6 +2174,9 @@ class ImportPresetRead(BaseModel):
     dernier_import: Optional[datetime] = None
 
 
+MAX_LIGNES_ENTETE_ESSAI = 1000
+
+
 class ColonnesImportEssai(BaseModel):
     """Les colonnes d'un ESSAI de lecture (cf. POST /previsualiser).
 
@@ -2182,6 +2185,10 @@ class ColonnesImportEssai(BaseModel):
     ligne là où une racine de tableau demande un `TypeAdapter`."""
 
     colonnes: list[ColonneImportConfig]
+    # Les lignes de tête et de pied que l'écran a SOUS LES YEUX, quand elles ne sont pas encore celles
+    # du preset (la détection des colonnes en propose). Absentes, le preset décide.
+    lignes_entete: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
+    lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
 
 
 class ImportPresetCreate(BaseModel):

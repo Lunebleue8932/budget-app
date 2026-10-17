@@ -188,13 +188,8 @@
            en plan. Il dit où trouver la notice — une phrase qu'on retrouve
            ensuite dans Paramètres, pas une étape de plus à franchir. -->
       <div class="modale-point">
-        <h3><span class="modale-point-numero">2</span>Une notice t'attend</h3>
-        <p class="modale-texte">
-          L'application explique tout ce qu'elle fait, depuis l'intérieur :
-          <strong>Paramètres → Paramètres généraux → Ouvrir la notice</strong>. On y trouve le
-          sens de chaque chiffre du dashboard, les types d'opération, et un tutoriel guidé pour
-          importer un premier relevé — avec un fichier d'exemple à télécharger.
-        </p>
+        <h3><span class="modale-point-numero">2</span>Des tutoriels t'attendent</h3>
+        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-tutoriels"></p>
       </div>
 
       <div class="modale-actions">
@@ -255,6 +250,28 @@
       <div class="modale-actions">
         <button type="button" id="btn-correspondances-fortes">Confirmer les propositions fortes</button>
         <button type="button" id="btn-correspondances-terminer" class="primary">Terminer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LA DÉTECTION DES COLONNES (import) : le MÊME tableau que celui des correspondances - une colonne
+       par colonne du fichier, la propriété proposée sur une molette, les mêmes pastilles et les mêmes
+       touches. Elle passe avant les correspondances. Cf. app.js, « DEVINER LES COLONNES ». -->
+  <div id="modale-detection" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-correspondances" role="dialog" aria-modal="true"
+         aria-labelledby="modale-detection-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-detection-titre">Ce que l'application devine des colonnes<i class="info-bulle" tabindex="0" data-info-cle="noyau.detection-colonnes">i</i></h2>
+        <button type="button" id="btn-detection-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <div id="detection-infos"></div>
+      <p class="hint" id="detection-compteur"></p>
+      <div id="detection-board" class="corr-board"></div>
+      <p class="hint import-detection-avertissement" data-texte-cle="noyau.detection-colonnes-enregistrer"></p>
+      <div class="modale-actions">
+        <button type="button" id="btn-detection-fortes">Confirmer les propositions fortes</button>
+        <button type="button" id="btn-detection-appliquer" class="primary">Appliquer ces colonnes</button>
       </div>
     </div>
   </div>
@@ -1588,6 +1605,33 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
 
+        <!-- LES TOUCHES DU TABLEAU DES CORRESPONDANCES (import). Trois champs qui CAPTURENT
+             une touche, comme celui du gel de l'infobulle ; app.js (TOUCHES_IMPORT) refuse
+             une touche déjà prise par l'une des deux autres. -->
+        <h4 class="reglage-sous-titre">Import : touches du tableau des correspondances<i class="info-bulle" tabindex="0" data-info-cle="noyau.touches-import">i</i></h4>
+        <!-- CÔTE À CÔTE : trois touches qui se règlent ensemble (elles doivent être différentes),
+             autant les voir d'un coup d'œil. Elles passent à la ligne sur un écran étroit. -->
+        <div class="reglage-touches-import">
+          <div class="reglage-bloc">
+            <label for="reglage-touche-import-haut">Monter</label>
+            <input type="text" id="reglage-touche-import-haut" data-touche-import="haut" readonly autocomplete="off"
+                   placeholder="Clique ici, puis appuie sur la touche" />
+          </div>
+          <div class="reglage-bloc">
+            <label for="reglage-touche-import-bas">Descendre</label>
+            <input type="text" id="reglage-touche-import-bas" data-touche-import="bas" readonly autocomplete="off"
+                   placeholder="Clique ici, puis appuie sur la touche" />
+          </div>
+          <div class="reglage-bloc">
+            <label for="reglage-touche-import-confirmer">Confirmer</label>
+            <input type="text" id="reglage-touche-import-confirmer" data-touche-import="confirmer" readonly autocomplete="off"
+                   placeholder="Clique ici, puis appuie sur la touche" />
+          </div>
+        </div>
+        <div class="reglage-bloc">
+          <button type="button" id="btn-touches-import-defaut">Rétablir les touches par défaut</button>
+        </div>
+
         <!-- LA PORTE DE LA NOTICE. Elle est ici et pas dans la barre du haut :
              on ne va pas lire un mode d'emploi comme on va au dashboard, on y
              va quand on bute sur quelque chose — et cet onglet est déjà celui
@@ -2174,7 +2218,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
              n'a jamais vu. -->
         <p class="hint import-detection-suggestion" id="import-detection-suggestion" style="display:none"
            data-texte-cle="noyau.detection-colonnes-suggestion"></p>
-        <div id="import-detection" class="import-detection" style="display:none"></div>
 
         <!-- Ce qui manque au tableau quand les en-têtes viennent de bouger : le
              fichier n'a pas encore été relu, les lignes résolues plus bas

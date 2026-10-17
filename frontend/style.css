@@ -2219,6 +2219,29 @@ form .operation-cases input[type="checkbox"] {
   font-weight: 600;
 }
 
+.reglage-sous-titre {
+  margin: 1.4rem 0 0.6rem;
+}
+
+/* Les trois touches du tableau d'import, côte à côte (même habillage de champ que `.reglage-touche`). */
+.reglage-touches-import {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.reglage-touches-import input {
+  width: 10rem;
+  text-align: center;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.reglage-touches-import input:focus {
+  border-color: var(--accent, #6ea8fe);
+}
+
 .reglage-touche {
   display: flex;
   flex-wrap: wrap;
@@ -7050,8 +7073,11 @@ body input[type="checkbox"]:disabled {
   font-size: 0.88rem;
 }
 
-.corr-roue-option.corr-roue-proposee { font-style: italic; }
 .corr-roue-option.corr-roue-choisie { color: var(--text-primary, inherit); font-weight: 600; }
+/* Le nom prend la couleur de ce que l'app en pense, comme la pastille « Proposition forte » /
+   « Suggestion » de la colonne - y compris sur la ligne choisie. Après `-choisie` pour l'emporter. */
+.corr-roue-option.corr-roue-forte { color: var(--accent, #3b82f6); }
+.corr-roue-option.corr-roue-suggestion { color: #d99a2b; }
 
 .corr-operations {
   flex: 1 1 auto;

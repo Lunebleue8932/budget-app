@@ -3791,5 +3791,31 @@ Object.assign(TRADUCTIONS.pt, {
     "Uma viagem, um investimento em uma atividade sob diversas formas, reformas? Difícil acompanhar isso só com categorias. Você pode então criar um projeto e adicionar a ele todas as transações que quiser. Você obtém então uma visão detalhada do que o seu projeto custou a você - ou rendeu - classificada em categorias. // Esta extensão permite criar metas personalizadas para gerenciar suas despesas como você quiser. Você pode criar indicadores personalizados levando em conta a frequência, o valor médio, o valor total, uma participação, para entender e agir com mais detalhe do que com simples limites em categorias (ex: minhas compras de mercado devem ficar em 300 € em média por mês / miro no máximo 2 saídas a restaurante por semana / poupo pelo menos 50 € por mês). Um projeto também pode ter um período (uma data de início e uma data de término, ou apenas um prazo) e um valor máximo a não ultrapassar, ou mínimo a atingir.",
   "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
     "O que as ENTRADAS do projeto devem atingir (uma vaquinha, receitas). O cartão compara o que entrou com esse limite, na moeda escolhida. Deixe vazio para não se impor nada.",
+  "Des tutoriels t'attendent":
+    "Tutoriais esperam por você",
+  "Des tutoriels guidés t'apprennent à te servir de l'application en cliquant, devant l'écran : la prise en main, puis l'import d'un premier relevé. Tu les trouves dans /bold(Paramètres → Paramètres généraux), au même endroit que la notice.":
+    "Tutoriais guiados ensinam você a usar o aplicativo clicando, com a tela na sua frente: os primeiros passos, depois a importação de um primeiro extrato. Você os encontra em /bold(Ajustes → Ajustes gerais), no mesmo lugar do manual.",
+  "Import : touches du tableau des correspondances":
+    "Importação: teclas da tabela de correspondências",
+  "Monter":
+    "Subir",
+  "Descendre":
+    "Descer",
+  "Rétablir les touches par défaut":
+    "Restaurar as teclas padrão",
+  "Cette touche est réservée à l'écran des correspondances.":
+    "Esta tecla é reservada à tela de correspondências.",
+  "Cette touche est déjà celle de « {action} ».":
+    "Esta tecla já é a de « {action} ».",
+  "Les touches du tableau qui classe les catégories de ta banque : monter et descendre dans la molette, confirmer la colonne. Pour en changer une, clique sur son champ et appuie sur la nouvelle touche. Les trois doivent être différentes.":
+    "As teclas da tabela que classifica as categorias do seu banco: subir e descer na roda, confirmar a coluna. Para mudar uma, clique no campo e pressione a nova tecla. As três devem ser diferentes.",
+  "Propriété de la colonne {n}":
+    "Propriedade da coluna {n}",
+  "{n} colonne(s) à confirmer":
+    "{n} coluna(s) a confirmar",
+  "Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset.":
+    "Colunas aplicadas e arquivo relido: « Salvar a configuração » as mantém no preset.",
+  "Ce que l'application devine des colonnes":
+    "O que o aplicativo deduz das colunas",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

@@ -663,7 +663,9 @@ def _valider_colonnes_essai(colonnes: Optional[str]):
     # configurations qui n'ont pas de sens : deux fois la même propriété, deux
     # propriétés sur la même colonne, une propriété qui n'existe pas.
     valider_colonnes(modele.colonnes, PROPRIETES_IMPORT_VALIDES, set())
-    return [c.model_dump() for c in modele.colonnes]
+    return import_bancaire.EssaiColonnes(
+        [c.model_dump() for c in modele.colonnes], modele.lignes_entete, modele.lignes_pied
+    )
 
 
 @router.post("/presets/{preset_id}/confirmer", response_model=schemas.ImportResultat)

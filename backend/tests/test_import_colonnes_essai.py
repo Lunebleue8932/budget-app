@@ -178,7 +178,16 @@ def test_le_routeur_rend_des_dicts_ordinaires():
     lues = routeur._valider_colonnes_essai(
         '{"colonnes": [{"index": 2, "propriete": "nature"}]}'
     )
-    assert lues == [{"index": 2, "propriete": "nature"}]
+    assert lues.colonnes == [{"index": 2, "propriete": "nature"}]
+    # Sans lignes de tête ni de pied dans l'essai, c'est le preset qui décide.
+    assert lues.lignes_entete is None and lues.lignes_pied is None
+
+
+def test_le_routeur_rend_les_lignes_de_tete_et_de_pied_de_l_essai():
+    lues = routeur._valider_colonnes_essai(
+        '{"colonnes": [{"index": 2, "propriete": "nature"}], "lignes_entete": 3, "lignes_pied": 1}'
+    )
+    assert (lues.lignes_entete, lues.lignes_pied) == (3, 1)
 
 
 # ---------- La confirmation lit les mêmes colonnes que l'aperçu ----------

@@ -45,6 +45,9 @@ const TEXTES = {
   "noyau.touche-gel-infobulle":
     "La touche permettant de geler l'infobulle sur les graphiques. Pour la changer, clique sur le champ et saisis la nouvelle touche ou combinaison de touches",
 
+  "noyau.touches-import":
+    "Les touches du tableau qui classe les catégories de ta banque : monter et descendre dans la molette, confirmer la colonne. Pour en changer une, clique sur son champ et appuie sur la nouvelle touche. Les trois doivent être différentes.",
+
   "noyau.monnaie-affichage-defaut":
     "Permet de changer la monnaie d'affichage par défaut : celle qui s'affiche en premier au lancement de l'app ou d'une page",
 
@@ -81,6 +84,9 @@ const TEXTES = {
   /* ----- L'écran de premier démarrage (#modale-bdd) ----- */
   "noyau.modale-bdd-emplacement":
     "Tes comptes et tes opérations vivent dans un seul fichier. Il est pour l'instant dans le /bold(dossier de l'application) : mettre l'app à jour /bold(ÉCRASERAIT) ta base, et tu perdrais tes données. Choisis-lui une place ailleurs : ce sera fait une fois pour toutes.",
+
+  "noyau.modale-bdd-tutoriels":
+    "Des tutoriels guidés t'apprennent à te servir de l'application en cliquant, devant l'écran : la prise en main, puis l'import d'un premier relevé. Tu les trouves dans /bold(Paramètres → Paramètres généraux), au même endroit que la notice.",
 
   /* ----- L'application elle-même (index.html) ----- */
   "noyau.reste-a-rembourser":

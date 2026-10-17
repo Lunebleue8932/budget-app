@@ -163,3 +163,28 @@ def test_un_salaire_ne_range_pas_une_depense_dans_une_categorie_d_entree(db_sess
         _fichier([{"date": date(2026, 7, 1), "nature": "Remboursement erreur", "categorie": "Salaire", "montant": -20.0}]),
     )
     assert apercu.lignes[0].categorie_id != get_categorie_id(db_session, "Entrées d'argent")
+
+
+def test_un_mot_court_ne_se_compare_pas_au_flou(db_session):
+    # « vie » ressemblait à « video » (75 %) : « Vie quotidienne » partait en Loisirs.
+    assert ci.proposer(db_session, "Vie quotidienne")["statut"] == "a_classer"
+
+
+def test_les_operations_du_groupe_servent_de_preuve(db_session):
+    natures = ["CB CARREFOUR MARKET", "Restaurant Chez Paul", "Courses du samedi", "Pharmacie"]
+    resultat = ci.proposer(db_session, "Vie quotidienne", natures)
+    assert resultat["statut"] in ("suggestions", "forte")
+    assert resultat["propositions"][0]["nom"] == "Alimentaire"
+
+
+def test_une_seule_operation_ne_fait_pas_une_preuve(db_session):
+    resultat = ci.proposer(db_session, "Vie quotidienne", ["Restaurant Chez Paul", "Divers xyz"])
+    assert resultat["statut"] == "a_classer"
+
+
+def test_la_preuve_des_operations_renforce_le_nom_de_la_categorie(db_session):
+    seul = ci.proposer(db_session, "Alimentation et restauration")["propositions"][0]["score"]
+    avec = ci.proposer(
+        db_session, "Alimentation et restauration", ["Carrefour", "Restaurant", "Lidl"]
+    )["propositions"][0]["score"]
+    assert avec > seul

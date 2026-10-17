@@ -4566,5 +4566,31 @@ Object.assign(TRADUCTIONS.en, {
     "A trip, an investment in an activity in its various forms, renovations? Hard to track with categories alone. So you can create a project and add all the transactions you want to it. You then get a detailed view of what your project cost you - or earned you - classified by category. // This extension lets you create custom goals to manage your spending the way you want. You can create custom indicators based on frequency, average amount, total amount, a share, to understand and act in more detail than with simple limits on categories (e.g. my groceries should be €300 on average per month / I aim for 2 restaurant outings max per week / I save at least €50 per month). A project can also have a period (a start date and an end date, or just a deadline) and a maximum amount not to exceed, or a minimum to reach.",
   "Ce que les ENTRÉES du projet doivent atteindre (une cagnotte, des recettes). La carte compare ce qui est entré à ce seuil, dans la monnaie choisie. Laisse vide pour ne rien te fixer.":
     "What the project's INCOME must reach (a pot, takings). The card compares what came in with this threshold, in the chosen currency. Leave empty to set yourself nothing.",
+  "Des tutoriels t'attendent":
+    "Tutorials are waiting for you",
+  "Des tutoriels guidés t'apprennent à te servir de l'application en cliquant, devant l'écran : la prise en main, puis l'import d'un premier relevé. Tu les trouves dans /bold(Paramètres → Paramètres généraux), au même endroit que la notice.":
+    "Guided tutorials teach you to use the application by clicking, with the screen in front of you: getting started, then importing your first statement. You will find them in /bold(Settings → General settings), in the same place as the manual.",
+  "Import : touches du tableau des correspondances":
+    "Import: correspondence table keys",
+  "Monter":
+    "Up",
+  "Descendre":
+    "Down",
+  "Rétablir les touches par défaut":
+    "Restore default keys",
+  "Cette touche est réservée à l'écran des correspondances.":
+    "This key is reserved by the correspondence screen.",
+  "Cette touche est déjà celle de « {action} ».":
+    "This key is already the one for \"{action}\".",
+  "Les touches du tableau qui classe les catégories de ta banque : monter et descendre dans la molette, confirmer la colonne. Pour en changer une, clique sur son champ et appuie sur la nouvelle touche. Les trois doivent être différentes.":
+    "The keys of the table that sorts your bank's categories: move up and down the wheel, confirm the column. To change one, click its field and press the new key. The three must be different.",
+  "Propriété de la colonne {n}":
+    "Property of column {n}",
+  "{n} colonne(s) à confirmer":
+    "{n} column(s) to confirm",
+  "Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset.":
+    "Columns applied and file re-read: \"Save configuration\" keeps them in the preset.",
+  "Ce que l'application devine des colonnes":
+    "What the application guesses about the columns",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES

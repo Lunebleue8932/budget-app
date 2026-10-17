@@ -1641,14 +1641,38 @@ class PresetAvecColonnes:
     répond `colonnes` et laisse passer tout le reste.
     """
 
-    __slots__ = ("_preset", "colonnes")
+    __slots__ = ("_preset", "colonnes", "lignes_entete", "lignes_pied")
 
-    def __init__(self, preset, colonnes):
+    def __init__(self, preset, colonnes, lignes_entete=None, lignes_pied=None):
         object.__setattr__(self, "_preset", preset)
         object.__setattr__(self, "colonnes", colonnes)
+        # Les lignes de tête et de pied ne sont posées que si l'essai les donne : un attribut de
+        # `__slots__` non posé laisse `__getattr__` répondre avec celles du preset.
+        if lignes_entete is not None:
+            object.__setattr__(self, "lignes_entete", lignes_entete)
+        if lignes_pied is not None:
+            object.__setattr__(self, "lignes_pied", lignes_pied)
 
     def __getattr__(self, nom):
         return getattr(self._preset, nom)
+
+
+class EssaiColonnes(NamedTuple):
+    """Ce que l'écran essaie sans l'enregistrer : les colonnes, et si besoin les lignes de tête et de
+    pied (cf. PresetAvecColonnes). Une liste nue reste acceptée par `_masquer_preset`."""
+
+    colonnes: list
+    lignes_entete: Optional[int] = None
+    lignes_pied: Optional[int] = None
+
+
+def _masquer_preset(preset, essai):
+    """Le preset tel que l'essai le décrit, ou le preset lui-même sans essai."""
+    if essai is None:
+        return preset
+    if not isinstance(essai, EssaiColonnes):
+        essai = EssaiColonnes(essai)
+    return PresetAvecColonnes(preset, essai.colonnes, essai.lignes_entete, essai.lignes_pied)
 
 
 def _index_propriete(preset, propriete: str) -> Optional[int]:
@@ -2655,9 +2679,7 @@ def previsualiser(
     `feuille` encore : la feuille d'un classeur que l'écran a choisie (cf.
     services/lecture_fichier, qui propose la plus plausible). None = la feuille
     active, comme toujours."""
-    preset = crud.get_import_preset(db, preset_id)
-    if colonnes is not None:
-        preset = PresetAvecColonnes(preset, colonnes)
+    preset = _masquer_preset(crud.get_import_preset(db, preset_id), colonnes)
     lignes_existantes_brutes = crud.list_lignes_import_brutes(db, preset_id)
     colonnes_comparaison = preset.colonnes_comparaison
     mode_comparaison = preset.mode_comparaison
@@ -2743,8 +2765,17 @@ def previsualiser(
     # la table des correspondances ne connaît pas encore. Une proposition « forte » PRÉSÉLECTIONNE
     # la catégorie sur les lignes concernées ; ce n'est jamais appliqué seul — la ligne reste « à
     # confirmer » (`categorie_suggestion_auto`), et rien n'est écrit dans la table avant le clic.
+    # Les NOMS DES OPÉRATIONS de chaque groupe servent de preuve en plus du nom de la catégorie de la
+    # banque (« Vie quotidienne » ne dit rien, « Carrefour » et « Restaurant » disent Alimentaire).
+    natures_par_categorie: dict = {}
+    for l in lignes:
+        if l.nom_banque_categorie and l.nature:
+            natures_par_categorie.setdefault(l.nom_banque_categorie, []).append(l.nature)
     propositions_categories = {
-        nom: categorisation_intelligente.proposer(db, nom) for nom in categories_inconnues
+        nom: categorisation_intelligente.proposer(
+            db, nom, natures_par_categorie.get(nom, [])[: categorisation_intelligente.NB_OPERATIONS_LUES]
+        )
+        for nom in categories_inconnues
     }
     lignes = _preselectionner_propositions(db, lignes, propositions_categories)
     comptes_inconnus = sorted(
@@ -3392,9 +3423,7 @@ def confirmer(
             continue
         crud.set_mapping_monnaie(db, preset_id, nom_banque, monnaie_id)
 
-    preset = crud.get_import_preset(db, preset_id)
-    if colonnes is not None:
-        preset = PresetAvecColonnes(preset, colonnes)
+    preset = _masquer_preset(crud.get_import_preset(db, preset_id), colonnes)
     lignes_existantes_brutes = crud.list_lignes_import_brutes(db, preset_id)
     colonnes_comparaison = preset.colonnes_comparaison
     mode_comparaison = preset.mode_comparaison

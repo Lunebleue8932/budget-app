@@ -2146,6 +2146,7 @@ function loadParametresGeneraux() {
   majAffichageTheme();
   majAffichageMonnaieDefaut();
   majAffichageToucheGel();
+  majAffichageTouchesImport();
   const choixMonnaiesEteintes = document.getElementById("reglage-monnaies-eteintes");
   if (choixMonnaiesEteintes) choixMonnaiesEteintes.value = modeMonnaiesEteintes();
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
@@ -3757,13 +3758,131 @@ function comboDepuisEvenement(e) {
   return morceaux.join("+");
 }
 
+// Les touches qui se lisent mieux en symbole qu'en nom anglais (« arrowup »). Entrée, Espace et Échap
+// restent des symboles : un nom français s'afficherait tel quel dans les autres langues.
+const NOMS_TOUCHES = {
+  arrowup: "↑",
+  arrowdown: "↓",
+  arrowleft: "←",
+  arrowright: "→",
+  enter: "↵",
+  " ": "␣",
+  escape: "Esc",
+};
+
 /** « ctrl+shift+f » → « Ctrl + Shift + F ». */
 function libelleCombo(combo) {
   return combo
     .split("+")
-    .map((m) => (m.length === 1 ? m.toUpperCase() : m.charAt(0).toUpperCase() + m.slice(1)))
+    .map(
+      (m) =>
+        NOMS_TOUCHES[m] ||
+        (m.length === 1 ? m.toUpperCase() : m.charAt(0).toUpperCase() + m.slice(1))
+    )
     .join(" + ");
 }
+
+/* ---------- LES TOUCHES DU TABLEAU DES CORRESPONDANCES (import) ----------
+ *
+ * Trois touches pilotent la molette : monter, descendre, confirmer la colonne courante. Elles se
+ * règlent dans Paramètres → Paramètres généraux → Import, et vivent dans le localStorage comme la
+ * touche de gel : une habitude de poste, pas une donnée du budget.
+ *
+ * LES TROIS DOIVENT ÊTRE DIFFÉRENTES, sans quoi une même pression ferait deux choses — ou, pour
+ * monter et descendre, aucune des deux. Le garde est à l'ENREGISTREMENT (`definirToucheImport`),
+ * jamais à l'usage : une touche refusée ne s'écrit pas, donc une touche lue est toujours valide.
+ *
+ * ← → Début Fin Tab et Échap restent à l'écran (colonnes, bords de la molette, navigation, fermeture) :
+ * les proposer ici ferait perdre l'une de ces fonctions en silence.
+ */
+const TOUCHES_IMPORT = {
+  haut: { cle: "budget-app.import.touche-haut", defaut: "arrowup", nom: "Monter" },
+  bas: { cle: "budget-app.import.touche-bas", defaut: "arrowdown", nom: "Descendre" },
+  confirmer: { cle: "budget-app.import.touche-confirmer", defaut: "ctrl+enter", nom: "Confirmer" },
+};
+const TOUCHES_IMPORT_RESERVEES = ["arrowleft", "arrowright", "home", "end", "tab", "escape"];
+
+function toucheImport(action) {
+  const { cle, defaut } = TOUCHES_IMPORT[action];
+  try {
+    return localStorage.getItem(cle) || defaut;
+  } catch (err) {
+    return defaut;
+  }
+}
+
+/** Enregistre une touche, ou rend le message qui dit pourquoi elle est refusée (null = acceptée). */
+function definirToucheImport(action, combo) {
+  const derniere = combo.split("+").pop();
+  if (TOUCHES_IMPORT_RESERVEES.includes(derniere) || TOUCHES_IMPORT_RESERVEES.includes(combo)) {
+    return t("Cette touche est réservée à l'écran des correspondances.");
+  }
+  const prise = Object.keys(TOUCHES_IMPORT).find(
+    (autre) => autre !== action && toucheImport(autre) === combo
+  );
+  if (prise) {
+    return t("Cette touche est déjà celle de « {action} ».", {
+      action: t(TOUCHES_IMPORT[prise].nom),
+    });
+  }
+  try {
+    localStorage.setItem(TOUCHES_IMPORT[action].cle, combo);
+  } catch (err) {
+    // Stockage indisponible : le réglage vaut pour la session, comme pour la touche de gel.
+  }
+  return null;
+}
+
+function retablirTouchesImport() {
+  Object.values(TOUCHES_IMPORT).forEach(({ cle }) => {
+    try {
+      localStorage.removeItem(cle);
+    } catch (err) {
+      // rien à rétablir si le stockage est absent
+    }
+  });
+}
+
+/** La combinaison d'un événement clavier, la touche Cmd d'un Mac valant Ctrl (comme avant). */
+function comboEvenementImport(e) {
+  const combo = comboDepuisEvenement(e);
+  if (combo && e.metaKey && !e.ctrlKey) return combo.replace("meta", "ctrl");
+  return combo;
+}
+
+function majAffichageTouchesImport() {
+  Object.keys(TOUCHES_IMPORT).forEach((action) => {
+    const champ = document.getElementById(`reglage-touche-import-${action}`);
+    if (champ) champ.value = libelleCombo(toucheImport(action));
+  });
+}
+
+document.querySelectorAll("[data-touche-import]").forEach((champ) => {
+  champ.addEventListener("keydown", (e) => {
+    // Tout est intercepté, comme pour la touche de gel : le champ capture, il ne se tape pas.
+    e.preventDefault();
+    if (e.key === "Escape") {
+      e.target.blur();
+      return;
+    }
+    const combo = comboEvenementImport(e);
+    if (!combo) return;
+    const refus = definirToucheImport(champ.dataset.toucheImport, combo);
+    if (refus) {
+      showMessage(refus, "error");
+      return;
+    }
+    majAffichageTouchesImport();
+    corrMajBoutonsConfirmer();
+    showMessage(t("Touche enregistrée."), "success");
+  });
+});
+
+document.getElementById("btn-touches-import-defaut")?.addEventListener("click", () => {
+  retablirTouchesImport();
+  majAffichageTouchesImport();
+  corrMajBoutonsConfirmer();
+});
 
 // LA DERNIÈRE BULLE MONTRÉE, ET CELLE QUI EST FIGÉE. Deux variables et non une :
 // la touche fige ce qu'on est en train de regarder, il faut donc savoir ce que
@@ -11325,6 +11444,7 @@ function reinitialiserImport() {
   Object.keys(importMappingComptes).forEach((k) => delete importMappingComptes[k]);
   Object.keys(importMappingMonnaies).forEach((k) => delete importMappingMonnaies[k]);
   importCategoriesConfirmees.clear();
+  corrChoixManuels.clear();
   importLignesSelectionnees.clear();
   Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
   importLignesSupprimees.clear();
@@ -11349,7 +11469,8 @@ function reinitialiserImport() {
   document.getElementById("import-monnaies-resolues-bloc").style.display = "none";
   document.getElementById("import-previsionnelles-bloc").style.display = "none";
   importDetection = null;
-  document.getElementById("import-detection").style.display = "none";
+  importDetectionProposee = false;
+  document.getElementById("modale-detection").style.display = "none";
   document.getElementById("import-detection-suggestion").style.display = "none";
   importReconnaissance = null;
   renderImportReconnaissance();
@@ -11368,6 +11489,7 @@ function reinitialiserImport() {
 // l'analyse démarre directement, il n'y a plus de bouton "Analyser" à cliquer.
 function definirFichierImport(fichier) {
   importFichierActuel = fichier || null;
+  importDetectionProposee = false;
   document.getElementById("import-fichier-nom").textContent = fichier ? fichier.name : "";
   // Un nouveau fichier peut venir d'une autre banque : les réglages de
   // lecture du précédent n'ont aucune raison de valoir pour celui-ci.
@@ -12818,7 +12940,13 @@ document.getElementById("import-reglage-feuille").addEventListener("change", asy
 function ajouterColonnesLues(formData) {
   formData.append(
     "colonnes",
-    JSON.stringify({ colonnes: importConfigColonnes.filter((c) => c.index >= 1) })
+    JSON.stringify({
+      colonnes: importConfigColonnes.filter((c) => c.index >= 1),
+      // Les lignes de tête et de pied que l'écran montre (la détection en propose) : lues avec les
+      // colonnes, sans rien enregistrer.
+      lignes_entete: lignesEnteteSaisies(),
+      lignes_pied: lignesPiedSaisies(),
+    })
   );
 }
 
@@ -12835,6 +12963,7 @@ async function executerPrevisualisation() {
     Object.keys(importMappingComptes).forEach((k) => delete importMappingComptes[k]);
     Object.keys(importMappingMonnaies).forEach((k) => delete importMappingMonnaies[k]);
     importCategoriesConfirmees.clear();
+    corrChoixManuels.clear();
     importLignesSelectionnees.clear();
     Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
     importLignesSupprimees.clear();
@@ -12856,15 +12985,13 @@ async function executerPrevisualisation() {
     renderImportReglagesLecture();
     renderImportMappings();
     renderImportApercu();
-    // LE TABLEAU DES CORRESPONDANCES s'ouvre de lui-même quand le fichier porte des catégories
-    // bancaires encore inconnues : c'est là qu'on voit quelles opérations elles rassemblent.
-    ouvrirCorrespondances();
-    // Une détection ouverte décrivait le fichier d'AVANT la relecture.
-    importDetection = null;
-    renderImportDetection();
-    majSuggestionDetection();
-    proposerFormatConnu();
     document.getElementById("import-resultat").style.display = "none";
+    majSuggestionDetection();
+    // LA DÉTECTION DES COLONNES PASSE AVANT LES CORRESPONDANCES : si le fichier est mal lu, c'est elle
+    // qu'on ouvre d'abord (elle rouvrira les correspondances derrière). Sinon, LE TABLEAU DES
+    // CORRESPONDANCES s'ouvre de lui-même quand le fichier porte des catégories bancaires encore
+    // inconnues : c'est là qu'on voit quelles opérations elles rassemblent.
+    if (!(await proposerDetectionAvantCorrespondances())) ouvrirCorrespondances();
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -13157,21 +13284,29 @@ function majBoutonRelireApercu() {
     colonnesNonEnregistrees ? "" : "none";
 }
 
-/* ---------- DEVINER LES COLONNES ----------
+/* ---------- DEVINER LES COLONNES (le même tableau que les correspondances) ----------
  *
- * L'application lit le fichier et propose, colonne par colonne, ce qu'elle
- * croit y voir (cf. services/detection_colonnes). DEUX SORTES DE RÉPONSES :
- * une colonne SÛRE reçoit une proposition unique — l'intitulé et la forme des
- * cellules disent la même chose ; une colonne INCERTAINE en reçoit plusieurs,
- * classées, entre lesquelles on choisit ici.
+ * L'application lit le fichier et propose, colonne par colonne, ce qu'elle croit y voir (cf.
+ * services/detection_colonnes). C'est LE MÊME TABLEAU que celui des catégories de la banque : une
+ * colonne par colonne du fichier, une molette de propriétés, les mêmes pastilles (« Proposition
+ * forte » en bleu quand les indices convergent, « Suggestion » en jaune, « Ton choix » sinon), les
+ * mêmes touches (monter, descendre, confirmer : cf. TOUCHES_IMPORT) et la même règle - on commence
+ * par la meilleure proposition, en haut de la molette, et rien n'est appliqué sans accord.
  *
- * APPLIQUER NE FAIT QUE CHANGER L'ÉCRAN, comme glisser un en-tête : les
- * colonnes affichées et le nombre de lignes de tête. Le bouton de relecture
- * s'allume, et c'est « Enregistrer la configuration » qui écrit — en
- * REMPLAÇANT les colonnes enregistrées à la main dans le preset, ce que le
- * panneau dit avant qu'on clique.
+ * ELLE PASSE AVANT LES CORRESPONDANCES : tant que les colonnes sont mal lues, les catégories, les
+ * comptes et les devises qu'on demanderait de classer sont ceux d'une lecture fausse. Quand le
+ * fichier est mal lu (plus de la moitié des lignes en erreur, aucun preset qui le lise, export d'une
+ * banque connue), le tableau s'ouvre donc de lui-même, juste après la première lecture ; une fois
+ * appliqué, le fichier est relu et c'est le tableau des correspondances qui prend le relais.
+ *
+ * APPLIQUER NE TOUCHE PAS AU PRESET : les colonnes (et les lignes de tête et de pied) deviennent
+ * celles de l'écran, et le fichier est relu avec elles. « Enregistrer la configuration » les garde -
+ * en REMPLAÇANT les colonnes enregistrées à la main, ce que le tableau dit avant qu'on applique.
  */
 let importDetection = null;
+// Une fois par fichier : appliquer, relire puis retomber sur le même constat ne doit pas rouvrir le
+// tableau en boucle. Remis à faux à chaque nouveau fichier (cf. reinitialiserImport).
+let importDetectionProposee = false;
 
 function libelleProprieteImport(propriete) {
   if (!propriete) return t("Ne pas importer");
@@ -13181,132 +13316,278 @@ function libelleProprieteImport(propriete) {
   return t(trouve ? trouve[1] : propriete);
 }
 
-async function detecterColonnesImport() {
-  if (!importFichierActuel) {
-    showMessage(t("Aucun fichier chargé à relire."), "error");
-    return;
-  }
-  const formData = new FormData();
-  formData.append("fichier", importFichierActuel);
-  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
-  if (importFeuille) formData.append("feuille", importFeuille);
-  if (importReglageSeparateurDecimal)
-    formData.append("separateur_decimal", importReglageSeparateurDecimal);
-  try {
-    importDetection = await apiFetchForm(importUrl("/detecter-colonnes"), formData);
-    renderImportDetection();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
+// L'identifiant de l'option « Ne pas importer » : une propriété n'a jamais ce nom.
+const DET_AUCUNE = "aucune";
+// Pour chaque colonne affichée : {colonne, choix (id d'option)}. Les colonnes entièrement vides,
+// sans intitulé, ne sont pas montrées (rien à y lire).
+let detColonnes = [];
+let detCourante = -1;
+// Ouvert de lui-même avant les correspondances (vrai), ou à la demande (faux).
+let detSuite = false;
+const detConfirmees = new Set(); // index des colonnes confirmées
+const detChoixManuels = new Set();
+
+function detOuvert() {
+  return document.getElementById("modale-detection").style.display !== "none";
 }
 
-function renderImportDetection() {
-  const panneau = document.getElementById("import-detection");
-  if (!importDetection) {
-    panneau.style.display = "none";
-    panneau.innerHTML = "";
-    return;
+function detIdPropriete(propriete) {
+  return propriete || DET_AUCUNE;
+}
+
+function detProprieteDe(id) {
+  return id === DET_AUCUNE ? null : id;
+}
+
+/** Les options de la molette : la proposition sûre ou les meilleures lectures d'abord (dans l'ordre
+ *  du serveur), puis « Ne pas importer » et le reste des propriétés. */
+function detOptions(entree) {
+  const { colonne } = entree;
+  const proposees = colonne.propositions.map((p, rang) => ({
+    id: detIdPropriete(p.propriete),
+    niveau: rang === 0 && colonne.certaine ? "forte" : "suggestion",
+  }));
+  const ids = new Set(proposees.map((o) => o.id));
+  const toutes = [
+    DET_AUCUNE,
+    ...[...PROPRIETES_IMPORT, ...proprietesAvanceesAffichees()].map(([cle]) => cle),
+  ];
+  const autres = toutes.filter((id) => !ids.has(id)).map((id) => ({ id, niveau: "choix" }));
+  return [...proposees, ...autres];
+}
+
+/** Ce que l'app pense de la lecture choisie pour cette colonne. */
+function detStatut(entree) {
+  const { colonne, choix } = entree;
+  const premiere = colonne.propositions[0] && detIdPropriete(colonne.propositions[0].propriete);
+  if (colonne.certaine && choix === premiere) return { cle: "forte", texte: t("Proposition forte") };
+  if (colonne.propositions.some((p) => detIdPropriete(p.propriete) === choix)) {
+    return { cle: "suggestions", texte: t("Suggestion") };
   }
-  document.getElementById("import-detection-suggestion").style.display = "none";
-  const lignes = importDetection.colonnes
-    .filter((c) => c.exemples.length || c.entete)
-    .map((colonne) => {
-      const exemples = colonne.exemples.map((e) => escapeHtml(e)).join(" · ");
-      const choix = colonne.certaine
-        ? `<span class="import-detection-sure">${escapeHtml(
-            libelleProprieteImport(colonne.propositions[0]?.propriete)
-          )}<span class="badge">${t("sûr")}</span></span>`
-        : colonne.propositions
-            .map(
-              (p, i) => `
-              <label class="import-detection-choix">
-                <input type="radio" name="detection-${colonne.index}" value="${escapeHtml(p.propriete || "")}"
-                       ${i === 0 ? "checked" : ""} />
-                ${escapeHtml(libelleProprieteImport(p.propriete))}
-              </label>`
-            )
-            .join("");
-      return `
-        <div class="import-detection-ligne" data-index="${colonne.index}">
-          <div class="import-detection-colonne">
-            <span class="import-detection-numero">${t("Colonne n°")} ${colonne.index}</span>
-            ${colonne.entete ? `<strong>${escapeHtml(colonne.entete)}</strong>` : ""}
-            <span class="hint">${exemples}</span>
-          </div>
-          <div class="import-detection-propositions">${choix}</div>
-        </div>`;
-    })
+  return { cle: "choix", texte: t("Ton choix") };
+}
+
+function detColonneDom(i) {
+  return document.querySelector(`#detection-board [data-corr-i="${i}"]`);
+}
+
+function detColonneHtml(entree, i) {
+  const { colonne, choix } = entree;
+  const statut = detStatut(entree);
+  const confirmee = detConfirmees.has(colonne.index);
+  const exemples = colonne.exemples
+    .map(
+      (e) => `<div class="corr-operation"><div class="corr-operation-nature" title="${escapeHtml(e)}">${escapeHtml(
+        e
+      )}</div></div>`
+    )
     .join("");
-
-  panneau.innerHTML = `
-    <div class="import-detection-titre">${t("Ce que l'application devine")}<i class="info-bulle" tabindex="0" data-info="${escapeHtml(
-      t(texteAide("noyau.detection-colonnes"))
-    )}">i</i></div>
-    ${
-      // LE FORMAT D'UNE BANQUE CONNUE (cf. services/formats_bancaires) : dit d'où viennent les
-      // colonnes « sûres » ci-dessous, pour qu'on vérifie l'aperçu plutôt que de croire.
-      importDetection.format_reconnu
-        ? `<p class="import-detection-format"><strong>${escapeHtml(
-            t("Format reconnu : {banque}", { banque: importDetection.format_reconnu.banque })
-          )}</strong> <span class="hint">${escapeHtml(
-            t("d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.")
-          )}</span></p>`
-        : ""
-    }
-    <p class="hint">${escapeHtml(
-      t("Lignes de tête : {n}", { n: importDetection.lignes_entete })
-    )}</p>
-    ${
-      importDetection.lignes_pied
-        ? `<p class="hint">${escapeHtml(
-            t(texteAide("noyau.detection-lignes-pied"), { n: importDetection.lignes_pied })
-          )}</p>`
-        : ""
-    }
-    ${
-      importDetection.solde
-        ? `<p class="hint">${escapeHtml(
-            t(texteAide("noyau.detection-solde"), {
-              colonne: importDetection.solde.colonne,
-              taux: Math.round(importDetection.solde.taux * 100),
-              intervalles: importDetection.solde.intervalles,
-            })
-          )}</p>`
-        : ""
-    }
-    ${
-      importDetection.format_date === "mja"
-        ? `<p class="import-avertissement">${escapeHtml(
-            t(texteAide("noyau.detection-dates-mois-devant"))
-          )}</p>`
-        : ""
-    }
-    ${lignes}
-    <p class="hint import-detection-avertissement">${escapeHtml(
-      t(texteAide("noyau.detection-colonnes-enregistrer"))
-    )}</p>
-    <div class="actions">
-      <button type="button" class="primary" data-detection="appliquer">${t("Appliquer ces colonnes")}</button>
-      <button type="button" data-detection="fermer">${t("Fermer")}</button>
-    </div>`;
-  panneau.style.display = "";
+  return `
+    <section class="corr-colonne ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
+      <div>
+        <div class="corr-banque">${escapeHtml(t("Colonne n°"))} ${colonne.index}${
+    colonne.entete ? ` · ${escapeHtml(colonne.entete)}` : ""
+  }</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0"
+             aria-label="${escapeHtml(t("Propriété de la colonne {n}", { n: colonne.index }))}">
+          ${detOptions(entree)
+            .map(
+              (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+                o.id === choix ? "corr-roue-choisie" : ""
+              }" role="option" data-id="${o.id}" aria-selected="${o.id === choix}">${escapeHtml(
+                libelleProprieteImport(detProprieteDe(o.id))
+              )}</div>`
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="corr-operations">${exemples}</div>
+      <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
+    confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+  }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+    </section>`;
 }
 
-function appliquerDetectionImport() {
-  const panneau = document.getElementById("import-detection");
-  const colonnes = [];
-  importDetection.colonnes.forEach((colonne) => {
-    let propriete;
-    if (colonne.certaine) {
-      propriete = colonne.propositions[0]?.propriete || null;
-    } else {
-      const coche = panneau.querySelector(`input[name="detection-${colonne.index}"]:checked`);
-      propriete = coche ? coche.value || null : null;
-    }
-    if (propriete) colonnes.push({ index: colonne.index, propriete });
+function detMajCompteur() {
+  const restantes = detColonnes.filter((e) => !detConfirmees.has(e.colonne.index)).length;
+  document.getElementById("detection-compteur").textContent = restantes
+    ? t("{n} colonne(s) à confirmer", { n: restantes })
+    : t("Tout est confirmé.");
+  document.getElementById("btn-detection-fortes").disabled = !detColonnes.some(
+    (e) => detFortePrete(e)
+  );
+}
+
+function detFortePrete(entree) {
+  return detStatut(entree).cle === "forte" && !detConfirmees.has(entree.colonne.index);
+}
+
+function detMajBouton(i) {
+  const colonne = detColonneDom(i);
+  if (!colonne) return;
+  const confirmee = detConfirmees.has(detColonnes[i].colonne.index);
+  colonne.classList.toggle("corr-confirmee", confirmee);
+  colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+}
+
+function detCentrerRoue(i, doux) {
+  const colonne = detColonneDom(i);
+  if (!colonne) return;
+  const roue = colonne.querySelector(".corr-roue");
+  const rang = Math.max(
+    0,
+    [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie"))
+  );
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
+}
+
+function detDefinirCourante(i, { focus = false } = {}) {
+  detCourante = i;
+  document
+    .querySelectorAll("#detection-board .corr-colonne")
+    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
+  const colonne = detColonneDom(i);
+  if (!colonne) return;
+  colonne.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  if (focus) colonne.querySelector(".corr-roue").focus({ preventScroll: true });
+}
+
+/** Choisit une propriété pour la colonne `i` : redemande une confirmation. */
+function detChoisir(i, id, { defiler = true } = {}) {
+  const entree = detColonnes[i];
+  entree.choix = id;
+  detChoixManuels.add(entree.colonne.index);
+  detConfirmees.delete(entree.colonne.index);
+  const colonne = detColonneDom(i);
+  if (!colonne) return;
+  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = o.dataset.id === id;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
   });
-  // UNE PROPRIÉTÉ, UNE COLONNE : le serveur refuserait la lecture, autant le
-  // dire ici avec le nom de la propriété.
+  const statut = detStatut(entree);
+  const pastille = colonne.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  detMajBouton(i);
+  if (defiler) detCentrerRoue(i, true);
+  detMajCompteur();
+}
+
+function detProchaineNonConfirmee(apres) {
+  const non = (e) => !detConfirmees.has(e.colonne.index);
+  const suivante = detColonnes.findIndex((e, k) => k > apres && non(e));
+  return suivante !== -1 ? suivante : detColonnes.findIndex(non);
+}
+
+function detConfirmer(i) {
+  if (i < 0 || i >= detColonnes.length) return;
+  detConfirmees.add(detColonnes[i].colonne.index);
+  detMajBouton(i);
+  detMajCompteur();
+  const cible = detProchaineNonConfirmee(i);
+  if (cible === -1) {
+    detDefinirCourante(i);
+    document.getElementById("btn-detection-appliquer").focus();
+    return;
+  }
+  detDefinirCourante(cible, { focus: true });
+}
+
+function detConfirmerFortes() {
+  detColonnes.forEach((entree, i) => {
+    if (!detFortePrete(entree)) return;
+    detConfirmees.add(entree.colonne.index);
+    detMajBouton(i);
+  });
+  detMajCompteur();
+  const premiere = detProchaineNonConfirmee(-1);
+  if (premiere !== -1) detDefinirCourante(premiere, { focus: true });
+}
+
+/** Les constats de lecture du fichier (format, lignes de tête et de pied, solde, dates) : ce que la
+ *  détection a appris EN PLUS des colonnes, et que le tableau montre au-dessus d'elles. */
+function detInfosHtml(detection) {
+  const lignes = [];
+  // LE FORMAT D'UNE BANQUE CONNUE (cf. services/formats_bancaires) : dit d'où viennent les colonnes
+  // « sûres », pour qu'on vérifie l'aperçu plutôt que de croire.
+  if (detection.format_reconnu) {
+    lignes.push(
+      `<p class="import-detection-format"><strong>${escapeHtml(
+        t("Format reconnu : {banque}", { banque: detection.format_reconnu.banque })
+      )}</strong> <span class="hint">${escapeHtml(
+        t("d'après les intitulés des colonnes — vérifie l'aperçu avant d'importer.")
+      )}</span></p>`
+    );
+  }
+  lignes.push(`<p class="hint">${escapeHtml(t("Lignes de tête : {n}", { n: detection.lignes_entete }))}</p>`);
+  if (detection.lignes_pied) {
+    lignes.push(
+      `<p class="hint">${escapeHtml(
+        t(texteAide("noyau.detection-lignes-pied"), { n: detection.lignes_pied })
+      )}</p>`
+    );
+  }
+  if (detection.solde) {
+    lignes.push(
+      `<p class="hint">${escapeHtml(
+        t(texteAide("noyau.detection-solde"), {
+          colonne: detection.solde.colonne,
+          taux: Math.round(detection.solde.taux * 100),
+          intervalles: detection.solde.intervalles,
+        })
+      )}</p>`
+    );
+  }
+  if (detection.format_date === "mja") {
+    lignes.push(
+      `<p class="import-avertissement">${escapeHtml(t(texteAide("noyau.detection-dates-mois-devant")))}</p>`
+    );
+  }
+  return lignes.join("");
+}
+
+function ouvrirDetection(detection, { suite = false } = {}) {
+  importDetection = detection;
+  detSuite = suite;
+  detConfirmees.clear();
+  detChoixManuels.clear();
+  detColonnes = detection.colonnes
+    .filter((c) => c.exemples.length || c.entete)
+    .map((colonne) => ({
+      colonne,
+      // On part de la MEILLEURE PROPOSITION (en haut de la molette) ; rien n'est confirmé pour autant.
+      choix: detIdPropriete(colonne.propositions[0]?.propriete),
+    }));
+  document.getElementById("detection-infos").innerHTML = detInfosHtml(detection);
+  const board = document.getElementById("detection-board");
+  board.innerHTML = detColonnes.map((entree, i) => detColonneHtml(entree, i)).join("");
+  detColonnes.forEach((_, i) => detCentrerRoue(i, false));
+  detMajCompteur();
+  document.getElementById("modale-detection").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  detDefinirCourante(Math.max(0, detProchaineNonConfirmee(-1)), { focus: true });
+}
+
+/** Ferme le tableau sans rien appliquer. Ouvert avant les correspondances, il les rouvre derrière. */
+function fermerDetection() {
+  document.getElementById("modale-detection").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+  detCourante = -1;
+  importDetection = null;
+  majSuggestionDetection();
+  if (detSuite) ouvrirCorrespondances();
+}
+
+async function appliquerDetectionImport() {
+  const colonnes = detColonnes
+    .filter((e) => e.choix !== DET_AUCUNE)
+    .map((e) => ({ index: e.colonne.index, propriete: e.choix }));
+  // UNE PROPRIÉTÉ, UNE COLONNE : le serveur refuserait la lecture, autant le dire ici avec le nom
+  // de la propriété.
   const vues = new Set();
   for (const c of colonnes) {
     if (vues.has(c.propriete)) {
@@ -13320,61 +13601,110 @@ function appliquerDetectionImport() {
     }
     vues.add(c.propriete);
   }
+  const detection = importDetection;
   importConfigColonnes = colonnes;
-  document.getElementById("import-lignes-entete").value = importDetection.lignes_entete;
-  document.getElementById("import-lignes-pied").value = importDetection.lignes_pied || 0;
+  document.getElementById("import-lignes-entete").value = detection.lignes_entete;
+  document.getElementById("import-lignes-pied").value = detection.lignes_pied || 0;
   updateResumeLignesEntete();
-  importApercuAReloire = true;
+  // Plus de tableau de détection à rouvrir derrière : le fichier va être relu avec ces colonnes, et
+  // c'est le tableau des correspondances qui s'ouvrira à la fin de la relecture.
+  importDetectionProposee = true;
+  document.getElementById("modale-detection").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+  detCourante = -1;
   importDetection = null;
-  renderImportDetection();
   renderImportConfig();
-  renderApercuFichier();
+  await executerPrevisualisation();
+  importApercuAReloire = false;
   majBoutonRelireApercu();
   showMessage(
-    t("Colonnes appliquées à l'écran : relis le fichier pour voir le résultat, puis enregistre la configuration pour les garder."),
+    t("Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset."),
     "success"
   );
 }
 
-document.getElementById("btn-import-detecter").addEventListener("click", detecterColonnesImport);
-document.getElementById("import-detection").addEventListener("click", (e) => {
-  const bouton = e.target.closest("[data-detection]");
-  if (!bouton) return;
-  if (bouton.dataset.detection === "appliquer") appliquerDetectionImport();
-  if (bouton.dataset.detection === "fermer") {
-    importDetection = null;
-    renderImportDetection();
-  }
-});
-
-/**
- * L'EXPORT D'UNE BANQUE CONNUE, signalé dès la lecture du fichier : la détection tourne en
- * silence (lecture seule, rien n'est enregistré), et si elle reconnaît le format sans que le
- * preset le lise déjà ainsi, la suggestion « Deviner les colonnes » s'allume avec le nom de la
- * banque. Un échec ne dit rien : c'est un plus, jamais une étape.
- */
-async function proposerFormatConnu() {
-  if (!importFichierActuel || !importApercu) return;
+/** Lit le fichier ouvert et rend ce que la détection en dit, ou null (erreur déjà montrée). */
+async function demanderDetectionImport() {
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
-  ajouterReglagesLecture(formData);
+  if (importReglageDelimiteur) formData.append("delimiteur", importReglageDelimiteur);
+  if (importFeuille) formData.append("feuille", importFeuille);
+  if (importReglageSeparateurDecimal)
+    formData.append("separateur_decimal", importReglageSeparateurDecimal);
+  return apiFetchForm(importUrl("/detecter-colonnes"), formData);
+}
+
+/** Le bouton « Deviner les colonnes » : le tableau, à la demande. */
+async function detecterColonnesImport() {
+  if (!importFichierActuel) {
+    showMessage(t("Aucun fichier chargé à relire."), "error");
+    return;
+  }
   try {
-    const detection = await apiFetchForm(importUrl("/detecter-colonnes"), formData);
-    if (!detection.format_reconnu || importDetection) return;
-    const cle = (colonnes) =>
-      JSON.stringify(colonnes.map((c) => [c.index, c.propriete]).sort((a, b) => a[0] - b[0]));
-    if (cle(detection.configuration) === cle(importConfigColonnes || [])) return;
-    const suggestion = document.getElementById("import-detection-suggestion");
-    suggestion.textContent = t(
-      "Format reconnu : {banque}. « Deviner les colonnes » te propose la lecture adaptée à cet export.",
-      { banque: detection.format_reconnu.banque }
-    );
-    suggestion.style.display = "";
-    document.getElementById("btn-import-detecter").classList.add("a-relire");
+    ouvrirDetection(await demanderDetectionImport());
   } catch (err) {
-    // Silencieux : la suggestion est un plus.
+    showMessage(err.message, "error");
   }
 }
+
+/**
+ * LA DÉTECTION AVANT LES CORRESPONDANCES, après la première lecture d'un fichier. Rend `true` quand
+ * elle a ouvert le tableau (c'est lui qui rouvrira les correspondances, après relecture ou à la
+ * fermeture), `false` quand la lecture actuelle est bonne et que les correspondances peuvent passer.
+ *
+ * Elle s'ouvre quand : plus de la moitié des lignes sont en erreur, aucun preset ne lit le fichier,
+ * ou l'export est celui d'une banque connue que le preset ne lit pas ainsi. Un échec ne dit rien :
+ * c'est un plus, jamais une étape.
+ */
+async function proposerDetectionAvantCorrespondances() {
+  if (!importFichierActuel || !importApercu || importDetectionProposee) return false;
+  // JAMAIS PENDANT UN TUTORIEL : ses fichiers sont lus de travers exprès (étapes 5, 6 et 15), et un
+  // tableau qui s'ouvre de lui-même au milieu d'une étape la ferait dérailler.
+  if (typeof tutorielActif !== "undefined" && tutorielActif) return false;
+  // UNE SEULE FOIS PAR FICHIER, bon ou mauvais constat : les relectures qui suivent sont des
+  // retouches voulues (un délimiteur, des colonnes), pas une première lecture à deviner.
+  importDetectionProposee = true;
+  const lignes = importApercu.lignes || [];
+  const enErreur = lignes.filter((l) => l.erreur).length;
+  const aucunPreset = importReconnaissance && importReconnaissance.decision === "aucun";
+  const malLu = lignes.length > 0 && enErreur / lignes.length > 0.5;
+  try {
+    const detection = await demanderDetectionImport();
+    const cle = (colonnes) =>
+      JSON.stringify(colonnes.map((c) => [c.index, c.propriete]).sort((a, b) => a[0] - b[0]));
+    const autreLecture =
+      detection.format_reconnu && cle(detection.configuration) !== cle(importConfigColonnes || []);
+    if (!(malLu || aucunPreset || autreLecture) || !importFichierActuel) return false;
+    ouvrirDetection(detection, { suite: true });
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+(function initDetection() {
+  document.getElementById("btn-import-detecter").addEventListener("click", detecterColonnesImport);
+  document.getElementById("btn-detection-fermer").addEventListener("click", () => fermerDetection());
+  document.getElementById("btn-detection-appliquer").addEventListener("click", appliquerDetectionImport);
+  document.getElementById("btn-detection-fortes").addEventListener("click", detConfirmerFortes);
+  brancherMolettes(document.getElementById("detection-board"), {
+    courante: () => detCourante,
+    definirCourante: detDefinirCourante,
+    choisir: (i, id, options) => detChoisir(i, id, options),
+    valeur: (i) => detColonnes[i].choix,
+    nombre: () => detColonnes.length,
+    confirmer: detConfirmer,
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!detOuvert()) return;
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
+      e.preventDefault();
+      detConfirmer(detCourante);
+    } else if (e.key === "Escape") {
+      fermerDetection();
+    }
+  });
+})();
 
 /**
  * LA DÉTECTION SE PROPOSE D'ELLE-MÊME quand la lecture actuelle ne donne
@@ -13998,21 +14328,42 @@ function corrPropositions(nom) {
   return (importApercu.propositions_categories || {})[nom] || { statut: "a_classer", propositions: [] };
 }
 
-/** Les options de la molette : les propositions d'abord (dans l'ordre du serveur), puis le reste
- *  des catégories proposables. La catégorie déjà choisie en fait toujours partie. */
+/** Les options de la molette, dans l'ordre de ce que l'app en pense : la proposition FORTE, puis les
+ *  SUGGESTIONS (dans l'ordre du serveur, du plus proche au moins proche), puis « ton choix » : la
+ *  catégorie déjà choisie hors propositions, et le reste. `niveau` colore le nom (bleu, jaune). */
 function corrOptions(nom) {
-  const propositions = corrPropositions(nom).propositions;
+  const { statut, propositions } = corrPropositions(nom);
   const ids = new Set(propositions.map((p) => p.categorie_id));
   const proposees = propositions
-    .map((p) => {
+    .map((p, rang) => {
       const c = state.categories.find((x) => x.id === p.categorie_id);
-      return c ? { id: c.id, nom: c.nom, proposee: true } : null;
+      if (!c) return null;
+      const niveau = rang === 0 && statut === "forte" ? "forte" : "suggestion";
+      return { id: c.id, nom: c.nom, niveau };
     })
     .filter(Boolean);
-  const autres = categoriesProposables(corrValeur(nom))
+  const choisie = corrValeur(nom);
+  const autres = categoriesProposables(choisie)
     .filter((c) => !ids.has(c.id))
-    .map((c) => ({ id: c.id, nom: c.nom, proposee: false }));
+    .map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" }))
+    // La catégorie déjà choisie ouvre « Ton choix » : sans proposition, c'est elle qu'on voit en haut.
+    .sort((a, b) => (b.id === choisie) - (a.id === choisie));
   return [...proposees, ...autres];
+}
+
+// Les colonnes dont la catégorie a été choisie À LA MAIN dans ce fichier : le tableau ne les remet
+// pas sur la meilleure proposition en s'ouvrant. Vidé avec les autres choix à chaque nouvel aperçu.
+const corrChoixManuels = new Set();
+
+/** À l'ouverture, chaque colonne non confirmée repart de sa MEILLEURE PROPOSITION (en haut de la
+ *  molette), sauf si l'on a déjà choisi autre chose. Rien n'est confirmé pour autant. */
+function corrRepartirDuHaut() {
+  corrNoms.forEach((nom) => {
+    if (corrChoixManuels.has(nom) || importCategoriesConfirmees.has(nom)) return;
+    if (!corrPropositions(nom).propositions.length) return;
+    const premiere = corrOptions(nom)[0];
+    if (premiere && premiere.niveau !== "choix") importMappingCategories[nom] = premiere.id;
+  });
 }
 
 /** Le libellé de l'état d'une colonne : de quoi sait-on que cette catégorie est la bonne ? */
@@ -14073,7 +14424,7 @@ function corrColonneHtml(nom, i) {
              aria-label="${escapeHtml(t("Catégorie de l'app pour « {nom} »", { nom }))}">
           ${options
             .map(
-              (o) => `<div class="corr-roue-option ${o.proposee ? "corr-roue-proposee" : ""} ${
+              (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
                 o.id === choisie ? "corr-roue-choisie" : ""
               }" role="option" data-id="${o.id}" aria-selected="${o.id === choisie}">${escapeHtml(
                 libelleCategorie(o.nom)
@@ -14085,7 +14436,7 @@ function corrColonneHtml(nom, i) {
       <div class="corr-operations">${corrOperationsHtml(nom)}</div>
       <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
         confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
-      }</span> <kbd>(Ctrl+Entrée)</kbd></button>
+      }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
     </section>`;
 }
 
@@ -14118,8 +14469,17 @@ function corrMajBouton(i) {
   colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
 }
 
+/** La touche affichée sur chaque bouton « Confirmer » suit le réglage. */
+function corrMajBoutonsConfirmer() {
+  const libelle = `(${libelleCombo(toucheImport("confirmer"))})`;
+  document.querySelectorAll("#correspondances-board [data-corr-touche], #detection-board [data-corr-touche]").forEach((k) => {
+    k.textContent = libelle;
+  });
+}
+
 function renderCorrespondances() {
   corrNoms = demandesDeMapping().categories;
+  corrRepartirDuHaut();
   const board = document.getElementById("correspondances-board");
   board.innerHTML = corrNoms.map((nom, i) => corrColonneHtml(nom, i)).join("");
   corrNoms.forEach((nom, i) => corrCentrerRoue(i, false));
@@ -14150,6 +14510,7 @@ function corrDefinirCourante(i, { focus = false } = {}) {
 function corrChoisir(i, categorieId, { defiler = true } = {}) {
   const nom = corrNoms[i];
   importMappingCategories[nom] = categorieId;
+  corrChoixManuels.add(nom);
   importCategoriesConfirmees.delete(nom);
   const colonne = corrColonne(i);
   if (!colonne) return;
@@ -14232,37 +14593,38 @@ function fermerCorrespondances() {
   if (importApercu) corrAppliquer();
 }
 
-(function initCorrespondances() {
-  const board = document.getElementById("correspondances-board");
-  document.getElementById("btn-import-correspondances").addEventListener("click", ouvrirCorrespondances);
-  document.getElementById("btn-correspondances-fermer").addEventListener("click", fermerCorrespondances);
-  document.getElementById("btn-correspondances-terminer").addEventListener("click", fermerCorrespondances);
-  document.getElementById("btn-correspondances-fortes").addEventListener("click", corrConfirmerFortes);
-
+/**
+ * Câble un tableau à molettes (clic, focus, défilement, touches). COMMUN AU TABLEAU DES
+ * CORRESPONDANCES ET À CELUI DES COLONNES DU FICHIER : c'est ce qui en fait la même interface.
+ *
+ * `h` : { courante(), definirCourante(i, {focus}), choisir(i, id, {defiler}), valeur(i), nombre(),
+ * confirmer(i) } - les identifiants d'option sont des textes (`data-id`), à chacun de les lire.
+ */
+function brancherMolettes(board, h) {
   board.addEventListener("click", (e) => {
     const bouton = e.target.closest("[data-corr-confirmer]");
     if (bouton) {
-      corrConfirmer(Number(bouton.dataset.corrConfirmer));
+      h.confirmer(Number(bouton.dataset.corrConfirmer));
       return;
     }
     const option = e.target.closest(".corr-roue-option");
     if (option) {
       const i = Number(option.closest("[data-corr-i]").dataset.corrI);
-      corrDefinirCourante(i);
-      corrChoisir(i, Number(option.dataset.id));
+      h.definirCourante(i);
+      h.choisir(i, option.dataset.id);
     }
   });
 
-  // Entrer dans une colonne (clic, Tab) la rend courante : c'est elle que Ctrl+Entrée confirme.
+  // Entrer dans une colonne (clic, Tab) la rend courante : c'est elle que la touche de confirmation valide.
   board.addEventListener("focusin", (e) => {
     const colonne = e.target.closest("[data-corr-i]");
-    if (colonne && Number(colonne.dataset.corrI) !== corrCourante) {
-      corrDefinirCourante(Number(colonne.dataset.corrI));
+    if (colonne && Number(colonne.dataset.corrI) !== h.courante()) {
+      h.definirCourante(Number(colonne.dataset.corrI));
     }
   });
   board.addEventListener("mousedown", (e) => {
     const colonne = e.target.closest("[data-corr-i]");
-    if (colonne) corrDefinirCourante(Number(colonne.dataset.corrI));
+    if (colonne) h.definirCourante(Number(colonne.dataset.corrI));
   });
 
   // La molette se pose où l'on s'arrête : le défilement fini, la ligne centrée est le choix. Les
@@ -14280,42 +14642,60 @@ function fermerCorrespondances() {
           Math.max(0, Math.round(roue.scrollTop / CORR_HAUTEUR_OPTION))
         );
         const i = Number(roue.closest("[data-corr-i]").dataset.corrI);
-        const id = Number(options[rang].dataset.id);
-        if (id !== corrValeur(corrNoms[i])) corrChoisir(i, id, { defiler: false });
+        const id = options[rang].dataset.id;
+        if (id !== String(h.valeur(i))) h.choisir(i, id, { defiler: false });
       }, 90);
     },
     true
   );
 
-  // ↑ / ↓ déplacent la molette de la colonne ; ← / → passent d'une colonne à l'autre.
+  // Les touches « monter » / « descendre » (↑ / ↓ par défaut, cf. TOUCHES_IMPORT) déplacent la molette
+  // de la colonne ; ← / → passent d'une colonne à l'autre.
   board.addEventListener("keydown", (e) => {
     const roue = e.target.closest(".corr-roue");
-    if (!roue || e.ctrlKey || e.metaKey) return;
+    if (!roue) return;
+    const combo = comboEvenementImport(e);
     const i = Number(roue.closest("[data-corr-i]").dataset.corrI);
     const options = [...roue.children];
     const rang = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
     let nouveau = null;
-    if (e.key === "ArrowDown") nouveau = Math.min(options.length - 1, rang + 1);
-    else if (e.key === "ArrowUp") nouveau = Math.max(0, rang - 1);
-    else if (e.key === "Home") nouveau = 0;
-    else if (e.key === "End") nouveau = options.length - 1;
+    if (combo === toucheImport("bas")) nouveau = Math.min(options.length - 1, rang + 1);
+    else if (combo === toucheImport("haut")) nouveau = Math.max(0, rang - 1);
+    else if (combo === "home") nouveau = 0;
+    else if (combo === "end") nouveau = options.length - 1;
     if (nouveau !== null) {
       e.preventDefault();
-      corrChoisir(i, Number(options[nouveau].dataset.id));
+      h.choisir(i, options[nouveau].dataset.id);
       return;
     }
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      const voisine = i + (e.key === "ArrowRight" ? 1 : -1);
-      if (voisine >= 0 && voisine < corrNoms.length) {
+    if (combo === "arrowleft" || combo === "arrowright") {
+      const voisine = i + (combo === "arrowright" ? 1 : -1);
+      if (voisine >= 0 && voisine < h.nombre()) {
         e.preventDefault();
-        corrDefinirCourante(voisine, { focus: true });
+        h.definirCourante(voisine, { focus: true });
       }
     }
+  });
+}
+
+(function initCorrespondances() {
+  document.getElementById("btn-import-correspondances").addEventListener("click", ouvrirCorrespondances);
+  document.getElementById("btn-correspondances-fermer").addEventListener("click", fermerCorrespondances);
+  document.getElementById("btn-correspondances-terminer").addEventListener("click", fermerCorrespondances);
+  document.getElementById("btn-correspondances-fortes").addEventListener("click", corrConfirmerFortes);
+
+  brancherMolettes(document.getElementById("correspondances-board"), {
+    courante: () => corrCourante,
+    definirCourante: corrDefinirCourante,
+    choisir: (i, id, options) => corrChoisir(i, Number(id), options),
+    valeur: (i) => corrValeur(corrNoms[i]),
+    nombre: () => corrNoms.length,
+    confirmer: corrConfirmer,
   });
 
   document.addEventListener("keydown", (e) => {
     if (!corrOuvert()) return;
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
       e.preventDefault();
       corrConfirmer(corrCourante);
     } else if (e.key === "Escape") {

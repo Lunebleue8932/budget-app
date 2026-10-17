@@ -46,6 +46,18 @@ NB_SUGGESTIONS = 3
 # Un mot plus court que ça ne vaut jamais une inclusion : « cb », « tv », « de » trouvent trop
 # de choses.
 LONGUEUR_MIN_MOT = 3
+# En dessous, un mot ne se compare plus que par égalité (cf. `_score`).
+LONGUEUR_MIN_MOT_FLOU = 5
+# Le flou ne rattrape que la FAUTE DE FRAPPE : « transports » ressemble à « sport » à 67 %, et ce
+# n'est pas une faute de frappe. En dessous de ce score, la ressemblance de lettres ne compte pas.
+SEUIL_FLOU = 0.8
+# LES OPÉRATIONS DU GROUPE comme preuve (cf. `_preuves_operations`) : la part de celles qui nomment
+# une catégorie donne son score. 100 % monte à 0,92 ; 20 % à 0,68 - une suggestion, jamais une
+# présélection. Il en faut au moins `PREUVES_MIN`.
+BASE_PREUVE = SEUIL_BAS
+POIDS_PREUVE = 0.30
+PREUVES_MIN = 2
+NB_OPERATIONS_LUES = 200
 
 
 def normaliser(texte: Optional[str]) -> str:
@@ -195,12 +207,23 @@ def _score(libelle: str, candidat: str) -> float:
     meilleur = 0.0
     for ml in mots_l:
         for mc in mots_c:
-            if min(len(ml), len(mc)) >= 5 and (ml.startswith(mc) or mc.startswith(ml)):
+            if min(len(ml), len(mc)) < LONGUEUR_MIN_MOT_FLOU:
+                # UN MOT COURT NE SE COMPARE PAS AU FLOU : « vie » ressemble à « video » à 75 %, et
+                # « Vie quotidienne » se retrouvait en Loisirs (via « jeux vidéo »). Pour un mot de
+                # trois ou quatre lettres, l'égalité (traitée plus haut) est la seule preuve.
+                continue
+            if ml.startswith(mc) or mc.startswith(ml):
                 meilleur = max(meilleur, 0.9)
             else:
-                meilleur = max(meilleur, SequenceMatcher(None, ml, mc).ratio())
-    # Le bloc entier, pour les libellés sans mot « plein » (« h m », « 13o »).
-    meilleur = max(meilleur, SequenceMatcher(None, libelle, candidat).ratio())
+                ressemblance = SequenceMatcher(None, ml, mc).ratio()
+                if ressemblance >= SEUIL_FLOU:
+                    meilleur = max(meilleur, ressemblance)
+    # Le bloc entier ne vaut que pour UN mot contre UN mot (une faute de frappe) : entre deux
+    # groupes de mots, quelques lettres communes suffisent à faire un score, et ce n'est pas du sens.
+    if len(mots_l) == 1 and len(mots_c) == 1:
+        ressemblance = SequenceMatcher(None, libelle, candidat).ratio()
+        if ressemblance >= SEUIL_FLOU:
+            meilleur = max(meilleur, ressemblance)
     return meilleur
 
 
@@ -216,15 +239,64 @@ def _candidats(categorie: models.Categorie) -> list[tuple[str, str]]:
     return sortie
 
 
-def classer(db: Session, libelle_banque: str) -> list[dict]:
+def _nomme(libelle: str, candidat: str) -> bool:
+    """Le libellé (déjà normalisé) contient-il ce mot-clé, en mots entiers ou en préfixe d'un mot
+    d'au moins cinq lettres ? La version SANS flou de `_score`, assez peu chère pour être jouée
+    sur chaque opération d'un groupe."""
+    if not libelle or not candidat:
+        return False
+    mots_l, mots_c = set(libelle.split()), set(candidat.split())
+    if any(len(m) >= LONGUEUR_MIN_MOT for m in mots_c) and mots_c <= mots_l:
+        return True
+    return any(
+        min(len(ml), len(mc)) >= LONGUEUR_MIN_MOT_FLOU and (ml.startswith(mc) or mc.startswith(ml))
+        for ml in mots_l
+        for mc in mots_c
+    )
+
+
+def _preuves_operations(candidats_par_categorie: dict, natures: list[str]) -> dict:
+    """{categorie_id: (score, mot)} d'après les NOMS DES OPÉRATIONS du groupe.
+
+    LE NOM DE LA CATÉGORIE DE LA BANQUE N'EST PAS TOUT : « Vie quotidienne » ne dit rien, mais ses
+    opérations s'appellent « Carrefour », « Restaurant », « Courses ». Pour chaque catégorie de
+    l'app, on compte les opérations dont le nom contient l'un de ses mots-clés ; la PART qu'elles
+    représentent donne le score (`BASE_PREUVE` + `POIDS_PREUVE` × part). Il en faut au moins
+    `PREUVES_MIN`, sinon un seul « bar » dans un libellé suffirait."""
+    lues = [n for n in dict.fromkeys(normaliser(n) for n in natures) if n]
+    if not lues:
+        return {}
+    total = len(lues)
+    preuves = {}
+    for categorie_id, candidats in candidats_par_categorie.items():
+        decomptes: dict[str, int] = {}
+        touchees = 0
+        for nature in lues:
+            mot = next((brut for normalise, brut in candidats if _nomme(nature, normalise)), None)
+            if mot is not None:
+                touchees += 1
+                decomptes[mot] = decomptes.get(mot, 0) + 1
+        if touchees >= PREUVES_MIN:
+            via = max(decomptes, key=decomptes.get)
+            preuves[categorie_id] = (round(BASE_PREUVE + POIDS_PREUVE * touchees / total, 4), via)
+    return preuves
+
+
+def classer(db: Session, libelle_banque: str, natures: Optional[list[str]] = None) -> list[dict]:
     """Les catégories de l'app, de la plus proche à la moins proche du libellé de la banque :
     [{categorie_id, nom, score, via}], score > 0 seulement. `via` est le mot (nom ou alias) qui a
-    porté le score — c'est ce qui permet à l'écran de dire POURQUOI on propose."""
+    porté le score — c'est ce qui permet à l'écran de dire POURQUOI on propose.
+
+    `natures` : les noms des opérations de ce groupe (cf. `_preuves_operations`). Elles portent
+    leur propre score, et c'est le meilleur des deux qui compte ; quand le nom de la catégorie de
+    la banque ET ses opérations s'accordent, elles se renforcent."""
     libelle = normaliser(libelle_banque)
     if not libelle:
         return []
     categories = db.query(models.Categorie).filter(models.Categorie.active.is_(True)).all()
     resultats = []
+    candidats_par_categorie: dict = {}
+    noms: dict = {}
     for categorie in categories:
         if normaliser(categorie.nom) in _AUTRES:
             # « Autres » ne répond qu'à ses propres mots.
@@ -236,6 +308,10 @@ def classer(db: Session, libelle_banque: str) -> list[dict]:
             score = _score(libelle, normalise)
             if score > meilleur:
                 meilleur, via = score, brut
+        noms[categorie.id] = categorie.nom
+        if normaliser(categorie.nom) not in _AUTRES:
+            # « Autres » n'est jamais prouvée par des mots-clés : c'est le repli (cf. `_AUTRES`).
+            candidats_par_categorie[categorie.id] = candidats
         if meilleur > 0:
             resultats.append(
                 {
@@ -245,11 +321,23 @@ def classer(db: Session, libelle_banque: str) -> list[dict]:
                     "via": via,
                 }
             )
+    for categorie_id, (score_preuve, mot) in _preuves_operations(
+        candidats_par_categorie, natures or []
+    ).items():
+        existant = next((r for r in resultats if r["categorie_id"] == categorie_id), None)
+        if existant is None:
+            resultats.append(
+                {"categorie_id": categorie_id, "nom": noms[categorie_id], "score": score_preuve, "via": mot}
+            )
+        elif score_preuve > existant["score"]:
+            existant.update(score=round(min(1.0, score_preuve + 0.03), 4), via=mot)
+        else:
+            existant["score"] = round(min(1.0, existant["score"] + 0.03), 4)
     resultats.sort(key=lambda r: (-r["score"], r["nom"]))
     return resultats
 
 
-def proposer(db: Session, libelle_banque: str) -> dict:
+def proposer(db: Session, libelle_banque: str, natures: Optional[list[str]] = None) -> dict:
     """La décision pour UN libellé du relevé :
 
       {statut: "forte" | "suggestions" | "a_classer", propositions: [≤ 3 × classer()]}
@@ -258,7 +346,7 @@ def proposer(db: Session, libelle_banque: str) -> dict:
     l'écran la présélectionne (et demande quand même de confirmer). « suggestions » : les trois
     meilleures entre les deux seuils, ou plusieurs au-dessus du seuil haut qui se disputent.
     « a_classer » : rien d'assez proche."""
-    classement = classer(db, libelle_banque)
+    classement = classer(db, libelle_banque, natures)
     if not classement or classement[0]["score"] < SEUIL_BAS:
         return {"statut": "a_classer", "propositions": []}
     tete = classement[0]
