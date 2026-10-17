@@ -3821,6 +3821,10 @@ Object.assign(TRADUCTIONS.pt, {
     "A tabela das colunas",
   "Le tableau des catégories":
     "A tabela das categorias",
+  "Annuler la confirmation":
+    "Cancelar a confirmação",
+  "Déjà prise par la colonne {n}":
+    "Já usada pela coluna {n}",
   "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app t'ouvre un tableau avec ses propositions pour l'allocation champs <-> colonnes. Il s'ouvre aussi de lui-même, avant le classement des catégories, quand elle lit mal ton fichier.":
     "/italic(Este recurso ainda está em desenvolvimento) // Ao clicar, o app abre uma tabela com as propostas dele para a alocação campos <-> colunas. Ela também abre sozinha, antes da classificação das categorias, quando o app lê mal o seu arquivo.",
   "Une colonne du tableau par colonne de ton fichier, avec un extrait de son contenu. La molette propose le champ à lire : /bold(Proposition forte) en bleu quand l'app est sûre, /bold(Suggestion) en jaune quand elle hésite, puis le reste (/italic(Ton choix)). // Fais tourner la molette avec ↑ et ↓ (ou clique), puis confirme la colonne avec Ctrl+Entrée : la suivante prend le relais. Ces touches se changent dans Paramètres généraux. // /bold(Appliquer ces colonnes) relit le fichier sans toucher à ton preset : c'est /italic(Enregistrer la configuration) qui le fera, si tu le veux.":

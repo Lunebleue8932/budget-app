@@ -136,3 +136,66 @@ def test_le_fichier_d_exemple_de_la_notice(db_session):
     # « Solde après opération » ne s'importe pas.
     assert "sens" not in config
     assert _colonne(resultat, 6)["propositions"][0]["propriete"] is None
+
+
+def _quatre_colonnes_de_texte():
+    """Un relevé sans intitulés, quatre colonnes de texte : un libellé, un détail et deux colonnes
+    de classement dont les valeurs sont presque toutes différentes (la catégorie y tombe sous le
+    seuil de l'attribution, sans cesser d'être une piste)."""
+    lignes = []
+    for k in range(22):
+        lignes.append((
+            f"{1 + k % 28:02d}/09/2026",
+            f"CARREFOUR MARKET PARIS {k}" if k % 2 else f"SNCF VOYAGES {k}",
+            f"Détail du paiement numéro {k} chez le commerçant {k * 3}",
+            f"-{10 + k}.40",
+            f"Rubrique {k % 11}",
+            f"Famille {k % 12}",
+        ))
+    return lignes
+
+
+def test_un_champ_propose_seulement_a_deux_colonnes_remonte_dans_l_une_d_elles():
+    """Le raffinage global : la catégorie bancaire n'était retenue nulle part alors que seules deux
+    colonnes ignorées la proposaient. L'une d'elles la porte désormais, l'autre la garde en
+    suggestion."""
+    resultat = detecter_colonnes(_quatre_colonnes_de_texte())
+    config = _config(resultat)
+    assert config["categorie_banque"] == 5
+    cinq = [p["propriete"] for p in _colonne(resultat, 5)["propositions"]]
+    six = [p["propriete"] for p in _colonne(resultat, 6)["propositions"]]
+    assert cinq[0] == "categorie_banque"
+    assert "categorie_banque" in six and six[0] is None
+
+
+def test_la_premiere_proposition_est_forte_avec_une_paire_ne_pas_importer():
+    """Deux propositions dont « ne pas importer », ou trois qui commencent par elle : la première
+    est peinte en bleu (`forte`), les autres restent des suggestions. Ailleurs, rien ne change."""
+    resultat = detecter_colonnes(_quatre_colonnes_de_texte())
+    # Colonne 3 : « ne pas importer » puis la nature (la colonne 2 l'a prise).
+    trois = _colonne(resultat, 3)
+    assert [p["propriete"] for p in trois["propositions"]] == [None, "nature"]
+    assert trois["forte"] and not trois["certaine"]
+    # Colonne 5 : trois lectures, « ne pas importer » en dernier - la catégorie remontée reste une
+    # suggestion.
+    cinq = _colonne(resultat, 5)
+    assert len(cinq["propositions"]) == 3 and cinq["propositions"][0]["propriete"] == "categorie_banque"
+    assert not cinq["forte"]
+    # Colonne 6 : trois lectures qui commencent par « ne pas importer ».
+    six = _colonne(resultat, 6)
+    assert six["propositions"][0]["propriete"] is None and len(six["propositions"]) == 3
+    assert six["forte"]
+
+
+def test_le_raffinage_ne_touche_pas_a_une_colonne_deja_attribuee():
+    """Les colonnes que l'attribution a données à un champ ne bougent pas, et une colonne que son
+    intitulé range parmi ce qui ne s'importe pas non plus."""
+    lignes = [
+        ("Date", "Libellé", "Catégorie", "Montant", "Référence", "Solde"),
+        ("02/09/2026", "CARREFOUR MARKET", "Alimentation", "-45,20", "A1", "1 204,80"),
+        ("03/09/2026", "SNCF", "Transports", "-62,00", "B2", "1 142,80"),
+        ("05/09/2026", "SALAIRE SEPTEMBRE", "Revenus", "2 150,00", "C3", "3 292,80"),
+    ]
+    resultat = detecter_colonnes(lignes)
+    assert _config(resultat) == {"date": 1, "nature": 2, "categorie_banque": 3, "montant": 4}
+    assert _colonne(resultat, 5)["propositions"][0]["propriete"] is None

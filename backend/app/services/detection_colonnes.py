@@ -44,7 +44,7 @@ from ..constants import (
     LIBELLES_STATUT_DEFAUT,
 )
 from . import formats_bancaires
-from .affectation_colonnes import affecter
+from .affectation_colonnes import _IGNORE_SUR, affecter
 from .controle_solde import controler_solde
 from .entetes import (
     SCORE_FLOU_MIN,
@@ -482,6 +482,90 @@ def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
     return None
 
 
+# LE RAFFINAGE GLOBAL (`_raffiner`). L'attribution ne regarde que des scores de colonne : elle ne
+# sait pas qu'un champ n'a été proposé qu'à deux colonnes et qu'aucune ne l'a pris. Les champs
+# qu'une colonne ignorée pourrait porter, et qu'on lit sur le plus clair des relevés.
+_RAFFINABLES = ("categorie_banque",)
+# Sous ce score, un champ n'est pas une piste : il ne remonte pas.
+_PLANCHER_RAFFINAGE = 0.2
+# Une colonne « riche » est remplie sur au moins la moitié des lignes : une colonne ignorée qui porte
+# du contenu est le signe d'un champ qu'on n'a pas su placer, une colonne presque vide non.
+_REMPLISSAGE_RICHE = 0.5
+# L'écart qui met un champ remonté juste au-dessus de « ne pas importer ».
+_ECART_RAFFINAGE = 0.05
+
+
+def _est_du_texte(p: _Profil) -> bool:
+    """Ni des dates, ni des nombres, ni des devises : le contenu d'une colonne qu'on pourrait lire
+    comme un classement."""
+    return (
+        bool(p.remplies)
+        and p.part(p.dates) < 0.5
+        and p.part(p.nombres) < 0.5
+        and p.part(p.devises) < 0.5
+    )
+
+
+def _raffiner(
+    scores: dict[int, dict[str, float]],
+    retenue: dict[int, str],
+    verrous: dict[int, str],
+    profils: list[_Profil],
+    nb_lignes: int,
+) -> set[int]:
+    """Deuxième regard, sur les attributions une fois faites. Rend les colonnes dont un champ a
+    été remonté en tête ET sans concurrente (c'est alors une proposition forte).
+
+    LE RAISONNEMENT : un champ que personne n'a retenu (la catégorie de la banque) mais que
+    quelques colonnes ignorées proposaient encore en bas de molette a de bonnes chances d'être
+    porté par l'une d'elles - sans quoi ces colonnes de texte ne diraient rien. On choisit donc
+    la colonne qui le propose le mieux (à égalité la première), et :
+      - si elle est RICHE, le champ passe devant « ne pas importer » ;
+      - sinon (colonne presque vide) il remonte seulement, juste derrière.
+    Seules des colonnes en « ne pas importer » sont touchées : ce que l'attribution a donné à un
+    champ, et ce qu'un test ou une banque connue a verrouillé, ne bouge pas. Les autres colonnes
+    qui proposaient le champ le gardent où il est. MODIFIE `scores` et `retenue`."""
+    par_index = {p.index: p for p in profils}
+    forts: set[int] = set()
+    remontees: set[int] = set()
+    for propriete in _RAFFINABLES:
+        if propriete in retenue.values():
+            continue
+        candidates = [
+            i for i, choix in retenue.items()
+            if choix == "" and i not in verrous and i not in remontees
+            and scores.get(i, {}).get("", 0.0) < _IGNORE_SUR
+            and scores.get(i, {}).get(propriete, 0.0) >= _PLANCHER_RAFFINAGE
+            and _est_du_texte(par_index[i])
+        ]
+        if not candidates:
+            continue
+        gagnante = max(candidates, key=lambda i: (scores[i][propriete], -i))
+        s = scores[gagnante]
+        remontees.add(gagnante)
+        riche = nb_lignes and par_index[gagnante].remplies / nb_lignes >= _REMPLISSAGE_RICHE
+        if riche:
+            s[propriete] = round(max(s[propriete], s.get("", 0.0) + _ECART_RAFFINAGE), 3)
+            retenue[gagnante] = propriete
+            if len(candidates) == 1:
+                forts.add(gagnante)
+        else:
+            # Juste derrière « ne pas importer », et devant les autres lectures.
+            autres = max((v for k, v in s.items() if k not in ("", propriete)), default=0.0)
+            plafond = s.get("", 0.0) - 0.01
+            s[propriete] = round(min(plafond, max(s[propriete], autres + 0.01)), 3)
+    return forts
+
+
+def _paire_avec_ne_pas_importer(propositions: list[dict]) -> bool:
+    """Deux propositions dont l'une est « ne pas importer », ou trois qui commencent par elle : la
+    première est alors une lecture à prendre ou à laisser, et l'écran la montre comme forte."""
+    proprietes = [p["propriete"] for p in propositions]
+    if None not in proprietes:
+        return False
+    return len(proprietes) == 2 or (len(proprietes) == 3 and proprietes[0] is None)
+
+
 def detecter_colonnes(
     lignes: list[tuple],
     separateur_decimal: Optional[str] = None,
@@ -670,6 +754,9 @@ def detecter_colonnes(
     }
     retenue, faibles = affecter(scores, verrous)
 
+    # LE RAFFINAGE GLOBAL : on relit l'ensemble des attributions, une fois faites.
+    forts = _raffiner(scores, retenue, verrous, profils, len(donnees))
+
     colonnes = []
     for p in profils:
         s = scores[p.index]
@@ -690,13 +777,16 @@ def detecter_colonnes(
         # une forme compatible, ou une forme sans concurrence.
         # Jamais pour un champ obligatoire comblé faute de mieux.
         certaine = premier >= 1.0 and premier - second >= 0.4 and choix not in faibles
+        if certaine:
+            propositions = propositions[:1]
         colonnes.append(
             {
                 "index": p.index,
                 "entete": p.entete,
                 "exemples": p.exemples,
-                "propositions": propositions if not certaine else propositions[:1],
+                "propositions": propositions,
                 "certaine": certaine,
+                "forte": certaine or p.index in forts or _paire_avec_ne_pas_importer(propositions),
             }
         )
 
@@ -789,6 +879,7 @@ def _appliquer_format_connu(resultat: dict, lignes: list[tuple], profils: list[_
                     **colonne,
                     "propositions": [{"propriete": propriete, "confiance": 1.6}],
                     "certaine": True,
+                    "forte": True,
                 }
             )
             continue
@@ -797,11 +888,13 @@ def _appliquer_format_connu(resultat: dict, lignes: list[tuple], profils: list[_
             for p in colonne["propositions"]
             if p["propriete"] is not None and p["propriete"] not in par_index.values()
         ]
+        propositions = [{"propriete": None, "confiance": 1.0}] + autres[:2]
         colonnes.append(
             {
                 **colonne,
-                "propositions": [{"propriete": None, "confiance": 1.0}] + autres[:2],
+                "propositions": propositions,
                 "certaine": False,
+                "forte": _paire_avec_ne_pas_importer(propositions),
             }
         )
     return {

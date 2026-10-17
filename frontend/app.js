@@ -13352,7 +13352,7 @@ function detOptions(entree) {
   const { colonne } = entree;
   const proposees = colonne.propositions.map((p, rang) => ({
     id: detIdPropriete(p.propriete),
-    niveau: rang === 0 && colonne.certaine ? "forte" : "suggestion",
+    niveau: rang === 0 && detEstForte(colonne) ? "forte" : "suggestion",
   }));
   const ids = new Set(proposees.map((o) => o.id));
   const toutes = [
@@ -13363,11 +13363,28 @@ function detOptions(entree) {
   return [...proposees, ...autres];
 }
 
+/** La première proposition est-elle forte ? C'est le serveur qui le dit (`forte` : indices qui
+ *  convergent, champ remonté par le raffinage global, paire avec « ne pas importer »). */
+function detEstForte(colonne) {
+  return colonne.forte !== undefined ? colonne.forte : colonne.certaine;
+}
+
+/** Le n° de la colonne qui a CONFIRMÉ ce champ, ou null quand il est libre pour la colonne `i`.
+ *  Un champ ne se lit que dans une colonne : confirmé ailleurs, il est barré ici. « Ne pas importer »
+ *  n'est jamais pris. */
+function detPrisPar(i, id) {
+  if (id === DET_AUCUNE) return null;
+  const autre = detColonnes.find(
+    (e, k) => k !== i && detConfirmees.has(e.colonne.index) && e.choix === id
+  );
+  return autre ? autre.colonne.index : null;
+}
+
 /** Ce que l'app pense de la lecture choisie pour cette colonne. */
 function detStatut(entree) {
   const { colonne, choix } = entree;
   const premiere = colonne.propositions[0] && detIdPropriete(colonne.propositions[0].propriete);
-  if (colonne.certaine && choix === premiere) return { cle: "forte", texte: t("Proposition forte") };
+  if (detEstForte(colonne) && choix === premiere) return { cle: "forte", texte: t("Proposition forte") };
   if (colonne.propositions.some((p) => detIdPropriete(p.propriete) === choix)) {
     return { cle: "suggestions", texte: t("Suggestion") };
   }
@@ -13401,20 +13418,32 @@ function detColonneHtml(entree, i) {
         <div class="corr-roue" role="listbox" tabindex="0"
              aria-label="${escapeHtml(t("Propriété de la colonne {n}", { n: colonne.index }))}">
           ${detOptions(entree)
-            .map(
-              (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+            .map((o) => {
+              const par = detPrisPar(i, o.id);
+              return `<div class="corr-roue-option corr-roue-${o.niveau} ${
                 o.id === choix ? "corr-roue-choisie" : ""
-              }" role="option" data-id="${o.id}" aria-selected="${o.id === choix}">${escapeHtml(
-                libelleProprieteImport(detProprieteDe(o.id))
-              )}</div>`
-            )
+              } ${par !== null ? "corr-roue-exclue" : ""}" role="option" data-id="${o.id}" aria-selected="${
+                o.id === choix
+              }"${
+                par !== null
+                  ? ` aria-disabled="true" title="${escapeHtml(t("Déjà prise par la colonne {n}", { n: par }))}"`
+                  : ""
+              }>${escapeHtml(libelleProprieteImport(detProprieteDe(o.id)))}</div>`;
+            })
             .join("")}
         </div>
       </div>
       <div class="corr-operations">${exemples}</div>
-      <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
+      <div class="corr-actions">
+        <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
     confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
   }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+        <button type="button" class="corr-annuler" data-corr-annuler="${i}" ${
+    confirmee ? "" : "disabled"
+  } title="${escapeHtml(t("Annuler la confirmation"))}" aria-label="${escapeHtml(
+    t("Annuler la confirmation")
+  )}">&times;</button>
+      </div>
     </section>`;
 }
 
@@ -13438,6 +13467,85 @@ function detMajBouton(i) {
   const confirmee = detConfirmees.has(detColonnes[i].colonne.index);
   colonne.classList.toggle("corr-confirmee", confirmee);
   colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+  colonne.querySelector("[data-corr-annuler]").disabled = !confirmee;
+}
+
+/** Remet l'écran d'une colonne d'accord avec son état : ligne choisie, lignes barrées (champs pris
+ *  par une autre colonne), pastille et boutons. */
+function detMajColonne(i, { defiler = false, doux = false } = {}) {
+  const entree = detColonnes[i];
+  const colonne = detColonneDom(i);
+  if (!colonne) return;
+  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = o.dataset.id === entree.choix;
+    const par = detPrisPar(i, o.dataset.id);
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.classList.toggle("corr-roue-exclue", par !== null);
+    o.setAttribute("aria-selected", String(choisie));
+    if (par !== null) {
+      o.setAttribute("aria-disabled", "true");
+      o.title = t("Déjà prise par la colonne {n}", { n: par });
+    } else {
+      o.removeAttribute("aria-disabled");
+      o.removeAttribute("title");
+    }
+  });
+  const statut = detStatut(entree);
+  const pastille = colonne.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  detMajBouton(i);
+  if (defiler) detCentrerRoue(i, doux);
+}
+
+/** Les champs confirmés changent ce que les AUTRES colonnes peuvent lire. Une colonne non confirmée
+ *  qui lisait un champ désormais pris descend à la lecture permise la plus proche (puis remonte si
+ *  besoin) et se souvient d'où elle vient ; quand le champ se libère (confirmation annulée), elle y
+ *  revient. */
+function detMajExclusions() {
+  detEffacerConflit();
+  detColonnes.forEach((entree, i) => {
+    if (detConfirmees.has(entree.colonne.index)) return;
+    const ids = detOptions(entree).map((o) => o.id);
+    const libre = (id) => detPrisPar(i, id) === null;
+    let deplace = false;
+    if (entree.deplaceDepuis && libre(entree.deplaceDepuis)) {
+      entree.choix = entree.deplaceDepuis;
+      entree.deplaceDepuis = null;
+      deplace = true;
+    } else if (!libre(entree.choix)) {
+      const rang = rangSelectionnable(ids, ids.indexOf(entree.choix), 1, (id) => !libre(id));
+      if (!entree.deplaceDepuis) entree.deplaceDepuis = entree.choix;
+      entree.choix = rang === -1 ? DET_AUCUNE : ids[rang];
+      deplace = true;
+    }
+    detMajColonne(i, { defiler: deplace, doux: true });
+  });
+}
+
+function detEffacerConflit() {
+  const message = document.getElementById("detection-conflit");
+  if (message) message.style.display = "none";
+  document
+    .querySelectorAll("#detection-board .corr-conflit")
+    .forEach((c) => c.classList.remove("corr-conflit"));
+}
+
+/** Deux colonnes lisent le même champ sans l'avoir confirmé : le dire DANS le tableau (un message
+ *  en bas de page passe derrière), et désigner les colonnes. */
+function detSignalerConflit(propriete, indexColonnes) {
+  const message = document.getElementById("detection-conflit");
+  message.textContent = t("« {propriete} » est choisie pour deux colonnes : garde-la sur une seule.", {
+    propriete: libelleProprieteImport(propriete),
+  });
+  message.style.display = "";
+  let premiere = -1;
+  detColonnes.forEach((entree, i) => {
+    if (!indexColonnes.includes(entree.colonne.index)) return;
+    detColonneDom(i).classList.add("corr-conflit");
+    if (premiere === -1) premiere = i;
+  });
+  if (premiere !== -1) detDefinirCourante(premiere);
 }
 
 function detCentrerRoue(i, doux) {
@@ -13448,6 +13556,19 @@ function detCentrerRoue(i, doux) {
     0,
     [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie"))
   );
+  if (doux) {
+    // UN DÉFILEMENT QUE L'APP PROVOQUE N'EST PAS UN CHOIX : en route, la molette passe devant des
+    // lignes (barrées, parfois) et, sur une machine lente, s'y arrête assez longtemps pour que
+    // « la ligne centrée est le choix » (cf. brancherMolettes) la retienne.
+    roue._corrAuto = true;
+    clearTimeout(roue._corrAutoFin);
+    const fin = () => {
+      roue._corrAuto = false;
+      clearTimeout(roue._corrAutoFin);
+    };
+    roue.addEventListener("scrollend", fin, { once: true });
+    roue._corrAutoFin = setTimeout(fin, 1500);
+  }
   roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
 }
 
@@ -13465,22 +13586,25 @@ function detDefinirCourante(i, { focus = false } = {}) {
 /** Choisit une propriété pour la colonne `i` : redemande une confirmation. */
 function detChoisir(i, id, { defiler = true } = {}) {
   const entree = detColonnes[i];
-  entree.choix = id;
-  detChoixManuels.add(entree.colonne.index);
-  detConfirmees.delete(entree.colonne.index);
-  const colonne = detColonneDom(i);
-  if (!colonne) return;
-  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
-    const choisie = o.dataset.id === id;
-    o.classList.toggle("corr-roue-choisie", choisie);
-    o.setAttribute("aria-selected", String(choisie));
-  });
-  const statut = detStatut(entree);
-  const pastille = colonne.querySelector("[data-corr-statut]");
-  pastille.className = `corr-statut corr-statut-${statut.cle}`;
-  pastille.textContent = statut.texte;
-  detMajBouton(i);
-  if (defiler) detCentrerRoue(i, true);
+  const ids = detOptions(entree).map((o) => o.id);
+  const exclue = (x) => detPrisPar(i, x) !== null;
+  // UN CHAMP PRIS AILLEURS NE SE CHOISIT PAS : le clic (ou la molette) est renvoyé vers la lecture
+  // permise la plus proche, au-dessus ou en dessous selon le côté d'où l'on vient.
+  if (exclue(id)) {
+    const sens = Math.sign(ids.indexOf(id) - ids.indexOf(entree.choix)) || 1;
+    const rang = rangSelectionnable(ids, ids.indexOf(id), sens, exclue);
+    id = rang === -1 ? entree.choix : ids[rang];
+    defiler = true;
+  }
+  if (id !== entree.choix) {
+    entree.choix = id;
+    detChoixManuels.add(entree.colonne.index);
+    detConfirmees.delete(entree.colonne.index);
+  }
+  entree.deplaceDepuis = null;
+  // Défaire une confirmation libère son champ pour les autres colonnes.
+  detMajExclusions();
+  detMajColonne(i, { defiler, doux: true });
   detMajCompteur();
 }
 
@@ -13490,10 +13614,32 @@ function detProchaineNonConfirmee(apres) {
   return suivante !== -1 ? suivante : detColonnes.findIndex(non);
 }
 
+/** Confirme la colonne `i` : son champ devient indisponible pour les autres colonnes. Rend faux si
+ *  ce champ vient d'être pris ailleurs. */
+function detMarquerConfirmee(i) {
+  const entree = detColonnes[i];
+  if (detPrisPar(i, entree.choix) !== null) return false;
+  entree.deplaceDepuis = null;
+  detConfirmees.add(entree.colonne.index);
+  detMajExclusions();
+  detMajColonne(i);
+  return true;
+}
+
+/** La croix rouge : défait la confirmation. Le champ redevient disponible partout, et les colonnes
+ *  qu'il avait fait descendre y reviennent. */
+function detAnnuler(i) {
+  if (i < 0 || i >= detColonnes.length) return;
+  if (!detConfirmees.delete(detColonnes[i].colonne.index)) return;
+  detMajExclusions();
+  detMajColonne(i);
+  detMajCompteur();
+  detDefinirCourante(i, { focus: true });
+}
+
 function detConfirmer(i) {
   if (i < 0 || i >= detColonnes.length) return;
-  detConfirmees.add(detColonnes[i].colonne.index);
-  detMajBouton(i);
+  if (!detMarquerConfirmee(i)) return;
   detMajCompteur();
   const cible = detProchaineNonConfirmee(i);
   if (cible === -1) {
@@ -13506,9 +13652,7 @@ function detConfirmer(i) {
 
 function detConfirmerFortes() {
   detColonnes.forEach((entree, i) => {
-    if (!detFortePrete(entree)) return;
-    detConfirmees.add(entree.colonne.index);
-    detMajBouton(i);
+    if (detFortePrete(entree)) detMarquerConfirmee(i);
   });
   detMajCompteur();
   const premiere = detProchaineNonConfirmee(-1);
@@ -13570,6 +13714,7 @@ function ouvrirDetection(detection, { suite = false } = {}) {
       choix: detIdPropriete(colonne.propositions[0]?.propriete),
     }));
   document.getElementById("detection-infos").innerHTML = detInfosHtml(detection);
+  detEffacerConflit();
   const board = document.getElementById("detection-board");
   board.innerHTML = detColonnes.map((entree, i) => detColonneHtml(entree, i)).join("");
   detColonnes.forEach((_, i) => detCentrerRoue(i, false));
@@ -13594,19 +13739,16 @@ async function appliquerDetectionImport() {
     .filter((e) => e.choix !== DET_AUCUNE)
     .map((e) => ({ index: e.colonne.index, propriete: e.choix }));
   // UNE PROPRIÉTÉ, UNE COLONNE : le serveur refuserait la lecture, autant le dire ici avec le nom
-  // de la propriété.
-  const vues = new Set();
+  // de la propriété. Les champs CONFIRMÉS sont déjà barrés ailleurs ; restent deux colonnes qui
+  // lisent le même champ sans l'avoir confirmé.
+  const parPropriete = new Map();
   for (const c of colonnes) {
-    if (vues.has(c.propriete)) {
-      showMessage(
-        t("« {propriete} » est choisie pour deux colonnes : garde-la sur une seule.", {
-          propriete: libelleProprieteImport(c.propriete),
-        }),
-        "error"
-      );
-      return;
-    }
-    vues.add(c.propriete);
+    parPropriete.set(c.propriete, [...(parPropriete.get(c.propriete) || []), c.index]);
+  }
+  const doublon = [...parPropriete].find(([, index]) => index.length > 1);
+  if (doublon) {
+    detSignalerConflit(doublon[0], doublon[1]);
+    return;
   }
   const detection = importDetection;
   importConfigColonnes = colonnes;
@@ -13701,6 +13843,9 @@ async function proposerDetectionAvantCorrespondances() {
     valeur: (i) => detColonnes[i].choix,
     nombre: () => detColonnes.length,
     confirmer: detConfirmer,
+    annuler: detAnnuler,
+    // Les flèches sautent les champs pris par une autre colonne.
+    exclue: (i, id) => detPrisPar(i, id) !== null,
   });
   document.addEventListener("keydown", (e) => {
     if (!detOuvert()) return;
@@ -14600,18 +14745,34 @@ function fermerCorrespondances() {
   if (importApercu) corrAppliquer();
 }
 
+/** Le rang de l'option permise la plus proche de `rang` en allant dans le sens `sens` (+1 vers le bas,
+ *  -1 vers le haut), puis dans l'autre si rien ne s'y trouve ; -1 quand toutes sont écartées. */
+function rangSelectionnable(ids, rang, sens, ecartee) {
+  for (const s of [sens, -sens]) {
+    for (let k = rang; k >= 0 && k < ids.length; k += s) if (!ecartee(ids[k])) return k;
+  }
+  return -1;
+}
+
 /**
  * Câble un tableau à molettes (clic, focus, défilement, touches). COMMUN AU TABLEAU DES
  * CORRESPONDANCES ET À CELUI DES COLONNES DU FICHIER : c'est ce qui en fait la même interface.
  *
  * `h` : { courante(), definirCourante(i, {focus}), choisir(i, id, {defiler}), valeur(i), nombre(),
  * confirmer(i) } - les identifiants d'option sont des textes (`data-id`), à chacun de les lire.
+ * Facultatifs : `annuler(i)` (la croix qui défait une confirmation) et `exclue(i, id)` (une option
+ * barrée, que les flèches sautent ; le clic et la molette sont renvoyés par `choisir`).
  */
 function brancherMolettes(board, h) {
   board.addEventListener("click", (e) => {
     const bouton = e.target.closest("[data-corr-confirmer]");
     if (bouton) {
       h.confirmer(Number(bouton.dataset.corrConfirmer));
+      return;
+    }
+    const croix = e.target.closest("[data-corr-annuler]");
+    if (croix) {
+      if (h.annuler && !croix.disabled) h.annuler(Number(croix.dataset.corrAnnuler));
       return;
     }
     const option = e.target.closest(".corr-roue-option");
@@ -14643,6 +14804,7 @@ function brancherMolettes(board, h) {
       if (!roue.classList || !roue.classList.contains("corr-roue")) return;
       clearTimeout(roue._corrMinuteur);
       roue._corrMinuteur = setTimeout(() => {
+        if (roue._corrAuto) return;
         const options = [...roue.children];
         const rang = Math.min(
           options.length - 1,
@@ -14665,14 +14827,20 @@ function brancherMolettes(board, h) {
     const i = Number(roue.closest("[data-corr-i]").dataset.corrI);
     const options = [...roue.children];
     const rang = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
+    const exclue = (k) => Boolean(h.exclue && h.exclue(i, options[k].dataset.id));
+    // La première option permise depuis `depart` dans le sens donné, ou le rang courant s'il n'y en a pas.
+    const permise = (depart, sens) => {
+      for (let k = depart; k >= 0 && k < options.length; k += sens) if (!exclue(k)) return k;
+      return rang;
+    };
     let nouveau = null;
-    if (combo === toucheImport("bas")) nouveau = Math.min(options.length - 1, rang + 1);
-    else if (combo === toucheImport("haut")) nouveau = Math.max(0, rang - 1);
-    else if (combo === "home") nouveau = 0;
-    else if (combo === "end") nouveau = options.length - 1;
+    if (combo === toucheImport("bas")) nouveau = permise(rang + 1, 1);
+    else if (combo === toucheImport("haut")) nouveau = permise(rang - 1, -1);
+    else if (combo === "home") nouveau = permise(0, 1);
+    else if (combo === "end") nouveau = permise(options.length - 1, -1);
     if (nouveau !== null) {
       e.preventDefault();
-      h.choisir(i, options[nouveau].dataset.id);
+      if (nouveau !== rang) h.choisir(i, options[nouveau].dataset.id);
       return;
     }
     if (combo === "arrowleft" || combo === "arrowright") {

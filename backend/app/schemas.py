@@ -1609,6 +1609,10 @@ class ColonneDetectee(BaseModel):
     # quand `certaine` : les indices convergent, il n'y a rien à choisir.
     propositions: list[PropositionColonne] = Field(default_factory=list)
     certaine: bool = False
+    # Ce que l'écran peint en bleu (la première proposition) : `certaine`, ou une lecture que le
+    # raffinage global a remontée seule, ou une paire à prendre ou à laisser avec « ne pas
+    # importer ». Les autres propositions restent des suggestions.
+    forte: bool = False
 
 
 class DetectionColonnesRead(BaseModel):

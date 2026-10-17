@@ -7083,6 +7083,14 @@ body input[type="checkbox"]:disabled {
    « Suggestion » de la colonne - y compris sur la ligne choisie. Après `-choisie` pour l'emporter. */
 .corr-roue-option.corr-roue-forte { color: var(--accent, #3b82f6); }
 .corr-roue-option.corr-roue-suggestion { color: #d99a2b; }
+/* Un champ confirmé dans une autre colonne : toujours visible, barré, et qui ne se choisit pas (le
+   clic renvoie à la ligne voisine, les flèches le sautent). Après les couleurs pour l'emporter. */
+.corr-roue-option.corr-roue-exclue {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .corr-operations {
   flex: 1 1 auto;
@@ -7109,6 +7117,50 @@ body input[type="checkbox"]:disabled {
 
 .corr-confirmer { margin-top: auto; }
 .corr-confirmer kbd { font: inherit; opacity: 0.8; }
+
+/* Tableau des colonnes : « Confirmer » partage sa rangée avec la croix rouge qui défait la
+   confirmation, d'où un bouton un peu plus étroit et plus bas. */
+.corr-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.corr-actions .corr-confirmer {
+  flex: 1 1 auto;
+  margin-top: 0;
+  min-width: 0;
+  padding-block: 0.4rem;
+  font-size: 0.88rem;
+}
+
+.corr-annuler {
+  flex: 0 0 auto;
+  width: 2rem;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: var(--danger, #ef4444);
+  background: transparent;
+  border: 1px solid var(--danger, #ef4444);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.corr-annuler:hover:not(:disabled) { background: var(--error-bg); }
+.corr-annuler:disabled { opacity: 0.3; cursor: default; }
+
+/* Deux colonnes qui lisent le même champ sans l'avoir confirmé (message du tableau des colonnes). */
+.corr-colonne.corr-conflit {
+  border-color: var(--danger, #ef4444);
+  box-shadow: 0 0 0 1px var(--danger, #ef4444);
+}
+
+.import-detection-conflit {
+  border-left-color: var(--danger, #ef4444);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
 
 /* ---------- Export des données et copies de sécurité (Paramètres généraux) ---------- */
 .reglage-export,

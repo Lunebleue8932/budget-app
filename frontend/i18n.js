@@ -4596,6 +4596,10 @@ Object.assign(TRADUCTIONS.en, {
     "The column table",
   "Le tableau des catégories":
     "The category table",
+  "Annuler la confirmation":
+    "Cancel the confirmation",
+  "Déjà prise par la colonne {n}":
+    "Already taken by column {n}",
   "/italic(Cette fonctionnalité est encore en cours de développement) // Au clic, l'app t'ouvre un tableau avec ses propositions pour l'allocation champs <-> colonnes. Il s'ouvre aussi de lui-même, avant le classement des catégories, quand elle lit mal ton fichier.":
     "/italic(This feature is still under development) // On click, the app opens a table with its proposals for the field <-> column allocation. It also opens by itself, before the categories are sorted, when it reads your file poorly.",
   "Une colonne du tableau par colonne de ton fichier, avec un extrait de son contenu. La molette propose le champ à lire : /bold(Proposition forte) en bleu quand l'app est sûre, /bold(Suggestion) en jaune quand elle hésite, puis le reste (/italic(Ton choix)). // Fais tourner la molette avec ↑ et ↓ (ou clique), puis confirme la colonne avec Ctrl+Entrée : la suivante prend le relais. Ces touches se changent dans Paramètres généraux. // /bold(Appliquer ces colonnes) relit le fichier sans toucher à ton preset : c'est /italic(Enregistrer la configuration) qui le fera, si tu le veux.":
