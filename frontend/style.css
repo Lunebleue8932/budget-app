@@ -2079,6 +2079,18 @@ form .operation-cases input[type="checkbox"] {
   color: var(--text-primary);
 }
 
+/* UN MENU POSÉ DANS UN `.selecteur-contexte` GARDE SES LIGNES : ce conteneur range ses
+   `<label>` en colonne (le libellé au-dessus de son champ), et sa règle l'emportait sur celle du
+   panneau — la pastille ronde, la couleur et le nom de chaque catégorie s'empilaient sur trois
+   lignes (le graphe « Une catégorie dans le temps » de la page Budget). Le panneau est le même
+   que celui du dashboard et doit s'y ressembler : une ligne par option, même taille. */
+.selecteur-contexte .filtre-categories-panneau label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: inherit;
+}
+
 /* « + Ajouter un champ » (cf. app.js, creerMenuAjoutChamp) : le même bouton que
    le menu à cocher, posé en bas d'un formulaire plutôt que dans un titre. */
 .filtre-menu.menu-ajout-champ {
