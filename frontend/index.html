@@ -599,6 +599,9 @@
            ce qui s'est passé. Vide et sans hauteur tant qu'aucune extension n'y
            met rien, et tant qu'aucun objectif n'a été coché pour le dashboard. -->
       <div id="dashboard-objectifs" style="display:none"></div>
+      <!-- LES PROJETS COCHÉS « Afficher au dashboard » (extension « Projets et objectifs »), sous les
+           objectifs : même réserve, même raison. Vide tant qu'aucun projet n'est coché. -->
+      <div id="dashboard-projets" style="display:none"></div>
 
       <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
            Ouverte APRÈS une saisie, jamais au chargement : c'est une réaction à
@@ -775,14 +778,15 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <!-- Les deux onglets remboursables appartiennent à l'extension « Suivi
              des remboursements » : masqués d'origine, montrés par elle (même
              patron que les deux onglets prêts juste en dessous). -->
-        <button data-sous-section="remboursable" data-extension="suivi-remboursements" style="display:none">Dépenses remboursables</button>
-        <button data-sous-section="remboursements" data-extension="suivi-remboursements" style="display:none">Remboursements reçus</button>
+        <!-- UN SEUL ONGLET POUR LES DEUX : `data-sous-section-avec` allume aussi les volets
+             listés (cf. app.js, `activerCompagnons`) — les dépenses remboursables et ce qui
+             les règle se lisent ensemble. -->
+        <button data-sous-section="remboursable" data-sous-section-avec="remboursements" data-extension="suivi-remboursements" style="display:none">Remboursements</button>
         <button data-sous-section="virements">Virements internes</button>
         <!-- Les deux onglets des prêts appartiennent à l'extension « Prêts » :
              masqués d'origine, montrés par elle (cf. extensions/prets/prets.js).
              `data-extension` suffit sur un BOUTON, le noyau les connaît. -->
-        <button data-sous-section="prets" data-extension="prets" style="display:none">Prêts reçus</button>
-        <button data-sous-section="remboursement-prets" data-extension="prets" style="display:none">Remboursements de prêts</button>
+        <button data-sous-section="prets" data-sous-section-avec="remboursement-prets" data-extension="prets" style="display:none">Prêts</button>
       </div>
       </div>
 
@@ -797,13 +801,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Trier par
             <select class="tri-select" data-onglet="classique"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-classique"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-classique"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-classique"></div>
-          </div>
         </div>
         <!-- LES FILTRES SONT REPLIÉS PAR DÉFAUT. Quatorze champs pour six
              onglets : dépliés en permanence, ils repoussaient le tableau — la
@@ -860,6 +857,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-classique"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-classique"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-classique"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="classique" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -875,17 +879,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-remboursable" class="sous-section" data-extension-onglet="suivi-remboursements" style="display:none">
+        <h3 class="sous-section-titre">Dépenses remboursables</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="remboursable"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-remboursable"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-remboursable"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursable"></div>
-          </div>
         </div>
         <details class="filtres-repli" id="filtres-repli-remboursable">
           <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursable"></span></summary>
@@ -940,6 +938,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-remboursable"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-remboursable"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursable"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="remboursable" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -954,18 +959,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
       </div>
 
-      <div id="sous-section-remboursements" class="sous-section" data-extension-onglet="suivi-remboursements" style="display:none">
+      <div id="sous-section-remboursements" class="sous-section sous-section-compagnon" data-extension-onglet="suivi-remboursements" style="display:none">
+        <h3 class="sous-section-titre">Remboursements reçus</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="remboursements"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-remboursements"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-remboursements"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursements"></div>
-          </div>
         </div>
         <details class="filtres-repli" id="filtres-repli-remboursements">
           <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursements"></span></summary>
@@ -999,6 +998,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-remboursements"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-remboursements"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursements"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="remboursements" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1018,13 +1024,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Trier par
             <select class="tri-select" data-onglet="virements"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-virements"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-virements"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-virements"></div>
-          </div>
         </div>
         <details class="filtres-repli" id="filtres-repli-virements">
           <summary>Filtres<span class="filtres-resume" id="filtres-resume-virements"></span></summary>
@@ -1073,6 +1072,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-virements"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-virements"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-virements"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="virements" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1088,17 +1094,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-prets" class="sous-section" data-extension-onglet="prets" style="display:none">
+        <h3 class="sous-section-titre">Prêts reçus</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="prets"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-prets"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-prets"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-prets"></div>
-          </div>
         </div>
         <details class="filtres-repli" id="filtres-repli-prets">
           <summary>Filtres<span class="filtres-resume" id="filtres-resume-prets"></span></summary>
@@ -1147,6 +1147,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-prets"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-prets"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-prets"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1161,18 +1168,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
       </div>
 
-      <div id="sous-section-remboursement-prets" class="sous-section" data-extension-onglet="prets" style="display:none">
+      <div id="sous-section-remboursement-prets" class="sous-section sous-section-compagnon" data-extension-onglet="prets" style="display:none">
+        <h3 class="sous-section-titre">Remboursements de prêts</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="remboursement-prets"></select>
           </label>
-        </div>
-        <div class="periode-selecteur">
-          <div class="periode-fleches" id="operations-periode-fleches-remboursement-prets"></div>
-          <div class="periode-niveaux">
-            <div class="sous-onglets" id="operations-periode-annees-remboursement-prets"></div>
-            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursement-prets"></div>
-          </div>
         </div>
         <details class="filtres-repli" id="filtres-repli-remboursement-prets">
           <summary>Filtres<span class="filtres-resume" id="filtres-resume-remboursement-prets"></span></summary>
@@ -1203,6 +1204,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
+        <div class="periode-selecteur">
+          <div class="periode-fleches" id="operations-periode-fleches-remboursement-prets"></div>
+          <div class="periode-niveaux">
+            <div class="sous-onglets" id="operations-periode-annees-remboursement-prets"></div>
+            <div class="sous-onglets sous-onglets-mois" id="operations-periode-mois-remboursement-prets"></div>
+          </div>
+        </div>
         <div class="ajouter-operation" data-onglet="remboursement-prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>

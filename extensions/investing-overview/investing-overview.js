@@ -61,7 +61,26 @@ const IO_COULEUR_SANS_TYPE = "#6b7080";
 function ioCouleurPart(part) {
   if (part.couleur) return part.couleur;
   if (part.type_titre_id == null) return IO_COULEUR_SANS_TYPE;
-  return couleurCategorie(part.type_titre_id);
+  return couleurCategorie(part.couleur_index ?? part.type_titre_id);
+}
+
+/**
+ * UNE COULEUR PAR ÉTIQUETTE D'UN MÊME AXE, jusqu'à épuisement de la palette. Prendre l'identifiant
+ * du type tel quel (modulo la taille de la palette) donnait la même couleur à « ETF » et « ETN »
+ * dès que leurs identifiants différaient d'un multiple de huit. On numérote donc les étiquettes
+ * de l'axe dans l'ordre de leur identifiant : toujours le même ordre d'un chargement à l'autre,
+ * et deux étiquettes de l'axe ne partagent une couleur qu'au-delà de huit.
+ */
+function ioAttribuerCouleurs(expositions) {
+  IO_AXES.forEach((axe) => {
+    const parts = (expositions[axe] || []).flatMap((bloc) => bloc.parts);
+    const ids = [...new Set(parts.map((p) => p.type_titre_id).filter((id) => id != null))].sort(
+      (a, b) => a - b
+    );
+    parts.forEach((p) => {
+      if (p.type_titre_id != null) p.couleur_index = ids.indexOf(p.type_titre_id);
+    });
+  });
 }
 
 // LA PART SANS ÉTIQUETTE SE NOMME DANS LA LANGUE DE SON AXE : « Sans enveloppe » sous un
@@ -554,6 +573,7 @@ async function loadInvestingOverview() {
       ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`)),
     ]);
     ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
+    ioAttribuerCouleurs(ioExpositions);
     ioTitres = titres;
 
     const vide = ioExpositions.enveloppe.length === 0;

@@ -3821,6 +3821,8 @@ Object.assign(TRADUCTIONS.pt, {
     "A tabela das colunas",
   "Le tableau des catégories":
     "A tabela das categorias",
+  "Remboursements":
+    "Reembolsos",
   "Annuler la confirmation":
     "Cancelar a confirmação",
   "Déjà prise par la colonne {n}":

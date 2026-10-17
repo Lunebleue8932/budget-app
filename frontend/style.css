@@ -1348,6 +1348,18 @@ form .operation-cases input[type="checkbox"] {
   animation: fade-in 0.18s ease-out;
 }
 
+/* UN ONGLET QUI RÉUNIT DEUX VOLETS (Remboursements, Prêts) : chacun garde son titre, et le second se
+   détache du premier par un filet. */
+.sous-section-titre {
+  margin: 0 0 0.6rem;
+}
+
+.sous-section-compagnon {
+  margin-top: 2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--border);
+}
+
 /* ---------- Une page en plusieurs PARTIES ----------
  *
  * « Configuration » (catégories, comptes, monnaies) et la base de données des
@@ -2550,6 +2562,8 @@ button.danger:hover {
 
 .filtres-repli > summary {
   display: flex;
+  /* À droite, juste sous « Trier par » : les deux réglages de la liste vont ensemble. */
+  justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;

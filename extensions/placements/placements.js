@@ -697,6 +697,7 @@ function formatQuantite(valeur) {
  */
 const PLACEMENTS_COLONNES_DETENTIONS = [
   { cle: "titre", libelle: "Titre", verrouillee: true, defaut: true },
+  { cle: "isin", libelle: "ISIN", defaut: false },
   { cle: "quantite", libelle: "Quantité", defaut: false },
   { cle: "prix_revient", libelle: "Prix de revient", defaut: false },
   { cle: "investi", libelle: "Investi", defaut: false },
@@ -717,6 +718,8 @@ function placementsCelluleDetention(cle, d) {
   switch (cle) {
     case "titre":
       return `<td>${escapeHtml(d.titre_nom)}</td>`;
+    case "isin":
+      return `<td>${d.code_isin ? `<code>${escapeHtml(d.code_isin)}</code>` : "—"}</td>`;
     case "quantite":
       return `<td>${formatQuantite(d.quantite)}</td>`;
     case "prix_revient":

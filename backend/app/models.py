@@ -2007,6 +2007,12 @@ class SousFiltre(Base):
     monnaie_cible_id = Column(
         Integer, ForeignKey("monnaie.id", ondelete="SET NULL"), nullable=True
     )
+    # AFFICHÉ AU DASHBOARD (migration 0088), comme `ObjectifKpi.visible_dashboard` : un réglage de
+    # lecture que rien ne calcule. Faux d'origine - un projet ne se pose pas sous les graphes sans
+    # qu'on l'ait demandé.
+    visible_dashboard = Column(
+        Boolean, nullable=False, default=False, server_default=sa_false()
+    )
 
     operations = relationship(
         "Operation",

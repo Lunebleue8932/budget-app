@@ -134,3 +134,14 @@ def test_la_monnaie_suit_les_montants(db_session):
         routeur._periode_et_montants(
             db_session, schemas.SousFiltreCreate(nom="c", montant_min=5.0, monnaie_cible_id=99999)
         )
+
+
+def test_un_projet_peut_etre_affiche_au_dashboard(db_session):
+    """Faux d'origine ; le formulaire le pose, et le renvoie à chaque lecture (migration 0088)."""
+    projet = _projet(db_session)
+    assert service.lire_sous_filtre(projet)["visible_dashboard"] is False
+    crud.update_sous_filtre(db_session, projet, visible_dashboard=True)
+    assert service.lire_sous_filtre(projet)["visible_dashboard"] is True
+    autre = _projet(db_session, nom="Déménagement", visible_dashboard=True)
+    assert autre.visible_dashboard is True
+    assert schemas.SousFiltreCreate(nom="X").visible_dashboard is False

@@ -78,6 +78,15 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   max-width: 56rem;
+  margin: 0 auto;
+}
+
+/* LE CONTENEUR DES CARRÉS S'ÉTIRE. `.io-camembert-bloc` centre ses enfants (`align-items: center`),
+   ce qui les rétrécit à leur contenu : un disque a une taille propre, mais des tuiles posées en
+   absolu n'en ont aucune. Le conteneur tombait alors à largeur nulle, et `width: 100%` de
+   `.io-carres` valait 100 % de rien — la légende, elle, restait visible. */
+.io-camembert-bloc[data-io-axe="titre"] > .io-camembert {
+  align-self: stretch;
 }
 
 .io-carre {

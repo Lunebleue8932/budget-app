@@ -1438,7 +1438,19 @@ function normaliserRecherche(texte) {
 function sectionActive() {
   const section = document.querySelector("section.active");
   if (!section) return null;
-  return section.querySelector(".sous-section.active") || section;
+  // Un onglet peut allumer deux volets à la fois (`data-sous-section-avec`) : la recherche doit
+  // alors couvrir la section entière, les volets éteints étant écartés après coup (marques sans place).
+  const actives = section.querySelectorAll(".sous-section.active");
+  return actives.length === 1 ? actives[0] : section;
+}
+
+/** Les volets que l'onglet `bouton` allume EN PLUS du sien (`data-sous-section-avec`, séparés par des
+ *  espaces) : un onglet qui en réunit plusieurs. */
+function activerCompagnons(bouton) {
+  (bouton.dataset.sousSectionAvec || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((id) => document.getElementById(`sous-section-${id}`)?.classList.add("active"));
 }
 
 /**
@@ -1759,6 +1771,7 @@ function activerOngletSansCharger(section, sousSection) {
   const portee = document.getElementById(`section-${section}`);
   portee.querySelectorAll(":scope > .sous-section").forEach((s) => s.classList.remove("active"));
   document.getElementById(`sous-section-${sousSection}`)?.classList.add("active");
+  activerCompagnons(bouton);
 }
 
 function switchSection(name, { ongletActif = name, sousSection = null } = {}) {
@@ -10861,6 +10874,7 @@ document.addEventListener("click", (e) => {
   // charger : mieux vaut un onglet sans contenu qu'une exception qui casse le
   // reste du gestionnaire.
   if (cible) cible.classList.add("active");
+  activerCompagnons(btn);
   // Le terme de recherche survit au changement d'onglet : il s'applique
   // maintenant à celui qu'on vient d'ouvrir.
   appliquerRecherche();

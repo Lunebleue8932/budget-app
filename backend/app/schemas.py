@@ -1175,6 +1175,7 @@ class DetentionRead(BaseModel):
 
     titre_id: int
     titre_nom: str
+    code_isin: Optional[str] = None
     monnaie_id: int
     monnaie_symbole: str
     quantite: float
@@ -2791,6 +2792,8 @@ class SousFiltreBase(BaseModel):
     montant_max: Optional[float] = Field(default=None, ge=0)
     montant_min: Optional[float] = Field(default=None, ge=0)
     monnaie_cible_id: Optional[int] = None
+    # Posé sous les graphes du dashboard (migration 0088), comme un objectif coché.
+    visible_dashboard: bool = False
 
     @model_validator(mode="after")
     def _periode_coherente(self):
@@ -2923,6 +2926,7 @@ class SousFiltreRead(BaseModel):
     montant_max: Optional[float] = None
     montant_min: Optional[float] = None
     monnaie_cible_id: Optional[int] = None
+    visible_dashboard: bool = False
     # « a_venir », « en_cours » ou « termine » d'après la période et la date du jour ; None sans
     # période. `jours_restants` : jusqu'à la date de fin (0 une fois passée), None sans date de fin.
     phase: Optional[str] = None

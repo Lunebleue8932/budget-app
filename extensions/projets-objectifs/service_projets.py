@@ -331,6 +331,7 @@ def lire_sous_filtre(sous_filtre, db=None) -> dict:
         "montant_max": sous_filtre.montant_max,
         "montant_min": sous_filtre.montant_min,
         "monnaie_cible_id": sous_filtre.monnaie_cible_id,
+        "visible_dashboard": bool(sous_filtre.visible_dashboard),
         "phase": phase,
         "jours_restants": jours_restants,
         "suivi": suivi_du_projet(sous_filtre, totaux),

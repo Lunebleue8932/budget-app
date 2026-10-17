@@ -4596,6 +4596,8 @@ Object.assign(TRADUCTIONS.en, {
     "The column table",
   "Le tableau des catégories":
     "The category table",
+  "Remboursements":
+    "Reimbursements",
   "Annuler la confirmation":
     "Cancel the confirmation",
   "Déjà prise par la colonne {n}":

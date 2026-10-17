@@ -3849,6 +3849,7 @@ CHAMPS_PERIODE_ET_MONTANTS_PROJET = (
     "montant_max",
     "montant_min",
     "monnaie_cible_id",
+    "visible_dashboard",
 )
 
 

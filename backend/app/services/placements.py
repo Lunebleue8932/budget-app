@@ -92,6 +92,8 @@ def detentions(db: Session, compte_id: int) -> list[dict]:
                 # Ce qu'on LIT : le renommage s'il existe, le nom du courtier
                 # sinon (cf. models.Action.nom_affiche).
                 "titre_nom": titre.nom_affiche,
+                # Le code ISIN, quand on le connaît : une colonne que l'écran peut montrer.
+                "code_isin": titre.code_isin,
                 # Monnaie de cotation du titre : cours, prix de revient et
                 # valorisation en sont tous libellés.
                 "monnaie_id": titre.monnaie_id,

@@ -244,3 +244,21 @@
 .projet-barre-manquee { background: #d9534f; }
 .projet-etat-tenu { color: var(--accent, #3b82f6); }
 .projet-etat-manque { color: #d9534f; }
+
+/* ---------- Le bloc du dashboard ----------
+   Sous les objectifs, comme eux : une carte par projet coché, cliquable (elle l'ouvre dans la page Budget). */
+#dashboard-projets {
+  margin-top: 1rem;
+}
+
+#dashboard-projets h3 {
+  margin-bottom: 0.6rem;
+}
+
+.projet-carte-dashboard {
+  cursor: pointer;
+}
+
+.projet-carte-dashboard:hover {
+  border-color: var(--accent, #3b82f6);
+}

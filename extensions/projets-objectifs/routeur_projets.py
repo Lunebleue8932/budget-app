@@ -68,6 +68,7 @@ def _periode_et_montants(db: Session, payload: schemas.SousFiltreBase) -> dict:
         "montant_max": payload.montant_max,
         "montant_min": payload.montant_min,
         "monnaie_cible_id": monnaie_id,
+        "visible_dashboard": payload.visible_dashboard,
     }
 
 

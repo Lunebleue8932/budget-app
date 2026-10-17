@@ -440,6 +440,7 @@ function ouvrirEditeurProjet(projet = null) {
   document.getElementById("projet-montant-min").value =
     projet && projet.montant_min != null ? projet.montant_min : "";
   projetRemplirMonnaies(projet ? projet.monnaie_cible_id : null);
+  document.getElementById("projet-visible").checked = Boolean(projet && projet.visible_dashboard);
   document.getElementById("projet-nom").focus();
 }
 
@@ -786,6 +787,7 @@ document.getElementById("btn-projet-enregistrer").addEventListener("click", asyn
     montant_max: nombre("projet-montant-max"),
     montant_min: nombre("projet-montant-min"),
     monnaie_cible_id: Number(document.getElementById("projet-monnaie-cible").value) || null,
+    visible_dashboard: document.getElementById("projet-visible").checked,
   };
   const id = document.getElementById("projet-id").value;
   try {
@@ -851,3 +853,71 @@ document.getElementById("projet-filtre-texte").addEventListener("keydown", (e) =
   }
 });
 
+
+/* ---------- La greffe du dashboard ----------
+ *
+ * LES PROJETS COCHÉS « Afficher au dashboard » se posent sous les objectifs, dans `#dashboard-projets`
+ * (réservé par le noyau, cf. index.html). Un projet n'est lié ni à la période ni à la monnaie du
+ * dashboard - il a les siennes -, la carte montre donc ce que la liste des projets montre : ses
+ * totaux, sa période et où il en est face au montant à tenir. Un clic l'ouvre dans la page Budget.
+ *
+ * Même enveloppe de `loadDashboardData` que celle des objectifs (cf. objectifs.js), posée une seule fois.
+ */
+function projetCarteDashboardHtml(projet) {
+  return `
+    <div class="projet-carte projet-carte-dashboard" data-projet-ouvrir="${projet.id}" role="button" tabindex="0">
+      <div class="projet-carte-corps">
+        <div class="projet-carte-nom">${escapeHtml(projet.nom)}</div>
+        <div class="projet-carte-compte">${t("{n} opération(s)", { n: projet.nombre_operations })}</div>
+        <div class="projet-totaux">${totauxHtml(projet.totaux)}</div>
+        <div class="projet-suivi">${projetSuiviHtml(projet)}</div>
+      </div>
+    </div>`;
+}
+
+async function projRendreDashboard() {
+  const bloc = document.getElementById("dashboard-projets");
+  if (!bloc) return;
+  const vider = () => {
+    bloc.innerHTML = "";
+    bloc.style.display = "none";
+  };
+  if (!BudgetApp.extensions.estActive("projets-objectifs")) return vider();
+  try {
+    const choisis = (await apiFetch(PROJETS_BASE)).filter((p) => p.visible_dashboard);
+    if (!choisis.length) return vider();
+    bloc.style.display = "";
+    bloc.innerHTML = `<h3>${t("Projets")}</h3>
+      <div class="projets-liste projets-liste-dashboard">${choisis.map(projetCarteDashboardHtml).join("")}</div>`;
+  } catch (err) {
+    // Un projet qui ne se lit pas ne doit pas emporter le dashboard : le bloc se tait.
+    vider();
+  }
+}
+
+function projOuvrirDepuisDashboard(carte) {
+  // `loadProjets` rouvre `projetOuvert` quand il le retrouve : il suffit de le poser avant d'aller là-bas.
+  projetOuvert = { id: Number(carte.dataset.projetOuvrir) };
+  switchSection("budget", { sousSection: "budget-projets-objectifs" });
+}
+
+document.addEventListener("click", (e) => {
+  const carte = e.target.closest("[data-projet-ouvrir]");
+  if (carte) projOuvrirDepuisDashboard(carte);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const carte = e.target.closest && e.target.closest("[data-projet-ouvrir]");
+  if (!carte) return;
+  e.preventDefault();
+  projOuvrirDepuisDashboard(carte);
+});
+
+if (typeof loadDashboardData === "function" && !window.projDashboardGreffe) {
+  const chargerOrigine = loadDashboardData;
+  window.projDashboardGreffe = true;
+  window.loadDashboardData = async function () {
+    await chargerOrigine.apply(this, arguments);
+    await projRendreDashboard();
+  };
+}
