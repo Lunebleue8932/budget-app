@@ -2810,3 +2810,16 @@ def test_un_doublon_reprend_le_type_de_loperation_deja_enregistree(db_session):
     preview = import_bancaire.previsualiser(db_session, preset.id, contenu)
     assert preview.lignes[0].doublon_de is not None
     assert preview.lignes[0].type_code == "remboursable"
+
+
+def test_le_delimiteur_suit_les_operations_plutot_qu_un_bloc_de_synthese(db_session):
+    """La Banque Postale : six lignes de synthèse en deux colonnes, puis trois
+    lignes en quatre. Les virgules décimales des opérations ne doivent pas
+    faire élire la virgule."""
+    echantillon = (
+        "Numéro Compte;0123456X020\nType;CCP\nCompte tenu en;euros\nDate;13/10/2026\n"
+        "Solde (EUROS);1 234,56\nSolde (FRANCS);8 098,51\n\n"
+        "Date;Libellé;Montant(EUROS);Montant(FRANCS)\n"
+        "12/10/2026;ACHAT CB SUPERMARCHE;-45,60;-299,11\n10/10/2026;VIREMENT;1 500,00;9 839,35\n"
+    )
+    assert import_bancaire._detecter_delimiteur(echantillon) == ";"

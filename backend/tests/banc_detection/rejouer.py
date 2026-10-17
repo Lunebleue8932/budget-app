@@ -24,10 +24,11 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 from types import SimpleNamespace
 
 from app.services.detection_colonnes import detecter_fichier
-from app.services.import_bancaire import _lire_toutes_les_lignes
+from app.services.import_bancaire import _lire_toutes_les_lignes, separateur_decimal_du_fichier
 from app.services.reconnaissance_presets import ajuster, memoriser_signature, reconnaitre
 
 from .variantes import Cas, tous_les_cas
@@ -38,16 +39,18 @@ _EXTRAS = (
     "mode_montants", "ordre", "separateur", "separateur_decimal", "encodage", "format_date",
     "lignes_pied", "colonne_solde",
 )
-# Deux encodages qui ne diffèrent que sur des octets absents du fichier le
-# lisent à l'identique : les confondre n'est pas une erreur.
-_ENCODAGES_VOISINS = {"cp1252", "latin-1"}
 
 
 def _meme_extra(cle: str, attendu, obtenu, contenu: bytes) -> bool:
     if attendu == obtenu:
         return True
-    if cle == "encodage" and {attendu, obtenu} <= _ENCODAGES_VOISINS:
-        return contenu.decode("cp1252", errors="replace") == contenu.decode("latin-1")
+    if cle == "encodage" and attendu and obtenu:
+        # Deux encodages qui lisent ce fichier à l'identique (un fichier tout
+        # en ASCII se lit pareil en UTF-8, Windows-1252 et ISO-8859-1).
+        try:
+            return contenu.decode(attendu) == contenu.decode(obtenu)
+        except UnicodeDecodeError:
+            return False
     return False
 
 
@@ -75,6 +78,43 @@ def _nom_propriete(propriete: str) -> str:
     return propriete or "(ne pas importer)"
 
 
+def _mode_des_proprietes(proprietes: list[str]) -> Optional[str]:
+    pris = set(proprietes)
+    if {"montant_debit", "montant_credit"} <= pris:
+        return "debit_credit"
+    if "montant" in pris:
+        return "montant_sens" if "sens" in pris else "algebrique"
+    return None
+
+
+def _proprietes_resolues(attendu: dict, trouvees: dict, resultat: "Resultat") -> list[str]:
+    """Les propriétés attendues, colonne par colonne, les choix équivalents
+    résolus : dans chaque groupe, la solution que la détection a retenue si elle
+    en a retenu une exactement, sinon la première (et l'écart est noté)."""
+    proprietes = list(attendu["proprietes"])
+    for groupe in attendu.get("groupes", []):
+        colonnes = {c for solution in groupe for c in solution}
+        retenue = next(
+            (
+                solution for solution in groupe
+                if all(trouvees.get(c, "") == solution.get(c, "") for c in colonnes)
+            ),
+            None,
+        )
+        if retenue is None:
+            retenue = groupe[0]
+            resultat.ecarts.append(
+                "aucune des solutions équivalentes : "
+                + " ou ".join(
+                    "+".join(f"col {c} {p}" for c, p in sorted(s.items())) or "rien" for s in groupe
+                )
+            )
+        for c in colonnes:
+            if c - 1 < len(proprietes):
+                proprietes[c - 1] = retenue.get(c, "")
+    return proprietes
+
+
 def evaluer(cas: Cas) -> Resultat:
     attendu = cas.attendu
     r = Resultat(cas, colonnes=len(attendu["proprietes"]))
@@ -85,7 +125,8 @@ def evaluer(cas: Cas) -> Resultat:
         return r
     trouvees = {c["index"]: c["propriete"] for c in detection["configuration"]}
     entetes = {c["index"]: c["entete"] for c in detection["colonnes"]}
-    for j, propriete in enumerate(attendu["proprietes"], start=1):
+    proprietes = _proprietes_resolues(attendu, trouvees, r)
+    for j, propriete in enumerate(proprietes, start=1):
         obtenue = trouvees.get(j, "")
         if obtenue == propriete:
             r.colonnes_justes += 1
@@ -100,6 +141,9 @@ def evaluer(cas: Cas) -> Resultat:
             f"données à partir de la ligne {detection['lignes_entete'] + 1}, "
             f"attendu {attendu['lignes_entete'] + 1}"
         )
+    if attendu.get("groupes"):
+        # Le mode attendu suit la solution retenue (un montant, ou le couple).
+        attendu = {**attendu, "mode_montants": _mode_des_proprietes(proprietes)}
     for cle in _EXTRAS:
         # Ce que la détection ne rend pas encore, ou que le cas ne fixe pas
         # (un classeur n'a pas de séparateur décimal), ne se mesure pas.
@@ -172,6 +216,7 @@ def _preset_de(nom: str, identifiant: int, cas: Cas):
             if p
         ],
         lignes_entete=attendu["lignes_entete"],
+        lignes_pied=attendu["lignes_pied"],
         signature_entetes=None,
         nombre_colonnes=None,
         motif_nom_fichier=None,
@@ -180,6 +225,16 @@ def _preset_de(nom: str, identifiant: int, cas: Cas):
     )
     memoriser_signature(preset, _lire_toutes_les_lignes(cas.contenu), None, ecraser=True)
     return preset
+
+
+def _meme_format(a, b) -> bool:
+    """Deux presets qui lisent le même format : mêmes colonnes, mêmes lignes
+    de tête. Deux exemples d'une même banque en donnent des jumeaux."""
+    return (
+        sorted((c["index"], c["propriete"]) for c in a.colonnes)
+        == sorted((c["index"], c["propriete"]) for c in b.colonnes)
+        and a.lignes_entete == b.lignes_entete
+    )
 
 
 def _base_du_cas(cas: Cas) -> str:
@@ -197,13 +252,50 @@ def _meme_lecture(cas: Cas, base: Cas) -> bool:
     )
 
 
+_PROPRIETES_DE_LECTURE = ("date", "nature", "montant", "montant_debit", "montant_credit", "sens")
+
+
+def _colonnes_permises(attendu: dict) -> dict[str, set[int]]:
+    """Où chaque propriété de lecture peut se trouver dans ce cas : sa colonne
+    attendue, et celles que les choix équivalents admettent."""
+    permises: dict[str, set[int]] = {}
+    for j, propriete in enumerate(attendu["proprietes"], start=1):
+        if propriete in _PROPRIETES_DE_LECTURE:
+            permises.setdefault(propriete, set()).add(j)
+    for groupe in attendu.get("groupes", []):
+        for solution in groupe:
+            for j, propriete in solution.items():
+                if propriete in _PROPRIETES_DE_LECTURE:
+                    permises.setdefault(propriete, set()).add(j)
+    return permises
+
+
+def _lit_correctement(preset, attendu: dict) -> bool:
+    """CE QUE L'UTILISATEUR VOIT : le preset finalement utilisé lit la date,
+    le libellé et le montant dans les bonnes colonnes, et commence au bon
+    endroit. Deux presets d'une même banque qui y parviennent se valent."""
+    if preset is None or preset.lignes_entete != attendu["lignes_entete"]:
+        return False
+    permises = _colonnes_permises(attendu)
+    lues = {c["propriete"]: c["index"] for c in preset.colonnes if c.get("propriete")}
+    if not any(p in lues for p in ("montant", "montant_debit")):
+        return False
+    return all(
+        p not in lues or lues[p] in permises.get(p, set())
+        for p in _PROPRIETES_DE_LECTURE
+    ) and all(p in lues for p in ("date",) if p in permises)
+
+
 def evaluer_reconnaissance(cas: list[Cas]) -> tuple[int, int, list[str]]:
-    """Sur chaque cas que le preset de sa base sait lire : ce preset
-    sélectionné, il doit être gardé (`appliquer` ou `ecarts`) ; un autre
-    sélectionné, il doit être PROPOSÉ (`basculer`). (réussites, essais,
-    échecs)."""
+    """Sur chaque cas que le preset de sa base sait lire, deux essais : ce
+    preset sélectionné, puis un preset qui NE le lit PAS. Réussi quand le preset
+    finalement utilisé — le sélectionné s'il est gardé, le proposé s'il y a
+    bascule — lit correctement le fichier (cf. _lit_correctement). Le fichier
+    est lu comme l'aperçu le lit (séparateur décimal du fichier compris).
+    (réussites, essais, échecs)."""
     bases = {c.nom: c for c in cas if "/" not in c.nom}
     presets = {nom: _preset_de(nom, i, c) for i, (nom, c) in enumerate(bases.items(), start=1)}
+    par_id = {p.id: p for p in presets.values()}
     noms = list(presets)
     reussites, essais, echecs = 0, 0, []
     for c in cas:
@@ -211,23 +303,29 @@ def evaluer_reconnaissance(cas: list[Cas]) -> tuple[int, int, list[str]]:
         if base is None or not _meme_lecture(c, base):
             continue
         lignes = _lire_toutes_les_lignes(c.contenu)
-        ajustements = [ajuster(p, lignes) for p in presets.values()]
+        decimal = separateur_decimal_du_fichier(lignes)
+        ajustements = [ajuster(p, lignes, separateur_decimal=decimal) for p in presets.values()]
         bon = presets[base.nom]
-        autre = presets[noms[(noms.index(base.nom) + 1) % len(noms)]]
-        garde = reconnaitre(ajustements, bon.id)
-        essais += 1
-        if garde.decision in ("appliquer", "ecarts"):
-            reussites += 1
-        else:
-            echecs.append(f"{c.nom} (bon preset sélectionné) : {garde.decision}")
-        if len(noms) > 1:
-            propose = reconnaitre(ajustements, autre.id)
+        suivants = noms[noms.index(base.nom) + 1:] + noms[:noms.index(base.nom)]
+        autre = next(
+            (presets[n] for n in suivants if not _lit_correctement(presets[n], c.attendu)), None
+        )
+        for selectionne, libelle in ((bon, "bon"), (autre, "mauvais")):
+            if selectionne is None:
+                continue
+            decision = reconnaitre(ajustements, selectionne.id)
+            if decision.decision in ("appliquer", "ecarts"):
+                final = selectionne
+            elif decision.decision == "basculer":
+                final = par_id[decision.propose.preset_id]
+            else:
+                final = None
             essais += 1
-            if propose.decision == "basculer" and propose.propose.preset_id == bon.id:
+            if _lit_correctement(final, c.attendu):
                 reussites += 1
             else:
-                cible = propose.propose.nom if propose.propose else "-"
-                echecs.append(f"{c.nom} (mauvais preset sélectionné) : {propose.decision} → {cible}")
+                cible = f" → {final.nom}" if final is not None and final is not selectionne else ""
+                echecs.append(f"{c.nom} ({libelle} preset sélectionné) : {decision.decision}{cible}")
     return reussites, essais, echecs
 
 

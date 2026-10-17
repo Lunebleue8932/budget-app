@@ -130,3 +130,58 @@ def test_une_ligne_d_intitules_pleine_de_fautes_reste_une_ligne_d_intitules():
     resultat = detecter_colonnes(lignes)
     assert resultat["lignes_entete"] == 1
     assert _config(resultat) == {"date": 1, "nature": 2, "montant": 3}
+
+
+# ---------- Ce que les relevés d'exemple des banques ont appris ----------
+
+
+def test_une_colonne_credit_vide_garde_son_intitule():
+    """Un relevé du mois sans rentrée : le preset enregistré dessus doit encore
+    lire les crédits du mois suivant."""
+    lignes = [("Date", "Débit", "Crédit", "Libellé"),
+              ("02/03/2026", "-23,78", "", "CB CARREFOUR"),
+              ("05/03/2026", "-64,32", "", "PRLV EDF"),
+              ("08/03/2026", "-12,00", "", "CB BOULANGERIE")]
+    config = _config(detecter_colonnes(lignes))
+    assert (config["montant_debit"], config["montant_credit"]) == (2, 3)
+
+
+def test_une_colonne_de_zeros_n_est_pas_un_credit():
+    lignes = _releve({"date": _DATE, "libelle": _LIBELLE, "montant": _MONTANT,
+                      "compte": lambda rng, i: "0"})
+    config = _config(detecter_colonnes(lignes))
+    assert config["montant"] == 3 and "montant_credit" not in config
+
+
+def test_un_type_qui_n_ecrit_aucun_sens_n_est_pas_un_sens():
+    lignes = [("Type", "Date", "Description", "Amount")] + [
+        (t, f"0{j}/03/2026", "MONOPRIX", "-12.50")
+        for j, t in enumerate(["CARD_PAYMENT", "TOPUP", "TRANSFER", "CARD_PAYMENT"], start=1)
+    ]
+    resultat = detecter_colonnes(lignes)
+    assert "sens" not in _config(resultat)
+    assert resultat["mode_montants"] == "algebrique"
+
+
+def test_l_iban_de_l_autre_partie_n_est_pas_le_compte():
+    lignes = _releve({"date": _DATE, "libelle": _LIBELLE, "montant": _MONTANT,
+                      "iban": lambda rng, i: f"FR76{rng.randint(10**20, 10**21 - 1)}"})
+    lignes.insert(0, ("Date", "Libellé", "Montant", "IBAN"))
+    assert "compte_banque" not in _config(detecter_colonnes(lignes))
+
+
+def test_une_colonne_constante_n_est_pas_une_categorie():
+    lignes = _releve({"date": _DATE, "libelle": _LIBELLE, "produit": lambda rng, i: "Current",
+                      "montant": _MONTANT})
+    assert "categorie_banque" not in _config(detecter_colonnes(lignes))
+
+
+def test_une_ligne_de_synthese_en_tete_n_est_pas_une_operation():
+    """L'historique d'un crédit BNP : une ligne de synthèse, plus large, puis
+    les opérations, sans intitulés."""
+    lignes = [("Crédit immobilier", "Crédit immobilier", "****1234", "18/03/2022", "", "-123 456,78")] + [
+        (f"05/0{m}/2022", "", "", " AMORTISSEMENT PRET 1234", f"7{m},03") for m in range(1, 6)
+    ]
+    resultat = detecter_colonnes(lignes)
+    assert resultat["lignes_entete"] == 1
+    assert _config(resultat)["date"] == 1

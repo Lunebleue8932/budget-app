@@ -58,6 +58,8 @@ _ECHANTILLON = 200
 # UN PRESET QUI LIT LE FICHIER en lit au moins neuf lignes sur dix : la marge
 # couvre une ligne de total, un solde reporté, une opération sans montant.
 SEUIL_VALIDITE = 0.9
+# À partir de combien de lignes une seule illisible est tolérée.
+_LIGNES_TOLERANCE = 4
 # Une colonne de montant est faite de nombres, à quelques cellules près.
 _PART_NUMERIQUE = 0.8
 # Débit et crédit remplis sur la même ligne : rare, jamais la règle.
@@ -162,8 +164,15 @@ def _rogner(ligne) -> list:
     return cellules
 
 
-def _donnees(lignes: list[tuple], lignes_entete: int) -> list[tuple]:
-    return [l for l in lignes[lignes_entete:] if any(not _vide(c) for c in l)][:_ECHANTILLON]
+def _donnees(lignes: list[tuple], lignes_entete: int, lignes_pied: int = 0) -> list[tuple]:
+    """Les opérations : sans les lignes de tête, ni les lignes de pied (un
+    total, un solde final) que le preset sait écarter — sur un relevé de trois
+    opérations, une ligne de total suffirait à le faire échouer sur son propre
+    fichier."""
+    remplies = [l for l in lignes[lignes_entete:] if any(not _vide(c) for c in l)]
+    if lignes_pied:
+        remplies = remplies[:-lignes_pied]
+    return remplies[:_ECHANTILLON]
 
 
 @dataclass
@@ -221,6 +230,15 @@ def _cellule(ligne, index: Optional[int]):
     return ligne[index - 1]
 
 
+def _numerique_ou_vide(donnees: list[tuple], index: int, separateur_decimal) -> bool:
+    """Une colonne de nombres, ou VIDE — mais présente : un fichier qui n'a
+    pas de quatrième colonne n'a pas de crédit vide, il n'a pas de crédit."""
+    if not any(len(l) >= index for l in donnees):
+        return False
+    remplies = [c for c in (_cellule(l, index) for l in donnees) if not _vide(c)]
+    return not remplies or _part_numerique(donnees, index, separateur_decimal) >= _PART_NUMERIQUE
+
+
 def _part_numerique(donnees: list[tuple], index: int, separateur_decimal) -> float:
     remplies = [c for c in (_cellule(l, index) for l in donnees) if not _vide(c)]
     if not remplies:
@@ -244,9 +262,17 @@ def lire_avec_preset(
     l'ordre que l'aperçu retiendrait (cf. import_bancaire.
     format_date_du_fichier), sauf ordre imposé à la main."""
     index = {c["propriete"]: c["index"] for c in (preset.colonnes or []) if c.get("propriete")}
-    donnees = _donnees(lignes, preset.lignes_entete or 0)
+    donnees = _donnees(lignes, preset.lignes_entete or 0, getattr(preset, "lignes_pied", 0) or 0)
     if not donnees or "date" not in index:
         return Lecture(0.0, False, len(donnees))
+    # UN PRESET QUI COMMENCE TROP TARD : sa ligne d'intitulés est en fait
+    # une opération (une date, un montant). Il « lit » le reste du fichier,
+    # mais en sautant des opérations, sans que rien ne le dise.
+    entete = preset.lignes_entete or 0
+    if 1 <= entete <= len(lignes):
+        ligne_entete = lignes[entete - 1]
+        if parser_date(_cellule(ligne_entete, index["date"])) is not None:
+            return Lecture(0.0, False, len(donnees))
     format_date = format_date or format_date_du_fichier(
         lignes, preset.colonnes, preset.lignes_entete or 0
     )
@@ -279,9 +305,11 @@ def lire_avec_preset(
         lisibles += 1
 
     if scinde:
+        # UNE COLONNE VIDE ne contredit rien : un relevé du mois sans rentrée
+        # n'a pas un crédit, et reste lisible par le preset débit/crédit.
         compatible = (
-            _part_numerique(donnees, index["montant_debit"], separateur_decimal) >= _PART_NUMERIQUE
-            and _part_numerique(donnees, index["montant_credit"], separateur_decimal) >= _PART_NUMERIQUE
+            _numerique_ou_vide(donnees, index["montant_debit"], separateur_decimal)
+            and _numerique_ou_vide(donnees, index["montant_credit"], separateur_decimal)
             and doubles / len(donnees) <= _PART_DOUBLE_REMPLISSAGE
         )
     else:
@@ -289,6 +317,16 @@ def lire_avec_preset(
             "montant" in index
             and _part_numerique(donnees, index["montant"], separateur_decimal) >= _PART_NUMERIQUE
         )
+    # LE LIBELLÉ EST DU TEXTE : un preset qui le lirait dans une colonne de
+    # dates ou de nombres (la date de valeur, le solde) « lit » bien le fichier
+    # — dates et montants se lisent — mais pas ce relevé-ci.
+    if compatible and "nature" in index:
+        libelles = [c for c in (_cellule(l, index["nature"]) for l in donnees) if not _vide(c)]
+        chiffres = sum(
+            parser_date(c, format_date) is not None or parser_montant(c, separateur_decimal) is not None
+            for c in libelles
+        )
+        compatible = not libelles or chiffres / len(libelles) < 0.5
     return Lecture(round(lisibles / len(donnees), 3), compatible, len(donnees))
 
 
@@ -301,6 +339,7 @@ class Ajustement:
     nom: str
     validite: float
     mode_compatible: bool
+    lignes: int = 0
     # None : le preset n'a encore rien mémorisé de ce côté-là.
     entetes: Optional[float] = None
     entetes_identiques: Optional[bool] = None
@@ -310,7 +349,15 @@ class Ajustement:
 
     @property
     def passe(self) -> bool:
-        return self.mode_compatible and self.validite >= SEUIL_VALIDITE
+        """Le preset lit le fichier : neuf lignes sur dix — ou, sur un petit
+        fichier, toutes sauf une (une opération en attente sans date suffirait
+        sinon à faire échouer un relevé de six lignes)."""
+        if not self.mode_compatible:
+            return False
+        illisibles = round((1 - self.validite) * self.lignes)
+        return self.validite >= SEUIL_VALIDITE or (
+            self.lignes >= _LIGNES_TOLERANCE and illisibles <= 1
+        )
 
     def cle_de_tri(self) -> tuple:
         """La hiérarchie des preuves, dans l'ordre : la lecture d'abord, les
@@ -349,7 +396,9 @@ def ajuster(
     supposer quand le preset n'en a pas mémorisé (celui du dernier fichier
     importé sous ce preset, cf. crud.get_dernier_nom_fichier)."""
     lecture = lire_avec_preset(preset, lignes, separateur_decimal, format_date)
-    resultat = Ajustement(preset.id, preset.nom, lecture.validite, lecture.mode_compatible)
+    resultat = Ajustement(
+        preset.id, preset.nom, lecture.validite, lecture.mode_compatible, lecture.lignes
+    )
     observee = signature_fichier(lignes, preset.lignes_entete or 0)
     if preset.signature_entetes is not None:
         memorises = list(preset.signature_entetes)

@@ -14,9 +14,10 @@ from __future__ import annotations
 import random
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
+
+from app.services.import_bancaire import parser_date
 
 from . import synthetiques
 from .releve import ROLES_DU_NET, ROLES_MONTANT, Releve, centimes, charger, texte_montant
@@ -99,6 +100,9 @@ def renommer(r: Releve, rng: random.Random) -> Releve:
     if v.entetes is None:
         return v
     for j, role in enumerate(v.roles):
+        # Un rôle sans synonymes connus (une colonne « autre ») garde son intitulé.
+        if role not in SYNONYMES:
+            continue
         intitule = rng.choice(SYNONYMES[role])
         v.entetes[j] = rng.choice((str, str.upper, str.lower, _sans_accents))(intitule)
     return v
@@ -288,18 +292,27 @@ def dates_mj(r: Releve, rng: random.Random) -> Releve:
     """Les dates à l'américaine, mois devant : « 01/25/2026 »."""
     v = r.copie("dates_mj")
     _en_csv(v)
+    jours: list[int] = []
     for ligne in v.lignes:
         for j in v.colonnes("date", "date_valeur"):
-            if ligne[j]:
-                ligne[j] = datetime.strptime(ligne[j], v.format_date).strftime("%m/%d/%Y")
+            # Lue par l'import (« 12-10-2026 », « 2026-01-15 08:00:12 »…) :
+            # les vrais relevés n'écrivent pas tous la date comme les nôtres.
+            jour = parser_date(ligne[j]) if ligne[j] else None
+            if jour is not None:
+                ligne[j] = jour.strftime("%m/%d/%Y")
+                jours.append(jour.day)
     v.format_date = "%m/%d/%Y"
+    # Aucun jour au-delà du 12 : rien ne distingue « 03/04 » mois devant de
+    # jour devant, la détection a raison de ne pas trancher.
+    v.format_date_mesurable = any(jour > 12 for jour in jours)
     return v
 
 
 def inverser_ordre(r: Releve, rng: random.Random) -> Releve:
     v = r.copie("inverser_ordre")
     v.lignes = v.lignes[::-1]
-    v.ordre = "decroissant" if v.ordre == "croissant" else "croissant"
+    if v.ordre:
+        v.ordre = "decroissant" if v.ordre == "croissant" else "croissant"
     return v
 
 
@@ -361,9 +374,14 @@ def tous_les_cas(avec_reels: bool = True) -> list[Cas]:
         cas.append(_cas(base, True))
         cas.extend(_cas(v, True) for v in variantes(base))
     if avec_reels and DOSSIER_RELEVES.is_dir():
-        for chemin in sorted(DOSSIER_RELEVES.glob("*.attendu.json")):
+        # Un dossier par source (releves/internet/<banque>/…) : on les parcourt
+        # tous. Le nom garde la banque, sans « / » (réservé aux transformations).
+        for chemin in sorted(DOSSIER_RELEVES.rglob("*.attendu.json")):
             contenu, base = charger(chemin)
-            base.nom = f"reel:{base.nom}"
+            base.nom = f"reel:{chemin.parent.name}:{base.nom}"
             cas.append(_cas(base, False, contenu))
-            cas.extend(_cas(v, False) for v in variantes(base))
+            # Des choix équivalents ne survivent pas aux transformations (une
+            # colonne déplacée n'est plus celle du groupe) : le fichier seul.
+            if not base.groupes:
+                cas.extend(_cas(v, False) for v in variantes(base))
     return cas

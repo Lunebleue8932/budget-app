@@ -34,6 +34,7 @@
         "libelle operation", "libelle simplifie", "libelle court", "nature", "nature operation",
         "description", "intitule", "designation", "label", "communication", "motif",
         "beneficiaire", "detail ecriture", "payee", "merchant", "transaction description",
+        "counterparty", "counterparty name", "partner name", "nom contrepartie", "contrepartie",
         "descricao", "historico", "lancamento"
       ],
       "mots_cles": ["libelle", "description"],

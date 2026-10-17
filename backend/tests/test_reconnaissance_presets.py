@@ -232,3 +232,79 @@ def test_la_route_signature_remplace_la_precedente(db_session, presets):
     assert preset.signature_entetes[-1] == "Solde"
     assert preset.nombre_colonnes == 4
     assert preset.motif_nom_fichier == "export_<DATE>.csv"
+
+
+# ---------- Ce que les relevés d'exemple des banques ont appris ----------
+
+from types import SimpleNamespace
+
+from app.services.import_bancaire import parser_montant, separateur_decimal_du_fichier
+from app.services.reconnaissance_presets import lire_avec_preset
+
+
+def _preset_simple(colonnes, lignes_entete=1, lignes_pied=0):
+    return SimpleNamespace(
+        id=1, nom="p", lignes_entete=lignes_entete, lignes_pied=lignes_pied,
+        colonnes=[{"index": i, "propriete": p} for i, p in colonnes.items()],
+        signature_entetes=None, nombre_colonnes=None, motif_nom_fichier=None,
+        libelles_sens_sortie=[], libelles_sens_entree=[],
+    )
+
+
+_DEBIT_CREDIT = {1: "date", 2: "montant_debit", 3: "montant_credit", 4: "nature"}
+
+
+def test_un_mois_sans_credit_reste_lisible_par_le_preset_debit_credit():
+    lignes = [("Date", "Débit", "Crédit", "Libellé")] + [
+        (f"0{j}/03/2026", f"-{j}0,00", "", "CB MAGASIN") for j in range(1, 6)
+    ]
+    assert lire_avec_preset(_preset_simple(_DEBIT_CREDIT), lignes).mode_compatible
+
+
+def test_un_credit_absent_n_est_pas_un_credit_vide():
+    lignes = [("Date", "Montant", "Libellé")] + [
+        (f"0{j}/03/2026", f"-{j}0,00", "CB MAGASIN") for j in range(1, 6)
+    ]
+    preset = _preset_simple({1: "date", 2: "montant_debit", 4: "montant_credit", 3: "nature"})
+    assert not lire_avec_preset(preset, lignes).mode_compatible
+
+
+def test_un_libelle_fait_de_dates_ne_se_lit_pas():
+    lignes = [("Date", "Date valeur", "Montant", "Solde")] + [
+        (f"0{j}/03/2026", f"0{j}/03/2026", f"-{j}0,00", f"{1000 - j * 10},00") for j in range(1, 6)
+    ]
+    preset = _preset_simple({1: "date", 2: "nature", 4: "montant"})
+    assert not lire_avec_preset(preset, lignes).mode_compatible
+
+
+def test_un_preset_qui_commence_trop_tard_ne_lit_pas_le_fichier():
+    lignes = [("Date", "Libellé", "Montant")] + [
+        (f"0{j}/03/2026", "CB MAGASIN", f"-{j}0,00") for j in range(1, 7)
+    ]
+    trop_tard = _preset_simple({1: "date", 2: "nature", 3: "montant"}, lignes_entete=4)
+    assert not lire_avec_preset(trop_tard, lignes).mode_compatible
+
+
+def test_une_ligne_de_pied_ne_fait_pas_echouer_le_preset():
+    lignes = [("Date", "Libellé", "Montant")] + [
+        (f"0{j}/03/2026", "CB MAGASIN", f"-{j}0,00") for j in range(1, 4)
+    ] + [("Solde au 31/03/2026 : 1 234,56 €",)]
+    lecture = lire_avec_preset(_preset_simple({1: "date", 2: "nature", 3: "montant"}, lignes_pied=1), lignes)
+    assert lecture.validite == 1.0
+
+
+def test_une_operation_en_attente_sans_date_est_toleree():
+    from app.services.reconnaissance_presets import Ajustement
+
+    assert Ajustement(1, "p", validite=5 / 6, mode_compatible=True, lignes=6).passe
+    assert not Ajustement(1, "p", validite=2 / 3, mode_compatible=True, lignes=3).passe
+
+
+def test_l_apostrophe_de_milliers_se_lit():
+    assert parser_montant("1'200.00", ".") == 1200.0
+    assert parser_montant("-1'234,50") == -1234.5
+
+
+def test_une_cellule_mixte_impose_le_separateur_decimal():
+    lignes = [("Solde (EUROS)", "1 234,56"), ("12/10/2026", "VIREMENT", "1.500,00")]
+    assert separateur_decimal_du_fichier(lignes) == ","

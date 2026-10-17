@@ -73,8 +73,19 @@ PROPRIETE_DU_ROLE = {
     "devise": "monnaie",
     "solde": "",
     "reference": "",
+    # Ce que les vrais relevés portent en plus.
+    "sous_categorie": "",
+    "type_operation": "",  # « Carte bancaire », « Virement reçu »…
+    "statut": "statut",
+    "frais": "frais",
+    "compte": "compte_banque",
+    "iban_tiers": "",  # l'IBAN de l'autre partie, pas celui du compte
+    "montant_origine": "montant_initial",  # le montant en devise d'origine
+    "devise_origine": "monnaie_initiale",
+    "taux": "",
+    "autre": "",
 }
-ROLES_MONTANT = {"montant", "debit", "credit", "envoye", "recu", "solde"}
+ROLES_MONTANT = {"montant", "debit", "credit", "envoye", "recu", "solde", "montant_origine", "frais"}
 # Les colonnes qui portent, à elles toutes, le montant net d'une ligne.
 ROLES_DU_NET = {"montant", "debit", "credit", "envoye", "recu", "sens"}
 ROLES_DATE = {"date", "date_valeur"}
@@ -115,6 +126,15 @@ class Releve:
     encodage: str = "utf-8"
     ordre: str = "croissant"
     format_date: str = "%d/%m/%Y"
+    # LES CHOIX ÉQUIVALENTS d'un vrai relevé : deux libellés, deux dates, un
+    # montant ou un couple débit/crédit, que l'import accepte aussi bien l'un
+    # que l'autre. Chaque groupe est une liste de solutions {colonne 1-based:
+    # propriété} ; la détection a raison si elle en retient UNE exactement.
+    groupes: list = field(default_factory=list)
+    # Le test du solde ne se juge que sur assez d'intervalles.
+    solde_mesurable: bool = True
+    # Des dates dont aucun jour ne dépasse 12 ne disent pas leur écriture.
+    format_date_mesurable: bool = True
 
     @property
     def lignes_entete(self) -> int:
@@ -145,10 +165,15 @@ class Releve:
             # décimal, ni encodage, ni écriture des dates à deviner.
             "separateur_decimal": None if self.separateur == "xlsx" else self.separateur_decimal,
             "encodage": "" if self.separateur == "xlsx" else self.encodage,
-            "format_date": None if self.separateur == "xlsx" else FORMATS_DATE.get(self.format_date),
+            "format_date": None
+            if self.separateur == "xlsx" or not self.format_date_mesurable
+            else FORMATS_DATE.get(self.format_date),
             "ordre": self.ordre,
             "lignes_pied": len(self.pied),
-            "colonne_solde": self.roles.index("solde") + 1 if "solde" in self.roles else None,
+            "colonne_solde": self.roles.index("solde") + 1
+            if "solde" in self.roles and self.solde_mesurable
+            else None,
+            "groupes": self.groupes,
         }
 
     # ---------- Les montants ----------
@@ -273,6 +298,11 @@ def charger(chemin_attendu: Path) -> tuple[bytes, Releve]:
         separateur_decimal=sep_dec,
         encodage=attendu["encodage"],
         format_date={v: k for k, v in FORMATS_DATE.items()}.get(attendu.get("format_date"), "%d/%m/%Y"),
-        ordre=attendu["ordre"],
+        ordre=attendu.get("ordre"),
+        groupes=[
+            [{int(colonne): propriete for colonne, propriete in solution.items()} for solution in groupe]
+            for groupe in attendu.get("groupes", [])
+        ],
+        solde_mesurable=attendu.get("solde_mesurable", False),
     )
     return contenu, releve

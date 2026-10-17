@@ -33,6 +33,7 @@ elles-mêmes, séparateur décimal et de milliers (services/lecture_montants),
 total ou de solde final sous les opérations. Chacun est RENDU avec les
 colonnes, pour que l'écran puisse le montrer et le corriger.
 """
+from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Optional
@@ -147,6 +148,10 @@ _TYPES_OPERATION = {
 }
 # Un numéro (référence, identifiant) : au moins six chiffres, sans séparateur.
 _CHIFFRES_NUMERO = 6
+# Un sens dont moins d'une valeur sur cinq est du vocabulaire n'en est pas un.
+_PART_SENS_MINIMALE = 0.2
+# Le compte du relevé figure sur (presque) chaque ligne.
+_REMPLISSAGE_COMPTE = 0.8
 # Combien de valeurs voisines comparer pour juger de leur ressemblance.
 _PAIRES_COMPAREES = 40
 
@@ -186,12 +191,26 @@ def _ligne_des_intitules(lignes: list[tuple]) -> Optional[int]:
     return meilleure
 
 
+
+
 def _premiere_ligne_de_donnees(lignes: list[tuple]) -> int:
-    """Sans intitulés : la première ligne qui porte une date."""
-    for i, ligne in enumerate(lignes[:_TETE_MAX]):
-        if any(parser_date(c) is not None for c in ligne if c not in (None, "")):
-            return i
-    return 0
+    """Sans intitulés : la première ligne qui porte une date ET a la largeur
+    des opérations. Une ligne de synthèse en tête (« Crédit immobilier ;
+    ****1234 ; 18/03/2022 ; ; -123 456,78 ») porte bien une date, mais pas le
+    découpage des lignes qui la suivent."""
+    avec_date = [
+        i for i, ligne in enumerate(lignes[:_TETE_MAX])
+        if any(parser_date(c) is not None for c in ligne if c not in (None, ""))
+    ]
+    if not avec_date:
+        return 0
+    # La largeur BRUTE : un CSV garde ses cellules vides de fin (« …;82,40; »),
+    # c'est la ligne de synthèse qui n'a pas le même nombre de champs.
+    largeurs = Counter(len(lignes[i]) for i in avec_date)
+    courante = max(largeurs.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    if largeurs[courante] < 2:
+        return avec_date[0]
+    return next(i for i in avec_date if len(lignes[i]) == courante)
 
 
 # Au-delà, ce qui suit les opérations n'est plus un pied de relevé mais un
@@ -341,7 +360,9 @@ def _scores_forme(p: _Profil) -> dict[str, float]:
         # LE LIBELLÉ change presque à chaque ligne et s'écrit long ; LA
         # CATÉGORIE revient souvent et s'écrit court.
         s["nature"] = 0.5 * min(1.0, ratio * 1.5) + 0.2 * min(1.0, p.longueur_moyenne / 25)
-        if p.distinctes <= max(12, p.remplies // 3):
+        # Une catégorie en a au moins deux : une colonne constante (« Current »)
+        # ne classe rien.
+        if 2 <= p.distinctes <= max(12, p.remplies // 3):
             s["categorie_banque"] = 0.45 if ratio < 0.5 else 0.25
             s["compte_banque"] = 0.2 if p.distinctes <= 5 else 0.05
         # LE LIBELLÉ s'ouvre sur « CB », « VIR », « PRLV »… et deux libellés
@@ -380,7 +401,11 @@ def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
             lignes = zip(a.vides_ou_zero, b.vides_ou_zero)
             exclusives = all(va or vb for va, vb in lignes)
             couvrantes = all(not (va and vb) for va, vb in zip(a.vides_ou_zero, b.vides_ou_zero))
-            if exclusives and couvrantes and a.remplies and b.remplies:
+            # Chacune porte au moins UN montant : une colonne de zéros (un
+            # numéro de compte « 0 ») est vide partout, donc « exclusive » de
+            # n'importe quoi, et n'est pas un crédit.
+            montants = not all(a.vides_ou_zero) and not all(b.vides_ou_zero)
+            if exclusives and couvrantes and montants and a.remplies and b.remplies:
                 entete_b = scores_proprietes(b.entete)
                 if entete_b.get("montant_debit", 0.0) > entete_b.get("montant_credit", 0.0):
                     return b, a
@@ -440,6 +465,21 @@ def detecter_colonnes(
                 and not forme.get(propriete)
             ):
                 valeur *= 0.5
+            # UN SENS ne se lit que dans un vocabulaire fermé (« Débit »,
+            # « C »…) : une colonne dont presque aucune valeur n'en est
+            # (« CARD_PAYMENT », « Presentment ») mettrait chaque ligne en
+            # erreur, quel que soit son intitulé (« Type »).
+            if propriete == "sens" and p.remplies and p.part(p.mots_sens) < _PART_SENS_MINIMALE:
+                valeur = 0.0
+            # LE COMPTE est celui du relevé : renseigné presque partout, et
+            # d'une poignée de valeurs. Un IBAN ou un numéro qui change à
+            # chaque ligne, ou ne figure que sur les virements, est celui de
+            # l'autre partie.
+            if propriete == "compte_banque" and donnees and (
+                p.remplies / len(donnees) < _REMPLISSAGE_COMPTE
+                or p.distinctes > max(5, p.remplies // 2)
+            ):
+                valeur *= 0.3
             if valeur > 0.05:
                 s[propriete] = round(min(valeur, 1.6), 3)
         # « Solde », « Référence » : ne s'importent pas, et le dire est une
@@ -455,7 +495,16 @@ def detecter_colonnes(
         faible = max(forme.get("", 0.0), 0.0 if a_ignorer else ignore)
         if faible:
             s[""] = max(s.get("", 0.0), faible)
-        if a_ignorer or (not p.remplies):
+        # 7. UN INTITULÉ RECONNU EN ENTIER l'emporte sur ce que la forme seule
+        # suggère d'autre : « Category » rempli de « Debit » / « Credit »
+        # reste une catégorie, la ressemblance au vocabulaire du sens ne vaut
+        # que pour moitié.
+        if reconnue >= SCORE_SYNONYME:
+            s = {k: v if (not k or entete.get(k)) else round(v * 0.5, 3) for k, v in s.items()}
+        # UNE COLONNE VIDE dont l'intitulé est reconnu (« Crédit » sur un
+        # relevé du mois sans rentrée) garde sa propriété, à moitié : le preset
+        # enregistré sur ce fichier doit encore lire les crédits du mois suivant.
+        if a_ignorer or (not p.remplies and reconnue < SCORE_SYNONYME):
             s = {k: v * 0.3 for k, v in s.items()}
             s[""] = 1.2 if a_ignorer else 0.9
         elif donnees and p.remplies / len(donnees) < 0.34 and reconnue < SCORE_SYNONYME:

@@ -456,6 +456,9 @@ def parser_montant(valeur, separateur_decimal: Optional[str] = None) -> Optional
     if isinstance(valeur, (int, float)):
         return float(valeur)
     texte = str(valeur).strip().replace(" ", "").replace(" ", "")
+    # L'apostrophe de milliers (« 1'200.00 », à la suisse) n'est jamais un
+    # séparateur décimal : la retirer ne peut rien fausser.
+    texte = texte.replace("'", "").replace("\u2019", "").replace("\u202f", "")
     if not texte:
         return None
     if separateur_decimal is None:
@@ -484,8 +487,13 @@ def separateur_decimal_du_fichier(lignes: list[tuple]) -> Optional[str]:
     (services/lecture_montants.format_nombres), et seulement dans ce cas : un
     fichier que la lecture permissive lisait déjà est lu exactement comme
     avant."""
-    decimal, milliers = format_nombres(c for l in lignes[:_ECHANTILLON_FORMAT] for c in l)
-    return decimal if milliers in (",", ".") else None
+    cellules = [c for l in lignes[:_ECHANTILLON_FORMAT] for c in l if isinstance(c, str)]
+    decimal, milliers = format_nombres(cellules)
+    # Une seule cellule qui porte À LA FOIS virgule et point (« 1.500,00 »)
+    # suffit : même si d'autres écrivent leurs milliers avec une espace (un
+    # solde en tête de relevé), la lecture permissive échouerait sur elle.
+    mixte = any("," in c and "." in c and any(ch.isdigit() for ch in c) for c in cellules)
+    return decimal if milliers in (",", ".") or (decimal and mixte) else None
 
 
 def format_date_du_fichier(
@@ -697,8 +705,12 @@ _ECHANTILLON_FORMAT = 300
 
 
 def _detecter_delimiteur(echantillon: str) -> str:
-    """Le délimiteur qui découpe LE PLUS DE LIGNES en un même nombre de
-    colonnes (au moins deux), à égalité celui qui en fait le plus.
+    """Le délimiteur dont le découpage le plus fréquent (au moins deux
+    colonnes) couvre le plus de CELLULES : nombre de lignes découpées ainsi,
+    fois le nombre de séparations. La fréquence seule ne suffit pas : sur un
+    relevé « ; » dont une ligne de synthèse a une colonne de plus que les
+    opérations, la virgule décimale de chaque montant découpe toutes les lignes
+    en deux, et l'emportait.
 
     csv.Sniffer ne convient pas ici : sur un relevé français sans en-tête, les
     montants à virgule décimale ("-45,2") lui font élire "," alors que les
@@ -724,10 +736,12 @@ def _detecter_delimiteur(echantillon: str) -> str:
         )
         if not largeurs:
             continue
-        # La largeur la plus fréquente, et à fréquence égale la plus grande.
-        largeur, frequence = max(largeurs.items(), key=lambda kv: (kv[1], kv[0]))
-        if (frequence, largeur) > meilleur_score:
-            meilleur, meilleur_score = delimiteur, (frequence, largeur)
+        # Le découpage qui couvre le plus de cellules : un bloc de synthèse en
+        # deux colonnes, même plus fréquent, pèse moins que les opérations.
+        largeur, frequence = max(largeurs.items(), key=lambda kv: (kv[1] * (kv[0] - 1), kv[0]))
+        score = (frequence * (largeur - 1), largeur)
+        if score > meilleur_score:
+            meilleur, meilleur_score = delimiteur, score
     return meilleur
 
 
