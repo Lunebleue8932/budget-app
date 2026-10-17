@@ -35,6 +35,7 @@ colonnes, pour que l'écran puisse le montrer et le corriger.
 """
 from collections import Counter
 from dataclasses import dataclass, field
+import re
 from difflib import SequenceMatcher
 from typing import Optional
 
@@ -53,6 +54,7 @@ from .entetes import (
     dictionnaire,
     groupe_principal,
     mots_entete,
+    normaliser_entete,
     scores_proprietes,
 )
 from .import_bancaire import normaliser_libelle, parser_date
@@ -429,6 +431,20 @@ def _scores_forme(p: _Profil, montant_unique: bool = False) -> dict[str, float]:
     return s
 
 
+# L'INTITULÉ D'UN DÉTAIL DE CATÉGORIE (« Sous-catégorie », « Sub-category », « Subcategoria »), normalisé.
+_DETAIL_DE_CATEGORIE = re.compile(
+    r"(sous categorie|sub category|subcategory|sub categoria|subcategoria|sous rubrique)"
+)
+
+
+def _entete_de_detail(p: _Profil) -> bool:
+    return bool(_DETAIL_DE_CATEGORIE.search(normaliser_entete(p.entete)))
+
+
+def _poids_entete_categorie(p: _Profil) -> float:
+    return scores_proprietes(p.entete).get("categorie_banque", 0.0)
+
+
 def _ecarter_les_sous_categories(
     profils: list[_Profil], lignes: list[tuple], scores: dict[int, dict[str, float]]
 ) -> None:
@@ -437,7 +453,12 @@ def _ecarter_les_sous_categories(
     Deux colonnes de classement (« Catégorie », « Sous-catégorie ») ont la même forme : peu de valeurs,
     très répétées. Ce qui les distingue est une DÉPENDANCE : chaque sous-catégorie ne s'écrit que sous
     une catégorie, jamais sous deux. Quand B dépend ainsi de A et en a davantage de valeurs, B est
-    le détail de A, et c'est A que l'application doit lire. B garde « ne pas importer » en premier."""
+    le détail de A, et c'est A que l'application doit lire. B garde « ne pas importer » en premier.
+
+    L'INTITULÉ PASSE AVANT LA DÉPENDANCE quand il tranche : une colonne qui s'appelle « Category » (ou
+    « Catégorie », « Categoria »…) n'est jamais le détail d'une colonne qui ne porte pas un nom de
+    catégorie (« Type » : chaque catégorie ne s'écrit que sous une dépense ou une entrée, et c'est
+    pourtant la catégorie), ni d'une colonne dont l'intitulé dit qu'elle est elle-même un détail."""
     classantes = [
         p for p in profils
         if scores.get(p.index, {}).get("categorie_banque", 0.0) >= 0.2 and p.distinctes >= 2
@@ -445,6 +466,9 @@ def _ecarter_les_sous_categories(
     for a in classantes:
         for b in classantes:
             if a.index == b.index or b.distinctes <= a.distinctes:
+                continue
+            nomme_categorie = _poids_entete_categorie(b) >= SCORE_SYNONYME and not _entete_de_detail(b)
+            if nomme_categorie and (_entete_de_detail(a) or _poids_entete_categorie(a) < SCORE_SYNONYME):
                 continue
             sous = {}
             for ligne in lignes:

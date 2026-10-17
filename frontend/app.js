@@ -19272,6 +19272,64 @@ function ecrireErreurModaleBdd(message) {
 const MESSAGE_BASE_ENCORE_A_RISQUE =
   "Cet emplacement est encore dans le dossier de l'application ({dossier}) : une mise à jour écraserait toujours ta base. Choisis un dossier en dehors.";
 
+/* ---------- L'écran de la langue (tout premier écran) ----------
+ *
+ * UNE LANGUE EST « CHOISIE » QUAND `localStorage` EN PORTE UNE : `langueEnregistree` (i18n.js) retombe
+ * sur l'anglais sans rien écrire, et la base, elle, reçoit la langue affichée dès le premier chargement
+ * (cf. restaurerLangueDepuisLaBase) - ni l'un ni l'autre ne dit qu'on a DÉCIDÉ. Un `localStorage`
+ * vidé fait redemander la langue, ce qui est le bon réflexe sur un poste neuf. */
+const NOMS_LANGUES = { fr: "Français", en: "English", pt: "Português (Brasil)" };
+
+function langueAChoisir() {
+  try {
+    return localStorage.getItem(CLE_STOCKAGE) === null;
+  } catch (err) {
+    // Stockage indisponible : le choix ne se retiendrait pas, inutile de le demander à chaque lancement.
+    return false;
+  }
+}
+
+function afficherEcranLangue() {
+  document.getElementById("modale-langue-titre").textContent =
+    "Choisis ta langue · Choose your language · Escolha seu idioma";
+  const zone = document.getElementById("modale-langue-choix");
+  zone.innerHTML = "";
+  LANGUES.forEach((code) => {
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    bouton.className = "modale-choix-bouton modale-langue-bouton";
+    bouton.dataset.langueAccueil = code;
+    const drapeau = document.querySelector(`#langue [data-langue="${code}"] svg`);
+    if (drapeau) {
+      const copie = drapeau.cloneNode(true);
+      copie.setAttribute("width", "30");
+      copie.setAttribute("height", "21");
+      bouton.appendChild(copie);
+    }
+    const nom = document.createElement("span");
+    nom.textContent = NOMS_LANGUES[code];
+    bouton.appendChild(nom);
+    bouton.addEventListener("click", () => choisirLangueAccueil(code));
+    zone.appendChild(bouton);
+  });
+  document.getElementById("modale-langue").style.display = "";
+  const premier = zone.querySelector("button");
+  if (premier) premier.focus();
+}
+
+async function choisirLangueAccueil(code) {
+  document.querySelectorAll("[data-langue-accueil]").forEach((b) => (b.disabled = true));
+  try {
+    localStorage.setItem(CLE_STOCKAGE, code);
+  } catch (err) {
+    /* Sans stockage, la langue ne survivra pas au rechargement : on avance quand même. */
+  }
+  await ecrireLangueEnBase(code);
+  // Toujours un rechargement : la page se retraduit, et la fenêtre de la base s'ouvre à sa suite - dans
+  // la langue qu'on vient de choisir, même quand c'est celle qui était déjà affichée.
+  window.location.reload();
+}
+
 /**
  * L'écran BLOQUANT du premier démarrage.
  *
@@ -19299,6 +19357,13 @@ async function verifierEmplacementBase() {
     );
   }
   if (!etat.configuration_requise) return;
+
+  // LA LANGUE D'ABORD : un premier lancement s'ouvre sur son choix, puis (au rechargement qui suit)
+  // sur la fenêtre de la base, comme avant.
+  if (langueAChoisir()) {
+    afficherEcranLangue();
+    return;
+  }
 
   const champ = document.getElementById("modale-bdd-chemin");
   champ.value = etat.chemin_propose;
@@ -19388,6 +19453,11 @@ document.getElementById("btn-modale-bdd-valider").addEventListener("click", asyn
     }
     sessionStorage.setItem("baseInstallee", etat.action || "");
     noterChoixDecouverte();
+    // LA LANGUE CHOISIE À L'ACCUEIL SUIT LE CHOIX DE LA BASE : au rechargement, c'est la base qui fait foi
+    // (cf. restaurerLangueDepuisLaBase). Une base rouverte à cet emplacement (« ouverte ») porte sa
+    // propre langue, souvent l'anglais d'un essai précédent : sans cette écriture, tout ce qui suit la
+    // fenêtre repartirait dans cette langue-là, alors qu'on vient de choisir la sienne.
+    await ecrireLangueEnBase(langue());
     rechargerApresBascule(etat);
   } catch (err) {
     ecrireErreurModaleBdd(err.message);

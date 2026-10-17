@@ -56,7 +56,10 @@
       "exacts": ["categorie"],
       "synonymes": [
         "sous categorie", "rubrique", "categorie operation", "type operation",
-        "category", "categoria"
+        "category", "categoria",
+        "categories", "categorias", "transaction category", "expense category",
+        "spending category", "category name", "categoria transacao", "categoria despesa",
+        "subcategory", "sub category", "subcategoria", "sub categoria", "sous rubrique"
       ],
       "mots_cles": ["categorie", "category", "categoria"],
       "exclus_si": []

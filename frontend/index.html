@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=145" />
+  <link rel="stylesheet" href="style.css?v=149" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -169,6 +169,18 @@
   </header>
 
   <div id="toast-container"></div>
+
+  <!-- LA LANGUE, TOUT PREMIER ÉCRAN : avant de lire quoi que ce soit, on choisit dans quelle langue le
+       lire. Il précède la fenêtre de la base (ci-dessous) et ne s'ouvre que dans les mêmes cas qu'elle -
+       un premier lancement - tant qu'aucune langue n'a été choisie à la main. Son texte est écrit par
+       app.js (cf. `afficherEcranLangue`) : il doit se lire dans les trois langues, quelle que soit celle
+       dans laquelle la page vient de s'ouvrir, et la traduction du DOM n'y toucherait pas. -->
+  <div id="modale-langue" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-langue" role="dialog" aria-modal="true" aria-labelledby="modale-langue-titre">
+      <h2 id="modale-langue-titre"></h2>
+      <div class="modale-choix modale-langue-choix" id="modale-langue-choix" role="group"></div>
+    </div>
+  </div>
 
   <!-- OÙ RANGER LA BASE — écran de premier démarrage, BLOQUANT.
        Il n'a pas de bouton pour fermer, et c'est délibéré : tant que la base
@@ -2939,7 +2951,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
   <script src="i18n.js?v=100"></script>
   <script src="i18n-pt.js?v=18"></script>
   <script src="extensions.js?v=27"></script>
-  <script src="app.js?v=184"></script>
+  <script src="app.js?v=186"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas

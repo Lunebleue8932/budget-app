@@ -199,3 +199,52 @@ def test_le_raffinage_ne_touche_pas_a_une_colonne_deja_attribuee():
     resultat = detecter_colonnes(lignes)
     assert _config(resultat) == {"date": 1, "nature": 2, "categorie_banque": 3, "montant": 4}
     assert _colonne(resultat, 5)["propositions"][0]["propriete"] is None
+
+
+def _releve_anglais(intitule_categorie, intitule_type):
+    """Un relevé où chaque catégorie ne s'écrit que sous UN type (dépense ou entrée) : la dépendance des
+    données fait du type la « catégorie » et de la catégorie son détail, ce que l'intitulé contredit."""
+    lignes = [("Date", "Description", intitule_type, intitule_categorie, "Amount")]
+    modeles = [
+        ("Expense", "Groceries", "CARREFOUR MARKET", "-45.20"),
+        ("Expense", "Transport", "SNCF TICKET", "-62.00"),
+        ("Expense", "Leisure", "CINEMA PATHE", "-14.50"),
+        ("Income", "Salary", "ACME PAYROLL", "2150.00"),
+        ("Expense", "Groceries", "MONOPRIX", "-12.40"),
+        ("Expense", "Transport", "UBER TRIP", "-18.30"),
+        ("Income", "Refund", "AMAZON REFUND", "35.00"),
+        ("Expense", "Leisure", "STEAM GAMES", "-29.99"),
+    ]
+    for i, (genre, categorie, nature, montant) in enumerate(modeles):
+        lignes.append((f"{i + 2:02d}/09/2026", nature, genre, categorie, montant))
+    return lignes
+
+
+def test_une_colonne_nommee_category_reste_la_categorie_meme_sous_un_autre_classement():
+    # « Group », « Class », « Kind » : un classement plus grossier que la catégorie, sans être une
+    # catégorie. Avant que l'intitulé prime, la colonne « Category » passait pour son détail et se
+    # voyait proposer « Ne pas importer » en tête.
+    for parent in ("Type", "Group", "Class", "Kind"):
+        resultat = detecter_colonnes(_releve_anglais("Category", parent))
+        categorie = _colonne(resultat, 4)
+        assert categorie["propositions"][0]["propriete"] == "categorie_banque", parent
+        assert _config(resultat).get("categorie_banque") == 4, parent
+
+
+def test_une_colonne_sous_category_reste_le_detail_de_la_category():
+    lignes = [("Date", "Description", "Category", "Subcategory", "Amount")]
+    modeles = [
+        ("Food", "Groceries", "CARREFOUR MARKET", "-45.20"),
+        ("Food", "Restaurants", "LE BISTROT", "-28.00"),
+        ("Transport", "Train", "SNCF TICKET", "-62.00"),
+        ("Transport", "Taxi", "UBER TRIP", "-18.30"),
+        ("Home", "Rent", "LANDLORD", "-780.00"),
+        ("Home", "Energy", "EDF", "-71.20"),
+        ("Food", "Groceries", "MONOPRIX", "-12.40"),
+        ("Transport", "Train", "SNCF TICKET", "-31.00"),
+    ]
+    for i, (categorie, detail, nature, montant) in enumerate(modeles):
+        lignes.append((f"{i + 2:02d}/09/2026", nature, categorie, detail, montant))
+    resultat = detecter_colonnes(lignes)
+    assert _config(resultat).get("categorie_banque") == 3
+    assert _colonne(resultat, 4)["propositions"][0]["propriete"] is None

@@ -1038,7 +1038,9 @@ form textarea,
 .reglage-bloc input,
 .reglage-bloc select,
 .import-option-ligne input,
-.reglage-ligne input {
+.reglage-ligne input,
+.modale-point input,
+.modale-point select {
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -1146,7 +1148,9 @@ form textarea:focus,
 .reglage-bloc input:focus,
 .reglage-bloc select:focus,
 .import-option-ligne input:focus,
-.reglage-ligne input:focus {
+.reglage-ligne input:focus,
+.modale-point input:focus,
+.modale-point select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
@@ -6176,6 +6180,27 @@ td.apercu-col-hors-fichier {
   font-weight: 600;
 }
 
+/* Le champ de la fenêtre de premier lancement (l'emplacement de la base) : hors <form>, il ne recevait
+   ni le style des champs de l'application ni celui de ses libellés. Le style des champs lui vient des
+   listes partagées plus haut ; reste la mise en place. */
+.modale-point label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Plus spécifique que `.modale label input[type="text"]` (chemin en police à chasse fixe, propre aux autres
+   fenêtres) : ici le champ s'écrit comme tous les autres champs de l'application. */
+.modale .modale-point label input[type="text"],
+.modale .modale-formulaire label input[type="text"] {
+  margin-top: 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
 /* Le second point : deux choix, un rond chacun comme les pastilles de période. Aucun n'est imposé,
    un second clic éteint celui qu'on vient d'allumer. */
 .modale-choix {
@@ -6219,6 +6244,23 @@ td.apercu-col-hors-fichier {
 .modale-choix-bouton[aria-checked="true"] .modale-choix-rond {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+/* L'écran de la langue : trois grands boutons l'un sous l'autre, un drapeau et un nom. */
+.modale-langue {
+  max-width: 24rem;
+  text-align: center;
+}
+
+.modale-langue-choix {
+  flex-direction: column;
+}
+
+.modale-langue-bouton {
+  justify-content: flex-start;
+  gap: 0.9rem;
+  padding: 0.7rem 1rem;
+  font-size: 1rem;
 }
 
 /* L'annexe de la fenêtre de premier lancement : ce qui ne demande rien, en retrait. */
