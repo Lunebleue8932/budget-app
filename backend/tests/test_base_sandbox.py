@@ -152,7 +152,9 @@ def test_la_demo_contient_de_quoi_montrer_l_application(demo_fr):
     # (épinglé au dashboard), pas un objectif.
     assert lu["objectifs"] == 2 and lu["objectifs_sur_projet"] == 0
     assert lu["projet_epingle"] is True
-    assert lu["titres"] == 3 and lu["mouvements"] == 5
+    # Trois titres détenus (deux ETF, une action) et dix-huit composants suivis, jamais détenus : leurs
+    # poids laissent environ 20 % de « non déterminé » sur la carte titre par titre.
+    assert lu["titres"] == 21 and lu["mouvements"] == 5
     # Rien de « réel » n'a lieu après le jour de fabrication.
     assert lu["plus_recente_reelle"] <= AUJOURDHUI
 

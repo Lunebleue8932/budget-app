@@ -69,7 +69,7 @@ from . import base_decouverte
 
 # À incrémenter quand la démo gagne de quoi montrer une fonctionnalité nouvelle : une démo plus
 # ancienne est alors proposée au rafraîchissement.
-VERSION = 3
+VERSION = 4
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45
@@ -228,6 +228,53 @@ _L = {
 _ISIN_MONDE = "DEMO00000001"
 _ISIN_OBLIG = "DEMO00000002"
 _ISIN_ACTION = "DEMO00000003"
+
+# LES COMPOSANTS SUIVIS DES DEUX ETF (titres fictifs, jamais détenus) : sans eux, la carte « titre par
+# titre » de la vue d'ensemble des placements montrait presque tout en « détenu par ETF, non déterminé ».
+# Les poids sont choisis pour que le NON DÉTERMINÉ pèse environ 20 % du total : l'ETF Monde en couvre 80 %
+# (la société Alpha, tenue aussi en direct, pour 4 %), l'ETF Obligations 60 %. Chaque couverture vaut la
+# somme des poids de sa composition (cf. exposition.valider_composition).
+_POIDS_COMPOSANTS_MONDE = (11.0, 10.0, 9.0, 8.0, 7.0, 6.0, 6.0, 5.0, 4.0, 4.0, 3.0, 3.0)
+_POIDS_COMPOSANTS_OBLIG = (14.0, 12.0, 10.0, 9.0, 8.0, 7.0)
+_NOMS_COMPOSANTS_MONDE = (
+    ("Bêta", "Beta", "Beta"),
+    ("Gamma", "Gamma", "Gama"),
+    ("Delta", "Delta", "Delta"),
+    ("Epsilon", "Epsilon", "Épsilon"),
+    ("Zêta", "Zeta", "Zeta"),
+    ("Êta", "Eta", "Eta"),
+    ("Thêta", "Theta", "Teta"),
+    ("Iota", "Iota", "Iota"),
+    ("Kappa", "Kappa", "Capa"),
+    ("Lambda", "Lambda", "Lambda"),
+    ("Mu", "Mu", "Mi"),
+    ("Nu", "Nu", "Ni"),
+)
+_NOMS_COMPOSANTS_OBLIG = (
+    ("Aurore", "Aurora", "Aurora"),
+    ("Boréal", "Boreal", "Boreal"),
+    ("Cobalt", "Cobalt", "Cobalto"),
+    ("Dune", "Dune", "Duna"),
+    ("Étoile", "Star", "Estrela"),
+    ("Fjord", "Fjord", "Fiorde"),
+)
+for _i, _noms in enumerate(_NOMS_COMPOSANTS_MONDE):
+    _L[f"composant_monde_{_i}"] = (
+        f"Société {_noms[0]} (exemple)",
+        f"{_noms[1]} Corp (sample)",
+        f"Empresa {_noms[2]} (exemplo)",
+    )
+for _i, _noms in enumerate(_NOMS_COMPOSANTS_OBLIG):
+    _L[f"composant_oblig_{_i}"] = (
+        f"Émetteur {_noms[0]} (exemple)",
+        f"{_noms[1]} issuer (sample)",
+        f"Emissor {_noms[2]} (exemplo)",
+    )
+
+
+def _isin_composant(rang: int) -> str:
+    """Un ISIN fictif et bien formé (cf. exposition.MOTIF_ISIN) : « DEMO » + 8 chiffres, à partir du 4e."""
+    return f"DEMO{rang:08d}"
 
 
 def dossier_sandbox() -> Path:
@@ -479,9 +526,27 @@ def _remplir_virements_et_titres(c: _Contexte) -> None:
     repartition(action, AxeTitre.classe, [(actions, 100.0)])
     repartition(action, AxeTitre.zone, [(zone("Europe"), 100.0)])
     repartition(action, AxeTitre.secteur, [(secteur("Technologies de l'information"), 100.0)])
-    # Le dictionnaire de l'ETF : la société en direct y pèse 4 %, ce qui l'éclate dans les graphes.
-    monde.composition = {_ISIN_ACTION: 4.0}
-    monde.composition_couverture_pct = 60.0
+    # Le dictionnaire des ETF : l'ETF Monde couvre 80 % de son indice (la société en direct y pèse 4 %,
+    # ce qui l'éclate dans les graphes, plus douze composants suivis), l'ETF Obligations 60 %.
+    composition_monde = {_ISIN_ACTION: 4.0}
+    composition_oblig = {}
+    rang = 4
+    for i, poids in enumerate(_POIDS_COMPOSANTS_MONDE):
+        isin = _isin_composant(rang)
+        rang += 1
+        crud.create_titre(
+            db, c.t(f"composant_monde_{i}"), c.euro.id, code_isin=isin, type_titre_id=enveloppe_action
+        )
+        composition_monde[isin] = poids
+    for i, poids in enumerate(_POIDS_COMPOSANTS_OBLIG):
+        isin = _isin_composant(rang)
+        rang += 1
+        crud.create_titre(db, c.t(f"composant_oblig_{i}"), c.euro.id, code_isin=isin)
+        composition_oblig[isin] = poids
+    monde.composition = composition_monde
+    monde.composition_couverture_pct = round(sum(composition_monde.values()), 2)
+    oblig.composition = composition_oblig
+    oblig.composition_couverture_pct = round(sum(composition_oblig.values()), 2)
     db.commit()
 
     for mois_avant, titre, quantite, prix in (
