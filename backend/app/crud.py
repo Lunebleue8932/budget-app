@@ -1321,6 +1321,7 @@ def update_operation(
     # ponctuel doit nettoyer ses occurrences futures (cf. _arreter_recurrence,
     # appelé plus bas une fois le nouvel état de `recurrente` connu).
     etait_modele_recurrent = db_operation.recurrente and db_operation.recurrence_parent_id is None
+    fin_recurrence_avant = db_operation.recurrence_fin
     data = updates.model_dump(
         exclude_unset=True, exclude={"operations_remboursees", "decoupes"}
     )
@@ -1425,6 +1426,14 @@ def update_operation(
         montants = {item.operation_id: item.montant for item in updates.operations_remboursees}
         set_operations_remboursees(db, db_operation, montants)
         db.refresh(db_operation)
+
+    if (
+        etait_modele_recurrent
+        and db_operation.recurrente
+        and db_operation.frequence is not None
+        and db_operation.recurrence_fin != fin_recurrence_avant
+    ):
+        _ajuster_occurrences_a_la_fin(db, db_operation)
 
     if etait_modele_recurrent and not db_operation.recurrente:
         _arreter_recurrence(db, db_operation)
@@ -1650,6 +1659,30 @@ def _arreter_recurrence(db: Session, modele: models.Operation) -> None:
 
 def _date_prevue(operation: models.Operation) -> date_type:
     return operation.recurrence_date_prevue or operation.date
+
+
+def _ajuster_occurrences_a_la_fin(db: Session, modele: models.Operation) -> None:
+    """La date de fin d'un modèle récurrent vient de changer : ses occurrences suivent.
+
+    RECULER LA FIN supprime les occurrences PRÉVISIONNELLES qui la dépassent (comme
+    `_arreter_recurrence` le fait pour toute la suite) ; celles déjà survenues restent, une
+    dépense réelle ne disparaît jamais parce qu'on a raccourci une règle. AVANCER LA FIN (ou
+    l'ôter) ajoute tout de suite les occurrences qui manquent, sans attendre la prochaine
+    lecture de la liste. Le test se fait sur la date PRÉVUE de l'occurrence, la même que
+    celle par laquelle `generer_occurrences_recurrentes` la reconnaît."""
+    if modele.recurrence_fin is not None:
+        for enfant in (
+            db.query(models.Operation)
+            .filter(
+                models.Operation.recurrence_parent_id == modele.id,
+                models.Operation.statut == Statut.previsionnel,
+            )
+            .all()
+        ):
+            if _date_prevue(enfant) > modele.recurrence_fin:
+                delete_operation(db, enfant)
+        db.commit()
+    generer_occurrences_recurrentes(db)
 
 
 def scinder_modele_recurrent(db: Session, modele: models.Operation) -> Optional[models.Operation]:

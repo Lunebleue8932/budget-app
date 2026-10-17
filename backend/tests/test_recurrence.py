@@ -195,3 +195,60 @@ def test_supprimer_le_modele_detache_les_occurrences_deja_reelles(db_session):
     restant = db_session.query(models.Operation).filter(models.Operation.id == enfant_id).first()
     assert restant is not None
     assert restant.recurrence_parent_id is None
+
+
+def _enfants(db, modele):
+    return (
+        db.query(models.Operation)
+        .filter(models.Operation.recurrence_parent_id == modele.id)
+        .order_by(models.Operation.date)
+        .all()
+    )
+
+
+def test_reculer_la_fin_supprime_les_previsionnelles_qui_la_depassent(db_session):
+    compte = _make_compte(db_session)
+    modele = _make_modele(
+        db_session, compte, date=date(2026, 7, 1), recurrence_fin=date(2026, 10, 1)
+    )
+    crud.generer_occurrences_recurrentes(db_session)
+    assert len(_enfants(db_session, modele)) == 3
+    # Une occurrence déjà survenue (réelle) au-delà de la nouvelle fin reste en place.
+    _enfants(db_session, modele)[2].statut = Statut.reel
+    db_session.commit()
+
+    crud.update_operation(
+        db_session, modele, schemas.OperationUpdate(recurrence_fin=date(2026, 8, 15))
+    )
+
+    dates = [e.date for e in _enfants(db_session, modele)]
+    assert dates == [date(2026, 8, 1), date(2026, 10, 1)]
+
+
+def test_avancer_la_fin_ajoute_les_occurrences_tout_de_suite(db_session):
+    compte = _make_compte(db_session)
+    modele = _make_modele(
+        db_session, compte, date=date(2026, 7, 1), recurrence_fin=date(2026, 8, 1)
+    )
+    crud.generer_occurrences_recurrentes(db_session)
+    assert len(_enfants(db_session, modele)) == 1
+
+    crud.update_operation(
+        db_session, modele, schemas.OperationUpdate(recurrence_fin=date(2026, 11, 1))
+    )
+
+    dates = [e.date for e in _enfants(db_session, modele)]
+    assert dates == [date(2026, 8, 1), date(2026, 9, 1), date(2026, 10, 1), date(2026, 11, 1)]
+
+
+def test_modifier_autre_chose_que_la_fin_ne_touche_pas_aux_occurrences(db_session):
+    compte = _make_compte(db_session)
+    modele = _make_modele(
+        db_session, compte, date=date(2026, 7, 1), recurrence_fin=date(2026, 10, 1)
+    )
+    crud.generer_occurrences_recurrentes(db_session)
+    avant = [e.id for e in _enfants(db_session, modele)]
+
+    crud.update_operation(db_session, modele, schemas.OperationUpdate(montant=12.0))
+
+    assert [e.id for e in _enfants(db_session, modele)] == avant
