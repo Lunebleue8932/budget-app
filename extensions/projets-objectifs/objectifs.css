@@ -168,14 +168,6 @@
  * APRÈS avoir vu ce qui s'est passé. Le poser au-dessus aurait repoussé les
  * chiffres du mois hors de l'écran pour une lecture qui en dépend.
  */
-#dashboard-objectifs {
-  margin-top: 1rem;
-}
-
-#dashboard-objectifs h3 {
-  margin-bottom: 0.6rem;
-}
-
 /* Les cartes du dashboard sont un peu plus serrées : elles n'ont pas de boutons
    et viennent après deux graphes qui ont déjà pris la hauteur de l'écran. */
 .obj-liste-dashboard .obj-carte {

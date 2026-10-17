@@ -914,8 +914,8 @@ async function projRendreDashboard() {
     const choisis = (await apiFetch(PROJETS_BASE)).filter((p) => p.visible_dashboard);
     if (!choisis.length) return vider();
     bloc.style.display = "";
-    bloc.innerHTML = `<h3>${t("Projets")}</h3>
-      <div class="projets-liste projets-liste-dashboard">${choisis.map(projetCarteDashboardHtml).join("")}</div>`;
+    // Pas de titre : le noyau en pose un seul pour les projets et les objectifs (cf. index.html).
+    bloc.innerHTML = `<div class="projets-liste projets-liste-dashboard">${choisis.map(projetCarteDashboardHtml).join("")}</div>`;
   } catch (err) {
     // Un projet qui ne se lit pas ne doit pas emporter le dashboard : le bloc se tait.
     vider();

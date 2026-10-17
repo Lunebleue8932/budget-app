@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=141" />
+  <link rel="stylesheet" href="style.css?v=143" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -190,22 +190,36 @@
         <div id="modale-bdd-erreur" class="import-avertissements" style="display:none"></div>
       </div>
 
-      <!-- LE SECOND POINT NE DEMANDE RIEN, et n'a donc pas de bouton à lui :
-           cette fenêtre est bloquante jusqu'à ce que la base soit rangée, et un
-           bouton qui emmènerait ailleurs avant cela laisserait le premier point
-           en plan. Il dit où trouver la notice — une phrase qu'on retrouve
-           ensuite dans Paramètres, pas une étape de plus à franchir. -->
+      <!-- LE SECOND POINT EST UN CHOIX, qui ne s'exécute pas ici : cette fenêtre est bloquante
+           jusqu'à ce que la base soit rangée, et un bouton qui emmènerait ailleurs avant cela
+           laisserait le premier point en plan. Les deux boutons ne font donc que NOTER la voie
+           choisie (cf. app.js, `choixDecouverte`) ; le guide démarre une fois la fenêtre quittée, à
+           la page suivante (cf. premier-demarrage.js). Un second clic sur le choix le retire :
+           ne rien choisir est permis. -->
       <div class="modale-point">
-        <h3><span class="modale-point-numero">2</span>Des tutoriels t'attendent</h3>
-        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-tutoriels"></p>
+        <h3><span class="modale-point-numero">2</span>Deux façons de découvrir l'app</h3>
+        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-decouvrir"></p>
+        <div class="modale-choix" role="radiogroup" aria-label="Deux façons de découvrir l'app">
+          <button type="button" class="modale-choix-bouton" role="radio" aria-checked="false"
+                  data-choix-decouverte="demo">
+            <span class="modale-choix-rond" aria-hidden="true"></span>
+            <span class="modale-choix-titre">Visiter la démo</span>
+            <i class="info-bulle" tabindex="0" data-info-cle="noyau.modale-bdd-choix-demo">i</i>
+          </button>
+          <button type="button" class="modale-choix-bouton" role="radio" aria-checked="false"
+                  data-choix-decouverte="import">
+            <span class="modale-choix-rond" aria-hidden="true"></span>
+            <span class="modale-choix-titre">Faire mon premier import</span>
+            <i class="info-bulle" tabindex="0" data-info-cle="noyau.modale-bdd-choix-import">i</i>
+          </button>
+        </div>
       </div>
 
-      <!-- LA DÉMO, avant de ranger quoi que ce soit : pas un troisième « point » (le titre en
-           annonce deux), une sortie. Dans la démo cette fenêtre disparaît d'elle-même, la base de
-           l'utilisateur n'étant pas celle qu'on regarde, et elle revient à la sortie. -->
-      <div class="modale-demo" data-sandbox-entree>
-        <button type="button" id="btn-modale-bdd-demo">Voir la démo d'abord</button>
-        <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
+      <!-- EN ANNEXE, et non un troisième point (le titre en annonce deux) : les tutoriels et la
+           notice ne demandent rien, ils se retrouvent ensuite dans Paramètres. -->
+      <div class="modale-annexe">
+        <h4>Bon à savoir</h4>
+        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-tutoriels"></p>
       </div>
 
       <div class="modale-actions">
@@ -234,6 +248,30 @@
         <button type="button" id="btn-modale-sandbox-annuler">Annuler</button>
         <button type="button" class="primary" id="btn-modale-sandbox-continuer">Continuer dans la démo</button>
       </div>
+    </div>
+  </div>
+
+  <!-- LE COMPTE DU PREMIER IMPORT : un relevé se range dans un compte, et une base neuve n'en a
+       aucun. Cette fenêtre en crée un (un nom, un type) sans passer par Paramètres → Configuration,
+       qui est trop pour un début. Ouverte par le guide du premier import seulement (cf.
+       premier-demarrage.js). -->
+  <div id="modale-guide-compte" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-guide-compte-titre">
+      <h2 id="modale-guide-compte-titre">Un compte pour ton relevé</h2>
+      <p class="modale-texte" data-texte-cle="noyau.guide-compte"></p>
+      <form id="form-guide-compte" class="modale-formulaire" autocomplete="off">
+        <label class="full-width">Nom du compte
+          <input type="text" id="guide-compte-nom" required maxlength="60" />
+        </label>
+        <label class="full-width">Type de compte
+          <select id="guide-compte-type"></select>
+        </label>
+        <div id="guide-compte-erreur" class="import-avertissements" style="display:none"></div>
+        <div class="modale-actions">
+          <button type="button" id="btn-guide-compte-plus-tard">Plus tard</button>
+          <button type="submit" class="primary" id="btn-guide-compte-creer">Créer le compte</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -628,14 +666,20 @@
            que je tiens ma règle ? » est une question qu'on se pose APRÈS avoir vu
            ce qui s'est passé. Vide et sans hauteur tant qu'aucune extension n'y
            met rien, et tant qu'aucun objectif n'a été coché pour le dashboard. -->
-      <!-- LES OBJECTIFS ET LES PROJETS ÉPINGLÉS SE PARTAGENT UNE LIGNE (`.dashboard-epingles`) : deux
-           blocs de la même famille, côte à côte plutôt que l'un sous l'autre. Un bloc vide est masqué
-           et laisse toute la place à l'autre. -->
-      <div class="dashboard-epingles">
-        <div id="dashboard-objectifs" style="display:none"></div>
-        <!-- LES PROJETS ÉPINGLÉS (extension « Projets et objectifs »), même réserve, même raison.
-             Vide tant qu'aucun projet n'est épinglé. -->
-        <div id="dashboard-projets" style="display:none"></div>
+      <!-- LES PROJETS ET LES OBJECTIFS ÉPINGLÉS FORMENT UN SEUL BLOC, sous un seul titre
+           (`.dashboard-epingles`) : leurs cartes sont de la même famille et se suivent sur la même
+           ligne, projets d'abord. Les deux conteneurs restent ceux que les extensions remplissent
+           (`display: contents` : seules leurs cartes comptent dans la grille) ; le bloc entier se
+           masque tant que les deux sont vides (cf. majBlocEpingles, app.js). -->
+      <div class="dashboard-epingles" id="dashboard-epingles" style="display:none">
+        <h3>Projets &amp; Objectifs<i class="info-bulle" tabindex="0" id="dashboard-epingles-info"
+            data-info-cle="objectifs.dashboard" style="display:none">i</i></h3>
+        <div class="dashboard-epingles-cartes">
+          <!-- LES PROJETS ÉPINGLÉS (extension « Projets et objectifs »), même réserve, même raison.
+               Vide tant qu'aucun projet n'est épinglé. -->
+          <div id="dashboard-projets" style="display:none"></div>
+          <div id="dashboard-objectifs" style="display:none"></div>
+        </div>
       </div>
 
       <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
@@ -2920,11 +2964,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=45"></script>
-  <script src="i18n.js?v=97"></script>
-  <script src="i18n-pt.js?v=15"></script>
+  <script src="textes.js?v=47"></script>
+  <script src="i18n.js?v=99"></script>
+  <script src="i18n-pt.js?v=17"></script>
   <script src="extensions.js?v=27"></script>
-  <script src="app.js?v=180"></script>
+  <script src="app.js?v=182"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
@@ -2939,6 +2983,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
   <!-- APRÈS app.js, comme les deux précédents : la démo appelle `apiFetch`, `showMessage`, `t`,
        `texteAide` et `ecrireTexteAide`. Elle pose la pastille jaune dans l'en-tête de chaque
        page et le rappel qui précède les gestes importants (`BudgetApp.confirmerEnSandbox`). -->
-  <script src="sandbox.js?v=1"></script>
+  <script src="sandbox.js?v=2"></script>
+  <!-- APRÈS tutoriel.js (il pose sa bulle avec `placerBulleTutoriel`) et sandbox.js (il pointe le
+       bouton de la démo) : le guide de la première visite, choisi dans la fenêtre de premier
+       lancement. -->
+  <script src="premier-demarrage.js?v=4"></script>
 </body>
 </html>

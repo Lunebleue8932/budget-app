@@ -49,7 +49,7 @@ function poserPastillesSandbox() {
   });
 }
 
-/** Les deux endroits qui proposent d'entrer dans la démo, masqués une fois dedans. */
+/** L'endroit qui propose d'entrer dans la démo (la barre latérale), masqué une fois dedans. */
 function majEntreesSandbox() {
   const dedans = BudgetApp.sandbox.actif;
   document.querySelectorAll("[data-sandbox-entree]").forEach((el) => {
@@ -59,7 +59,7 @@ function majEntreesSandbox() {
 
 function occuperSandbox(bouton, occupe) {
   document.body.classList.toggle("sandbox-occupee", occupe);
-  document.querySelectorAll("[data-sandbox], #btn-sandbox-entrer, #btn-modale-bdd-demo").forEach((b) => {
+  document.querySelectorAll("[data-sandbox], #btn-sandbox-entrer").forEach((b) => {
     b.disabled = occupe;
   });
   if (bouton) {
@@ -199,10 +199,8 @@ document.addEventListener("click", (e) => {
   if (bouton.dataset.sandbox === "reinitialiser") reinitialiserSandbox(bouton);
 });
 
-["btn-sandbox-entrer", "btn-modale-bdd-demo"].forEach((id) => {
-  const bouton = document.getElementById(id);
-  if (bouton) bouton.addEventListener("click", () => entrerSandbox(bouton));
-});
+const boutonSandboxEntrer = document.getElementById("btn-sandbox-entrer");
+if (boutonSandboxEntrer) boutonSandboxEntrer.addEventListener("click", () => entrerSandbox(boutonSandboxEntrer));
 
 BudgetApp.sandboxPret = (async function initSandbox() {
   try {

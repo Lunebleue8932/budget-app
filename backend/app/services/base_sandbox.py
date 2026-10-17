@@ -69,7 +69,7 @@ from . import base_decouverte
 
 # À incrémenter quand la démo gagne de quoi montrer une fonctionnalité nouvelle : une démo plus
 # ancienne est alors proposée au rafraîchissement.
-VERSION = 2
+VERSION = 3
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45

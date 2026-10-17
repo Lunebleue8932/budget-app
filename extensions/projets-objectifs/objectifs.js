@@ -937,9 +937,9 @@ async function objEpingler(id) {
 let objMesuresDashboard = [];
 
 function objRenderDashboard(bloc) {
+  // PAS DE TITRE ICI : le noyau en pose un seul pour les projets ET les objectifs épinglés
+  // (« Projets & Objectifs », cf. index.html), et son « i » est celui de ce bloc-ci.
   bloc.innerHTML = `
-      <h3>${t("Objectifs")}<i class="info-bulle" tabindex="0"
-          data-info-cle="objectifs.dashboard">i</i></h3>
       <div class="obj-liste obj-liste-dashboard">
         ${objMesuresDashboard.map((mesure) => objCarteHtml(mesure, { sansDetail: true })).join("")}
       </div>`;

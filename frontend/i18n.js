@@ -4653,3 +4653,82 @@ Object.assign(TRADUCTIONS.en, {
   "La démo n'est pas ouverte.": "The demo is not open.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : la démo
+
+// >>> TRADUCTIONS AJOUTÉES : le premier démarrage (choix de découverte, guide, champs de la molette)
+Object.assign(TRADUCTIONS.en, {
+  "Choisis par où commencer : tu pourras faire l'autre ensuite, quand tu veux. Le guide démarre dès que ta base est rangée.":
+    "Choose where to start: you can do the other one later, whenever you want. The guide starts as soon as your database is stored.",
+  "L'app remplie de données fictives, pour la voir tourner sans rien importer. Une bulle montre où elle se trouve.":
+    "The app filled with made-up data, to see it run without importing anything. A bubble shows where it is.",
+  "Ton premier relevé de banque, pas à pas. Une bulle t'emmène jusqu'au bouton qui choisit le fichier, puis te guide dans les tableaux de l'import.":
+    "Your first bank statement, step by step. A bubble takes you to the button that picks the file, then guides you through the import tables.",
+  "Ce bouton ouvre la démo : l'app remplie de données fictives. Ta vraie base n'est jamais touchée, et tu en reviens en un clic.":
+    "This button opens the demo: the app filled with made-up data. Your real database is never touched, and you get back to it in one click.",
+  "Un relevé de banque se range dans un compte, et tu n'en as pas encore. Donne-lui un nom et un type, ça suffit pour commencer : tu pourras le modifier ou en ajouter d'autres dans Paramètres → Configuration.":
+    "A bank statement goes into an account, and you don't have one yet. Give it a name and a type, that's enough to start: you can edit it or add others in Settings → Configuration.",
+  "Exporte le relevé de ta banque en Excel ou en CSV, puis choisis le fichier ici. Rien n'est enregistré avant que tu confirmes l'import. // Les réglages du fichier restent repliés : l'app te guide colonne par colonne.":
+    "Export your bank statement as Excel or CSV, then pick the file here. Nothing is saved until you confirm the import. // The file settings stay folded: the app guides you column by column.",
+  "Chaque colonne du fichier a sa molette : fais-la défiler pour choisir ce qu'elle contient. Passe la souris sur le « i » d'un champ pour savoir à quoi il sert. // L'app propose déjà une lecture. /bold(Confirmer) valide une colonne, /bold(Appliquer ces colonnes) relit le fichier avec ton choix.":
+    "Each column of the file has its wheel: scroll it to choose what the column holds. Hover the « i » of a field to see what it is for. // The app already suggests a reading. /bold(Confirm) validates a column, /bold(Apply these columns) re-reads the file with your choice.",
+  "Ta banque classe ses opérations dans ses propres catégories. Pour chacune, choisis celle de l'app qui lui correspond : ce choix est retenu pour tes prochains relevés. // /bold(Terminer) referme le tableau.":
+    "Your bank sorts its transactions into its own categories. For each one, choose the app category that matches it: your choice is remembered for your next statements. // /bold(Finish) closes the table.",
+  "Ton fichier ne dit pas de quel compte il vient. Choisis ici celui qui reçoit ces opérations : le fichier est relu dans la foulée.":
+    "Your file doesn't say which account it comes from. Choose here the one that receives these transactions: the file is re-read right after.",
+  "Voici ce que l'import ferait, ligne par ligne. Corrige ce qui cloche, puis /bold(Confirmer l'import) : c'est seulement là que les opérations sont enregistrées. // Si le bouton est grisé, survole-le : l'app dit ce qui bloque.":
+    "Here is what the import would do, line by line. Fix what looks wrong, then /bold(Confirm import): this is the only moment the transactions are saved. // If the button is greyed out, hover it: the app says what is blocking.",
+  "Tes opérations sont enregistrées : le dashboard les montre déjà. Pour un prochain relevé de la même banque, l'app se souvient de tes catégories.":
+    "Your transactions are saved: the dashboard already shows them. For your next statement from the same bank, the app remembers your categories.",
+  "Le jour de l'opération":
+    "The day of the transaction",
+  "Le libellé de l'opération":
+    "The transaction's description",
+  "La catégorie de ta banque":
+    "Your bank's category",
+  "Le montant de la ligne":
+    "The amount of the line",
+  "Un pense-bête, non lu par l'app":
+    "A reminder, not read by the app",
+  "Le compte concerné":
+    "The account concerned",
+  "Entrée ou sortie, en mots":
+    "Money in or out, in words",
+  "Les sorties, dans leur colonne":
+    "Money out, in its own column",
+  "Les entrées, dans leur colonne":
+    "Money in, in its own column",
+  "La monnaie de la ligne":
+    "The currency of the line",
+  "Le montant envoyé, avant change":
+    "The amount sent, before exchange",
+  "La monnaie envoyée, avant change":
+    "The currency sent, before exchange",
+  "Les frais de la banque":
+    "The bank's fees",
+  "La monnaie des frais":
+    "The currency of the fees",
+  "Où en est l'opération":
+    "Where the transaction stands",
+  "Colonne ignorée à l'import":
+    "Column skipped on import",
+  "Projets & Objectifs": "Projects & Goals",
+  "Deux façons de découvrir l'app": "Two ways to discover the app",
+  "Visiter la démo": "Visit the demo",
+  "Faire mon premier import": "Do my first import",
+  "Bon à savoir": "Good to know",
+  "Un compte pour ton relevé": "An account for your statement",
+  "Nom du compte": "Account name",
+  "Type de compte": "Account type",
+  "Plus tard": "Later",
+  "Créer le compte": "Create the account",
+  "Premiers pas": "First steps",
+  "Quitter le guide": "Leave the guide",
+  "Compris": "Got it",
+  "La démo est ici": "The demo is here",
+  "Choisis ton relevé": "Choose your statement",
+  "Dis ce que contient chaque colonne": "Say what each column holds",
+  "Classe les catégories de ta banque": "Sort your bank's categories",
+  "Choisis le compte": "Choose the account",
+  "Vérifie avant de confirmer": "Check before you confirm",
+  "Premier import terminé": "First import done",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage

@@ -662,9 +662,19 @@ function creerArbrePeriode(
     pastille.title = t(LIBELLES_NIVEAU_PERIODE[niveau]);
     pastille.setAttribute("aria-label", pastille.title);
     pastille.addEventListener("click", () => geste({ type: "pastille", niveau }));
-    // UN NIVEAU FIXE n'a rien à choisir : la place de la pastille reste, vide, pour
-    // que les lignes gardent l'alignement du dashboard.
-    if (niveauFixe) pastille.style.visibility = "hidden";
+    // UN NIVEAU FIXE n'a rien à choisir : seule la pastille de SON niveau se montre (allumée,
+    // comme au dashboard, pour dire ce que la page regarde), sans rien à cliquer. Les autres
+    // gardent leur place, vide, pour que les lignes gardent l'alignement du dashboard.
+    if (niveauFixe) {
+      if (niveau === niveauFixe) {
+        pastille.classList.add("periode-pastille-fixe");
+        pastille.setAttribute("aria-disabled", "true");
+        pastille.tabIndex = -1;
+        pastille.title = t(LIBELLES_NIVEAU_PERIODE[niveau]);
+      } else {
+        pastille.style.visibility = "hidden";
+      }
+    }
     l.appendChild(pastille);
     const emplacement = document.createElement("span");
     emplacement.className = "periode-chevron-place";
@@ -13427,6 +13437,16 @@ function detStatut(entree) {
   return { cle: "choix", texte: t("Ton choix") };
 }
 
+/** Le « i » d'un champ de la molette : ce que le champ sert à lire, en quelques mots (clé
+ *  `noyau.detection-champ-<propriété>`). Sans texte, rien n'est dessiné plutôt qu'une pastille vide.
+ *  Sans `tabindex` : la molette se parcourt aux flèches, et un « i » focalisable y ferait un arrêt
+ *  de plus par ligne. */
+function infoChampDetectionHtml(id) {
+  const texte = TEXTES[`noyau.detection-champ-${id}`];
+  if (!texte) return "";
+  return `<i class="info-bulle corr-roue-info" aria-hidden="true" data-info="${escapeHtml(t(texte))}">i</i>`;
+}
+
 function detColonneDom(i) {
   return document.querySelector(`#detection-board [data-corr-i="${i}"]`);
 }
@@ -13464,7 +13484,9 @@ function detColonneHtml(entree, i) {
                 par !== null
                   ? ` aria-disabled="true" title="${escapeHtml(t("Déjà prise par la colonne {n}", { n: par }))}"`
                   : ""
-              }>${escapeHtml(libelleProprieteImport(detProprieteDe(o.id)))}</div>`;
+              }>${escapeHtml(libelleProprieteImport(detProprieteDe(o.id)))}${infoChampDetectionHtml(
+                o.id
+              )}</div>`;
             })
             .join("")}
         </div>
@@ -13788,6 +13810,8 @@ async function appliquerDetectionImport() {
   }
   const detection = importDetection;
   importConfigColonnes = colonnes;
+  // Les colonnes lues ont changé : « Compte pour ce fichier » apparaît (ou disparaît) avec elles.
+  toggleImportCompteDefautBloc();
   document.getElementById("import-lignes-entete").value = detection.lignes_entete;
   document.getElementById("import-lignes-pied").value = detection.lignes_pied || 0;
   updateResumeLignesEntete();
@@ -13859,7 +13883,10 @@ async function proposerDetectionAvantCorrespondances() {
       JSON.stringify(colonnes.map((c) => [c.index, c.propriete]).sort((a, b) => a[0] - b[0]));
     const autreLecture =
       detection.format_reconnu && cle(detection.configuration) !== cle(importConfigColonnes || []);
-    if (!(malLu || aucunPreset || autreLecture) || !importFichierActuel) return false;
+    // LE GUIDE DU PREMIER IMPORT montre toujours le tableau : c'est lui qui apprend à dire ce que
+    // contient chaque colonne, même quand la lecture par défaut tombe juste (cf. premier-demarrage.js).
+    const guide = !!(BudgetApp.guideImport && BudgetApp.guideImport.actif);
+    if (!(malLu || aucunPreset || autreLecture || guide) || !importFichierActuel) return false;
     ouvrirDetection(detection, { suite: true });
     return true;
   } catch (err) {
@@ -19396,6 +19423,34 @@ document.getElementById("btn-modale-bdd-parcourir").addEventListener("click", as
   if (chemin) champ.value = chemin;
 });
 
+/* LE CHOIX DU SECOND POINT (« Visiter la démo » / « Faire mon premier import ») est seulement NOTÉ :
+ * la fenêtre est bloquante jusqu'à ce que la base soit rangée, et le guide ne démarre qu'à la page
+ * suivante (cf. premier-demarrage.js). `sessionStorage` comme `baseInstallee` : il survit au
+ * rechargement qui suit l'installation, et pas à la fermeture de l'application - un guide qu'on a
+ * laissé de côté ne revient pas au prochain lancement. */
+const CLE_GUIDE_DEMARRAGE = "budget-app.guide-demarrage";
+let choixDecouverte = null;
+
+document.querySelectorAll("[data-choix-decouverte]").forEach((bouton) => {
+  bouton.addEventListener("click", (e) => {
+    // Le « i » d'un choix explique, il ne choisit pas.
+    if (e.target.closest(".info-bulle")) return;
+    const voulu = bouton.dataset.choixDecouverte;
+    choixDecouverte = choixDecouverte === voulu ? null : voulu;
+    document.querySelectorAll("[data-choix-decouverte]").forEach((autre) => {
+      autre.setAttribute("aria-checked", String(autre.dataset.choixDecouverte === choixDecouverte));
+    });
+  });
+});
+
+function noterChoixDecouverte() {
+  try {
+    if (choixDecouverte) sessionStorage.setItem(CLE_GUIDE_DEMARRAGE, choixDecouverte);
+  } catch (err) {
+    // Stockage indisponible : l'installation continue sans guide, rien de cassé.
+  }
+}
+
 document.getElementById("btn-modale-bdd-valider").addEventListener("click", async () => {
   const bouton = document.getElementById("btn-modale-bdd-valider");
   const erreur = document.getElementById("modale-bdd-erreur");
@@ -19422,11 +19477,41 @@ document.getElementById("btn-modale-bdd-valider").addEventListener("click", asyn
       return;
     }
     sessionStorage.setItem("baseInstallee", etat.action || "");
+    noterChoixDecouverte();
     rechargerApresBascule(etat);
   } catch (err) {
     ecrireErreurModaleBdd(err.message);
     bouton.disabled = false;
   }
+});
+
+/* ---------- Le bloc « Projets & Objectifs » du dashboard ----------
+ *
+ * UN TITRE POUR DEUX CONTENEURS que des extensions remplissent chacune de leur côté
+ * (`#dashboard-projets`, `#dashboard-objectifs`) : le bloc se montre dès que l'un des deux porte
+ * quelque chose, et se masque quand ils sont vides tous les deux. Le « i » est celui des
+ * objectifs : il n'apparaît qu'avec eux. Un observateur plutôt qu'un appel depuis chaque extension -
+ * le noyau ne sait pas lesquelles tournent, ni dans quel ordre elles répondent. */
+function majBlocEpingles() {
+  const bloc = document.getElementById("dashboard-epingles");
+  if (!bloc) return;
+  const plein = (id) => {
+    const conteneur = document.getElementById(id);
+    return !!conteneur && conteneur.style.display !== "none" && conteneur.childElementCount > 0;
+  };
+  const objectifs = plein("dashboard-objectifs");
+  bloc.style.display = objectifs || plein("dashboard-projets") ? "" : "none";
+  document.getElementById("dashboard-epingles-info").style.display = objectifs ? "" : "none";
+}
+
+["dashboard-projets", "dashboard-objectifs"].forEach((id) => {
+  const conteneur = document.getElementById(id);
+  if (!conteneur) return;
+  new MutationObserver(majBlocEpingles).observe(conteneur, {
+    childList: true,
+    attributes: true,
+    attributeFilter: ["style"],
+  });
 });
 
 /* ---------- Init ---------- */

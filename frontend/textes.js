@@ -1129,3 +1129,61 @@ Object.assign(TEXTES, {
   "suivi-remboursements.description":
     "On te doit de l'argent à droite à gauche, et tu dois des dépenses, des montants, de combien on t'a remboursé et des personnes de tête ? // Active cette extension pour avoir accès à deux types d'opérations : /- les opérations remboursables : tu peux y sélectionner le montant à rembourser, le montant dû et l'extension te permet d'ajouter qui te doit l'argent via le menu Suivi des remboursements /- les remboursements reçus : comme une opération classique, que tu peux relier à l'opération remboursable - le montant dû se met alors automatiquement à jour // /italic(La page Suivi des remboursements te permet de voir tous tes remboursements en attente et indiquer qui te doit quoi.)",
 });
+
+/* ----- Le premier démarrage : choix de découverte, guide, champs de la molette des colonnes ----- */
+Object.assign(TEXTES, {
+  "noyau.modale-bdd-decouvrir":
+    "Choisis par où commencer : tu pourras faire l'autre ensuite, quand tu veux. Le guide démarre dès que ta base est rangée.",
+  "noyau.modale-bdd-choix-demo":
+    "L'app remplie de données fictives, pour la voir tourner sans rien importer. Une bulle montre où elle se trouve.",
+  "noyau.modale-bdd-choix-import":
+    "Ton premier relevé de banque, pas à pas. Une bulle t'emmène jusqu'au bouton qui choisit le fichier, puis te guide dans les tableaux de l'import.",
+  "noyau.guide-demo":
+    "Ce bouton ouvre la démo : l'app remplie de données fictives. Ta vraie base n'est jamais touchée, et tu en reviens en un clic.",
+  "noyau.guide-compte":
+    "Un relevé de banque se range dans un compte, et tu n'en as pas encore. Donne-lui un nom et un type, ça suffit pour commencer : tu pourras le modifier ou en ajouter d'autres dans Paramètres → Configuration.",
+  "noyau.guide-import-fichier":
+    "Exporte le relevé de ta banque en Excel ou en CSV, puis choisis le fichier ici. Rien n'est enregistré avant que tu confirmes l'import. // Les réglages du fichier restent repliés : l'app te guide colonne par colonne.",
+  "noyau.guide-import-colonnes":
+    "Chaque colonne du fichier a sa molette : fais-la défiler pour choisir ce qu'elle contient. Passe la souris sur le « i » d'un champ pour savoir à quoi il sert. // L'app propose déjà une lecture. /bold(Confirmer) valide une colonne, /bold(Appliquer ces colonnes) relit le fichier avec ton choix.",
+  "noyau.guide-import-categories":
+    "Ta banque classe ses opérations dans ses propres catégories. Pour chacune, choisis celle de l'app qui lui correspond : ce choix est retenu pour tes prochains relevés. // /bold(Terminer) referme le tableau.",
+  "noyau.guide-import-compte":
+    "Ton fichier ne dit pas de quel compte il vient. Choisis ici celui qui reçoit ces opérations : le fichier est relu dans la foulée.",
+  "noyau.guide-import-apercu":
+    "Voici ce que l'import ferait, ligne par ligne. Corrige ce qui cloche, puis /bold(Confirmer l'import) : c'est seulement là que les opérations sont enregistrées. // Si le bouton est grisé, survole-le : l'app dit ce qui bloque.",
+  "noyau.guide-import-fin":
+    "Tes opérations sont enregistrées : le dashboard les montre déjà. Pour un prochain relevé de la même banque, l'app se souvient de tes catégories.",
+  "noyau.detection-champ-date":
+    "Le jour de l'opération",
+  "noyau.detection-champ-nature":
+    "Le libellé de l'opération",
+  "noyau.detection-champ-categorie_banque":
+    "La catégorie de ta banque",
+  "noyau.detection-champ-montant":
+    "Le montant de la ligne",
+  "noyau.detection-champ-notes":
+    "Un pense-bête, non lu par l'app",
+  "noyau.detection-champ-compte_banque":
+    "Le compte concerné",
+  "noyau.detection-champ-sens":
+    "Entrée ou sortie, en mots",
+  "noyau.detection-champ-montant_debit":
+    "Les sorties, dans leur colonne",
+  "noyau.detection-champ-montant_credit":
+    "Les entrées, dans leur colonne",
+  "noyau.detection-champ-monnaie":
+    "La monnaie de la ligne",
+  "noyau.detection-champ-montant_initial":
+    "Le montant envoyé, avant change",
+  "noyau.detection-champ-monnaie_initiale":
+    "La monnaie envoyée, avant change",
+  "noyau.detection-champ-frais":
+    "Les frais de la banque",
+  "noyau.detection-champ-monnaie_frais":
+    "La monnaie des frais",
+  "noyau.detection-champ-statut":
+    "Où en est l'opération",
+  "noyau.detection-champ-aucune":
+    "Colonne ignorée à l'import",
+});

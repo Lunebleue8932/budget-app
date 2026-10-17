@@ -3878,3 +3878,82 @@ Object.assign(TRADUCTIONS.pt, {
   "La démo n'est pas ouverte.": "A demonstração não está aberta.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : la démo
+
+// >>> TRADUCTIONS AJOUTÉES : le premier démarrage (choix de découverte, guide, champs de la molette)
+Object.assign(TRADUCTIONS.pt, {
+  "Choisis par où commencer : tu pourras faire l'autre ensuite, quand tu veux. Le guide démarre dès que ta base est rangée.":
+    "Escolha por onde começar: você pode fazer o outro depois, quando quiser. O guia começa assim que seu banco de dados for guardado.",
+  "L'app remplie de données fictives, pour la voir tourner sans rien importer. Une bulle montre où elle se trouve.":
+    "O app cheio de dados fictícios, para vê-lo funcionar sem importar nada. Um balão mostra onde ele fica.",
+  "Ton premier relevé de banque, pas à pas. Une bulle t'emmène jusqu'au bouton qui choisit le fichier, puis te guide dans les tableaux de l'import.":
+    "Seu primeiro extrato bancário, passo a passo. Um balão leva você até o botão que escolhe o arquivo, e depois guia você pelas tabelas da importação.",
+  "Ce bouton ouvre la démo : l'app remplie de données fictives. Ta vraie base n'est jamais touchée, et tu en reviens en un clic.":
+    "Este botão abre a demonstração: o app cheio de dados fictícios. Seu banco de dados real nunca é tocado, e você volta a ele com um clique.",
+  "Un relevé de banque se range dans un compte, et tu n'en as pas encore. Donne-lui un nom et un type, ça suffit pour commencer : tu pourras le modifier ou en ajouter d'autres dans Paramètres → Configuration.":
+    "Um extrato bancário vai para uma conta, e você ainda não tem nenhuma. Dê a ela um nome e um tipo, já basta para começar: você pode editá-la ou adicionar outras em Ajustes → Configuration.",
+  "Exporte le relevé de ta banque en Excel ou en CSV, puis choisis le fichier ici. Rien n'est enregistré avant que tu confirmes l'import. // Les réglages du fichier restent repliés : l'app te guide colonne par colonne.":
+    "Exporte o extrato do seu banco em Excel ou CSV, e depois escolha o arquivo aqui. Nada é salvo antes de você confirmar a importação. // As configurações do arquivo ficam recolhidas: o app guia você coluna por coluna.",
+  "Chaque colonne du fichier a sa molette : fais-la défiler pour choisir ce qu'elle contient. Passe la souris sur le « i » d'un champ pour savoir à quoi il sert. // L'app propose déjà une lecture. /bold(Confirmer) valide une colonne, /bold(Appliquer ces colonnes) relit le fichier avec ton choix.":
+    "Cada coluna do arquivo tem sua roleta: role-a para escolher o que a coluna contém. Passe o mouse sobre o « i » de um campo para ver para que ele serve. // O app já propõe uma leitura. /bold(Confirmar) valida uma coluna, /bold(Aplicar estas colunas) relê o arquivo com a sua escolha.",
+  "Ta banque classe ses opérations dans ses propres catégories. Pour chacune, choisis celle de l'app qui lui correspond : ce choix est retenu pour tes prochains relevés. // /bold(Terminer) referme le tableau.":
+    "Seu banco classifica as transações em categorias próprias. Para cada uma, escolha a categoria do app que corresponde a ela: sua escolha é lembrada para os próximos extratos. // /bold(Concluir) fecha a tabela.",
+  "Ton fichier ne dit pas de quel compte il vient. Choisis ici celui qui reçoit ces opérations : le fichier est relu dans la foulée.":
+    "Seu arquivo não diz de qual conta ele vem. Escolha aqui a que recebe estas transações: o arquivo é relido em seguida.",
+  "Voici ce que l'import ferait, ligne par ligne. Corrige ce qui cloche, puis /bold(Confirmer l'import) : c'est seulement là que les opérations sont enregistrées. // Si le bouton est grisé, survole-le : l'app dit ce qui bloque.":
+    "Aqui está o que a importação faria, linha por linha. Corrija o que estiver errado, e depois /bold(Confirmar a importação): só nesse momento as transações são salvas. // Se o botão estiver cinza, passe o mouse sobre ele: o app diz o que está bloqueando.",
+  "Tes opérations sont enregistrées : le dashboard les montre déjà. Pour un prochain relevé de la même banque, l'app se souvient de tes catégories.":
+    "Suas transações foram salvas: o painel já as mostra. No próximo extrato do mesmo banco, o app lembra das suas categorias.",
+  "Le jour de l'opération":
+    "O dia da transação",
+  "Le libellé de l'opération":
+    "A descrição da transação",
+  "La catégorie de ta banque":
+    "A categoria do seu banco",
+  "Le montant de la ligne":
+    "O valor da linha",
+  "Un pense-bête, non lu par l'app":
+    "Um lembrete, que o app não lê",
+  "Le compte concerné":
+    "A conta em questão",
+  "Entrée ou sortie, en mots":
+    "Entrada ou saída, em palavras",
+  "Les sorties, dans leur colonne":
+    "As saídas, em coluna própria",
+  "Les entrées, dans leur colonne":
+    "As entradas, em coluna própria",
+  "La monnaie de la ligne":
+    "A moeda da linha",
+  "Le montant envoyé, avant change":
+    "O valor enviado, antes do câmbio",
+  "La monnaie envoyée, avant change":
+    "A moeda enviada, antes do câmbio",
+  "Les frais de la banque":
+    "As tarifas do banco",
+  "La monnaie des frais":
+    "A moeda das tarifas",
+  "Où en est l'opération":
+    "Em que pé está a transação",
+  "Colonne ignorée à l'import":
+    "Coluna ignorada na importação",
+  "Projets & Objectifs": "Projetos & Metas",
+  "Deux façons de découvrir l'app": "Duas formas de conhecer o app",
+  "Visiter la démo": "Visitar a demonstração",
+  "Faire mon premier import": "Fazer minha primeira importação",
+  "Bon à savoir": "Bom saber",
+  "Un compte pour ton relevé": "Uma conta para o seu extrato",
+  "Nom du compte": "Nome da conta",
+  "Type de compte": "Tipo de conta",
+  "Plus tard": "Mais tarde",
+  "Créer le compte": "Criar a conta",
+  "Premiers pas": "Primeiros passos",
+  "Quitter le guide": "Sair do guia",
+  "Compris": "Entendi",
+  "La démo est ici": "A demonstração fica aqui",
+  "Choisis ton relevé": "Escolha seu extrato",
+  "Dis ce que contient chaque colonne": "Diga o que cada coluna contém",
+  "Classe les catégories de ta banque": "Classifique as categorias do seu banco",
+  "Choisis le compte": "Escolha a conta",
+  "Vérifie avant de confirmer": "Confira antes de confirmar",
+  "Premier import terminé": "Primeira importação concluída",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage

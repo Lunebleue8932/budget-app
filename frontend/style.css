@@ -5618,18 +5618,29 @@ body.modale-ouverte {
   color: var(--accent-light);
 }
 
-/* Les objectifs et les projets épinglés au dashboard : sur la même ligne, à parts égales, et l'un
-   sous l'autre seulement quand la place manque. */
+/* Les projets et les objectifs épinglés au dashboard : un seul titre, et toutes les cartes dans la
+   même grille - les projets d'abord, puis les objectifs. Les conteneurs que les extensions
+   remplissent (et les listes qu'ils portent) s'effacent derrière leurs cartes. */
 .dashboard-epingles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 2rem;
-  align-items: flex-start;
+  margin-top: 1rem;
 }
 
-.dashboard-epingles > div {
-  flex: 1 1 18rem;
-  min-width: 0;
+.dashboard-epingles h3 {
+  margin-bottom: 0.6rem;
+}
+
+.dashboard-epingles-cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.dashboard-epingles-cartes #dashboard-projets,
+.dashboard-epingles-cartes #dashboard-objectifs,
+.dashboard-epingles-cartes .projets-liste-dashboard,
+.dashboard-epingles-cartes .obj-liste-dashboard {
+  display: contents;
 }
 
 .onglet-logo {
@@ -5749,6 +5760,13 @@ body.modale-ouverte {
 .periode-pastille.active {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+/* Le niveau d'une page qui n'en change pas (budgets par catégorie) : allumée, mais rien à cliquer. */
+.periode-pastille-fixe,
+.periode-pastille-fixe:hover {
+  cursor: default;
+  border-color: var(--accent);
 }
 
 /* L'emplacement du chevron existe même sans chevron : sans lui, les pastilles
@@ -6234,6 +6252,81 @@ td.apercu-col-hors-fichier {
   font-weight: 600;
 }
 
+/* Le second point : deux choix, un rond chacun comme les pastilles de période. Aucun n'est imposé,
+   un second clic éteint celui qu'on vient d'allumer. */
+.modale-choix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.modale-choix-bouton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modale-choix-bouton:hover {
+  border-color: var(--accent-light);
+}
+
+.modale-choix-bouton[aria-checked="true"] {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.modale-choix-rond {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.modale-choix-bouton[aria-checked="true"] .modale-choix-rond {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* L'annexe de la fenêtre de premier lancement : ce qui ne demande rien, en retrait. */
+.modale-annexe {
+  margin-bottom: 1.2rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.modale-annexe h4 {
+  margin: 0 0 0.3rem;
+  color: var(--text-secondary);
+}
+
+.modale-annexe .modale-texte {
+  font-size: 0.88rem;
+}
+
+/* Un formulaire dans une fenêtre : les champs l'un sous l'autre, sans la carte d'un formulaire de page
+   (la fenêtre est déjà la carte). */
+form.modale-formulaire {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8rem;
+  padding: 0;
+  margin-bottom: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
 /* ---------- Le tutoriel guidé ----------
  *
  * PAS DE VOILE SUR L'APPLICATION, et c'est le choix qui décide de toute cette
@@ -6256,6 +6349,22 @@ td.apercu-col-hors-fichier {
 /* Pendant une étape de tutoriel, le tableau de l'import se range en bas de l'écran : la bulle prend le haut. */
 .modale-fond.modale-fond-basse {
   align-items: flex-end;
+}
+
+/* Le guide du premier import : pendant qu'une étape parle d'un tableau (colonnes, catégories de la
+   banque), le tableau se range en bas de l'écran et la bulle prend le haut, centrée. */
+.modale-fond.modale-fond-guide {
+  align-items: flex-end;
+}
+
+.modale-fond-guide .modale {
+  max-height: 62vh;
+}
+
+.guide-bulle.guide-bulle-haut {
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .tutoriel-bulle {
@@ -7153,6 +7262,15 @@ body input[type="checkbox"]:disabled {
   font-size: 0.88rem;
 }
 
+/* Le « i » d'un champ de la molette des colonnes : ce que le champ sert à lire, en quelques mots.
+   Jamais barré avec son champ, jamais en gras avec lui. */
+.corr-roue-option .corr-roue-info {
+  margin-left: 0.4rem;
+  font-weight: 400;
+  text-decoration: none;
+  vertical-align: middle;
+}
+
 .corr-roue-option.corr-roue-choisie { color: var(--text-primary, inherit); font-weight: 600; }
 /* Le nom prend la couleur de ce que l'app en pense, comme la pastille « Proposition forte » /
    « Suggestion » de la colonne - y compris sur la ligne choisie. Après `-choisie` pour l'emporter. */
@@ -7382,28 +7500,6 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 .barre-demo button:disabled {
   opacity: 0.6;
   cursor: progress;
-}
-
-/* La même porte dans la fenêtre de premier lancement. */
-.modale-demo {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0.2rem 0 0.9rem;
-}
-
-.modale-demo button {
-  padding: 0.4rem 0.8rem;
-  border: 1px dashed var(--badge-remboursable-text);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--badge-remboursable-text);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.modale-demo button:hover:not(:disabled) {
-  background: var(--badge-remboursable-bg);
 }
 
 /* Le rappel de la démo : un filet jaune, le même signe que la pastille. */
