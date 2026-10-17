@@ -46,6 +46,11 @@ function guideBulle() {
   // UN SEUL ÉCOUTEUR DÉLÉGUÉ, posé avec la bulle : elle est réécrite à chaque étape.
   bulle.addEventListener("click", (e) => {
     if (e.target.closest("[data-guide='fermer']")) arreterGuide();
+    // « Terminé », au bout du premier import : le dashboard montre ce que l'import vient de poser.
+    if (e.target.closest("[data-guide='termine']")) {
+      arreterGuide();
+      switchSection("dashboard");
+    }
   });
   return bulle;
 }
@@ -70,7 +75,7 @@ function guideRanger() {
  * `lieu` : « bas » (sous la cible, ou dessus quand la place manque), « droite » (à côté, pour la
  * barre latérale) ou « haut » (en haut de l'écran, au-dessus d'un tableau qui se range en bas).
  */
-function guideAfficher({ titre, cle, cible, lieu = "bas", tableau = null, fermer = false }) {
+function guideAfficher({ titre, cle, cible, lieu = "bas", tableau = null, fermer = false, termine = false }) {
   eteindreCibleTutoriel();
   guideRanger();
   const element = cible ? guideVisible(cible) : null;
@@ -92,9 +97,9 @@ function guideAfficher({ titre, cle, cible, lieu = "bas", tableau = null, fermer
     <div class="tutoriel-texte"></div>
     ${
       fermer
-        ? `<div class="tutoriel-actions"><button type="button" class="primary" data-guide="fermer">${escapeHtml(
-            t("Compris")
-          )}</button></div>`
+        ? `<div class="tutoriel-actions"><button type="button" class="primary" data-guide="${
+            termine ? "termine" : "fermer"
+          }">${escapeHtml(t(termine ? "Terminé" : "Compris"))}</button></div>`
         : ""
     }`;
   // LE TEXTE S'ÉCRIT EN NŒUDS (puces, gras, sauts de paragraphe : cf. textes.js), jamais en HTML.
@@ -274,6 +279,7 @@ const GUIDE_ETAPES_IMPORT = {
     cle: "noyau.guide-import-fin",
     cible: "#import-resultat",
     fermer: true,
+    termine: true,
   },
 };
 
@@ -318,6 +324,8 @@ function guideRelireAuChoixDuCompte() {
 }
 
 async function guideImport() {
+  // Relancé depuis la barre latérale en pleine visite : on repart de zéro plutôt que d'empiler deux lectures.
+  arreterGuide();
   // Un compte d'abord : sans lui, un relevé n'a nulle part où aller.
   if (!(state.comptes || []).length) {
     if (!(await guideDemanderCompte())) return;
@@ -330,6 +338,11 @@ async function guideImport() {
 }
 
 /* ---------- Au chargement ---------- */
+
+// La même porte, depuis la barre latérale : pour qui n'a pas choisi le premier import dans la fenêtre de
+// premier lancement et veut quand même le guide.
+const boutonPremierImport = document.getElementById("btn-premier-import");
+if (boutonPremierImport) boutonPremierImport.addEventListener("click", () => guideImport());
 
 ["scroll", "resize"].forEach((evenement) => {
   window.addEventListener(evenement, guidePlacer, { passive: true });

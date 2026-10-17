@@ -3955,5 +3955,9 @@ Object.assign(TRADUCTIONS.pt, {
   "Choisis le compte": "Escolha a conta",
   "Vérifie avant de confirmer": "Confira antes de confirmar",
   "Premier import terminé": "Primeira importação concluída",
+  "Un guide pas à pas pour importer un premier relevé : le fichier, les colonnes, les catégories, puis la confirmation.":
+    "Um guia passo a passo para importar um primeiro extrato: o arquivo, as colunas, as categorias e, por fim, a confirmação.",
+  "Terminé": "Concluído",
+  "Premier import": "Primeira importação",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage

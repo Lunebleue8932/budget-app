@@ -4730,5 +4730,9 @@ Object.assign(TRADUCTIONS.en, {
   "Choisis le compte": "Choose the account",
   "Vérifie avant de confirmer": "Check before you confirm",
   "Premier import terminé": "First import done",
+  "Un guide pas à pas pour importer un premier relevé : le fichier, les colonnes, les catégories, puis la confirmation.":
+    "A step-by-step guide to import a first statement: the file, the columns, the categories, then the confirmation.",
+  "Terminé": "Done",
+  "Premier import": "First import",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage

@@ -1154,6 +1154,8 @@ Object.assign(TEXTES, {
     "Voici ce que l'import ferait, ligne par ligne. Corrige ce qui cloche, puis /bold(Confirmer l'import) : c'est seulement là que les opérations sont enregistrées. // Si le bouton est grisé, survole-le : l'app dit ce qui bloque.",
   "noyau.guide-import-fin":
     "Tes opérations sont enregistrées : le dashboard les montre déjà. Pour un prochain relevé de la même banque, l'app se souvient de tes catégories.",
+  "noyau.guide-premier-import-bouton":
+    "Un guide pas à pas pour importer un premier relevé : le fichier, les colonnes, les catégories, puis la confirmation.",
   "noyau.detection-champ-date":
     "Le jour de l'opération",
   "noyau.detection-champ-nature":

@@ -7474,6 +7474,40 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   padding: 0 0.1rem;
 }
 
+/* LE PREMIER IMPORT, au-dessus de la démo : la même porte, en bleu pointillé. C'est lui qui prend la
+   marge automatique (il pousse le bloc vers le bas de la colonne), la démo se colle juste dessous. */
+.barre-premier-import {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.barre-premier-import + .barre-demo {
+  margin-top: 0;
+}
+
+.barre-premier-import button {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-light);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.barre-premier-import button:hover:not(:disabled),
+.barre-premier-import button:focus-visible {
+  background: rgba(59, 130, 246, 0.12);
+  outline: none;
+}
+
 .barre-demo + .barre-feedback {
   margin-top: 0.25rem;
 }
