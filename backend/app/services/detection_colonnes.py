@@ -96,10 +96,55 @@ _PROPRIETES_A_FORME = {
     "monnaie", "monnaie_initiale", "monnaie_frais", "sens", "statut",
 }
 
+# « SENS » ET « ÉTAT » À VOCABULAIRE LIBRE. Une colonne « Direction » (IN / OUT / NEUTRAL) ou « Status »
+# (COMPLETED / CANCELLED) n'écrit aucun des mots que l'application connaît d'avance : la forme des
+# cellules ne la désigne pas, mais son INTITULÉ le fait, et sa poignée de valeurs distinctes aussi.
+# C'est alors l'étape « mots-clés » de l'import qui demande à quoi correspond chaque valeur. Ces deux
+# propriétés sont proposées sur l'intitulé SEUL, pourvu que la colonne ait peu de valeurs distinctes
+# (jamais un libellé ni un montant) et que l'intitulé ne soit pas l'un des mots trop vagues pour dire
+# un sens (« Type » désigne tout aussi bien un moyen de paiement).
+_PROPRIETES_A_MOTS_LIBRES = ("sens", "statut")
+_ENTETES_VAGUES = {"type", "type mouvement", "tipo"}
+_VALEURS_FERMEES_MAX = 6
+# Au-delà, une colonne n'offre plus ses valeurs à l'étape des mots-clés (un libellé n'est pas un vocabulaire).
+_VALEURS_OFFERTES_MAX = 40
+
 _MOTS_SENS = {normaliser_libelle(m) for m in LIBELLES_SENS_ENTREE | LIBELLES_SENS_SORTIE}
 _MOTS_STATUT = {
     normaliser_libelle(mot) for mots in LIBELLES_STATUT_DEFAUT.values() for mot in mots
 }
+
+# CE QUE L'ON PROPOSE POUR CHAQUE VALEUR d'une colonne « Sens » ou « État » (étape « mots-clés » de
+# l'import) : le vocabulaire du code, plus les mots que les exports anglophones emploient le plus.
+# Écrits comme `normaliser_libelle` les rend (minuscules, sans accents ni espaces). Une valeur qu'aucune
+# liste ne nomme ne reçoit AUCUNE proposition : se tromper de sens inverse une opération dans tous les soldes.
+_PROPOSITIONS_SENS = {
+    "sortie": {normaliser_libelle(m) for m in LIBELLES_SENS_SORTIE}
+    | {"out", "outgoing", "outbound", "expense", "expenses", "debited", "paid", "sent", "depense",
+       "saida", "debito"},
+    "entree": {normaliser_libelle(m) for m in LIBELLES_SENS_ENTREE}
+    | {"in", "incoming", "inbound", "income", "credited", "received", "recu", "entrada", "credito"},
+}
+_PROPOSITIONS_STATUT = {
+    statut.value: {normaliser_libelle(m) for m in mots}
+    for statut, mots in LIBELLES_STATUT_DEFAUT.items()
+}
+_PROPOSITIONS_STATUT["execute"] |= {
+    "completed", "complete", "done", "settled", "booked", "posted", "success", "successful",
+    "confirmed", "processed", "executed", "fulfilled", "paid", "concluido",
+}
+_PROPOSITIONS_STATUT["attente"] |= {
+    "processing", "inprogress", "scheduled", "authorised", "authorized", "hold", "onhold",
+    "waiting", "submitted", "upcoming", "emandamento", "pendente",
+}
+_PROPOSITIONS_STATUT["refuse"] |= {
+    "cancelled", "canceled", "failed", "rejected", "declined", "refunded", "reversed", "voided",
+    "expired", "annule", "annulee", "echoue", "cancelado", "recusado",
+}
+
+
+def _proposition_de_valeur(norm: str, table: dict[str, set]) -> Optional[str]:
+    return next((mode for mode, mots in table.items() if norm in mots), None)
 
 
 @dataclass
@@ -506,6 +551,169 @@ def _debit_credit(profils: list[_Profil]) -> Optional[tuple[_Profil, _Profil]]:
     return None
 
 
+def _sans_dates_ni_nombres(p: _Profil) -> bool:
+    """Du texte au sens large : « OUT » a la forme d'un code de devise (trois majuscules), et n'en est pas
+    moins un mot d'un vocabulaire - ce que `_est_du_texte`, qui écarte les devises, ne dirait pas."""
+    return bool(p.remplies) and p.part(p.dates) < 0.5 and p.part(p.nombres) < 0.5
+
+
+def _vocabulaire_ferme(p: _Profil) -> bool:
+    """Du texte, répété, d'une poignée de valeurs : ce qu'est un sens ou un état (IN / OUT,
+    COMPLETED / CANCELLED), jamais un libellé."""
+    return (
+        p.remplies >= _LIGNES_CONSTANTE_MIN
+        and 2 <= p.distinctes <= _VALEURS_FERMEES_MAX
+        and _sans_dates_ni_nombres(p)
+        and p.distinctes / p.remplies <= 0.5
+    )
+
+
+def _valeurs_distinctes(p: _Profil, operations: list[tuple]) -> Optional[list[dict]]:
+    """Les valeurs distinctes d'une colonne de texte, lues sur TOUTES les opérations (un « REFUNDED »
+    au bout de dix mille lignes doit se voir), avec ce que l'application en pense : de quoi dire à
+    quoi correspond chaque mot d'une colonne « Sens » ou « État ». None quand la colonne n'est pas du
+    texte ou en a trop pour être un vocabulaire."""
+    if not p.remplies or not _sans_dates_ni_nombres(p) or p.distinctes > _VALEURS_OFFERTES_MAX:
+        return None
+    j = p.index - 1
+    groupes: dict[str, dict] = {}
+    for ligne in operations:
+        cellule = ligne[j] if j < len(ligne) else None
+        texte = "" if cellule is None else str(cellule).strip()
+        if not texte:
+            continue
+        # « Out » et « OUT » ne font qu'un mot pour l'application (cf. normaliser_libelle).
+        cle = normaliser_libelle(texte)
+        groupe = groupes.get(cle)
+        if groupe is None:
+            if len(groupes) >= _VALEURS_OFFERTES_MAX:
+                return None
+            groupe = groupes[cle] = {
+                "valeur": texte,
+                "nombre": 0,
+                "sens": _proposition_de_valeur(cle, _PROPOSITIONS_SENS),
+                "statut": _proposition_de_valeur(cle, _PROPOSITIONS_STATUT),
+            }
+        groupe["nombre"] += 1
+    return sorted(groupes.values(), key=lambda g: (-g["nombre"], g["valeur"]))
+
+
+# LE COUPLE « MONTANT ENVOYÉ / MONTANT REÇU » SE RECONNAÎT À SES DEVISES. Un relevé qui garde les deux
+# côtés d'une opération (Wise, Revolut…) porte deux colonnes de montants presque toujours égales -
+# l'argent qui part et l'argent qui arrive valent la même somme quand il n'y a pas de change - et deux
+# colonnes de devises. L'indice qui ne trompe pas : les montants DIFFÈRENT sur les lignes mêmes où les
+# devises diffèrent. Deux colonnes de montants égales sauf sur quelques lignes, qui divergent aux
+# endroits où deux colonnes de devises divergent, ne sont pas un montant et son doublon : ce sont l'envoyé
+# et le reçu.
+_PART_MONTANTS_EGAUX = 0.5
+_ACCORD_DIFFERENCES = 0.8
+_PART_REMPLIE_MONTANT = 0.9
+
+
+def _paire_montants_devises(
+    profils: list[_Profil],
+    donnees: list[tuple],
+    decimal,
+    milliers,
+    colonne_solde: Optional[int],
+) -> Optional[dict]:
+    """{"initial", "recu", "monnaie_initiale", "monnaie"} (numéros de colonne) quand le fichier a ce
+    couple de montants et de devises, ou None."""
+    n = len(donnees)
+    if n < _LIGNES_CONSTANTE_MIN:
+        return None
+
+    def lire(p: _Profil, convertir):
+        j = p.index - 1
+        return [convertir(ligne[j]) if j < len(ligne) else None for ligne in donnees]
+
+    def ignore_par_entete(p: _Profil) -> bool:
+        entete = scores_proprietes(p.entete)
+        return entete.get("", 0.0) >= SCORE_MOT_CLE or entete.get("frais", 0.0) >= SCORE_MOT_CLE
+
+    montants = {
+        p.index: lire(p, lambda c: centimes(c, decimal, milliers) if c not in (None, "") else None)
+        for p in profils
+        if _a_forme_de_montant(p)
+        and p.index != colonne_solde
+        and p.remplies / n >= _PART_REMPLIE_MONTANT
+        and sum(p.vides_ou_zero) / n <= 0.5
+        and not ignore_par_entete(p)
+    }
+    devises = {
+        p.index: lire(p, lambda c: str(c).strip() if c not in (None, "") else None)
+        for p in profils
+        if p.remplies and p.part(p.devises) >= 0.8
+        and scores_proprietes(p.entete).get("monnaie_frais", 0.0) < SCORE_MOT_CLE
+    }
+    if len(montants) < 2 or len(devises) < 2:
+        return None
+
+    def ecarts(a: list, b: list) -> Optional[tuple[set, int]]:
+        """(les rangs où les deux colonnes diffèrent, combien de lignes elles ont en commun), ou
+        None si elles se recouvrent trop peu."""
+        communs = [i for i in range(n) if a[i] is not None and b[i] is not None]
+        if len(communs) < _PART_REMPLIE_MONTANT * n:
+            return None
+        return {i for i in communs if a[i] != b[i]}, len(communs)
+
+    meilleure = None
+    for ia in sorted(montants):
+        for ib in sorted(montants):
+            if ib <= ia:
+                continue
+            res = ecarts(montants[ia], montants[ib])
+            if res is None:
+                continue
+            diff_montants, communs = res
+            # « Très souvent égales mais différentes sur certaines lignes ».
+            if not diff_montants or communs - len(diff_montants) < _PART_MONTANTS_EGAUX * communs:
+                continue
+            for ca in sorted(devises):
+                for cb in sorted(devises):
+                    if cb <= ca:
+                        continue
+                    res_d = ecarts(devises[ca], devises[cb])
+                    if res_d is None:
+                        continue
+                    diff_devises = res_d[0]
+                    if not diff_devises:
+                        continue
+                    accord = len(diff_montants & diff_devises) / len(diff_montants | diff_devises)
+                    if accord < _ACCORD_DIFFERENCES:
+                        continue
+                    # La paire de devises la plus proche des montants l'emporte.
+                    proximite = abs(ca - ia) + abs(cb - ib)
+                    candidate = (accord, -proximite)
+                    if meilleure is None or candidate > meilleure[0]:
+                        meilleure = (candidate, ia, ib, ca, cb)
+    if meilleure is None:
+        return None
+    _, ia, ib, ca, cb = meilleure
+
+    par_index = {p.index: p for p in profils}
+
+    def groupe(index: int) -> str:
+        return groupe_principal(par_index[index].entete)
+
+    # L'ENVOYÉ EST CELUI QUE L'INTITULÉ DIT, à défaut le premier du fichier (l'ordre de tous les relevés
+    # connus : ce qui part, puis ce qui arrive).
+    initial, recu = ia, ib
+    if groupe(ia) in ("recu", "montant") or groupe(ib) in ("envoye", "montant_initial"):
+        initial, recu = ib, ia
+    monnaie_initiale, monnaie = ca, cb
+    if groupe(ca) == "devise" or groupe(cb) == "monnaie_initiale":
+        monnaie_initiale, monnaie = cb, ca
+    elif initial > recu and groupe(ca) != "monnaie_initiale":
+        monnaie_initiale, monnaie = cb, ca
+    return {
+        "initial": initial,
+        "recu": recu,
+        "monnaie_initiale": monnaie_initiale,
+        "monnaie": monnaie,
+    }
+
+
 # LE RAFFINAGE GLOBAL (`_raffiner`). L'attribution ne regarde que des scores de colonne : elle ne
 # sait pas qu'un champ n'a été proposé qu'à deux colonnes et qu'aucune ne l'a pris. Les champs
 # qu'une colonne ignorée pourrait porter, et qu'on lit sur le plus clair des relevés.
@@ -641,26 +849,47 @@ def detecter_colonnes(
     ]
 
     scores: dict[int, dict[str, float]] = {}
+    entetes: dict[int, dict[str, float]] = {}
     presque_vides: list[int] = []
     for p in profils:
         entete = scores_proprietes(p.entete)
+        entetes[p.index] = entete
         forme = _scores_forme(p, montant_unique=colonnes_montant == [p.index])
         s: dict[str, float] = {}
+        # Une colonne de quelques valeurs répétées dont l'intitulé est un vrai « sens » ou « état ».
+        vocabulaire_libre = _vocabulaire_ferme(p) and normaliser_entete(p.entete) not in _ENTETES_VAGUES
         for propriete in _proprietes_connues():
             valeur = forme.get(propriete, 0.0) + entete.get(propriete, 0.0)
+            mots_libres = (
+                vocabulaire_libre
+                and propriete in _PROPRIETES_A_MOTS_LIBRES
+                and entete.get(propriete, 0.0) >= SCORE_SYNONYME
+            )
+            if mots_libres:
+                # L'INTITULÉ ET LE FAIT QUE LA COLONNE N'A QUE QUELQUES VALEURS suffisent : à quoi
+                # correspond chaque valeur se dit à l'étape « mots-clés » de l'import.
+                valeur = max(valeur, entete[propriete] + 0.5)
             # UN INTITULÉ QUE LA FORME CONTREDIT NE COMPTE QUE POUR MOITIÉ :
             # une colonne « Date » remplie de texte n'est pas une date.
             if (
                 entete.get(propriete)
                 and propriete in _PROPRIETES_A_FORME
                 and not forme.get(propriete)
+                and not mots_libres
             ):
                 valeur *= 0.5
             # UN SENS ne se lit que dans un vocabulaire fermé (« Débit »,
             # « C »…) : une colonne dont presque aucune valeur n'en est
             # (« CARD_PAYMENT », « Presentment ») mettrait chaque ligne en
-            # erreur, quel que soit son intitulé (« Type »).
-            if propriete == "sens" and p.remplies and p.part(p.mots_sens) < _PART_SENS_MINIMALE:
+            # erreur, quel que soit son intitulé (« Type »). Sauf quand l'intitulé
+            # dit « Direction » et que la colonne n'a que quelques valeurs : le
+            # vocabulaire est alors à dire, pas à deviner (cf. _PROPRIETES_A_MOTS_LIBRES).
+            if (
+                propriete == "sens"
+                and p.remplies
+                and p.part(p.mots_sens) < _PART_SENS_MINIMALE
+                and not mots_libres
+            ):
                 valeur = 0.0
             # LE COMPTE est celui du relevé : renseigné presque partout, et
             # d'une poignée de valeurs. Un IBAN ou un numéro qui change à
@@ -727,6 +956,32 @@ def detecter_colonnes(
         debit, credit = scinde
         scores[debit.index]["montant_debit"] = max(scores[debit.index].get("montant_debit", 0), 1.1)
         scores[credit.index]["montant_credit"] = max(scores[credit.index].get("montant_credit", 0), 1.1)
+    else:
+        # PAS DE COUPLE DÉBIT/CRÉDIT SANS DEUX COLONNES QUI SE PARTAGENT LES LIGNES : quand aucune paire
+        # n'est exclusive, « montant au débit » et « montant au crédit » ne sont plus que des lectures
+        # tirées de la forme d'un nombre (0,25) - jamais ce qu'un intitulé a dit. Un relevé dont deux
+        # montants sont remplis sur toutes les lignes (envoyé et reçu) n'en a pas : les proposer
+        # n'apprend rien et pousse à choisir une lecture que le serveur refuserait.
+        for index, s in scores.items():
+            for propriete in ("montant_debit", "montant_credit"):
+                if propriete in s and entetes[index].get(propriete, 0.0) < SCORE_MOT_CLE:
+                    del s[propriete]
+
+    # ENVOYÉ / REÇU RECONNU À SES DEVISES (cf. _paire_montants_devises) : proposé avec assurance, et les
+    # lectures concurrentes de ces quatre colonnes reculent.
+    paire = _paire_montants_devises(profils, donnees, decimal, milliers, colonne_solde)
+    if paire:
+        for index, propriete in (
+            (paire["initial"], "montant_initial"),
+            (paire["recu"], "montant"),
+            (paire["monnaie_initiale"], "monnaie_initiale"),
+            (paire["monnaie"], "monnaie"),
+        ):
+            s = scores[index]
+            for autre in list(s):
+                if autre != propriete:
+                    s[autre] = round(s[autre] * 0.3, 3)
+            s[propriete] = max(s.get(propriete, 0.0), 1.3)
 
     # UNE COLONNE PRESQUE VIDE (moins d'une ligne sur trois) n'est le plus
     # souvent rien qu'on veuille lire : « ne pas importer » est proposé en
@@ -811,6 +1066,9 @@ def detecter_colonnes(
                 "propositions": propositions,
                 "certaine": certaine,
                 "forte": certaine or p.index in forts or _paire_avec_ne_pas_importer(propositions),
+                # De quoi dire, à l'étape « mots-clés », à quoi correspond chaque valeur si la colonne
+                # est lue comme un sens ou un état. None pour tout ce qui n'est pas un petit vocabulaire.
+                "valeurs": _valeurs_distinctes(p, operations),
             }
         )
 

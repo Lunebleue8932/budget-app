@@ -1614,6 +1614,11 @@ class ColonneDetectee(BaseModel):
     # raffinage global a remontée seule, ou une paire à prendre ou à laisser avec « ne pas
     # importer ». Les autres propositions restent des suggestions.
     forte: bool = False
+    # Les valeurs distinctes de la colonne (texte, au plus une quarantaine), chacune avec son nombre de
+    # lignes et ce que l'application en pense comme sens (« sortie » / « entree ») et comme état
+    # (« execute » / « attente » / « refuse »), ou None. C'est ce que l'étape « mots-clés » de l'import
+    # fait mapper quand la colonne est lue comme « Sens » ou « État ». None : pas un petit vocabulaire.
+    valeurs: Optional[list[dict]] = None
 
 
 class DetectionColonnesRead(BaseModel):
@@ -2194,6 +2199,14 @@ class ColonnesImportEssai(BaseModel):
     # du preset (la détection des colonnes en propose). Absentes, le preset décide.
     lignes_entete: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
     lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
+    # Les mots-clés de « Sens » et d'« État » que l'écran a sous les yeux (l'étape « mots-clés » de
+    # l'import les pose avant tout enregistrement). Absents (None), le preset décide ; présents, les
+    # CINQ listes partent ensemble et remplacent celles du preset le temps de cette lecture.
+    libelles_sens_sortie: Optional[list[str]] = None
+    libelles_sens_entree: Optional[list[str]] = None
+    libelles_statut_execute: Optional[list[str]] = None
+    libelles_statut_attente: Optional[list[str]] = None
+    libelles_statut_refuse: Optional[list[str]] = None
 
 
 class ImportPresetCreate(BaseModel):

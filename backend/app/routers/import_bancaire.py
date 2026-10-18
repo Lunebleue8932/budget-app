@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -663,8 +664,19 @@ def _valider_colonnes_essai(colonnes: Optional[str]):
     # configurations qui n'ont pas de sens : deux fois la même propriété, deux
     # propriétés sur la même colonne, une propriété qui n'existe pas.
     valider_colonnes(modele.colonnes, PROPRIETES_IMPORT_VALIDES, set())
+    # LES MOTS-CLÉS DE SENS ET D'ÉTAT, quand l'écran en porte (étape « mots-clés »), sont nettoyés et
+    # vérifiés comme ceux d'un preset : un même mot ne peut pas désigner deux sens.
+    vocabulaires = None
+    champs = (
+        "libelles_sens_sortie", "libelles_sens_entree",
+        "libelles_statut_execute", "libelles_statut_attente", "libelles_statut_refuse",
+    )
+    if any(getattr(modele, champ) is not None for champ in champs):
+        vocabulaires = _vocabulaires_nettoyes(
+            SimpleNamespace(**{champ: getattr(modele, champ) or [] for champ in champs})
+        )
     return import_bancaire.EssaiColonnes(
-        [c.model_dump() for c in modele.colonnes], modele.lignes_entete, modele.lignes_pied
+        [c.model_dump() for c in modele.colonnes], modele.lignes_entete, modele.lignes_pied, vocabulaires
     )
 
 

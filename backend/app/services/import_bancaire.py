@@ -1641,10 +1641,14 @@ class PresetAvecColonnes:
     répond `colonnes` et laisse passer tout le reste.
     """
 
-    __slots__ = ("_preset", "colonnes", "lignes_entete", "lignes_pied")
+    __slots__ = ("_preset", "_surcharges", "colonnes", "lignes_entete", "lignes_pied")
 
-    def __init__(self, preset, colonnes, lignes_entete=None, lignes_pied=None):
+    def __init__(self, preset, colonnes, lignes_entete=None, lignes_pied=None, vocabulaires=None):
         object.__setattr__(self, "_preset", preset)
+        # LES MOTS-CLÉS DE « SENS » ET D'« ÉTAT » que l'écran a sous les yeux (l'étape « mots-clés » de
+        # l'import les pose avant tout enregistrement) : mêmes noms que les colonnes du preset, ils
+        # répondent à sa place.
+        object.__setattr__(self, "_surcharges", dict(vocabulaires or {}))
         object.__setattr__(self, "colonnes", colonnes)
         # Les lignes de tête et de pied ne sont posées que si l'essai les donne : un attribut de
         # `__slots__` non posé laisse `__getattr__` répondre avec celles du preset.
@@ -1654,16 +1658,22 @@ class PresetAvecColonnes:
             object.__setattr__(self, "lignes_pied", lignes_pied)
 
     def __getattr__(self, nom):
+        surcharges = object.__getattribute__(self, "_surcharges")
+        if nom in surcharges:
+            return surcharges[nom]
         return getattr(self._preset, nom)
 
 
 class EssaiColonnes(NamedTuple):
     """Ce que l'écran essaie sans l'enregistrer : les colonnes, et si besoin les lignes de tête et de
-    pied (cf. PresetAvecColonnes). Une liste nue reste acceptée par `_masquer_preset`."""
+    pied et les mots-clés de sens et d'état (cf. PresetAvecColonnes). Une liste nue reste acceptée par
+    `_masquer_preset`."""
 
     colonnes: list
     lignes_entete: Optional[int] = None
     lignes_pied: Optional[int] = None
+    # {"libelles_sens_sortie": [...], ...} : les cinq listes, ou None quand le preset décide.
+    vocabulaires: Optional[dict] = None
 
 
 def _masquer_preset(preset, essai):
@@ -1672,7 +1682,9 @@ def _masquer_preset(preset, essai):
         return preset
     if not isinstance(essai, EssaiColonnes):
         essai = EssaiColonnes(essai)
-    return PresetAvecColonnes(preset, essai.colonnes, essai.lignes_entete, essai.lignes_pied)
+    return PresetAvecColonnes(
+        preset, essai.colonnes, essai.lignes_entete, essai.lignes_pied, essai.vocabulaires
+    )
 
 
 def _index_propriete(preset, propriete: str) -> Optional[int]:

@@ -72,7 +72,7 @@
         "amount", "transaction amount", "valor", "quantia"
       ],
       "mots_cles": ["montant", "amount"],
-      "exclus_si": ["debit", "credit", "envoye", "recu", "initial", "origine", "source", "frais", "solde"]
+      "exclus_si": ["debit", "credit", "envoye", "recu", "initial", "origine", "source", "frais", "fee", "solde"]
     },
     "debit": {
       "propriete": "montant_debit",
@@ -122,8 +122,8 @@
       "propriete": "monnaie",
       "exacts": ["devise"],
       "synonymes": ["monnaie", "currency", "ccy", "target currency", "moeda"],
-      "mots_cles": [],
-      "exclus_si": []
+      "mots_cles": ["target currency", "devise cible", "monnaie cible"],
+      "exclus_si": ["fee", "fees", "frais"]
     },
     "compte": {
       "propriete": "compte_banque",
@@ -142,29 +142,29 @@
     "frais": {
       "propriete": "frais",
       "exacts": ["frais"],
-      "synonymes": ["commission", "commissions", "fee", "fees", "total fees", "taxa", "tarifa"],
+      "synonymes": ["commission", "commissions", "fee", "fees", "total fees", "source fee amount", "source fee", "taxa", "tarifa"],
       "mots_cles": ["frais", "fee", "fees"],
-      "exclus_si": ["devise", "monnaie", "currency"]
+      "exclus_si": ["devise", "monnaie", "currency", "after", "apres", "depois"]
     },
     "montant_initial": {
       "propriete": "montant_initial",
       "exacts": ["montant initial"],
       "synonymes": ["montant origine", "montant source", "montant devise origine", "source amount", "original amount"],
-      "mots_cles": [],
-      "exclus_si": []
+      "mots_cles": ["source amount", "original amount", "montant source", "montant origine", "montant initial"],
+      "exclus_si": ["devise", "monnaie", "currency"]
     },
     "monnaie_initiale": {
       "propriete": "monnaie_initiale",
       "exacts": ["devise envoyee"],
       "synonymes": ["monnaie envoyee", "devise origine", "monnaie origine", "source currency", "original currency"],
-      "mots_cles": [],
-      "exclus_si": []
+      "mots_cles": ["source currency", "original currency", "devise source", "monnaie source"],
+      "exclus_si": ["fee", "fees", "frais"]
     },
     "monnaie_frais": {
       "propriete": "monnaie_frais",
       "exacts": ["devise frais"],
-      "synonymes": ["monnaie frais", "fee currency"],
-      "mots_cles": [],
+      "synonymes": ["monnaie frais", "fee currency", "source fee currency"],
+      "mots_cles": ["fee currency", "devise frais", "monnaie frais", "devise des frais", "monnaie des frais"],
       "exclus_si": []
     },
     "solde": {
