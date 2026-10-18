@@ -1200,4 +1200,14 @@ Object.assign(TEXTES, {
     "Une catégorie range tes opérations par nature : courses, loisirs, un salaire… Donne-lui un nom. Tu pourras la renommer ou la supprimer ensuite, dans Paramètres → Configuration.",
   "noyau.import-fleches":
     "Navigue entre les options avec les flèches {monter} et {descendre} (ou la molette), et d'une colonne à l'autre avec ← →.",
+  "noyau.import-mots-cles":
+    "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.",
+  "noyau.import-mots-cles-info":
+    "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.",
+  "noyau.import-compte":
+    "Ton fichier ne dit pas de quel compte il vient. Choisis celui qui reçoit ses opérations : le fichier est relu dans la foulée, sans rien défaire de tes choix.",
+  "noyau.import-compte-noms":
+    "Ton fichier nomme des comptes que l'application ne connaît pas encore. Pour chacun, choisis le compte qui lui correspond : ce choix est retenu pour tes prochains relevés.",
+  "noyau.guide-import-mots-cles":
+    "Ton fichier écrit ses propres mots pour le sens ou l'état d'une opération (IN, OUT, COMPLETED…). Pour chacun, dis ce qu'il veut dire. // Les mots que l'app connaît déjà sont proposés en bleu. /bold(Continuer) relit le fichier avec eux.",
 });

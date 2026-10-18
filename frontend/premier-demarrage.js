@@ -31,7 +31,12 @@ let guideMinuterie = null;
 // Ce que la bulle désigne en ce moment, pour la replacer quand la page défile.
 let guideConfig = null;
 
-const GUIDE_TABLEAUX = ["modale-detection", "modale-correspondances"];
+const GUIDE_TABLEAUX = [
+  "modale-detection",
+  "modale-mots-cles",
+  "modale-correspondances",
+  "modale-compte-import",
+];
 
 function guideBulle() {
   let bulle = document.getElementById("guide-bulle");
@@ -177,14 +182,14 @@ async function guideDemanderCompte() {
 function guideEtapeDeLEcran() {
   // L'import vient de se terminer : la carte « Import terminé » est affichée.
   if (guideVisible("#import-resultat")) return "fin";
+  // LES ÉTAPES DE L'IMPORT, dans leur ordre : le compte vient en dernier, dans sa propre fenêtre.
+  if (guideVisible("#modale-compte-import")) return "compte-fichier";
   if (guideVisible("#modale-correspondances")) return "categories";
+  if (guideVisible("#modale-mots-cles")) return "mots-cles";
   if (guideVisible("#modale-detection")) return "colonnes";
   if (!guideVisible("#sous-section-parametres-import")) return null;
   // Rien n'est lu tant que le fichier n'est pas choisi.
   if (!guideVisible("#import-apercu-bloc")) return "fichier";
-  // Le fichier ne nomme pas son compte : c'est à celui qui le lit de dire lequel.
-  const compte = guideVisible("#import-compte-defaut-bloc");
-  if (compte && !document.getElementById("import-compte-defaut").value) return "compte-fichier";
   return "apercu";
 }
 
@@ -201,6 +206,13 @@ const GUIDE_ETAPES_IMPORT = {
     lieu: "haut",
     tableau: "modale-detection",
   },
+  "mots-cles": {
+    titre: "Dis ce que veulent dire les mots du fichier",
+    cle: "noyau.guide-import-mots-cles",
+    cible: "#mots-cles-board .corr-roue-cadre",
+    lieu: "haut",
+    tableau: "modale-mots-cles",
+  },
   categories: {
     titre: "Classe les catégories de ta banque",
     cle: "noyau.guide-import-categories",
@@ -211,7 +223,9 @@ const GUIDE_ETAPES_IMPORT = {
   "compte-fichier": {
     titre: "Choisis le compte",
     cle: "noyau.guide-import-compte",
-    cible: "#import-compte-defaut",
+    cible: "#modale-compte-import .modale",
+    lieu: "haut",
+    tableau: "modale-compte-import",
   },
   apercu: {
     titre: "Vérifie avant de confirmer",
@@ -241,7 +255,6 @@ function guideSurveiller() {
     return;
   }
   if (etape !== "fichier") guideReplierLesReglages();
-  if (etape === "compte-fichier") guideRelireAuChoixDuCompte();
   guideAfficher(GUIDE_ETAPES_IMPORT[etape]);
 }
 
@@ -253,17 +266,6 @@ function guideReplierLesReglages() {
   ["import-reglages-lecture", "import-config-fichier"].forEach((id) => {
     const bloc = document.getElementById(id);
     if (bloc) bloc.open = false;
-  });
-}
-
-/** Choisir le compte du fichier relit le fichier : l'aperçu ne se rafraîchit pas tout seul, et un
- *  aperçu où chaque ligne attend son compte n'apprend rien. Posé une seule fois, pour le guide. */
-function guideRelireAuChoixDuCompte() {
-  const choix = document.getElementById("import-compte-defaut");
-  if (choix.dataset.guide) return;
-  choix.dataset.guide = "1";
-  choix.addEventListener("change", () => {
-    if (BudgetApp.guideImport.actif && choix.value) relireFichierImport();
   });
 }
 

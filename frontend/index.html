@@ -355,13 +355,68 @@
         <button type="button" id="btn-correspondances-fermer" class="epargne-fermer"
                 title="Fermer" aria-label="Fermer">&times;</button>
       </div>
+      <div class="import-etapes" data-import-etapes></div>
       <p class="modale-texte" data-texte-cle="noyau.import-correspondances"></p>
       <p class="hint" id="correspondances-compteur"></p>
       <p class="hint corr-aide-fleches" id="correspondances-aide-fleches"></p>
+      <!-- L'ENCADRÉ « CRÉE LA TIENNE » : un seul, au-dessus de toutes les cartes, au centre. La
+           catégorie créée rejoint la molette de chaque carte, en violet et en tête de liste. -->
+      <div id="correspondances-creer" class="corr-creer-central"></div>
       <div id="correspondances-board" class="corr-board"></div>
       <div class="modale-actions">
         <button type="button" id="btn-correspondances-fortes">Confirmer les propositions fortes</button>
         <button type="button" id="btn-correspondances-terminer" class="primary">Terminer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- L'ÉTAPE « MOTS-CLÉS » (1bis de l'import) : quand le fichier a une colonne « Sens » ou « État », à quoi
+       correspond chaque mot que le fichier y écrit ? Le même tableau à molettes que les deux autres ; une
+       carte par mot, seuls les champs choisis apparaissent. Cf. app.js, « LES MOTS-CLÉS DU FICHIER ». -->
+  <div id="modale-mots-cles" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-correspondances" role="dialog" aria-modal="true"
+         aria-labelledby="modale-mots-cles-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-mots-cles-titre">Ce que veulent dire les mots du fichier<i class="info-bulle" tabindex="0" data-info-cle="noyau.import-mots-cles-info">i</i></h2>
+        <button type="button" id="btn-mots-cles-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <div class="import-etapes" data-import-etapes></div>
+      <p class="modale-texte" data-texte-cle="noyau.import-mots-cles"></p>
+      <p class="hint" id="mots-cles-compteur"></p>
+      <p class="hint corr-aide-fleches" id="mots-cles-aide-fleches"></p>
+      <div id="mots-cles-board" class="corr-board"></div>
+      <div class="modale-actions">
+        <button type="button" id="btn-mots-cles-retour">Retour aux colonnes</button>
+        <button type="button" id="btn-mots-cles-fortes">Confirmer les propositions fortes</button>
+        <button type="button" id="btn-mots-cles-continuer" class="primary">Continuer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- L'ÉTAPE 3 DE L'IMPORT : le compte. Une fenêtre à part, ouverte EN DERNIER (après les champs et les
+       catégories) : le compte où va le relevé quand ni le fichier ni le preset ne le disent, et les
+       comptes que le fichier nomme sans que l'app les connaisse. Cf. app.js, « LE COMPTE DE L'IMPORT ». -->
+  <div id="modale-compte-import" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-compte-import" role="dialog" aria-modal="true"
+         aria-labelledby="modale-compte-import-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-compte-import-titre">Dans quel compte va ce relevé ?</h2>
+        <button type="button" id="btn-compte-import-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <div class="import-etapes" data-import-etapes></div>
+      <p class="modale-texte" id="compte-import-texte-defaut" data-texte-cle="noyau.import-compte"></p>
+      <p class="modale-texte" id="compte-import-texte-noms" data-texte-cle="noyau.import-compte-noms"></p>
+      <div id="compte-import-defaut-bloc" class="import-compte-defaut-bloc" style="display:none">
+        <label for="compte-import-defaut">Compte pour ce fichier</label>
+        <select id="compte-import-defaut"><option value="">— choisir —</option></select>
+      </div>
+      <div id="compte-import-mappings" class="import-mappings-liste"></div>
+      <p class="import-avertissement" id="compte-import-erreur" role="alert" style="display:none"></p>
+      <div class="modale-actions">
+        <button type="button" id="btn-compte-import-plus-tard">Plus tard</button>
+        <button type="button" id="btn-compte-import-valider" class="primary">Valider le compte</button>
       </div>
     </div>
   </div>
@@ -377,6 +432,7 @@
         <button type="button" id="btn-detection-fermer" class="epargne-fermer"
                 title="Fermer" aria-label="Fermer">&times;</button>
       </div>
+      <div class="import-etapes" data-import-etapes></div>
       <div id="detection-infos"></div>
       <p class="hint" id="detection-compteur"></p>
       <p class="hint corr-aide-fleches" id="detection-aide-fleches"></p>

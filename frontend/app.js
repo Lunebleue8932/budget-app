@@ -11217,6 +11217,16 @@ function demandesDeMapping() {
 // envoyées telles quelles à la confirmation : numéro de ligne -> champs
 // modifiés (date/nature/montant/categorie_id/compte_id).
 const importLigneOverrides = {};
+// LE PARCOURS DE CE FICHIER (cf. « LE PARCOURS DE L'IMPORT » plus bas) : l'étape « mots-clés » n'existe
+// que si une colonne « Sens » ou « État » est lue.
+const importParcours = { motsCles: false };
+// Les mots-clés de sens et d'état posés à l'étape « mots-clés », pas encore enregistrés : ils partent avec
+// les colonnes à l'aperçu et à la confirmation (`ajouterColonnesLues`). `importVocabulairesAvant` garde ce
+// que les éditeurs portaient avant l'étape, pour le leur rendre quand on change de fichier.
+let importVocabulairesEssai = null;
+let importVocabulairesAvant = null;
+// Le choix du compte (étape 3) n'est proposé qu'une fois par fichier.
+let importCompteDemande = false;
 // Numéros de ligne retirées de l'import (bouton "Supprimer" de l'aperçu).
 const importLignesSupprimees = new Set();
 // Numéro de ligne actuellement en édition inline dans l'aperçu (une seule à
@@ -11612,6 +11622,15 @@ function reinitialiserImport() {
   importDetection = null;
   importDetectionProposee = false;
   document.getElementById("modale-detection").style.display = "none";
+  // Le parcours du fichier qu'on quitte : ni mots-clés, ni choix de compte, ni catégories créées en route.
+  restaurerVocabulairesImport();
+  importParcours.motsCles = false;
+  importCompteDemande = false;
+  corrNouvelles.clear();
+  corrChaine = false;
+  ["modale-mots-cles", "modale-compte-import"].forEach((id) => {
+    document.getElementById(id).style.display = "none";
+  });
   document.getElementById("import-detection-suggestion").style.display = "none";
   importReconnaissance = null;
   renderImportReconnaissance();
@@ -11631,6 +11650,10 @@ function reinitialiserImport() {
 function definirFichierImport(fichier) {
   importFichierActuel = fichier || null;
   importDetectionProposee = false;
+  restaurerVocabulairesImport();
+  importParcours.motsCles = false;
+  importCompteDemande = false;
+  corrNouvelles.clear();
   document.getElementById("import-fichier-nom").textContent = fichier ? fichier.name : "";
   // Un nouveau fichier peut venir d'une autre banque : les réglages de
   // lecture du précédent n'ont aucune raison de valoir pour celui-ci.
@@ -12339,6 +12362,9 @@ Object.entries(CHAMPS_VOCABULAIRE).forEach(([cle, { bloc, libelles }]) => {
 });
 
 function renderImportVocabulaires(config) {
+  // Les éditeurs reprennent ceux du preset : ce que l'étape « mots-clés » avait posé n'a plus cours.
+  importVocabulairesEssai = null;
+  importVocabulairesAvant = null;
   Object.entries(CHAMPS_VOCABULAIRE).forEach(([cle, { listes }]) => {
     const valeurs = {};
     Object.entries(listes).forEach(([nom, champ]) => (valeurs[nom] = config[champ] || []));
@@ -13087,11 +13113,20 @@ function ajouterColonnesLues(formData) {
       // colonnes, sans rien enregistrer.
       lignes_entete: lignesEnteteSaisies(),
       lignes_pied: lignesPiedSaisies(),
+      // Les mots-clés de sens et d'état dits à l'étape « mots-clés » et pas encore enregistrés : sans eux,
+      // le fichier serait relu avec ceux du preset et chaque ligne se mettrait en erreur.
+      ...(importVocabulairesEssai || {}),
     })
   );
 }
 
-async function executerPrevisualisation() {
+/**
+ * `conserver` : relire le MÊME fichier sans repartir de zéro - ce que fait le choix du compte (étape 3),
+ * qui vient après les champs et les catégories et ne doit rien défaire de ce qu'elles ont décidé. Les
+ * correspondances, les confirmations et les retouches de lignes restent ; seuls les verdicts que le
+ * serveur recalcule (doublons, ressemblances de virements) repartent, et aucun tableau ne se rouvre.
+ */
+async function executerPrevisualisation({ conserver = false } = {}) {
   const formData = new FormData();
   formData.append("fichier", importFichierActuel);
   const compteDefaut = compteIdDefautChoisi();
@@ -13100,14 +13135,16 @@ async function executerPrevisualisation() {
   ajouterColonnesLues(formData);
   try {
     importApercu = await apiFetchForm(importUrl("/previsualiser"), formData);
-    Object.keys(importMappingCategories).forEach((k) => delete importMappingCategories[k]);
-    Object.keys(importMappingComptes).forEach((k) => delete importMappingComptes[k]);
-    Object.keys(importMappingMonnaies).forEach((k) => delete importMappingMonnaies[k]);
-    importCategoriesConfirmees.clear();
-    corrChoixManuels.clear();
-    importLignesSelectionnees.clear();
-    Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
-    importLignesSupprimees.clear();
+    if (!conserver) {
+      Object.keys(importMappingCategories).forEach((k) => delete importMappingCategories[k]);
+      Object.keys(importMappingComptes).forEach((k) => delete importMappingComptes[k]);
+      Object.keys(importMappingMonnaies).forEach((k) => delete importMappingMonnaies[k]);
+      importCategoriesConfirmees.clear();
+      corrChoixManuels.clear();
+      importLignesSelectionnees.clear();
+      Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
+      importLignesSupprimees.clear();
+    }
     ligneApercuEnEdition = null;
     // La veille sur les virements repart de zéro : ses verdicts portent sur les
     // numéros de ligne du fichier PRÉCÉDENT, qui ne désignent plus rien.
@@ -13125,16 +13162,12 @@ async function executerPrevisualisation() {
     renderImportControle();
     renderImportReglagesLecture();
     renderImportMappings();
+    // Les choix gardés (`conserver`) se reposent sur les lignes toutes neuves.
+    if (conserver) appliquerMappingsLocalement();
     renderImportApercu();
     document.getElementById("import-resultat").style.display = "none";
     majSuggestionDetection();
-    // LA DÉTECTION DES COLONNES PASSE AVANT LES CORRESPONDANCES : si le fichier est mal lu, c'est elle
-    // qu'on ouvre d'abord (elle rouvrira les correspondances derrière). Sinon, LE TABLEAU DES
-    // CORRESPONDANCES s'ouvre de lui-même quand le fichier porte des catégories bancaires encore
-    // inconnues : c'est là qu'on voit quelles opérations elles rassemblent.
-    // PENDANT UN TUTORIEL, les tableaux ne s'ouvrent que sur les étapes qui en parlent : ouverts à
-    // chaque relecture, ils cacheraient ce que la bulle désigne.
-    if (!(await proposerDetectionAvantCorrespondances()) && !tutorielEnCours()) ouvrirCorrespondances();
+    if (!conserver) await ouvrirSuiteImport();
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -13629,6 +13662,16 @@ function detMajCompteur() {
   document.getElementById("btn-detection-fortes").disabled = !detColonnes.some(
     (e) => detFortePrete(e)
   );
+  detMajEtapes();
+}
+
+/** Le graphe des étapes du tableau des colonnes : l'étape « mots-clés » y apparaît dès qu'une colonne
+ *  CONFIRMÉE est lue comme un sens ou un état. */
+function detMajEtapes() {
+  importParcours.motsCles = detColonnes.some(
+    (e) => detConfirmees.has(e.colonne.index) && PROPRIETES_A_MOTS_CLES.includes(e.choix)
+  );
+  majEtapesImport("modale-detection", "champs");
 }
 
 function detFortePrete(entree) {
@@ -13888,6 +13931,8 @@ function ouvrirDetection(detection, { suite = false } = {}) {
       choix: detIdPropriete(colonne.propositions[0]?.propriete),
     }));
   document.getElementById("detection-infos").innerHTML = detInfosHtml(detection);
+  importParcours.motsCles = false;
+  majEtapesImport("modale-detection", "champs");
   detEffacerConflit();
   const board = document.getElementById("detection-board");
   board.innerHTML = detColonnes.map((entree, i) => detColonneHtml(entree, i)).join("");
@@ -13906,7 +13951,8 @@ function fermerDetection() {
   detCourante = -1;
   importDetection = null;
   majSuggestionDetection();
-  if (detSuite) ouvrirCorrespondances();
+  // Ouvert avant les autres étapes, il leur rend la main : les catégories, puis le compte.
+  if (detSuite) ouvrirSuiteImport();
 }
 
 async function appliquerDetectionImport() {
@@ -13926,6 +13972,20 @@ async function appliquerDetectionImport() {
     return;
   }
   const detection = importDetection;
+  // L'ÉTAPE 1bis : une colonne lue comme « Sens » ou « État » dit des mots que l'application ne connaît pas
+  // d'avance (IN / OUT, COMPLETED / CANCELLED) ; on demande à quoi ils correspondent AVANT de relire le
+  // fichier, sans quoi chaque ligne se mettrait en erreur. Seuls les champs choisis sont demandés.
+  importParcours.motsCles = colonnes.some((c) => PROPRIETES_A_MOTS_CLES.includes(c.propriete));
+  const aMapper = motsClesAMapper(detection, colonnes);
+  if (aMapper.length) {
+    ouvrirMotsCles(detection, colonnes, aMapper);
+    return;
+  }
+  await finaliserDetectionImport(detection, colonnes);
+}
+
+/** La fin de l'étape 1 : les colonnes deviennent celles de l'écran et le fichier est relu avec elles. */
+async function finaliserDetectionImport(detection, colonnes) {
   importConfigColonnes = colonnes;
   // Les colonnes lues ont changé : « Compte pour ce fichier » apparaît (ou disparaît) avec elles.
   toggleImportCompteDefautBloc();
@@ -13936,6 +13996,7 @@ async function appliquerDetectionImport() {
   // c'est le tableau des correspondances qui s'ouvrira à la fin de la relecture.
   importDetectionProposee = true;
   document.getElementById("modale-detection").style.display = "none";
+  document.getElementById("modale-mots-cles").style.display = "none";
   document.body.classList.remove("modale-ouverte");
   detCourante = -1;
   importDetection = null;
@@ -14034,6 +14095,507 @@ async function proposerDetectionAvantCorrespondances() {
       detConfirmer(detCourante);
     } else if (e.key === "Escape") {
       fermerDetection();
+    }
+  });
+})();
+
+/* ---------- LE PARCOURS DE L'IMPORT ----------
+ *
+ * Un fichier qu'on importe traverse jusqu'à cinq écrans, TOUJOURS DANS CET ORDRE, chacun étant une
+ * fenêtre par-dessus la page :
+ *
+ *   1    les champs        : ce que contient chaque colonne (le tableau des colonnes) ;
+ *   1bis les mots-clés     : à quoi correspond chaque mot d'une colonne « Sens » ou « État » (seulement
+ *                            si le fichier en lit une - seuls les champs lus sont demandés) ;
+ *   2    les catégories    : à quelle catégorie de l'app correspond chacune de celles de la banque ;
+ *   3    le compte         : où va le relevé, quand ni le fichier ni le preset ne le disent ;
+ *   puis on quitte les fenêtres et on clique sur « Importer ».
+ *
+ * LE COMPTE VIENT EN DERNIER, après les champs et les catégories : choisi plus tôt, il relisait le fichier
+ * et rouvrait les tableaux déjà remplis (cf. `executerPrevisualisation({ conserver })`). Une étape sans
+ * objet (rien à mapper, compte déjà connu) est sautée ; le graphe en tête de chaque fenêtre dit où l'on en
+ * est : gris tant que l'étape n'est pas atteinte, vert à mesure qu'on avance.
+ */
+const PROPRIETES_A_MOTS_CLES = ["sens", "statut"];
+
+const ETAPES_IMPORT = [
+  { id: "champs", numero: "1", nom: "Champs" },
+  { id: "mots-cles", numero: "1bis", nom: "Mots-clés", optionnelle: true },
+  { id: "categories", numero: "2", nom: "Catégories" },
+  { id: "compte", numero: "3", nom: "Compte" },
+  { id: "importer", numero: "✓", nom: "Importer" },
+];
+
+const FLECHE_ETAPE_SVG =
+  '<svg viewBox="0 0 44 14" width="44" height="14" aria-hidden="true" focusable="false">' +
+  '<path d="M2 7h36M32 2l7 5-7 5" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** Le graphe d'une fenêtre : un rond par étape et une flèche entre deux. `courante` est l'étape que la
+ *  fenêtre montre ; celles d'avant sont faites, celles d'après restent grises. L'étape « mots-clés » n'est
+ *  dessinée que si le fichier en demande une. */
+function etapesImportHtml(courante) {
+  const visibles = ETAPES_IMPORT.filter(
+    (e) => !e.optionnelle || importParcours.motsCles || e.id === courante
+  );
+  const rang = visibles.findIndex((e) => e.id === courante);
+  const items = visibles.map((e, i) => {
+    const etat = i < rang ? "faite" : i === rang ? "courante" : "a-venir";
+    const fleche =
+      i < visibles.length - 1
+        ? `<li class="import-etape-fleche ${i < rang ? "import-etape-fleche-faite" : ""}" aria-hidden="true">${FLECHE_ETAPE_SVG}</li>`
+        : "";
+    return `<li class="import-etape import-etape-${etat}"${i === rang ? ' aria-current="step"' : ""}>
+      <span class="import-etape-rond">${escapeHtml(e.numero)}</span>
+      <span class="import-etape-nom">${escapeHtml(t(e.nom))}</span></li>${fleche}`;
+  });
+  return `<ol class="import-etapes-liste" aria-label="${escapeHtml(t("Étapes de l'import"))}">${items.join("")}</ol>`;
+}
+
+function majEtapesImport(idModale, courante) {
+  const zone = document.querySelector(`#${idModale} [data-import-etapes]`);
+  if (zone) zone.innerHTML = etapesImportHtml(courante);
+}
+
+/**
+ * Ce qui vient APRÈS une lecture du fichier : la détection des colonnes si le fichier est mal lu, sinon le
+ * tableau des catégories quand il en reste à classer, sinon le choix du compte. Chaque étape rend la main
+ * à la suivante en se fermant (cf. `fermerCorrespondances({ suite })`).
+ * PENDANT UN TUTORIEL, rien ne s'ouvre de lui-même : ouverts à chaque relecture, les tableaux cacheraient
+ * ce que la bulle désigne.
+ */
+async function ouvrirSuiteImport() {
+  if (tutorielEnCours() || !importApercu) return;
+  if (await proposerDetectionAvantCorrespondances()) return;
+  if (demandesDeMapping().categories.length) {
+    ouvrirCorrespondances({ chaine: true });
+    return;
+  }
+  ouvrirChoixCompteImport();
+}
+
+/* ---------- LES MOTS-CLÉS DU FICHIER (étape 1bis) ----------
+ *
+ * Une colonne « Sens » ou « État » n'écrit pas toujours les mots que l'application connaît d'avance : un
+ * export dit « IN » / « OUT », « COMPLETED » / « CANCELLED ». Le sens d'une ligne décide du signe de son
+ * montant, son état de ce qui est importé : se tromper inverse une dépense ou importe un paiement refusé.
+ * L'application ne devine donc jamais - elle propose (les mots qu'elle connaît sont en bleu), et demande,
+ * pour CHAQUE mot distinct que le fichier écrit, s'il veut dire Sortie / Entrée (sens) ou Exécuté / En
+ * attente / Refusé (état). Le même tableau à molettes que les colonnes et les catégories : une carte par
+ * mot, les mêmes touches, la même pastille.
+ *
+ * RIEN N'EST ENREGISTRÉ ICI. Les mots rejoignent les éditeurs de mots-clés du preset (là où
+ * « Enregistrer la configuration » les prend) et partent avec les colonnes à chaque lecture
+ * (`importVocabulairesEssai`) : le fichier est lu avec eux avant que le preset ne les garde.
+ */
+const MOTS_AUCUN = "aucun";
+let motsEntrees = [];
+let motsCourante = -1;
+const motsConfirmees = new Set();
+// Les colonnes et la détection de l'étape 1, pour reprendre où elle s'est arrêtée.
+let motsContexte = null;
+
+function motsOuvert() {
+  return document.getElementById("modale-mots-cles").style.display !== "none";
+}
+
+function motsClef(entree) {
+  return `${entree.champ}|${entree.colonne}|${entree.valeur}`;
+}
+
+/** Les mots à faire dire : un par valeur distincte de chaque colonne lue comme sens ou état. Une valeur que
+ *  les éditeurs portent déjà (preset enregistré) ou que l'application connaît arrive proposée. */
+function motsClesAMapper(detection, colonnes) {
+  const entrees = [];
+  colonnes
+    .filter((c) => PROPRIETES_A_MOTS_CLES.includes(c.propriete))
+    .forEach((c) => {
+      const source = detection.colonnes.find((x) => x.index === c.index);
+      if (!source || !source.valeurs || !source.valeurs.length) return;
+      const dits = motsClesSaisis(`import-${c.propriete}`);
+      source.valeurs.forEach((v) => {
+        const dejaDit = Object.keys(dits).find((mode) =>
+          (dits[mode] || []).some((m) => normaliserMotCle(m) === normaliserMotCle(v.valeur))
+        );
+        const propose = dejaDit || v[c.propriete] || null;
+        entrees.push({
+          champ: c.propriete,
+          colonne: c.index,
+          entete: source.entete,
+          valeur: v.valeur,
+          nombre: v.nombre,
+          propose,
+          choix: propose || MOTS_AUCUN,
+        });
+      });
+    });
+  return entrees;
+}
+
+function motsOptions(entree) {
+  const modes = Object.keys(CHAMPS_VOCABULAIRE[entree.champ].libelles);
+  if (!entree.propose) {
+    // Rien de proposé : on part de « Aucun », la lecture n'est jamais devinée.
+    return [MOTS_AUCUN, ...modes].map((id) => ({ id, niveau: "choix" }));
+  }
+  const ordre = [entree.propose, ...modes.filter((m) => m !== entree.propose), MOTS_AUCUN];
+  return ordre.map((id, rang) => ({ id, niveau: rang === 0 ? "forte" : "choix" }));
+}
+
+function motsLibelleOption(entree, id) {
+  return id === MOTS_AUCUN
+    ? t("Aucun (ligne à vérifier)")
+    : t(CHAMPS_VOCABULAIRE[entree.champ].libelles[id]);
+}
+
+function motsStatut(entree) {
+  if (entree.propose && entree.choix === entree.propose) {
+    return { cle: "forte", texte: t("Proposition forte") };
+  }
+  return {
+    cle: "choix",
+    texte: !entree.propose && entree.choix === MOTS_AUCUN ? t("À classer") : t("Ton choix"),
+  };
+}
+
+function motsCarteHtml(entree, i) {
+  const statut = motsStatut(entree);
+  const confirmee = motsConfirmees.has(motsClef(entree));
+  const champ = t(entree.champ === "sens" ? "Sens" : "État");
+  return `
+    <section class="corr-colonne ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
+      <div>
+        <div class="corr-banque" title="${escapeHtml(entree.valeur)}">${escapeHtml(entree.valeur)}</div>
+        <div class="hint">${escapeHtml(champ)} · ${escapeHtml(t("Colonne n°"))} ${entree.colonne}${
+    entree.entete ? ` · ${escapeHtml(entree.entete)}` : ""
+  }</div>
+        <div class="hint">${escapeHtml(t("{n} ligne(s)", { n: entree.nombre }))}</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0"
+             aria-label="${escapeHtml(t("Sens de « {mot} »", { mot: entree.valeur }))}">
+          ${motsOptions(entree)
+            .map(
+              (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+                o.id === entree.choix ? "corr-roue-choisie" : ""
+              }" role="option" data-id="${o.id}" aria-selected="${o.id === entree.choix}">${escapeHtml(
+                motsLibelleOption(entree, o.id)
+              )}</div>`
+            )
+            .join("")}
+        </div>
+      </div>
+      <div class="corr-actions">
+        <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
+    confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+  }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+      </div>
+    </section>`;
+}
+
+function motsDom(i) {
+  return document.querySelector(`#mots-cles-board [data-corr-i="${i}"]`);
+}
+
+function motsMajCompteur() {
+  const restantes = motsEntrees.filter((e) => !motsConfirmees.has(motsClef(e))).length;
+  document.getElementById("mots-cles-compteur").textContent = restantes
+    ? t("{n} mot(s) à confirmer", { n: restantes })
+    : t("Tout est confirmé.");
+  document.getElementById("btn-mots-cles-fortes").disabled = !motsEntrees.some(motsFortePrete);
+}
+
+function motsFortePrete(entree) {
+  return motsStatut(entree).cle === "forte" && !motsConfirmees.has(motsClef(entree));
+}
+
+function motsMajCarte(i, { defiler = false } = {}) {
+  const entree = motsEntrees[i];
+  const carte = motsDom(i);
+  if (!carte) return;
+  const confirmee = motsConfirmees.has(motsClef(entree));
+  carte.classList.toggle("corr-confirmee", confirmee);
+  carte.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+  carte.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = o.dataset.id === entree.choix;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  const statut = motsStatut(entree);
+  const pastille = carte.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  if (defiler) motsCentrerRoue(i, true);
+}
+
+function motsCentrerRoue(i, doux) {
+  const carte = motsDom(i);
+  if (!carte) return;
+  const roue = carte.querySelector(".corr-roue");
+  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
+}
+
+function motsDefinirCourante(i, { focus = false } = {}) {
+  motsCourante = i;
+  document
+    .querySelectorAll("#mots-cles-board .corr-colonne")
+    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
+  const carte = motsDom(i);
+  if (!carte) return;
+  carte.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  if (focus) carte.querySelector(".corr-roue").focus({ preventScroll: true });
+}
+
+/** Choisit le sens du mot de la carte `i` : redemande une confirmation. */
+function motsChoisir(i, id, { defiler = true } = {}) {
+  const entree = motsEntrees[i];
+  if (id !== entree.choix) {
+    entree.choix = id;
+    motsConfirmees.delete(motsClef(entree));
+  }
+  motsMajCarte(i, { defiler });
+  motsMajCompteur();
+}
+
+function motsProchaineNonConfirmee(apres) {
+  const non = (e) => !motsConfirmees.has(motsClef(e));
+  const suivante = motsEntrees.findIndex((e, k) => k > apres && non(e));
+  return suivante !== -1 ? suivante : motsEntrees.findIndex(non);
+}
+
+function motsConfirmer(i) {
+  if (i < 0 || i >= motsEntrees.length) return;
+  motsConfirmees.add(motsClef(motsEntrees[i]));
+  motsMajCarte(i);
+  motsMajCompteur();
+  const cible = motsProchaineNonConfirmee(i);
+  if (cible === -1) {
+    motsDefinirCourante(i);
+    document.getElementById("btn-mots-cles-continuer").focus();
+    return;
+  }
+  motsDefinirCourante(cible, { focus: true });
+}
+
+function motsConfirmerFortes() {
+  motsEntrees.forEach((entree, i) => {
+    if (!motsFortePrete(entree)) return;
+    motsConfirmees.add(motsClef(entree));
+    motsMajCarte(i);
+  });
+  motsMajCompteur();
+  const premiere = motsProchaineNonConfirmee(-1);
+  if (premiere !== -1) motsDefinirCourante(premiere, { focus: true });
+}
+
+function ouvrirMotsCles(detection, colonnes, entrees) {
+  motsContexte = { detection, colonnes };
+  motsEntrees = entrees;
+  motsConfirmees.clear();
+  // Le tableau des colonnes se range derrière : « Retour aux colonnes » le rouvre tel qu'on l'a laissé.
+  document.getElementById("modale-detection").style.display = "none";
+  majEtapesImport("modale-mots-cles", "mots-cles");
+  document.getElementById("mots-cles-board").innerHTML = motsEntrees
+    .map((entree, i) => motsCarteHtml(entree, i))
+    .join("");
+  motsEntrees.forEach((_, i) => motsCentrerRoue(i, false));
+  motsMajCompteur();
+  majAideFleches();
+  document.getElementById("modale-mots-cles").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  motsDefinirCourante(Math.max(0, motsProchaineNonConfirmee(-1)), { focus: true });
+}
+
+/** Retour au tableau des colonnes, laissé tel quel (les mots restent dans la carte, rien n'est perdu). */
+function retourMotsClesVersColonnes() {
+  document.getElementById("modale-mots-cles").style.display = "none";
+  document.getElementById("modale-detection").style.display = "";
+  motsCourante = -1;
+  detDefinirCourante(Math.max(0, detCourante), { focus: true });
+}
+
+/** La croix : on abandonne l'import des colonnes, comme en fermant le tableau des colonnes. */
+function fermerMotsCles() {
+  document.getElementById("modale-mots-cles").style.display = "none";
+  motsCourante = -1;
+  motsContexte = null;
+  fermerDetection();
+}
+
+/** Range les mots dits dans les éditeurs du preset - sans toucher à ceux que le fichier ne cite pas, sauf
+ *  pour ceux qu'il redit autrement - et les rend pour la lecture qui suit. */
+function fusionnerMotsCles(idGroupe, nouveaux, retires = []) {
+  const existants = motsClesSaisis(idGroupe);
+  // Les mots que le fichier redit (rangés ailleurs ou laissés à « Aucun ») quittent leur ancienne liste.
+  const redits = new Set(retires.map(normaliserMotCle));
+  Object.values(nouveaux).forEach((mots) => mots.forEach((m) => redits.add(normaliserMotCle(m))));
+  const fusion = {};
+  Object.keys(nouveaux).forEach((cle) => {
+    const gardes = (existants[cle] || []).filter((m) => !redits.has(normaliserMotCle(m)));
+    fusion[cle] = [...gardes, ...nouveaux[cle]];
+  });
+  chargerMotsCles(idGroupe, fusion);
+}
+
+async function validerMotsCles() {
+  if (!motsContexte) return;
+  const { detection, colonnes } = motsContexte;
+  // Ce que les éditeurs portaient AVANT l'étape, gardé une fois pour le leur rendre au changement de fichier.
+  if (!importVocabulairesAvant) importVocabulairesAvant = vocabulairesSaisis();
+  PROPRIETES_A_MOTS_CLES.forEach((champ) => {
+    const lus = motsEntrees.filter((e) => e.champ === champ);
+    if (!lus.length) return;
+    const nouveaux = {};
+    Object.keys(CHAMPS_VOCABULAIRE[champ].libelles).forEach((mode) => (nouveaux[mode] = []));
+    lus.forEach((e) => {
+      if (e.choix !== MOTS_AUCUN) nouveaux[e.choix].push(e.valeur);
+    });
+    // Un mot laissé à « Aucun » sort des listes : la ligne qui le porte se met en erreur plutôt que d'être devinée.
+    const aucun = lus.filter((e) => e.choix === MOTS_AUCUN).map((e) => e.valeur);
+    fusionnerMotsCles(`import-${champ}`, nouveaux, aucun);
+  });
+  importVocabulairesEssai = vocabulairesSaisis();
+  motsContexte = null;
+  document.getElementById("modale-mots-cles").style.display = "none";
+  await finaliserDetectionImport(detection, colonnes);
+}
+
+/** Rend aux éditeurs de mots-clés ce qu'ils portaient avant l'étape (changement de fichier). */
+function restaurerVocabulairesImport() {
+  const avant = importVocabulairesAvant;
+  if (!avant) return;
+  renderImportVocabulaires(avant);
+}
+
+(function initMotsCles() {
+  document.getElementById("btn-mots-cles-fermer").addEventListener("click", fermerMotsCles);
+  document.getElementById("btn-mots-cles-retour").addEventListener("click", retourMotsClesVersColonnes);
+  document.getElementById("btn-mots-cles-fortes").addEventListener("click", motsConfirmerFortes);
+  document.getElementById("btn-mots-cles-continuer").addEventListener("click", validerMotsCles);
+  brancherMolettes(document.getElementById("mots-cles-board"), {
+    courante: () => motsCourante,
+    definirCourante: motsDefinirCourante,
+    choisir: (i, id, options) => motsChoisir(i, id, options),
+    valeur: (i) => motsEntrees[i].choix,
+    nombre: () => motsEntrees.length,
+    confirmer: motsConfirmer,
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!motsOuvert()) return;
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
+      e.preventDefault();
+      motsConfirmer(motsCourante);
+    } else if (e.key === "Escape") {
+      fermerMotsCles();
+    }
+  });
+})();
+
+/* ---------- LE COMPTE DE L'IMPORT (étape 3) ----------
+ *
+ * La dernière question avant l'aperçu : où vont les opérations ? Deux cas, qui peuvent se cumuler - le
+ * fichier ne nomme AUCUN compte et le preset n'est lié à aucun (un compte « pour ce fichier »), ou il nomme
+ * des comptes que l'application ne connaît pas (à rattacher un par un). Une fenêtre à part, ouverte
+ * APRÈS les champs et les catégories : le compte choisi relit le fichier SANS rien défaire (cf.
+ * `executerPrevisualisation({ conserver })`) et ne rouvre aucun tableau. */
+function compteImportBesoins() {
+  const blocDefaut = document.getElementById("import-compte-defaut-bloc");
+  return {
+    defaut: blocDefaut.style.display !== "none" && !document.getElementById("import-compte-defaut").value,
+    noms: demandesDeMapping().comptes,
+  };
+}
+
+function compteImportOuvert() {
+  return document.getElementById("modale-compte-import").style.display !== "none";
+}
+
+/** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. */
+function ouvrirChoixCompteImport() {
+  if (importCompteDemande || tutorielEnCours() || !importApercu) return false;
+  if (!comptesProposables().length) return false;
+  const { defaut, noms } = compteImportBesoins();
+  if (!defaut && !noms.length) return false;
+  importCompteDemande = true;
+
+  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
+  blocDefaut.style.display = defaut ? "" : "none";
+  if (defaut) {
+    const choix = document.getElementById("compte-import-defaut");
+    fillComptesSelect(choix, comptesProposables(), { keepFirst: true });
+    choix.value = "";
+  }
+  document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
+  document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
+  const liste = document.getElementById("compte-import-mappings");
+  liste.innerHTML = "";
+  noms.forEach((nomBanque) => {
+    liste.appendChild(
+      creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, () => {
+        appliquerMappingsLocalement();
+        renderImportApercu();
+      })
+    );
+  });
+  document.getElementById("compte-import-erreur").style.display = "none";
+  majEtapesImport("modale-compte-import", "compte");
+  document.getElementById("modale-compte-import").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  const premier = defaut ? document.getElementById("compte-import-defaut") : liste.querySelector("select");
+  if (premier) premier.focus();
+  return true;
+}
+
+function fermerChoixCompteImport() {
+  document.getElementById("modale-compte-import").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+}
+
+async function validerChoixCompteImport() {
+  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
+  const erreur = document.getElementById("compte-import-erreur");
+  const choix = document.getElementById("compte-import-defaut");
+  const defautDemande = blocDefaut.style.display !== "none";
+  if (defautDemande && !choix.value) {
+    erreur.textContent = t("Choisis le compte où vont les opérations de ce relevé.");
+    erreur.style.display = "";
+    choix.focus();
+    return;
+  }
+  const sansCompte = compteImportBesoins().noms.filter((nom) => !importMappingComptes[nom]);
+  if (sansCompte.length) {
+    erreur.textContent = t("Choisis un compte pour chaque nom du relevé, ou reviens-y plus tard.");
+    erreur.style.display = "";
+    return;
+  }
+  fermerChoixCompteImport();
+  if (defautDemande) {
+    // Le compte « pour ce fichier » de la page est la seule mémoire : l'aperçu et la confirmation le lisent.
+    document.getElementById("import-compte-defaut").value = choix.value;
+    await executerPrevisualisation({ conserver: true });
+  } else {
+    appliquerMappingsLocalement();
+    renderImportApercu();
+  }
+}
+
+(function initCompteImport() {
+  document.getElementById("btn-compte-import-fermer").addEventListener("click", fermerChoixCompteImport);
+  document.getElementById("btn-compte-import-plus-tard").addEventListener("click", fermerChoixCompteImport);
+  document.getElementById("btn-compte-import-valider").addEventListener("click", validerChoixCompteImport);
+  // Changer le compte dans la page relit le fichier SANS rien défaire (et sans rouvrir de tableau).
+  document.getElementById("import-compte-defaut").addEventListener("change", async () => {
+    if (!importFichierActuel || !importApercu || !document.getElementById("import-compte-defaut").value) return;
+    await executerPrevisualisation({ conserver: true });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!compteImportOuvert()) return;
+    if (e.key === "Escape") fermerChoixCompteImport();
+    else if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+      e.preventDefault();
+      validerChoixCompteImport();
     }
   });
 })();
@@ -14645,6 +15207,12 @@ function appliquerMappingsLocalement() {
 const CORR_HAUTEUR_OPTION = 30;
 let corrNoms = [];
 let corrCourante = -1;
+// Les catégories créées depuis l'encadré « Crée la tienne » pendant CE fichier : elles s'affichent en
+// violet et en tête de la molette de chaque carte, sans jamais devenir la proposition de personne.
+const corrNouvelles = new Set();
+// Le tableau a été ouvert par le parcours (cf. `ouvrirSuiteImport`) : le fermer proprement rend la main à
+// l'étape suivante, le compte. Ouvert à la main depuis la page, il ne chaîne rien.
+let corrChaine = false;
 
 function corrOuvert() {
   return document.getElementById("modale-correspondances").style.display !== "none";
@@ -14675,12 +15243,19 @@ function corrOptions(nom) {
     })
     .filter(Boolean);
   const choisie = corrValeur(nom);
-  const autres = categoriesProposables(choisie)
-    .filter((c) => !ids.has(c.id))
+  const disponibles = categoriesProposables(choisie);
+  // LES CATÉGORIES QU'ON VIENT DE CRÉER passent devant tout le reste, en violet, sur chaque carte : à un
+  // cran de la proposition, jamais à sa place - qui n'en veut pas pour cette carte n'a rien à écarter.
+  // (Une catégorie créée que le serveur propose déjà reste une proposition.)
+  const nouvelles = disponibles
+    .filter((c) => corrNouvelles.has(c.id) && !ids.has(c.id))
+    .map((c) => ({ id: c.id, nom: c.nom, niveau: "nouvelle" }));
+  const autres = disponibles
+    .filter((c) => !ids.has(c.id) && !corrNouvelles.has(c.id))
     .map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" }))
     // La catégorie déjà choisie ouvre « Ton choix » : sans proposition, c'est elle qu'on voit en haut.
     .sort((a, b) => (b.id === choisie) - (a.id === choisie));
-  return [...proposees, ...autres];
+  return [...nouvelles, ...proposees, ...autres];
 }
 
 // Les colonnes dont la catégorie a été choisie À LA MAIN dans ce fichier : le tableau ne les remet
@@ -14693,8 +15268,9 @@ function corrRepartirDuHaut() {
   corrNoms.forEach((nom) => {
     if (corrChoixManuels.has(nom) || importCategoriesConfirmees.has(nom)) return;
     if (!corrPropositions(nom).propositions.length) return;
-    const premiere = corrOptions(nom)[0];
-    if (premiere && premiere.niveau !== "choix") importMappingCategories[nom] = premiere.id;
+    // La proposition de l'app, jamais une catégorie créée en route (violette, en tête de molette).
+    const premiere = corrOptions(nom).find((o) => o.niveau === "forte" || o.niveau === "suggestion");
+    if (premiere) importMappingCategories[nom] = premiere.id;
   });
 }
 
@@ -14744,8 +15320,14 @@ function corrOperationsHtml(nom) {
  * rien à offrir - et l'utilisateur d'une base neuve, qui n'en a que deux ou trois, s'y trouve dès le
  * premier relevé. Un encadré violet en pointillés, sous la molette, le dit et déplie de quoi la créer
  * sur place : un nom, la case « Entrées d'argent » (elle ne s'oublie pas : une entrée classée comme une
- * dépense gonfle les sorties), et un bouton. La catégorie créée devient le choix de CETTE colonne. */
-function corrCreerHtml(i) {
+ * dépense gonfle les sorties), et un bouton.
+ *
+ * UN SEUL ENCADRÉ, AU-DESSUS DE TOUTES LES CARTES, AU CENTRE : posé sur chaque carte, il se répétait autant
+ * de fois qu'il y a de catégories de la banque. La catégorie créée n'est le choix de PERSONNE : elle rejoint
+ * la molette de chaque carte, en violet et en tête de liste (`corrNouvelles`, cf. `corrOptions`), à un cran
+ * de la proposition de l'app - qui reste celle qu'elle était. Qui veut la nouvelle sur la carte courante la
+ * choisit d'un cran ; qui n'en veut pas ne l'écarte pas à chaque carte suivante. */
+function corrCreerCentralHtml() {
   return `
       <details class="corr-creer" data-corr-creer>
         <summary>${escapeHtml(t("Aucune catégorie ne correspond ? Crée la tienne"))}</summary>
@@ -14758,20 +15340,25 @@ function corrCreerHtml(i) {
             <span>${escapeHtml(t("Entrées d'argent"))}<i class="info-bulle" tabindex="0"
               data-info="${escapeHtml(t(texteAide("noyau.categorie-entree")))}">i</i></span>
           </label>
-          <button type="button" class="primary" data-corr-creer-valider="${i}">${escapeHtml(
-            t("Créer et choisir")
+          <button type="button" class="primary" data-corr-creer-valider>${escapeHtml(
+            t("Créer la catégorie")
           )}</button>
           <p class="import-avertissement" data-corr-creer-erreur style="display:none"></p>
         </div>
       </details>`;
 }
 
-async function corrCreerCategorie(i) {
-  const colonne = corrColonne(i);
-  if (!colonne) return;
-  const champ = colonne.querySelector("[data-corr-creer-nom]");
-  const entree = colonne.querySelector("[data-corr-creer-entree]").checked;
-  const erreur = colonne.querySelector("[data-corr-creer-erreur]");
+/** L'encadré est posé UNE fois à l'ouverture et survit aux redessins du tableau (ce qu'on y a saisi ne se perd pas). */
+function corrPoserCreerCentral() {
+  const zone = document.getElementById("correspondances-creer");
+  if (!zone.firstElementChild) zone.innerHTML = corrCreerCentralHtml();
+}
+
+async function corrCreerCategorie() {
+  const zone = document.getElementById("correspondances-creer");
+  const champ = zone.querySelector("[data-corr-creer-nom]");
+  const entree = zone.querySelector("[data-corr-creer-entree]");
+  const erreur = zone.querySelector("[data-corr-creer-erreur]");
   const nom = champ.value.trim();
   erreur.style.display = "none";
   if (!nom) {
@@ -14781,13 +15368,15 @@ async function corrCreerCategorie(i) {
     return;
   }
   try {
-    const categorie = await creerCategorieEtDrapeau(nom, entree);
-    const banque = corrNoms[i];
-    importMappingCategories[banque] = categorie.id;
-    corrChoixManuels.add(banque);
-    importCategoriesConfirmees.delete(banque);
+    const categorie = await creerCategorieEtDrapeau(nom, entree.checked);
+    corrNouvelles.add(categorie.id);
+    champ.value = "";
+    entree.checked = false;
+    zone.querySelector("details[data-corr-creer]").open = false;
+    // Le tableau se redessine, la carte courante reste la courante : sa molette montre la nouvelle en tête.
+    const courante = corrCourante;
     renderCorrespondances();
-    corrDefinirCourante(i, { focus: true });
+    corrDefinirCourante(Math.max(0, courante), { focus: true });
     showMessage(t("Catégorie créée"), "success");
   } catch (err) {
     erreur.textContent = traduireMessageServeur(err.message);
@@ -14822,7 +15411,6 @@ function corrColonneHtml(nom, i) {
             .join("")}
         </div>
       </div>
-      ${corrCreerHtml(i)}
       <div class="corr-operations">${corrOperationsHtml(nom)}</div>
       <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
         confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
@@ -14942,7 +15530,7 @@ function corrConfirmer(i) {
   const cible = corrProchaineNonConfirmee(i);
   if (cible === -1) {
     showMessage(t("Toutes les correspondances sont confirmées."), "success");
-    fermerCorrespondances();
+    fermerCorrespondances({ suite: true });
     return;
   }
   corrDefinirCourante(cible, { focus: true });
@@ -14959,7 +15547,7 @@ function corrConfirmerFortes() {
   const premiere = corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n));
   if (premiere === -1) {
     showMessage(t("Toutes les correspondances sont confirmées."), "success");
-    fermerCorrespondances();
+    fermerCorrespondances({ suite: true });
   } else {
     corrDefinirCourante(premiere, { focus: true });
   }
@@ -14977,23 +15565,34 @@ function majAideFleches() {
   });
 }
 
-function ouvrirCorrespondances() {
+/** `chaine` : ouvert par le parcours de l'import (cf. `ouvrirSuiteImport`) - le fermer en l'ayant TERMINÉ
+ *  (tout confirmé, « Terminer ») ouvre l'étape suivante, le compte. Depuis le bouton de la page, rien
+ *  ne s'enchaîne. */
+function ouvrirCorrespondances({ chaine = false } = {}) {
   if (!importApercu || !demandesDeMapping().categories.length) return;
+  corrChaine = chaine === true;
   // Les menus de la page sèment `importMappingCategories` depuis les propositions du serveur.
   renderImportMappings();
+  corrPoserCreerCentral();
   renderCorrespondances();
   majAideFleches();
+  majEtapesImport("modale-correspondances", "categories");
   document.getElementById("modale-correspondances").style.display = "";
   document.body.classList.add("modale-ouverte");
   const premiere = Math.max(0, corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n)));
   corrDefinirCourante(premiere, { focus: true });
 }
 
-function fermerCorrespondances() {
+/** `suite` : le tableau est TERMINÉ (et non abandonné par la croix ou Échap) ; s'il a été ouvert par le
+ *  parcours de l'import, l'étape suivante s'ouvre - le choix du compte. */
+function fermerCorrespondances({ suite = false } = {}) {
   document.getElementById("modale-correspondances").style.display = "none";
   document.body.classList.remove("modale-ouverte");
   corrCourante = -1;
   if (importApercu) corrAppliquer();
+  const chaine = corrChaine;
+  corrChaine = false;
+  if (suite === true && chaine) ouvrirChoixCompteImport();
 }
 
 /** Le rang de l'option permise la plus proche de `rang` en allant dans le sens `sens` (+1 vers le bas,
@@ -15107,7 +15706,9 @@ function brancherMolettes(board, h) {
 (function initCorrespondances() {
   document.getElementById("btn-import-correspondances").addEventListener("click", ouvrirCorrespondances);
   document.getElementById("btn-correspondances-fermer").addEventListener("click", fermerCorrespondances);
-  document.getElementById("btn-correspondances-terminer").addEventListener("click", fermerCorrespondances);
+  document
+    .getElementById("btn-correspondances-terminer")
+    .addEventListener("click", () => fermerCorrespondances({ suite: true }));
   document.getElementById("btn-correspondances-fortes").addEventListener("click", corrConfirmerFortes);
 
   brancherMolettes(document.getElementById("correspondances-board"), {
@@ -15119,13 +15720,13 @@ function brancherMolettes(board, h) {
     confirmer: corrConfirmer,
   });
 
-  // L'ENCADRÉ « CRÉER LA TIENNE » : un clic sur son bouton crée ; ouvrir le repli met le curseur dans le nom.
-  const tableau = document.getElementById("correspondances-board");
-  tableau.addEventListener("click", (e) => {
-    const bouton = e.target.closest("[data-corr-creer-valider]");
-    if (bouton) corrCreerCategorie(Number(bouton.dataset.corrCreerValider));
+  // L'ENCADRÉ « CRÉER LA TIENNE » (un seul, au-dessus des cartes) : un clic sur son bouton crée ; ouvrir le
+  // repli met le curseur dans le nom.
+  const encadre = document.getElementById("correspondances-creer");
+  encadre.addEventListener("click", (e) => {
+    if (e.target.closest("[data-corr-creer-valider]")) corrCreerCategorie();
   });
-  tableau.addEventListener(
+  encadre.addEventListener(
     "toggle",
     (e) => {
       if (e.target.matches && e.target.matches("details[data-corr-creer]") && e.target.open) {
@@ -15136,7 +15737,7 @@ function brancherMolettes(board, h) {
   );
   // Dans l'encadré, les touches du tableau n'ont rien à faire : Entrée (ou la touche de confirmation) crée,
   // Échap replie l'encadré SANS fermer le tableau.
-  tableau.addEventListener("keydown", (e) => {
+  encadre.addEventListener("keydown", (e) => {
     const zone = e.target.closest && e.target.closest("[data-corr-creer]");
     if (!zone) return;
     const combo = comboEvenementImport(e);
@@ -15146,7 +15747,7 @@ function brancherMolettes(board, h) {
     } else if (e.key === "Enter" || combo === toucheImport("confirmer")) {
       e.preventDefault();
       e.stopPropagation();
-      corrCreerCategorie(Number(zone.closest("[data-corr-i]").dataset.corrI));
+      corrCreerCategorie();
     } else {
       e.stopPropagation();
     }

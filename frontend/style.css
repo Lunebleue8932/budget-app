@@ -7580,3 +7580,138 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
+
+/* ---------- LE PARCOURS DE L'IMPORT : le graphe des étapes, en tête de chaque fenêtre ----------
+ *
+ * Un rond par étape (1, 1bis, 2, 3, puis « Importer ») et une flèche entre deux. GRIS par défaut ; VERT à
+ * mesure qu'on avance : les étapes faites, et celle que la fenêtre montre (cernée d'un halo). L'étape
+ * « mots-clés » n'est dessinée que lorsque le fichier en demande une. */
+.import-etapes {
+  margin: 0.15rem 0 0.75rem;
+}
+
+.import-etapes:empty {
+  display: none;
+}
+
+.import-etapes-liste {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.4rem;
+  margin: 0;
+  padding: 0;
+}
+
+.import-etape {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.import-etape-rond {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  transition: background 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s;
+}
+
+.import-etape-faite,
+.import-etape-courante {
+  color: var(--text-primary);
+}
+
+.import-etape-faite .import-etape-rond,
+.import-etape-courante .import-etape-rond {
+  background: var(--success-text);
+  border-color: var(--success-text);
+  color: var(--bg-surface);
+}
+
+.import-etape-courante .import-etape-rond {
+  box-shadow: 0 0 0 4px var(--success-bg);
+}
+
+.import-etape-courante .import-etape-nom {
+  font-weight: 600;
+}
+
+.import-etape-fleche {
+  display: flex;
+  align-items: center;
+  color: var(--border);
+  transition: color 0.25s;
+}
+
+.import-etape-fleche-faite {
+  color: var(--success-text);
+}
+
+@media (max-width: 640px) {
+  .import-etape-nom {
+    display: none;
+  }
+  .import-etape-courante .import-etape-nom {
+    display: inline;
+  }
+}
+
+/* L'encadré « Crée la tienne » du tableau des catégories : un seul, au centre, au-dessus des cartes. */
+.corr-creer-central {
+  align-self: center;
+  width: min(100%, 27rem);
+  margin: 0 auto 0.7rem;
+}
+
+.corr-creer-central:empty {
+  display: none;
+}
+
+/* Une catégorie créée en route : violette et en tête de la molette de chaque carte (comme l'encadré qui la
+   crée). Après `-choisie` pour l'emporter, comme les autres couleurs de la molette. */
+.corr-roue-option.corr-roue-nouvelle {
+  color: var(--violet-creer);
+}
+
+/* L'étape 3 : le compte, dans sa propre fenêtre. */
+.modale.modale-compte-import {
+  max-width: 44rem;
+  width: min(96vw, 44rem);
+}
+
+.modale-compte-import .import-compte-defaut-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.9rem;
+}
+
+.modale-compte-import .import-compte-defaut-bloc label {
+  text-align: left;
+}
+
+.modale-compte-import .import-compte-defaut-bloc select {
+  width: 100%;
+}
+
+.import-mappings-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.9rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}

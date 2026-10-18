@@ -4760,3 +4760,34 @@ Object.assign(TRADUCTIONS.en, {
   "— choisir —": "— choose —",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : créer sur place
+
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import (graphe d'étapes, mots-clés, compte)
+Object.assign(TRADUCTIONS.en, {
+  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.":
+    "Your file writes its own words in the “Direction” and “Status” columns. For each one, say what it means: the direction decides the sign of the amount, the status what gets imported. // A word left on /bold(None) puts its line in error, rather than being guessed.",
+  "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.":
+    "Only the fields you read in your file appear here. The words the application already knows are suggested in blue. Nothing is saved to your preset until you use the save button.",
+  "Ton fichier ne dit pas de quel compte il vient. Choisis celui qui reçoit ses opérations : le fichier est relu dans la foulée, sans rien défaire de tes choix.":
+    "Your file doesn't say which account it comes from. Choose the one that receives its transactions: the file is read again right away, without undoing any of your choices.",
+  "Ton fichier nomme des comptes que l'application ne connaît pas encore. Pour chacun, choisis le compte qui lui correspond : ce choix est retenu pour tes prochains relevés.":
+    "Your file names accounts the application doesn't know yet. For each one, choose the matching account: this choice is remembered for your next statements.",
+  "Ton fichier écrit ses propres mots pour le sens ou l'état d'une opération (IN, OUT, COMPLETED…). Pour chacun, dis ce qu'il veut dire. // Les mots que l'app connaît déjà sont proposés en bleu. /bold(Continuer) relit le fichier avec eux.":
+    "Your file writes its own words for the direction or status of a transaction (IN, OUT, COMPLETED…). For each one, say what it means. // The words the app already knows are suggested in blue. /bold(Continue) reads the file again with them.",
+  "Étapes de l'import": "Import steps",
+  "Champs": "Fields",
+  "Importer": "Import",
+  "Ce que veulent dire les mots du fichier": "What the words in the file mean",
+  "Dis ce que veulent dire les mots du fichier": "Say what the words in the file mean",
+  "Retour aux colonnes": "Back to columns",
+  "Continuer": "Continue",
+  "Dans quel compte va ce relevé ?": "Which account does this statement go to?",
+  "Valider le compte": "Confirm the account",
+  "Compte pour ce fichier": "Account for this file",
+  "Aucun (ligne à vérifier)": "None (line to check)",
+  "{n} ligne(s)": "{n} line(s)",
+  "Sens de « {mot} »": "Direction of “{mot}”",
+  "{n} mot(s) à confirmer": "{n} word(s) to confirm",
+  "Choisis le compte où vont les opérations de ce relevé.": "Choose the account where this statement's transactions go.",
+  "Choisis un compte pour chaque nom du relevé, ou reviens-y plus tard.": "Choose an account for each name in the statement, or come back to it later.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import

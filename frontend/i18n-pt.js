@@ -3985,3 +3985,34 @@ Object.assign(TRADUCTIONS.pt, {
   "— choisir —": "— escolher —",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : créer sur place
+
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import (graphe d'étapes, mots-clés, compte)
+Object.assign(TRADUCTIONS.pt, {
+  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.":
+    "Seu arquivo escreve suas próprias palavras nas colunas “Sentido” e “Estado”. Para cada uma, diga o que ela significa: o sentido decide o sinal do valor, o estado o que é importado. // Uma palavra deixada em /bold(Nenhum) coloca a linha em erro, em vez de ser adivinhada.",
+  "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.":
+    "Só aparecem aqui os campos que você lê no seu arquivo. As palavras que o aplicativo já conhece são sugeridas em azul. Nada é salvo no seu preset enquanto você não usar o botão de salvar.",
+  "Ton fichier ne dit pas de quel compte il vient. Choisis celui qui reçoit ses opérations : le fichier est relu dans la foulée, sans rien défaire de tes choix.":
+    "Seu arquivo não diz de qual conta ele vem. Escolha a que recebe suas operações: o arquivo é relido em seguida, sem desfazer nenhuma das suas escolhas.",
+  "Ton fichier nomme des comptes que l'application ne connaît pas encore. Pour chacun, choisis le compte qui lui correspond : ce choix est retenu pour tes prochains relevés.":
+    "Seu arquivo cita contas que o aplicativo ainda não conhece. Para cada uma, escolha a conta correspondente: essa escolha é lembrada nos seus próximos extratos.",
+  "Ton fichier écrit ses propres mots pour le sens ou l'état d'une opération (IN, OUT, COMPLETED…). Pour chacun, dis ce qu'il veut dire. // Les mots que l'app connaît déjà sont proposés en bleu. /bold(Continuer) relit le fichier avec eux.":
+    "Seu arquivo escreve suas próprias palavras para o sentido ou o estado de uma operação (IN, OUT, COMPLETED…). Para cada uma, diga o que ela significa. // As palavras que o app já conhece são sugeridas em azul. /bold(Continuar) relê o arquivo com elas.",
+  "Étapes de l'import": "Etapas da importação",
+  "Champs": "Campos",
+  "Importer": "Importar",
+  "Ce que veulent dire les mots du fichier": "O que significam as palavras do arquivo",
+  "Dis ce que veulent dire les mots du fichier": "Diga o que significam as palavras do arquivo",
+  "Retour aux colonnes": "Voltar às colunas",
+  "Continuer": "Continuar",
+  "Dans quel compte va ce relevé ?": "Para qual conta vai este extrato?",
+  "Valider le compte": "Confirmar a conta",
+  "Compte pour ce fichier": "Conta para este arquivo",
+  "Aucun (ligne à vérifier)": "Nenhum (linha a verificar)",
+  "{n} ligne(s)": "{n} linha(s)",
+  "Sens de « {mot} »": "Sentido de “{mot}”",
+  "{n} mot(s) à confirmer": "{n} palavra(s) a confirmar",
+  "Choisis le compte où vont les opérations de ce relevé.": "Escolha a conta para onde vão as operações deste extrato.",
+  "Choisis un compte pour chaque nom du relevé, ou reviens-y plus tard.": "Escolha uma conta para cada nome do extrato, ou volte a isso depois.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import
