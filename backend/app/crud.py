@@ -208,6 +208,46 @@ def _prochain_couleur_index(db: Session) -> int:
     return index
 
 
+# LES POSTES QU'UNE BASE NEUVE REÇOIT (cf. migration 0064, dont c'est la même liste), avec leur drapeau
+# « catégorie d'entrée ». « Autres » est protégée et déjà là.
+CATEGORIES_BASE_NEUVE = [
+    ("Alimentaire", False),
+    ("Loisirs", False),
+    ("Transports", False),
+    ("Charges fixes", False),
+    (CATEGORIE_ENTREES_ARGENT, True),
+]
+
+
+def poser_categories_par_defaut_base_neuve(db: Session) -> list[str]:
+    """Pose les catégories d'orientation qui manquent à une base NEUVE, et rend leurs noms.
+
+    POURQUOI ELLE EXISTE. La migration 0064 ne les pose qu'à la création du schéma, et une base qui
+    n'a pas suivi ce chemin (un fichier rouvert qui date d'avant elle, un premier essai) s'ouvre sur
+    « Autres » et une ou deux catégories seulement : devant un premier import, la molette des
+    catégories n'a alors presque rien à proposer.
+
+    LA MÊME PRUDENCE QUE LA 0064 : une base n'est neuve que sans AUCUNE opération et sans rien d'autre
+    que « Autres » et « Alimentaire » - la seule autre catégorie que la 0061 laisse parfois derrière
+    elle. Une catégorie qu'on a composée à la main, ou une base qui a déjà servi, ne reçoit rien : la
+    liste de quelqu'un qui a supprimé les siennes exprès n'est pas à lui rendre. Ne pose jamais un nom
+    déjà pris (`categorie.nom` est unique)."""
+    if db.query(func.count(models.Operation.id)).scalar():
+        return []
+    noms = {c.nom for c in get_categories(db)}
+    if noms - {"Autres", "Alimentaire"}:
+        return []
+    ajoutees = []
+    for nom, est_entree in CATEGORIES_BASE_NEUVE:
+        if nom in noms:
+            continue
+        categorie = create_categorie(db, schemas.CategorieCreate(nom=nom))
+        if est_entree:
+            set_categorie_est_entree(db, categorie, True)
+        ajoutees.append(nom)
+    return ajoutees
+
+
 def create_categorie(db: Session, categorie: schemas.CategorieCreate) -> models.Categorie:
     ordre_max = db.query(func.max(models.Categorie.ordre)).scalar() or 0
     db_categorie = models.Categorie(

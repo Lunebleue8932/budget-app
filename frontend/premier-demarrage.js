@@ -326,6 +326,16 @@ function guideRelireAuChoixDuCompte() {
 async function guideImport() {
   // Relancé depuis la barre latérale en pleine visite : on repart de zéro plutôt que d'empiler deux lectures.
   arreterGuide();
+  // LES CATÉGORIES D'ORIENTATION D'UNE BASE NEUVE : une base qui s'ouvre sur « Autres » et une ou deux
+  // catégories seulement (un fichier rouvert, un premier essai) reçoit les postes livrés, pour que le
+  // tableau des catégories de la banque ait de quoi proposer. Le serveur ne touche jamais une base qui a
+  // déjà servi ; un échec ne bloque rien.
+  try {
+    const { ajoutees } = await apiFetch("/categories/defauts-base-neuve", { method: "POST" });
+    if (ajoutees.length) await refreshCategories();
+  } catch (err) {
+    /* Le guide continue avec les catégories qu'il y a. */
+  }
   // Un compte d'abord : sans lui, un relevé n'a nulle part où aller.
   if (!(state.comptes || []).length) {
     if (!(await guideDemanderCompte())) return;

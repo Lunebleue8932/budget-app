@@ -22,6 +22,13 @@ def create_categorie(categorie: schemas.CategorieCreate, db: Session = Depends(g
     return crud.create_categorie(db, categorie)
 
 
+@router.post("/defauts-base-neuve")
+def poser_defauts_base_neuve(db: Session = Depends(get_db)):
+    """Complète les catégories d'orientation d'une base neuve (cf. crud.poser_categories_par_defaut_base_neuve).
+    Appelée par le guide du premier import ; ne fait rien sur une base qui a déjà servi."""
+    return {"ajoutees": crud.poser_categories_par_defaut_base_neuve(db)}
+
+
 def _valider_monnaie(db: Session, monnaie_id: int) -> None:
     if crud.get_monnaie(db, monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
