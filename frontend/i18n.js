@@ -4736,3 +4736,27 @@ Object.assign(TRADUCTIONS.en, {
   "Premier import": "First import",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage
+
+// >>> TRADUCTIONS AJOUTÉES : créer un compte ou une catégorie sur place, aide aux flèches
+Object.assign(TRADUCTIONS.en, {
+  "Un compte, c'est l'endroit où vit ton argent : ton compte courant, ton livret… Donne-lui un nom et un type. Tu pourras le modifier, ou en ajouter d'autres, dans Paramètres → Configuration.":
+    "An account is where your money lives: your current account, your savings book… Give it a name and a type. You can edit it, or add others, in Settings → Configuration.",
+  "Une opération s'écrit sur un compte. Crée ici un compte courant : l'épargne et les placements se créent dans Paramètres → Configuration, et se remplissent par virement.":
+    "A transaction is written on an account. Create a current account here: savings and investments are created in Settings → Configuration, and filled by transfer.",
+  "Une catégorie range tes opérations par nature : courses, loisirs, un salaire… Donne-lui un nom. Tu pourras la renommer ou la supprimer ensuite, dans Paramètres → Configuration.":
+    "A category sorts your transactions by kind: groceries, leisure, a salary… Give it a name. You can rename or delete it later, in Settings → Configuration.",
+  "Navigue entre les options avec les flèches {monter} et {descendre} (ou la molette), et d'une colonne à l'autre avec ← →.":
+    "Move between the options with the {monter} and {descendre} arrows (or the wheel), and from one column to the next with ← →.",
+  "Créer un compte": "Create an account",
+  "Créer une catégorie": "Create a category",
+  "Nom de la catégorie": "Category name",
+  "Créer la catégorie": "Create the category",
+  "+ Créer un compte": "+ Create an account",
+  "+ Créer une catégorie": "+ Create a category",
+  "Aucune catégorie ne correspond ? Crée la tienne": "No category fits? Create your own",
+  "Créer et choisir": "Create and choose",
+  "Donne un nom à la catégorie.": "Give the category a name.",
+  "Catégorie créée": "Category created",
+  "— choisir —": "— choose —",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : créer sur place

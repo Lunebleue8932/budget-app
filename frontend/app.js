@@ -2359,6 +2359,211 @@ async function refreshCategories() {
   });
 }
 
+/* ---------- CRÉER UN COMPTE OU UNE CATÉGORIE SUR PLACE ----------
+ *
+ * UNE BASE NEUVE N'A AUCUN COMPTE, et le formulaire d'une opération en demande un : l'utilisateur qui
+ * débute y trouvait une liste vide et rien pour s'en sortir, sinon un détour par Paramètres →
+ * Configuration. Les listes de comptes et de catégories du formulaire portent donc, en dernière
+ * ligne, « + Créer un compte » / « + Créer une catégorie » : choisie, elle ouvre une petite fenêtre
+ * (un nom, un type ou la case des entrées d'argent), puis la liste se remplit de ce qu'on vient de
+ * créer, qui devient le choix. Annuler remet la liste où elle était.
+ *
+ * LES DEUX FENÊTRES SONT AUSSI CELLES DU GUIDE DU PREMIER IMPORT (cf. premier-demarrage.js) et du
+ * tableau des catégories de la banque : une seule façon de créer, partout. Elles rendent l'élément
+ * créé, ou null quand on a laissé tomber. */
+const VALEUR_CREER = "__creer__";
+
+/** La fenêtre qui crée un compte : un nom, un type. `typesAdmis` (noms de type) restreint le menu quand le
+ *  compte doit pouvoir servir à l'opération qu'on saisit. Rend le compte créé, ou null. */
+function demanderCreationCompte({
+  titre = "Créer un compte",
+  cle = "noyau.creation-compte",
+  typesAdmis = null,
+} = {}) {
+  const fond = document.getElementById("modale-guide-compte");
+  const nom = document.getElementById("guide-compte-nom");
+  const type = document.getElementById("guide-compte-type");
+  const erreur = document.getElementById("guide-compte-erreur");
+  document.getElementById("modale-guide-compte-titre").textContent = t(titre);
+  ecrireTexteAide(document.getElementById("modale-guide-compte-texte"), t(texteAide(cle)));
+  const types = (state.typesComptes || []).filter((x) => !typesAdmis || typesAdmis.includes(x.nom));
+  fillTypesComptesSelect(type, types);
+  const courant = types.find((x) => x.nom === "courant");
+  if (courant) type.value = courant.id;
+  nom.value = "";
+  erreur.style.display = "none";
+  fond.style.display = "flex";
+  nom.focus();
+
+  return new Promise((resolve) => {
+    const formulaire = document.getElementById("form-guide-compte");
+    const plusTard = document.getElementById("btn-guide-compte-plus-tard");
+    const creer = document.getElementById("btn-guide-compte-creer");
+    const fermer = (reponse) => {
+      fond.style.display = "none";
+      formulaire.removeEventListener("submit", surEnvoi);
+      plusTard.removeEventListener("click", surPlusTard);
+      document.removeEventListener("keydown", surTouche, true);
+      resolve(reponse);
+    };
+    const surPlusTard = () => fermer(null);
+    const surTouche = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fermer(null);
+      }
+    };
+    const surEnvoi = async (e) => {
+      e.preventDefault();
+      const monnaies = (state.monnaies || []).filter((m) => m.active !== false).map((m) => m.id);
+      creer.disabled = true;
+      erreur.style.display = "none";
+      try {
+        const compte = await apiFetch("/comptes", {
+          method: "POST",
+          body: JSON.stringify({
+            nom: nom.value.trim(),
+            type_id: Number(type.value),
+            monnaies: [{ monnaie_id: monnaiePreferee(monnaies) }],
+          }),
+        });
+        await refreshComptes();
+        showMessage(t("Compte créé"), "success");
+        fermer(compte);
+      } catch (err) {
+        const p = document.createElement("p");
+        p.className = "import-avertissement";
+        p.textContent = traduireMessageServeur(err.message);
+        erreur.replaceChildren(p);
+        erreur.style.display = "";
+      } finally {
+        creer.disabled = false;
+      }
+    };
+    formulaire.addEventListener("submit", surEnvoi);
+    plusTard.addEventListener("click", surPlusTard);
+    document.addEventListener("keydown", surTouche, true);
+  });
+}
+
+/** Crée une catégorie (le nom, puis le drapeau « entrées d'argent » par sa propre route : la création ne
+ *  prend que le nom) et recharge la liste. Rend la catégorie créée ; lève l'erreur du serveur telle quelle. */
+async function creerCategorieEtDrapeau(nom, estEntree) {
+  let categorie = await apiFetch("/categories", {
+    method: "POST",
+    body: JSON.stringify({ nom }),
+  });
+  if (estEntree) {
+    categorie = await apiFetch(`/categories/${categorie.id}/entree`, {
+      method: "PUT",
+      body: JSON.stringify({ est_entree: true }),
+    });
+  }
+  await refreshCategories();
+  return categorie;
+}
+
+/** La fenêtre qui crée une catégorie : un nom, et la case « Entrées d'argent ». Rend la catégorie créée
+ *  (drapeau posé), ou null. */
+function demanderCreationCategorie({ nomPropose = "" } = {}) {
+  const fond = document.getElementById("modale-creation-categorie");
+  const nom = document.getElementById("creation-categorie-nom");
+  const entree = document.getElementById("creation-categorie-entree");
+  const erreur = document.getElementById("creation-categorie-erreur");
+  nom.value = nomPropose;
+  entree.checked = false;
+  erreur.style.display = "none";
+  fond.style.display = "flex";
+  nom.focus();
+
+  return new Promise((resolve) => {
+    const formulaire = document.getElementById("form-creation-categorie");
+    const annuler = document.getElementById("btn-creation-categorie-annuler");
+    const creer = document.getElementById("btn-creation-categorie-creer");
+    const fermer = (reponse) => {
+      fond.style.display = "none";
+      formulaire.removeEventListener("submit", surEnvoi);
+      annuler.removeEventListener("click", surAnnuler);
+      document.removeEventListener("keydown", surTouche, true);
+      resolve(reponse);
+    };
+    const surAnnuler = () => fermer(null);
+    const surTouche = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fermer(null);
+      }
+    };
+    const surEnvoi = async (e) => {
+      e.preventDefault();
+      creer.disabled = true;
+      erreur.style.display = "none";
+      try {
+        const categorie = await creerCategorieEtDrapeau(nom.value.trim(), entree.checked);
+        showMessage(t("Catégorie créée"), "success");
+        fermer(categorie);
+      } catch (err) {
+        const p = document.createElement("p");
+        p.className = "import-avertissement";
+        p.textContent = traduireMessageServeur(err.message);
+        erreur.replaceChildren(p);
+        erreur.style.display = "";
+      } finally {
+        creer.disabled = false;
+      }
+    };
+    formulaire.addEventListener("submit", surEnvoi);
+    annuler.addEventListener("click", surAnnuler);
+    document.addEventListener("keydown", surTouche, true);
+  });
+}
+
+/**
+ * Ajoute « + Créer un compte » / « + Créer une catégorie » en dernière ligne d'une liste du formulaire
+ * d'opération, à appeler APRÈS son remplissage. Une liste sans aucun choix reçoit d'abord une ligne vide :
+ * sans elle, « créer » serait la seule option, donc déjà sélectionnée, et choisir ce qui l'est déjà ne
+ * déclenche rien.
+ */
+function ajouterOptionCreer(select, nature) {
+  const vide = ![...select.options].some((o) => o.value && o.value !== VALEUR_CREER);
+  if (vide) select.insertBefore(new Option(t("— choisir —"), ""), select.firstChild);
+  select.appendChild(
+    new Option(nature === "compte" ? t("+ Créer un compte") : t("+ Créer une catégorie"), VALEUR_CREER)
+  );
+  select.dataset.creer = nature;
+  if (select.dataset.creerBranche) return;
+  select.dataset.creerBranche = "1";
+  select.dataset.precedent = select.value;
+  // EN PHASE DE CAPTURE, et on coupe la suite : les autres écouteurs du menu (monnaies du compte, case
+  // « à déclarer ») ne doivent jamais voir passer la ligne « créer » comme un choix.
+  select.addEventListener(
+    "change",
+    async (e) => {
+      if (select.value !== VALEUR_CREER) {
+        select.dataset.precedent = select.value;
+        return;
+      }
+      e.stopImmediatePropagation();
+      select.value = select.dataset.precedent || "";
+      const type = document.getElementById("operation-type").value;
+      const cree =
+        select.dataset.creer === "compte"
+          ? await demanderCreationCompte({
+              typesAdmis: type === "virement" ? null : ["courant"],
+              cle: "noyau.creation-compte-operation",
+            })
+          : await demanderCreationCategorie();
+      if (!cree) return;
+      // Les listes se remplissent à nouveau de ce que la base contient, la nouvelle comprise.
+      updateOperationTypeFields();
+      select.value = String(cree.id);
+      select.dataset.precedent = select.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+    true
+  );
+}
+
 /* ---------- Dashboard ---------- */
 
 function soldesAffiches(compte, monnaieId) {
@@ -7824,21 +8029,22 @@ function updateOperationTypeFields() {
   // CE QUE LE MENU PORTE DÉJÀ RESTE PROPOSÉ, même éteint : c'est l'opération
   // qu'on est en train de rouvrir (cf. comptesEligibles).
   const valeurDe = (el) => Number(el.value) || null;
+  // Chaque liste se termine par « + Créer un compte » / « + Créer une catégorie » (cf. ajouterOptionCreer).
+  const remplirComptes = (id) =>
+    _refillPreservingSelection(document.getElementById(id), (el) => {
+      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)));
+      ajouterOptionCreer(el, "compte");
+    });
   if (estVirement) {
-    _refillPreservingSelection(document.getElementById("operation-compte1"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
-    );
-    _refillPreservingSelection(document.getElementById("operation-compte2"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
-    );
+    remplirComptes("operation-compte1");
+    remplirComptes("operation-compte2");
   } else {
-    _refillPreservingSelection(document.getElementById("operation-compte"), (el) =>
-      fillComptesSelect(el, comptesEligibles(type, valeurDe(el)))
-    );
+    remplirComptes("operation-compte");
     if (TYPES_CATEGORIE_LIBRE.has(type)) {
-      _refillPreservingSelection(document.getElementById("operation-categorie"), (el) =>
-        fillCategoriesSelect(el, categoriesEligibles(type, valeurDe(el)))
-      );
+      _refillPreservingSelection(document.getElementById("operation-categorie"), (el) => {
+        fillCategoriesSelect(el, categoriesEligibles(type, valeurDe(el)));
+        ajouterOptionCreer(el, "categorie");
+      });
     }
   }
 
@@ -13687,6 +13893,7 @@ function ouvrirDetection(detection, { suite = false } = {}) {
   board.innerHTML = detColonnes.map((entree, i) => detColonneHtml(entree, i)).join("");
   detColonnes.forEach((_, i) => detCentrerRoue(i, false));
   detMajCompteur();
+  majAideFleches();
   document.getElementById("modale-detection").style.display = "";
   document.body.classList.add("modale-ouverte");
   detDefinirCourante(Math.max(0, detProchaineNonConfirmee(-1)), { focus: true });
@@ -14531,6 +14738,63 @@ function corrOperationsHtml(nom) {
   );
 }
 
+/* ---------- CRÉER LA CATÉGORIE QUI MANQUE, DEPUIS LA COLONNE ----------
+ *
+ * Quand aucune des catégories de l'application ne convient à celle de la banque, la molette n'a plus
+ * rien à offrir - et l'utilisateur d'une base neuve, qui n'en a que deux ou trois, s'y trouve dès le
+ * premier relevé. Un encadré violet en pointillés, sous la molette, le dit et déplie de quoi la créer
+ * sur place : un nom, la case « Entrées d'argent » (elle ne s'oublie pas : une entrée classée comme une
+ * dépense gonfle les sorties), et un bouton. La catégorie créée devient le choix de CETTE colonne. */
+function corrCreerHtml(i) {
+  return `
+      <details class="corr-creer" data-corr-creer>
+        <summary>${escapeHtml(t("Aucune catégorie ne correspond ? Crée la tienne"))}</summary>
+        <div class="corr-creer-corps">
+          <input type="text" maxlength="60" data-corr-creer-nom
+                 aria-label="${escapeHtml(t("Nom de la catégorie"))}"
+                 placeholder="${escapeHtml(t("Nom de la catégorie"))}" />
+          <label class="creation-categorie-entree">
+            <input type="checkbox" data-corr-creer-entree />
+            <span>${escapeHtml(t("Entrées d'argent"))}<i class="info-bulle" tabindex="0"
+              data-info="${escapeHtml(t(texteAide("noyau.categorie-entree")))}">i</i></span>
+          </label>
+          <button type="button" class="primary" data-corr-creer-valider="${i}">${escapeHtml(
+            t("Créer et choisir")
+          )}</button>
+          <p class="import-avertissement" data-corr-creer-erreur style="display:none"></p>
+        </div>
+      </details>`;
+}
+
+async function corrCreerCategorie(i) {
+  const colonne = corrColonne(i);
+  if (!colonne) return;
+  const champ = colonne.querySelector("[data-corr-creer-nom]");
+  const entree = colonne.querySelector("[data-corr-creer-entree]").checked;
+  const erreur = colonne.querySelector("[data-corr-creer-erreur]");
+  const nom = champ.value.trim();
+  erreur.style.display = "none";
+  if (!nom) {
+    erreur.textContent = t("Donne un nom à la catégorie.");
+    erreur.style.display = "";
+    champ.focus();
+    return;
+  }
+  try {
+    const categorie = await creerCategorieEtDrapeau(nom, entree);
+    const banque = corrNoms[i];
+    importMappingCategories[banque] = categorie.id;
+    corrChoixManuels.add(banque);
+    importCategoriesConfirmees.delete(banque);
+    renderCorrespondances();
+    corrDefinirCourante(i, { focus: true });
+    showMessage(t("Catégorie créée"), "success");
+  } catch (err) {
+    erreur.textContent = traduireMessageServeur(err.message);
+    erreur.style.display = "";
+  }
+}
+
 function corrColonneHtml(nom, i) {
   const options = corrOptions(nom);
   const choisie = corrValeur(nom);
@@ -14558,6 +14822,7 @@ function corrColonneHtml(nom, i) {
             .join("")}
         </div>
       </div>
+      ${corrCreerHtml(i)}
       <div class="corr-operations">${corrOperationsHtml(nom)}</div>
       <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
         confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
@@ -14700,11 +14965,24 @@ function corrConfirmerFortes() {
   }
 }
 
+/** La ligne d'aide des deux tableaux : on y navigue aux flèches (celles que les réglages donnent), pas
+ *  seulement à la souris. Réécrite à chaque ouverture : les touches se règlent dans Paramètres généraux. */
+function majAideFleches() {
+  const texte = t(texteAide("noyau.import-fleches"), {
+    monter: libelleCombo(toucheImport("haut")),
+    descendre: libelleCombo(toucheImport("bas")),
+  });
+  document.querySelectorAll(".corr-aide-fleches").forEach((p) => {
+    p.textContent = texte;
+  });
+}
+
 function ouvrirCorrespondances() {
   if (!importApercu || !demandesDeMapping().categories.length) return;
   // Les menus de la page sèment `importMappingCategories` depuis les propositions du serveur.
   renderImportMappings();
   renderCorrespondances();
+  majAideFleches();
   document.getElementById("modale-correspondances").style.display = "";
   document.body.classList.add("modale-ouverte");
   const premiere = Math.max(0, corrNoms.findIndex((n) => !importCategoriesConfirmees.has(n)));
@@ -14839,6 +15117,39 @@ function brancherMolettes(board, h) {
     valeur: (i) => corrValeur(corrNoms[i]),
     nombre: () => corrNoms.length,
     confirmer: corrConfirmer,
+  });
+
+  // L'ENCADRÉ « CRÉER LA TIENNE » : un clic sur son bouton crée ; ouvrir le repli met le curseur dans le nom.
+  const tableau = document.getElementById("correspondances-board");
+  tableau.addEventListener("click", (e) => {
+    const bouton = e.target.closest("[data-corr-creer-valider]");
+    if (bouton) corrCreerCategorie(Number(bouton.dataset.corrCreerValider));
+  });
+  tableau.addEventListener(
+    "toggle",
+    (e) => {
+      if (e.target.matches && e.target.matches("details[data-corr-creer]") && e.target.open) {
+        e.target.querySelector("[data-corr-creer-nom]").focus();
+      }
+    },
+    true
+  );
+  // Dans l'encadré, les touches du tableau n'ont rien à faire : Entrée (ou la touche de confirmation) crée,
+  // Échap replie l'encadré SANS fermer le tableau.
+  tableau.addEventListener("keydown", (e) => {
+    const zone = e.target.closest && e.target.closest("[data-corr-creer]");
+    if (!zone) return;
+    const combo = comboEvenementImport(e);
+    if (e.key === "Escape") {
+      zone.open = false;
+      e.stopPropagation();
+    } else if (e.key === "Enter" || combo === toucheImport("confirmer")) {
+      e.preventDefault();
+      e.stopPropagation();
+      corrCreerCategorie(Number(zone.closest("[data-corr-i]").dataset.corrI));
+    } else {
+      e.stopPropagation();
+    }
   });
 
   document.addEventListener("keydown", (e) => {

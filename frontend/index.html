@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=149" />
+  <link rel="stylesheet" href="style.css?v=150" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -276,8 +276,8 @@
        premier-demarrage.js). -->
   <div id="modale-guide-compte" class="modale-fond" style="display:none" role="presentation">
     <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-guide-compte-titre">
-      <h2 id="modale-guide-compte-titre">Un compte pour ton relevé</h2>
-      <p class="modale-texte" data-texte-cle="noyau.guide-compte"></p>
+      <h2 id="modale-guide-compte-titre">Créer un compte</h2>
+      <p class="modale-texte" id="modale-guide-compte-texte"></p>
       <form id="form-guide-compte" class="modale-formulaire" autocomplete="off">
         <label class="full-width">Nom du compte
           <input type="text" id="guide-compte-nom" required maxlength="60" />
@@ -289,6 +289,30 @@
         <div class="modale-actions">
           <button type="button" id="btn-guide-compte-plus-tard">Plus tard</button>
           <button type="submit" class="primary" id="btn-guide-compte-creer">Créer le compte</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CRÉER UNE CATÉGORIE SUR PLACE : depuis la liste des catégories d'une opération (« + Créer une catégorie »)
+       et depuis le tableau des catégories de la banque, à l'import. Un nom, et la case des entrées d'argent
+       (cf. app.js, `demanderCreationCategorie`). -->
+  <div id="modale-creation-categorie" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-creation-categorie-titre">
+      <h2 id="modale-creation-categorie-titre">Créer une catégorie</h2>
+      <p class="modale-texte" data-texte-cle="noyau.creation-categorie"></p>
+      <form id="form-creation-categorie" class="modale-formulaire" autocomplete="off">
+        <label class="full-width">Nom de la catégorie
+          <input type="text" id="creation-categorie-nom" required maxlength="60" />
+        </label>
+        <label class="creation-categorie-entree">
+          <input type="checkbox" id="creation-categorie-entree" />
+          <span>Entrées d'argent<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-entree">i</i></span>
+        </label>
+        <div id="creation-categorie-erreur" class="import-avertissements" style="display:none"></div>
+        <div class="modale-actions">
+          <button type="button" id="btn-creation-categorie-annuler">Annuler</button>
+          <button type="submit" class="primary" id="btn-creation-categorie-creer">Créer la catégorie</button>
         </div>
       </form>
     </div>
@@ -333,6 +357,7 @@
       </div>
       <p class="modale-texte" data-texte-cle="noyau.import-correspondances"></p>
       <p class="hint" id="correspondances-compteur"></p>
+      <p class="hint corr-aide-fleches" id="correspondances-aide-fleches"></p>
       <div id="correspondances-board" class="corr-board"></div>
       <div class="modale-actions">
         <button type="button" id="btn-correspondances-fortes">Confirmer les propositions fortes</button>
@@ -354,6 +379,7 @@
       </div>
       <div id="detection-infos"></div>
       <p class="hint" id="detection-compteur"></p>
+      <p class="hint corr-aide-fleches" id="detection-aide-fleches"></p>
       <div id="detection-board" class="corr-board"></div>
       <p class="import-avertissement import-detection-conflit" id="detection-conflit" role="alert"
          style="display:none"></p>
@@ -2947,11 +2973,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=48"></script>
-  <script src="i18n.js?v=100"></script>
-  <script src="i18n-pt.js?v=18"></script>
+  <script src="textes.js?v=49"></script>
+  <script src="i18n.js?v=101"></script>
+  <script src="i18n-pt.js?v=19"></script>
   <script src="extensions.js?v=27"></script>
-  <script src="app.js?v=186"></script>
+  <script src="app.js?v=187"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
        que index.html a déjà rendus. Un fichier à part parce qu'il ne porte pas
@@ -2970,6 +2996,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
   <!-- APRÈS tutoriel.js (il pose sa bulle avec `placerBulleTutoriel`) et sandbox.js (il pointe le
        bouton de la démo) : le guide de la première visite, choisi dans la fenêtre de premier
        lancement. -->
-  <script src="premier-demarrage.js?v=6"></script>
+  <script src="premier-demarrage.js?v=7"></script>
 </body>
 </html>

@@ -3961,3 +3961,27 @@ Object.assign(TRADUCTIONS.pt, {
   "Premier import": "Primeira importação",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le premier démarrage
+
+// >>> TRADUCTIONS AJOUTÉES : créer un compte ou une catégorie sur place, aide aux flèches
+Object.assign(TRADUCTIONS.pt, {
+  "Un compte, c'est l'endroit où vit ton argent : ton compte courant, ton livret… Donne-lui un nom et un type. Tu pourras le modifier, ou en ajouter d'autres, dans Paramètres → Configuration.":
+    "Uma conta é onde seu dinheiro mora: sua conta corrente, sua poupança… Dê a ela um nome e um tipo. Você pode editá-la, ou adicionar outras, em Ajustes → Configuration.",
+  "Une opération s'écrit sur un compte. Crée ici un compte courant : l'épargne et les placements se créent dans Paramètres → Configuration, et se remplissent par virement.":
+    "Uma transação é registrada em uma conta. Crie aqui uma conta corrente: poupança e investimentos são criados em Ajustes → Configuration, e abastecidos por transferência.",
+  "Une catégorie range tes opérations par nature : courses, loisirs, un salaire… Donne-lui un nom. Tu pourras la renommer ou la supprimer ensuite, dans Paramètres → Configuration.":
+    "Uma categoria organiza suas transações por natureza: mercado, lazer, um salário… Dê a ela um nome. Você pode renomeá-la ou excluí-la depois, em Ajustes → Configuration.",
+  "Navigue entre les options avec les flèches {monter} et {descendre} (ou la molette), et d'une colonne à l'autre avec ← →.":
+    "Navegue entre as opções com as setas {monter} e {descendre} (ou a roleta), e de uma coluna para outra com ← →.",
+  "Créer un compte": "Criar uma conta",
+  "Créer une catégorie": "Criar uma categoria",
+  "Nom de la catégorie": "Nome da categoria",
+  "Créer la catégorie": "Criar a categoria",
+  "+ Créer un compte": "+ Criar uma conta",
+  "+ Créer une catégorie": "+ Criar uma categoria",
+  "Aucune catégorie ne correspond ? Crée la tienne": "Nenhuma categoria serve? Crie a sua",
+  "Créer et choisir": "Criar e escolher",
+  "Donne un nom à la catégorie.": "Dê um nome à categoria.",
+  "Catégorie créée": "Categoria criada",
+  "— choisir —": "— escolher —",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : créer sur place

@@ -161,70 +161,14 @@ async function guideDemo() {
 
 /* ---------- Le compte du premier import ---------- */
 
-/** Ouvre la fenêtre de création d'un compte ; rend `true` quand il est créé, `false` si on remet à plus tard. */
-function guideDemanderCompte() {
-  const fond = document.getElementById("modale-guide-compte");
-  const nom = document.getElementById("guide-compte-nom");
-  const type = document.getElementById("guide-compte-type");
-  const erreur = document.getElementById("guide-compte-erreur");
-  fillTypesComptesSelect(type, state.typesComptes || []);
-  const courant = (state.typesComptes || []).find((x) => x.nom === "courant");
-  if (courant) type.value = courant.id;
-  nom.value = "";
-  erreur.style.display = "none";
-  fond.style.display = "flex";
-  nom.focus();
-
-  return new Promise((resolve) => {
-    const formulaire = document.getElementById("form-guide-compte");
-    const plusTard = document.getElementById("btn-guide-compte-plus-tard");
-    const creer = document.getElementById("btn-guide-compte-creer");
-    const fermer = (reponse) => {
-      fond.style.display = "none";
-      formulaire.removeEventListener("submit", surEnvoi);
-      plusTard.removeEventListener("click", surPlusTard);
-      document.removeEventListener("keydown", surTouche, true);
-      resolve(reponse);
-    };
-    const surPlusTard = () => fermer(false);
-    const surTouche = (e) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        fermer(false);
-      }
-    };
-    const surEnvoi = async (e) => {
-      e.preventDefault();
-      const monnaies = (state.monnaies || []).filter((m) => m.active !== false).map((m) => m.id);
-      const monnaieId = monnaiePreferee(monnaies);
-      creer.disabled = true;
-      erreur.style.display = "none";
-      try {
-        await apiFetch("/comptes", {
-          method: "POST",
-          body: JSON.stringify({
-            nom: nom.value.trim(),
-            type_id: Number(type.value),
-            monnaies: [{ monnaie_id: monnaieId }],
-          }),
-        });
-        await refreshComptes();
-        showMessage(t("Compte créé"), "success");
-        fermer(true);
-      } catch (err) {
-        const p = document.createElement("p");
-        p.className = "import-avertissement";
-        p.textContent = traduireMessageServeur(err.message);
-        erreur.replaceChildren(p);
-        erreur.style.display = "";
-      } finally {
-        creer.disabled = false;
-      }
-    };
-    formulaire.addEventListener("submit", surEnvoi);
-    plusTard.addEventListener("click", surPlusTard);
-    document.addEventListener("keydown", surTouche, true);
+/** Ouvre la fenêtre de création d'un compte (celle de l'application, cf. demanderCreationCompte) ; rend
+ *  `true` quand il est créé, `false` si on remet à plus tard. */
+async function guideDemanderCompte() {
+  const compte = await demanderCreationCompte({
+    titre: "Un compte pour ton relevé",
+    cle: "noyau.guide-compte",
   });
+  return !!compte;
 }
 
 /* ---------- Le premier import ---------- */

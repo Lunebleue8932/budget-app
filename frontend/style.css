@@ -7510,3 +7510,73 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 .modale-sandbox h2 {
   color: var(--badge-remboursable-text);
 }
+
+/* ---------- L'encadré « Crée la tienne » du tableau des catégories de la banque ---------- */
+:root {
+  --violet-creer: #a78bfa;
+}
+
+:root[data-theme="clair"] {
+  --violet-creer: #7c3aed;
+}
+
+.corr-aide-fleches {
+  margin: 0 0 0.4rem;
+}
+
+.corr-creer summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.45rem 0.6rem;
+  border: 1px dashed var(--violet-creer);
+  border-radius: var(--radius-sm);
+  color: var(--violet-creer);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.corr-creer summary::-webkit-details-marker {
+  display: none;
+}
+
+.corr-creer summary:hover,
+.corr-creer[open] summary {
+  background: rgba(167, 139, 250, 0.12);
+}
+
+.corr-creer-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--violet-creer);
+  border-radius: var(--radius-sm);
+}
+
+.corr-creer-corps input[type="text"] {
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.corr-creer-corps input[type="text"]:focus {
+  outline: none;
+  border-color: var(--violet-creer);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+}
+
+/* La case « Entrées d'argent » (encadré du tableau et fenêtre de création) : case, libellé, « i » sur une ligne. */
+.creation-categorie-entree {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}

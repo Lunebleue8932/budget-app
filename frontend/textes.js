@@ -1189,3 +1189,15 @@ Object.assign(TEXTES, {
   "noyau.detection-champ-aucune":
     "Colonne ignorée à l'import",
 });
+
+/* ----- Créer un compte ou une catégorie sur place, aide aux flèches des tableaux de l'import ----- */
+Object.assign(TEXTES, {
+  "noyau.creation-compte":
+    "Un compte, c'est l'endroit où vit ton argent : ton compte courant, ton livret… Donne-lui un nom et un type. Tu pourras le modifier, ou en ajouter d'autres, dans Paramètres → Configuration.",
+  "noyau.creation-compte-operation":
+    "Une opération s'écrit sur un compte. Crée ici un compte courant : l'épargne et les placements se créent dans Paramètres → Configuration, et se remplissent par virement.",
+  "noyau.creation-categorie":
+    "Une catégorie range tes opérations par nature : courses, loisirs, un salaire… Donne-lui un nom. Tu pourras la renommer ou la supprimer ensuite, dans Paramètres → Configuration.",
+  "noyau.import-fleches":
+    "Navigue entre les options avec les flèches {monter} et {descendre} (ou la molette), et d'une colonne à l'autre avec ← →.",
+});
