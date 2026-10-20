@@ -4763,8 +4763,8 @@ Object.assign(TRADUCTIONS.en, {
 
 // >>> TRADUCTIONS AJOUTÉES : le parcours de l'import (graphe d'étapes, mots-clés, compte)
 Object.assign(TRADUCTIONS.en, {
-  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.":
-    "Your file writes its own words in the “Direction” and “Status” columns. For each one, say what it means: the direction decides the sign of the amount, the status what gets imported. // A word left on /bold(None) puts its line in error, rather than being guessed.",
+  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // /bold(Continuer) s'ouvre quand chaque mot est confirmé : aucun ne peut être laissé de côté.":
+    "Your file writes its own words in the “Direction” and “Status” columns. For each one, say what it means: the direction decides the sign of the amount, the status what gets imported. // /bold(Continue) opens once every word is confirmed: none can be left aside.",
   "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.":
     "Only the fields you read in your file appear here. The words the application already knows are suggested in blue. Nothing is saved to your preset until you use the save button.",
   "Ton fichier ne dit pas de quel compte il vient. Choisis celui qui reçoit ses opérations : le fichier est relu dans la foulée, sans rien défaire de tes choix.":
@@ -4791,3 +4791,13 @@ Object.assign(TRADUCTIONS.en, {
   "Choisis un compte pour chaque nom du relevé, ou reviens-y plus tard.": "Choose an account for each name in the statement, or come back to it later.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import
+
+// >>> TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte, lecture du fichier
+Object.assign(TRADUCTIONS.en, {
+  "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.":
+    "Your file writes currencies the application doesn't know yet (EUR, USD…). For each one, choose the matching currency: this choice is remembered for your next statements.",
+  "Compte et monnaies de ce relevé": "Account and currencies for this statement",
+  "Choisis une monnaie pour chaque devise du relevé, ou reviens-y plus tard.": "Choose a currency for each currency in the statement, or come back to it later.",
+  "Lecture du fichier…": "Reading the file…",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte

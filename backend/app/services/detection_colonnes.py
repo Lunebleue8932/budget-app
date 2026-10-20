@@ -1072,6 +1072,17 @@ def detecter_colonnes(
             }
         )
 
+    # « MONTANT ENVOYÉ » ET « MONTANT » VONT PAR PAIRE : l'un ne se lit pas sans l'autre (ce qui part, ce
+    # qui arrive). Quand les deux sont retenus et que l'un est proposé avec assurance, l'autre l'est aussi -
+    # sans quoi la seconde colonne s'affichait en simple suggestion à côté d'une première en proposition forte.
+    initial = next((i for i, prop in retenue.items() if prop == "montant_initial"), None)
+    recu = next((i for i, prop in retenue.items() if prop == "montant"), None)
+    if initial is not None and recu is not None:
+        par_index = {c["index"]: c for c in colonnes}
+        if par_index[initial]["forte"] or par_index[recu]["forte"]:
+            for index in (initial, recu):
+                par_index[index]["forte"] = True
+
     # L'ORDRE DU FICHIER : celui que le solde a vérifié, sinon celui que dit
     # la monotonie de la colonne retenue pour la date.
     colonne_date = next((index for index, prop in retenue.items() if prop == "date"), None)

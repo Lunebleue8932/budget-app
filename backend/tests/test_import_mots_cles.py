@@ -213,3 +213,15 @@ def test_la_route_nettoie_les_mots_cles_de_l_essai():
 def test_sans_mots_cles_dans_l_essai_le_preset_decide():
     essai = routeur._valider_colonnes_essai('{"colonnes": [{"index": 1, "propriete": "date"}]}')
     assert essai.vocabulaires is None
+
+
+def test_montant_envoye_et_montant_vont_par_paire_en_proposition_forte():
+    """Deux montants sans devises pour les départager : si « Montant envoyé » est fort, « Montant » l'est aussi."""
+    lignes = [("Date", "Libellé", "Source amount", "Target amount")]
+    for i in range(8):
+        envoye = 10 + i * 3.5
+        lignes.append((f"0{i + 1}/03/2026", f"Achat {i}", f"{envoye:.2f}", f"{envoye * (1.1 if i % 2 else 1):.2f}"))
+    resultat = detecter_colonnes(lignes)
+    config = _config(resultat)
+    assert config["montant_initial"] == 3 and config["montant"] == 4
+    assert _colonne(resultat, 3)["forte"] and _colonne(resultat, 4)["forte"]

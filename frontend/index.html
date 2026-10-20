@@ -407,12 +407,16 @@
       </div>
       <div class="import-etapes" data-import-etapes></div>
       <p class="modale-texte" id="compte-import-texte-defaut" data-texte-cle="noyau.import-compte"></p>
-      <p class="modale-texte" id="compte-import-texte-noms" data-texte-cle="noyau.import-compte-noms"></p>
       <div id="compte-import-defaut-bloc" class="import-compte-defaut-bloc" style="display:none">
         <label for="compte-import-defaut">Compte pour ce fichier</label>
         <select id="compte-import-defaut"><option value="">— choisir —</option></select>
       </div>
+      <p class="modale-texte" id="compte-import-texte-noms" data-texte-cle="noyau.import-compte-noms"></p>
       <div id="compte-import-mappings" class="import-mappings-liste"></div>
+      <!-- LES MONNAIES, avec les comptes : si l'extension « Monnaies » tourne et que le fichier écrit des
+           devises que l'application ne connaît pas encore. -->
+      <p class="modale-texte" id="compte-import-texte-monnaies" data-texte-cle="noyau.import-compte-monnaies"></p>
+      <div id="compte-import-monnaies" class="import-mappings-liste"></div>
       <p class="import-avertissement" id="compte-import-erreur" role="alert" style="display:none"></p>
       <div class="modale-actions">
         <button type="button" id="btn-compte-import-plus-tard">Plus tard</button>
@@ -2340,22 +2344,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="import-dropzone-nom" id="import-fichier-nom"></p>
       </div>
 
-      <!-- LE PRESET QUI LIT CE FICHIER (cf. services/reconnaissance_presets) :
-           un autre preset le reconnaît, des intitulés ont changé depuis la
-           dernière lecture, ou aucun preset ne le lit. Jamais de bascule
-           silencieuse : l'écran propose, il ne change rien de lui-même. -->
-      <div id="import-reconnaissance" class="import-reconnaissance" style="display:none"></div>
-
-      <!-- Ce que la configuration laisse d'ambigu sans être faux (un montant
-           initial ou des frais lus sans leur devise) : affiché au-dessus de
-           l'aperçu, jamais bloquant. -->
-      <div id="import-avertissements" class="import-avertissements" style="display:none"></div>
-
-      <!-- LE CONTRÔLE AVANT IMPORT (cf. services/controle_import) : ce que
-           l'import ferait, chiffré, et le solde du relevé recalculé avec la
-           configuration. Rien n'est écrit tant qu'on ne confirme pas. -->
-      <div id="import-controle" class="import-controle" style="display:none"></div>
-
       <div id="import-apercu-fichier-bloc" style="display:none">
         <!-- Le titre et le bouton de relecture sur une ligne : la relecture est
              une action SUR ce tableau, elle doit être là où il commence. -->
@@ -2387,10 +2375,22 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="hint" id="import-apercu-fichier-info"></p>
       </div>
 
+      <!-- LE PRESET QUI LIT CE FICHIER (cf. services/reconnaissance_presets) :
+           un autre preset le reconnaît, des intitulés ont changé depuis la
+           dernière lecture, ou aucun preset ne le lit. Jamais de bascule
+           silencieuse : l'écran propose, il ne change rien de lui-même. -->
+      <div id="import-reconnaissance" class="import-reconnaissance" style="display:none"></div>
+
+      <!-- Ce que la configuration laisse d'ambigu sans être faux (un montant
+           initial ou des frais lus sans leur devise) : affiché au-dessus de
+           l'aperçu, jamais bloquant. -->
+      <div id="import-avertissements" class="import-avertissements" style="display:none"></div>
+
+
       <div id="import-resultat" style="display:none"></div>
 
       <div id="import-mappings-bloc" style="display:none">
-        <details class="toggle-titre toggle-1" open>
+        <details class="toggle-titre toggle-1" id="import-details-categories">
           <summary><h3>Catégories bancaires à confirmer<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires-a-confirmer">i</i></h3></summary>
           <div class="toggle-contenu">
             <div class="actions">
@@ -2406,14 +2406,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <div id="import-mappings-categories" class="import-mappings"></div>
           </div>
         </details>
-        <details class="toggle-titre toggle-1" open>
+        <details class="toggle-titre toggle-1" id="import-details-comptes">
           <summary><h3>Comptes bancaires à faire correspondre</h3></summary>
           <div class="toggle-contenu">
             <div id="import-mappings-comptes" class="import-mappings"></div>
           </div>
         </details>
         <div id="import-mappings-monnaies-bloc" style="display:none">
-          <details class="toggle-titre toggle-1" open>
+          <details class="toggle-titre toggle-1" id="import-details-monnaies">
             <summary><h3>Devises à faire correspondre<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-a-faire-correspondre">i</i></h3></summary>
             <div class="toggle-contenu">
               <div id="import-mappings-monnaies" class="import-mappings"></div>
@@ -2469,6 +2469,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </details>
       </div>
+
+      <!-- LE CONTRÔLE AVANT IMPORT (cf. services/controle_import) : ce que
+           l'import ferait, chiffré, et le solde du relevé recalculé avec la
+           configuration. Rien n'est écrit tant qu'on ne confirme pas. -->
+      <div id="import-controle" class="import-controle" style="display:none"></div>
 
       <div id="import-apercu-bloc" style="display:none">
         <h3>Aperçu — <span id="import-apercu-nombre"></span> ligne(s)<i class="info-bulle" tabindex="0" data-info-cle="noyau.apercu-import">i</i></h3>

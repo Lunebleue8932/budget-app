@@ -7715,3 +7715,17 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   max-height: 40vh;
   overflow-y: auto;
 }
+
+/* Le graphe tient sur une ligne même avec l'étape « mots-clés » : flèches plus courtes. */
+.import-etape-fleche svg {
+  width: 26px;
+  height: 12px;
+}
+
+.import-etapes-liste {
+  gap: 0.35rem 0.2rem;
+}
+
+.import-etape {
+  gap: 0.3rem;
+}

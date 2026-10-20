@@ -1201,7 +1201,7 @@ Object.assign(TEXTES, {
   "noyau.import-fleches":
     "Navigue entre les options avec les flèches {monter} et {descendre} (ou la molette), et d'une colonne à l'autre avec ← →.",
   "noyau.import-mots-cles":
-    "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.",
+    "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // /bold(Continuer) s'ouvre quand chaque mot est confirmé : aucun ne peut être laissé de côté.",
   "noyau.import-mots-cles-info":
     "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.",
   "noyau.import-compte":
@@ -1210,4 +1210,6 @@ Object.assign(TEXTES, {
     "Ton fichier nomme des comptes que l'application ne connaît pas encore. Pour chacun, choisis le compte qui lui correspond : ce choix est retenu pour tes prochains relevés.",
   "noyau.guide-import-mots-cles":
     "Ton fichier écrit ses propres mots pour le sens ou l'état d'une opération (IN, OUT, COMPLETED…). Pour chacun, dis ce qu'il veut dire. // Les mots que l'app connaît déjà sont proposés en bleu. /bold(Continuer) relit le fichier avec eux.",
+  "noyau.import-compte-monnaies":
+    "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.",
 });

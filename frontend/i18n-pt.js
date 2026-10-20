@@ -3988,8 +3988,8 @@ Object.assign(TRADUCTIONS.pt, {
 
 // >>> TRADUCTIONS AJOUTÉES : le parcours de l'import (graphe d'étapes, mots-clés, compte)
 Object.assign(TRADUCTIONS.pt, {
-  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // Un mot laissé à /bold(Aucun) met sa ligne en erreur, plutôt que d'être deviné.":
-    "Seu arquivo escreve suas próprias palavras nas colunas “Sentido” e “Estado”. Para cada uma, diga o que ela significa: o sentido decide o sinal do valor, o estado o que é importado. // Uma palavra deixada em /bold(Nenhum) coloca a linha em erro, em vez de ser adivinhada.",
+  "Ton fichier écrit ses propres mots dans les colonnes « Sens » et « État ». Pour chacun, dis ce qu'il veut dire : le sens décide du signe du montant, l'état de ce qui est importé. // /bold(Continuer) s'ouvre quand chaque mot est confirmé : aucun ne peut être laissé de côté.":
+    "Seu arquivo escreve suas próprias palavras nas colunas “Sentido” e “Estado”. Para cada uma, diga o que ela significa: o sentido decide o sinal do valor, o estado o que é importado. // /bold(Continuar) abre quando cada palavra está confirmada: nenhuma pode ficar de lado.",
   "Seuls les champs que tu lis dans ton fichier apparaissent ici. Les mots que l'application connaît déjà sont proposés en bleu. Rien n'est enregistré sur ton preset tant que tu n'utilises pas le bouton d'enregistrement.":
     "Só aparecem aqui os campos que você lê no seu arquivo. As palavras que o aplicativo já conhece são sugeridas em azul. Nada é salvo no seu preset enquanto você não usar o botão de salvar.",
   "Ton fichier ne dit pas de quel compte il vient. Choisis celui qui reçoit ses opérations : le fichier est relu dans la foulée, sans rien défaire de tes choix.":
@@ -4016,3 +4016,13 @@ Object.assign(TRADUCTIONS.pt, {
   "Choisis un compte pour chaque nom du relevé, ou reviens-y plus tard.": "Escolha uma conta para cada nome do extrato, ou volte a isso depois.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import
+
+// >>> TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte, lecture du fichier
+Object.assign(TRADUCTIONS.pt, {
+  "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.":
+    "Seu arquivo escreve moedas que o aplicativo ainda não conhece (EUR, USD…). Para cada uma, escolha a moeda correspondente: essa escolha é lembrada nos seus próximos extratos.",
+  "Compte et monnaies de ce relevé": "Conta e moedas deste extrato",
+  "Choisis une monnaie pour chaque devise du relevé, ou reviens-y plus tard.": "Escolha uma moeda para cada moeda do extrato, ou volte a isso depois.",
+  "Lecture du fichier…": "Lendo o arquivo…",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
