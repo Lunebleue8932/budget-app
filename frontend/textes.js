@@ -1220,4 +1220,10 @@ Object.assign(TEXTES, {
     "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.",
   "noyau.import-premier-colonnes":
     "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.",
+  "noyau.import-compte-extension-monnaies":
+    "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.",
+  "noyau.import-compte-extension-eteinte":
+    "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».",
+  "noyau.import-compte-monnaies-manquantes":
+    "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.",
 });

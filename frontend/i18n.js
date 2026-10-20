@@ -4811,5 +4811,17 @@ Object.assign(TRADUCTIONS.en, {
   "Aucun compte ne correspond ? Crée le tien": "No account matches? Create your own",
   "Aucun compte pour l'instant": "No account yet",
   "Ce relevé": "This statement",
+  "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.":
+    "Your file has a currency column, but the application only has one currency while the “Currencies” extension is off. Turn it on here to link each currency in the file to one of yours, or to create one.",
+  "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».":
+    "Without the extension, the currency column won't be read: every transaction will go in “{monnaie}”.",
+  "Comptes & Monnaies": "Accounts & Currencies",
+  "+ Créer une monnaie": "+ Create a currency",
+  "Nom de la monnaie :": "Currency name:",
+  "Symbole :": "Symbol:",
+  "Monnaie créée": "Currency created",
+  "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
+    "The “{compte}” account doesn't hold {monnaies}: its lines in that currency would be skipped at import. Add it to the account, or link the currency to another one.",
+  "Ajouter au compte": "Add to the account",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

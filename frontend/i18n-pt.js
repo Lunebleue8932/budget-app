@@ -4036,5 +4036,16 @@ Object.assign(TRADUCTIONS.pt, {
   "Aucun compte ne correspond ? Crée le tien": "Nenhuma conta corresponde? Crie a sua",
   "Aucun compte pour l'instant": "Nenhuma conta por enquanto",
   "Ce relevé": "Este extrato",
+  "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.":
+    "Seu arquivo tem uma coluna de moeda, mas o aplicativo só tem uma moeda enquanto a extensão “Moedas” estiver desativada. Ative-a aqui para associar cada moeda do arquivo a uma das suas, ou criar uma.",
+  "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».":
+    "Sem a extensão, a coluna de moeda não será lida: todas as operações irão para “{monnaie}”.",
+  "Comptes & Monnaies": "Contas e Moedas",
+  "+ Créer une monnaie": "+ Criar uma moeda",
+  "Nom de la monnaie :": "Nome da moeda:",
+  "Symbole :": "Símbolo:",
+  "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
+    "A conta “{compte}” não tem {monnaies}: as linhas nessa moeda seriam ignoradas na importação. Adicione-a à conta, ou associe a moeda a outra.",
+  "Ajouter au compte": "Adicionar à conta",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

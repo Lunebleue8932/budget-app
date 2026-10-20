@@ -433,6 +433,11 @@
         <button type="button" id="btn-compte-import-creer-monnaie">+ Créer une monnaie</button>
       </div>
       <p class="import-avertissement" id="compte-import-erreur" role="alert" style="display:none"></p>
+      <!-- Un compte ne reçoit que ses monnaies : celles que le fichier lui apporte sans qu'il les porte. -->
+      <div class="import-avertissement" id="compte-import-monnaies-manquantes" role="alert" style="display:none">
+        <p data-texte></p>
+        <button type="button" id="btn-compte-import-ajouter-monnaies">Ajouter au compte</button>
+      </div>
       <div class="modale-actions">
         <button type="button" id="btn-compte-import-plus-tard">Plus tard</button>
         <button type="button" id="btn-compte-import-valider" class="primary">Valider le compte</button>

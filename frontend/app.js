@@ -2518,6 +2518,28 @@ function demanderCreationCategorie({ nomPropose = "" } = {}) {
   });
 }
 
+/** PROVISOIRE : remplacée par la version de comptes-listes à la fusion (même nom, même signature : une
+ *  fenêtre sur le modèle de `demanderCreationCompte`). Crée une monnaie par la route de l'extension
+ *  « Monnaies » - qui doit donc être allumée - et rend la monnaie créée, ou null. */
+async function demanderCreationMonnaie({ nomPropose = "" } = {}) {
+  const nom = prompt(t("Nom de la monnaie :"), nomPropose);
+  if (!nom || !nom.trim()) return null;
+  const symbole = prompt(t("Symbole :"), "");
+  if (!symbole || !symbole.trim()) return null;
+  try {
+    const monnaie = await apiFetch("/monnaies", {
+      method: "POST",
+      body: JSON.stringify({ nom: nom.trim(), symbole: symbole.trim() }),
+    });
+    await refreshMonnaies();
+    showMessage(t("Monnaie créée"), "success");
+    return monnaie;
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    return null;
+  }
+}
+
 /**
  * Ajoute « + Créer un compte » / « + Créer une catégorie » en dernière ligne d'une liste du formulaire
  * d'opération, à appeler APRÈS son remplissage. Une liste sans aucun choix reçoit d'abord une ligne vide :
@@ -11334,6 +11356,21 @@ function proprietesAvanceesAffichees() {
   return PROPRIETES_IMPORT_AVANCEES.filter(([cle]) => !PROPRIETES_IMPORT_MONNAIE.has(cle));
 }
 
+/** Les champs de la molette du tableau des colonnes. AU PREMIER IMPORT, « Monnaie » y est proposée même
+ *  extension « Monnaies » éteinte : un relevé peut en porter une, et c'est à l'étape « Comptes & Monnaies »
+ *  qu'on décide d'allumer l'extension pour s'en servir (cf. `compteImportExtensionDemandee`). */
+function proprietesAvanceesDetection() {
+  if (choixDeMonnaiePossible() || !premierImportBancaire()) return proprietesAvanceesAffichees();
+  return PROPRIETES_IMPORT_AVANCEES.filter(
+    ([cle]) => cle === "monnaie" || !PROPRIETES_IMPORT_MONNAIE.has(cle)
+  );
+}
+
+/** Le fichier est-il lu avec une colonne de devise (montant, montant envoyé ou frais) ? */
+function importLitUneMonnaie() {
+  return importConfigColonnes.some((c) => c.index >= 1 && PROPRIETES_IMPORT_MONNAIE.has(c.propriete));
+}
+
 /**
  * Ce que chaque propriété d'import veut dire, POSÉ SUR SA PROPRE LIGNE.
  *
@@ -13584,7 +13621,7 @@ function detOptions(entree) {
   const ids = new Set(proposees.map((o) => o.id));
   const toutes = [
     DET_AUCUNE,
-    ...[...PROPRIETES_IMPORT, ...proprietesAvanceesAffichees()].map(([cle]) => cle),
+    ...[...PROPRIETES_IMPORT, ...proprietesAvanceesDetection()].map(([cle]) => cle),
   ];
   const autres = toutes.filter((id) => !ids.has(id)).map((id) => ({ id, niveau: "choix" }));
   return [...proposees, ...autres];
@@ -14810,9 +14847,152 @@ function renderCompteImportMonnaies() {
     monnaies.length && choixDeMonnaiePossible() ? "" : "none";
 }
 
-/** Le fichier lit une devise alors que l'extension « Monnaies » est éteinte (cf. point suivant) : faux ici. */
+/** LE FICHIER LIT UNE DEVISE ALORS QUE L'EXTENSION « MONNAIES » EST ÉTEINTE : l'application n'a qu'une
+ *  monnaie, et rien à quoi rattacher « USD ». La ligne d'activation de l'extension (celle de Paramètres →
+ *  Extensions : son rendu, sa route) se pose alors dans l'étape, renommée « Comptes & Monnaies ».
+ *  L'ALLUMER rend la main aux devises (une monnaie à choisir ou à créer pour chacune). NE PAS L'ALLUMER :
+ *  la colonne de devise n'est pas lue (retirée des colonnes, le fichier relu sans elle) et toutes les
+ *  opérations vont dans la monnaie de l'application - ce que la fenêtre dit sous la ligne d'activation. */
 function compteImportExtensionDemandee() {
-  return false;
+  return importLitUneMonnaie() && !choixDeMonnaiePossible();
+}
+
+/** L'étape parle-t-elle aussi de monnaies ? Elle s'appelle alors « Comptes & Monnaies » (fenêtre et graphe). */
+function etapeCompteAvecMonnaies() {
+  return importLitUneMonnaie() && (compteImportExtensionDemandee() || compteImportBesoins().monnaies.length > 0 || compteImportExtensionAllumee);
+}
+
+/** La monnaie de l'application quand l'extension est éteinte : celle où tout ira. */
+function monnaieUniqueApplication() {
+  const actives = (state.monnaies || []).filter((m) => m.active !== false);
+  return monnaieParId(monnaiePreferee(actives.map((m) => m.id))) || actives[0] || null;
+}
+
+// L'extension a été allumée DEPUIS la fenêtre (sa ligne reste affichée, « Activée »).
+let compteImportExtensionAllumee = false;
+
+async function renderCompteImportExtension() {
+  const bloc = document.getElementById("compte-import-extension-bloc");
+  if (!compteImportExtensionDemandee() && !compteImportExtensionAllumee) {
+    bloc.style.display = "none";
+    return;
+  }
+  let extension = null;
+  try {
+    extension = (await apiFetch("/extensions")).find((e) => e.id === "monnaies") || null;
+  } catch (err) {
+    extension = null;
+  }
+  const zone = document.getElementById("compte-import-extension");
+  zone.innerHTML = extension ? carteExtensionHtml(extension) : "";
+  appliquerPuces(zone);
+  const monnaie = monnaieUniqueApplication();
+  const eteinte = document.getElementById("compte-import-extension-eteinte");
+  eteinte.textContent = compteImportExtensionDemandee()
+    ? t(texteAide("noyau.import-compte-extension-eteinte"), { monnaie: monnaie ? monnaie.nom : "" })
+    : "";
+  eteinte.style.display = eteinte.textContent ? "" : "none";
+  bloc.style.display = "";
+}
+
+async function surExtensionCompteImport() {
+  compteImportExtensionAllumee = choixDeMonnaiePossible();
+  await refreshMonnaies();
+  // Les colonnes de devise se montrent de nouveau (ou plus) dans la configuration du fichier.
+  renderImportConfig();
+  majTitreCompteImport();
+  majEtapesImport("modale-compte-import", "compte");
+  await renderCompteImportExtension();
+  renderCompteImportMonnaies();
+  renderImportMappings();
+}
+
+/** Sans l'extension, la colonne de devise n'est pas lue : retirée des colonnes, le fichier est relu sans elle. */
+function retirerColonnesMonnaieImport() {
+  importConfigColonnes = importConfigColonnes.filter((c) => !PROPRIETES_IMPORT_MONNAIE.has(c.propriete));
+  renderImportConfig();
+}
+
+/**
+ * UN COMPTE NE REÇOIT QUE SES MONNAIES : une ligne en dollars rattachée à un compte qui ne porte que l'euro
+ * est ignorée à la confirmation (cf. le serveur, « ne porte pas la monnaie de cette ligne »). L'aperçu ne le
+ * dit pas ; l'étape « Comptes & Monnaies » le dit AVANT, compte par compte, et propose d'ajouter les monnaies
+ * qui manquent - l'utilisateur valide, rien ne s'ajoute de soi-même. Seules comptent les lignes dont le
+ * fichier écrit la devise : sans elle, une ligne prend la monnaie de son compte.
+ */
+function monnaiesManquantesDesComptes() {
+  const defautBloc = document.getElementById("compte-import-defaut-bloc");
+  const compteFichier =
+    defautBloc.style.display !== "none" && compteImport.choix != null
+      ? compteImport.choix
+      : Number(compteIdDefautChoisi()) || compteDuPresetImport();
+  const manquantes = new Map(); // compte_id -> Set(monnaie_id)
+  lignesLuesParImport().forEach((l) => {
+    if (!l.nom_banque_monnaie) return;
+    const monnaieId = l.monnaie_id ?? importMappingMonnaies[l.nom_banque_monnaie];
+    const compteId =
+      l.compte_id ?? (l.nom_banque_compte ? importMappingComptes[l.nom_banque_compte] : null) ?? compteFichier;
+    const compte = compteId != null ? compteParId(Number(compteId)) : null;
+    if (!monnaieId || !compte) return;
+    const portees = (compte.monnaies || []).filter((m) => m.active !== false).map((m) => m.monnaie_id);
+    if (portees.includes(monnaieId)) return;
+    if (!manquantes.has(compte.id)) manquantes.set(compte.id, new Set());
+    manquantes.get(compte.id).add(monnaieId);
+  });
+  return manquantes;
+}
+
+function afficherMonnaiesManquantes(manquantes) {
+  const bloc = document.getElementById("compte-import-monnaies-manquantes");
+  if (!manquantes.size) {
+    bloc.style.display = "none";
+    return;
+  }
+  const phrases = [...manquantes].map(([compteId, monnaies]) =>
+    t(texteAide("noyau.import-compte-monnaies-manquantes"), {
+      compte: nomCompte(compteId),
+      monnaies: [...monnaies].map((id) => (monnaieParId(id) || {}).nom || `#${id}`).join(", "),
+    })
+  );
+  bloc.querySelector("[data-texte]").textContent = phrases.join(" ");
+  bloc.style.display = "";
+}
+
+/** « Ajouter au compte » : chaque compte reçoit les monnaies qui lui manquent, à la suite des siennes. */
+async function ajouterMonnaiesManquantes() {
+  const manquantes = monnaiesManquantesDesComptes();
+  try {
+    for (const [compteId, monnaies] of manquantes) {
+      const compte = compteParId(compteId);
+      await apiFetch(`/comptes/${compteId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          monnaies: [
+            ...compte.monnaies.map((m) => ({
+              monnaie_id: m.monnaie_id,
+              solde_initial: m.solde_initial,
+              solde_actuel_renseigne: m.solde_actuel_renseigne ?? null,
+              active: m.active !== false,
+            })),
+            ...[...monnaies].map((monnaie_id) => ({ monnaie_id })),
+          ],
+        }),
+      });
+    }
+    await refreshComptes();
+    document.getElementById("compte-import-monnaies-manquantes").style.display = "none";
+    await validerChoixCompteImport();
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+}
+
+async function compteImportCreerMonnaie() {
+  const monnaie = await demanderCreationMonnaie();
+  if (!monnaie) return;
+  await refreshMonnaies();
+  renderCompteImportMonnaies();
+  renderImportMappings();
 }
 
 /** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. La base peut
@@ -14834,11 +15014,14 @@ function ouvrirChoixCompteImport() {
   }
   document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
   document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
+  compteImportExtensionAllumee = false;
   majTitreCompteImport();
   renderCompteImportNoms();
   renderCompteImportMonnaies();
+  renderCompteImportExtension();
   majAideFleches();
   document.getElementById("compte-import-erreur").style.display = "none";
+  document.getElementById("compte-import-monnaies-manquantes").style.display = "none";
   majEtapesImport("modale-compte-import", "compte");
   document.getElementById("modale-compte-import").style.display = "";
   document.body.classList.add("modale-ouverte");
@@ -14852,9 +15035,8 @@ function ouvrirChoixCompteImport() {
 }
 
 function majTitreCompteImport() {
-  const { monnaies } = compteImportBesoins();
-  document.getElementById("modale-compte-import-titre").textContent = monnaies.length
-    ? t("Compte et monnaies de ce relevé")
+  document.getElementById("modale-compte-import-titre").textContent = etapeCompteAvecMonnaies()
+    ? t("Comptes & Monnaies")
     : t("Dans quel compte va ce relevé ?");
 }
 
@@ -14886,11 +15068,22 @@ async function validerChoixCompteImport() {
     erreur.style.display = "";
     return;
   }
-  if (defautDemande) {
+  // L'extension « Monnaies » laissée éteinte : la colonne de devise n'est pas lue (cf.
+  // `compteImportExtensionDemandee`), et le fichier est relu sans elle.
+  const sansMonnaie = compteImportExtensionDemandee();
+  if (!sansMonnaie) {
+    const manquantes = monnaiesManquantesDesComptes();
+    afficherMonnaiesManquantes(manquantes);
+    if (manquantes.size) return;
+  }
+  if (sansMonnaie) retirerColonnesMonnaieImport();
+  if (defautDemande || sansMonnaie) {
     // Le compte « pour ce fichier » de la page est la seule mémoire : l'aperçu et la confirmation le lisent.
-    const page = document.getElementById("import-compte-defaut");
-    fillComptesSelect(page, comptesProposables(compteImport.choix), { keepFirst: true });
-    page.value = String(compteImport.choix);
+    if (defautDemande) {
+      const page = document.getElementById("import-compte-defaut");
+      fillComptesSelect(page, comptesProposables(compteImport.choix), { keepFirst: true });
+      page.value = String(compteImport.choix);
+    }
     // La fenêtre reste ouverte le temps de la relecture, comme aux étapes d'avant.
     const libere = occuperBoutonImport("btn-compte-import-valider");
     try {
@@ -14910,6 +15103,15 @@ async function validerChoixCompteImport() {
   document.getElementById("btn-compte-import-plus-tard").addEventListener("click", fermerChoixCompteImport);
   document.getElementById("btn-compte-import-valider").addEventListener("click", validerChoixCompteImport);
   document.getElementById("btn-compte-import-creer-compte").addEventListener("click", compteImportCreerCompte);
+  document.getElementById("btn-compte-import-creer-monnaie").addEventListener("click", compteImportCreerMonnaie);
+  document.getElementById("btn-compte-import-ajouter-monnaies").addEventListener("click", ajouterMonnaiesManquantes);
+  // LA LIGNE D'ACTIVATION DE L'EXTENSION « MONNAIES » : le même menu et la même route que dans Paramètres →
+  // Extensions (cf. `basculerExtensionDepuisMenu`).
+  document.getElementById("compte-import-extension").addEventListener("change", async (e) => {
+    const menu = e.target.closest("select[data-extension-id]");
+    if (!menu) return;
+    await basculerExtensionDepuisMenu(menu, { apres: surExtensionCompteImport });
+  });
   // L'encadré violet ouvre la fenêtre de création au lieu de se déplier.
   document.getElementById("compte-import-creer").addEventListener("click", (e) => {
     if (!e.target.closest("[data-compte-creer] summary")) return;
@@ -20000,10 +20202,10 @@ function renderExtensions(extensions) {
   appliquerPuces(bloc);
 }
 
-// Délégation : les cartes sont reconstruites à chaque rendu.
-document.getElementById("extensions-liste").addEventListener("change", async (e) => {
-  const case_ = e.target.closest("select[data-extension-id]");
-  if (!case_) return;
+/** Le menu d'une carte d'extension : allume ou éteint l'extension (la route, puis le chargement de ses
+ *  fichiers), puis `apres()`. PARTAGÉ par Paramètres → Extensions et par l'étape « Comptes & Monnaies » de
+ *  l'import, qui pose la même carte (`carteExtensionHtml`). */
+async function basculerExtensionDepuisMenu(case_, { apres = loadExtensions } = {}) {
   const id = case_.dataset.extensionId;
   const actif = case_.value === "actif";
   try {
@@ -20020,7 +20222,7 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     // On REDESSINE toute la liste, et pas seulement la carte touchée : éteindre
     // une extension peut en priver une autre de son hôte, dont la case doit
     // alors se griser sur-le-champ.
-    await loadExtensions();
+    await apres();
     showMessage(
       actif ? t("Extension activée.") : t("Extension désactivée. Aucune donnée n'a été supprimée."),
       "success"
@@ -20030,6 +20232,13 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     case_.value = actif ? "inactif" : "actif";
     showMessage(err.message, "error");
   }
+}
+
+// Délégation : les cartes sont reconstruites à chaque rendu.
+document.getElementById("extensions-liste").addEventListener("change", async (e) => {
+  const case_ = e.target.closest("select[data-extension-id]");
+  if (!case_) return;
+  await basculerExtensionDepuisMenu(case_);
 });
 
 /* ---------- Infobulles : une seule bulle, placée à la demande ----------
