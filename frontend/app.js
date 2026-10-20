@@ -20437,24 +20437,28 @@ document.getElementById("btn-modale-bdd-parcourir").addEventListener("click", as
   if (chemin) champ.value = chemin;
 });
 
-/* LE CHOIX DU SECOND POINT (« Visiter la démo » / « Faire mon premier import ») est seulement NOTÉ :
- * la fenêtre est bloquante jusqu'à ce que la base soit rangée, et le guide ne démarre qu'à la page
- * suivante (cf. premier-demarrage.js). `sessionStorage` comme `baseInstallee` : il survit au
- * rechargement qui suit l'installation, et pas à la fermeture de l'application - un guide qu'on a
- * laissé de côté ne revient pas au prochain lancement. */
+/* LE CHOIX DU SECOND POINT (le premier import, les tutoriels, la démo : « import » | « tutoriels » |
+ * « demo ») est seulement NOTÉ : la fenêtre est bloquante jusqu'à ce que la base soit rangée, et le
+ * guide ne démarre qu'à la page suivante (cf. premier-demarrage.js). `sessionStorage` comme
+ * `baseInstallee` : il survit au rechargement qui suit l'installation, et pas à la fermeture de
+ * l'application - un guide qu'on a laissé de côté ne revient pas au prochain lancement.
+ * Le bouton « Choisir » d'une carte la choisit, la carte entière aussi (une grande cible plutôt qu'un
+ * petit bouton) ; la carte choisie est entourée de bleu. */
 const CLE_GUIDE_DEMARRAGE = "budget-app.guide-demarrage";
 let choixDecouverte = null;
 
-document.querySelectorAll("[data-choix-decouverte]").forEach((bouton) => {
-  bouton.addEventListener("click", (e) => {
-    // Le « i » d'un choix explique, il ne choisit pas.
-    if (e.target.closest(".info-bulle")) return;
-    const voulu = bouton.dataset.choixDecouverte;
-    choixDecouverte = choixDecouverte === voulu ? null : voulu;
-    document.querySelectorAll("[data-choix-decouverte]").forEach((autre) => {
-      autre.setAttribute("aria-checked", String(autre.dataset.choixDecouverte === choixDecouverte));
-    });
+function choisirDecouverte(voulu) {
+  choixDecouverte = choixDecouverte === voulu ? null : voulu;
+  document.querySelectorAll("[data-choix-decouverte]").forEach((bouton) => {
+    bouton.setAttribute("aria-checked", String(bouton.dataset.choixDecouverte === choixDecouverte));
   });
+  document.querySelectorAll("[data-carte-decouverte]").forEach((carte) => {
+    carte.classList.toggle("choisie", carte.dataset.carteDecouverte === choixDecouverte);
+  });
+}
+
+document.querySelectorAll("[data-carte-decouverte]").forEach((carte) => {
+  carte.addEventListener("click", () => choisirDecouverte(carte.dataset.carteDecouverte));
 });
 
 function noterChoixDecouverte() {

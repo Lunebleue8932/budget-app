@@ -4026,3 +4026,24 @@ Object.assign(TRADUCTIONS.pt, {
   "Lecture du fichier…": "Lendo o arquivo…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : le premier lancement à trois choix, la porte des tutoriels
+Object.assign(TRADUCTIONS.pt, {
+  "Tu peux découvrir l'app de trois façons, en passant de l'une à l'autre":
+    "Você pode conhecer o app de três formas, passando de uma para a outra",
+  "Tu peux faire ton premier import dès maintenant":
+    "Você pode fazer sua primeira importação agora mesmo",
+  "Tu peux suivre les tutoriels pour comprendre le fonctionnement de l'app. // /italic(La progression des tutoriels est sauvegardée, tu peux quitter un tutoriel et le reprendre quand tu veux)":
+    "Você pode seguir os tutoriais para entender como o app funciona. // /italic(O progresso dos tutoriais fica salvo: você pode sair de um tutorial e retomá-lo quando quiser)",
+  "Tu peux explorer la sandbox pour voir ce que l'app offre et ce qu'il est possible de faire.":
+    "Você pode explorar a sandbox para ver o que o app oferece e o que dá para fazer com ele.",
+  "Chaque carte est un tutoriel guidé, avec sa progression. Commence par /bold(Prendre l'application en main) : le tour de l'app, sur des données fictives. Son bouton le lance quand tu es prêt.":
+    "Cada cartão é um tutorial guiado, com o seu progresso. Comece por /bold(Dominar o aplicativo): um tour pelo app, com dados fictícios. O botão dele o inicia quando você estiver pronto.",
+  "Les tutoriels guidés, pas à pas devant l'écran : la prise en main de l'app, puis l'import d'un relevé. Ta progression est gardée, tu reprends quand tu veux.":
+    "Os tutoriais guiados, passo a passo diante da tela: dominar o app e depois importar um extrato. Seu progresso fica salvo, você retoma quando quiser.",
+  "Trois façons de découvrir l'app": "Três formas de conhecer o app",
+  "Choisir": "Escolher",
+  "Suivre les tutoriels": "Seguir os tutoriais",
+  "Les tutoriels sont ici": "Os tutoriais ficam aqui",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le premier lancement à trois choix

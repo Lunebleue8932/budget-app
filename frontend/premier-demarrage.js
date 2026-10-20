@@ -1,12 +1,14 @@
 /* ---------- LE GUIDE DE LA PREMIÈRE VISITE ----------
  *
- * La fenêtre de premier lancement (`#modale-bdd`) propose DEUX FAÇONS DE DÉCOUVRIR L'APPLICATION :
- * visiter la démo, ou faire son premier import. Elle ne fait que NOTER le choix
+ * La fenêtre de premier lancement (`#modale-bdd`) propose TROIS FAÇONS DE DÉCOUVRIR L'APPLICATION :
+ * faire son premier import, suivre les tutoriels, visiter la démo. Elle ne fait que NOTER le choix
  * (`noterChoixDecouverte`, app.js) : la fenêtre est bloquante jusqu'à ce que la base soit rangée, et
  * rangée, la page se recharge. C'est ici, au chargement qui suit, que le choix s'exécute.
  *
  *   - « demo » : une bulle montre où la démo se trouve (le bouton de la barre latérale). Rien n'est
  *     ouvert à la place de l'utilisateur : on lui montre la porte, il l'ouvre s'il veut.
+ *   - « tutoriels » : l'écran des tutoriels (Paramètres → Paramètres généraux), une bulle sur le premier,
+ *     « Prendre l'application en main ». Pas plus lancé à sa place que la démo n'est ouverte.
  *   - « import » : une bulle l'emmène sur la page d'import, jusqu'au bouton qui choisit le fichier,
  *     puis le suit pas à pas à travers les tableaux de l'import (les colonnes, les catégories de la
  *     banque) jusqu'au bouton qui confirme. Une base neuve n'a pas de compte : une petite fenêtre en
@@ -147,6 +149,37 @@ function arreterGuide() {
   guideRanger();
   const bulle = document.getElementById("guide-bulle");
   if (bulle) bulle.style.display = "none";
+}
+
+/* ---------- Les tutoriels ----------
+ *
+ * L'ÉCRAN DES TUTORIELS, ET UNE BULLE SUR LE PREMIER : « Prendre l'application en main » fait le tour de
+ * l'application, c'est par lui qu'on commence. La bulle désigne sa carte ; c'est l'utilisateur qui clique
+ * « Commencer » (il entre alors dans la base de découverte, la page se recharge et la bulle s'en va).
+ * Une lecture de l'écran toutes les demi-secondes, comme pour l'import : la bulle se tait dès que la carte
+ * n'est plus à l'écran (une autre page) ou qu'un tutoriel a démarré.
+ */
+const GUIDE_CARTE_PRISE_EN_MAIN = "#tutoriels-liste [data-parcours='decouverte']";
+
+function guideSurveillerTutoriels() {
+  const tutorielEnCours = typeof tutorielActif !== "undefined" && tutorielActif;
+  if (tutorielEnCours || !guideVisible(GUIDE_CARTE_PRISE_EN_MAIN)) arreterGuide();
+}
+
+async function guideTutoriels() {
+  arreterGuide();
+  // Dans la démo, un tutoriel ne se lance pas (cf. routers/sandbox.py) : il n'y a rien à montrer.
+  if (BudgetApp.sandboxPret) await BudgetApp.sandboxPret;
+  if (BudgetApp.sandbox.actif) return;
+  // La liste des parcours s'écrit à l'arrivée sur la page (cf. loadParametresGeneraux).
+  switchSection("parametres", { sousSection: "parametres-generaux" });
+  guideAfficher({
+    titre: "Les tutoriels sont ici",
+    cle: "noyau.guide-tutoriels",
+    cible: GUIDE_CARTE_PRISE_EN_MAIN,
+    fermer: true,
+  });
+  guideMinuterie = setInterval(guideSurveillerTutoriels, 500);
 }
 
 /* ---------- La démo ---------- */
@@ -300,6 +333,10 @@ async function guideImport() {
 const boutonPremierImport = document.getElementById("btn-premier-import");
 if (boutonPremierImport) boutonPremierImport.addEventListener("click", () => guideImport());
 
+// Celle des tutoriels, juste en dessous.
+const boutonGuideTutoriels = document.getElementById("btn-guide-tutoriels");
+if (boutonGuideTutoriels) boutonGuideTutoriels.addEventListener("click", () => guideTutoriels());
+
 ["scroll", "resize"].forEach((evenement) => {
   window.addEventListener(evenement, guidePlacer, { passive: true });
 });
@@ -313,12 +350,13 @@ if (boutonPremierImport) boutonPremierImport.addEventListener("click", () => gui
   } catch (err) {
     return;
   }
-  if (voie !== "demo" && voie !== "import") return;
+  if (voie !== "demo" && voie !== "import" && voie !== "tutoriels") return;
   try {
     await BudgetApp.pret;
   } catch (err) {
     return;
   }
   if (voie === "demo") guideDemo();
+  else if (voie === "tutoriels") guideTutoriels();
   else guideImport();
 })();

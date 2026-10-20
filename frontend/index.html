@@ -141,6 +141,13 @@
       <button type="button" id="btn-premier-import">Premier import</button>
       <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-premier-import-bouton">i</i>
     </div>
+    <!-- LES TUTORIELS, entre le premier import et la démo : les trois portes dans l'ordre des cartes de la
+         fenêtre de premier lancement. Elle mène à l'écran des tutoriels et montre le premier, sans le lancer
+         (cf. premier-demarrage.js, `guideTutoriels`). Masquée dans la démo : on n'y lance pas de tutoriel. -->
+    <div class="barre-tutoriels" data-sandbox-entree>
+      <button type="button" id="btn-guide-tutoriels">Suivre les tutoriels</button>
+      <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-tutoriels-bouton">i</i>
+    </div>
     <div class="barre-demo" data-sandbox-entree>
       <button type="button" id="btn-sandbox-entrer">Essayer la démo</button>
       <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
@@ -191,7 +198,7 @@
        Affichée par app.js quand le serveur répond `configuration_requise`
        (cf. backend/app/database.py::configuration_requise), jamais autrement. -->
   <div id="modale-bdd" class="modale-fond" style="display:none" role="presentation">
-    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-bdd-titre">
+    <div class="modale modale-bdd" role="dialog" aria-modal="true" aria-labelledby="modale-bdd-titre">
       <!-- « DEUX POINTS », ET LE TITRE LE DIT. Un écran de bienvenue qui
            n'annonce pas sa longueur se lit en diagonale : on cherche le bouton
            qui le fait disparaître. En annonçant qu'il n'y a que deux choses, on
@@ -211,26 +218,33 @@
 
       <!-- LE SECOND POINT EST UN CHOIX, qui ne s'exécute pas ici : cette fenêtre est bloquante
            jusqu'à ce que la base soit rangée, et un bouton qui emmènerait ailleurs avant cela
-           laisserait le premier point en plan. Les deux boutons ne font donc que NOTER la voie
+           laisserait le premier point en plan. Les trois cartes ne font donc que NOTER la voie
            choisie (cf. app.js, `choixDecouverte`) ; le guide démarre une fois la fenêtre quittée, à
            la page suivante (cf. premier-demarrage.js). Un second clic sur le choix le retire :
-           ne rien choisir est permis. -->
+           ne rien choisir est permis. L'ORDRE DES CARTES est celui des portes de la barre latérale :
+           le premier import, les tutoriels, la démo. -->
       <div class="modale-point">
-        <h3><span class="modale-point-numero">2</span>Deux façons de découvrir l'app</h3>
-        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-decouvrir"></p>
-        <div class="modale-choix" role="radiogroup" aria-label="Deux façons de découvrir l'app">
-          <button type="button" class="modale-choix-bouton" role="radio" aria-checked="false"
-                  data-choix-decouverte="demo">
-            <span class="modale-choix-rond" aria-hidden="true"></span>
-            <span class="modale-choix-titre">Visiter la démo</span>
-            <i class="info-bulle" tabindex="0" data-info-cle="noyau.modale-bdd-choix-demo">i</i>
-          </button>
-          <button type="button" class="modale-choix-bouton" role="radio" aria-checked="false"
-                  data-choix-decouverte="import">
-            <span class="modale-choix-rond" aria-hidden="true"></span>
-            <span class="modale-choix-titre">Faire mon premier import</span>
-            <i class="info-bulle" tabindex="0" data-info-cle="noyau.modale-bdd-choix-import">i</i>
-          </button>
+        <h3><span class="modale-point-numero">2</span>Trois façons de découvrir l'app</h3>
+        <p class="modale-texte" data-texte-cle="noyau.modale-bdd-trois-facons"></p>
+        <div class="modale-decouverte" role="radiogroup" aria-label="Trois façons de découvrir l'app">
+          <div class="modale-decouverte-carte" data-carte-decouverte="import">
+            <div class="modale-decouverte-texte" id="modale-decouverte-import"
+                 data-texte-cle="noyau.modale-bdd-carte-import"></div>
+            <button type="button" class="modale-decouverte-choisir" role="radio" aria-checked="false"
+                    aria-describedby="modale-decouverte-import" data-choix-decouverte="import">Choisir</button>
+          </div>
+          <div class="modale-decouverte-carte" data-carte-decouverte="tutoriels">
+            <div class="modale-decouverte-texte" id="modale-decouverte-tutoriels"
+                 data-texte-cle="noyau.modale-bdd-carte-tutoriels"></div>
+            <button type="button" class="modale-decouverte-choisir" role="radio" aria-checked="false"
+                    aria-describedby="modale-decouverte-tutoriels" data-choix-decouverte="tutoriels">Choisir</button>
+          </div>
+          <div class="modale-decouverte-carte" data-carte-decouverte="demo">
+            <div class="modale-decouverte-texte" id="modale-decouverte-demo"
+                 data-texte-cle="noyau.modale-bdd-carte-sandbox"></div>
+            <button type="button" class="modale-decouverte-choisir" role="radio" aria-checked="false"
+                    aria-describedby="modale-decouverte-demo" data-choix-decouverte="demo">Choisir</button>
+          </div>
         </div>
       </div>
 
@@ -250,7 +264,7 @@
              bouton. app.js le révèle quand l'API répond présente. -->
         <button type="button" id="btn-modale-bdd-parcourir" style="display:none">Parcourir…</button>
         <button type="button" class="primary" id="btn-modale-bdd-valider">
-          Ranger mes données ici
+          Confirmer
         </button>
       </div>
     </div>
