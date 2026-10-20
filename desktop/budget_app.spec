@@ -49,6 +49,11 @@ donnees = [
     # Dictionnaire des intitulés de colonnes (cf. app/services/entetes.py) :
     # même cas, lu à l'exécution, même destination.
     (str(BACKEND / "app" / "synonymes_entetes.json"), "app"),
+    # Mots-clés livrés des catégories, un fichier par langue (cf.
+    # app/services/categorisation_intelligente.py::dossier_mots_cles) : même cas,
+    # lus à l'exécution. C'est un DOSSIER, d'où la destination "app/mots_cles" et
+    # non "app" : il retombe ainsi à côté des autres, sous sys._MEIPASS/app.
+    (str(BACKEND / "app" / "mots_cles"), "app/mots_cles"),
 ]
 
 # LES EXTENSIONS NE SONT PAS EMBARQUÉES, et c'est délibéré. L'application est

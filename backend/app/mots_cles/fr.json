@@ -1,0 +1,93 @@
+{
+  "_lisez_moi": [
+    "LES MOTS-CLÉS LIVRÉS DES CATÉGORIES, UN FICHIER PAR LANGUE (cf. app/services/categorisation_intelligente.py).",
+    "Les trois fichiers (fr.json, en.json, pt.json) ont la MÊME forme et les mêmes catégories ; l'application lit leur UNION. Chaque mot va dans la langue où il se dit ; un mot commun à deux langues (« restaurant », « bus ») figure dans chacune, et une marque (« netflix », « uber ») dans chaque langue où on la rencontre.",
+    "Par catégorie livrée : `noms` = les noms et synonymes qui désignent la catégorie (« Loisirs & sorties » est reconnu comme « Loisirs ») ; `mots_cles` = ce qu'un libellé de relevé peut contenir pour y mener. Une catégorie sans entrée n'a que son propre nom. `autres` : les noms de la catégorie de repli, qu'aucun mot-clé n'attire jamais.",
+    "Noms et mots-clés sont comparés APRÈS normalisation (minuscules, sans accents ni ponctuation) : « Entrées d'argent » s'écrit comme on le lit. Les mots-clés sont gardés TELS QUELS, accentués ou non (« café », « cafe » si les deux servent), parce qu'ils s'affichent dans l'écran des mots-clés de chaque catégorie, dans cet ordre.",
+    "« virements_internes » : la liste est VIDE pour l'instant, à remplir. Une liste de mots-clés écrite par l'utilisateur dans l'application remplace toujours celle-ci en entier.",
+    "Ajouter une langue : un nouveau fichier de même forme, puis son code dans LANGUES (categorisation_intelligente.py) et dans le test."
+  ],
+  "langue": "fr",
+  "nom_langue": "Français",
+  "categories": {
+    "alimentaire": {
+      "noms": ["Alimentaire", "Alimentation", "Courses"],
+      "mots_cles": [
+        "courses", "supermarché", "supermarche", "hypermarché", "alimentation", "alimentaire",
+        "nourriture", "épicerie", "epicerie", "boulangerie", "boucherie", "poissonnerie", "primeur",
+        "fruits et légumes", "marché", "restaurant", "restauration", "fast food", "mcdo",
+        "mcdonald", "burger", "pizza", "kebab", "sandwich", "traiteur", "café", "boissons",
+        "cantine", "livraison repas", "carrefour", "leclerc", "auchan", "lidl", "intermarché",
+        "monoprix"
+      ]
+    },
+    "loisirs": {
+      "noms": ["Loisirs", "Loisirs & sorties", "Sorties"],
+      "mots_cles": [
+        "loisirs", "sorties", "sortie", "cinéma", "cinema", "théâtre", "theatre", "concert",
+        "spectacle", "musée", "musee", "bar", "boîte de nuit", "soirée", "soiree", "jeux vidéo",
+        "jeux video", "jeu", "streaming", "netflix", "spotify", "disney", "abonnement culturel",
+        "sport", "salle de sport", "gym", "vacances", "voyage", "hôtel", "hotel", "week end",
+        "parc d'attractions", "loisir", "livre", "librairie", "hobby", "culture", "divertissement"
+      ]
+    },
+    "transports": {
+      "noms": ["Transports", "Transport", "Déplacements"],
+      "mots_cles": [
+        "transports", "transport", "carburant", "essence", "gazole", "diesel", "station service",
+        "péage", "peage", "parking", "stationnement", "autoroute", "train", "sncf", "ter", "tgv",
+        "métro", "metro", "bus", "tramway", "navigo", "ratp", "taxi", "uber", "vtc", "bolt",
+        "covoiturage", "blablacar", "vélo", "velo", "trottinette", "avion", "billet d'avion",
+        "assurance auto", "entretien véhicule", "garage"
+      ]
+    },
+    "charges_fixes": {
+      "noms": ["Charges fixes", "Charges", "Logement"],
+      "mots_cles": [
+        "charges fixes", "loyer", "logement", "habitation", "électricité", "electricite", "edf",
+        "engie", "gaz", "eau", "internet", "box", "fibre", "téléphone", "telephone", "mobile",
+        "forfait", "assurance", "mutuelle", "impôts", "impots", "taxe", "taxe foncière",
+        "taxe d'habitation", "crédit", "credit", "prêt immobilier", "pret immobilier",
+        "remboursement de prêt", "abonnement", "cotisation", "charges", "copropriété",
+        "copropriete", "syndic"
+      ]
+    },
+    "entrees_argent": {
+      "noms": ["Entrées d'argent", "Revenus", "Salaire"],
+      "mots_cles": [
+        "entrées d'argent", "entrees d'argent", "salaire", "paie", "paye", "virement salaire",
+        "revenu", "revenus", "rémunération", "remuneration", "prime", "bonus", "allocation", "caf",
+        "pôle emploi", "pole emploi", "chômage", "chomage", "retraite", "pension", "dividendes",
+        "intérêts", "interets", "remboursement", "loyer perçu", "freelance", "honoraires", "vente",
+        "cadeau reçu"
+      ]
+    },
+    "sante": {
+      "noms": ["Dépenses médicales", "Santé"],
+      "mots_cles": [
+        "santé", "sante", "médecin", "medecin", "docteur", "dentiste", "pharmacie", "médicament",
+        "medicament", "ordonnance", "hôpital", "hopital", "clinique", "kiné", "kine", "osteo",
+        "ostéopathe", "ophtalmo", "opticien", "lunettes", "analyses", "laboratoire",
+        "mutuelle santé", "soins", "psychologue"
+      ]
+    },
+    "vetements": {
+      "noms": [
+        "Vêtements, équipements & entretien", "Vêtements", "Vêtements, équipement & sport"
+      ],
+      "mots_cles": [
+        "vêtements", "vetements", "habillement", "mode", "chaussures", "zara", "h&m", "kiabi",
+        "decathlon", "décathlon", "équipement", "equipement", "accessoires", "entretien",
+        "pressing", "couture", "réparation", "reparation", "bricolage", "castorama", "leroy merlin",
+        "ikea", "meubles", "électroménager", "electromenager"
+      ]
+    },
+    "virements_internes": {
+      "noms": ["Virements internes"],
+      "mots_cles": []
+    }
+  },
+  "autres": {
+    "noms": ["Autres", "Divers"]
+  }
+}

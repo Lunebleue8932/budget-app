@@ -13,7 +13,9 @@ CINQ PALIERS, dans cet ordre, et c'est l'ordre qui compte :
      écrasés. « Alimentation & Restauration » et « alimentation restauration » sont le même mot.
   3. LES ALIAS : chaque catégorie de l'app porte une liste de mots-clés (`Categorie.mots_cles_perso`,
      migration 0085), en français, en anglais et en portugais du Brésil. Tant que l'utilisateur
-     n'a pas écrit la sienne, ce sont les listes livrées ci-dessous.
+     n'a pas écrit la sienne, ce sont les listes livrées, rangées par langue dans
+     `app/mots_cles/` (un fichier par langue : fr.json, en.json, pt.json) et lues ensemble
+     (cf. `livres`).
   4. LE FLOU (`_score`) : le libellé normalisé est comparé au nom et à chaque alias, par
      inclusion de mots entiers, préfixe, puis ressemblance de chaînes (difflib, de la
      bibliothèque standard — aucune dépendance de plus à embarquer dans le bundle). Deux seuils :
@@ -25,10 +27,14 @@ CINQ PALIERS, dans cet ordre, et c'est l'ordre qui compte :
 
 CE MODULE NE FAIT QUE LIRE : aucune écriture en base, aucune catégorie créée ni modifiée.
 """
+import json
 import re
+import sys
 import unicodedata
 from difflib import SequenceMatcher
-from typing import Optional
+from functools import lru_cache
+from pathlib import Path
+from typing import NamedTuple, Optional
 
 from sqlalchemy.orm import Session
 
@@ -72,105 +78,86 @@ def normaliser(texte: Optional[str]) -> str:
 
 # ---------- Les mots-clés livrés ----------
 #
-# Une quarantaine par catégorie, français / anglais / portugais du Brésil mêlés : un relevé
-# n'annonce pas sa langue. Ils ne servent que tant que la catégorie n'a pas SA liste : dès qu'on
-# en écrit une (`Categorie.mots_cles_perso`), elle remplace celle-ci en entier — jamais de fusion, ce
-# qu'on retire d'une liste doit rester retiré.
+# Ils ne sont plus écrits ici mais dans `app/mots_cles/` : UN FICHIER PAR LANGUE (fr.json, en.json,
+# pt.json — le portugais étant celui du Brésil), tous de même forme. Chaque mot est rangé dans la
+# langue où il se dit : « restaurant » ou « bus » figurent dans les deux langues qui les emploient,
+# une marque (« netflix », « uber ») dans chaque langue où on la rencontre. C'est ce qui laisse les
+# améliorations à venir se faire langue par langue, sans toucher à ce module. Un relevé n'annonce
+# pourtant pas sa langue : on lit l'UNION des trois fichiers, et les propositions sont celles du
+# temps où les listes étaient mêlées ici.
+#
+# Par catégorie livrée, un fichier donne ses `noms` (le nom qui la désigne et ses synonymes :
+# « Loisirs & sorties » est reconnu comme « Loisirs ») et ses `mots_cles`. Une catégorie sans
+# entrée n'a que son propre nom. Et `autres`, les noms de la catégorie de repli : « Autres »
+# n'attire rien par mots-clés, ce n'est pas une destination qu'un libellé désigne, seuls ces mots
+# y mènent.
+#
+# Les mots-clés livrés ne servent que tant que la catégorie n'a pas SA liste : dès qu'on en écrit
+# une (`Categorie.mots_cles_perso`), elle remplace celle-ci en entier — jamais de fusion, ce qu'on
+# retire d'une liste doit rester retiré.
 
-_ALIMENTAIRE = [
-    "courses", "supermarché", "supermarche", "hypermarché", "alimentation", "alimentaire",
-    "nourriture", "épicerie", "epicerie", "boulangerie", "boucherie", "poissonnerie", "primeur",
-    "fruits et légumes", "marché", "restaurant", "restauration", "fast food", "mcdo", "mcdonald",
-    "burger", "pizza", "kebab", "sandwich", "traiteur", "café", "boissons", "cantine",
-    "livraison repas", "carrefour", "leclerc", "auchan", "lidl", "intermarché", "monoprix",
-    "groceries", "grocery", "food", "dining", "takeaway", "bakery", "butcher", "coffee",
-    "mercado", "supermercado", "padaria", "açougue", "acougue", "hortifruti", "lanchonete",
-    "alimentação", "alimentacao", "comida", "refeição", "refeicao",
-]
+# Les langues des fichiers, DANS L'ORDRE où on les lit : l'ordre des mots-clés d'une catégorie (celui
+# de l'écran des mots-clés, et celui qui départage deux mots de même score) est celui du premier
+# fichier qui les porte. Ajouter une langue : un fichier de même forme, et son code ici.
+LANGUES_MOTS_CLES = ("fr", "en", "pt")
 
-_LOISIRS = [
-    "loisirs", "sorties", "sortie", "cinéma", "cinema", "théâtre", "theatre", "concert",
-    "spectacle", "musée", "musee", "bar", "boîte de nuit", "soirée", "soiree", "jeux vidéo",
-    "jeux video", "jeu", "streaming", "netflix", "spotify", "disney", "abonnement culturel",
-    "sport", "salle de sport", "gym", "vacances", "voyage", "hôtel", "hotel", "week end",
-    "parc d'attractions", "loisir", "livre", "librairie", "hobby", "culture", "divertissement",
-    "entertainment", "leisure", "movies", "games", "nightlife", "travel", "holiday",
-    "lazer", "diversão", "diversao", "viagem", "passeio", "festa", "balada", "academia",
-]
 
-_TRANSPORTS = [
-    "transports", "transport", "carburant", "essence", "gazole", "diesel", "station service",
-    "péage", "peage", "parking", "stationnement", "autoroute", "train", "sncf", "ter", "tgv",
-    "métro", "metro", "bus", "tramway", "navigo", "ratp", "taxi", "uber", "vtc", "bolt",
-    "covoiturage", "blablacar", "vélo", "velo", "trottinette", "avion", "billet d'avion",
-    "assurance auto", "entretien véhicule", "garage", "fuel", "gas", "toll", "transit",
-    "ride", "flight", "gasolina", "combustível", "combustivel", "pedágio", "pedagio",
-    "estacionamento", "ônibus", "onibus", "passagem",
-]
+def dossier_mots_cles() -> Path:
+    """Le dossier des fichiers de langue. Des données lues à l'exécution, jamais importées : en
+    application packagée, elles sont sous sys._MEIPASS (cf. desktop/budget_app.spec, destination
+    "app/mots_cles")."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "app" / "mots_cles"
+    return Path(__file__).resolve().parent.parent / "mots_cles"
 
-_CHARGES_FIXES = [
-    "charges fixes", "loyer", "logement", "habitation", "électricité", "electricite", "edf",
-    "engie", "gaz", "eau", "internet", "box", "fibre", "téléphone", "telephone", "mobile",
-    "forfait", "assurance", "mutuelle", "impôts", "impots", "taxe", "taxe foncière",
-    "taxe d'habitation", "crédit", "credit", "prêt immobilier", "pret immobilier",
-    "remboursement de prêt", "abonnement", "cotisation", "charges", "copropriété",
-    "copropriete", "syndic", "rent", "mortgage", "utilities", "electricity", "water",
-    "insurance", "bills", "subscription", "aluguel", "condomínio", "condominio", "luz",
-    "água", "agua", "seguro", "conta de luz", "financiamento",
-]
 
-_ENTREES = [
-    "entrées d'argent", "entrees d'argent", "salaire", "paie", "paye", "virement salaire",
-    "revenu", "revenus", "rémunération", "remuneration", "prime", "bonus", "allocation",
-    "caf", "pôle emploi", "pole emploi", "chômage", "chomage", "retraite", "pension",
-    "dividendes", "intérêts", "interets", "remboursement", "loyer perçu", "freelance",
-    "honoraires", "vente", "cadeau reçu", "income", "salary", "wages", "payroll", "refund",
-    "dividend", "interest", "salário", "salario", "renda", "rendimento", "décimo terceiro",
-    "13o salario", "reembolso", "proventos",
-]
+class MotsClesLivres(NamedTuple):
+    """Ce que disent, ENSEMBLE, les fichiers de langue."""
 
-_SANTE = [
-    "santé", "sante", "médecin", "medecin", "docteur", "dentiste", "pharmacie", "médicament",
-    "medicament", "ordonnance", "hôpital", "hopital", "clinique", "kiné", "kine", "osteo",
-    "ostéopathe", "ophtalmo", "opticien", "lunettes", "analyses", "laboratoire", "mutuelle santé",
-    "soins", "psychologue", "health", "medical", "doctor", "dentist", "pharmacy", "hospital",
-    "saúde", "saude", "médico", "medico", "farmácia", "farmacia", "consulta", "plano de saúde",
-]
+    # Identifiant de catégorie livrée -> ses mots-clés, sans doublon, dans l'ordre des langues.
+    mots: dict
+    # Nom (ou synonyme) normalisé -> identifiant de la catégorie qu'il désigne.
+    noms: dict
+    # Les noms normalisés de la catégorie de repli.
+    autres: frozenset
 
-_VETEMENTS = [
-    "vêtements", "vetements", "habillement", "mode", "chaussures", "zara", "h&m", "kiabi",
-    "decathlon", "décathlon", "équipement", "equipement", "accessoires", "entretien", "pressing",
-    "couture", "réparation", "reparation", "bricolage", "castorama", "leroy merlin", "ikea",
-    "meubles", "électroménager", "electromenager", "clothing", "clothes", "shoes", "fashion",
-    "apparel", "roupas", "calçados", "calcados", "vestuário", "vestuario", "moda", "reforma",
-]
 
-# Par NOM de catégorie normalisé (et ses synonymes) : la clé reconnaît « Loisirs & sorties »
-# comme « Loisirs ». Une catégorie sans entrée ici n'a que son propre nom.
-_PAR_NOM = {
-    "alimentaire": _ALIMENTAIRE, "alimentation": _ALIMENTAIRE, "courses": _ALIMENTAIRE,
-    "food": _ALIMENTAIRE, "groceries": _ALIMENTAIRE, "alimentacao": _ALIMENTAIRE,
-    "loisirs": _LOISIRS, "loisirs sorties": _LOISIRS, "sorties": _LOISIRS,
-    "entertainment": _LOISIRS, "leisure": _LOISIRS, "lazer": _LOISIRS,
-    "transports": _TRANSPORTS, "transport": _TRANSPORTS, "deplacements": _TRANSPORTS,
-    "transportation": _TRANSPORTS, "transportes": _TRANSPORTS,
-    "charges fixes": _CHARGES_FIXES, "charges": _CHARGES_FIXES, "logement": _CHARGES_FIXES,
-    "fixed costs": _CHARGES_FIXES, "bills": _CHARGES_FIXES, "contas fixas": _CHARGES_FIXES,
-    "entrees d argent": _ENTREES, "revenus": _ENTREES, "income": _ENTREES,
-    "salaire": _ENTREES, "receitas": _ENTREES,
-    "depenses medicales": _SANTE, "sante": _SANTE, "health": _SANTE, "saude": _SANTE,
-    "vetements equipements entretien": _VETEMENTS, "vetements": _VETEMENTS,
-    "vetements equipement sport": _VETEMENTS, "clothing": _VETEMENTS, "roupas": _VETEMENTS,
-}
+def _lire_langue(langue: str) -> dict:
+    """Le contenu du fichier d'une langue. Un fichier manquant ou abîmé est ignoré — l'import
+    retombe alors sur le seul nom des catégories, il ne plante pas ; ce sont les tests qui
+    gardent les fichiers livrés (et le bundle qui les embarque) en bon état."""
+    try:
+        contenu = json.loads((dossier_mots_cles() / f"{langue}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return contenu if isinstance(contenu, dict) else {}
 
-# « Autres » n'attire rien par mots-clés : c'est le repli, pas une destination qu'un libellé
-# désigne. Seuls ces mots y mènent.
-_AUTRES = {"autres", "divers", "other", "others", "misc", "miscellaneous", "outros", "diversos"}
+
+@lru_cache(maxsize=1)
+def livres() -> MotsClesLivres:
+    """L'union des fichiers de langue, lus une fois."""
+    mots: dict[str, dict[str, None]] = {}  # un dict sert d'ensemble ordonné
+    noms: dict[str, str] = {}
+    autres: set[str] = set()
+    for langue in LANGUES_MOTS_CLES:
+        contenu = _lire_langue(langue)
+        for identifiant, categorie in (contenu.get("categories") or {}).items():
+            mots.setdefault(identifiant, {}).update(dict.fromkeys(categorie.get("mots_cles", [])))
+            for nom in categorie.get("noms", []):
+                noms.setdefault(normaliser(nom), identifiant)
+        autres.update(normaliser(nom) for nom in (contenu.get("autres") or {}).get("noms", []))
+    autres.discard("")
+    return MotsClesLivres(
+        mots={identifiant: list(liste) for identifiant, liste in mots.items()},
+        noms=noms,
+        autres=frozenset(autres),
+    )
 
 
 def mots_cles_par_defaut(nom_categorie: str) -> list[str]:
     """Les mots-clés livrés pour une catégorie, d'après son nom ; vide si on n'en connaît pas."""
-    return list(_PAR_NOM.get(normaliser(nom_categorie), []))
+    donnees = livres()
+    return list(donnees.mots.get(donnees.noms.get(normaliser(nom_categorie)), []))
 
 
 def mots_cles_de(categorie: models.Categorie) -> list[str]:
@@ -294,13 +281,14 @@ def classer(db: Session, libelle_banque: str, natures: Optional[list[str]] = Non
     if not libelle:
         return []
     categories = db.query(models.Categorie).filter(models.Categorie.active.is_(True)).all()
+    autres = livres().autres
     resultats = []
     candidats_par_categorie: dict = {}
     noms: dict = {}
     for categorie in categories:
-        if normaliser(categorie.nom) in _AUTRES:
+        if normaliser(categorie.nom) in autres:
             # « Autres » ne répond qu'à ses propres mots.
-            candidats = [(normaliser(m), m) for m in [categorie.nom, *sorted(_AUTRES)]]
+            candidats = [(normaliser(m), m) for m in [categorie.nom, *sorted(autres)]]
         else:
             candidats = _candidats(categorie)
         meilleur, via = 0.0, None
@@ -309,8 +297,8 @@ def classer(db: Session, libelle_banque: str, natures: Optional[list[str]] = Non
             if score > meilleur:
                 meilleur, via = score, brut
         noms[categorie.id] = categorie.nom
-        if normaliser(categorie.nom) not in _AUTRES:
-            # « Autres » n'est jamais prouvée par des mots-clés : c'est le repli (cf. `_AUTRES`).
+        if normaliser(categorie.nom) not in autres:
+            # « Autres » n'est jamais prouvée par des mots-clés : c'est le repli (cf. `livres().autres`).
             candidats_par_categorie[categorie.id] = candidats
         if meilleur > 0:
             resultats.append(

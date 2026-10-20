@@ -1,0 +1,67 @@
+{
+  "_lisez_moi": [
+    "LES MOTS-CLÉS LIVRÉS DES CATÉGORIES, UN FICHIER PAR LANGUE (cf. app/services/categorisation_intelligente.py).",
+    "Les trois fichiers (fr.json, en.json, pt.json) ont la MÊME forme et les mêmes catégories ; l'application lit leur UNION. Chaque mot va dans la langue où il se dit ; un mot commun à deux langues (« restaurant », « bus ») figure dans chacune, et une marque (« netflix », « uber ») dans chaque langue où on la rencontre.",
+    "Par catégorie livrée : `noms` = les noms et synonymes qui désignent la catégorie (« Loisirs & sorties » est reconnu comme « Loisirs ») ; `mots_cles` = ce qu'un libellé de relevé peut contenir pour y mener. Une catégorie sans entrée n'a que son propre nom. `autres` : les noms de la catégorie de repli, qu'aucun mot-clé n'attire jamais.",
+    "Noms et mots-clés sont comparés APRÈS normalisation (minuscules, sans accents ni ponctuation) : « Entrées d'argent » s'écrit comme on le lit. Les mots-clés sont gardés TELS QUELS, accentués ou non (« café », « cafe » si les deux servent), parce qu'ils s'affichent dans l'écran des mots-clés de chaque catégorie, dans cet ordre.",
+    "« virements_internes » : la liste est VIDE pour l'instant, à remplir. Une liste de mots-clés écrite par l'utilisateur dans l'application remplace toujours celle-ci en entier.",
+    "Ajouter une langue : un nouveau fichier de même forme, puis son code dans LANGUES (categorisation_intelligente.py) et dans le test."
+  ],
+  "langue": "en",
+  "nom_langue": "English",
+  "categories": {
+    "alimentaire": {
+      "noms": ["Food", "Groceries"],
+      "mots_cles": [
+        "restaurant", "fast food", "mcdonald", "burger", "pizza", "kebab", "sandwich", "café",
+        "lidl", "groceries", "grocery", "food", "dining", "takeaway", "bakery", "butcher", "coffee"
+      ]
+    },
+    "loisirs": {
+      "noms": ["Entertainment", "Leisure"],
+      "mots_cles": [
+        "cinema", "theatre", "concert", "bar", "streaming", "netflix", "spotify", "disney", "sport",
+        "gym", "hotel", "hobby", "culture", "entertainment", "leisure", "movies", "games",
+        "nightlife", "travel", "holiday"
+      ]
+    },
+    "transports": {
+      "noms": ["Transportation", "Transport"],
+      "mots_cles": [
+        "transport", "diesel", "parking", "train", "metro", "bus", "tramway", "taxi", "uber",
+        "bolt", "blablacar", "garage", "fuel", "gas", "toll", "transit", "ride", "flight"
+      ]
+    },
+    "charges_fixes": {
+      "noms": ["Fixed costs", "Bills"],
+      "mots_cles": [
+        "internet", "fibre", "telephone", "mobile", "rent", "mortgage", "utilities", "electricity",
+        "water", "insurance", "bills", "subscription"
+      ]
+    },
+    "entrees_argent": {
+      "noms": ["Income"],
+      "mots_cles": [
+        "remuneration", "bonus", "pension", "freelance", "income", "salary", "wages", "payroll",
+        "refund", "dividend", "interest"
+      ]
+    },
+    "sante": {
+      "noms": ["Health"],
+      "mots_cles": ["health", "medical", "doctor", "dentist", "pharmacy", "hospital"]
+    },
+    "vetements": {
+      "noms": ["Clothing"],
+      "mots_cles": [
+        "zara", "h&m", "decathlon", "ikea", "clothing", "clothes", "shoes", "fashion", "apparel"
+      ]
+    },
+    "virements_internes": {
+      "noms": ["Internal transfers"],
+      "mots_cles": []
+    }
+  },
+  "autres": {
+    "noms": ["Other", "Others", "Misc", "Miscellaneous"]
+  }
+}
