@@ -4026,3 +4026,15 @@ Object.assign(TRADUCTIONS.pt, {
   "Lecture du fichier…": "Lendo o arquivo…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports (session import-parcours)
+Object.assign(TRADUCTIONS.pt, {
+  "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.":
+    "Primeira importação: sua configuração foi salva no preset “{preset}”. O próximo extrato deste banco será lido da mesma forma.",
+  "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.":
+    "Colunas aplicadas e arquivo relido: elas entrarão no preset “{preset}” quando você confirmar esta primeira importação.",
+  "Aucun compte ne correspond ? Crée le tien": "Nenhuma conta corresponde? Crie a sua",
+  "Aucun compte pour l'instant": "Nenhuma conta por enquanto",
+  "Ce relevé": "Este extrato",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

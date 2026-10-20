@@ -11456,6 +11456,33 @@ function presetParDefaut() {
   return utilises.reduce((a, b) => (a.dernier_import >= b.dernier_import ? a : b)).id;
 }
 
+/**
+ * LE PREMIER IMPORT : aucun preset n'a encore servi. Le preset sélectionné - celui que l'application livre,
+ * dans une base neuve - n'a alors jamais rien lu, et ce qu'on règle en important (colonnes, lignes de tête et
+ * de pied, mots-clés « Sens » / « État », compte) lui est ENREGISTRÉ D'OFFICE à la confirmation de l'import,
+ * sans passer par « Enregistrer la configuration » (cf. `enregistrerPremierImport`).
+ */
+function premierImportBancaire() {
+  return (importPresets || []).every((p) => !p.dernier_import);
+}
+
+/** À la confirmation du premier import : la configuration de l'écran part dans le preset, et le compte choisi
+ *  pour le fichier devient celui du preset quand aucune colonne ne nomme les comptes. Le fichier n'est pas relu :
+ *  l'aperçu qu'on vient d'importer a été lu avec exactement cela. */
+async function enregistrerPremierImport() {
+  const compte = compteIdDefautChoisi();
+  if (compte && !importConfigColonnes.some((c) => c.propriete === "compte_banque")) {
+    const select = document.getElementById("import-preset-compte");
+    fillComptesSelect(select, comptesProposables(Number(compte)), { keepFirst: true });
+    select.value = String(compte);
+  }
+  const preset = presetActuel();
+  return enregistrerConfigurationImport({
+    relireSiPerime: false,
+    message: t(texteAide("noyau.import-premier-enregistre"), { preset: preset ? preset.nom : "" }),
+  });
+}
+
 function memoriserPresetActuel() {
   // Sans `await` : mémoriser un choix ne doit pas retarder l'écran qui vient de
   // le prendre (cf. ecrirePreference, qui ne lève jamais).
@@ -12833,6 +12860,9 @@ document.getElementById("import-lignes-pied").addEventListener("input", updateRe
 async function enregistrerConfigurationImport({
   relireToujours = false,
   message = t("Configuration enregistrée"),
+  // Faux : l'aperçu affiché a déjà été lu avec ce qu'on enregistre (le premier import, cf.
+  // `enregistrerPremierImport`) - le relire défairait les choix faits dessus.
+  relireSiPerime = true,
 } = {}) {
   // Une colonne activée sans numéro (ou à 0) serait refusée par le serveur avec
   // un message d'erreur de validation illisible : on nomme la propriété
@@ -12928,7 +12958,7 @@ async function enregistrerConfigurationImport({
     // bonnes données, ou de voir une exclusion faire apparaître les doublons
     // qu'elle débloque. Rien à faire si seul le nom a bougé (cf.
     // signatureApercu).
-    if ((apercuPerime || relireToujours) && importFichierActuel) {
+    if (((apercuPerime && relireSiPerime) || relireToujours) && importFichierActuel) {
       await relireFichierImport();
     }
     return true;
@@ -14030,7 +14060,9 @@ async function finaliserDetectionImport(detection, colonnes) {
   importApercuAReloire = false;
   majBoutonRelireApercu();
   showMessage(
-    t("Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset."),
+    premierImportBancaire()
+      ? t(texteAide("noyau.import-premier-colonnes"), { preset: (presetActuel() || {}).nom || "" })
+      : t("Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset."),
     "success"
   );
 }
@@ -14554,7 +14586,18 @@ function restaurerVocabulairesImport() {
  * fichier ne nomme AUCUN compte et le preset n'est lié à aucun (un compte « pour ce fichier »), ou il nomme
  * des comptes que l'application ne connaît pas (à rattacher un par un). Une fenêtre à part, ouverte
  * APRÈS les champs et les catégories : le compte choisi relit le fichier SANS rien défaire (cf.
- * `executerPrevisualisation({ conserver })`) et ne rouvre aucun tableau. */
+ * `executerPrevisualisation({ conserver })`) et ne rouvre aucun tableau.
+ *
+ * LE COMPTE « POUR CE FICHIER » SE CHOISIT AU MÊME SÉLECTEUR QUE LES CATÉGORIES : une carte, une molette, la
+ * pastille, « Confirmer ». La base peut n'avoir AUCUN compte (premier import) : l'encadré violet en crée un
+ * sur place (la fenêtre de l'application, `demanderCreationCompte`), qui rejoint la molette en violet et en
+ * tête - et devient le choix de la carte, puisqu'on vient de le créer pour elle. Il reste à le confirmer.
+ * Quand le fichier nomme lui-même ses comptes (colonne « Compte bancaire »), rien ne change : une ligne par
+ * nom, et un bouton pour créer le compte qui manque. */
+// Le compte choisi sur la molette (id, ou null), s'il a été confirmé, et les comptes créés dans la fenêtre.
+const compteImport = { choix: null, confirme: false, manuel: false };
+const compteImportNouveaux = new Set();
+
 function compteImportBesoins() {
   const blocDefaut = document.getElementById("import-compte-defaut-bloc");
   const demandes = demandesDeMapping();
@@ -14571,27 +14614,161 @@ function compteImportOuvert() {
   return document.getElementById("modale-compte-import").style.display !== "none";
 }
 
-/** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. */
-function ouvrirChoixCompteImport() {
-  if (importCompteDemande || tutorielEnCours() || !importApercu) return false;
-  if (!comptesProposables().length) return false;
-  const { defaut, noms, monnaies } = compteImportBesoins();
-  if (!defaut && !noms.length && !monnaies.length) return false;
-  importCompteDemande = true;
+/** Les options de la molette : les comptes créés dans la fenêtre d'abord (en violet), puis les autres. */
+function compteImportOptions() {
+  const comptes = comptesProposables(compteImport.choix);
+  return [
+    ...comptes.filter((c) => compteImportNouveaux.has(c.id)).map((c) => ({ id: c.id, nom: c.nom, niveau: "nouvelle" })),
+    ...comptes.filter((c) => !compteImportNouveaux.has(c.id)).map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" })),
+  ];
+}
 
-  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
-  blocDefaut.style.display = defaut ? "" : "none";
-  if (defaut) {
-    const choix = document.getElementById("compte-import-defaut");
-    fillComptesSelect(choix, comptesProposables(), { keepFirst: true });
-    choix.value = "";
+function compteImportStatut() {
+  return compteImport.manuel && compteImport.choix != null
+    ? { cle: "choix", texte: t("Ton choix") }
+    : { cle: "choix", texte: t("À classer") };
+}
+
+/** Quelques opérations du fichier sous la molette : de quoi reconnaître le compte d'où il sort. */
+function compteImportOperationsHtml() {
+  const lignes = lignesLuesParImport();
+  const visibles = lignes.slice(0, 60);
+  const html = visibles
+    .map((l) => {
+      const montant = l.montant_signe != null ? l.montant_signe : l.montant;
+      return `<div class="corr-operation">
+        <div>
+          <div class="corr-operation-nature" title="${escapeHtml(l.nature || "")}">${escapeHtml(l.nature || "—")}</div>
+          <div class="corr-operation-date">${l.date ? formatDateCourte(l.date) : ""}</div>
+        </div>
+        <div class="corr-operation-montant">${montant != null ? formatMontant(montant, l.monnaie_id) : ""}</div>
+      </div>`;
+    })
+    .join("");
+  const reste = lignes.length - visibles.length;
+  return html + (reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autres opérations", { n: reste }))}</p>` : "");
+}
+
+function compteImportCarteHtml() {
+  const options = compteImportOptions();
+  const statut = compteImportStatut();
+  const nomFichier = importFichierActuel ? importFichierActuel.name : "";
+  const roue = options.length
+    ? options
+        .map(
+          (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+            o.id === compteImport.choix ? "corr-roue-choisie" : ""
+          }" role="option" data-id="${o.id}" aria-selected="${o.id === compteImport.choix}">${escapeHtml(o.nom)}</div>`
+        )
+        .join("")
+    : `<div class="corr-roue-option corr-roue-vide" aria-disabled="true">${escapeHtml(t("Aucun compte pour l'instant"))}</div>`;
+  return `
+    <section class="corr-colonne ${compteImport.confirme ? "corr-confirmee" : ""}" data-corr-i="0" tabindex="-1">
+      <div>
+        <div class="corr-banque" title="${escapeHtml(nomFichier)}">${escapeHtml(nomFichier || t("Ce relevé"))}</div>
+        <div class="hint">${escapeHtml(t("{n} opération(s)", { n: lignesLuesParImport().length }))}</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0" aria-label="${escapeHtml(t("Compte pour ce fichier"))}">${roue}</div>
+      </div>
+      <div class="corr-operations">${compteImportOperationsHtml()}</div>
+      <button type="button" class="primary corr-confirmer" data-corr-confirmer="0" ${options.length ? "" : "disabled"}><span data-corr-libelle>${
+        compteImport.confirme ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+      }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+    </section>`;
+}
+
+/** L'encadré violet, au-dessus de la carte : comme celui des catégories, mais il ouvre la fenêtre de création
+ *  d'un compte (le nom, le type, et ce que la fenêtre demande d'autre). */
+function compteImportCreerHtml() {
+  return `<details class="corr-creer" data-compte-creer>
+      <summary>${escapeHtml(t("Aucun compte ne correspond ? Crée le tien"))}</summary>
+    </details>`;
+}
+
+function renderCompteImportCarte({ focus = false } = {}) {
+  const board = document.getElementById("compte-import-board");
+  board.innerHTML = compteImportCarteHtml();
+  const roue = board.querySelector(".corr-roue");
+  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: "auto" });
+  board.querySelector(".corr-colonne").classList.add("corr-courante");
+  if (focus) roue.focus({ preventScroll: true });
+}
+
+function compteImportChoisir(id, { defiler = true } = {}) {
+  const compteId = Number(id);
+  if (!Number.isFinite(compteId) || compteId === compteImport.choix) return;
+  compteImport.choix = compteId;
+  compteImport.manuel = true;
+  compteImport.confirme = false;
+  const carte = document.querySelector("#compte-import-board .corr-colonne");
+  if (!carte) return;
+  carte.classList.remove("corr-confirmee");
+  carte.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = Number(o.dataset.id) === compteId;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  const statut = compteImportStatut();
+  const pastille = carte.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  carte.querySelector("[data-corr-libelle]").textContent = t("Confirmer");
+  if (defiler) {
+    const roue = carte.querySelector(".corr-roue");
+    const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+    roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: "smooth" });
   }
-  document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
-  document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
-  document.getElementById("compte-import-texte-monnaies").style.display = monnaies.length ? "" : "none";
-  document.getElementById("modale-compte-import-titre").textContent = monnaies.length
-    ? t("Compte et monnaies de ce relevé")
-    : t("Dans quel compte va ce relevé ?");
+  document.getElementById("compte-import-erreur").style.display = "none";
+}
+
+/** « Confirmer » sur la carte : le compte est retenu. S'il n'y a rien d'autre à demander, la fenêtre se valide. */
+function compteImportConfirmer() {
+  if (compteImport.choix == null) {
+    // La molette n'a encore rien de choisi : la ligne centrée est le choix (cf. brancherMolettes).
+    const premiere = compteImportOptions()[0];
+    if (!premiere) return;
+    compteImportChoisir(premiere.id);
+  }
+  compteImport.confirme = true;
+  const carte = document.querySelector("#compte-import-board .corr-colonne");
+  if (carte) {
+    carte.classList.add("corr-confirmee");
+    carte.querySelector("[data-corr-libelle]").textContent = t("Confirmée");
+  }
+  const { noms, monnaies } = compteImportBesoins();
+  if (!noms.length && !monnaies.length && !compteImportExtensionDemandee()) {
+    validerChoixCompteImport();
+    return;
+  }
+  const suivant = document.querySelector("#compte-import-mappings select, #compte-import-monnaies select");
+  if (suivant) suivant.focus();
+  else document.getElementById("btn-compte-import-valider").focus();
+}
+
+async function compteImportCreerCompte() {
+  const compte = await demanderCreationCompte();
+  const encadre = document.querySelector("#compte-import-creer details");
+  if (encadre) encadre.open = false;
+  if (!compte) return;
+  compteImportNouveaux.add(compte.id);
+  if (document.getElementById("compte-import-defaut-bloc").style.display !== "none") {
+    // Créé pour cette carte : il en devient le choix - à confirmer.
+    compteImport.choix = compte.id;
+    compteImport.manuel = true;
+    compteImport.confirme = false;
+    renderCompteImportCarte({ focus: true });
+  }
+  renderCompteImportNoms();
+  // Le compte « pour ce fichier » de la page aussi le connaît.
+  updateImportCompteDefautVisibility();
+}
+
+/** Les comptes que le fichier nomme : une ligne chacun, comme avant. */
+function renderCompteImportNoms() {
+  const { noms } = compteImportBesoins();
   const surChangement = () => {
     appliquerMappingsLocalement();
     renderImportApercu();
@@ -14599,28 +14776,86 @@ function ouvrirChoixCompteImport() {
   const liste = document.getElementById("compte-import-mappings");
   liste.innerHTML = "";
   noms.forEach((nomBanque) => {
-    liste.appendChild(creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, surChangement));
+    const ligne = creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, surChangement);
+    const select = ligne.querySelector("select");
+    if (importMappingComptes[nomBanque]) select.value = String(importMappingComptes[nomBanque]);
+    liste.appendChild(ligne);
   });
+  document.getElementById("compte-import-creer-compte-bloc").style.display = noms.length ? "" : "none";
+}
+
+/** Les devises que le fichier écrit sans que l'application les connaisse (extension « Monnaies » allumée). */
+function renderCompteImportMonnaies() {
+  const { monnaies } = compteImportBesoins();
+  const surChangement = () => {
+    appliquerMappingsLocalement();
+    renderImportApercu();
+  };
   const listeMonnaies = document.getElementById("compte-import-monnaies");
   listeMonnaies.innerHTML = "";
   monnaies.forEach((nomBanque) => {
     // Une monnaie éteinte n'est pas une cible (cf. renderImportMappings).
-    listeMonnaies.appendChild(
-      creerLigneMapping(
-        nomBanque,
-        state.monnaies.filter((m) => m.active !== false),
-        importMappingMonnaies,
-        surChangement
-      )
+    const ligne = creerLigneMapping(
+      nomBanque,
+      state.monnaies.filter((m) => m.active !== false),
+      importMappingMonnaies,
+      surChangement
     );
+    const select = ligne.querySelector("select");
+    if (importMappingMonnaies[nomBanque]) select.value = String(importMappingMonnaies[nomBanque]);
+    listeMonnaies.appendChild(ligne);
   });
+  document.getElementById("compte-import-texte-monnaies").style.display = monnaies.length ? "" : "none";
+  document.getElementById("compte-import-creer-monnaie-bloc").style.display =
+    monnaies.length && choixDeMonnaiePossible() ? "" : "none";
+}
+
+/** Le fichier lit une devise alors que l'extension « Monnaies » est éteinte (cf. point suivant) : faux ici. */
+function compteImportExtensionDemandee() {
+  return false;
+}
+
+/** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. La base peut
+ *  n'avoir aucun compte : la fenêtre s'ouvre quand même, l'encadré violet en crée un. */
+function ouvrirChoixCompteImport() {
+  if (importCompteDemande || tutorielEnCours() || !importApercu) return false;
+  const { defaut, noms, monnaies } = compteImportBesoins();
+  if (!defaut && !noms.length && !monnaies.length && !compteImportExtensionDemandee()) return false;
+  importCompteDemande = true;
+
+  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
+  blocDefaut.style.display = defaut ? "" : "none";
+  if (defaut) {
+    compteImport.choix = null;
+    compteImport.manuel = false;
+    compteImport.confirme = false;
+    document.getElementById("compte-import-creer").innerHTML = compteImportCreerHtml();
+    renderCompteImportCarte();
+  }
+  document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
+  document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
+  majTitreCompteImport();
+  renderCompteImportNoms();
+  renderCompteImportMonnaies();
+  majAideFleches();
   document.getElementById("compte-import-erreur").style.display = "none";
   majEtapesImport("modale-compte-import", "compte");
   document.getElementById("modale-compte-import").style.display = "";
   document.body.classList.add("modale-ouverte");
-  const premier = defaut ? document.getElementById("compte-import-defaut") : liste.querySelector("select");
-  if (premier) premier.focus();
+  if (defaut) {
+    document.querySelector("#compte-import-board .corr-roue").focus({ preventScroll: true });
+  } else {
+    const premier = document.querySelector("#compte-import-mappings select, #compte-import-monnaies select");
+    if (premier) premier.focus();
+  }
   return true;
+}
+
+function majTitreCompteImport() {
+  const { monnaies } = compteImportBesoins();
+  document.getElementById("modale-compte-import-titre").textContent = monnaies.length
+    ? t("Compte et monnaies de ce relevé")
+    : t("Dans quel compte va ce relevé ?");
 }
 
 function fermerChoixCompteImport() {
@@ -14632,12 +14867,12 @@ function fermerChoixCompteImport() {
 async function validerChoixCompteImport() {
   const blocDefaut = document.getElementById("compte-import-defaut-bloc");
   const erreur = document.getElementById("compte-import-erreur");
-  const choix = document.getElementById("compte-import-defaut");
   const defautDemande = blocDefaut.style.display !== "none";
-  if (defautDemande && !choix.value) {
+  if (defautDemande && (compteImport.choix == null || !compteImport.confirme)) {
     erreur.textContent = t("Choisis le compte où vont les opérations de ce relevé.");
     erreur.style.display = "";
-    choix.focus();
+    const roue = document.querySelector("#compte-import-board .corr-roue");
+    if (roue) roue.focus();
     return;
   }
   const besoins = compteImportBesoins();
@@ -14653,7 +14888,9 @@ async function validerChoixCompteImport() {
   }
   if (defautDemande) {
     // Le compte « pour ce fichier » de la page est la seule mémoire : l'aperçu et la confirmation le lisent.
-    document.getElementById("import-compte-defaut").value = choix.value;
+    const page = document.getElementById("import-compte-defaut");
+    fillComptesSelect(page, comptesProposables(compteImport.choix), { keepFirst: true });
+    page.value = String(compteImport.choix);
     // La fenêtre reste ouverte le temps de la relecture, comme aux étapes d'avant.
     const libere = occuperBoutonImport("btn-compte-import-valider");
     try {
@@ -14672,6 +14909,21 @@ async function validerChoixCompteImport() {
   document.getElementById("btn-compte-import-fermer").addEventListener("click", fermerChoixCompteImport);
   document.getElementById("btn-compte-import-plus-tard").addEventListener("click", fermerChoixCompteImport);
   document.getElementById("btn-compte-import-valider").addEventListener("click", validerChoixCompteImport);
+  document.getElementById("btn-compte-import-creer-compte").addEventListener("click", compteImportCreerCompte);
+  // L'encadré violet ouvre la fenêtre de création au lieu de se déplier.
+  document.getElementById("compte-import-creer").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-compte-creer] summary")) return;
+    e.preventDefault();
+    compteImportCreerCompte();
+  });
+  brancherMolettes(document.getElementById("compte-import-board"), {
+    courante: () => 0,
+    definirCourante: () => {},
+    choisir: (i, id, options) => compteImportChoisir(id, options),
+    valeur: () => compteImport.choix,
+    nombre: () => 1,
+    confirmer: compteImportConfirmer,
+  });
   // Changer le compte dans la page relit le fichier SANS rien défaire (et sans rouvrir de tableau).
   document.getElementById("import-compte-defaut").addEventListener("change", async () => {
     if (!importFichierActuel || !importApercu || !document.getElementById("import-compte-defaut").value) return;
@@ -14679,8 +14931,18 @@ async function validerChoixCompteImport() {
   });
   document.addEventListener("keydown", (e) => {
     if (!compteImportOuvert()) return;
-    if (e.key === "Escape") fermerChoixCompteImport();
-    else if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+    // Une fenêtre de création ouverte par-dessus garde ses touches.
+    if (document.getElementById("modale-guide-compte").style.display !== "none") return;
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
+      e.preventDefault();
+      if (document.getElementById("compte-import-defaut-bloc").style.display !== "none" && !compteImport.confirme) {
+        compteImportConfirmer();
+      } else {
+        validerChoixCompteImport();
+      }
+    } else if (e.key === "Escape") {
+      fermerChoixCompteImport();
+    } else if (e.key === "Enter" && e.target.tagName !== "BUTTON" && !e.target.closest(".corr-roue")) {
       e.preventDefault();
       validerChoixCompteImport();
     }
@@ -18924,10 +19186,13 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
     })
   );
 
+  // Lu AVANT l'envoi : la confirmation date le dernier import du preset.
+  const premierImport = premierImportBancaire() && !tutorielEnCours();
   try {
     const resultat = await apiFetchForm(importUrl("/confirmer"), formData);
     importDernierHistoriqueId = resultat.historique_id ?? null;
     afficherResultatImport(resultat);
+    if (premierImport) await enregistrerPremierImport();
     // LES DEUX NOMBRES QUAND IL Y A LIEU. Une ligne rapprochée est bien
     // importée — elle compte dans le total — mais elle n'AJOUTE pas
     // d'opération : sans cette précision, le total ne collerait pas avec ce

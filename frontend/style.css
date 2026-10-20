@@ -7729,3 +7729,31 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 .import-etape {
   gap: 0.3rem;
 }
+
+/* ---------- LE PARCOURS DE L'IMPORT POUR TOUS LES IMPORTS (2026-10-20) ---------- */
+
+/* Les fenêtres de création (compte, monnaie) s'ouvrent PAR-DESSUS une fenêtre de l'import : sans ce rang, la
+   fenêtre de l'étape 3, écrite plus loin dans la page, les recouvrait. */
+#modale-guide-compte,
+#modale-creation-monnaie {
+  z-index: 110;
+}
+
+/* L'étape 3 : une seule carte, au centre. */
+.corr-board.compte-import-board {
+  justify-content: center;
+  overflow-x: visible;
+}
+
+.compte-import-board .corr-colonne {
+  max-height: 46vh;
+}
+
+.corr-roue-option.corr-roue-vide {
+  font-style: italic;
+  cursor: default;
+}
+
+.compte-import-creer-actions {
+  margin: -0.4rem 0 0.9rem;
+}

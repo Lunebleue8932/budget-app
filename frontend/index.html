@@ -407,16 +407,31 @@
       </div>
       <div class="import-etapes" data-import-etapes></div>
       <p class="modale-texte" id="compte-import-texte-defaut" data-texte-cle="noyau.import-compte"></p>
-      <div id="compte-import-defaut-bloc" class="import-compte-defaut-bloc" style="display:none">
-        <label for="compte-import-defaut">Compte pour ce fichier</label>
-        <select id="compte-import-defaut"><option value="">— choisir —</option></select>
+      <!-- LE COMPTE DU FICHIER, AU MÊME SÉLECTEUR QUE LES CATÉGORIES : une carte, sa molette, sa pastille, son
+           bouton « Confirmer ». L'encadré violet au-dessus crée un compte sur place (la base peut n'en avoir
+           aucun) : le compte créé rejoint la molette, en violet et en tête. Cf. app.js, « LE COMPTE DE L'IMPORT ». -->
+      <div id="compte-import-defaut-bloc" style="display:none">
+        <p class="hint corr-aide-fleches" id="compte-import-aide-fleches"></p>
+        <div id="compte-import-creer" class="corr-creer-central"></div>
+        <div id="compte-import-board" class="corr-board compte-import-board"></div>
       </div>
       <p class="modale-texte" id="compte-import-texte-noms" data-texte-cle="noyau.import-compte-noms"></p>
       <div id="compte-import-mappings" class="import-mappings-liste"></div>
-      <!-- LES MONNAIES, avec les comptes : si l'extension « Monnaies » tourne et que le fichier écrit des
-           devises que l'application ne connaît pas encore. -->
+      <div class="actions compte-import-creer-actions" id="compte-import-creer-compte-bloc" style="display:none">
+        <button type="button" id="btn-compte-import-creer-compte">+ Créer un compte</button>
+      </div>
+      <!-- LES MONNAIES, avec les comptes : si le fichier lit une colonne de devise. Sans l'extension
+           « Monnaies », sa ligne d'activation (celle de Paramètres → Extensions) se pose ici. -->
+      <div id="compte-import-extension-bloc" style="display:none">
+        <p class="modale-texte" data-texte-cle="noyau.import-compte-extension-monnaies"></p>
+        <div id="compte-import-extension"></div>
+        <p class="hint" id="compte-import-extension-eteinte"></p>
+      </div>
       <p class="modale-texte" id="compte-import-texte-monnaies" data-texte-cle="noyau.import-compte-monnaies"></p>
       <div id="compte-import-monnaies" class="import-mappings-liste"></div>
+      <div class="actions compte-import-creer-actions" id="compte-import-creer-monnaie-bloc" style="display:none">
+        <button type="button" id="btn-compte-import-creer-monnaie">+ Créer une monnaie</button>
+      </div>
       <p class="import-avertissement" id="compte-import-erreur" role="alert" style="display:none"></p>
       <div class="modale-actions">
         <button type="button" id="btn-compte-import-plus-tard">Plus tard</button>

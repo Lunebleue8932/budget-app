@@ -4801,3 +4801,15 @@ Object.assign(TRADUCTIONS.en, {
   "Lecture du fichier…": "Reading the file…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports (session import-parcours)
+Object.assign(TRADUCTIONS.en, {
+  "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.":
+    "First import: your configuration is saved in the “{preset}” preset. The next statement from this bank will be read the same way.",
+  "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.":
+    "Columns applied and file read again: they will join the “{preset}” preset when you confirm this first import.",
+  "Aucun compte ne correspond ? Crée le tien": "No account matches? Create your own",
+  "Aucun compte pour l'instant": "No account yet",
+  "Ce relevé": "This statement",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

@@ -1213,3 +1213,11 @@ Object.assign(TEXTES, {
   "noyau.import-compte-monnaies":
     "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.",
 });
+
+/* ----- Le parcours de l'import pour tous les imports (session import-parcours, 2026-10-20) ----- */
+Object.assign(TEXTES, {
+  "noyau.import-premier-enregistre":
+    "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.",
+  "noyau.import-premier-colonnes":
+    "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.",
+});

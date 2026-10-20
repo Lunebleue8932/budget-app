@@ -9,8 +9,8 @@
  *     ouvert à la place de l'utilisateur : on lui montre la porte, il l'ouvre s'il veut.
  *   - « import » : une bulle l'emmène sur la page d'import, jusqu'au bouton qui choisit le fichier,
  *     puis le suit pas à pas à travers les tableaux de l'import (les colonnes, les catégories de la
- *     banque) jusqu'au bouton qui confirme. Une base neuve n'a pas de compte : une petite fenêtre en
- *     crée un d'abord, sans passer par Paramètres → Configuration, qui est trop pour un début.
+ *     banque, le compte) jusqu'au bouton qui confirme. Une base neuve n'a pas de compte : rien n'est
+ *     demandé avant le fichier, le compte se choisit - ou se crée - à l'étape 3 de l'import.
  *
  * LE GUIDE NE TOUCHE À RIEN et ne valide rien : les repliables de la configuration du fichier
  * restent fermés (les tableaux disent déjà ce qu'ils ont à dire), et l'étape suivante n'arrive pas
@@ -164,24 +164,15 @@ async function guideDemo() {
   });
 }
 
-/* ---------- Le compte du premier import ---------- */
-
-/** Ouvre la fenêtre de création d'un compte (celle de l'application, cf. demanderCreationCompte) ; rend
- *  `true` quand il est créé, `false` si on remet à plus tard. */
-async function guideDemanderCompte() {
-  const compte = await demanderCreationCompte({
-    titre: "Un compte pour ton relevé",
-    cle: "noyau.guide-compte",
-  });
-  return !!compte;
-}
-
 /* ---------- Le premier import ---------- */
 
 /** L'étape que l'écran montre à cet instant, ou null quand rien n'est à dire (page quittée). */
 function guideEtapeDeLEcran() {
   // L'import vient de se terminer : la carte « Import terminé » est affichée.
   if (guideVisible("#import-resultat")) return "fin";
+  // Une fenêtre de création (un compte, une monnaie) s'ouvre par-dessus l'étape 3 : la bulle se tait le
+  // temps qu'elle est ouverte, plutôt que de désigner la fenêtre qu'elle recouvre.
+  if (guideVisible("#modale-guide-compte") || guideVisible("#modale-creation-monnaie")) return null;
   // LES ÉTAPES DE L'IMPORT, dans leur ordre : le compte vient en dernier, dans sa propre fenêtre.
   if (guideVisible("#modale-compte-import")) return "compte-fichier";
   if (guideVisible("#modale-correspondances")) return "categories";
@@ -282,10 +273,8 @@ async function guideImport() {
   } catch (err) {
     /* Le guide continue avec les catégories qu'il y a. */
   }
-  // Un compte d'abord : sans lui, un relevé n'a nulle part où aller.
-  if (!(state.comptes || []).length) {
-    if (!(await guideDemanderCompte())) return;
-  }
+  // PAS DE COMPTE À CRÉER D'ABORD : le guide invite tout de suite à choisir le fichier. Le compte se choisit,
+  // ou se crée, à l'étape 3 de l'import (cf. app.js, « LE COMPTE DE L'IMPORT »).
   BudgetApp.guideImport.actif = true;
   switchSection("parametres", { sousSection: "parametres-import" });
   guideMinuterie = setInterval(guideSurveiller, 500);
