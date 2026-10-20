@@ -70,6 +70,11 @@ function ioCouleurPart(part) {
  * dès que leurs identifiants différaient d'un multiple de huit. On numérote donc les étiquettes
  * de l'axe dans l'ordre de leur identifiant : toujours le même ordre d'un chargement à l'autre,
  * et deux étiquettes de l'axe ne partagent une couleur qu'au-delà de huit.
+ *
+ * UNE SEULE EXCEPTION : LES DEUX PLUS GROSSES PARTS NE SE RESSEMBLENT JAMAIS. La palette a des
+ * voisines (l'aqua et le vert, le rouge et l'orange…) ; tombées sur les deux parts qui font
+ * l'essentiel du disque, elles ne se distinguaient plus. La seconde prend alors la première
+ * couleur éloignée de celle de la première, et l'étiquette qui la portait reprend la sienne.
  */
 function ioAttribuerCouleurs(expositions) {
   IO_AXES.forEach((axe) => {
@@ -77,10 +82,51 @@ function ioAttribuerCouleurs(expositions) {
     const ids = [...new Set(parts.map((p) => p.type_titre_id).filter((id) => id != null))].sort(
       (a, b) => a - b
     );
+    const index = new Map(ids.map((id, i) => [id, i]));
+    ioEcarterLesDeuxPlusGrosses(parts, index);
     parts.forEach((p) => {
-      if (p.type_titre_id != null) p.couleur_index = ids.indexOf(p.type_titre_id);
+      if (p.type_titre_id != null) p.couleur_index = index.get(p.type_titre_id);
     });
   });
+}
+
+// En deçà de cet écart de teinte (en degrés), deux couleurs se confondent sur un disque.
+const IO_ECART_TEINTE_MIN = 45;
+
+function ioTeinte(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const ecart = max - Math.min(r, g, b);
+  if (!ecart) return 0;
+  const h = max === r ? ((g - b) / ecart) % 6 : max === g ? (b - r) / ecart + 2 : (r - g) / ecart + 4;
+  return (h * 60 + 360) % 360;
+}
+
+function ioCouleursProches(indexA, indexB) {
+  const d = Math.abs(ioTeinte(couleurCategorie(indexA)) - ioTeinte(couleurCategorie(indexB)));
+  return Math.min(d, 360 - d) < IO_ECART_TEINTE_MIN;
+}
+
+/** Les deux plus grosses parts de l'axe, monnaies confondues : on additionne leurs PARTS (et non
+ *  leurs montants, qui ne s'additionnent pas d'une monnaie à l'autre). */
+function ioEcarterLesDeuxPlusGrosses(parts, index) {
+  const poids = new Map();
+  parts.forEach((p) => {
+    if (p.type_titre_id != null) poids.set(p.type_titre_id, (poids.get(p.type_titre_id) || 0) + p.part);
+  });
+  const [premiere, seconde] = [...poids.keys()].sort((a, b) => poids.get(b) - poids.get(a));
+  if (seconde === undefined || !ioCouleursProches(index.get(premiere), index.get(seconde))) return;
+  const taille = PALETTE_CATEGORIES.length;
+  const depart = index.get(seconde);
+  for (let pas = 1; pas < taille; pas++) {
+    const candidat = (depart + pas) % taille;
+    if (candidat === index.get(premiere) % taille) continue;
+    if (ioCouleursProches(index.get(premiere), candidat)) continue;
+    const occupant = [...index.keys()].find((id) => index.get(id) === candidat);
+    if (occupant !== undefined) index.set(occupant, depart);
+    index.set(seconde, candidat);
+    return;
+  }
 }
 
 // LA PART SANS ÉTIQUETTE SE NOMME DANS LA LANGUE DE SON AXE : « Sans enveloppe » sous un
