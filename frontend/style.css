@@ -1117,6 +1117,33 @@ select optgroup option {
   color: var(--text-primary);
 }
 
+/* « + Créer un compte », en tête d'une liste de comptes (cf. ajouterOptionCreer) : en gris, pour se lire
+   comme une action et non comme un compte de plus. Le trait qui la sépare des comptes est un <hr>, que le
+   navigateur dessine dans la liste dépliée. */
+select option.option-creer {
+  color: var(--text-muted);
+}
+
+/* « + Créer une monnaie » sous les monnaies de la fenêtre qui crée un compte : la même action que la ligne
+   grise des listes, donc la même discrétion — un texte gris, pas un bouton de plus à côté de « Créer le
+   compte ». */
+.bouton-creer-monnaie {
+  align-self: flex-start;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.bouton-creer-monnaie:hover,
+.bouton-creer-monnaie:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 /* Seule la hauteur se redimensionne : élargir un champ pleine largeur ne peut
    que casser la grille du formulaire. */
 form textarea {

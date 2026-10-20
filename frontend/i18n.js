@@ -4801,3 +4801,15 @@ Object.assign(TRADUCTIONS.en, {
   "Lecture du fichier…": "Reading the file…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : créer un compte, une catégorie ou une monnaie depuis une liste
+Object.assign(TRADUCTIONS.en, {
+  "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.":
+    "A currency is what your amounts are written in: the euro, the dollar… Give it a name and the symbol shown next to amounts. You can rename it, turn it off or follow its rates later in Settings → Currencies.",
+  "+ Créer une monnaie": "+ Create a currency",
+  "Créer une monnaie": "Create a currency",
+  "Créer la monnaie": "Create the currency",
+  "Monnaie créée": "Currency created",
+  "ex. Dollar américain": "e.g. US dollar",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : créer depuis une liste

@@ -1213,3 +1213,9 @@ Object.assign(TEXTES, {
   "noyau.import-compte-monnaies":
     "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.",
 });
+
+/* ----- Créer une monnaie sur place (listes de monnaies, fenêtre d'un compte) ----- */
+Object.assign(TEXTES, {
+  "noyau.creation-monnaie":
+    "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.",
+});
