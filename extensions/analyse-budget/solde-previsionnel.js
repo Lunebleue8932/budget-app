@@ -72,7 +72,8 @@ async function abSpReferentiels() {
   ]);
   abSp.referentiels = {
     // Les catégories d'ENTRÉE n'ont rien à faire dans une moyenne de dépenses.
-    categories: categories.filter((c) => !c.est_entree),
+    // Ni celle des virements internes (migration 0090).
+    categories: categories.filter((c) => !c.est_entree && !c.est_virement),
     types: types.filter((tp) => AB_SP_TYPES_DE_DEPENSE.includes(tp.code)),
   };
   return abSp.referentiels;

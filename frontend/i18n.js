@@ -4801,3 +4801,11 @@ Object.assign(TRADUCTIONS.en, {
   "Lecture du fichier…": "Reading the file…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : la catégorie « Virements internes » (branche virements-categorie)
+Object.assign(TRADUCTIONS.en, {
+  "« Virements internes » est la catégorie de tes virements entre tes propres comptes : choisir cette catégorie sur une opération en fait un virement, et un virement porte toujours cette catégorie. Tu peux la renommer, mais pas la supprimer ni l'éteindre. Elle n'a ni budget ni objectif : un virement n'est pas une dépense.":
+    "“Internal transfers” is the category of your transfers between your own accounts: choosing this category on a transaction turns it into a transfer, and a transfer always carries this category. You can rename it, but not delete or turn it off. It has no budget and no target: a transfer is not an expense.",
+  "virements": "transfers",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : la catégorie « Virements internes »

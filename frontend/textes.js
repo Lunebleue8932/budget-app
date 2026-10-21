@@ -1213,3 +1213,10 @@ Object.assign(TEXTES, {
   "noyau.import-compte-monnaies":
     "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.",
 });
+
+// >>> TEXTES AJOUTÉS : la catégorie « Virements internes » (branche virements-categorie)
+Object.assign(TEXTES, {
+  "noyau.categorie-virements":
+    "« Virements internes » est la catégorie de tes virements entre tes propres comptes : choisir cette catégorie sur une opération en fait un virement, et un virement porte toujours cette catégorie. Tu peux la renommer, mais pas la supprimer ni l'éteindre. Elle n'a ni budget ni objectif : un virement n'est pas une dépense.",
+});
+// <<< FIN DES TEXTES AJOUTÉS : la catégorie « Virements internes »

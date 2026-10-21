@@ -3463,9 +3463,14 @@ const PALETTE_CATEGORIES = [
 // hors palette, écrit en base sur chaque catégorie d'entrée. Blanc sur le thème sombre,
 // noir sur le clair — la variable CSS suit le thème (cf. style.css, --couleur-entree).
 const COULEUR_INDEX_ENTREE = -1;
+// LA COULEUR DE LA CATÉGORIE DES VIREMENTS INTERNES (constants.COULEUR_INDEX_VIREMENT, migration
+// 0090) : hors palette, elle ne se dessine dans aucun graphique ; là où elle paraît (une pastille,
+// un menu à cocher), elle prend le violet de l'épargne, où vont la plupart des virements.
+const COULEUR_INDEX_VIREMENT = -2;
 
 function couleurCategorie(couleurIndex) {
   if (couleurIndex === COULEUR_INDEX_ENTREE) return "var(--couleur-entree)";
+  if (couleurIndex === COULEUR_INDEX_VIREMENT) return "var(--compte-epargne)";
   return PALETTE_CATEGORIES[Math.abs(couleurIndex) % PALETTE_CATEGORIES.length];
 }
 
@@ -7284,6 +7289,7 @@ function resetCategorieForm() {
   document.getElementById("categorie-nom").title = "";
   delete document.getElementById("categorie-nom").dataset.nomInitial;
   document.getElementById("categorie-entree-bloc").style.display = "none";
+  document.getElementById("categorie-virements-info").style.display = "none";
   document.getElementById("categorie-entree").checked = false;
   document.getElementById("categorie-mots-cles-bloc").style.display = "none";
   motsClesCategorieLivres = true;
@@ -7378,7 +7384,10 @@ function fillCategorieForm(categorie, ancre) {
     : "";
   // Le nom d'AVANT, pour n'appeler la route de renommage que s'il a changé.
   champNom.dataset.nomInitial = categorie.nom;
-  document.getElementById("categorie-entree-bloc").style.display = "";
+  // LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) n'est jamais une catégorie d'entrée :
+  // elle se renomme, et ses mots-clés se règlent, mais la case ne se pose pas (le serveur refuse).
+  document.getElementById("categorie-entree-bloc").style.display = categorie.est_virement ? "none" : "";
+  document.getElementById("categorie-virements-info").style.display = categorie.est_virement ? "" : "none";
   document.getElementById("categorie-entree").checked = !!categorie.est_entree;
   // Les mots-clés : l'éditeur ne s'initialise qu'ici, à la première ouverture (cf. la note sur
   // `assurerEditeurRapprochement` : un éditeur déclaré trop tôt atteint des `const` de ce fichier
@@ -7393,7 +7402,8 @@ function fillCategorieForm(categorie, ancre) {
   document.getElementById("categorie-annuler").style.display = "inline-block";
   cablerBoutonEtat("categorie-etat", {
     eteint: categorie.active === false,
-    protege: categorie.nom === CATEGORIE_AUTRES,
+    // Ni « Autres » ni la catégorie des virements internes (migration 0090) ne s'éteignent.
+    protege: categorie.nom === CATEGORIE_AUTRES || !!categorie.est_virement,
     url: `/categories/${categorie.id}/etat`,
     corps: { active: categorie.active === false },
     message:
@@ -7432,7 +7442,9 @@ function renderCategories() {
     // « Autres » ne se supprime ni ne s'éteint (deux chemins la cherchent par
     // son nom), « Entrées d'argent » ne se supprime pas mais s'éteint très bien
     // — une fois qu'une autre catégorie porte la case « entrée ».
-    const protegee = estAutres || c.nom === CATEGORIE_ENTREES_ARGENT;
+    // La catégorie des virements internes (migration 0090) non plus : reconnue à son drapeau,
+    // elle se renomme mais ne se supprime pas.
+    const protegee = estAutres || c.nom === CATEGORIE_ENTREES_ARGENT || !!c.est_virement;
     const deleteAction = protegee
       ? ""
       : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
@@ -7445,7 +7457,7 @@ function renderCategories() {
         // doit être ce qui a été décidé — même règle que la colonne d'objectifs
         // d'avant, vide plutôt que remplie de zéros.
         c.est_entree ? `<span class="badge-aucun">${t("entrée")}</span>` : ""
-      }</td>
+      }${c.est_virement ? `<span class="badge-aucun">${t("virements")}</span>` : ""}</td>
       <!-- « Modifier » répète le double-clic, mais se voit ; « Éteindre » est dans le formulaire. -->
       <td><button data-action="edit" data-id="${c.id}">${t("Modifier")}</button> ${deleteAction}</td>
     `;
@@ -7602,10 +7614,20 @@ function comptesEligibles(type, conserve = null) {
   return parType.filter((c) => c.actif !== false || c.id === conserve);
 }
 
-/** Même règle pour les catégories (cf. models.Categorie.active). */
+/** Même règle pour les catégories (cf. models.Categorie.active).
+ *
+ *  UN VIREMENT A UNE CATÉGORIE LUI AUSSI (migration 0090) : celle des virements internes, qui lui
+ *  est équivalente. Le menu reste donc ouvert sur un virement, et choisir une autre catégorie le
+ *  ramène à son type d'avant (cf. `basculerSelonCategorie`). */
 function categoriesEligibles(type, conserve = null) {
-  if (!TYPES_CATEGORIE_LIBRE.has(type)) return [];
+  if (!TYPES_CATEGORIE_LIBRE.has(type) && type !== "virement") return [];
   return state.categories.filter((c) => c.active !== false || c.id === conserve);
+}
+
+/** LA catégorie des virements internes (migration 0090), reconnue à son drapeau, jamais à son
+ *  nom (elle se renomme). null tant que les catégories ne sont pas chargées. */
+function categorieVirements() {
+  return (state.categories || []).find((c) => c.est_virement) || null;
 }
 
 /**
@@ -7933,8 +7955,10 @@ function updateOperationTypeFields() {
   eteindreCaseOperation("operation-decoupee-bloc", "operation-decoupee", !estDecoupable);
   const decoupee = decoupeEstActive();
   document.getElementById("operation-decoupe-bloc").style.display = decoupee ? "" : "none";
+  // UN VIREMENT GARDE LE MENU DES CATÉGORIES (migration 0090) : il y porte « Virements internes »,
+  // et en choisir une autre le ramène à une opération ordinaire (cf. basculerSelonCategorie).
   document.getElementById("operation-categorie-bloc").style.display =
-    TYPES_CATEGORIE_LIBRE.has(type) && !decoupee ? "" : "none";
+    (TYPES_CATEGORIE_LIBRE.has(type) || estVirement) && !decoupee ? "" : "none";
   // Un règlement et un prêt reçu sont toujours réels : ils décrivent de l'argent
   // qui a bougé. La case s'éteint (et se décoche) plutôt que de disparaître.
   eteindreCaseOperation(
@@ -8038,6 +8062,11 @@ function updateOperationTypeFields() {
   if (estVirement) {
     remplirComptes("operation-compte1");
     remplirComptes("operation-compte2");
+    // Sa catégorie est imposée : celle des virements internes, toujours en vue dans le menu.
+    const selectCategorie = document.getElementById("operation-categorie");
+    fillCategoriesSelect(selectCategorie, categoriesEligibles(type));
+    const vi = categorieVirements();
+    if (vi) selectCategorie.value = String(vi.id);
   } else {
     remplirComptes("operation-compte");
     if (TYPES_CATEGORIE_LIBRE.has(type)) {
@@ -8186,8 +8215,85 @@ function setOperationType(type) {
   updateOperationTypeFields();
 }
 
+/* ---------- LA CATÉGORIE DES VIREMENTS INTERNES DANS LE FORMULAIRE (migration 0090) ----------
+ *
+ * La catégorie « Virements internes » et le type « virement » sont une seule et même chose. La
+ * choisir dans le menu des catégories fait de l'opération un virement, presque sans bruit : les
+ * champs du virement (compte source, compte destination) paraissent à la place du compte. Choisir
+ * une autre catégorie sur un virement, ou un autre type, la ramène à ce qu'elle était — AVEC LA
+ * CATÉGORIE QU'ELLE PORTAIT, gardée dans `operationMemoireCategorie` jusqu'à ce qu'on enregistre
+ * ou qu'on ferme le formulaire (resetOperationForm l'oublie).
+ *
+ * L'ENREGISTREMENT TRANSFORME SUR PLACE : une opération existante qui devient un virement part
+ * avec `operation_id` (POST /virements), un virement qui redevient une opération part vers
+ * POST /virements/{id}/operation. Les deux formes ne coexistent jamais en base. */
+let operationMemoireCategorie = null;
+// La dernière catégorie ORDINAIRE choisie dans le menu : c'est elle que la mémoire retient au
+// moment où l'on passe au virement par le menu lui-même (sa valeur vient alors d'être remplacée).
+let operationDerniereCategorie = null;
+
+function reporterCompte(depuis, vers) {
+  const source = document.getElementById(depuis);
+  const cible = document.getElementById(vers);
+  if (source.value && [...cible.options].some((o) => o.value === source.value)) {
+    cible.value = source.value;
+    updateOperationMonnaieFields();
+  }
+}
+
+function changerTypeOperation(nouveau, { categorieId = undefined } = {}) {
+  const avant = document.getElementById("operation-type").value;
+  const select = document.getElementById("operation-categorie");
+  if (nouveau === "virement" && avant !== "virement" && categorieId === undefined) {
+    operationMemoireCategorie = { type: avant, categorieId: Number(select.value) || null };
+  }
+  const memoire = operationMemoireCategorie;
+  setOperationType(nouveau);
+  if (nouveau === "virement" && avant !== "virement") {
+    reporterCompte("operation-compte", "operation-compte1");
+  }
+  if (avant === "virement" && nouveau !== "virement") {
+    reporterCompte("operation-compte1", "operation-compte");
+    const vi = categorieVirements();
+    const rendue =
+      categorieId !== undefined ? categorieId : memoire && memoire.categorieId;
+    if (TYPES_CATEGORIE_LIBRE.has(nouveau)) {
+      if (rendue && [...select.options].some((o) => Number(o.value) === rendue)) {
+        select.value = String(rendue);
+      } else if (vi && Number(select.value) === vi.id) {
+        select.selectedIndex = [...select.options].findIndex((o) => Number(o.value) !== vi.id);
+      }
+    }
+    operationMemoireCategorie = null;
+    majADeclarerOperation();
+  }
+}
+
+function basculerSelonCategorie() {
+  const vi = categorieVirements();
+  const select = document.getElementById("operation-categorie");
+  const choisie = Number(select.value) || null;
+  const type = document.getElementById("operation-type").value;
+  if (!vi || !choisie) return;
+  if (choisie === vi.id) {
+    if (type === "virement") return;
+    operationMemoireCategorie = { type, categorieId: operationDerniereCategorie };
+    changerTypeOperation("virement", { categorieId: null });
+    return;
+  }
+  operationDerniereCategorie = choisie;
+  if (type === "virement") {
+    const retour =
+      operationMemoireCategorie && TYPES_CATEGORIE_LIBRE.has(operationMemoireCategorie.type)
+        ? operationMemoireCategorie.type
+        : "classique";
+    changerTypeOperation(retour, { categorieId: choisie });
+  }
+}
+document.getElementById("operation-categorie").addEventListener("change", basculerSelonCategorie);
+
 document.querySelectorAll("#operation-type-boutons button").forEach((btn) => {
-  btn.addEventListener("click", () => setOperationType(btn.dataset.type));
+  btn.addEventListener("click", () => changerTypeOperation(btn.dataset.type));
 });
 
 // Tant que l'utilisateur n'a pas modifié "Montant à rembourser" à la main,
@@ -8564,7 +8670,11 @@ function ajouterPartDecoupe(categorieId = null, montant = null) {
   // `categorieId` est celle que la part PORTE DÉJÀ : elle reste dans le menu
   // même éteinte, sans quoi rouvrir une découpe ancienne l'aurait reclassée en
   // silence (cf. comptesEligibles).
-  fillCategoriesSelect(select, categoriesEligibles(TYPE_DECOUPABLE, categorieId));
+  // Une part n'est jamais un virement (migration 0090, le serveur refuse aussi).
+  fillCategoriesSelect(
+    select,
+    categoriesEligibles(TYPE_DECOUPABLE, categorieId).filter((c) => !c.est_virement)
+  );
   if (categorieId != null) select.value = categorieId;
   majTotalDecoupe();
 }
@@ -8879,6 +8989,8 @@ function resetOperationForm() {
   operationEditionModeleRecurrent = false;
   operationEditionTypeOriginal = null;
   virementEnEdition = null;
+  operationMemoireCategorie = null;
+  operationDerniereCategorie = null;
   document.getElementById("operation-recurrente").checked = false;
   document.getElementById("operation-frequence").value = "mensuelle";
   document.getElementById("operation-recurrence-infini").checked = true;
@@ -8947,7 +9059,9 @@ async function fillOperationForm(op) {
   document.getElementById("operation-monnaie").value = op.monnaie_id;
   if (TYPES_CATEGORIE_LIBRE.has(type) && op.categorie_id != null) {
     document.getElementById("operation-categorie").value = op.categorie_id;
+    operationDerniereCategorie = op.categorie_id;
   }
+  operationMemoireCategorie = null;
   document.getElementById("operation-nature").value = op.nature;
   document.getElementById("operation-montant").value = op.montant;
   // Après le montant : le compteur du garde-fou compare les parts à LUI.
@@ -10740,6 +10854,31 @@ function erreurAmortissement() {
   return null;
 }
 
+/**
+ * Enregistre une opération ORDINAIRE (tout sauf un virement) ; rend vrai si c'était une
+ * modification.
+ *
+ * UN VIREMENT QU'ON MODIFIE ET QUI CESSE D'EN ÊTRE UN (migration 0090 : une autre catégorie que
+ * « Virements internes », ou un autre type) part vers POST /virements/{id}/operation : la jambe du
+ * compte choisi devient l'opération, l'autre disparaît. Sans cela, l'opération se créait à côté
+ * du virement, qui restait en base.
+ */
+async function enregistrerOperationOrdinaire(payload, id) {
+  if (virementEnEdition) {
+    await apiFetch(`/virements/${virementEnEdition}/operation`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return true;
+  }
+  if (id) {
+    await apiFetch(`/operations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+    return true;
+  }
+  await apiFetch("/operations", { method: "POST", body: JSON.stringify(payload) });
+  return false;
+}
+
 document.getElementById("form-operation").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = document.getElementById("operation-id").value;
@@ -10802,6 +10941,10 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         statut: statutOperationSaisi(),
         ...champNotes,
       };
+      // UNE OPÉRATION EXISTANTE QUI DEVIENT UN VIREMENT (migration 0090 : on lui a choisi la
+      // catégorie « Virements internes », ou le type) : elle devient la jambe de son compte, sur
+      // place, au lieu de rester à côté du virement neuf.
+      if (id && !virementEnEdition) payload.operation_id = Number(id);
       // Les deux écritures se modifient ensemble : d'où un PUT sur la paire
       // plutôt que sur l'une des deux opérations.
       if (virementEnEdition) {
@@ -10843,11 +10986,9 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
         operations_remboursees: operationsRemboursees,
         ...champNotes,
       };
-      if (id) {
-        await apiFetch(`/operations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      if (await enregistrerOperationOrdinaire(payload, id)) {
         showMessage(t("Opération modifiée"), "success");
       } else {
-        await apiFetch("/operations", { method: "POST", body: JSON.stringify(payload) });
         showMessage(t("Opération créée"), "success");
       }
     } else if (type === "pret") {
@@ -10887,11 +11028,9 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
       if (id && !resteFieldPret.disabled) {
         payload.montant_a_rembourser = parseFloat(resteFieldPret.value || "0");
       }
-      if (id) {
-        await apiFetch(`/operations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      if (await enregistrerOperationOrdinaire(payload, id)) {
         showMessage(t("Prêt modifié"), "success");
       } else {
-        await apiFetch("/operations", { method: "POST", body: JSON.stringify(payload) });
         showMessage(t("Prêt créé"), "success");
       }
     } else {
@@ -10951,11 +11090,9 @@ document.getElementById("form-operation").addEventListener("submit", async (e) =
           payload.montant_a_rembourser = parseFloat(resteField.value || "0");
         }
       }
-      if (id) {
-        await apiFetch(`/operations/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      if (await enregistrerOperationOrdinaire(payload, id)) {
         showMessage(t("Opération modifiée"), "success");
       } else {
-        await apiFetch("/operations", { method: "POST", body: JSON.stringify(payload) });
         showMessage(t("Opération créée"), "success");
       }
     }
@@ -15250,13 +15387,37 @@ function appliquerMappingsLocalement() {
     // explicite fait ligne par ligne.
     if (importLigneOverrides[ligne.ligne]) return;
     const categorieId = importMappingCategories[ligne.nom_banque_categorie];
-    if (ligne.nom_banque_categorie && categorieId) {
+    const vi = categorieVirements();
+    if (ligne.nom_banque_categorie && categorieId && vi && categorieId === vi.id) {
+      // LA CATÉGORIE DES VIREMENTS INTERNES FAIT LE TYPE (migration 0090, même arbitrage que
+      // import_bancaire._resoudre_ligne) : la ligne devient un virement, qui attend son compte en
+      // face. Seulement sur une ligne d'un type à catégorie libre : un virement le reste, et un
+      // prêt ou un remboursement n'ont pas de catégorie à recevoir.
+      if (TYPES_CATEGORIE_LIBRE.has(typeOperationLigne(ligne))) {
+        ligne.type_code = "virement";
+        ligne.virement_par_categorie = true;
+      }
+      if (typeOperationLigne(ligne) === "virement") {
+        ligne.categorie_id = vi.id;
+        ligne.jambe_du_fichier = jambeDuFichierLigne(ligne);
+      }
+    } else if (ligne.nom_banque_categorie && categorieId) {
+      // Une ligne que la catégorie avait faite virement redevient une opération classique dès
+      // qu'on lui en choisit une autre.
+      if (ligne.virement_par_categorie && typeOperationLigne(ligne) === "virement") {
+        ligne.type_code = "classique";
+        ligne.virement_par_categorie = false;
+        ligne.compte_id_autre = null;
+        ligne.jambe_du_fichier = null;
+      }
       // Même arbitrage que le serveur (cf. import_bancaire._resoudre_ligne) :
       // une correspondance ne renseigne que la catégorie, et seulement pour les
       // types qui en admettent une. Le type reste celui posé par la règle.
       ligne.categorie_id = TYPES_CATEGORIE_LIBRE.has(typeOperationLigne(ligne))
         ? categorieId
-        : null;
+        : typeOperationLigne(ligne) === "virement" && vi
+          ? vi.id
+          : null;
     }
     if (ligne.compte_id === null && importMappingComptes[ligne.nom_banque_compte]) {
       ligne.compte_id = importMappingComptes[ligne.nom_banque_compte];
@@ -15901,11 +16062,22 @@ function typeOperationLigne(ligne) {
 // affiché/choisi à l'édition. L'autre côté (ligne.compte_id_autre) vient d'un
 // complément manuel de l'utilisateur (cf. creerLigneApercuEdition) ; tant
 // qu'il n'est pas renseigné il reste "-".
+/** La jambe d'un virement que le relevé décrit : « sortante », « entrante » ou null. MIROIR de
+ *  services/import_bancaire.jambe_du_fichier (migration 0090) : le signe du montant d'abord (la
+ *  colonne « Sens » et le choix débit/crédit y sont déjà), à défaut un montant envoyé seul. */
+function jambeDuFichierLigne(ligne) {
+  if (ligne.montant_signe != null && ligne.montant_signe !== 0) {
+    return ligne.montant_signe < 0 ? "sortante" : "entrante";
+  }
+  if (ligne.montant_signe == null && ligne.montant_envoye != null) return "sortante";
+  return null;
+}
+
 function rolesCompteVirement(ligne) {
   const nomConnu = ligne.compte_id !== null ? nomCompte(ligne.compte_id) : ligne.nom_banque_compte || "-";
   const nomAutre =
     ligne.compte_id_autre !== null && ligne.compte_id_autre !== undefined ? nomCompte(ligne.compte_id_autre) : "-";
-  const emetteur = ligne.montant_signe !== null && ligne.montant_signe !== undefined && ligne.montant_signe < 0;
+  const emetteur = jambeDuFichierLigne(ligne) === "sortante";
   return {
     emetteurHtml: emetteur ? nomConnu : nomAutre,
     recepteurHtml: emetteur ? nomAutre : nomConnu,
@@ -18083,6 +18255,46 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     return conteneur;
   }
 
+  // LA CATÉGORIE ET LE TYPE, ENSEMBLE (migration 0090). `categorieEdition` est la catégorie
+  // ordinaire en cours ; `memoireLigne` retient le type et la catégorie d'avant le virement, pour
+  // les rendre si l'on revient en arrière avant d'enregistrer.
+  let categorieEdition = ligne.categorie_id ?? null;
+  let memoireLigne = null;
+  let typeEdition = null;
+
+  function changerTypeLigne(nouveau, { categorieId = undefined } = {}) {
+    const avant = typeEdition;
+    if (nouveau === "virement" && avant !== "virement" && categorieId === undefined) {
+      memoireLigne = { type: avant, categorieId: categorieEdition };
+    }
+    if (avant === "virement" && nouveau !== "virement") {
+      if (categorieId !== undefined) categorieEdition = categorieId;
+      else if (memoireLigne) categorieEdition = memoireLigne.categorieId;
+      memoireLigne = null;
+    }
+    selectType.value = nouveau;
+    typeEdition = nouveau;
+    rerenderChampsSelonType();
+  }
+
+  function basculerLigneSelonCategorie() {
+    const vi = categorieVirements();
+    const choisie = Number(selectCategorie.value) || null;
+    if (!vi || !choisie) return;
+    if (choisie === vi.id) {
+      if (typeEdition === "virement") return;
+      memoireLigne = { type: typeEdition, categorieId: categorieEdition };
+      changerTypeLigne("virement", { categorieId: null });
+      return;
+    }
+    categorieEdition = choisie;
+    if (typeEdition === "virement") {
+      const retour =
+        memoireLigne && TYPES_CATEGORIE_LIBRE.has(memoireLigne.type) ? memoireLigne.type : "classique";
+      changerTypeLigne(retour, { categorieId: choisie });
+    }
+  }
+
   function rerenderChampsSelonType() {
     const info = infoChoisi();
 
@@ -18103,24 +18315,34 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     montantWrap.appendChild(labelMontant);
 
     categorieWrap.innerHTML = "";
-    if (info.categorieLibre) {
+    // UN VIREMENT GARDE LE MENU (migration 0090) : il y porte « Virements internes », et choisir
+    // cette catégorie sur une autre ligne en fait un virement (cf. basculerLigneSelonCategorie).
+    if (info.categorieLibre || info.virement) {
       const label = document.createElement("label");
       label.textContent = t("Catégorie");
       selectCategorie = document.createElement("select");
-      categoriesProposables(ligne.categorie_id ?? null).forEach((c) => {
+      const vi = categorieVirements();
+      categoriesProposables(categorieEdition).forEach((c) => {
         const opt = document.createElement("option");
         opt.value = c.id;
-        opt.textContent = c.nom;
+        opt.textContent = libelleCategorie(c.nom);
         selectCategorie.appendChild(opt);
       });
       // Une ligne venant d'un type sans catégorie n'en a aucune à
       // présélectionner : le premier choix de la liste fera l'affaire.
-      if (ligne.categorie_id != null) {
-        selectCategorie.value = String(ligne.categorie_id);
+      if (info.virement && vi) {
+        selectCategorie.value = String(vi.id);
+      } else if (categorieEdition != null && !(vi && categorieEdition === vi.id)) {
+        selectCategorie.value = String(categorieEdition);
+      } else if (vi && Number(selectCategorie.value) === vi.id) {
+        selectCategorie.selectedIndex = [...selectCategorie.options].findIndex(
+          (o) => Number(o.value) !== vi.id
+        );
       }
+      selectCategorie.addEventListener("change", basculerLigneSelonCategorie);
       label.appendChild(selectCategorie);
       categorieWrap.appendChild(label);
-      if (info.cle === "classique" && aDecoupeInitiale) {
+      if (info.cle === "classique" && aDecoupeInitiale && !info.virement) {
         categorieWrap.appendChild(construireEditeurDecoupeApercu(label));
       } else {
         caseDecoupe = null;
@@ -18309,7 +18531,8 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
   tr.append(tdLigne, tdFormulaire, tdActions);
 
   rerenderChampsSelonType();
-  selectType.addEventListener("change", rerenderChampsSelonType);
+  typeEdition = selectType.value;
+  selectType.addEventListener("change", () => changerTypeLigne(selectType.value));
 
   btnAnnuler.addEventListener("click", () => {
     ligneApercuEnEdition = null;
@@ -18538,6 +18761,8 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       }
       categorieId = Number(selectCategorie.value);
     }
+    // Un virement porte la catégorie des virements internes (migration 0090), comme au serveur.
+    if (info.virement && categorieVirements()) categorieId = categorieVirements().id;
 
     // Une monnaie que le formulaire n'a PAS demandée garde celle que l'import a
     // résolue : le menu est absent dès que le compte est mono-monnaie (rien à
