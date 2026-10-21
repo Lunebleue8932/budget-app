@@ -509,7 +509,8 @@ function objRemplirPerimetre() {
   // qu'on y range, exactement comme sur l'histogramme du dashboard.
   groupe(
     t("Catégories"),
-    (state.categories || []).filter((c) => !c.est_entree),
+    // Ni celle des virements internes (migration 0090) : elle ne porte aucune dépense.
+    (state.categories || []).filter((c) => !c.est_entree && !c.est_virement),
     "cat"
   );
   // LES PROJETS NE PARAISSENT QU'AVEC LEUR EXTENSION. Un objectif déjà posé sur

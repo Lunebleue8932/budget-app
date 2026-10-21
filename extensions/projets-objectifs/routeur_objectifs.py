@@ -90,8 +90,19 @@ def _valider_perimetre(
     poserait une question dont aucune réponse ne s'impose."""
     if monnaie_id is not None and db.get(models.Monnaie, monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
-    if categorie_id is not None and db.get(models.Categorie, categorie_id) is None:
+    categorie = db.get(models.Categorie, categorie_id) if categorie_id is not None else None
+    if categorie_id is not None and categorie is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) ne porte aucune dépense : un objectif
+    # qui la viserait mesurerait zéro pour toujours.
+    if categorie is not None and categorie.est_virement:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {categorie.nom} » est la catégorie des virements internes : ce ne sont pas "
+                "des dépenses, un objectif n'a rien à y mesurer."
+            ),
+        )
     if sous_filtre_id is not None and db.get(models.SousFiltre, sous_filtre_id) is None:
         raise HTTPException(status_code=404, detail="Projet introuvable")
     if categorie_id and sous_filtre_id:

@@ -45,9 +45,18 @@ def test_la_base_de_decouverte_contient_de_quoi_illustrer_le_tutoriel(tmp_path):
             "plus_recente_reelle": max(
                 o.date for o in db.query(models.Operation).filter(models.Operation.statut == "réel")
             ),
+            # Migration 0090 : chaque jambe porte la catégorie des virements internes.
+            "jambes_sans_categorie_virements": db.query(models.Operation)
+            .filter(models.Operation.virement_id.isnot(None))
+            .outerjoin(models.Categorie, models.Operation.categorie_id == models.Categorie.id)
+            .filter(
+                (models.Operation.categorie_id.is_(None)) | (models.Categorie.est_virement.is_(False))
+            )
+            .count(),
         }
 
     lu = _lire(chemin, contenu)
+    assert lu["jambes_sans_categorie_virements"] == 0
     assert lu["comptes"] == ["Compte A", "Compte B"]
     assert {"Alimentaire", "Loisirs", "Transports", "Charges fixes", "Autres", "Entrées d'argent"} <= lu[
         "categories"

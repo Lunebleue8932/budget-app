@@ -120,6 +120,10 @@ def _lignes_de_depense(operation):
             for part in operation.decoupes
         ]
     categorie = operation.categorie
+    # La catégorie des virements internes (migration 0090) n'est pas une catégorie de dépense :
+    # une jambe de virement sans sa partenaire reste « Sans catégorie », comme avant.
+    if categorie is not None and categorie.est_virement:
+        categorie = None
     nom = categorie.nom if categorie else CATEGORIE_SANS
     return [(nom, operation.montant, operation.nature, bool(categorie and categorie.est_entree))]
 
@@ -218,6 +222,8 @@ def _couleur_index(operation, nom_categorie: str) -> int:
         for part in operation.decoupes:
             if part.categorie.nom == nom_categorie:
                 return part.categorie.couleur_index
+    if operation.categorie is not None and operation.categorie.est_virement:
+        return _COULEUR_SANS_CATEGORIE
     return operation.categorie.couleur_index if operation.categorie else 0
 
 

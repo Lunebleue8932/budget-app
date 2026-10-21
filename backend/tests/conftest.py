@@ -198,6 +198,9 @@ def db_session():
     session.commit()
     # Les 7 types d'opération (migrations 0019 et 0020).
     crud.seed_types_operation(session)
+    # La catégorie des virements internes (migration 0090), équivalente au type « virement » :
+    # LIVRÉE dans toute base, elle n'appartient pas au décor ci-dessus.
+    crud.seed_categorie_virements(session)
     # L'euro (migration 0021) : la monnaie à laquelle sont rattachées toutes
     # les données qui n'en désignent pas explicitement une autre.
     crud.seed_monnaie_initiale(session)

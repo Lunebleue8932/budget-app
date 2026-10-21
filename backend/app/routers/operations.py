@@ -106,6 +106,19 @@ def _valider_categorie(db: Session, categorie_id: int) -> models.Categorie:
     return categorie
 
 
+def _refuser_categorie_virements(categorie: Optional[models.Categorie]) -> None:
+    """LA CATÉGORIE DES VIREMENTS INTERNES NE SE POSE PAS SUR UNE OPÉRATION ORDINAIRE (migration
+    0090) : elle est équivalente au type « virement », qui décrit deux comptes. Une opération
+    qui la choisit devient un virement par /virements (avec `operation_id` pour une opération
+    existante, transformée sur place) ; ici, la poser seule fabriquerait un virement sans compte
+    en face."""
+    if categorie is not None and categorie.est_virement:
+        raise HTTPException(
+            status_code=400,
+            detail=crud.ERREUR_CATEGORIE_VIREMENTS_HORS_VIREMENT.format(nom=categorie.nom),
+        )
+
+
 def _refuser_eteint(
     compte: Optional[models.Compte] = None,
     categorie: Optional[models.Categorie] = None,
@@ -176,7 +189,13 @@ def _valider_decoupes(db: Session, code: str, montant: float, decoupes) -> None:
     if erreur:
         raise HTTPException(status_code=400, detail=erreur)
     for part in decoupes:
-        _valider_categorie(db, part.categorie_id)
+        categorie = _valider_categorie(db, part.categorie_id)
+        # Une part n'est jamais un virement (migration 0090) : seul un virement porte cette
+        # catégorie, et un virement ne se découpe pas.
+        if categorie.est_virement:
+            raise HTTPException(
+                status_code=400, detail=crud.ERREUR_PART_VIREMENTS.format(nom=categorie.nom)
+            )
 
 
 def _valider_amortissement(
@@ -320,8 +339,18 @@ def delete_all_operations(db: Session = Depends(get_db)):
     return {"supprimees": nb}
 
 
-@router.post("", response_model=schemas.OperationRead, status_code=status.HTTP_201_CREATED)
-def create_operation(operation: schemas.OperationCreate, db: Session = Depends(get_db)):
+def valider_creation_operation(
+    db: Session,
+    operation: schemas.OperationCreate,
+    compte_precedent_id: Optional[int] = None,
+    categorie_precedente_id: Optional[int] = None,
+) -> None:
+    """Tout ce qu'une création d'opération doit respecter, en HTTPException.
+
+    PARTAGÉE avec la conversion d'un virement en opération ordinaire (cf. routers/virements) :
+    l'opération qui en sort est décrite entière, comme une création, et doit passer les mêmes
+    portes. Les `precedent_id` y laissent désigner le compte du virement même s'il a été éteint
+    depuis (cf. _refuser_eteint)."""
     compte = crud.get_compte(db, operation.compte_id)
     if compte is None:
         raise HTTPException(status_code=404, detail="Compte introuvable")
@@ -337,7 +366,13 @@ def create_operation(operation: schemas.OperationCreate, db: Session = Depends(g
     categorie = None
     if TypeOperation(code) in TYPES_AVEC_CATEGORIE_LIBRE and operation.categorie_id is not None:
         categorie = _valider_categorie(db, operation.categorie_id)
-    _refuser_eteint(compte=compte, categorie=categorie)
+    _refuser_categorie_virements(categorie)
+    _refuser_eteint(
+        compte=compte,
+        categorie=categorie,
+        compte_precedent_id=compte_precedent_id,
+        categorie_precedente_id=categorie_precedente_id,
+    )
 
     if operation.operations_remboursees and TypeOperation(code) not in TYPES_REGLEMENT:
         raise HTTPException(
@@ -361,6 +396,10 @@ def create_operation(operation: schemas.OperationCreate, db: Session = Depends(g
     # Même raison pour la découpe : sa validité dépend du type et du montant.
     _valider_decoupes(db, code, operation.montant, operation.decoupes)
 
+
+@router.post("", response_model=schemas.OperationRead, status_code=status.HTTP_201_CREATED)
+def create_operation(operation: schemas.OperationCreate, db: Session = Depends(get_db)):
+    valider_creation_operation(db, operation)
     db_operation = crud.create_operation(db, operation)
     return _build_operation_read(db, db_operation)
 
@@ -420,12 +459,28 @@ def update_operation(
     code_final = db_operation.type_code
     if updates.type_id is not None and updates.type_id != db_operation.type_id:
         code_final = _valider_type(db, updates.type_id).code
+    # LA CATÉGORIE D'UN VIREMENT EST CELLE DES VIREMENTS (migration 0090) : en désigner une autre
+    # reviendrait à en changer le type, ce que la garde ci-dessus refuse pour une jambe, et que
+    # /virements/{id}/operation fait proprement (les deux jambes deviennent une opération).
+    if (
+        TypeOperation(code_final) == TypeOperation.virement
+        and updates.categorie_id is not None
+        and not crud.est_categorie_virements(db, updates.categorie_id)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cette opération est un virement interne : sa catégorie est celle des virements. "
+                "Pour en faire une opération ordinaire, change le virement lui-même."
+            ),
+        )
     categorie_finale = None
     if (
         TypeOperation(code_final) in TYPES_AVEC_CATEGORIE_LIBRE
         and updates.categorie_id is not None
     ):
         categorie_finale = _valider_categorie(db, updates.categorie_id)
+    _refuser_categorie_virements(categorie_finale)
     _refuser_eteint(
         compte=compte_final,
         categorie=categorie_finale,

@@ -69,7 +69,9 @@ from . import base_decouverte
 
 # À incrémenter quand la démo gagne de quoi montrer une fonctionnalité nouvelle : une démo plus
 # ancienne est alors proposée au rafraîchissement.
-VERSION = 4
+# v5 : la catégorie « Virements internes » (migration 0090) sur toutes les jambes, et une règle
+# d'import qui la pose.
+VERSION = 5
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45
@@ -201,6 +203,12 @@ _L = {
         "Exemple : toute ligne qui contient ce mot est rangée dans cette catégorie.",
         "Example: any line containing this word is filed in this category.",
         "Exemplo: toda linha que contém esta palavra vai para esta categoria.",
+    ),
+    "regle_livret": ("Virement vers le livret", "Transfer to the savings account", "Transferência para a poupança"),
+    "regle_note_livret": (
+        "Exemple : toute ligne qui contient ce mot est un virement interne vers le livret.",
+        "Example: any line containing this word is an internal transfer to the savings account.",
+        "Exemplo: toda linha que contém esta palavra é uma transferência interna para a poupança.",
     ),
     "note": (
         "Ceci est la démo : tout ce que tu vois est fictif. Tu peux y saisir ce que tu veux, "
@@ -877,6 +885,26 @@ def _remplir_divers(c: _Contexte) -> None:
                 ],
             },
         )
+    # DÉMO v5 : UNE RÈGLE DE VIREMENT, rangée dans la catégorie des virements internes
+    # (migration 0090) — la même équivalence qu'au formulaire : le type et la catégorie vont
+    # ensemble, et le compte en face est le livret.
+    crud.create_regle_categorisation(
+        db,
+        nom=c.t("regle_livret"),
+        description=c.t("regle_note_livret"),
+        type_id=crud.get_type_operation_par_code(db, TypeOperation.virement.value).id,
+        categorie_id=crud.id_categorie_virements(db),
+        compte_autre_id=c.epargne.id,
+        conditions={
+            "operateur": "ET",
+            "groupes": [
+                {
+                    "operateur": "ET",
+                    "conditions": [{"champ": "nature", "operateur": "contient", "valeur": "LIVRET"}],
+                }
+            ],
+        },
+    )
 
     # LE PRESET QUI LIT LE RELEVÉ D'EXEMPLE (cf. base_decouverte.remplir_import) : on peut ainsi
     # importer `exemples/releve-exemple.csv` dans la démo, sans régler quoi que ce soit.

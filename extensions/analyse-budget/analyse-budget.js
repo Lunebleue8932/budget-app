@@ -589,7 +589,8 @@ const abCat = { categorieId: null, vue: "mois", sequence: 0 };
 
 function abCategoriesChoisissables() {
   // Les catégories d'entrée ne portent aucune dépense : leur graphe serait toujours vide.
-  return (state.categories || []).filter((c) => !c.est_entree);
+  // Ni celle des virements internes (migration 0090) : ce ne sont pas des dépenses.
+  return (state.categories || []).filter((c) => !c.est_entree && !c.est_virement);
 }
 
 function abLibelleBarreCategorie(p) {
@@ -1296,7 +1297,10 @@ async function abCharger() {
     // Son objectif déjà écrit, lui, continue de compter dans le plafond des
     // 100 % — et le serveur le dit quand il refuse (cf.
     // crud.erreur_objectif_pourcentage).
-    abCategories = categories.filter((c) => !c.est_entree && c.active !== false);
+    // NI LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) : pas d'enveloppe ni de part.
+    abCategories = categories.filter(
+      (c) => !c.est_entree && !c.est_virement && c.active !== false
+    );
     abBudgets = Object.fromEntries(
       budgets.map((b) => [b.categorie_id, { montant: b.montant, explicite: b.explicite }])
     );

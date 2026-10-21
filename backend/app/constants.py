@@ -80,6 +80,16 @@ CATEGORIES_ENTREE_INITIALES = {CATEGORIE_ENTREES_ARGENT}
 # couleur de toute autre catégorie (cf. crud.set_categorie_est_entree).
 COULEUR_INDEX_ENTREE = -1
 
+# LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) : le NOM LIVRÉ, et rien de plus. Il ne
+# sert qu'à la poser (migration, bases de tests) et à la traduire à l'écran (libelleCategorie) ;
+# tout ce qui demande « est-ce la catégorie des virements ? » lit `Categorie.est_virement`, car
+# elle se renomme librement. Équivalente au type `virement` (cf. models.Categorie.est_virement).
+CATEGORIE_VIREMENTS_INTERNES = "Virements internes"
+# Sa couleur : un index hors palette, comme celui des entrées. Elle ne se dessine dans aucun
+# graphique (ce n'est pas une catégorie de dépense) et ne doit pas prendre à une vraie catégorie
+# une teinte de la palette (cf. crud._prochain_couleur_index, qui ne cherche que les index >= 0).
+COULEUR_INDEX_VIREMENT = -2
+
 
 # ---------- Monnaies ----------
 # L'app ne connaît aucun taux de change et n'additionne JAMAIS deux monnaies :

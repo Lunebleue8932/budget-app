@@ -682,6 +682,11 @@ def sens_selon_le_montant(type_code: str, signe: Optional[int]) -> tuple[Optiona
 
 def sens_de_la_ligne(db, ligne: schemas.ImportLigne) -> tuple[Optional[Sens], Optional[str]]:
     """Le sens que l'opération de cette ligne recevra (ou l'erreur qui la refuse)."""
+    if TypeOperation(ligne.type_code) == TypeOperation.virement:
+        # La jambe d'un virement : le signe, ou à défaut une ligne qui n'écrit que ce qui part
+        # (« Montant envoyé ») - cf. jambe_du_fichier.
+        sortante = jambe_du_fichier(ligne) == "sortante"
+        return (Sens.transfert_sortant if sortante else Sens.transfert_entrant), None
     sens, erreur = sens_selon_le_montant(ligne.type_code, signe_du_montant(ligne.montant_signe))
     if sens is None and erreur is None:
         categorie = crud.get_categorie(db, ligne.categorie_id) if ligne.categorie_id else None
@@ -1643,7 +1648,9 @@ def _jambe_lisible(db, reconnue: JambeReconnue) -> schemas.JambeManquanteLue:
 
 
 def _adopter_la_jambe(
-    ligne: schemas.ImportLigne, reconnue: JambeReconnue
+    ligne: schemas.ImportLigne,
+    reconnue: JambeReconnue,
+    categorie_virements_id: Optional[int] = None,
 ) -> schemas.ImportLigne:
     """La ligne reconnue prend le TYPE de la jambe (virement interne) et son
     compte d'en face — comme une ligne reconnue en doublon adopte le type de
@@ -1654,7 +1661,7 @@ def _adopter_la_jambe(
         type_code=TypeOperation.virement.value,
         compte_id_autre=reconnue.compte_en_face_id,
     )
-    retouchee, _, _ = _retoucher_ligne(ligne, override)
+    retouchee, _, _ = _retoucher_ligne(ligne, override, categorie_virements_id)
     return retouchee.model_copy(update={"jambe_manquante_id": reconnue.operation.id})
 
 
@@ -1790,6 +1797,7 @@ class ContextePreset:
         "separateur_decimal",
         "format_date",
         "index_dummy",
+        "categorie_virements_id",
     )
 
     def __init__(
@@ -1810,6 +1818,9 @@ class ContextePreset:
         # compte_id) : il court-circuite alors toute la résolution du compte.
         self.compte_lie_id = preset.compte_id
         self.monnaies = crud.get_monnaies(db)
+        # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) : la choisir fait d'une ligne un
+        # virement (cf. _resoudre_ligne, _accorder_categorie_et_type).
+        self.categorie_virements_id = crud.id_categorie_virements(db)
         # Le classement automatique est une EXTENSION (extensions/regles) : sans
         # elle, les règles dorment en base mais ne s'appliquent plus. Le moteur
         # reste ici parce qu'il appartient à l'import ; ce qui est optionnel,
@@ -2283,6 +2294,26 @@ def _resoudre_ligne(
     if erreur_sens:
         erreurs.append(erreur_sens)
 
+    # LA CORRESPONDANCE DE LA CATÉGORIE BANCAIRE, lue dès maintenant (et plus seulement au
+    # moment de classer, plus bas) : quand elle désigne la catégorie des virements internes
+    # (migration 0090), c'est le TYPE de la ligne qu'elle fixe — et le type décide des frais
+    # juste en dessous. Elle n'est consultée que si aucune règle n'a classé la ligne, comme
+    # avant, et ne change le type que s'il admet une catégorie (classique, dépense remboursable,
+    # ou aucun type posé) : c'est le choix explicite de l'utilisateur pour cette catégorie
+    # bancaire, au même titre que celui qu'il ferait dans le formulaire.
+    categorie_mappee_id = (
+        crud.get_mapping_categorie(db, preset_id, nom_categorie_banque)
+        if nom_categorie_banque and not (resultat_regle is not None and resultat_regle.classe)
+        else None
+    )
+    virement_par_categorie = False
+    if TypeOperation(type_code) in TYPES_AVEC_CATEGORIE_LIBRE and (
+        categorie_mappee_id == contexte.categorie_virements_id
+        or (resultat_regle is not None and resultat_regle.categorie_id == contexte.categorie_virements_id)
+    ):
+        type_code = TypeOperation.virement.value
+        virement_par_categorie = True
+
     # LES FRAIS, MAINTENANT SEULEMENT : quel montant fait l'opération et ce que
     # les frais lui font dépendent du SENS et du TYPE, tous deux connus depuis
     # les lignes précédentes. C'est aussi pourquoi ce calcul est rejoué dès
@@ -2381,7 +2412,12 @@ def _resoudre_ligne(
             # l'intérêt des règles) et prime sur la correspondance.
             categorie_id = resultat_regle.categorie_id
         elif nom_categorie_banque:
-            categorie_id = crud.get_mapping_categorie(db, preset_id, nom_categorie_banque)
+            categorie_id = categorie_mappee_id
+        # La catégorie des virements sur une ligne qu'une règle donne pour classique : la règle
+        # a tranché le type, la catégorie ne peut pas suivre — on retombe sur le repli, à
+        # confirmer, comme pour une catégorie éteinte.
+        if categorie_id == contexte.categorie_virements_id:
+            categorie_id = None
 
         # UNE CATÉGORIE ÉTEINTE NE CLASSE PLUS RIEN (cf. models.Categorie.active).
         # Une règle écrite il y a six mois, ou une correspondance mémorisée,
@@ -2470,7 +2506,7 @@ def _resoudre_ligne(
                 year=debut_regle.year + mois_fin // 12, month=mois_fin % 12 + 1
             )
 
-    return schemas.ImportLigne(
+    ligne_resolue = schemas.ImportLigne(
         ligne=brute["ligne"],
         date=date_op,
         nature=nature,
@@ -2522,7 +2558,57 @@ def _resoudre_ligne(
         amorti=amorti_regle,
         amortissement_debut=debut_regle,
         amortissement_fin=fin_regle,
+        virement_par_categorie=virement_par_categorie,
     )
+    return _accorder_categorie_et_type(ligne_resolue, contexte.categorie_virements_id)
+
+
+# ---------- LA CATÉGORIE DES VIREMENTS INTERNES, À L'IMPORT (migration 0090) ----------
+#
+# Équivalente au type « virement » comme partout : une ligne de virement porte cette catégorie,
+# une ligne qui la reçoit devient un virement — par la correspondance de sa catégorie bancaire
+# (cf. _resoudre_ligne), une proposition forte du classement (_preselectionner_propositions) ou
+# une retouche de l'aperçu (_retoucher_ligne). Un virement demande son compte en face : la ligne
+# attend alors qu'on le désigne (ImportPreview.virements_en_attente,
+# ImportMappingOverrides.comptes_en_face).
+
+
+def jambe_du_fichier(ligne: schemas.ImportLigne) -> Optional[str]:
+    """La jambe d'un virement que le relevé décrit : « sortante » (le compte du fichier envoie),
+    « entrante » (il reçoit), ou None si rien ne le dit.
+
+    LE SIGNE DU MONTANT D'ABORD, et c'est lui qui porte déjà tout le reste : la colonne « Sens »
+    (cf. _signe_depuis_sens) et le choix de la colonne débit ou crédit (_montant_scinde) n'existent
+    que pour le lui donner. À DÉFAUT de montant reçu — la ligne n'écrit que ce qui part, dans la
+    colonne « Montant envoyé » —, c'est une sortie : le fichier ne connaît que l'argent qui a
+    quitté son compte."""
+    if ligne.montant_signe is not None and ligne.montant_signe != 0:
+        return "sortante" if ligne.montant_signe < 0 else "entrante"
+    if ligne.montant_signe is None and ligne.montant_envoye is not None:
+        return "sortante"
+    return None
+
+
+def _accorder_categorie_et_type(
+    ligne: schemas.ImportLigne, categorie_virements_id: Optional[int]
+) -> schemas.ImportLigne:
+    """La ligne telle que l'équivalence la veut : un virement porte la catégorie des virements
+    (et pas de découpe), une autre ligne ne la porte pas (elle retombe à « non résolue »), et la
+    jambe du fichier est dite sur un virement."""
+    if categorie_virements_id is None:
+        return ligne
+    if ligne.type_code == TypeOperation.virement.value:
+        return ligne.model_copy(
+            update={
+                "categorie_id": categorie_virements_id,
+                "decoupes": [],
+                "jambe_du_fichier": jambe_du_fichier(ligne),
+            }
+        )
+    mise_a_jour = {"jambe_du_fichier": None, "virement_par_categorie": False}
+    if ligne.categorie_id == categorie_virements_id:
+        mise_a_jour["categorie_id"] = None
+    return ligne.model_copy(update=mise_a_jour)
 
 
 def _brute_depuis_donnees(donnees: dict[str, Any], preset, ligne_num: int) -> dict:
@@ -2819,7 +2905,7 @@ def previsualiser(
         reconnue = reconnues.get(ligne_resolue.ligne)
         if reconnue is None:
             continue
-        lignes[index] = _adopter_la_jambe(ligne_resolue, reconnue)
+        lignes[index] = _adopter_la_jambe(ligne_resolue, reconnue, contexte.categorie_virements_id)
         jambes_manquantes[str(reconnue.operation.id)] = _jambe_lisible(db, reconnue)
 
     # LES PRÉVISIONNELLES RECONNUES, une fois toutes les lignes résolues : la
@@ -2865,6 +2951,15 @@ def previsualiser(
         for nom in categories_inconnues
     }
     lignes = _preselectionner_propositions(db, lignes, propositions_categories)
+    # LES VIREMENTS QUI ATTENDENT LEUR COMPTE EN FACE (migration 0090), une fois toutes les
+    # conversions faites : correspondances, propositions, jambes reconnues.
+    virements_en_attente = [
+        l.ligne
+        for l in lignes
+        if l.type_code == TypeOperation.virement.value
+        and l.compte_id_autre is None
+        and l.statut_import != StatutImport.refuse.value
+    ]
     comptes_inconnus = sorted(
         {l.nom_banque_compte for l in lignes if l.nom_banque_compte and l.compte_id is None}
     )
@@ -2874,6 +2969,7 @@ def previsualiser(
         lignes_existantes=lignes_existantes,
         previsionnelles=previsionnelles,
         jambes_manquantes=jambes_manquantes,
+        virements_en_attente=virements_en_attente,
         categories_inconnues=categories_inconnues,
         propositions_categories=propositions_categories,
         comptes_inconnus=comptes_inconnus,
@@ -2917,6 +3013,17 @@ def _preselectionner_propositions(db, lignes: list, propositions: dict) -> list:
             sortie.append(ligne)
             continue
         cible = categories.get(proposition["categorie_id"])
+        # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) vaut pour les deux sens — un
+        # virement sort d'un compte et entre dans l'autre. La présélectionner fait de la ligne un
+        # virement, qui reste « à confirmer » comme toute proposition et attend son compte en face.
+        if cible is not None and cible.est_virement:
+            retouchee, _, _ = _retoucher_ligne(
+                ligne,
+                schemas.ImportLigneOverride(type_code=TypeOperation.virement.value),
+                cible.id,
+            )
+            sortie.append(retouchee.model_copy(update={"virement_par_categorie": True}))
+            continue
         est_entree_ligne = ligne.montant_signe is not None and ligne.montant_signe > 0
         if cible is None or bool(cible.est_entree) != est_entree_ligne:
             sortie.append(ligne)
@@ -2925,7 +3032,9 @@ def _preselectionner_propositions(db, lignes: list, propositions: dict) -> list:
     return sortie
 
 
-def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
+def _erreur_ligne(
+    ligne: schemas.ImportLigne, categorie_virements_id: Optional[int] = None
+) -> Optional[str]:
     manques = []
     est_virement = TypeOperation(ligne.type_code) == TypeOperation.virement
     if ligne.date is None:
@@ -2947,7 +3056,9 @@ def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
     # à la main (le fichier n'en donnait pas, ou en donnait deux, cf.
     # _montant_scinde) porte un montant sans porter de sens, et c'est
     # exactement ce cas-là. Refusée plutôt qu'importée à l'envers.
-    if est_virement and ligne.montant_signe is None:
+    # (Une ligne qui n'écrit que ce qui part, dans « Montant envoyé », dit pourtant son sens :
+    # cf. jambe_du_fichier.)
+    if est_virement and jambe_du_fichier(ligne) is None:
         manques.append("virement interne : le sens de la ligne est indéterminé")
     _, erreur_sens = sens_selon_le_montant(ligne.type_code, signe_du_montant(ligne.montant_signe))
     if erreur_sens:
@@ -2969,6 +3080,15 @@ def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
         erreur_decoupe = crud.erreur_decoupes(ligne.type_code, ligne.montant or 0.0, ligne.decoupes)
         if erreur_decoupe:
             manques.append(f"découpe : {erreur_decoupe}")
+    # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) ne classe qu'un virement, et jamais
+    # une part : une retouche qui la pose ailleurs est arrêtée ici plutôt qu'à l'écriture.
+    if categorie_virements_id is not None:
+        if (
+            any(part.categorie_id == categorie_virements_id for part in ligne.decoupes or [])
+        ):
+            manques.append("découpe : une part ne peut pas être un virement interne")
+        if ligne.categorie_id == categorie_virements_id and not est_virement:
+            manques.append("catégorie des virements internes sur une ligne qui n'est pas un virement")
     if ligne.compte_id is None:
         manques.append("compte non résolu")
     # Une devise lue mais non rattachée décide de la monnaie de l'écriture :
@@ -3154,7 +3274,7 @@ def _resoudre_comptes_virement(ligne: schemas.ImportLigne) -> tuple[Optional[int
     ÉMET et REÇOIT des virements dans des monnaies différentes, et les deux cas
     demandent les mêmes colonnes. En tirer que le compte du fichier est
     l'émetteur classait toutes ses lignes en sortie."""
-    emetteur = ligne.montant_signe is not None and ligne.montant_signe < 0
+    emetteur = jambe_du_fichier(ligne) == "sortante"
     return (
         (ligne.compte_id, ligne.compte_id_autre)
         if emetteur
@@ -3378,7 +3498,9 @@ def _adopter_type_du_doublon(
     if type_operation is None or type_operation.code == ligne.type_code:
         return ligne
     retouchee, _, _ = _retoucher_ligne(
-        ligne, schemas.ImportLigneOverride(type_code=type_operation.code)
+        ligne,
+        schemas.ImportLigneOverride(type_code=type_operation.code),
+        crud.id_categorie_virements(db),
     )
     return retouchee
 
@@ -3386,12 +3508,18 @@ def _adopter_type_du_doublon(
 def _retoucher_ligne(
     ligne: schemas.ImportLigne,
     override: Optional[schemas.ImportLigneOverride],
+    categorie_virements_id: Optional[int] = None,
 ) -> tuple[schemas.ImportLigne, Optional[str], Optional[list]]:
     """Applique à une ligne l'édition manuelle de l'aperçu (bouton « Modifier »).
 
     Ne remplace que les champs explicitement fournis ; l'erreur, elle, est
     recalculée ensuite par `confirmer` à partir de l'état final (une correction
     peut lever l'erreur d'origine, ex. date corrigée à la main).
+
+    `categorie_virements_id` (migration 0090) : choisir cette catégorie fait de la
+    ligne un virement, et quitter le type virement lui retire la catégorie (cf.
+    _accorder_categorie_et_type). None : la règle n'est pas appliquée (appelants
+    qui ne la connaissent pas).
 
     Rend (ligne retouchée, erreur née de la réimputation des frais, liens de
     règlement)."""
@@ -3454,7 +3582,21 @@ def _retoucher_ligne(
         or retouches.get("type_code", ligne.type_code) != ligne.type_code
     ):
         retouches["decoupes"] = []
+    # LA CATÉGORIE DES VIREMENTS FAIT LE TYPE (migration 0090) : la choisir sur une ligne d'un
+    # type à catégorie libre en fait un virement, comme au formulaire d'une opération.
+    if (
+        categorie_virements_id is not None
+        and retouches.get("categorie_id") == categorie_virements_id
+        and TypeOperation(retouches.get("type_code", ligne.type_code)) in TYPES_AVEC_CATEGORIE_LIBRE
+    ):
+        retouches["type_code"] = TypeOperation.virement.value
+        retouches["virement_par_categorie"] = True
+    # Le type changé à la main n'est plus l'œuvre de la catégorie : la ligne ne redeviendra pas
+    # classique d'elle-même si l'on change ensuite de catégorie.
+    elif "type_code" in retouches and retouches["type_code"] != ligne.type_code:
+        retouches["virement_par_categorie"] = False
     ligne = ligne.model_copy(update=retouches)
+    ligne = _accorder_categorie_et_type(ligne, categorie_virements_id)
     # Le montant qui fait l'opération dépend du TYPE et du SENS : les
     # changer dans l'aperçu change la jambe qui compte, donc le montant
     # importé. Une retouche qui porte des frais redéfinit en plus la
@@ -3493,6 +3635,26 @@ def _retoucher_ligne(
         if ligne.erreur and ligne.erreur != avant:
             erreur_frais = ligne.erreur
     return ligne, erreur_frais, liens_remboursement
+
+
+def _retoucher_et_completer(
+    ligne: schemas.ImportLigne,
+    overrides: schemas.ImportMappingOverrides,
+    categorie_virements_id: Optional[int],
+) -> tuple[schemas.ImportLigne, Optional[str], Optional[list]]:
+    """La retouche de l'aperçu (cf. _retoucher_ligne), puis LE COMPTE EN FACE choisi pour cette
+    ligne dans `comptes_en_face` (migration 0090) — sur un virement seulement, et seulement si la
+    retouche n'en désigne pas un elle-même."""
+    override = overrides.lignes.get(ligne.ligne)
+    retouchee, erreur_frais, liens = _retoucher_ligne(ligne, override, categorie_virements_id)
+    compte_en_face = overrides.comptes_en_face.get(ligne.ligne)
+    if (
+        compte_en_face is not None
+        and retouchee.type_code == TypeOperation.virement.value
+        and not (override is not None and override.compte_id_autre is not None)
+    ):
+        retouchee = retouchee.model_copy(update={"compte_id_autre": compte_en_face})
+    return retouchee, erreur_frais, liens
 
 
 def confirmer(
@@ -3582,7 +3744,9 @@ def confirmer(
     }
     for index, ligne_resolue in enumerate(lignes):
         if ligne_resolue.ligne in reconnues:
-            lignes[index] = _adopter_la_jambe(ligne_resolue, reconnues[ligne_resolue.ligne])
+            lignes[index] = _adopter_la_jambe(
+                ligne_resolue, reconnues[ligne_resolue.ligne], contexte.categorie_virements_id
+            )
 
     # LES RETOUCHES DE L'APERÇU, APPLIQUÉES AVANT TOUT CONTRÔLE. Le blocage
     # ci-dessous lisait la ligne telle que le FICHIER la donnait : corriger à la
@@ -3592,7 +3756,7 @@ def confirmer(
     # chose d'une ligne supprimée de l'aperçu : elle ne sera pas importée, ses
     # frais n'ont plus à bloquer quoi que ce soit.
     retouchees = {
-        ligne.ligne: _retoucher_ligne(ligne, overrides.lignes.get(ligne.ligne))
+        ligne.ligne: _retoucher_et_completer(ligne, overrides, contexte.categorie_virements_id)
         for ligne in lignes
         if ligne.statut_import != StatutImport.refuse.value
         and ligne.ligne not in overrides.lignes_supprimees
@@ -3740,7 +3904,7 @@ def confirmer(
                 a_temoigner.append((donnees_par_ligne[ligne.ligne], jambe_id))
                 continue
 
-        manques = _erreur_ligne(ligne)
+        manques = _erreur_ligne(ligne, contexte.categorie_virements_id)
         eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes)
         ligne = ligne.model_copy(
             update={

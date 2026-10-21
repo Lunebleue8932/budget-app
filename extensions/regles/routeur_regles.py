@@ -47,16 +47,37 @@ def _valider_action(db: Session, type_id, categorie_id, compte_autre_id, decoupe
     catégorie ou sa découpe sont gardées telles quelles — elles ne vaudront, à
     l'import, que si le type finalement retenu en admet une (cf.
     regles_categorisation._completer) — et le compte en face aussi, qui ne
-    vaudra que pour un virement."""
+    vaudra que pour un virement.
+
+    LA CATÉGORIE DES VIREMENTS INTERNES FAIT LE TYPE (migration 0090), comme au
+    formulaire d'opération : une règle qui la choisit, sans type ou avec un type à
+    catégorie libre, devient une règle de virement ; une règle de virement porte
+    cette catégorie, et elle seule. Une part de découpe ne peut pas la viser.
+
+    Rend (type, catégorie, découpe, compte en face) retenus."""
+    categorie_virements = crud.get_categorie_virements(db)
+    for part in decoupes or []:
+        if part.categorie_id == categorie_virements.id:
+            raise HTTPException(
+                status_code=400,
+                detail=crud.ERREUR_PART_VIREMENTS.format(nom=categorie_virements.nom),
+            )
+    if categorie_id == categorie_virements.id and not decoupes:
+        type_choisi = crud.get_type_operation(db, type_id) if type_id is not None else None
+        if type_id is None or (
+            type_choisi is not None
+            and TypeOperation(type_choisi.code) in TYPES_AVEC_CATEGORIE_LIBRE
+        ):
+            type_id = crud.get_type_operation_par_code(db, TypeOperation.virement.value).id
     if type_id is None:
         for part in decoupes or []:
             if crud.get_categorie(db, part.categorie_id) is None:
                 raise HTTPException(status_code=404, detail="Catégorie de découpe introuvable")
         if decoupes:
-            return None, list(decoupes), None
+            return None, None, list(decoupes), None
         if categorie_id is not None and crud.get_categorie(db, categorie_id) is None:
             raise HTTPException(status_code=404, detail="Catégorie introuvable")
-        return categorie_id, [], None
+        return None, categorie_id, [], None
     type_operation = crud.get_type_operation(db, type_id)
     if type_operation is None:
         raise HTTPException(status_code=404, detail="Type d'opération introuvable")
@@ -78,8 +99,10 @@ def _valider_action(db: Session, type_id, categorie_id, compte_autre_id, decoupe
             raise HTTPException(status_code=404, detail="Compte en face introuvable")
         compte_retenu = compte_autre_id
 
+    if code == TypeOperation.virement:
+        return type_id, categorie_virements.id, [], compte_retenu
     if code not in TYPES_AVEC_CATEGORIE_LIBRE:
-        return None, [], compte_retenu
+        return type_id, None, [], compte_retenu
 
     # SEULE UNE OPÉRATION CLASSIQUE SE DÉCOUPE (cf. crud.erreur_decoupes) : une
     # règle qui poserait une découpe sur une dépense remboursable produirait à
@@ -96,11 +119,11 @@ def _valider_action(db: Session, type_id, categorie_id, compte_autre_id, decoupe
         if crud.get_categorie(db, part.categorie_id) is None:
             raise HTTPException(status_code=404, detail="Catégorie de découpe introuvable")
     if decoupes:
-        return None, list(decoupes), compte_retenu
+        return type_id, None, list(decoupes), compte_retenu
 
     if categorie_id is not None and crud.get_categorie(db, categorie_id) is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
-    return categorie_id, [], compte_retenu
+    return type_id, categorie_id, [], compte_retenu
 
 
 def _autres_actions(db: Session, payload) -> dict:
@@ -171,7 +194,24 @@ def _sortie_validee(db: Session, sortie) -> dict:
     existent. Le code du type est recopié : l'évaluation ne consulte pas la
     base. Rien n'est neutralisé ici selon le type — la sortie peut ne changer
     que le compte en face et laisser le type à la règle ; c'est à l'import que
-    chaque champ ne vaut que si le type finalement retenu l'admet."""
+    chaque champ ne vaut que si le type finalement retenu l'admet.
+
+    SAUF L'ÉQUIVALENCE DES VIREMENTS (migration 0090) : une sortie qui choisit la
+    catégorie des virements internes pose le type virement (s'il est libre), et
+    une sortie qui pose le type virement porte cette catégorie."""
+    categorie_virements = crud.get_categorie_virements(db)
+    type_virement = crud.get_type_operation_par_code(db, TypeOperation.virement.value)
+    if sortie.categorie_id == categorie_virements.id:
+        type_choisi = (
+            crud.get_type_operation(db, sortie.type_id) if sortie.type_id is not None else None
+        )
+        if sortie.type_id is None or (
+            type_choisi is not None
+            and TypeOperation(type_choisi.code) in TYPES_AVEC_CATEGORIE_LIBRE
+        ):
+            sortie = sortie.model_copy(update={"type_id": type_virement.id})
+    if sortie.type_id == type_virement.id:
+        sortie = sortie.model_copy(update={"categorie_id": categorie_virements.id})
     type_code = None
     if sortie.type_id is not None:
         type_operation = crud.get_type_operation(db, sortie.type_id)
@@ -204,7 +244,7 @@ def list_regles(db: Session = Depends(get_db)):
 @router.post("", response_model=schemas.RegleCategorisationRead, status_code=201)
 def create_regle(payload: schemas.RegleCategorisationCreate, db: Session = Depends(get_db)):
     _verifier_colonnes_dummy(db, payload)
-    categorie_id, decoupes, compte_autre_id = _valider_action(
+    type_id, categorie_id, decoupes, compte_autre_id = _valider_action(
         db,
         payload.type_id,
         payload.categorie_id,
@@ -216,7 +256,7 @@ def create_regle(payload: schemas.RegleCategorisationCreate, db: Session = Depen
         nom=payload.nom,
         description=payload.description,
         conditions=payload.conditions.model_dump(mode="json"),
-        type_id=payload.type_id,
+        type_id=type_id,
         categorie_id=categorie_id,
         decoupes=decoupes,
         compte_autre_id=compte_autre_id,
@@ -244,7 +284,7 @@ def update_regle(
 ):
     regle = _get_regle_ou_404(db, regle_id)
     _verifier_colonnes_dummy(db, payload)
-    categorie_id, decoupes, compte_autre_id = _valider_action(
+    type_id, categorie_id, decoupes, compte_autre_id = _valider_action(
         db,
         payload.type_id,
         payload.categorie_id,
@@ -257,7 +297,7 @@ def update_regle(
         nom=payload.nom,
         description=payload.description,
         conditions=payload.conditions.model_dump(mode="json"),
-        type_id=payload.type_id,
+        type_id=type_id,
         categorie_id=categorie_id,
         decoupes=decoupes,
         compte_autre_id=compte_autre_id,

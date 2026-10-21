@@ -555,9 +555,9 @@ def test_une_correspondance_ne_peut_plus_defaire_le_type_dune_regle(db_session):
 
     assert preview.lignes[0].type_code == "virement"
     assert preview.lignes[0].regle_appliquee == "Virements internes"
-    # Un virement interne ne porte aucune catégorie : celle de la
-    # correspondance n'est même pas consultée.
-    assert preview.lignes[0].categorie_id is None
+    # Un virement interne porte la catégorie des virements internes (migration
+    # 0090), et elle seule : celle de la correspondance n'est même pas consultée.
+    assert preview.lignes[0].categorie_id == crud.id_categorie_virements(db_session)
 
 
 def test_confirmer_cree_bien_une_operation_classee_par_regle(db_session):

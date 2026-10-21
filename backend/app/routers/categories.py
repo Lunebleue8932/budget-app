@@ -34,6 +34,22 @@ def _valider_monnaie(db: Session, monnaie_id: int) -> None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
 
 
+def _refuser_si_virements(db_categorie, geste: str) -> None:
+    """LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) n'est pas une catégorie de dépense :
+    elle est équivalente au type « virement ». Elle se renomme, et c'est tout — ni suppression,
+    ni extinction (des virements se retrouveraient sans la catégorie que leur type impose), ni
+    enveloppe, objectif ou drapeau d'entrée (aucun agrégat ne la compte). 409 : le geste est
+    valide en soi, c'est l'état de CETTE catégorie qui l'interdit."""
+    if db_categorie.est_virement:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {db_categorie.nom} » est la catégorie des virements internes : {geste}. "
+                "Elle se renomme librement."
+            ),
+        )
+
+
 @router.get("/budgets", response_model=list[schemas.BudgetCategorieRead])
 def list_budgets_toutes_categories(
     annee: int, mois: int, monnaie_id: int, db: Session = Depends(get_db)
@@ -46,6 +62,7 @@ def list_budgets_toutes_categories(
     if mois < 1 or mois > 12:
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
     _valider_monnaie(db, monnaie_id)
+    # Sans la catégorie des virements internes (migration 0090) : pas d'enveloppe à lui donner.
     return [
         schemas.BudgetCategorieRead(
             categorie_id=categorie.id,
@@ -59,6 +76,7 @@ def list_budgets_toutes_categories(
             ),
         )
         for categorie in crud.get_categories(db)
+        if not categorie.est_virement
     ]
 
 
@@ -92,6 +110,7 @@ def set_budget_categorie(
     db_categorie = crud.get_categorie(db, categorie_id)
     if db_categorie is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    _refuser_si_virements(db_categorie, "elle n'a pas d'enveloppe")
     _valider_monnaie(db, monnaie_id)
     crud.set_budget_categorie(db, categorie_id, annee, mois, monnaie_id, updates.montant)
     return schemas.BudgetMensuelRead(
@@ -128,6 +147,7 @@ def set_objectif_categorie(
     db_categorie = crud.get_categorie(db, categorie_id)
     if db_categorie is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    _refuser_si_virements(db_categorie, "elle n'a pas d'objectif de répartition")
     erreur = crud.erreur_objectif_pourcentage(
         db, db_categorie, updates.objectif_pourcentage
     )
@@ -157,6 +177,8 @@ def set_entree_categorie(
     db_categorie = crud.get_categorie(db, categorie_id)
     if db_categorie is None:
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    if updates.est_entree:
+        _refuser_si_virements(db_categorie, "elle n'est pas une catégorie d'entrée")
     return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
 
 
@@ -210,6 +232,8 @@ def set_etat_categorie(
                 "importées qu'aucune règle ne classe."
             ),
         )
+    if not updates.active:
+        _refuser_si_virements(db_categorie, "elle ne s'éteint pas")
     return crud.set_categorie_active(db, db_categorie, updates.active)
 
 
@@ -276,6 +300,10 @@ def delete_categorie(categorie_id: int, db: Session = Depends(get_db)):
             status_code=400,
             detail="La catégorie 'Autres' ne peut pas être supprimée",
         )
+    # LA CATÉGORIE DES VIREMENTS INTERNES NON PLUS (migration 0090), reconnue à son drapeau :
+    # renommée, elle reste la même. La supprimer renverrait les jambes de virement dans
+    # « Autres », c'est-à-dire du côté des dépenses classées.
+    _refuser_si_virements(db_categorie, "elle ne se supprime pas")
     # « ENTRÉES D'ARGENT » NON PLUS, et pour une autre raison : c'est la seule
     # catégorie d'ENTRÉE livrée (cf. constants.CATEGORIES_ENTREE_INITIALES). La
     # supprimer basculerait tous les salaires déjà saisis dans « Autres »,

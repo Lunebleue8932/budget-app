@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..constants import Sens
 from ..database import get_db
+from .operations import _build_operation_read, valider_creation_operation
 
 router = APIRouter(prefix="/virements", tags=["virements"])
 
@@ -59,9 +60,23 @@ def create_virement(virement: schemas.VirementCreate, db: Session = Depends(get_
         db, compte_destination, virement.monnaie_destination_resolue, "destination"
     )
 
-    op_sortante, op_entrante = crud.create_virement(
-        db, virement, compte_source, compte_destination
-    )
+    # UNE OPÉRATION EXISTANTE QUI DEVIENT CE VIREMENT (migration 0090) : on vient de lui
+    # choisir la catégorie « Virements internes ». Elle devient la jambe de son compte, sur
+    # place, au lieu de rester à côté du virement neuf avec son ancienne catégorie.
+    if virement.operation_id is not None:
+        operation = crud.get_operation(db, virement.operation_id)
+        if operation is None:
+            raise HTTPException(status_code=404, detail="Opération introuvable")
+        erreur = crud.erreur_conversion_en_virement(db, operation)
+        if erreur:
+            raise HTTPException(status_code=409, detail=erreur)
+        op_sortante, op_entrante = crud.convertir_en_virement(
+            db, operation, virement, compte_source, compte_destination
+        )
+    else:
+        op_sortante, op_entrante = crud.create_virement(
+            db, virement, compte_source, compte_destination
+        )
     return schemas.VirementRead(
         virement_id=op_sortante.virement_id,
         operation_sortante=op_sortante,
@@ -121,6 +136,34 @@ def update_virement(
         operation_sortante=op_sortante,
         operation_entrante=op_entrante,
     )
+
+
+@router.post("/{virement_id}/operation", response_model=schemas.OperationRead)
+def convertir_en_operation(
+    virement_id: str, operation: schemas.OperationCreate, db: Session = Depends(get_db)
+):
+    """Le virement redevient UNE opération ordinaire (migration 0090).
+
+    C'est le geste inverse de `operation_id` à la création : sur un virement qu'on modifie, on
+    choisit une autre catégorie que « Virements internes », ou un autre type. L'opération est
+    décrite entière, comme une création, et passe les mêmes portes (cf.
+    routers/operations.valider_creation_operation) ; la jambe du compte choisi la porte, sur
+    place, et l'autre disparaît. Sans cette route, l'écran créait l'opération À CÔTÉ du virement,
+    qui restait en base : le même argent compté deux fois."""
+    jambes = crud.get_virement(db, virement_id)
+    if not jambes:
+        raise HTTPException(status_code=404, detail="Virement introuvable")
+    valider_creation_operation(
+        db,
+        operation,
+        compte_precedent_id=(
+            operation.compte_id
+            if operation.compte_id in {jambe.compte_id for jambe in jambes}
+            else None
+        ),
+    )
+    nouvelle = crud.convertir_virement_en_operation(db, jambes, operation)
+    return _build_operation_read(db, nouvelle)
 
 
 @router.get("/{virement_id}", response_model=schemas.VirementRead)

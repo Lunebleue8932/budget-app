@@ -1022,6 +1022,10 @@ def get_depenses_par_categorie(
     categories = (
         db.query(models.Categorie)
         .filter(models.Categorie.est_entree.is_(False))
+        # NI LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) : ses opérations sont des
+        # jambes de virement, de sens transfert_*, que les sommes ci-dessous ne lisent jamais
+        # (elles ne comptent que le sens « dépense »). Sa barre resterait à zéro pour toujours.
+        .filter(models.Categorie.est_virement.is_(False))
         .order_by(models.Categorie.ordre)
         .all()
     )

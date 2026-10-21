@@ -133,9 +133,26 @@ def test_la_demo_contient_de_quoi_montrer_l_application(demo_fr):
             "plus_recente_reelle": max(
                 o.date for o in db.query(models.Operation).filter(models.Operation.statut == "réel")
             ),
+            # DÉMO v5 (migration 0090) : la catégorie des virements est sur chaque jambe et
+            # seulement sur elles, et une règle d'import la pose.
+            "jambes": {
+                (o.type_operation.code, bool(o.categorie and o.categorie.est_virement))
+                for o in db.query(models.Operation).filter(
+                    (models.Operation.virement_id.isnot(None))
+                    | (models.Operation.categorie_id.in_(
+                        db.query(models.Categorie.id).filter(models.Categorie.est_virement.is_(True))
+                    ))
+                )
+            },
+            "regles_virement": db.query(models.RegleCategorisation)
+            .join(models.Categorie)
+            .filter(models.Categorie.est_virement.is_(True))
+            .count(),
         }
 
     lu = _lire(demo_fr, contenu)
+    assert lu["jambes"] == {("virement", True)}
+    assert lu["regles_virement"] == 1
     assert set(lu["comptes"].values()) == {"courant", "épargne", "placements financiers"}
     assert len(lu["monnaies"]) == 2
     assert lu["operations"] > 150

@@ -1235,3 +1235,9 @@ Object.assign(TEXTES, {
   "noyau.creation-monnaie":
     "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.",
 });
+// >>> TEXTES AJOUTÉS : la catégorie « Virements internes » (branche virements-categorie)
+Object.assign(TEXTES, {
+  "noyau.categorie-virements":
+    "« Virements internes » est la catégorie de tes virements entre tes propres comptes : choisir cette catégorie sur une opération en fait un virement, et un virement porte toujours cette catégorie. Tu peux la renommer, mais pas la supprimer ni l'éteindre. Elle n'a ni budget ni objectif : un virement n'est pas une dépense.",
+});
+// <<< FIN DES TEXTES AJOUTÉS : la catégorie « Virements internes »
