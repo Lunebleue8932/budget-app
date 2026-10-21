@@ -1260,3 +1260,10 @@ Object.assign(TEXTES, {
   "noyau.guide-import-preset":
     "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.",
 });
+/* ----- L'étape 3bis de l'import : les virements internes (branche import-virements, 2026-10-21) ----- */
+Object.assign(TEXTES, {
+  "noyau.import-virements-internes":
+    "Ces lignes sont des virements entre tes propres comptes, mais ton relevé n'en montre qu'un côté. Pour chacune, choisis l'autre compte : celui qui reçoit l'argent quand ce compte l'envoie, celui qui l'envoie quand ce compte le reçoit. L'application propose le compte de tes virements précédents au même libellé : rien n'est retenu sans ta confirmation. // /bold(Plus tard) laisse ces lignes en attente : l'import reste bloqué tant qu'il leur manque un compte.",
+  "noyau.guide-import-virements":
+    "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.",
+});
