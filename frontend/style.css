@@ -6201,8 +6201,7 @@ td.apercu-col-hors-fichier {
   font-size: 0.9rem;
 }
 
-/* Le second point : deux choix, un rond chacun comme les pastilles de période. Aucun n'est imposé,
-   un second clic éteint celui qu'on vient d'allumer. */
+/* Des choix en boutons, l'un à côté de l'autre : l'écran de la langue (ci-dessous). */
 .modale-choix {
   display: flex;
   flex-wrap: wrap;
@@ -6232,18 +6231,70 @@ td.apercu-col-hors-fichier {
   background: rgba(59, 130, 246, 0.1);
 }
 
-.modale-choix-rond {
-  flex: none;
-  width: 0.95rem;
-  height: 0.95rem;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  transition: border-color 0.15s, background 0.15s;
+/* LA FENÊTRE DE PREMIER LANCEMENT EST PLUS LARGE que les autres : ses trois cartes de découverte se
+   rangent côte à côte, et à 32rem chacune n'aurait eu que trois mots par ligne. */
+.modale.modale-bdd {
+  max-width: 50rem;
 }
 
-.modale-choix-bouton[aria-checked="true"] .modale-choix-rond {
+/* Le second point : trois cartes, un bouton « Choisir » sous chacune. Le texte prend la hauteur qu'il
+   lui faut, les boutons s'alignent en bas. La carte choisie est entourée de bleu ; aucune n'est
+   imposée, un second clic retire le choix. */
+.modale-decouverte {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.6rem;
+}
+
+.modale-decouverte-carte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface-alt);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.modale-decouverte-carte:hover {
+  border-color: var(--accent-light);
+}
+
+.modale-decouverte-carte.choisie {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.modale-decouverte-texte {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.modale-decouverte-texte .texte-aide-intro:last-child {
+  margin-bottom: 0;
+}
+
+.modale-decouverte-texte em {
+  color: var(--text-secondary);
+}
+
+.modale-decouverte-carte.choisie .modale-decouverte-choisir {
   background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Trop étroit pour trois colonnes : les cartes s'empilent, dans le même ordre. */
+@media (max-width: 760px) {
+  .modale-decouverte {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* L'écran de la langue : trois grands boutons l'un sous l'autre, un drapeau et un nom. */
@@ -7451,8 +7502,39 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   margin-bottom: 0.25rem;
 }
 
-.barre-premier-import + .barre-demo {
+.barre-premier-import + .barre-demo,
+.barre-premier-import + .barre-tutoriels,
+.barre-tutoriels + .barre-demo {
   margin-top: 0;
+}
+
+/* LES TUTORIELS, entre le premier import et la démo : la même porte, en vert pointillé. */
+.barre-tutoriels {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.barre-tutoriels button {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px dashed var(--positif);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--positif);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.barre-tutoriels button:hover:not(:disabled),
+.barre-tutoriels button:focus-visible {
+  background: var(--success-bg);
+  outline: none;
 }
 
 .barre-premier-import button {

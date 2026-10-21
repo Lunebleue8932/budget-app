@@ -1051,6 +1051,8 @@ function renderTutorielsParametres() {
 
     const carte = document.createElement("div");
     carte.className = "tutoriel-carte";
+    // Ce que le guide de la première visite désigne (cf. premier-demarrage.js, `guideTutoriels`).
+    carte.dataset.parcours = parcours.id;
     carte.innerHTML = `
       <div class="tutoriel-carte-texte">
         <span class="tutoriel-carte-nom">${escapeHtml(t(parcours.nom))}</span>

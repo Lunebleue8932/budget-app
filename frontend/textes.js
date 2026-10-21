@@ -1213,3 +1213,19 @@ Object.assign(TEXTES, {
   "noyau.import-compte-monnaies":
     "Ton fichier écrit des monnaies que l'application ne connaît pas encore (EUR, USD…). Pour chacune, choisis la monnaie qui lui correspond : ce choix est retenu pour tes prochains relevés.",
 });
+
+/* ----- Le premier lancement à trois choix (import, tutoriels, sandbox) et la porte des tutoriels ----- */
+Object.assign(TEXTES, {
+  "noyau.modale-bdd-trois-facons":
+    "Tu peux découvrir l'app de trois façons, en passant de l'une à l'autre",
+  "noyau.modale-bdd-carte-import":
+    "Tu peux faire ton premier import dès maintenant",
+  "noyau.modale-bdd-carte-tutoriels":
+    "Tu peux suivre les tutoriels pour comprendre le fonctionnement de l'app. // /italic(La progression des tutoriels est sauvegardée, tu peux quitter un tutoriel et le reprendre quand tu veux)",
+  "noyau.modale-bdd-carte-sandbox":
+    "Tu peux explorer la sandbox pour voir ce que l'app offre et ce qu'il est possible de faire.",
+  "noyau.guide-tutoriels":
+    "Chaque carte est un tutoriel guidé, avec sa progression. Commence par /bold(Prendre l'application en main) : le tour de l'app, sur des données fictives. Son bouton le lance quand tu es prêt.",
+  "noyau.guide-tutoriels-bouton":
+    "Les tutoriels guidés, pas à pas devant l'écran : la prise en main de l'app, puis l'import d'un relevé. Ta progression est gardée, tu reprends quand tu veux.",
+});
