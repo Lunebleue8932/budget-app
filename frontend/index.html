@@ -2065,6 +2065,11 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-parametres-import" class="sous-section">
+      <!-- LA LISTE DES PRESETS. Quand un autre preset lirait mieux le fichier qu'on vient de déposer (ou
+           qu'aucun ne le lit), ce bloc DESCEND entre le choix du fichier et « Le fichier tel qu'il est »,
+           le temps de la question (cf. app.js, « LA PROPOSITION DE PRESET ») : la page n'affiche alors que
+           ces trois-là. -->
+      <div id="import-presets-bloc">
       <h3>Preset<i class="info-bulle" tabindex="0" data-info-cle="noyau.preset">i</i></h3>
       <div class="preset-panel">
         <div class="preset-chips sous-onglets" id="import-preset-chips"></div>
@@ -2087,6 +2092,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </select>
         </div>
         <p class="hint" id="import-preset-compte-avertissement" style="display:none"></p>
+      </div>
       </div>
 
       <!-- Tout ce qui décrit le FORMAT du relevé tient dans ce seul repli :
@@ -2363,6 +2369,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <p class="hint">ou glisse-dépose ton fichier ici — l'analyse démarre automatiquement</p>
         <p class="import-dropzone-nom" id="import-fichier-nom"></p>
       </div>
+
+      <!-- La place de la liste des presets pendant la proposition de preset. -->
+      <div id="import-proposition-preset" class="import-proposition-preset" style="display:none"></div>
 
       <div id="import-apercu-fichier-bloc" style="display:none">
         <!-- Le titre et le bouton de relecture sur une ligne : la relecture est
@@ -2739,7 +2748,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
 
-      <details class="toggle-titre toggle-1" open>
+      <details class="toggle-titre toggle-1" id="import-historique-bloc" open>
         <summary><h3>Historique des importations<i class="info-bulle" tabindex="0" data-info-cle="noyau.historique-des-importations">i</i></h3></summary>
         <div class="toggle-contenu">
           <table>

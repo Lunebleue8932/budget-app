@@ -7583,9 +7583,9 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 
 /* ---------- LE PARCOURS DE L'IMPORT : le graphe des étapes, en tête de chaque fenêtre ----------
  *
- * Un rond par étape (1, 1bis, 2, 3, puis « Importer ») et une flèche entre deux. GRIS par défaut ; VERT à
- * mesure qu'on avance : les étapes faites, et celle que la fenêtre montre (cernée d'un halo). L'étape
- * « mots-clés » n'est dessinée que lorsque le fichier en demande une. */
+ * Un rond par étape (1, 1bis, 2, 3, 3bis, 4, puis « Importer ») et une flèche entre deux, TOUTES TOUJOURS
+ * DESSINÉES. GRIS par défaut ; VERT à mesure qu'on avance : les étapes faites, et celle que la fenêtre montre
+ * (cernée d'un halo). Une étape sans objet est « sautée » (en pointillés, barrée : cf. plus bas). */
 .import-etapes {
   margin: 0.15rem 0 0.75rem;
 }
@@ -7756,4 +7756,96 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 
 .compte-import-creer-actions {
   margin: -0.4rem 0 0.9rem;
+}
+
+/* Le graphe : une étape SAUTÉE (rien à y faire pour ce fichier) reste dessinée, en pointillés et barrée. */
+.import-etape-sautee {
+  opacity: 0.6;
+}
+
+.import-etape-sautee .import-etape-rond {
+  border-style: dashed;
+}
+
+.import-etape-sautee .import-etape-nom {
+  text-decoration: line-through;
+}
+
+/* Le graphe en tête du contrôle avant import (l'étape 4, ou « Importer »). */
+.import-controle .import-etapes {
+  margin-bottom: 0.9rem;
+}
+
+/* ---------- LA PROPOSITION DE PRESET ----------
+   La liste des presets descend sous le choix du fichier ; la page ne montre plus qu'elle, le choix du
+   fichier et « Le fichier tel qu'il est ». */
+.import-en-proposition #import-config-fichier,
+.import-en-proposition #import-compte-defaut-bloc,
+.import-en-proposition #import-reconnaissance,
+.import-en-proposition #import-avertissements,
+.import-en-proposition #import-resultat,
+.import-en-proposition #import-mappings-bloc,
+.import-en-proposition #import-monnaies-resolues-bloc,
+.import-en-proposition #import-previsionnelles-bloc,
+.import-en-proposition #import-controle,
+.import-en-proposition #import-apercu-bloc,
+.import-en-proposition #import-historique-bloc,
+.import-en-proposition #import-detection-suggestion,
+.import-en-proposition .preset-panel .import-compte-defaut-bloc,
+.import-en-proposition #import-preset-compte-avertissement {
+  display: none !important;
+}
+
+.import-proposition-preset {
+  margin: 1rem 0 0.5rem;
+}
+
+.import-proposition-preset .preset-panel {
+  position: relative;
+  /* La place du pop-up, posé sous la rangée des presets. */
+  padding-bottom: 6.5rem;
+}
+
+/* Le preset (ou « + Nouveau preset ») vers lequel l'app propose d'aller : entouré, de la couleur des
+   suggestions de l'app. */
+.preset-chips button.preset-propose,
+button.preset-propose {
+  outline: 3px solid #d99a2b;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(217, 154, 43, 0.18);
+}
+
+.import-proposition-bulle {
+  position: absolute;
+  z-index: 5;
+  width: min(26rem, 100%);
+  box-sizing: border-box;
+  padding: 0.8rem 0.95rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid #d99a2b;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  font-size: 0.9rem;
+}
+
+.import-proposition-bulle::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: var(--pointe, 1.5rem);
+  width: 12px;
+  height: 12px;
+  background: var(--bg-surface-alt);
+  border-left: 1px solid #d99a2b;
+  border-top: 1px solid #d99a2b;
+  transform: rotate(45deg);
+}
+
+.import-proposition-bulle p {
+  margin: 0 0 0.6rem;
+}
+
+.import-proposition-bulle .actions {
+  display: flex;
+  gap: 0.5rem;
 }

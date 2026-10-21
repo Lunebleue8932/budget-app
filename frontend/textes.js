@@ -1226,4 +1226,10 @@ Object.assign(TEXTES, {
     "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».",
   "noyau.import-compte-monnaies-manquantes":
     "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.",
+  "noyau.import-preset-propose":
+    "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?",
+  "noyau.import-preset-aucun":
+    "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?",
+  "noyau.guide-import-preset":
+    "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.",
 });

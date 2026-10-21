@@ -179,6 +179,8 @@ function guideEtapeDeLEcran() {
   if (guideVisible("#modale-mots-cles")) return "mots-cles";
   if (guideVisible("#modale-detection")) return "colonnes";
   if (!guideVisible("#sous-section-parametres-import")) return null;
+  // La proposition de preset, posée dans la page AVANT toute fenêtre de l'import.
+  if (guideVisible("#import-proposition-bulle")) return "preset";
   // Rien n'est lu tant que le fichier n'est pas choisi.
   if (!guideVisible("#import-apercu-bloc")) return "fichier";
   return "apercu";
@@ -189,6 +191,11 @@ const GUIDE_ETAPES_IMPORT = {
     titre: "Choisis ton relevé",
     cle: "noyau.guide-import-fichier",
     cible: "#btn-import-choisir-fichier",
+  },
+  preset: {
+    titre: "Choisis le preset",
+    cle: "noyau.guide-import-preset",
+    cible: "#import-proposition-bulle",
   },
   colonnes: {
     titre: "Dis ce que contient chaque colonne",

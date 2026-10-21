@@ -4047,5 +4047,14 @@ Object.assign(TRADUCTIONS.pt, {
   "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
     "A conta “{compte}” não tem {monnaies}: as linhas nessa moeda seriam ignoradas na importação. Adicione-a à conta, ou associe a moeda a outra.",
   "Ajouter au compte": "Adicionar à conta",
+  "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?":
+    "O app leria melhor este arquivo com este preset. Quer trocar?",
+  "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?":
+    "O app não encontra nenhum Preset adequado para ler o arquivo. Quer criar um novo?",
+  "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.":
+    "Seu arquivo não se parece com o que o preset selecionado lê. Responda ao pop-up: /bold(Sim) troca de preset (ou cria um), /bold(Não) mantém o seu. Nada é importado por isso.",
+  "Contrôle": "Controle",
+  "Étape sautée : rien à y faire pour ce fichier.": "Etapa pulada: nada a fazer para este arquivo.",
+  "Choisis le preset": "Escolha o preset",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

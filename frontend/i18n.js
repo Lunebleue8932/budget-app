@@ -4823,5 +4823,14 @@ Object.assign(TRADUCTIONS.en, {
   "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
     "The “{compte}” account doesn't hold {monnaies}: its lines in that currency would be skipped at import. Add it to the account, or link the currency to another one.",
   "Ajouter au compte": "Add to the account",
+  "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?":
+    "The app would read this file better with this preset. Do you want to switch?",
+  "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?":
+    "The app can't find any Preset suited to reading the file. Do you want to create a new one?",
+  "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.":
+    "Your file doesn't look like what the selected preset reads. Answer the pop-up: /bold(Yes) switches preset (or creates one), /bold(No) keeps yours. Nothing is imported yet.",
+  "Contrôle": "Check",
+  "Étape sautée : rien à y faire pour ce fichier.": "Step skipped: nothing to do for this file.",
+  "Choisis le preset": "Choose the preset",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports
