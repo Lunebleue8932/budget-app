@@ -38,6 +38,7 @@ const GUIDE_TABLEAUX = [
   "modale-mots-cles",
   "modale-correspondances",
   "modale-compte-import",
+  "modale-virements-import",
 ];
 
 function guideBulle() {
@@ -206,7 +207,9 @@ function guideEtapeDeLEcran() {
   // Une fenêtre de création (un compte, une monnaie) s'ouvre par-dessus l'étape 3 : la bulle se tait le
   // temps qu'elle est ouverte, plutôt que de désigner la fenêtre qu'elle recouvre.
   if (guideVisible("#modale-guide-compte") || guideVisible("#modale-creation-monnaie")) return null;
-  // LES ÉTAPES DE L'IMPORT, dans leur ordre : le compte vient en dernier, dans sa propre fenêtre.
+  // LES ÉTAPES DE L'IMPORT, dans leur ordre : le compte, puis les virements internes (3bis), chacun dans sa
+  // propre fenêtre.
+  if (guideVisible("#modale-virements-import")) return "virements";
   if (guideVisible("#modale-compte-import")) return "compte-fichier";
   if (guideVisible("#modale-correspondances")) return "categories";
   if (guideVisible("#modale-mots-cles")) return "mots-cles";
@@ -257,6 +260,13 @@ const GUIDE_ETAPES_IMPORT = {
     cible: "#modale-compte-import .modale",
     lieu: "haut",
     tableau: "modale-compte-import",
+  },
+  virements: {
+    titre: "Choisis l'autre compte de chaque virement",
+    cle: "noyau.guide-import-virements",
+    cible: "#virements-import-board .corr-roue-cadre",
+    lieu: "haut",
+    tableau: "modale-virements-import",
   },
   apercu: {
     titre: "Vérifie avant de confirmer",

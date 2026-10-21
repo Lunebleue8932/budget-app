@@ -4106,3 +4106,30 @@ Object.assign(TRADUCTIONS.pt, {
   "Choisis le preset": "Escolha o preset",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports
+
+// >>> TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import, les virements internes (branche import-virements)
+Object.assign(TRADUCTIONS.pt, {
+  "Ces lignes sont des virements entre tes propres comptes, mais ton relevé n'en montre qu'un côté. Pour chacune, choisis l'autre compte : celui qui reçoit l'argent quand ce compte l'envoie, celui qui l'envoie quand ce compte le reçoit. L'application propose le compte de tes virements précédents au même libellé : rien n'est retenu sans ta confirmation. // /bold(Plus tard) laisse ces lignes en attente : l'import reste bloqué tant qu'il leur manque un compte.":
+    "Estas linhas são transferências entre as suas próprias contas, mas o seu extrato só mostra um lado delas. Para cada uma, escolha a outra conta: a que recebe o dinheiro quando esta conta o envia, a que o envia quando esta conta o recebe. O app sugere a conta das suas transferências anteriores com a mesma descrição: nada é guardado sem a sua confirmação. // /bold(Mais tarde) deixa estas linhas pendentes: a importação continua bloqueada enquanto faltar uma conta.",
+  "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.":
+    "Seu extrato só mostra um lado de cada transferência interna. Em cada cartão, escolha a outra conta da transferência (ou crie-a no quadro roxo) e confirme.",
+  "{compte} envoie vers…":
+    "{compte} envia para…",
+  "{compte} reçoit de…":
+    "{compte} recebe de…",
+  "Compte en face de {compte} :":
+    "Outra conta de {compte}:",
+  "{n} virement(s) à confirmer":
+    "{n} transferência(s) a confirmar",
+  "Choisis un compte pour chaque virement, ou reviens-y plus tard.":
+    "Escolha uma conta para cada transferência, ou volte a isso mais tarde.",
+  "Confirmer les suggestions":
+    "Confirmar as sugestões",
+  "Valider les comptes":
+    "Validar as contas",
+  "Comptes des virements internes":
+    "Contas das transferências internas",
+  "Choisis l'autre compte de chaque virement":
+    "Escolha a outra conta de cada transferência",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import

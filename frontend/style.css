@@ -7958,3 +7958,20 @@ button.preset-propose {
   display: flex;
   gap: 0.5rem;
 }
+
+/* ---------- L'ÉTAPE 3bis DE L'IMPORT : LES VIREMENTS INTERNES (2026-10-21) ---------- */
+
+/* Une carte par virement : la date et le montant sur une ligne, puis le sens en clair. */
+.vir-carte-ligne {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.vir-sens {
+  margin: 0.35rem 0 0.4rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}

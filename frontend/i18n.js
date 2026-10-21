@@ -4884,3 +4884,30 @@ Object.assign(TRADUCTIONS.en, {
   "Choisis le preset": "Choose the preset",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports
+
+// >>> TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import, les virements internes (branche import-virements)
+Object.assign(TRADUCTIONS.en, {
+  "Ces lignes sont des virements entre tes propres comptes, mais ton relevé n'en montre qu'un côté. Pour chacune, choisis l'autre compte : celui qui reçoit l'argent quand ce compte l'envoie, celui qui l'envoie quand ce compte le reçoit. L'application propose le compte de tes virements précédents au même libellé : rien n'est retenu sans ta confirmation. // /bold(Plus tard) laisse ces lignes en attente : l'import reste bloqué tant qu'il leur manque un compte.":
+    "These lines are transfers between your own accounts, but your statement only shows one side of them. For each one, choose the other account: the one receiving the money when this account sends it, the one sending it when this account receives it. The app suggests the account of your previous transfers with the same label: nothing is kept until you confirm it. // /bold(Later) leaves these lines pending: the import stays blocked as long as an account is missing.",
+  "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.":
+    "Your statement only shows one side of each internal transfer. On each card, choose the other account of the transfer (or create it in the purple box), then confirm.",
+  "{compte} envoie vers…":
+    "{compte} sends to…",
+  "{compte} reçoit de…":
+    "{compte} receives from…",
+  "Compte en face de {compte} :":
+    "Other account of {compte}:",
+  "{n} virement(s) à confirmer":
+    "{n} transfer(s) to confirm",
+  "Choisis un compte pour chaque virement, ou reviens-y plus tard.":
+    "Choose an account for each transfer, or come back to it later.",
+  "Confirmer les suggestions":
+    "Confirm the suggestions",
+  "Valider les comptes":
+    "Confirm the accounts",
+  "Comptes des virements internes":
+    "Internal transfer accounts",
+  "Choisis l'autre compte de chaque virement":
+    "Choose the other account of each transfer",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import

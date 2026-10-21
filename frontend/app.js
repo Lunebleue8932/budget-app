@@ -13571,6 +13571,7 @@ async function executerPrevisualisation({ conserver = false } = {}) {
       importLignesSelectionnees.clear();
       Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
       importLignesSupprimees.clear();
+      reinitialiserVirementsImport();
     }
     ligneApercuEnEdition = null;
     // La veille sur les virements repart de zéro : ses verdicts portent sur les
@@ -14630,8 +14631,8 @@ async function ouvrirEtapeChamps() {
  *                            ou seule quand le fichier écrit un mot que le preset ne connaît pas ;
  *   2    les catégories    : les catégories de la banque que l'app ne connaît pas encore ;
  *   3    les comptes       : où va le relevé, les comptes qu'il nomme, ses devises (« Comptes & Monnaies ») ;
- *   3bis les virements     : le compte de l'autre jambe de chaque virement interne - À BRANCHER (cf.
- *                            `etapeVirementsInternesADemander`) ;
+ *   3bis les virements     : le compte de l'autre jambe de chaque virement interne (cf. « LES VIREMENTS
+ *                            INTERNES DE L'IMPORT ») ;
  *   4    le contrôle       : le contrôle avant import, dans la page, quand il signale quelque chose (lignes
  *                            mal lues, solde qui ne tombe pas juste, dates ou montants hors norme) ;
  *   puis « Importer ».
@@ -14655,30 +14656,18 @@ const ETAPES_IMPORT = [
 ];
 
 /**
- * L'ÉTAPE 3bis, « VIREMENTS INTERNES » - LE POINT D'ACCROCHE DU CHANTIER SUIVANT.
- *
- * Quand une catégorie de la banque sera rattachée à la catégorie « Virements internes » (chantier
- * virements-categorie), chaque ligne de cette catégorie sera un virement entre deux comptes de
- * l'utilisateur, dont le fichier ne donne qu'une jambe. Une fenêtre demandera alors, ligne par ligne, le
- * compte de l'autre jambe. Elle vient APRÈS les comptes (étape 3) : le compte du fichier est alors connu.
- *
- * CETTE FONCTION DIT SI L'ÉTAPE SE DÉCLENCHE. Elle rend toujours faux pour l'instant : l'étape est dessinée
- * dans le graphe, toujours « sautée ». Pour la brancher :
- *   1. rendre vrai quand des lignes lues (`lignesLuesParImport()`) tombent, par leur catégorie bancaire
- *      (`importMappingCategories`) ou leur type, dans « Virements internes » sans compte en face ;
- *   2. écrire la fenêtre dans `ouvrirEtapeVirementsInternes` : elle marque `importParcours.vues.add("virements")`,
- *      pose son graphe par `majEtapesImport("<id de la fenêtre>", "virements")`, et rappelle
- *      `ouvrirSuiteImport()` en se fermant - le parcours continue alors vers le contrôle (étape 4).
- * Le reste (graphe, ordre, une seule ouverture par fichier) est déjà en place.
+ * L'ÉTAPE 3bis, « VIREMENTS INTERNES » : des virements que l'import lira n'ont pas encore leur compte en face
+ * - ceux qu'une catégorie bancaire rattachée à « Virements internes » a faits à l'étape 2, et ceux d'une règle
+ * ou d'un reclassement (cf. `lignesVirementsEnFace`). Elle vient APRÈS les comptes (étape 3) : le compte du
+ * fichier est alors connu, et il est exclu des choix. La fenêtre : « LES VIREMENTS INTERNES DE L'IMPORT ».
  */
 function etapeVirementsInternesADemander() {
-  return false;
+  return !!importApercu && lignesVirementsEnFace().some((l) => l.compte_id_autre == null);
 }
 
-/** La fenêtre de l'étape 3bis - à construire (cf. `etapeVirementsInternesADemander`). Rend vrai quand elle
- *  s'est ouverte. */
+/** La fenêtre de l'étape 3bis, ouverte par le parcours ; rend vrai quand elle s'est ouverte. */
 function ouvrirEtapeVirementsInternes() {
-  return false;
+  return ouvrirVirementsImport({ chaine: true });
 }
 
 /** L'étape 3 a-t-elle quelque chose à demander ? (Le compte du fichier, des noms de comptes, des devises, ou
@@ -15203,6 +15192,21 @@ function restaurerVocabulairesImport() {
 const compteImport = { choix: null, confirme: false, manuel: false };
 const compteImportNouveaux = new Set();
 
+/** LA TOUCHE QUI A FERMÉ LA FENÊTRE D'AVANT N'OUVRE RIEN DANS CELLE-CI. Chaque fenêtre de l'import écoute ses
+ *  touches sur `document` ; quand la dernière confirmation d'une étape ouvre la suivante, les écouteurs posés
+ *  après le sien reçoivent ENCORE la même frappe - la fenêtre qui vient de s'ouvrir se confirmait alors toute
+ *  seule, sur la première ligne de sa molette. Chaque fenêtre note l'instant où elle s'ouvre et laisse passer
+ *  les frappes plus anciennes. */
+const ouvertureFenetreImport = {};
+
+function noterOuvertureFenetreImport(id) {
+  ouvertureFenetreImport[id] = performance.now();
+}
+
+function toucheAvantOuverture(e, id) {
+  return ouvertureFenetreImport[id] != null && e.timeStamp < ouvertureFenetreImport[id];
+}
+
 function compteImportBesoins() {
   const blocDefaut = document.getElementById("import-compte-defaut-bloc");
   const demandes = demandesDeMapping();
@@ -15592,6 +15596,7 @@ function ouvrirChoixCompteImport() {
   document.getElementById("compte-import-erreur").style.display = "none";
   document.getElementById("compte-import-monnaies-manquantes").style.display = "none";
   majEtapesImport("modale-compte-import", "compte");
+  noterOuvertureFenetreImport("modale-compte-import");
   document.getElementById("modale-compte-import").style.display = "";
   document.body.classList.add("modale-ouverte");
   if (defaut) {
@@ -15702,7 +15707,7 @@ async function validerChoixCompteImport() {
     await executerPrevisualisation({ conserver: true });
   });
   document.addEventListener("keydown", (e) => {
-    if (!compteImportOuvert()) return;
+    if (!compteImportOuvert() || toucheAvantOuverture(e, "modale-compte-import")) return;
     // Une fenêtre de création ouverte par-dessus garde ses touches.
     if (document.getElementById("modale-guide-compte").style.display !== "none") return;
     if (comboEvenementImport(e) === toucheImport("confirmer")) {
@@ -15717,6 +15722,494 @@ async function validerChoixCompteImport() {
     } else if (e.key === "Enter" && e.target.tagName !== "BUTTON" && !e.target.closest(".corr-roue")) {
       e.preventDefault();
       validerChoixCompteImport();
+    }
+  });
+})();
+
+/* ---------- LES VIREMENTS INTERNES DE L'IMPORT (étape 3bis) ----------
+ *
+ * Un virement interne a DEUX jambes, une par compte, et le relevé n'en décrit qu'une : celle du compte du
+ * fichier. Tant que l'autre compte n'est pas désigné, la ligne ne s'importe pas (`virementIncomplet`). Cette
+ * fenêtre le demande, UNE CARTE PAR LIGNE : la date, le libellé, le montant, et le sens en clair - le compte
+ * du fichier « envoie vers… » (jambe sortante : on demande le compte qui reçoit) ou « reçoit de… » (jambe
+ * entrante : celui qui envoie), d'après le signe du montant, où la colonne « Sens » et le choix débit/crédit
+ * sont déjà (cf. `jambeDuFichierLigne`). Le compte du fichier n'est jamais sur la molette.
+ *
+ * QUELLES LIGNES : tous les virements que l'import lira sans compte en face - ceux que la catégorie
+ * « Virements internes » a faits (étape 2), et aussi ceux d'une règle ou d'un reclassement, que le même
+ * blocage retient. Pas une ligne mal lue, refusée par la banque, déclarée comme un virement déjà en base, ni
+ * une jambe reconnue (elle a son propre « Oui / Non »).
+ *
+ * L'APPLICATION DEVINE, ELLE NE CHOISIT PAS : le compte du dernier virement en base parti du même compte,
+ * dans le même sens, sous le même libellé (`POST /import/comptes-en-face`), ou celui qu'on vient de confirmer
+ * sur une carte de même libellé du fichier - en « Suggestion », en tête de la molette, à confirmer comme le
+ * reste. L'encadré violet crée un compte sur place (`demanderCreationCompte`) : il rejoint chaque molette en
+ * violet, et devient le choix de la carte courante, à confirmer.
+ *
+ * RIEN N'EST NEUF CÔTÉ SERVEUR À LA CONFIRMATION : les choix partent dans `comptes_en_face` (numéro de ligne
+ * -> compte de l'autre jambe), que le serveur applique quand la retouche de la ligne n'en désigne pas un. À
+ * l'écran, ils se reposent sur l'aperçu par `appliquerComptesEnFace` (aussi après une relecture qui garde les
+ * choix), sans rien défaire de ce qui a été confirmé avant.
+ */
+// Numéro de ligne -> compte de l'autre jambe, CONFIRMÉ. Vidé à chaque nouvel aperçu (cf. executerPrevisualisation).
+const importComptesEnFace = {};
+// L'état des cartes du fichier : numéro de ligne -> { choix, manuel, propose }.
+const virCartes = {};
+// Les propositions du serveur, par numéro de ligne (cf. `virDemanderPropositions`).
+const virPropositions = {};
+// Les comptes créés dans la fenêtre pendant CE fichier : violets et en tête de chaque molette.
+const virNouveaux = new Set();
+let virLignes = [];
+let virCourante = -1;
+// La fenêtre a été ouverte par le parcours : la fermer rend la main à l'étape suivante (le contrôle).
+let virChaine = false;
+
+function virOuvert() {
+  return document.getElementById("modale-virements-import").style.display !== "none";
+}
+
+/** Les virements que l'import lira et qui attendent - ou ont reçu dans cette fenêtre - leur compte en face. */
+function lignesVirementsEnFace() {
+  return lignesLuesParImport().filter(
+    (l) =>
+      typeOperationLigne(l) === "virement" &&
+      !ligneMalLue(l) &&
+      !ligneRefuseeParStatut(l) &&
+      !ligneDeclareeVirementConnu(l) &&
+      jambeDeLigne(l) == null &&
+      (l.compte_id_autre == null || importComptesEnFace[l.ligne] != null)
+  );
+}
+
+/** Pose les comptes en face confirmés sur les lignes de l'aperçu qui sont (encore) des virements. Une
+ *  retouche de la ligne qui désigne elle-même l'autre compte garde la main, comme côté serveur. */
+function appliquerComptesEnFace() {
+  if (!importApercu) return;
+  importApercu.lignes.forEach((ligne) => {
+    const compteId = importComptesEnFace[ligne.ligne];
+    if (compteId == null || typeOperationLigne(ligne) !== "virement") return;
+    const retouche = importLigneOverrides[ligne.ligne];
+    if (retouche && retouche.compte_id_autre != null) return;
+    ligne.compte_id_autre = compteId;
+  });
+}
+
+function virNormaliser(texte) {
+  return String(texte || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function virLigne(n) {
+  return (importApercu ? importApercu.lignes : []).find((l) => l.ligne === n) || null;
+}
+
+function virCarte(n) {
+  if (!virCartes[n]) {
+    const confirme = importComptesEnFace[n] ?? null;
+    virCartes[n] = { choix: confirme, manuel: false, propose: null };
+  }
+  return virCartes[n];
+}
+
+function virConfirmee(n) {
+  return importComptesEnFace[n] != null && importComptesEnFace[n] === virCarte(n).choix;
+}
+
+/** Les comptes de la molette : jamais celui du fichier. Les comptes créés ici d'abord (violets), puis la
+ *  suggestion (jaune), puis les autres. */
+function virOptions(n) {
+  const ligne = virLigne(n);
+  const carte = virCarte(n);
+  const comptes = comptesProposables(carte.choix).filter((c) => !ligne || c.id !== ligne.compte_id);
+  const nouveaux = comptes.filter((c) => virNouveaux.has(c.id) && c.id !== carte.propose);
+  const propose = comptes.filter((c) => c.id === carte.propose);
+  const autres = comptes.filter((c) => !virNouveaux.has(c.id) && c.id !== carte.propose);
+  return [
+    ...nouveaux.map((c) => ({ id: c.id, nom: c.nom, niveau: "nouvelle" })),
+    ...propose.map((c) => ({ id: c.id, nom: c.nom, niveau: "suggestion" })),
+    ...autres.map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" })),
+  ];
+}
+
+function virStatut(n) {
+  const carte = virCarte(n);
+  if (carte.choix != null && carte.choix === carte.propose) return { cle: "suggestions", texte: t("Suggestion") };
+  if (carte.choix != null && (carte.manuel || virConfirmee(n))) return { cle: "choix", texte: t("Ton choix") };
+  return { cle: "choix", texte: t("À classer") };
+}
+
+/** Le sens en clair : ce que fait le compte du fichier, et donc ce que la molette désigne. */
+function virSensTexte(ligne) {
+  const compte = ligne.compte_id != null ? nomCompte(ligne.compte_id) : ligne.nom_banque_compte || t("Ce relevé");
+  const jambe = jambeDuFichierLigne(ligne);
+  if (jambe === "sortante") return t("{compte} envoie vers…", { compte });
+  if (jambe === "entrante") return t("{compte} reçoit de…", { compte });
+  return t("Compte en face de {compte} :", { compte });
+}
+
+function virMontantHtml(ligne) {
+  if (ligne.montant_signe != null) return formatMontant(ligne.montant_signe, ligne.monnaie_id);
+  if (ligne.montant_envoye != null) return formatMontant(-Math.abs(ligne.montant_envoye), ligne.monnaie_envoyee_id);
+  return ligne.montant != null ? formatMontant(ligne.montant, ligne.monnaie_id) : "";
+}
+
+function virCarteHtml(n, i) {
+  const ligne = virLigne(n);
+  const carte = virCarte(n);
+  const options = virOptions(n);
+  const statut = virStatut(n);
+  const confirmee = virConfirmee(n);
+  const roue = options.length
+    ? options
+        .map(
+          (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+            o.id === carte.choix ? "corr-roue-choisie" : ""
+          }" role="option" data-id="${o.id}" aria-selected="${o.id === carte.choix}">${escapeHtml(o.nom)}</div>`
+        )
+        .join("")
+    : `<div class="corr-roue-option corr-roue-vide" aria-disabled="true">${escapeHtml(t("Aucun compte pour l'instant"))}</div>`;
+  return `
+    <section class="corr-colonne vir-carte ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
+      <div>
+        <div class="corr-banque" title="${escapeHtml(ligne.nature || "")}">${escapeHtml(ligne.nature || "—")}</div>
+        <div class="vir-carte-ligne">
+          <span class="hint">${ligne.date ? formatDateCourte(ligne.date) : ""}</span>
+          <span class="corr-operation-montant">${virMontantHtml(ligne)}</span>
+        </div>
+        <div class="vir-sens">${escapeHtml(virSensTexte(ligne))}</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0"
+             aria-label="${escapeHtml(virSensTexte(ligne))}">${roue}</div>
+      </div>
+      <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}" ${options.length ? "" : "disabled"}><span data-corr-libelle>${
+        confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+      }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+    </section>`;
+}
+
+function virColonne(i) {
+  return document.querySelector(`#virements-import-board [data-corr-i="${i}"]`);
+}
+
+function virCentrerRoue(i, doux) {
+  const colonne = virColonne(i);
+  if (!colonne) return;
+  const roue = colonne.querySelector(".corr-roue");
+  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
+}
+
+function virMajCompteur() {
+  const restantes = virLignes.filter((n) => !virConfirmee(n)).length;
+  document.getElementById("virements-import-compteur").textContent = restantes
+    ? t("{n} virement(s) à confirmer", { n: restantes })
+    : t("Tout est confirmé.");
+  document.getElementById("btn-virements-import-suggestions").disabled = !virLignes.some(
+    (n) => !virConfirmee(n) && virCarte(n).propose != null && virCarte(n).choix === virCarte(n).propose
+  );
+}
+
+function renderVirementsImport() {
+  const board = document.getElementById("virements-import-board");
+  board.innerHTML = virLignes.map((n, i) => virCarteHtml(n, i)).join("");
+  virLignes.forEach((n, i) => virCentrerRoue(i, false));
+  if (virCourante >= 0) virColonne(virCourante)?.classList.add("corr-courante");
+  virMajCompteur();
+}
+
+function virDefinirCourante(i, { focus = false } = {}) {
+  virCourante = i;
+  document
+    .querySelectorAll("#virements-import-board .corr-colonne")
+    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
+  const colonne = virColonne(i);
+  if (!colonne) return;
+  colonne.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  if (focus) colonne.querySelector(".corr-roue").focus({ preventScroll: true });
+}
+
+function virMajCarte(i) {
+  const n = virLignes[i];
+  const colonne = virColonne(i);
+  if (!colonne) return;
+  const carte = virCarte(n);
+  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = Number(o.dataset.id) === carte.choix;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  const statut = virStatut(n);
+  const pastille = colonne.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  const confirmee = virConfirmee(n);
+  colonne.classList.toggle("corr-confirmee", confirmee);
+  colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+}
+
+/** Un autre compte sur la molette : la carte redemande une confirmation. */
+function virChoisir(i, id, { defiler = true } = {}) {
+  const n = virLignes[i];
+  const compteId = Number(id);
+  if (n == null || !Number.isFinite(compteId)) return;
+  const carte = virCarte(n);
+  if (compteId === carte.choix) return;
+  carte.choix = compteId;
+  carte.manuel = true;
+  virRetirerConfirmation(n);
+  virMajCarte(i);
+  if (defiler) virCentrerRoue(i, true);
+  virMajCompteur();
+  document.getElementById("virements-import-erreur").style.display = "none";
+}
+
+function virRetirerConfirmation(n) {
+  if (importComptesEnFace[n] == null) return;
+  delete importComptesEnFace[n];
+  const ligne = virLigne(n);
+  const retouche = importLigneOverrides[n];
+  if (ligne && !(retouche && retouche.compte_id_autre != null)) ligne.compte_id_autre = null;
+}
+
+/** Le compte confirmé sur une carte devient la SUGGESTION des cartes de même libellé, même compte et même
+ *  sens qui n'ont encore rien : un virement mensuel s'écrit souvent pareil d'un mois à l'autre. */
+function virProposerAuxSemblables(n) {
+  const source = virLigne(n);
+  if (!source) return;
+  const cle = virNormaliser(source.nature);
+  if (!cle) return;
+  virLignes.forEach((m, k) => {
+    if (m === n || virConfirmee(m)) return;
+    const autre = virLigne(m);
+    const carte = virCarte(m);
+    if (!autre || carte.manuel || carte.propose != null) return;
+    if (virNormaliser(autre.nature) !== cle || autre.compte_id !== source.compte_id) return;
+    if (jambeDuFichierLigne(autre) !== jambeDuFichierLigne(source)) return;
+    carte.propose = importComptesEnFace[n];
+    carte.choix = carte.propose;
+    const colonne = virColonne(k);
+    if (colonne) {
+      colonne.outerHTML = virCarteHtml(m, k);
+      virCentrerRoue(k, false);
+    }
+  });
+}
+
+function virAppliquer() {
+  appliquerComptesEnFace();
+  renderImportApercu();
+}
+
+function virProchaineNonConfirmee(apres) {
+  const suivante = virLignes.findIndex((n, k) => k > apres && !virConfirmee(n));
+  return suivante !== -1 ? suivante : virLignes.findIndex((n) => !virConfirmee(n));
+}
+
+function virConfirmer(i) {
+  if (i < 0 || i >= virLignes.length) return;
+  const n = virLignes[i];
+  const carte = virCarte(n);
+  if (carte.choix == null) {
+    // Rien de choisi : la ligne centrée de la molette est le choix (cf. brancherMolettes).
+    const premiere = virOptions(n)[0];
+    if (!premiere) return;
+    carte.choix = premiere.id;
+    carte.manuel = true;
+  }
+  importComptesEnFace[n] = carte.choix;
+  virMajCarte(i);
+  virProposerAuxSemblables(n);
+  virAppliquer();
+  virMajCompteur();
+  if (virCourante >= 0) virColonne(virCourante)?.classList.add("corr-courante");
+  const cible = virProchaineNonConfirmee(i);
+  if (cible === -1) {
+    fermerEtapeVirementsInternes();
+    return;
+  }
+  virDefinirCourante(cible, { focus: true });
+}
+
+function virConfirmerSuggestions() {
+  virLignes.forEach((n, i) => {
+    const carte = virCarte(n);
+    if (virConfirmee(n) || carte.propose == null || carte.choix !== carte.propose) return;
+    importComptesEnFace[n] = carte.choix;
+    virMajCarte(i);
+  });
+  virAppliquer();
+  virMajCompteur();
+  const premiere = virLignes.findIndex((n) => !virConfirmee(n));
+  if (premiere === -1) fermerEtapeVirementsInternes();
+  else virDefinirCourante(premiere, { focus: true });
+}
+
+/** « Valider les comptes » : chaque carte doit être confirmée - sinon, « Plus tard ». */
+function validerEtapeVirementsInternes() {
+  const premiere = virLignes.findIndex((n) => !virConfirmee(n));
+  if (premiere !== -1) {
+    const erreur = document.getElementById("virements-import-erreur");
+    erreur.textContent = t("Choisis un compte pour chaque virement, ou reviens-y plus tard.");
+    erreur.style.display = "";
+    virDefinirCourante(premiere, { focus: true });
+    return;
+  }
+  fermerEtapeVirementsInternes();
+}
+
+/** L'encadré violet : comme celui de l'étape 3, il ouvre la fenêtre de création d'un compte. */
+function virCreerHtml() {
+  return `<details class="corr-creer" data-vir-creer>
+      <summary>${escapeHtml(t("Aucun compte ne correspond ? Crée le tien"))}</summary>
+    </details>`;
+}
+
+async function virCreerCompte() {
+  const courante = virCourante;
+  const compte = await demanderCreationCompte();
+  const encadre = document.querySelector("#virements-import-creer details");
+  if (encadre) encadre.open = false;
+  if (!compte) return;
+  virNouveaux.add(compte.id);
+  // Créé pour la carte courante : il en devient le choix - à confirmer.
+  const n = virLignes[Math.max(0, courante)];
+  if (n != null) {
+    const carte = virCarte(n);
+    carte.choix = compte.id;
+    carte.manuel = true;
+    virRetirerConfirmation(n);
+  }
+  renderVirementsImport();
+  virDefinirCourante(Math.max(0, courante), { focus: true });
+  updateImportCompteDefautVisibility();
+}
+
+/** Les suggestions du serveur, demandées à l'ouverture. Elles ne touchent ni une carte confirmée ni un choix
+ *  fait à la main. Un échec ne dit rien : la fenêtre marche sans. */
+async function virDemanderPropositions() {
+  const demandes = virLignes
+    .map(virLigne)
+    .filter((l) => l && l.compte_id != null && virPropositions[l.ligne] === undefined)
+    .map((l) => ({ ligne: l.ligne, compte_id: l.compte_id, nature: l.nature || "", jambe: jambeDuFichierLigne(l) }));
+  if (!demandes.length) return;
+  let propositions = {};
+  try {
+    propositions = (await apiFetch("/import/comptes-en-face", {
+      method: "POST",
+      body: JSON.stringify({ lignes: demandes }),
+    })).propositions || {};
+  } catch (err) {
+    return;
+  }
+  demandes.forEach((d) => {
+    virPropositions[d.ligne] = propositions[d.ligne] ?? propositions[String(d.ligne)] ?? null;
+  });
+  if (!virOuvert()) return;
+  let change = false;
+  virLignes.forEach((n) => {
+    const carte = virCarte(n);
+    const propose = virPropositions[n];
+    if (propose == null || carte.manuel || virConfirmee(n)) return;
+    carte.propose = propose;
+    carte.choix = propose;
+    change = true;
+  });
+  if (!change) return;
+  const courante = virCourante;
+  renderVirementsImport();
+  virDefinirCourante(Math.max(0, courante), { focus: virOuvert() });
+}
+
+/** Ouvre la fenêtre (depuis le parcours, `chaine`, ou depuis le bouton de la page) ; rend vrai si elle s'est
+ *  ouverte. */
+function ouvrirVirementsImport({ chaine = false } = {}) {
+  if (!importApercu || tutorielEnCours()) return false;
+  virLignes = lignesVirementsEnFace().map((l) => l.ligne);
+  if (!virLignes.length) return false;
+  virChaine = chaine === true;
+  importParcours.vues.add("virements");
+  virLignes.forEach((n) => {
+    const carte = virCarte(n);
+    if (carte.propose == null && virPropositions[n] != null) carte.propose = virPropositions[n];
+    if (carte.choix == null && carte.propose != null) carte.choix = carte.propose;
+  });
+  document.getElementById("virements-import-creer").innerHTML = virCreerHtml();
+  document.getElementById("virements-import-erreur").style.display = "none";
+  majAideFleches();
+  majEtapesImport("modale-virements-import", "virements");
+  virCourante = Math.max(0, virLignes.findIndex((n) => !virConfirmee(n)));
+  renderVirementsImport();
+  noterOuvertureFenetreImport("modale-virements-import");
+  document.getElementById("modale-virements-import").style.display = "";
+  document.body.classList.add("modale-ouverte");
+  virDefinirCourante(virCourante, { focus: true });
+  virDemanderPropositions();
+  return true;
+}
+
+/** Fermée (validée, « Plus tard », la croix, Échap) : ouverte par le parcours, elle lui rend la main - le
+ *  contrôle (étape 4). Les virements sans compte en face bloquent l'import comme avant. */
+function fermerEtapeVirementsInternes() {
+  document.getElementById("modale-virements-import").style.display = "none";
+  document.body.classList.remove("modale-ouverte");
+  virCourante = -1;
+  if (importApercu) virAppliquer();
+  majBoutonVirementsImport();
+  const chaine = virChaine;
+  virChaine = false;
+  if (chaine) ouvrirSuiteImport();
+}
+
+/** Le bouton de la page qui rouvre la fenêtre, tant qu'un virement attend son compte en face. */
+function majBoutonVirementsImport() {
+  const bouton = document.getElementById("btn-import-virements-internes");
+  if (!bouton) return;
+  bouton.style.display =
+    importApercu && lignesVirementsEnFace().some((l) => l.compte_id_autre == null) ? "" : "none";
+}
+
+/** Un nouvel aperçu (pas une relecture qui garde les choix) : tout ce que la fenêtre savait repart. */
+function reinitialiserVirementsImport() {
+  [importComptesEnFace, virCartes, virPropositions].forEach((objet) =>
+    Object.keys(objet).forEach((k) => delete objet[k])
+  );
+  virNouveaux.clear();
+  virLignes = [];
+}
+
+(function initVirementsImport() {
+  document.getElementById("btn-virements-import-fermer").addEventListener("click", fermerEtapeVirementsInternes);
+  document.getElementById("btn-virements-import-plus-tard").addEventListener("click", fermerEtapeVirementsInternes);
+  document.getElementById("btn-virements-import-valider").addEventListener("click", validerEtapeVirementsInternes);
+  document.getElementById("btn-virements-import-suggestions").addEventListener("click", virConfirmerSuggestions);
+  document.getElementById("btn-import-virements-internes").addEventListener("click", () => ouvrirVirementsImport());
+  document.getElementById("virements-import-creer").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-vir-creer] summary")) return;
+    e.preventDefault();
+    virCreerCompte();
+  });
+  brancherMolettes(document.getElementById("virements-import-board"), {
+    courante: () => virCourante,
+    definirCourante: virDefinirCourante,
+    choisir: (i, id, options) => virChoisir(i, id, options),
+    valeur: (i) => virCarte(virLignes[i]).choix,
+    nombre: () => virLignes.length,
+    confirmer: virConfirmer,
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!virOuvert() || toucheAvantOuverture(e, "modale-virements-import")) return;
+    // Une fenêtre de création ouverte par-dessus garde ses touches.
+    if (document.getElementById("modale-guide-compte").style.display !== "none") return;
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
+      e.preventDefault();
+      virConfirmer(virCourante);
+    } else if (e.key === "Escape") {
+      fermerEtapeVirementsInternes();
     }
   });
 })();
@@ -16469,6 +16962,8 @@ function appliquerMappingsLocalement() {
       }
     });
   });
+  // Les comptes en face confirmés à l'étape 3bis, sur les lignes qui sont (encore) des virements.
+  appliquerComptesEnFace();
 }
 
 
@@ -16796,6 +17291,8 @@ function corrAppliquer() {
   appliquerMappingsLocalement();
   renderImportMappings();
   renderImportApercu();
+  // Une catégorie rattachée à « Virements internes » (ou détachée) décide si l'étape 3bis aura lieu.
+  if (corrOuvert()) majEtapesImport("modale-correspondances", "categories");
 }
 
 function corrProchaineNonConfirmee(apres) {
@@ -16942,6 +17439,9 @@ function brancherMolettes(board, h) {
       clearTimeout(roue._corrMinuteur);
       roue._corrMinuteur = setTimeout(() => {
         if (roue._corrAuto) return;
+        // LA FENÊTRE S'EST FERMÉE ENTRE-TEMPS (la dernière carte confirmée la ferme) : une molette cachée lit
+        // un défilement nul, et sa « première ligne » remplacerait le choix qu'on vient de confirmer.
+        if (!roue.getClientRects().length) return;
         const options = [...roue.children];
         const rang = Math.min(
           options.length - 1,
@@ -20012,6 +20512,7 @@ function compterLignes(lignes, predicat) {
 // sélection -- une sélection non vide bloque la confirmation, et elles y sont
 // pré-inscrites à l'analyse (cf. analyserFichierImport).
 function updateBtnImportConfirmerEtat() {
+  majBoutonVirementsImport();
   const btn = document.getElementById("btn-import-confirmer");
   if (!importApercu) {
     btn.disabled = true;
@@ -20166,6 +20667,13 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       comptes,
       monnaies,
       lignes: importLigneOverrides,
+      // L'étape 3bis : le compte de l'autre jambe, pour les lignes qui sont encore des virements.
+      comptes_en_face: Object.fromEntries(
+        Object.entries(importComptesEnFace).filter(([n]) => {
+          const ligne = virLigne(Number(n));
+          return ligne && typeOperationLigne(ligne) === "virement";
+        })
+      ),
       lignes_supprimees: lignesSupprimeesPourCeConfirm,
       // Une LISTE DE REFUS, et non d'acceptations : le rapprochement a lieu par
       // défaut (cf. le panneau « Dépenses prévues reconnues »).
@@ -21256,6 +21764,15 @@ const CONTENEURS_VALIDATION = [
  */
 const VALIDATION_INTERDITE = new Set(["btn-import-confirmer"]);
 
+// Les fenêtres de l'import qui écoutent elles-mêmes leur touche de confirmation (cf. plus bas).
+const FENETRES_A_TOUCHES_PROPRES = new Set([
+  "modale-detection",
+  "modale-mots-cles",
+  "modale-correspondances",
+  "modale-compte-import",
+  "modale-virements-import",
+]);
+
 /** La boîte de la fenêtre modale ouverte, s'il y en a une. */
 function modaleOuverte() {
   return [...document.querySelectorAll(".modale-fond")]
@@ -21294,6 +21811,11 @@ document.addEventListener("keydown", (evenement) => {
   const conteneur =
     modaleOuverte() || (depart && depart.closest(CONTENEURS_VALIDATION));
   if (!conteneur) return;
+  // LES TABLEAUX À CARTES DE L'IMPORT ont leur propre touche de confirmation (cf. `toucheImport`), qui vise
+  // la carte COURANTE : leur premier bouton principal est la confirmation de la PREMIÈRE carte, qu'un clic
+  // d'ici confirmerait en plus, sans qu'on l'ait choisie - ou dans la fenêtre que la frappe vient d'ouvrir.
+  const fond = conteneur.closest(".modale-fond");
+  if (fond && FENETRES_A_TOUCHES_PROPRES.has(fond.id)) return;
 
   const bouton = boutonDeValidation(conteneur);
   if (!bouton) return;

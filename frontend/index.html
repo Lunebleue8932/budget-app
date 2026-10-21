@@ -491,6 +491,33 @@
     </div>
   </div>
 
+  <!-- L'ÉTAPE 3bis DE L'IMPORT : les virements internes. Le relevé ne décrit qu'une jambe de chaque
+       virement ; une carte par ligne demande le compte de l'autre jambe (celui qui reçoit quand le compte du
+       fichier envoie, celui qui envoie quand il reçoit). Le même tableau à molettes que les catégories, et
+       l'encadré violet qui crée un compte sur place. Cf. app.js, « LES VIREMENTS INTERNES DE L'IMPORT ». -->
+  <div id="modale-virements-import" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-correspondances" role="dialog" aria-modal="true"
+         aria-labelledby="modale-virements-import-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-virements-import-titre">Virements internes</h2>
+        <button type="button" id="btn-virements-import-fermer" class="epargne-fermer"
+                title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <div class="import-etapes" data-import-etapes></div>
+      <p class="modale-texte" data-texte-cle="noyau.import-virements-internes"></p>
+      <p class="hint" id="virements-import-compteur"></p>
+      <p class="hint corr-aide-fleches" id="virements-import-aide-fleches"></p>
+      <div id="virements-import-creer" class="corr-creer-central"></div>
+      <div id="virements-import-board" class="corr-board"></div>
+      <p class="import-avertissement" id="virements-import-erreur" role="alert" style="display:none"></p>
+      <div class="modale-actions">
+        <button type="button" id="btn-virements-import-plus-tard">Plus tard</button>
+        <button type="button" id="btn-virements-import-suggestions">Confirmer les suggestions</button>
+        <button type="button" id="btn-virements-import-valider" class="primary">Valider les comptes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- LA DÉTECTION DES COLONNES (import) : le MÊME tableau que celui des correspondances - une colonne
        par colonne du fichier, la propriété proposée sur une molette, les mêmes pastilles et les mêmes
        touches. Elle passe avant les correspondances. Cf. app.js, « DEVINER LES COLONNES ». -->
@@ -2576,6 +2603,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="bulle-blocage" id="import-confirmer-bulle">
             <button type="button" class="primary" id="btn-import-confirmer" disabled>Confirmer l'import</button>
           </span>
+          <!-- L'ÉTAPE 3bis rouverte depuis la page, tant qu'un virement attend son compte en face. -->
+          <button type="button" id="btn-import-virements-internes" style="display:none">Comptes des virements internes</button>
           <button type="button" id="btn-import-tout-selectionner">Tout sélectionner</button>
           <button type="button" class="danger" id="btn-import-supprimer-selection" disabled>
             Supprimer la sélection (<span id="import-selection-nombre">0</span>)

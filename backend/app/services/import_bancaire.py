@@ -1362,6 +1362,57 @@ def _compte_en_face(candidat: dict, suspect: dict) -> Optional[str]:
     return None
 
 
+def proposer_comptes_en_face(
+    db, demandes: list[schemas.CompteEnFaceDemande]
+) -> dict[int, int]:
+    """LE COMPTE EN FACE QUE L'APPLICATION DEVINE pour chaque virement de l'aperçu (étape 3bis) :
+    celui du DERNIER virement déjà en base parti du même compte, dans le même sens, sous le MÊME
+    libellé (normalisé : casse, accents et espaces ne comptent pas, cf. normaliser_libelle).
+
+    Une proposition, jamais un choix : l'écran la montre en tête de la molette et attend qu'on la
+    confirme. D'où la règle étroite — un libellé qui change d'un mois à l'autre (une date, une
+    référence) ne propose rien, plutôt que de deviner sur une ressemblance. Le compte du fichier
+    n'est jamais proposé, ni un compte fermé."""
+    lues = [d for d in demandes if normaliser_libelle(d.nature or "")]
+    if not lues:
+        return {}
+    comptes = {d.compte_id for d in lues}
+    jambes = (
+        db.query(models.Operation)
+        .filter(
+            models.Operation.compte_id.in_(comptes),
+            models.Operation.virement_id.isnot(None),
+            models.Operation.sens.in_([Sens.transfert_sortant, Sens.transfert_entrant]),
+        )
+        .order_by(models.Operation.date.desc(), models.Operation.id.desc())
+        .all()
+    )
+    if not jambes:
+        return {}
+    identifiants = {o.virement_id for o in jambes}
+    en_face: dict[str, list] = {}
+    for o in db.query(models.Operation).filter(models.Operation.virement_id.in_(identifiants)).all():
+        en_face.setdefault(o.virement_id, []).append(o)
+    actifs = {c.id for c in db.query(models.Compte).filter(models.Compte.actif.is_(True)).all()}
+    propositions: dict[int, int] = {}
+    for demande in lues:
+        cle = normaliser_libelle(demande.nature)
+        sens = {"sortante": Sens.transfert_sortant, "entrante": Sens.transfert_entrant}.get(demande.jambe or "")
+        for jambe in jambes:
+            if jambe.compte_id != demande.compte_id or normaliser_libelle(jambe.nature or "") != cle:
+                continue
+            if sens is not None and jambe.sens != sens:
+                continue
+            autre = next(
+                (o.compte_id for o in en_face.get(jambe.virement_id, []) if o.compte_id != demande.compte_id),
+                None,
+            )
+            if autre is not None and autre in actifs:
+                propositions[demande.ligne] = autre
+                break
+    return propositions
+
+
 def detecter_doublons_virements(
     db,
     candidats: list[schemas.VirementCandidatDoublon],
