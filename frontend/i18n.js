@@ -2371,12 +2371,12 @@ const TRADUCTIONS = {
     "Le fichier tel qu'il est": "The file as it is",
     "Chaque colonne lue est color\u00e9e et porte le nom de la propri\u00e9t\u00e9 qui sera import\u00e9e. Les colonnes grises sont ignor\u00e9es. Si une couleur ne tombe pas en face des bonnes donn\u00e9es, corrige les num\u00e9ros de colonne dans \"Configuration du fichier\" au-dessus.":
       "Each column being read is coloured and carries the name of the property that will be imported. Grey columns are ignored. If a colour does not land on the right data, correct the column numbers under \"File configuration\" above.",
-    "Cat\u00e9gories bancaires \u00e0 confirmer": "Bank categories to confirm",
+    "Les correspondances entre cat\u00e9gories": "Category mappings",
     "Une cat\u00e9gorie sans correspondance m\u00e9moris\u00e9e est propos\u00e9e par d\u00e9faut dans \"Autres\" : coche \"Confirmer\" pour la garder telle quelle, ou change la avant de confirmer l'import. Tant que ce n'est pas fait, tu peux continuer \u00e0 utiliser l'app normalement (cr\u00e9er des cat\u00e9gories, etc.) \u2014 seule la validation de cet import attend.":
       "A category with no remembered mapping is proposed under \"Autres\" by default: tick \"Confirmer\" to keep it as is, or change it before confirming the import. Until that is done you can carry on using the app normally (creating categories and so on) \u2014 only this import's validation waits.",
     "Tout confirmer": "Confirm all",
-    "Comptes bancaires \u00e0 faire correspondre": "Bank accounts to map",
-    "Devises \u00e0 faire correspondre": "Currencies to map",
+    "Les correspondances entre comptes": "Account mappings",
+    "Les correspondances entre monnaies": "Currency mappings",
     "Ton relev\u00e9 \u00e9crit \u00ab EUR \u00bb, l'app conna\u00eet les monnaies que tu as nomm\u00e9es. Dis-le une fois, c'est retenu pour la suite.":
       "Your statement writes \u201cEUR\u201d, the app knows the currencies you named. Say it once, it is remembered from then on.",
     "Devises d\u00e9j\u00e0 rattach\u00e9es": "Currencies already linked",
@@ -4391,12 +4391,12 @@ Object.assign(TRADUCTIONS.en, {
     "No file read: drop your statement above.",
   "L'aperçu est vide : il n'y a aucune ligne à importer.":
     "The preview is empty: there is no row to import.",
-  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».":
-    "{n} row(s) with a category to confirm: tick Confirm in “Bank categories to confirm”.",
-  "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».":
-    "{n} row(s) without an account: choose it in “Bank accounts to map”.",
-  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».":
-    "{n} row(s) with an unknown currency: link it in “Currencies to map”.",
+  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Les correspondances entre catégories ».":
+    "{n} row(s) with a category to confirm: tick Confirm in “Category mappings”.",
+  "{n} ligne(s) sans compte : choisis-le dans « Les correspondances entre comptes ».":
+    "{n} row(s) without an account: choose it in “Account mappings”.",
+  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Les correspondances entre monnaies ».":
+    "{n} row(s) with an unknown currency: link it in “Currency mappings”.",
   "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.":
     "{n} row(s) with fees in a currency other than the amounts: check the Fees column of the preset.",
   "{n} ligne(s) ressemblent à un virement déjà connu : réponds Oui ou Non dans « Virements déjà connus ».":
@@ -4918,3 +4918,10 @@ MOTIFS_SERVEUR.push([
   "Internal transfers already have their category: “$1”.",
 ]);
 // <<< FIN DES MOTIFS AJOUTÉS : une seule catégorie pour les virements internes
+
+// >>> TRADUCTIONS AJOUTÉES : le récapitulatif de l'import
+Object.assign(TRADUCTIONS.en, {
+  "Étape laissée pour plus tard : il y reste une réponse à donner.": "Step left for later: an answer is still needed there.",
+  "Le récapitulatif de tes choix": "Summary of your choices",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le récapitulatif de l'import

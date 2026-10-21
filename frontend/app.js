@@ -14678,16 +14678,14 @@ function etapeCompteADemander() {
 }
 
 /** L'ÉTAPE 4 : le contrôle avant import signale-t-il quelque chose à regarder ? Des lignes MAL LUES (une
- *  question sans réponse - catégorie, compte - ne compte pas : elle a son étape), un solde que les montants
- *  lus ne retrouvent pas, des dates hors plage ou des montants hors norme. */
+ *  question sans réponse - catégorie, compte - ne compte pas : elle a son étape), des dates hors plage ou des
+ *  montants hors norme. Un solde qui ne tombe pas juste n'y entre plus (cf. renderImportControle). */
 function etapeControleADemander() {
   if (!importApercu) return false;
   const c = importApercu.controle || {};
-  const solde = c.controle_solde;
   const a = c.anomalies || {};
   return (
     lignesLuesParImport().some(ligneMalLue) ||
-    (!!solde && solde.statut !== "ok") ||
     a.nombre_dates_hors_plage > 0 ||
     a.nombre_montants_aberrants > 0
   );
@@ -14711,10 +14709,33 @@ function etapeSauteeDAvance(id, courante) {
   return false;
 }
 
+/** Une étape montrée puis laissée « Plus tard » : il y reste une réponse à donner. */
+function etapeEncoreOuverte(id) {
+  if (!importApercu) return false;
+  if (id === "categories") {
+    return demandesDeMapping().categories.some((nom) => !importCategoriesConfirmees.has(nom));
+  }
+  if (id === "compte") {
+    const { defaut, noms, monnaies } = compteImportBesoins();
+    return (
+      defaut ||
+      noms.some((nom) => !importMappingComptes[nom]) ||
+      monnaies.some((nom) => !importMappingMonnaies[nom])
+    );
+  }
+  if (id === "virements") return etapeVirementsInternesADemander();
+  return false;
+}
+
 function etatEtapeImport(rang, rangCourant) {
   const id = ETAPES_IMPORT[rang].id;
   if (rang === rangCourant) return "courante";
-  if (rang < rangCourant) return importParcours.vues.has(id) ? "faite" : "sautee";
+  // VUE MAIS LAISSÉE « PLUS TARD » : à moitié faite, verte hachurée - le parcours a continué, la réponse
+  // reste à donner (l'import l'attend).
+  if (rang < rangCourant) {
+    if (!importParcours.vues.has(id)) return "sautee";
+    return etapeEncoreOuverte(id) ? "reportee" : "faite";
+  }
   return etapeSauteeDAvance(id, ETAPES_IMPORT[rangCourant].id) ? "sautee" : "a-venir";
 }
 
@@ -14739,7 +14760,12 @@ function etapesImportHtml(courante) {
       i < ETAPES_IMPORT.length - 1
         ? `<li class="import-etape-fleche ${i < rang ? "import-etape-fleche-faite" : ""}" aria-hidden="true">${FLECHE_ETAPE_SVG}</li>`
         : "";
-    const sautee = etat === "sautee" ? ` title="${escapeHtml(t("Étape sautée : rien à y faire pour ce fichier."))}"` : "";
+    const sautee =
+      etat === "sautee"
+        ? ` title="${escapeHtml(t("Étape sautée : rien à y faire pour ce fichier."))}"`
+        : etat === "reportee"
+          ? ` title="${escapeHtml(t("Étape laissée pour plus tard : il y reste une réponse à donner."))}"`
+          : "";
     return `<li class="import-etape import-etape-${etat}"${i === rang ? ' aria-current="step"' : ""}${sautee}>
       <span class="import-etape-rond">${escapeHtml(e.numero)}</span>
       <span class="import-etape-nom">${escapeHtml(nomEtapeImport(e))}</span></li>${fleche}`;
@@ -16425,6 +16451,7 @@ function afficherPropositionPreset(proposition) {
   zone.appendChild(bloc);
   zone.style.display = "";
   document.getElementById("sous-section-parametres-import").classList.add("import-en-proposition");
+  sortirFichierDuRecapitulatif(true);
   renderImportPresetChips();
   const cible =
     proposition.type === "basculer"
@@ -16474,6 +16501,7 @@ function terminerPropositionPreset() {
   }
   document.getElementById("import-proposition-preset").style.display = "none";
   document.getElementById("sous-section-parametres-import").classList.remove("import-en-proposition");
+  sortirFichierDuRecapitulatif(false);
 }
 
 async function repondrePropositionPreset(oui) {
@@ -16602,27 +16630,9 @@ function renderImportControle() {
         intervalles: s.intervalles,
       })
     )}</p>`;
-  } else if (s) {
-    solde = `<div class="import-avertissement">
-        <p>${escapeHtml(
-          t(texteAide("noyau.controle-solde-ecart"), { colonne: s.colonne, nombre: s.nombre_ecarts })
-        )}</p>
-        <ul class="import-controle-liste">${s.ecarts
-          .map(
-            (e) =>
-              `<li>${escapeHtml(
-                t("Lignes {debut} à {fin} : le solde varie de {variation}, les montants lus font {lus}.", {
-                  debut: e.ligne_debut,
-                  fin: e.ligne_fin,
-                  variation: euros(e.variation_du_solde),
-                  lus: euros(e.montants_lus),
-                })
-              )}</li>`
-          )
-          .join("")}</ul>
-        <button type="button" data-controle="configuration">${t("Revoir la configuration")}</button>
-      </div>`;
   }
+  // PAS D'ALERTE QUAND LE SOLDE NE TOMBE PAS JUSTE : c'est le plus souvent l'app qui ne comprend pas ce que
+  // fait l'export de la banque (soldes de fin de journée, frais à part…), pas l'import qui se trompe.
 
   const a = c.anomalies;
   const anomalies = [
@@ -16668,13 +16678,6 @@ function renderImportControle() {
     }`;
   bloc.style.display = "";
 }
-
-document.getElementById("import-controle").addEventListener("click", (e) => {
-  if (!e.target.closest("[data-controle='configuration']")) return;
-  const configuration = document.getElementById("import-config-fichier");
-  configuration.open = true;
-  configuration.scrollIntoView({ behavior: "smooth", block: "start" });
-});
 
 // Ce que la configuration laisse d'ambigu sans être faux (montant envoyé ou frais
 // lus sans leur devise) : signalé une fois, au-dessus de l'aperçu. Jamais
@@ -16869,7 +16872,7 @@ function creerLigneMapping(nomBanque, options, dictionnaireCible, onChange, { av
 
   const select = document.createElement("select");
   select.innerHTML =
-    (avecConfirmation ? "" : '<option value="">— choisir —</option>') +
+    (avecConfirmation ? "" : `<option value="">${escapeHtml(t("— choisir —"))}</option>`) +
     options.map((o) => `<option value="${o.id}">${o.nom}</option>`).join("");
   if (avecConfirmation && valeurInitiale) select.value = String(valeurInitiale);
   select.addEventListener("change", () => {
@@ -17121,9 +17124,12 @@ function corrCreerCentralHtml() {
             <span>${escapeHtml(t("Entrées d'argent"))}<i class="info-bulle" tabindex="0"
               data-info="${escapeHtml(t(texteAide("noyau.categorie-entree")))}">i</i></span>
           </label>
-          <button type="button" class="primary" data-corr-creer-valider>${escapeHtml(
-            t("Créer la catégorie")
-          )}</button>
+          <div class="corr-creer-actions">
+            <button type="button" data-corr-creer-annuler>${escapeHtml(t("Annuler"))}</button>
+            <button type="button" class="primary" data-corr-creer-valider>${escapeHtml(
+              t("Créer la catégorie")
+            )}</button>
+          </div>
           <p class="import-avertissement" data-corr-creer-erreur style="display:none"></p>
         </div>
       </details>`;
@@ -17512,6 +17518,14 @@ function brancherMolettes(board, h) {
   const encadre = document.getElementById("correspondances-creer");
   encadre.addEventListener("click", (e) => {
     if (e.target.closest("[data-corr-creer-valider]")) corrCreerCategorie();
+    // ON NE CRÉE PAS, FINALEMENT : l'encadré se replie, vidé, et la carte courante reprend la main.
+    if (e.target.closest("[data-corr-creer-annuler]")) {
+      encadre.querySelector("[data-corr-creer-nom]").value = "";
+      encadre.querySelector("[data-corr-creer-entree]").checked = false;
+      encadre.querySelector("[data-corr-creer-erreur]").style.display = "none";
+      encadre.querySelector("details[data-corr-creer]").open = false;
+      if (corrCourante >= 0) corrDefinirCourante(corrCourante, { focus: true });
+    }
   });
   encadre.addEventListener(
     "toggle",
@@ -18068,6 +18082,43 @@ document.getElementById("btn-bulle-import").addEventListener("click", async () =
  * qu'à ces deux changements : un bloc qu'on a ouvert à la main pour relire reste ouvert.
  */
 let importMappingsManquaient = null;
+
+/**
+ * LE RÉCAPITULATIF DE TES CHOIX (#import-recapitulatif) : le fichier tel que l'app le lit, puis les
+ * correspondances. Il ne se montre que si l'un de ses blocs a quelque chose à montrer - chacun garde son
+ * propre affichage, le récapitulatif le suit (observateur sur leurs `style`).
+ */
+const BLOCS_RECAPITULATIF_IMPORT = ["import-apercu-fichier-bloc", "import-mappings-bloc", "import-monnaies-resolues-bloc"];
+
+function majRecapitulatifImport() {
+  const recap = document.getElementById("import-recapitulatif");
+  const visible = BLOCS_RECAPITULATIF_IMPORT.map((id) => document.getElementById(id)).some(
+    (b) => b && b.style.display !== "none" && recap.contains(b)
+  );
+  recap.style.display = visible ? "" : "none";
+}
+
+(function initRecapitulatifImport() {
+  const observateur = new MutationObserver(majRecapitulatifImport);
+  BLOCS_RECAPITULATIF_IMPORT.forEach((id) => {
+    const bloc = document.getElementById(id);
+    if (bloc) observateur.observe(bloc, { attributes: true, attributeFilter: ["style"] });
+  });
+  majRecapitulatifImport();
+})();
+
+/** Pendant une proposition de preset, « Le fichier tel qu'il est » sort du récapitulatif (masqué) pour se
+ *  poser sous la liste des presets ; il y retourne, en tête, une fois la proposition close. */
+function sortirFichierDuRecapitulatif(sortir) {
+  const fichier = document.getElementById("import-apercu-fichier-bloc");
+  if (sortir) {
+    document.getElementById("import-proposition-preset").after(fichier);
+  } else {
+    const contenu = document.getElementById("import-recapitulatif-contenu");
+    contenu.insertBefore(fichier, contenu.firstChild);
+  }
+  majRecapitulatifImport();
+}
 
 function majRepliMappings() {
   const d = importApercu ? demandesDeMapping() : { categories: [], comptes: [], monnaies: [] };

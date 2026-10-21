@@ -67,11 +67,11 @@ const TEXTES = {
   "noyau.import-blocage-apercu-vide":
     "L'aperçu est vide : il n'y a aucune ligne à importer.",
   "noyau.import-blocage-categories":
-    "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».",
+    "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Les correspondances entre catégories ».",
   "noyau.import-blocage-comptes":
-    "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».",
+    "{n} ligne(s) sans compte : choisis-le dans « Les correspondances entre comptes ».",
   "noyau.import-blocage-devises":
-    "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».",
+    "{n} ligne(s) avec une devise inconnue : rattache-la dans « Les correspondances entre monnaies ».",
   "noyau.import-blocage-frais":
     "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.",
   "noyau.import-blocage-jambes":

@@ -1728,14 +1728,14 @@ TRADUCTIONS.pt = {
     "ou arraste e solte seu arquivo aqui — a análise começa sozinha",
   "Le fichier tel qu'il est":
     "O arquivo como ele é",
-  "Catégories bancaires à confirmer":
-    "Categorias bancárias a confirmar",
+  "Les correspondances entre catégories":
+    "As correspondências entre categorias",
   "Tout confirmer":
     "Confirmar tudo",
-  "Comptes bancaires à faire correspondre":
-    "Contas bancárias a associar",
-  "Devises à faire correspondre":
-    "Moedas a associar",
+  "Les correspondances entre comptes":
+    "As correspondências entre contas",
+  "Les correspondances entre monnaies":
+    "As correspondências entre moedas",
   "Devises déjà rattachées":
     "Moedas já vinculadas",
   "Aperçu —":
@@ -3623,12 +3623,12 @@ Object.assign(TRADUCTIONS.pt, {
     "Nenhum arquivo lido: solte seu extrato acima.",
   "L'aperçu est vide : il n'y a aucune ligne à importer.":
     "A pré-visualização está vazia: não há nenhuma linha para importar.",
-  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Catégories bancaires à confirmer ».":
-    "{n} linha(s) com uma categoria a confirmar: marque Confirmar em « Categorias bancárias a confirmar ».",
-  "{n} ligne(s) sans compte : choisis-le dans « Comptes bancaires à faire correspondre ».":
-    "{n} linha(s) sem conta: escolha-a em « Contas bancárias a associar ».",
-  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Devises à faire correspondre ».":
-    "{n} linha(s) com uma moeda desconhecida: associe-a em « Moedas a associar ».",
+  "{n} ligne(s) avec une catégorie à confirmer : coche Confirmer dans « Les correspondances entre catégories ».":
+    "{n} linha(s) com uma categoria a confirmar: marque Confirmar em « As correspondências entre categorias ».",
+  "{n} ligne(s) sans compte : choisis-le dans « Les correspondances entre comptes ».":
+    "{n} linha(s) sem conta: escolha-a em « As correspondências entre contas ».",
+  "{n} ligne(s) avec une devise inconnue : rattache-la dans « Les correspondances entre monnaies ».":
+    "{n} linha(s) com uma moeda desconhecida: associe-a em « As correspondências entre moedas ».",
   "{n} ligne(s) avec des frais dans une autre monnaie que les montants : vérifie la colonne Frais du preset.":
     "{n} linha(s) com tarifas em uma moeda diferente da dos valores: verifique a coluna Tarifas do preset.",
   "{n} ligne(s) ressemblent à un virement déjà connu : réponds Oui ou Non dans « Virements déjà connus ».":
@@ -4140,3 +4140,10 @@ MOTIFS_PAR_LANGUE.pt.push([
   "As transferências internas já têm a sua categoria: “$1”.",
 ]);
 // <<< FIN DES MOTIFS AJOUTÉS : uma única categoria
+
+// >>> TRADUCTIONS AJOUTÉES : le récapitulatif de l'import
+Object.assign(TRADUCTIONS.pt, {
+  "Étape laissée pour plus tard : il y reste une réponse à donner.": "Etapa deixada para depois: ainda falta uma resposta.",
+  "Le récapitulatif de tes choix": "O resumo das suas escolhas",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le récapitulatif de l'import

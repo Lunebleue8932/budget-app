@@ -2450,37 +2450,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       <!-- La place de la liste des presets pendant la proposition de preset. -->
       <div id="import-proposition-preset" class="import-proposition-preset" style="display:none"></div>
 
-      <div id="import-apercu-fichier-bloc" style="display:none">
-        <!-- Le titre et le bouton de relecture sur une ligne : la relecture est
-             une action SUR ce tableau, elle doit être là où il commence. -->
-        <div class="apercu-fichier-entete">
-          <h3>Le fichier tel qu'il est<i class="info-bulle" tabindex="0" data-info-cle="noyau.le-fichier-tel-qu-il-est">i</i></h3>
-          <button type="button" id="btn-import-apercu-relire"
-                  title="Relire le fichier avec la configuration actuelle"></button>
-          <!-- LA DÉTECTION AUTOMATIQUE (cf. services/detection_colonnes) : une
-               action SUR ce tableau, comme la relecture, donc posée à côté. -->
-          <button type="button" id="btn-import-detecter">Deviner les colonnes</button>
-        </div>
-        <!-- Proposé de lui-même quand la lecture actuelle ne donne presque rien
-             de lisible : c'est le cas d'un preset neuf devant un relevé qu'il
-             n'a jamais vu. -->
-        <p class="hint import-detection-suggestion" id="import-detection-suggestion" style="display:none"
-           data-texte-cle="noyau.detection-colonnes-suggestion"></p>
-
-        <!-- Ce qui manque au tableau quand les en-têtes viennent de bouger : le
-             fichier n'a pas encore été relu, les lignes résolues plus bas
-             décrivent donc la lecture d'avant. -->
-        <p class="hint apercu-fichier-alerte" id="import-apercu-fichier-alerte" style="display:none">
-          Les colonnes ont changé depuis la dernière lecture. Relire le fichier pour voir ce que
-          l'import donnera, puis « Enregistrer la configuration » pour garder cet ordre dans le
-          preset.
-        </p>
-        <div class="apercu-fichier-defilement">
-          <table id="import-apercu-fichier-table"></table>
-        </div>
-        <p class="hint" id="import-apercu-fichier-info"></p>
-      </div>
-
       <!-- LE PRESET QUI LIT CE FICHIER (cf. services/reconnaissance_presets) :
            un autre preset le reconnaît, des intitulés ont changé depuis la
            dernière lecture, ou aucun preset ne le lit. Jamais de bascule
@@ -2495,47 +2464,89 @@ relancer Marie pour les 40 € du restaurant"></textarea>
 
       <div id="import-resultat" style="display:none"></div>
 
-      <div id="import-mappings-bloc" style="display:none">
-        <details class="toggle-titre toggle-1" id="import-details-categories">
-          <summary><h3>Catégories bancaires à confirmer<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires-a-confirmer">i</i></h3></summary>
-          <div class="toggle-contenu">
-            <div class="actions">
-              <!-- EN RELIEF : c'est le geste attendu de ce bloc. Les catégories
-                   proposées sont presque toujours bonnes, et les confirmer une par
-                   une devant quinze libellés est un travail que ce bouton existe
-                   pour éviter — encore faut-il le voir. -->
-              <button type="button" class="primary" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
-              <!-- LE TABLEAU DES CORRESPONDANCES : les mêmes catégories, avec les opérations
-                   concernées sous les yeux. S'ouvre tout seul à la lecture d'un fichier. -->
-              <button type="button" id="btn-import-correspondances">Classer avec les opérations concernées</button>
+      <!-- LE RÉCAPITULATIF DE TES CHOIX : le fichier tel que l'app le lit, puis les correspondances
+           (catégories, comptes, monnaies). Déplié d'office ; pendant une proposition de preset, il est
+           masqué et « Le fichier tel qu'il est » en sort (cf. afficherPropositionPreset). -->
+      <div id="import-recapitulatif" class="import-recapitulatif" style="display:none">
+        <details class="toggle-titre toggle-1" id="import-details-recapitulatif" open>
+          <summary><h3>Le récapitulatif de tes choix</h3></summary>
+          <div class="toggle-contenu" id="import-recapitulatif-contenu">
+          <div id="import-apercu-fichier-bloc" style="display:none">
+            <!-- Le titre et le bouton de relecture sur une ligne : la relecture est
+                 une action SUR ce tableau, elle doit être là où il commence. -->
+            <div class="apercu-fichier-entete">
+              <h3>Le fichier tel qu'il est<i class="info-bulle" tabindex="0" data-info-cle="noyau.le-fichier-tel-qu-il-est">i</i></h3>
+              <button type="button" id="btn-import-apercu-relire"
+                      title="Relire le fichier avec la configuration actuelle"></button>
+              <!-- LA DÉTECTION AUTOMATIQUE (cf. services/detection_colonnes) : une
+                   action SUR ce tableau, comme la relecture, donc posée à côté. -->
+              <button type="button" id="btn-import-detecter">Deviner les colonnes</button>
             </div>
-            <div id="import-mappings-categories" class="import-mappings"></div>
-          </div>
-        </details>
-        <details class="toggle-titre toggle-1" id="import-details-comptes">
-          <summary><h3>Comptes bancaires à faire correspondre</h3></summary>
-          <div class="toggle-contenu">
-            <div id="import-mappings-comptes" class="import-mappings"></div>
-          </div>
-        </details>
-        <div id="import-mappings-monnaies-bloc" style="display:none">
-          <details class="toggle-titre toggle-1" id="import-details-monnaies">
-            <summary><h3>Devises à faire correspondre<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-a-faire-correspondre">i</i></h3></summary>
-            <div class="toggle-contenu">
-              <div id="import-mappings-monnaies" class="import-mappings"></div>
-            </div>
-          </details>
-        </div>
-      </div>
+            <!-- Proposé de lui-même quand la lecture actuelle ne donne presque rien
+                 de lisible : c'est le cas d'un preset neuf devant un relevé qu'il
+                 n'a jamais vu. -->
+            <p class="hint import-detection-suggestion" id="import-detection-suggestion" style="display:none"
+               data-texte-cle="noyau.detection-colonnes-suggestion"></p>
 
-      <!-- Les devises qu'une correspondance mémorisée a déjà tranchées : elles
-           ne sont plus demandées, et cette liste est le seul endroit où l'on
-           peut relire ce qui va s'appliquer sans ouvrir le preset. -->
-      <div id="import-monnaies-resolues-bloc" style="display:none">
-        <details class="toggle-titre toggle-1" open>
-          <summary><h3>Devises déjà rattachées<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-deja-rattachees">i</i></h3></summary>
-          <div class="toggle-contenu">
-            <div id="import-monnaies-resolues" class="import-mappings"></div>
+            <!-- Ce qui manque au tableau quand les en-têtes viennent de bouger : le
+                 fichier n'a pas encore été relu, les lignes résolues plus bas
+                 décrivent donc la lecture d'avant. -->
+            <p class="hint apercu-fichier-alerte" id="import-apercu-fichier-alerte" style="display:none">
+              Les colonnes ont changé depuis la dernière lecture. Relire le fichier pour voir ce que
+              l'import donnera, puis « Enregistrer la configuration » pour garder cet ordre dans le
+              preset.
+            </p>
+            <div class="apercu-fichier-defilement">
+              <table id="import-apercu-fichier-table"></table>
+            </div>
+            <p class="hint" id="import-apercu-fichier-info"></p>
+          </div>
+
+          <div id="import-mappings-bloc" style="display:none">
+            <details class="toggle-titre toggle-2" id="import-details-categories">
+              <summary><h3>Les correspondances entre catégories<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires-a-confirmer">i</i></h3></summary>
+              <div class="toggle-contenu">
+                <div class="actions">
+                  <!-- EN RELIEF : c'est le geste attendu de ce bloc. Les catégories
+                       proposées sont presque toujours bonnes, et les confirmer une par
+                       une devant quinze libellés est un travail que ce bouton existe
+                       pour éviter — encore faut-il le voir. -->
+                  <button type="button" class="primary" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
+                  <!-- LE TABLEAU DES CORRESPONDANCES : les mêmes catégories, avec les opérations
+                       concernées sous les yeux. S'ouvre tout seul à la lecture d'un fichier. -->
+                  <button type="button" id="btn-import-correspondances">Classer avec les opérations concernées</button>
+                </div>
+                <div id="import-mappings-categories" class="import-mappings"></div>
+              </div>
+            </details>
+            <details class="toggle-titre toggle-2" id="import-details-comptes">
+              <summary><h3>Les correspondances entre comptes</h3></summary>
+              <div class="toggle-contenu">
+                <div id="import-mappings-comptes" class="import-mappings"></div>
+              </div>
+            </details>
+            <div id="import-mappings-monnaies-bloc" style="display:none">
+              <details class="toggle-titre toggle-2" id="import-details-monnaies">
+                <summary><h3>Les correspondances entre monnaies<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-a-faire-correspondre">i</i></h3></summary>
+                <div class="toggle-contenu">
+                  <div id="import-mappings-monnaies" class="import-mappings"></div>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- Les devises qu'une correspondance mémorisée a déjà tranchées : elles
+               ne sont plus demandées, et cette liste est le seul endroit où l'on
+               peut relire ce qui va s'appliquer sans ouvrir le preset. -->
+          <div id="import-monnaies-resolues-bloc" style="display:none">
+            <details class="toggle-titre toggle-2" open>
+              <summary><h3>Devises déjà rattachées<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-deja-rattachees">i</i></h3></summary>
+              <div class="toggle-contenu">
+                <div id="import-monnaies-resolues" class="import-mappings"></div>
+              </div>
+            </details>
+          </div>
+
           </div>
         </details>
       </div>

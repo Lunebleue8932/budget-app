@@ -7664,6 +7664,12 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   border-radius: var(--radius-sm);
 }
 
+.corr-creer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .corr-creer-corps input[type="text"] {
   background: var(--bg-surface-alt);
   border: 1px solid var(--border);
@@ -7867,6 +7873,22 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   margin: -0.4rem 0 0.9rem;
 }
 
+/* Le graphe : une étape LAISSÉE « PLUS TARD » est faite à moitié - verte, hachurée. */
+.import-etape-reportee {
+  color: var(--text-primary);
+}
+
+.import-etape-reportee .import-etape-rond {
+  border-color: var(--success-text);
+  color: var(--text-primary);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--success-text) 0 3px,
+    var(--success-bg) 3px 6px
+  );
+  text-shadow: 0 0 3px var(--bg-surface), 0 0 2px var(--bg-surface);
+}
+
 /* Le graphe : une étape SAUTÉE (rien à y faire pour ce fichier) reste dessinée, en pointillés et barrée. */
 .import-etape-sautee {
   opacity: 0.6;
@@ -7893,6 +7915,7 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 .import-en-proposition #import-reconnaissance,
 .import-en-proposition #import-avertissements,
 .import-en-proposition #import-resultat,
+.import-en-proposition #import-recapitulatif,
 .import-en-proposition #import-mappings-bloc,
 .import-en-proposition #import-monnaies-resolues-bloc,
 .import-en-proposition #import-previsionnelles-bloc,
