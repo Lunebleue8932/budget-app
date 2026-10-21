@@ -19,7 +19,19 @@ def list_categories(db: Session = Depends(get_db)):
 def create_categorie(categorie: schemas.CategorieCreate, db: Session = Depends(get_db)):
     if crud.get_categorie_by_nom(db, categorie.nom) is not None:
         raise HTTPException(status_code=409, detail="Une catégorie avec ce nom existe déjà")
+    _refuser_doublon_des_virements(db, categorie.nom)
     return crud.create_categorie(db, categorie)
+
+
+def _refuser_doublon_des_virements(db: Session, nom: str, sauf_id=None) -> None:
+    """Une seule catégorie pour les virements internes : une seconde du même nom (« Virement
+    interne », « Internal transfers »…) ne serait qu'une catégorie de dépense déguisée."""
+    existante = crud.nom_de_la_categorie_virements(db, nom, sauf_id)
+    if existante is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Les virements internes ont déjà leur catégorie : « {existante} ».",
+        )
 
 
 @router.post("/defauts-base-neuve")
@@ -286,6 +298,7 @@ def rename_categorie(
     existante = crud.get_categorie_by_nom(db, nom)
     if existante is not None and existante.id != categorie_id:
         raise HTTPException(status_code=409, detail="Une catégorie avec ce nom existe déjà")
+    _refuser_doublon_des_virements(db, nom, sauf_id=categorie_id)
 
     return crud.rename_categorie(db, db_categorie, nom)
 

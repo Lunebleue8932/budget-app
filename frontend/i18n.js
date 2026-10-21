@@ -4911,3 +4911,10 @@ Object.assign(TRADUCTIONS.en, {
     "Choose the other account of each transfer",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import
+
+// >>> MOTIFS AJOUTÉS : une seule catégorie pour les virements internes (refus d'un doublon)
+MOTIFS_SERVEUR.push([
+  /^Les virements internes ont déjà leur catégorie : « (.+) »\.$/,
+  "Internal transfers already have their category: “$1”.",
+]);
+// <<< FIN DES MOTIFS AJOUTÉS : une seule catégorie pour les virements internes

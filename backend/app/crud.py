@@ -244,6 +244,34 @@ def id_categorie_virements(db: Session) -> int:
     return get_categorie_virements(db).id
 
 
+# LES NOMS QUI DÉSIGNENT DÉJÀ LA CATÉGORIE DES VIREMENTS : son nom livré dans les trois langues,
+# au singulier comme au pluriel. Une seconde catégorie de ce nom n'aurait pas le drapeau : choisie,
+# elle ferait de la ligne une dépense, alors qu'on la lirait comme un virement (cf. migration 0091).
+_NOMS_VIREMENTS = {"virement interne", "internal transfer", "transferencia interna"}
+
+
+def _nom_normalise_virement(nom: str) -> str:
+    import unicodedata
+
+    sans_accents = "".join(
+        c for c in unicodedata.normalize("NFD", nom or "") if unicodedata.category(c) != "Mn"
+    )
+    mots = sans_accents.lower().replace("-", " ").split()
+    return " ".join(m[:-1] if len(m) > 3 and m.endswith("s") else m for m in mots)
+
+
+def nom_de_la_categorie_virements(db: Session, nom: str, sauf_id: Optional[int] = None) -> Optional[str]:
+    """Le nom de la catégorie des virements si `nom` la désigne déjà (nom livré, ou son nom
+    actuel), None sinon. `sauf_id` : la catégorie qu'on renomme, si c'est elle."""
+    virements = get_categorie_virements(db)
+    if virements.id == sauf_id:
+        return None
+    cle = _nom_normalise_virement(nom)
+    if cle in _NOMS_VIREMENTS or cle == _nom_normalise_virement(virements.nom):
+        return virements.nom
+    return None
+
+
 def est_categorie_virements(db: Session, categorie_id: Optional[int]) -> bool:
     if categorie_id is None:
         return False

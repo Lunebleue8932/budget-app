@@ -545,3 +545,15 @@ def test_une_regle_de_virement_classe_la_ligne_dans_la_categorie(db_session):
         # C'est la règle qui en a fait un virement, pas la catégorie.
         assert ligne.virement_par_categorie is False
     assert apercu.virements_en_attente == []
+
+
+def test_on_ne_cree_pas_une_seconde_categorie_des_virements(db_session):
+    for nom in ("Virement interne", "virements  internes", "Internal transfers", "Transferência interna"):
+        with pytest.raises(HTTPException) as erreur:
+            routeur_categories.create_categorie(schemas.CategorieCreate(nom=nom), db_session)
+        assert erreur.value.status_code == 409, nom
+        assert "ont déjà leur catégorie" in erreur.value.detail
+    autre = routeur_categories.create_categorie(schemas.CategorieCreate(nom="Virement loyer"), db_session)
+    with pytest.raises(HTTPException) as erreur:
+        routeur_categories.rename_categorie(autre.id, schemas.CategorieUpdate(nom="Virement interne"), db_session)
+    assert erreur.value.status_code == 409

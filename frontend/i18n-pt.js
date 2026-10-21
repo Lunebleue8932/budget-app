@@ -4133,3 +4133,10 @@ Object.assign(TRADUCTIONS.pt, {
     "Escolha a outra conta de cada transferência",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : l'étape 3bis de l'import
+
+// >>> MOTIFS AJOUTÉS : uma única categoria para as transferências internas
+MOTIFS_PAR_LANGUE.pt.push([
+  /^Les virements internes ont déjà leur catégorie : « (.+) »\.$/,
+  "As transferências internas já têm a sua categoria: “$1”.",
+]);
+// <<< FIN DES MOTIFS AJOUTÉS : uma única categoria
