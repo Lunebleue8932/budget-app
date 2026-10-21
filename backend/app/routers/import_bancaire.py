@@ -791,6 +791,17 @@ def virements_doublons(
     )
 
 
+@router.post("/comptes-en-face", response_model=schemas.ComptesEnFaceRead)
+def comptes_en_face(payload: schemas.ComptesEnFaceInput, db: Session = Depends(get_db)):
+    """Les comptes en face que l'étape 3bis de l'import propose (cf.
+    import_bancaire.proposer_comptes_en_face). Sans preset ni fichier : les virements viennent de
+    l'aperçu tel que l'écran l'a composé (une catégorie rattachée à « Virements internes » n'en fait
+    des virements qu'à l'écran, jusqu'à la confirmation). Purement consultatif."""
+    return schemas.ComptesEnFaceRead(
+        propositions=import_bancaire.proposer_comptes_en_face(db, payload.lignes)
+    )
+
+
 def _regrouper_par_cible(mappings, cle_cible):
     """Fond les entrées identiques de plusieurs presets en une seule, en
     retenant les presets concernés : (nom_banque, cible) -> [preset_id].

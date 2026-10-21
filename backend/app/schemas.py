@@ -2008,6 +2008,25 @@ class VirementsDoublonsRead(BaseModel):
     resultats: list[VirementDoublonRead] = Field(default_factory=list)
 
 
+class CompteEnFaceDemande(BaseModel):
+    """Un virement de l'aperçu qui attend son compte en face (étape 3bis de l'import) : le compte
+    du fichier, le libellé lu et la jambe que le fichier décrit (cf. ImportLigne.jambe_du_fichier)."""
+
+    ligne: int
+    compte_id: int
+    nature: str = ""
+    jambe: Optional[str] = None
+
+
+class ComptesEnFaceInput(BaseModel):
+    lignes: list[CompteEnFaceDemande] = Field(default_factory=list)
+
+
+class ComptesEnFaceRead(BaseModel):
+    # numéro de ligne -> compte proposé. Une ligne sans rien de sûr à proposer est absente.
+    propositions: dict[int, int] = Field(default_factory=dict)
+
+
 class ImportResultat(BaseModel):
     operations_creees: int
     lignes_ignorees: list[ImportLigne]
