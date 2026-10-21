@@ -164,6 +164,11 @@ class CategorieRead(BaseModel):
     # opérations sont des entrées d'argent, elle n'a donc pas de barre dans
     # l'histogramme des dépenses et pas de budget à se voir attribuer.
     est_entree: bool = False
+    # LA CATÉGORIE DES VIREMENTS INTERNES (cf. models.Categorie.est_virement, migration 0090) :
+    # une seule, équivalente au type « virement ». Ni supprimable ni éteignable, renommable ;
+    # pas de barre, d'enveloppe ni d'objectif. Choisir cette catégorie fait d'une opération un
+    # virement, et c'est à ce drapeau que l'écran la reconnaît, jamais à son nom.
+    est_virement: bool = False
     # LES MOTS-CLÉS qui font proposer cette catégorie à l'import (cf.
     # models.Categorie.mots_cles_perso, migration 0085) : ceux de l'utilisateur, sinon les
     # livrés. `mots_cles_personnalises` dit lesquels, pour que l'écran propose « Revenir aux
@@ -617,6 +622,12 @@ class VirementCreate(BaseModel):
     # Un virement se saisit et se modifie d'un bloc, une note propre à une seule
     # de ses jambes n'aurait aucun endroit où se saisir.
     notes: Optional[str] = None
+    # L'OPÉRATION ORDINAIRE QUE CE VIREMENT REMPLACE (POST seulement, migration 0090). Choisir
+    # la catégorie « Virements internes » sur une opération existante en fait un virement :
+    # elle devient, SUR PLACE, la jambe de son compte (même identifiant, donc même ligne de
+    # relevé, mêmes projets), et l'autre jambe est créée. Sans ce champ, le virement serait
+    # créé À CÔTÉ de l'opération, qui resterait en double avec sa catégorie d'avant.
+    operation_id: Optional[int] = None
 
     @model_validator(mode="after")
     def _check_deux_ecritures_distinctes(self):
@@ -1476,6 +1487,20 @@ class ImportLigne(BaseModel):
     # fois les deux comptes connus, confirmer() crée un vrai virement
     # double-écriture (crud.create_virement).
     compte_id_autre: Optional[int] = None
+    # LA CATÉGORIE « VIREMENTS INTERNES » A FAIT DE LA LIGNE UN VIREMENT (migration 0090) : une
+    # correspondance de la catégorie bancaire, une proposition forte du classement, ou un choix
+    # dans l'aperçu — et non une règle ou un reclassement du type. C'est ce qui permet à l'écran
+    # de défaire la conversion quand on choisit ensuite une autre catégorie : la ligne redevient
+    # une opération classique. Une telle ligne attend son compte en face (cf.
+    # ImportPreview.virements_en_attente).
+    virement_par_categorie: bool = False
+    # LA JAMBE QUE LE FICHIER DÉCRIT, sur un virement : « sortante » si le compte du relevé
+    # envoie, « entrante » s'il reçoit, None si rien ne le dit. Déduite du signe du montant — où
+    # la colonne « Sens » et le choix de la colonne débit/crédit sont déjà incorporés — et, à
+    # défaut de montant reçu, de la seule présence d'un montant envoyé (cf.
+    # services/import_bancaire.jambe_du_fichier). Le compte en face est donc l'émetteur d'une
+    # jambe entrante, le récepteur d'une jambe sortante. None sur tout autre type.
+    jambe_du_fichier: Optional[str] = None
     # True si categorie_id vient d'une proposition automatique ("Autres", faute
     # de mapping mémorisé) plutôt que d'un mapping explicitement mémorisé :
     # n'empêche jamais la création de l'opération, sert uniquement à demander
@@ -1790,6 +1815,12 @@ class ImportPreview(BaseModel):
     # jambe), référencés par `jambe_manquante_id`. Vide dans le cas
     # ordinaire, et quand l'extension « Ressemblances » est éteinte.
     jambes_manquantes: dict[str, JambeManquanteLue] = Field(default_factory=dict)
+    # LES VIREMENTS QUI ATTENDENT LEUR COMPTE EN FACE (migration 0090) : numéros des lignes de
+    # type virement, non refusées par la banque, dont `compte_id_autre` est vide — en
+    # particulier celles que la catégorie « Virements internes » a rendues virements
+    # (`virement_par_categorie`). Chacune se complète par une retouche de la ligne
+    # (`ImportLigneOverride.compte_id_autre`) ou par `ImportMappingOverrides.comptes_en_face`.
+    virements_en_attente: list[int] = Field(default_factory=list)
     apercu_fichier: ApercuFichier = Field(default_factory=ApercuFichier)
     # Ce que la configuration du preset laisse d'ambigu sans être faux : un
     # montant reçu ou des frais lus sans leur devise (cf. services/
@@ -1907,6 +1938,13 @@ class ImportMappingOverrides(BaseModel):
     # numéro de ligne -> identifiant d'une opération de ce virement. Même effet qu'un
     # « Oui » : la ligne n'est pas importée, un témoin entre au stock.
     jambes_declarees: dict[int, int] = Field(default_factory=dict)
+    # LE COMPTE EN FACE DE CHAQUE VIREMENT, choisi ligne par ligne (migration 0090) : numéro de
+    # ligne -> compte de l'autre jambe. Celui qui reçoit si le fichier décrit la jambe sortante,
+    # celui qui envoie s'il décrit l'entrante (cf. ImportLigne.jambe_du_fichier). Posé AVANT la
+    # retouche de la ligne (`lignes`), qui l'emporte si elle en désigne un aussi. Ne vaut que sur
+    # une ligne qui est un virement à la confirmation ; ignoré ailleurs. C'est la forme que la
+    # fenêtre « Virements internes » du parcours d'import envoie : une carte, un compte.
+    comptes_en_face: dict[int, int] = Field(default_factory=dict)
 
 
 class VirementCandidatDoublon(BaseModel):

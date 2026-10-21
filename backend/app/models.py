@@ -162,6 +162,20 @@ class Categorie(Base):
     # entier. Du texte que l'application ne lit que pour PROPOSER : aucun solde, aucun KPI, aucune
     # barre n'en dépend.
     mots_cles_perso = Column(JSON, nullable=True)
+    # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090). UNE SEULE en base (index unique
+    # partiel `uq_categorie_virement`), posée par la migration, ni supprimable ni éteignable,
+    # RENOMMABLE librement : c'est ce drapeau qui la reconnaît, jamais son nom — même
+    # raisonnement que `est_entree`.
+    #
+    # ELLE EST ÉQUIVALENTE AU TYPE `virement` : une opération porte cette catégorie si et
+    # seulement si elle est un virement interne. Le serveur le garantit partout où une
+    # opération s'écrit (cf. crud._normaliser_categorie_selon_type, crud.create_virement,
+    # services/import_bancaire._accorder_categorie_et_type, la route des règles).
+    #
+    # CE QU'ELLE N'EST PAS : une catégorie de dépense. Aucun agrégat ne la compte — les
+    # virements y sont écartés par leur TYPE et leur SENS (transfert_*), comme avant — et elle
+    # n'a ni barre, ni part de camembert, ni enveloppe, ni objectif de répartition.
+    est_virement = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
     @property
     def mots_cles(self) -> list:
@@ -178,6 +192,13 @@ class Categorie(Base):
         CheckConstraint(
             "objectif_pourcentage >= 0 AND objectif_pourcentage <= 100",
             name="ck_categorie_objectif_pourcentage",
+        ),
+        # Une seule catégorie des virements internes (migration 0090).
+        Index(
+            "uq_categorie_virement",
+            "est_virement",
+            unique=True,
+            sqlite_where=text("est_virement = 1"),
         ),
     )
 
@@ -540,9 +561,11 @@ class Operation(Base):
     date = Column(Date, nullable=False)
     compte_id = Column(Integer, ForeignKey("compte.id"), nullable=False)
     type_id = Column(Integer, ForeignKey("type_operation.id"), nullable=False)
-    # NULL pour les quatre types à catégorie imposée (remboursement reçu, prêt
-    # reçu, remboursement prêt, virement interne) : leur type EST leur
-    # classification. Seuls `classique` et `remboursable` portent une catégorie.
+    # NULL pour les trois types à catégorie imposée (remboursement reçu, prêt
+    # reçu, remboursement prêt) : leur type EST leur classification. Seuls
+    # `classique` et `remboursable` portent une catégorie libre. UN VIREMENT
+    # INTERNE porte LA catégorie des virements (migration 0090,
+    # `Categorie.est_virement`), et elle seule : les deux sont équivalents.
     categorie_id = Column(Integer, ForeignKey("categorie.id"), nullable=True)
     nature = Column(String, nullable=False)
     montant = Column(Float, nullable=False)

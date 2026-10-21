@@ -14,7 +14,8 @@ from .conftest import (
 
 
 def test_seed_categories_presentes(db_session):
-    noms = {c.nom for c in db_session.query(models.Categorie).all()}
+    # La catégorie des virements internes (migration 0090) est livrée dans toute base, à part du décor.
+    noms = {c.nom for c in db_session.query(models.Categorie).all() if not c.est_virement}
     assert noms == set(CATEGORIES_TEST)
 
 

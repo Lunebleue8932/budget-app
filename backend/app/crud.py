@@ -11,8 +11,10 @@ from . import models, schemas
 from .constants import (
     id_colonne_dummy_regle,
     COULEUR_INDEX_ENTREE,
+    COULEUR_INDEX_VIREMENT,
     CATEGORIE_AUTRES,
     CATEGORIE_ENTREES_ARGENT,
+    CATEGORIE_VIREMENTS_INTERNES,
     CIBLE_PAR_TYPE_REGLEMENT,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
@@ -193,6 +195,72 @@ def categorie_de_repli(db: Session, entree: bool) -> Optional[models.Categorie]:
     return get_categorie_by_nom(db, CATEGORIE_AUTRES)
 
 
+# ---------- LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) ----------
+#
+# UNE SEULE, reconnue par son drapeau (`Categorie.est_virement`) et jamais par son nom, qui se
+# change librement. ÉQUIVALENTE AU TYPE `virement` : une opération la porte si et seulement si elle
+# est un virement interne. Les fonctions qui suivent sont les seules à la chercher ; tout ce qui
+# écrit une opération passe par `_normaliser_categorie_selon_type` ou `create_virement`, qui la
+# posent ou la retirent selon le type.
+
+
+def seed_categorie_virements(db: Session) -> models.Categorie:
+    """Pose la catégorie des virements si la base n'en a pas (bases créées hors migration :
+    tests, mise au point). Idempotent. Un nom déjà pris par une autre catégorie lui laisse sa
+    place : celle-ci prend « Virements internes (2) », renommable ensuite (même règle que la
+    migration 0090)."""
+    existante = (
+        db.query(models.Categorie).filter(models.Categorie.est_virement.is_(True)).first()
+    )
+    if existante is not None:
+        return existante
+    nom, rang = CATEGORIE_VIREMENTS_INTERNES, 2
+    while get_categorie_by_nom(db, nom) is not None:
+        nom = f"{CATEGORIE_VIREMENTS_INTERNES} ({rang})"
+        rang += 1
+    ordre_max = db.query(func.max(models.Categorie.ordre)).scalar()
+    categorie = models.Categorie(
+        nom=nom,
+        ordre=(ordre_max + 1) if ordre_max is not None else 0,
+        couleur_index=COULEUR_INDEX_VIREMENT,
+        est_virement=True,
+    )
+    db.add(categorie)
+    db.commit()
+    db.refresh(categorie)
+    return categorie
+
+
+def get_categorie_virements(db: Session) -> models.Categorie:
+    """LA catégorie des virements internes. Toujours là : la migration 0090 la pose dans toute
+    base, et une base qui n'est pas passée par elle la reçoit à la première demande."""
+    categorie = (
+        db.query(models.Categorie).filter(models.Categorie.est_virement.is_(True)).first()
+    )
+    return categorie if categorie is not None else seed_categorie_virements(db)
+
+
+def id_categorie_virements(db: Session) -> int:
+    return get_categorie_virements(db).id
+
+
+def est_categorie_virements(db: Session, categorie_id: Optional[int]) -> bool:
+    if categorie_id is None:
+        return False
+    categorie = get_categorie(db, categorie_id)
+    return bool(categorie is not None and categorie.est_virement)
+
+
+ERREUR_CATEGORIE_VIREMENTS_HORS_VIREMENT = (
+    "« {nom} » est la catégorie des virements internes : une opération qui la porte est un "
+    "virement, avec ses deux comptes. Crée-le comme un virement (deux écritures liées)."
+)
+ERREUR_PART_VIREMENTS = (
+    "une part de découpe ne peut pas être « {nom} » : c'est la catégorie des virements "
+    "internes, qui ne se découpent pas"
+)
+
+
 def _prochain_couleur_index(db: Session) -> int:
     """Le plus petit index de palette que personne n'occupe.
 
@@ -234,7 +302,9 @@ def poser_categories_par_defaut_base_neuve(db: Session) -> list[str]:
     déjà pris (`categorie.nom` est unique)."""
     if db.query(func.count(models.Operation.id)).scalar():
         return []
-    noms = {c.nom for c in get_categories(db)}
+    # La catégorie des virements internes est dans TOUTE base (migration 0090) : elle ne dit
+    # rien de ce que l'utilisateur a composé.
+    noms = {c.nom for c in get_categories(db) if not c.est_virement}
     if noms - {"Autres", "Alimentaire"}:
         return []
     ajoutees = []
@@ -308,6 +378,9 @@ def erreur_objectif_pourcentage(
             db.query(func.coalesce(func.sum(models.Categorie.objectif_pourcentage), 0.0))
             .filter(models.Categorie.id != db_categorie.id)
             .filter(models.Categorie.est_entree.is_(False))
+            # Ni celle des virements internes (migration 0090) : elle n'a pas de part à viser,
+            # la route lui refuse tout objectif.
+            .filter(models.Categorie.est_virement.is_(False))
         )
         for filtre in filtres:
             requete = requete.filter(filtre)
@@ -586,6 +659,7 @@ def incoherences_budgets(db: Session, annee: int, mois: int, monnaie_id: int) ->
         categories = (
             db.query(models.Categorie)
             .filter(models.Categorie.est_entree.is_(False))
+            .filter(models.Categorie.est_virement.is_(False))
             .order_by(models.Categorie.ordre)
             .all()
         )
@@ -1198,12 +1272,23 @@ def _normaliser_categorie_selon_type(db: Session, type_code: str, categorie_id):
     Renvoie (categorie_id, est_entree). C'est le SECOND terme qui a changé avec
     la migration 0060 : on rendait le NOM, que l'appelant comparait à une chaîne
     en dur. Une catégorie d'entrée se coche désormais, et le drapeau voyage à la
-    place du libellé."""
+    place du libellé.
+
+    L'ÉQUIVALENCE DES VIREMENTS (migration 0090) se tient ici : un virement porte
+    toujours la catégorie des virements internes, et elle seule ; une opération
+    d'un autre type ne la porte jamais. Les routes refusent le geste qui la poserait
+    sur une opération ordinaire (cf. routers/operations) ; ceci est le dernier
+    filet des appels internes — la catégorie retombe alors à NULL, comme celle
+    d'un virement qu'on reclasse et qui n'a pas encore reçu la sienne."""
     from .constants import TYPES_AVEC_CATEGORIE_LIBRE
 
+    if TypeOperation(type_code) == TypeOperation.virement:
+        return id_categorie_virements(db), False
     if TypeOperation(type_code) not in TYPES_AVEC_CATEGORIE_LIBRE:
         return None, False
     categorie = get_categorie(db, categorie_id) if categorie_id is not None else None
+    if categorie is not None and categorie.est_virement:
+        return None, False
     return (categorie.id if categorie else None), bool(categorie and categorie.est_entree)
 
 
@@ -2125,6 +2210,9 @@ def create_virement(
     # compris dans son montant, les porter des deux côtés les ferait lire deux
     # fois.
     frais_sur = _jambe_des_frais(virement)
+    # LES DEUX JAMBES PORTENT LA CATÉGORIE DES VIREMENTS (migration 0090) : elle est
+    # équivalente au type, cf. _normaliser_categorie_selon_type.
+    categorie_virements_id = id_categorie_virements(db)
 
     # Les deux écritures portent chacune SA monnaie et SON montant : c'est ce
     # qui permet d'envoyer 100 € et d'en recevoir 108 $ sans qu'aucun taux de
@@ -2134,7 +2222,7 @@ def create_virement(
         date=virement.date,
         compte_id=compte_source.id,
         type_id=type_virement.id,
-        categorie_id=None,
+        categorie_id=categorie_virements_id,
         nature=nature_sortante,
         montant=virement.montant,
         monnaie_id=virement.monnaie_id,
@@ -2153,7 +2241,7 @@ def create_virement(
         date=virement.date,
         compte_id=compte_destination.id,
         type_id=type_virement.id,
-        categorie_id=None,
+        categorie_id=categorie_virements_id,
         nature=nature_entrante,
         montant=virement.montant_destination_resolu,
         monnaie_id=virement.monnaie_destination_resolue,
@@ -2205,6 +2293,11 @@ def update_virement(
     # remise à zéro, sans quoi des frais déplacés resteraient inscrits des deux
     # côtés.
     frais_sur = _jambe_des_frais(virement)
+    # Une jambe venue d'avant la migration 0090, ou retouchée hors de l'application, retrouve
+    # la catégorie que le type impose.
+    categorie_virements_id = id_categorie_virements(db)
+    sortante.categorie_id = categorie_virements_id
+    entrante.categorie_id = categorie_virements_id
 
     sortante.date = virement.date
     sortante.compte_id = compte_source.id
@@ -2248,6 +2341,142 @@ def delete_virement(db: Session, operations: list[models.Operation]) -> None:
     for db_operation in operations:
         db.delete(db_operation)
     db.commit()
+
+
+# ---------- CHANGER UNE OPÉRATION EN VIREMENT, ET RETOUR (migration 0090) ----------
+#
+# La catégorie « Virements internes » est équivalente au type : la choisir sur une opération
+# existante en fait un virement, et en choisir une autre sur un virement en refait une opération
+# ordinaire. Les deux gestes se faisaient jusqu'ici en CRÉANT l'autre forme à côté de la première,
+# qui restait en base — la même dépense en double. Ils transforment désormais SUR PLACE : la ligne
+# garde son identifiant, et avec lui son lien au relevé qui l'a importée (le stock anti-doublons)
+# et ses projets.
+
+
+def erreur_conversion_en_virement(db: Session, operation: models.Operation) -> Optional[str]:
+    """Ce qui empêche une opération ordinaire de devenir un virement, ou None."""
+    code = TypeOperation(operation.type_code)
+    if code == TypeOperation.virement:
+        return "cette opération est déjà un virement interne"
+    if code in TYPES_INTERNES:
+        return (
+            "cette écriture appartient à un achat/vente de titres : elle se modifie depuis "
+            "l'onglet Placements financiers"
+        )
+    if operation.recurrente:
+        return (
+            "une opération récurrente ne devient pas un virement : un virement ne se répète pas. "
+            "Arrête d'abord la récurrence"
+        )
+    if get_remboursements_lies(db, operation.id) or get_operations_remboursees(db, operation.id):
+        return (
+            "cette opération est liée à un remboursement : délie-la d'abord, un virement ne "
+            "règle aucune dette"
+        )
+    return None
+
+
+def convertir_en_virement(
+    db: Session,
+    operation: models.Operation,
+    virement: schemas.VirementCreate,
+    compte_source: models.Compte,
+    compte_destination: models.Compte,
+) -> tuple[models.Operation, models.Operation]:
+    """L'opération devient UNE DES DEUX JAMBES du virement décrit, sur place.
+
+    LA JAMBE DE SON COMPTE : l'entrante si elle est sur le compte destination (et pas sur la
+    source), la sortante sinon — y compris quand on a changé son compte en même temps. L'autre
+    jambe est créée. Ce qu'un virement ne porte pas s'efface : parts de découpe, amortissement,
+    fenêtre de rapprochement, étiquettes, montants dus (cf. create_virement, mêmes champs).
+
+    L'appelant a vérifié `erreur_conversion_en_virement`."""
+    virement_id = str(uuid.uuid4())
+    nature_sortante, nature_entrante = _natures_virement(virement, compte_source, compte_destination)
+    type_virement = get_type_operation_par_code(db, TypeOperation.virement.value)
+    frais_sur = _jambe_des_frais(virement)
+    categorie_virements_id = id_categorie_virements(db)
+    entrante_gardee = (
+        operation.compte_id == compte_destination.id and operation.compte_id != compte_source.id
+    )
+    nouvelle = models.Operation()
+    sortante, entrante = (nouvelle, operation) if entrante_gardee else (operation, nouvelle)
+
+    operation.decoupes.clear()
+    operation.amorti = False
+    operation.amortissement_debut = None
+    operation.amortissement_fin = None
+    operation.rapprochement_debut = None
+    operation.rapprochement_fin = None
+    operation.rapprochement_mots_cles = None
+    operation.imprevue = False
+    operation.a_declarer = False
+    operation.profil_remboursement_id = None
+
+    for jambe, cote in ((sortante, "sortante"), (entrante, "entrante")):
+        est_sortante = cote == "sortante"
+        jambe.type_id = type_virement.id
+        jambe.categorie_id = categorie_virements_id
+        jambe.virement_id = virement_id
+        jambe.sens = Sens.transfert_sortant if est_sortante else Sens.transfert_entrant
+        jambe.date = virement.date
+        jambe.compte_id = (compte_source if est_sortante else compte_destination).id
+        jambe.montant = virement.montant if est_sortante else virement.montant_destination_resolu
+        jambe.monnaie_id = (
+            virement.monnaie_id if est_sortante else virement.monnaie_destination_resolue
+        )
+        jambe.statut = virement.statut
+        jambe.nature = nature_sortante if est_sortante else nature_entrante
+        jambe.notes = virement.notes
+        jambe.frais = virement.frais if frais_sur == cote else None
+        jambe.monnaie_frais_id = virement.monnaie_frais_id if frais_sur == cote else None
+        jambe.montant_du = 0.0
+        jambe.montant_a_rembourser = 0.0
+    db.add(nouvelle)
+    db.commit()
+    db.refresh(sortante)
+    db.refresh(entrante)
+    return sortante, entrante
+
+
+def convertir_virement_en_operation(
+    db: Session,
+    jambes: list[models.Operation],
+    operation: schemas.OperationCreate,
+) -> models.Operation:
+    """Le virement redevient UNE opération ordinaire, décrite par `operation`.
+
+    LA JAMBE GARDÉE est celle du compte choisi, à défaut la sortante : elle devient l'opération
+    (même identifiant), l'autre est supprimée. Ce que l'autre portait et qui ne décrit pas le
+    mouvement lui-même la rejoint — ses lignes de relevé (sans quoi le relevé qui l'avait
+    importée la proposerait de nouveau, et le virement reviendrait en double) et ses projets.
+
+    L'appelant a validé `operation` comme une création (cf. routers/operations)."""
+    gardee = next((j for j in jambes if j.compte_id == operation.compte_id), None)
+    if gardee is None:
+        gardee = next((j for j in jambes if j.sens == Sens.transfert_sortant), jambes[0])
+    for jambe in jambes:
+        if jambe is gardee:
+            continue
+        db.query(models.LigneImportBrute).filter(
+            models.LigneImportBrute.operation_id == jambe.id
+        ).update({"operation_id": gardee.id}, synchronize_session=False)
+        for sous_filtre in list(jambe.sous_filtres):
+            if sous_filtre not in gardee.sous_filtres:
+                gardee.sous_filtres.append(sous_filtre)
+        db.delete(jambe)
+    gardee.virement_id = None
+    db.flush()
+    # L'OPÉRATION ENTIÈRE, comme une création : chaque champ est réécrit, la jambe ne garde
+    # rien de ce qu'elle était sauf son identifiant. Les deux montants dus non précisés sont
+    # laissés au calcul de `update_operation` (montant entier sur un type remboursable).
+    donnees = {
+        champ: valeur
+        for champ, valeur in operation.model_dump().items()
+        if champ in schemas.OperationUpdate.model_fields
+        and not (champ in ("montant_du", "montant_a_rembourser") and valeur is None)
+    }
+    return update_operation(db, gardee, schemas.OperationUpdate(**donnees))
 
 
 # ---------- Placements financiers ----------

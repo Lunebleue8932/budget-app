@@ -78,7 +78,9 @@ def _lignes_categorie(operation: models.Operation):
             )
             for part in operation.decoupes
         ]
-    if operation.categorie is not None:
+    # La catégorie des virements internes (migration 0090) ne classe rien : c'est le TYPE qui
+    # range un virement, ici une jambe sans sa partenaire, sous le nom de son type comme avant.
+    if operation.categorie is not None and not operation.categorie.est_virement:
         categorie = operation.categorie
         return [(categorie.nom, operation.montant, bool(categorie.est_entree), categorie.couleur_index)]
     type_op = operation.type_operation
