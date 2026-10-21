@@ -1241,3 +1241,22 @@ Object.assign(TEXTES, {
     "« Virements internes » est la catégorie de tes virements entre tes propres comptes : choisir cette catégorie sur une opération en fait un virement, et un virement porte toujours cette catégorie. Tu peux la renommer, mais pas la supprimer ni l'éteindre. Elle n'a ni budget ni objectif : un virement n'est pas une dépense.",
 });
 // <<< FIN DES TEXTES AJOUTÉS : la catégorie « Virements internes »
+/* ----- Le parcours de l'import pour tous les imports (session import-parcours, 2026-10-20) ----- */
+Object.assign(TEXTES, {
+  "noyau.import-premier-enregistre":
+    "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.",
+  "noyau.import-premier-colonnes":
+    "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.",
+  "noyau.import-compte-extension-monnaies":
+    "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.",
+  "noyau.import-compte-extension-eteinte":
+    "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».",
+  "noyau.import-compte-monnaies-manquantes":
+    "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.",
+  "noyau.import-preset-propose":
+    "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?",
+  "noyau.import-preset-aucun":
+    "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?",
+  "noyau.guide-import-preset":
+    "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.",
+});

@@ -4852,3 +4852,35 @@ Object.assign(TRADUCTIONS.en, {
   "virements": "transfers",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : la catégorie « Virements internes »
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports (session import-parcours)
+Object.assign(TRADUCTIONS.en, {
+  "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.":
+    "First import: your configuration is saved in the “{preset}” preset. The next statement from this bank will be read the same way.",
+  "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.":
+    "Columns applied and file read again: they will join the “{preset}” preset when you confirm this first import.",
+  "Aucun compte ne correspond ? Crée le tien": "No account matches? Create your own",
+  "Aucun compte pour l'instant": "No account yet",
+  "Ce relevé": "This statement",
+  "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.":
+    "Your file has a currency column, but the application only has one currency while the “Currencies” extension is off. Turn it on here to link each currency in the file to one of yours, or to create one.",
+  "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».":
+    "Without the extension, the currency column won't be read: every transaction will go in “{monnaie}”.",
+  "Comptes & Monnaies": "Accounts & Currencies",
+  "+ Créer une monnaie": "+ Create a currency",
+  "Nom de la monnaie :": "Currency name:",
+  "Symbole :": "Symbol:",
+  "Monnaie créée": "Currency created",
+  "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
+    "The “{compte}” account doesn't hold {monnaies}: its lines in that currency would be skipped at import. Add it to the account, or link the currency to another one.",
+  "Ajouter au compte": "Add to the account",
+  "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?":
+    "The app would read this file better with this preset. Do you want to switch?",
+  "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?":
+    "The app can't find any Preset suited to reading the file. Do you want to create a new one?",
+  "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.":
+    "Your file doesn't look like what the selected preset reads. Answer the pop-up: /bold(Yes) switches preset (or creates one), /bold(No) keeps yours. Nothing is imported yet.",
+  "Contrôle": "Check",
+  "Étape sautée : rien à y faire pour ce fichier.": "Step skipped: nothing to do for this file.",
+  "Choisis le preset": "Choose the preset",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

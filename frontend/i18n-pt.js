@@ -4075,3 +4075,34 @@ Object.assign(TRADUCTIONS.pt, {
   "virements": "transferências",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : la catégorie « Virements internes »
+// >>> TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports (session import-parcours)
+Object.assign(TRADUCTIONS.pt, {
+  "Premier import : ta configuration est enregistrée dans le preset « {preset} ». Le prochain relevé de cette banque sera lu de la même façon.":
+    "Primeira importação: sua configuração foi salva no preset “{preset}”. O próximo extrato deste banco será lido da mesma forma.",
+  "Colonnes appliquées et fichier relu : elles rejoindront le preset « {preset} » quand tu confirmeras ce premier import.":
+    "Colunas aplicadas e arquivo relido: elas entrarão no preset “{preset}” quando você confirmar esta primeira importação.",
+  "Aucun compte ne correspond ? Crée le tien": "Nenhuma conta corresponde? Crie a sua",
+  "Aucun compte pour l'instant": "Nenhuma conta por enquanto",
+  "Ce relevé": "Este extrato",
+  "Ton fichier a une colonne de devise, mais l'application n'a qu'une monnaie tant que l'extension « Monnaies » est éteinte. Active-la ici pour rattacher chaque devise du fichier à une monnaie, ou en créer une.":
+    "Seu arquivo tem uma coluna de moeda, mas o aplicativo só tem uma moeda enquanto a extensão “Moedas” estiver desativada. Ative-a aqui para associar cada moeda do arquivo a uma das suas, ou criar uma.",
+  "Sans l'extension, la colonne de devise ne sera pas lue : toutes les opérations iront dans « {monnaie} ».":
+    "Sem a extensão, a coluna de moeda não será lida: todas as operações irão para “{monnaie}”.",
+  "Comptes & Monnaies": "Contas e Moedas",
+  "+ Créer une monnaie": "+ Criar uma moeda",
+  "Nom de la monnaie :": "Nome da moeda:",
+  "Symbole :": "Símbolo:",
+  "Le compte « {compte} » ne porte pas {monnaies} : ses lignes dans cette monnaie seraient ignorées à l'import. Ajoute-la au compte, ou rattache la devise à une autre monnaie.":
+    "A conta “{compte}” não tem {monnaies}: as linhas nessa moeda seriam ignoradas na importação. Adicione-a à conta, ou associe a moeda a outra.",
+  "Ajouter au compte": "Adicionar à conta",
+  "L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ?":
+    "O app leria melhor este arquivo com este preset. Quer trocar?",
+  "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?":
+    "O app não encontra nenhum Preset adequado para ler o arquivo. Quer criar um novo?",
+  "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.":
+    "Seu arquivo não se parece com o que o preset selecionado lê. Responda ao pop-up: /bold(Sim) troca de preset (ou cria um), /bold(Não) mantém o seu. Nada é importado por isso.",
+  "Contrôle": "Controle",
+  "Étape sautée : rien à y faire pour ce fichier.": "Etapa pulada: nada a fazer para este arquivo.",
+  "Choisis le preset": "Escolha o preset",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le parcours de l'import pour tous les imports

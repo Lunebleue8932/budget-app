@@ -11551,9 +11551,32 @@ function demandesDeMapping() {
 // envoyées telles quelles à la confirmation : numéro de ligne -> champs
 // modifiés (date/nature/montant/categorie_id/compte_id).
 const importLigneOverrides = {};
-// LE PARCOURS DE CE FICHIER (cf. « LE PARCOURS DE L'IMPORT » plus bas) : l'étape « mots-clés » n'existe
-// que si une colonne « Sens » ou « État » est lue.
-const importParcours = { motsCles: false };
+// LE PARCOURS DE CE FICHIER (cf. « LE PARCOURS DE L'IMPORT » plus bas), remis à zéro à chaque fichier :
+//   - `vues`       : les étapes montrées (une fenêtre s'est ouverte), « faites » dans le graphe ;
+//   - `proposees`  : les étapes que le parcours a déjà ouvertes d'office - une fois par fichier, jamais en boucle ;
+//   - `detection`  : ce que la détection dit du fichier (les mots des colonnes Sens / État, cf. étape 1bis) ;
+//   - `presetTraite` / `proposition` : la proposition de changer de preset, faite une fois, et en cours ;
+//   - `forcerChamps` : un preset créé pour ce fichier - l'étape 1 s'ouvre forcément ;
+//   - `etapeFinale` : où le parcours s'est posé (« controle » ou « importer »), dessiné en tête du contrôle.
+const importParcours = {
+  vues: new Set(),
+  proposees: new Set(),
+  detection: null,
+  presetTraite: false,
+  proposition: null,
+  forcerChamps: false,
+  etapeFinale: null,
+};
+
+function reinitialiserParcoursImport() {
+  if (importParcours.proposition) terminerPropositionPreset();
+  importParcours.vues.clear();
+  importParcours.proposees.clear();
+  importParcours.detection = null;
+  importParcours.presetTraite = false;
+  importParcours.forcerChamps = false;
+  importParcours.etapeFinale = null;
+}
 // Les mots-clés de sens et d'état posés à l'étape « mots-clés », pas encore enregistrés : ils partent avec
 // les colonnes à l'aperçu et à la confirmation (`ajouterColonnesLues`). `importVocabulairesAvant` garde ce
 // que les éditeurs portaient avant l'étape, pour le leur rendre quand on change de fichier.
@@ -11668,6 +11691,21 @@ function proprietesAvanceesAffichees() {
   return PROPRIETES_IMPORT_AVANCEES.filter(([cle]) => !PROPRIETES_IMPORT_MONNAIE.has(cle));
 }
 
+/** Les champs de la molette du tableau des colonnes. AU PREMIER IMPORT, « Monnaie » y est proposée même
+ *  extension « Monnaies » éteinte : un relevé peut en porter une, et c'est à l'étape « Comptes & Monnaies »
+ *  qu'on décide d'allumer l'extension pour s'en servir (cf. `compteImportExtensionDemandee`). */
+function proprietesAvanceesDetection() {
+  if (choixDeMonnaiePossible() || !premierImportBancaire()) return proprietesAvanceesAffichees();
+  return PROPRIETES_IMPORT_AVANCEES.filter(
+    ([cle]) => cle === "monnaie" || !PROPRIETES_IMPORT_MONNAIE.has(cle)
+  );
+}
+
+/** Le fichier est-il lu avec une colonne de devise (montant, montant envoyé ou frais) ? */
+function importLitUneMonnaie() {
+  return importConfigColonnes.some((c) => c.index >= 1 && PROPRIETES_IMPORT_MONNAIE.has(c.propriete));
+}
+
 /**
  * Ce que chaque propriété d'import veut dire, POSÉ SUR SA PROPRE LIGNE.
  *
@@ -11737,9 +11775,22 @@ function renderImportPresetChips() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = p.nom;
+    btn.dataset.presetId = p.id;
     btn.classList.toggle("active", p.id === importPresetId);
+    // LA PROPOSITION DE PRESET : celui vers lequel l'app propose de changer est entouré.
+    const proposition = importParcours.proposition;
+    btn.classList.toggle(
+      "preset-propose",
+      !!proposition && proposition.type === "basculer" && proposition.presetId === p.id
+    );
     btn.addEventListener("click", async () => {
       if (p.id === importPresetId) return;
+      // Pendant la proposition, choisir un autre preset GARDE LE FICHIER, comme « Oui ».
+      if (importParcours.proposition && importFichierActuel) {
+        terminerPropositionPreset();
+        await basculerPresetImport(p.id);
+        return;
+      }
       importPresetId = p.id;
       memoriserPresetActuel();
       renderImportPresetChips();
@@ -11790,6 +11841,33 @@ function presetParDefaut() {
   return utilises.reduce((a, b) => (a.dernier_import >= b.dernier_import ? a : b)).id;
 }
 
+/**
+ * LE PREMIER IMPORT : aucun preset n'a encore servi. Le preset sélectionné - celui que l'application livre,
+ * dans une base neuve - n'a alors jamais rien lu, et ce qu'on règle en important (colonnes, lignes de tête et
+ * de pied, mots-clés « Sens » / « État », compte) lui est ENREGISTRÉ D'OFFICE à la confirmation de l'import,
+ * sans passer par « Enregistrer la configuration » (cf. `enregistrerPremierImport`).
+ */
+function premierImportBancaire() {
+  return (importPresets || []).every((p) => !p.dernier_import);
+}
+
+/** À la confirmation du premier import : la configuration de l'écran part dans le preset, et le compte choisi
+ *  pour le fichier devient celui du preset quand aucune colonne ne nomme les comptes. Le fichier n'est pas relu :
+ *  l'aperçu qu'on vient d'importer a été lu avec exactement cela. */
+async function enregistrerPremierImport() {
+  const compte = compteIdDefautChoisi();
+  if (compte && !importConfigColonnes.some((c) => c.propriete === "compte_banque")) {
+    const select = document.getElementById("import-preset-compte");
+    fillComptesSelect(select, comptesProposables(Number(compte)), { keepFirst: true });
+    select.value = String(compte);
+  }
+  const preset = presetActuel();
+  return enregistrerConfigurationImport({
+    relireSiPerime: false,
+    message: t(texteAide("noyau.import-premier-enregistre"), { preset: preset ? preset.nom : "" }),
+  });
+}
+
 function memoriserPresetActuel() {
   // Sans `await` : mémoriser un choix ne doit pas retarder l'écran qui vient de
   // le prendre (cf. ecrirePreference, qui ne lève jamais).
@@ -11797,6 +11875,11 @@ function memoriserPresetActuel() {
 }
 
 document.getElementById("btn-import-preset-creer").addEventListener("click", async () => {
+  // Pendant la proposition de preset, « Nouveau » crée le preset POUR CE FICHIER (le fichier est gardé).
+  if (importParcours.proposition && importFichierActuel) {
+    await creerPresetPourFichierImport();
+    return;
+  }
   const nom = prompt("Nom du nouveau preset (ex. nom de la banque) :");
   if (!nom || !nom.trim()) return;
   try {
@@ -11958,7 +12041,7 @@ function reinitialiserImport() {
   document.getElementById("modale-detection").style.display = "none";
   // Le parcours du fichier qu'on quitte : ni mots-clés, ni choix de compte, ni catégories créées en route.
   restaurerVocabulairesImport();
-  importParcours.motsCles = false;
+  reinitialiserParcoursImport();
   importCompteDemande = false;
   importMappingsManquaient = null;
   corrNouvelles.clear();
@@ -11986,7 +12069,7 @@ function definirFichierImport(fichier) {
   importFichierActuel = fichier || null;
   importDetectionProposee = false;
   restaurerVocabulairesImport();
-  importParcours.motsCles = false;
+  reinitialiserParcoursImport();
   importCompteDemande = false;
   importMappingsManquaient = null;
   corrNouvelles.clear();
@@ -13167,6 +13250,9 @@ document.getElementById("import-lignes-pied").addEventListener("input", updateRe
 async function enregistrerConfigurationImport({
   relireToujours = false,
   message = t("Configuration enregistrée"),
+  // Faux : l'aperçu affiché a déjà été lu avec ce qu'on enregistre (le premier import, cf.
+  // `enregistrerPremierImport`) - le relire défairait les choix faits dessus.
+  relireSiPerime = true,
 } = {}) {
   // Une colonne activée sans numéro (ou à 0) serait refusée par le serveur avec
   // un message d'erreur de validation illisible : on nomme la propriété
@@ -13262,7 +13348,7 @@ async function enregistrerConfigurationImport({
     // bonnes données, ou de voir une exclusion faire apparaître les doublons
     // qu'elle débloque. Rien à faire si seul le nom a bougé (cf.
     // signatureApercu).
-    if ((apercuPerime || relireToujours) && importFichierActuel) {
+    if (((apercuPerime && relireSiPerime) || relireToujours) && importFichierActuel) {
       await relireFichierImport();
     }
     return true;
@@ -13893,7 +13979,7 @@ function detOptions(entree) {
   const ids = new Set(proposees.map((o) => o.id));
   const toutes = [
     DET_AUCUNE,
-    ...[...PROPRIETES_IMPORT, ...proprietesAvanceesAffichees()].map(([cle]) => cle),
+    ...[...PROPRIETES_IMPORT, ...proprietesAvanceesDetection()].map(([cle]) => cle),
   ];
   const autres = toutes.filter((id) => !ids.has(id)).map((id) => ({ id, niveau: "choix" }));
   return [...proposees, ...autres];
@@ -14023,12 +14109,9 @@ function detMajCompteur() {
   detMajLibellesMontant();
 }
 
-/** Le graphe des étapes du tableau des colonnes : l'étape « mots-clés » y apparaît dès qu'une colonne
- *  CONFIRMÉE est lue comme un sens ou un état. */
+/** Le graphe des étapes du tableau des colonnes : l'étape « mots-clés » y est « à venir » dès qu'une colonne
+ *  est lue comme un sens ou un état, « sautée » sinon (cf. `etapeSauteeDAvance`). */
 function detMajEtapes() {
-  importParcours.motsCles = detColonnes.some(
-    (e) => detConfirmees.has(e.colonne.index) && PROPRIETES_A_MOTS_CLES.includes(e.choix)
-  );
   majEtapesImport("modale-detection", "champs");
 }
 
@@ -14276,7 +14359,9 @@ function detInfosHtml(detection) {
   return lignes.join("");
 }
 
-function ouvrirDetection(detection, { suite = false } = {}) {
+/** `choixInitiaux` : les colonnes que lit le preset, quand on revient au tableau sans être passé par lui
+ *  (étape 1bis ouverte seule) - chaque molette part alors de ce que le preset lit, et non de la proposition. */
+function ouvrirDetection(detection, { suite = false, choixInitiaux = null } = {}) {
   importDetection = detection;
   detSuite = suite;
   detConfirmees.clear();
@@ -14286,10 +14371,12 @@ function ouvrirDetection(detection, { suite = false } = {}) {
     .map((colonne) => ({
       colonne,
       // On part de la MEILLEURE PROPOSITION (en haut de la molette) ; rien n'est confirmé pour autant.
-      choix: detIdPropriete(colonne.propositions[0]?.propriete),
+      choix: choixInitiaux
+        ? detIdPropriete((choixInitiaux.find((c) => c.index === colonne.index) || {}).propriete)
+        : detIdPropriete(colonne.propositions[0]?.propriete),
     }));
   document.getElementById("detection-infos").innerHTML = detInfosHtml(detection);
-  importParcours.motsCles = false;
+  importParcours.vues.add("champs");
   majEtapesImport("modale-detection", "champs");
   detEffacerConflit();
   const board = document.getElementById("detection-board");
@@ -14333,7 +14420,7 @@ async function appliquerDetectionImport() {
   // L'ÉTAPE 1bis : une colonne lue comme « Sens » ou « État » dit des mots que l'application ne connaît pas
   // d'avance (IN / OUT, COMPLETED / CANCELLED) ; on demande à quoi ils correspondent AVANT de relire le
   // fichier, sans quoi chaque ligne se mettrait en erreur. Seuls les champs choisis sont demandés.
-  importParcours.motsCles = colonnes.some((c) => PROPRIETES_A_MOTS_CLES.includes(c.propriete));
+  importParcours.proposees.add("mots-cles");
   const aMapper = motsClesAMapper(detection, colonnes);
   if (aMapper.length) {
     ouvrirMotsCles(detection, colonnes, aMapper);
@@ -14342,14 +14429,19 @@ async function appliquerDetectionImport() {
   await finaliserDetectionImport(detection, colonnes);
 }
 
-/** La fin de l'étape 1 : les colonnes deviennent celles de l'écran et le fichier est relu avec elles. */
-async function finaliserDetectionImport(detection, colonnes) {
+/** La fin de l'étape 1 (ou de la 1bis) : les colonnes deviennent celles de l'écran et le fichier est relu avec
+ *  elles. `lignes` : les lignes de tête et de pied à garder - celles du preset quand l'étape 1 a été sautée,
+ *  sinon celles que la détection propose. */
+async function finaliserDetectionImport(detection, colonnes, lignes = null) {
   importConfigColonnes = colonnes;
   // Les colonnes lues ont changé : « Compte pour ce fichier » apparaît (ou disparaît) avec elles.
   toggleImportCompteDefautBloc();
-  document.getElementById("import-lignes-entete").value = detection.lignes_entete;
-  document.getElementById("import-lignes-pied").value = detection.lignes_pied || 0;
+  document.getElementById("import-lignes-entete").value = lignes ? lignes.entete : detection.lignes_entete;
+  document.getElementById("import-lignes-pied").value = lignes ? lignes.pied : detection.lignes_pied || 0;
   updateResumeLignesEntete();
+  // UNE NOUVELLE LECTURE COMMENCE : les catégories, le compte et le contrôle se redemandent sur elle.
+  ["categories", "compte", "virements", "controle"].forEach((id) => importParcours.proposees.delete(id));
+  importCompteDemande = false;
   // Plus de tableau de détection à rouvrir derrière : le fichier va être relu avec ces colonnes, et
   // c'est le tableau des correspondances qui s'ouvrira à la fin de la relecture.
   importDetectionProposee = true;
@@ -14369,7 +14461,9 @@ async function finaliserDetectionImport(detection, colonnes) {
   importApercuAReloire = false;
   majBoutonRelireApercu();
   showMessage(
-    t("Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset."),
+    premierImportBancaire()
+      ? t(texteAide("noyau.import-premier-colonnes"), { preset: (presetActuel() || {}).nom || "" })
+      : t("Colonnes appliquées et fichier relu : « Enregistrer la configuration » les garde dans le preset."),
     "success"
   );
 }
@@ -14401,9 +14495,9 @@ function fermerFenetresChampsImport() {
   detCourante = -1;
   motsCourante = -1;
   if (!fenetreImportOuverte()) {
+    // Rien ne s'est ouvert derrière : c'était la dernière fenêtre (le parcours s'est posé sur le contrôle,
+    // cf. `finirParcoursImport`).
     document.body.classList.remove("modale-ouverte");
-    // Rien ne s'est ouvert derrière : c'était la dernière fenêtre.
-    versControleImport();
   }
 }
 
@@ -14432,15 +14526,37 @@ async function detecterColonnesImport() {
 }
 
 /**
- * LA DÉTECTION AVANT LES CORRESPONDANCES, après la première lecture d'un fichier. Rend `true` quand
- * elle a ouvert le tableau (c'est lui qui rouvrira les correspondances, après relecture ou à la
- * fermeture), `false` quand la lecture actuelle est bonne et que les correspondances peuvent passer.
- *
- * Elle s'ouvre quand : plus de la moitié des lignes sont en erreur, aucun preset ne lit le fichier,
- * ou l'export est celui d'une banque connue que le preset ne lit pas ainsi. Un échec ne dit rien :
- * c'est un plus, jamais une étape.
+ * UNE LIGNE MAL LUE : une erreur de LECTURE (date, montant, libellé, mot de sens ou d'état), et non une
+ * question restée sans réponse (catégorie, compte, devise à rattacher - les étapes 2 et 3 y répondent).
+ * Les motifs sont ceux du serveur (cf. import_bancaire, `_erreur_ligne` et la lecture de la ligne).
  */
-async function proposerDetectionAvantCorrespondances() {
+const MOTIFS_ERREUR_LECTURE = [
+  "date illisible",
+  "montant illisible",
+  "montant présent au débit et au crédit",
+  "nature manquante",
+  "sens ",
+  "état ",
+];
+
+function ligneMalLue(ligne) {
+  return (
+    !!ligne.erreur &&
+    ligne.erreur.split(", ").some((motif) => MOTIFS_ERREUR_LECTURE.some((p) => motif.trim().startsWith(p)))
+  );
+}
+
+/**
+ * L'ÉTAPE 1, LES CHAMPS, après la première lecture d'un fichier. Rend `true` quand elle a ouvert le tableau
+ * (c'est lui qui rend la main au parcours, après relecture ou à la fermeture).
+ *
+ * Elle s'ouvre quand l'application a quelque chose à faire valider sur les colonnes : plus de la moitié des
+ * lignes mal lues, le preset sélectionné ne lit pas le fichier (aucun preset ne le lit, ou l'utilisateur a
+ * gardé le sien), l'export d'une banque connue que le preset ne lit pas ainsi, un preset créé pour ce fichier,
+ * le premier import (le preset livré n'a jamais rien lu : sa lecture est à valider, elle va lui être
+ * enregistrée), ou le guide du premier import. Une seule fois par fichier. Un échec ne dit rien.
+ */
+async function ouvrirEtapeChamps() {
   if (!importFichierActuel || !importApercu || importDetectionProposee) return false;
   // JAMAIS PENDANT UN TUTORIEL : ses fichiers sont lus de travers exprès (étapes 5, 6 et 15), et un
   // tableau qui s'ouvre de lui-même au milieu d'une étape la ferait dérailler.
@@ -14448,12 +14564,16 @@ async function proposerDetectionAvantCorrespondances() {
   // UNE SEULE FOIS PAR FICHIER, bon ou mauvais constat : les relectures qui suivent sont des
   // retouches voulues (un délimiteur, des colonnes), pas une première lecture à deviner.
   importDetectionProposee = true;
-  const lignes = importApercu.lignes || [];
-  const enErreur = lignes.filter((l) => l.erreur).length;
-  const aucunPreset = importReconnaissance && importReconnaissance.decision === "aucun";
-  const malLu = lignes.length > 0 && enErreur / lignes.length > 0.5;
+  const forcer = importParcours.forcerChamps;
+  importParcours.forcerChamps = false;
+  const lues = lignesLuesParImport();
+  const malLu = lues.length > 0 && lues.filter(ligneMalLue).length / lues.length > 0.5;
+  const r = importReconnaissance;
+  const selection = r && (r.ajustements || []).find((a) => a.preset_id === importPresetId);
+  const neLitPas = !!r && (r.decision === "aucun" || (!!selection && !selection.passe));
   try {
     const detection = await demanderDetectionImport();
+    importParcours.detection = detection;
     const cle = (colonnes) =>
       JSON.stringify(colonnes.map((c) => [c.index, c.propriete]).sort((a, b) => a[0] - b[0]));
     const autreLecture =
@@ -14461,7 +14581,8 @@ async function proposerDetectionAvantCorrespondances() {
     // LE GUIDE DU PREMIER IMPORT montre toujours le tableau : c'est lui qui apprend à dire ce que
     // contient chaque colonne, même quand la lecture par défaut tombe juste (cf. premier-demarrage.js).
     const guide = !!(BudgetApp.guideImport && BudgetApp.guideImport.actif);
-    if (!(malLu || aucunPreset || autreLecture || guide) || !importFichierActuel) return false;
+    const ouvrir = malLu || neLitPas || autreLecture || forcer || guide || premierImportBancaire();
+    if (!ouvrir || !importFichierActuel) return false;
     ouvrirDetection(detection, { suite: true });
     return true;
   } catch (err) {
@@ -14498,30 +14619,120 @@ async function proposerDetectionAvantCorrespondances() {
 
 /* ---------- LE PARCOURS DE L'IMPORT ----------
  *
- * Un fichier qu'on importe traverse jusqu'à cinq écrans, TOUJOURS DANS CET ORDRE, chacun étant une
- * fenêtre par-dessus la page :
+ * IL GUIDE TOUS LES IMPORTS, pas seulement le premier ou un fichier mal lu - mais il ne se déclenche que s'il
+ * y a quelque chose à faire valider. L'application devine, elle ne choisit pas : dès qu'elle propose un
+ * changement, l'utilisateur le valide. Dans cet ordre, chaque étape étant une fenêtre par-dessus la page :
  *
- *   1    les champs        : ce que contient chaque colonne (le tableau des colonnes) ;
- *   1bis les mots-clés     : à quoi correspond chaque mot d'une colonne « Sens » ou « État » (seulement
- *                            si le fichier en lit une - seuls les champs lus sont demandés) ;
- *   2    les catégories    : à quelle catégorie de l'app correspond chacune de celles de la banque ;
- *   3    le compte         : où va le relevé, quand ni le fichier ni le preset ne le disent ;
- *   puis on quitte les fenêtres et on clique sur « Importer ».
+ *   0    le preset         : un AUTRE preset lirait mieux le fichier, ou aucun ne le lit - proposé dans la
+ *                            page, avant toute fenêtre (cf. « LA PROPOSITION DE PRESET ») ;
+ *   1    les champs        : ce que contient chaque colonne (le tableau des colonnes, `ouvrirEtapeChamps`) ;
+ *   1bis les mots-clés     : à quoi correspond chaque mot d'une colonne « Sens » ou « État » - après l'étape 1,
+ *                            ou seule quand le fichier écrit un mot que le preset ne connaît pas ;
+ *   2    les catégories    : les catégories de la banque que l'app ne connaît pas encore ;
+ *   3    les comptes       : où va le relevé, les comptes qu'il nomme, ses devises (« Comptes & Monnaies ») ;
+ *   3bis les virements     : le compte de l'autre jambe de chaque virement interne - À BRANCHER (cf.
+ *                            `etapeVirementsInternesADemander`) ;
+ *   4    le contrôle       : le contrôle avant import, dans la page, quand il signale quelque chose (lignes
+ *                            mal lues, solde qui ne tombe pas juste, dates ou montants hors norme) ;
+ *   puis « Importer ».
  *
- * LE COMPTE VIENT EN DERNIER, après les champs et les catégories : choisi plus tôt, il relisait le fichier
- * et rouvrait les tableaux déjà remplis (cf. `executerPrevisualisation({ conserver })`). Une étape sans
- * objet (rien à mapper, compte déjà connu) est sautée ; le graphe en tête de chaque fenêtre dit où l'on en
- * est : gris tant que l'étape n'est pas atteinte, vert à mesure qu'on avance.
+ * L'UTILISATEUR EST PORTÉ À LA PREMIÈRE ÉTAPE QUI DEMANDE QUELQUE CHOSE (`ouvrirSuiteImport`) ; celles qui
+ * n'ont rien à demander sont sautées, et chaque fenêtre rend la main au parcours en se fermant. Chaque étape
+ * s'ouvre d'office une seule fois par fichier (`importParcours.proposees`). Rien à valider nulle part : rien ne
+ * s'ouvre. LE GRAPHE MONTRE TOUJOURS TOUTES LES ÉTAPES, 1bis et 3bis comprises : une étape franchie est verte,
+ * une étape sans objet est « sautée » - pour ne pas faire croire qu'on a presque fini.
  */
 const PROPRIETES_A_MOTS_CLES = ["sens", "statut"];
 
 const ETAPES_IMPORT = [
   { id: "champs", numero: "1", nom: "Champs" },
-  { id: "mots-cles", numero: "1bis", nom: "Mots-clés", optionnelle: true },
+  { id: "mots-cles", numero: "1bis", nom: "Mots-clés" },
   { id: "categories", numero: "2", nom: "Catégories" },
-  { id: "compte", numero: "3", nom: "Compte" },
+  { id: "compte", numero: "3", nom: "Comptes" },
+  { id: "virements", numero: "3bis", nom: "Virements internes" },
+  { id: "controle", numero: "4", nom: "Contrôle" },
   { id: "importer", numero: "✓", nom: "Importer" },
 ];
+
+/**
+ * L'ÉTAPE 3bis, « VIREMENTS INTERNES » - LE POINT D'ACCROCHE DU CHANTIER SUIVANT.
+ *
+ * Quand une catégorie de la banque sera rattachée à la catégorie « Virements internes » (chantier
+ * virements-categorie), chaque ligne de cette catégorie sera un virement entre deux comptes de
+ * l'utilisateur, dont le fichier ne donne qu'une jambe. Une fenêtre demandera alors, ligne par ligne, le
+ * compte de l'autre jambe. Elle vient APRÈS les comptes (étape 3) : le compte du fichier est alors connu.
+ *
+ * CETTE FONCTION DIT SI L'ÉTAPE SE DÉCLENCHE. Elle rend toujours faux pour l'instant : l'étape est dessinée
+ * dans le graphe, toujours « sautée ». Pour la brancher :
+ *   1. rendre vrai quand des lignes lues (`lignesLuesParImport()`) tombent, par leur catégorie bancaire
+ *      (`importMappingCategories`) ou leur type, dans « Virements internes » sans compte en face ;
+ *   2. écrire la fenêtre dans `ouvrirEtapeVirementsInternes` : elle marque `importParcours.vues.add("virements")`,
+ *      pose son graphe par `majEtapesImport("<id de la fenêtre>", "virements")`, et rappelle
+ *      `ouvrirSuiteImport()` en se fermant - le parcours continue alors vers le contrôle (étape 4).
+ * Le reste (graphe, ordre, une seule ouverture par fichier) est déjà en place.
+ */
+function etapeVirementsInternesADemander() {
+  return false;
+}
+
+/** La fenêtre de l'étape 3bis - à construire (cf. `etapeVirementsInternesADemander`). Rend vrai quand elle
+ *  s'est ouverte. */
+function ouvrirEtapeVirementsInternes() {
+  return false;
+}
+
+/** L'étape 3 a-t-elle quelque chose à demander ? (Le compte du fichier, des noms de comptes, des devises, ou
+ *  l'extension « Monnaies » à allumer.) */
+function etapeCompteADemander() {
+  const { defaut, noms, monnaies } = compteImportBesoins();
+  return defaut || noms.length > 0 || monnaies.length > 0 || compteImportExtensionDemandee();
+}
+
+/** L'ÉTAPE 4 : le contrôle avant import signale-t-il quelque chose à regarder ? Des lignes MAL LUES (une
+ *  question sans réponse - catégorie, compte - ne compte pas : elle a son étape), un solde que les montants
+ *  lus ne retrouvent pas, des dates hors plage ou des montants hors norme. */
+function etapeControleADemander() {
+  if (!importApercu) return false;
+  const c = importApercu.controle || {};
+  const solde = c.controle_solde;
+  const a = c.anomalies || {};
+  return (
+    lignesLuesParImport().some(ligneMalLue) ||
+    (!!solde && solde.statut !== "ok") ||
+    a.nombre_dates_hors_plage > 0 ||
+    a.nombre_montants_aberrants > 0
+  );
+}
+
+/** Une étape APRÈS celle qu'on montre : sautée d'avance quand on sait déjà qu'elle n'aura rien à demander.
+ *  Tant que les colonnes ne sont pas validées (étapes 1 et 1bis), seules la 1bis (aucune colonne Sens ou État
+ *  choisie) et la 3bis se savent sautées : le reste dépend de la lecture qui vient. */
+function etapeSauteeDAvance(id, courante) {
+  if (id === "virements") return !etapeVirementsInternesADemander();
+  if (id === "importer") return false;
+  if (id === "mots-cles") {
+    return courante === "champs" && !detColonnes.some((e) => PROPRIETES_A_MOTS_CLES.includes(e.choix));
+  }
+  if (courante === "champs" || courante === "mots-cles" || !importApercu) return false;
+  if (id === "categories") {
+    return !demandesDeMapping().categories.some((nom) => !importCategoriesConfirmees.has(nom));
+  }
+  if (id === "compte") return importCompteDemande || !etapeCompteADemander();
+  if (id === "controle") return !etapeControleADemander();
+  return false;
+}
+
+function etatEtapeImport(rang, rangCourant) {
+  const id = ETAPES_IMPORT[rang].id;
+  if (rang === rangCourant) return "courante";
+  if (rang < rangCourant) return importParcours.vues.has(id) ? "faite" : "sautee";
+  return etapeSauteeDAvance(id, ETAPES_IMPORT[rangCourant].id) ? "sautee" : "a-venir";
+}
+
+function nomEtapeImport(etape) {
+  if (etape.id === "compte" && etapeCompteAvecMonnaies()) return t("Comptes & Monnaies");
+  return t(etape.nom);
+}
 
 const FLECHE_ETAPE_SVG =
   '<svg viewBox="0 0 44 14" width="44" height="14" aria-hidden="true" focusable="false">' +
@@ -14529,22 +14740,20 @@ const FLECHE_ETAPE_SVG =
   'stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /** Le graphe d'une fenêtre : un rond par étape et une flèche entre deux. `courante` est l'étape que la
- *  fenêtre montre ; celles d'avant sont faites, celles d'après restent grises. L'étape « mots-clés » n'est
- *  dessinée que si le fichier en demande une. */
+ *  fenêtre montre ; celles d'avant sont faites (vertes) ou sautées, celles d'après à venir (grises) ou
+ *  sautées d'avance. TOUTES LES ÉTAPES SONT TOUJOURS DESSINÉES. */
 function etapesImportHtml(courante) {
-  const visibles = ETAPES_IMPORT.filter(
-    (e) => !e.optionnelle || importParcours.motsCles || e.id === courante
-  );
-  const rang = visibles.findIndex((e) => e.id === courante);
-  const items = visibles.map((e, i) => {
-    const etat = i < rang ? "faite" : i === rang ? "courante" : "a-venir";
+  const rang = ETAPES_IMPORT.findIndex((e) => e.id === courante);
+  const items = ETAPES_IMPORT.map((e, i) => {
+    const etat = etatEtapeImport(i, rang);
     const fleche =
-      i < visibles.length - 1
+      i < ETAPES_IMPORT.length - 1
         ? `<li class="import-etape-fleche ${i < rang ? "import-etape-fleche-faite" : ""}" aria-hidden="true">${FLECHE_ETAPE_SVG}</li>`
         : "";
-    return `<li class="import-etape import-etape-${etat}"${i === rang ? ' aria-current="step"' : ""}>
+    const sautee = etat === "sautee" ? ` title="${escapeHtml(t("Étape sautée : rien à y faire pour ce fichier."))}"` : "";
+    return `<li class="import-etape import-etape-${etat}"${i === rang ? ' aria-current="step"' : ""}${sautee}>
       <span class="import-etape-rond">${escapeHtml(e.numero)}</span>
-      <span class="import-etape-nom">${escapeHtml(t(e.nom))}</span></li>${fleche}`;
+      <span class="import-etape-nom">${escapeHtml(nomEtapeImport(e))}</span></li>${fleche}`;
   });
   return `<ol class="import-etapes-liste" aria-label="${escapeHtml(t("Étapes de l'import"))}">${items.join("")}</ol>`;
 }
@@ -14555,20 +14764,57 @@ function majEtapesImport(idModale, courante) {
 }
 
 /**
- * Ce qui vient APRÈS une lecture du fichier : la détection des colonnes si le fichier est mal lu, sinon le
- * tableau des catégories quand il en reste à classer, sinon le choix du compte. Chaque étape rend la main
- * à la suivante en se fermant (cf. `fermerCorrespondances({ suite })`).
+ * LE POINT D'ENCHAÎNEMENT DU PARCOURS, après chaque lecture du fichier et à la fermeture de chaque fenêtre :
+ * ouvre la PREMIÈRE étape qui a quelque chose à demander et n'a pas encore été ouverte pour ce fichier, ou se
+ * pose sur le contrôle avant import (`finirParcoursImport`).
  * PENDANT UN TUTORIEL, rien ne s'ouvre de lui-même : ouverts à chaque relecture, les tableaux cacheraient
  * ce que la bulle désigne.
  */
 async function ouvrirSuiteImport() {
   if (tutorielEnCours() || !importApercu) return;
-  if (await proposerDetectionAvantCorrespondances()) return;
-  if (demandesDeMapping().categories.length) {
+  if (importParcours.proposition) return;
+  // 0. Le preset, avant toute autre fenêtre.
+  if (proposerPresetImport()) return;
+  // 1. Les champs, et 1bis seule quand ils sont sautés.
+  if (await ouvrirEtapeChamps()) return;
+  if (ouvrirEtapeMotsClesSeule()) return;
+  // 2. Les catégories.
+  if (
+    !importParcours.proposees.has("categories") &&
+    demandesDeMapping().categories.some((nom) => !importCategoriesConfirmees.has(nom))
+  ) {
+    importParcours.proposees.add("categories");
     ouvrirCorrespondances({ chaine: true });
     return;
   }
-  ouvrirChoixCompteImport();
+  // 3. Les comptes (et les monnaies).
+  if (ouvrirChoixCompteImport()) return;
+  // 3bis. Les virements internes.
+  if (!importParcours.proposees.has("virements") && etapeVirementsInternesADemander()) {
+    importParcours.proposees.add("virements");
+    if (ouvrirEtapeVirementsInternes()) return;
+  }
+  // 4. Le contrôle.
+  finirParcoursImport();
+}
+
+/**
+ * LA FIN DU PARCOURS : le contrôle avant import, juste au-dessus de « Confirmer l'import ». Il porte le graphe
+ * quand le parcours a eu lieu - l'étape 4 « courante » s'il signale quelque chose, « Importer » sinon. Rien à
+ * valider nulle part (aucune fenêtre, un contrôle sans remarque) : rien ne s'ouvre, la page ne bouge pas.
+ */
+function finirParcoursImport() {
+  if (tutorielEnCours()) return;
+  const controle = etapeControleADemander();
+  if (!importParcours.vues.size && !controle) {
+    importParcours.etapeFinale = null;
+    renderImportControle();
+    return;
+  }
+  if (controle) importParcours.vues.add("controle");
+  importParcours.etapeFinale = controle ? "controle" : "importer";
+  renderImportControle();
+  versControleImport();
 }
 
 /* ---------- LES MOTS-CLÉS DU FICHIER (étape 1bis) ----------
@@ -14789,10 +15035,57 @@ function motsConfirmerFortes() {
   if (premiere !== -1) motsDefinirCourante(premiere, { focus: true });
 }
 
-function ouvrirMotsCles(detection, colonnes, entrees) {
-  motsContexte = { detection, colonnes };
+/**
+ * L'ÉTAPE 1bis SEULE, quand l'étape 1 a été sautée (le preset lit le fichier) : elle s'ouvre si une colonne
+ * « Sens » ou « État » que le preset lit écrit un mot qu'il ne connaît pas (ni dans ses mots-clés, ni parmi
+ * ceux de l'application quand il n'en a pas) - sans quoi la ligne se mettrait en erreur. Comme après l'étape
+ * 1, tous les mots de la colonne sont alors demandés.
+ */
+function vocabulaireEffectifImport(champ) {
+  const saisis = motsClesSaisis(`import-${champ}`);
+  const meta = state.meta || {};
+  const defauts = (champ === "sens" ? meta.libelles_sens_defaut : meta.libelles_statut_defaut) || {};
+  const connus = new Set();
+  Object.keys(CHAMPS_VOCABULAIRE[champ].libelles).forEach((mode) => {
+    const liste = (saisis[mode] || []).length ? saisis[mode] : defauts[mode] || [];
+    liste.forEach((mot) => connus.add(normaliserMotCle(mot)));
+  });
+  return connus;
+}
+
+function motsInconnusDuFichier(detection, colonnes) {
+  return colonnes
+    .filter((c) => PROPRIETES_A_MOTS_CLES.includes(c.propriete))
+    .some((c) => {
+      const source = detection.colonnes.find((x) => x.index === c.index);
+      const connus = vocabulaireEffectifImport(c.propriete);
+      return ((source && source.valeurs) || []).some((v) => !connus.has(normaliserMotCle(v.valeur)));
+    });
+}
+
+function ouvrirEtapeMotsClesSeule() {
+  if (importParcours.vues.has("champs") || importParcours.proposees.has("mots-cles")) return false;
+  if (tutorielEnCours() || !importApercu) return false;
+  importParcours.proposees.add("mots-cles");
+  const detection = importParcours.detection;
+  if (!detection) return false;
+  const colonnes = importConfigColonnes
+    .filter((c) => c.index >= 1)
+    .map((c) => ({ index: c.index, propriete: c.propriete }));
+  if (!motsInconnusDuFichier(detection, colonnes)) return false;
+  const entrees = motsClesAMapper(detection, colonnes);
+  if (!entrees.length) return false;
+  ouvrirMotsCles(detection, colonnes, entrees, {
+    lignes: { entete: lignesEnteteSaisies(), pied: lignesPiedSaisies() },
+  });
+  return true;
+}
+
+function ouvrirMotsCles(detection, colonnes, entrees, { lignes = null } = {}) {
+  motsContexte = { detection, colonnes, lignes };
   motsEntrees = entrees;
   motsConfirmees.clear();
+  importParcours.vues.add("mots-cles");
   // Le tableau des colonnes se range derrière : « Retour aux colonnes » le rouvre tel qu'on l'a laissé.
   document.getElementById("modale-detection").style.display = "none";
   majEtapesImport("modale-mots-cles", "mots-cles");
@@ -14807,11 +15100,16 @@ function ouvrirMotsCles(detection, colonnes, entrees) {
   motsDefinirCourante(Math.max(0, motsProchaineNonConfirmee(-1)), { focus: true });
 }
 
-/** Retour au tableau des colonnes, laissé tel quel (les mots restent dans la carte, rien n'est perdu). */
+/** Retour au tableau des colonnes, laissé tel quel (les mots restent dans la carte, rien n'est perdu). Ouverte
+ *  seule (étape 1 sautée), l'étape 1bis ouvre le tableau sur les colonnes que lit le preset. */
 function retourMotsClesVersColonnes() {
   document.getElementById("modale-mots-cles").style.display = "none";
-  document.getElementById("modale-detection").style.display = "";
   motsCourante = -1;
+  if (!importDetection && motsContexte) {
+    ouvrirDetection(motsContexte.detection, { suite: true, choixInitiaux: motsContexte.colonnes });
+    return;
+  }
+  document.getElementById("modale-detection").style.display = "";
   detDefinirCourante(Math.max(0, detCourante), { focus: true });
 }
 
@@ -14840,7 +15138,7 @@ function fusionnerMotsCles(idGroupe, nouveaux) {
 
 async function validerMotsCles() {
   if (!motsContexte) return;
-  const { detection, colonnes } = motsContexte;
+  const { detection, colonnes, lignes } = motsContexte;
   // Ce que les éditeurs portaient AVANT l'étape, gardé une fois pour le leur rendre au changement de fichier.
   if (!importVocabulairesAvant) importVocabulairesAvant = vocabulairesSaisis();
   PROPRIETES_A_MOTS_CLES.forEach((champ) => {
@@ -14853,7 +15151,7 @@ async function validerMotsCles() {
   });
   importVocabulairesEssai = vocabulairesSaisis();
   motsContexte = null;
-  await finaliserDetectionImport(detection, colonnes);
+  await finaliserDetectionImport(detection, colonnes, lignes);
 }
 
 /** Rend aux éditeurs de mots-clés ce qu'ils portaient avant l'étape (changement de fichier). */
@@ -14893,7 +15191,18 @@ function restaurerVocabulairesImport() {
  * fichier ne nomme AUCUN compte et le preset n'est lié à aucun (un compte « pour ce fichier »), ou il nomme
  * des comptes que l'application ne connaît pas (à rattacher un par un). Une fenêtre à part, ouverte
  * APRÈS les champs et les catégories : le compte choisi relit le fichier SANS rien défaire (cf.
- * `executerPrevisualisation({ conserver })`) et ne rouvre aucun tableau. */
+ * `executerPrevisualisation({ conserver })`) et ne rouvre aucun tableau.
+ *
+ * LE COMPTE « POUR CE FICHIER » SE CHOISIT AU MÊME SÉLECTEUR QUE LES CATÉGORIES : une carte, une molette, la
+ * pastille, « Confirmer ». La base peut n'avoir AUCUN compte (premier import) : l'encadré violet en crée un
+ * sur place (la fenêtre de l'application, `demanderCreationCompte`), qui rejoint la molette en violet et en
+ * tête - et devient le choix de la carte, puisqu'on vient de le créer pour elle. Il reste à le confirmer.
+ * Quand le fichier nomme lui-même ses comptes (colonne « Compte bancaire »), rien ne change : une ligne par
+ * nom, et un bouton pour créer le compte qui manque. */
+// Le compte choisi sur la molette (id, ou null), s'il a été confirmé, et les comptes créés dans la fenêtre.
+const compteImport = { choix: null, confirme: false, manuel: false };
+const compteImportNouveaux = new Set();
+
 function compteImportBesoins() {
   const blocDefaut = document.getElementById("import-compte-defaut-bloc");
   const demandes = demandesDeMapping();
@@ -14910,27 +15219,161 @@ function compteImportOuvert() {
   return document.getElementById("modale-compte-import").style.display !== "none";
 }
 
-/** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. */
-function ouvrirChoixCompteImport() {
-  if (importCompteDemande || tutorielEnCours() || !importApercu) return false;
-  if (!comptesProposables().length) return false;
-  const { defaut, noms, monnaies } = compteImportBesoins();
-  if (!defaut && !noms.length && !monnaies.length) return false;
-  importCompteDemande = true;
+/** Les options de la molette : les comptes créés dans la fenêtre d'abord (en violet), puis les autres. */
+function compteImportOptions() {
+  const comptes = comptesProposables(compteImport.choix);
+  return [
+    ...comptes.filter((c) => compteImportNouveaux.has(c.id)).map((c) => ({ id: c.id, nom: c.nom, niveau: "nouvelle" })),
+    ...comptes.filter((c) => !compteImportNouveaux.has(c.id)).map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" })),
+  ];
+}
 
-  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
-  blocDefaut.style.display = defaut ? "" : "none";
-  if (defaut) {
-    const choix = document.getElementById("compte-import-defaut");
-    fillComptesSelect(choix, comptesProposables(), { keepFirst: true });
-    choix.value = "";
+function compteImportStatut() {
+  return compteImport.manuel && compteImport.choix != null
+    ? { cle: "choix", texte: t("Ton choix") }
+    : { cle: "choix", texte: t("À classer") };
+}
+
+/** Quelques opérations du fichier sous la molette : de quoi reconnaître le compte d'où il sort. */
+function compteImportOperationsHtml() {
+  const lignes = lignesLuesParImport();
+  const visibles = lignes.slice(0, 60);
+  const html = visibles
+    .map((l) => {
+      const montant = l.montant_signe != null ? l.montant_signe : l.montant;
+      return `<div class="corr-operation">
+        <div>
+          <div class="corr-operation-nature" title="${escapeHtml(l.nature || "")}">${escapeHtml(l.nature || "—")}</div>
+          <div class="corr-operation-date">${l.date ? formatDateCourte(l.date) : ""}</div>
+        </div>
+        <div class="corr-operation-montant">${montant != null ? formatMontant(montant, l.monnaie_id) : ""}</div>
+      </div>`;
+    })
+    .join("");
+  const reste = lignes.length - visibles.length;
+  return html + (reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autres opérations", { n: reste }))}</p>` : "");
+}
+
+function compteImportCarteHtml() {
+  const options = compteImportOptions();
+  const statut = compteImportStatut();
+  const nomFichier = importFichierActuel ? importFichierActuel.name : "";
+  const roue = options.length
+    ? options
+        .map(
+          (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
+            o.id === compteImport.choix ? "corr-roue-choisie" : ""
+          }" role="option" data-id="${o.id}" aria-selected="${o.id === compteImport.choix}">${escapeHtml(o.nom)}</div>`
+        )
+        .join("")
+    : `<div class="corr-roue-option corr-roue-vide" aria-disabled="true">${escapeHtml(t("Aucun compte pour l'instant"))}</div>`;
+  return `
+    <section class="corr-colonne ${compteImport.confirme ? "corr-confirmee" : ""}" data-corr-i="0" tabindex="-1">
+      <div>
+        <div class="corr-banque" title="${escapeHtml(nomFichier)}">${escapeHtml(nomFichier || t("Ce relevé"))}</div>
+        <div class="hint">${escapeHtml(t("{n} opération(s)", { n: lignesLuesParImport().length }))}</div>
+        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
+      </div>
+      <div class="corr-roue-cadre">
+        <div class="corr-roue" role="listbox" tabindex="0" aria-label="${escapeHtml(t("Compte pour ce fichier"))}">${roue}</div>
+      </div>
+      <div class="corr-operations">${compteImportOperationsHtml()}</div>
+      <button type="button" class="primary corr-confirmer" data-corr-confirmer="0" ${options.length ? "" : "disabled"}><span data-corr-libelle>${
+        compteImport.confirme ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+      }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
+    </section>`;
+}
+
+/** L'encadré violet, au-dessus de la carte : comme celui des catégories, mais il ouvre la fenêtre de création
+ *  d'un compte (le nom, le type, et ce que la fenêtre demande d'autre). */
+function compteImportCreerHtml() {
+  return `<details class="corr-creer" data-compte-creer>
+      <summary>${escapeHtml(t("Aucun compte ne correspond ? Crée le tien"))}</summary>
+    </details>`;
+}
+
+function renderCompteImportCarte({ focus = false } = {}) {
+  const board = document.getElementById("compte-import-board");
+  board.innerHTML = compteImportCarteHtml();
+  const roue = board.querySelector(".corr-roue");
+  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: "auto" });
+  board.querySelector(".corr-colonne").classList.add("corr-courante");
+  if (focus) roue.focus({ preventScroll: true });
+}
+
+function compteImportChoisir(id, { defiler = true } = {}) {
+  const compteId = Number(id);
+  if (!Number.isFinite(compteId) || compteId === compteImport.choix) return;
+  compteImport.choix = compteId;
+  compteImport.manuel = true;
+  compteImport.confirme = false;
+  const carte = document.querySelector("#compte-import-board .corr-colonne");
+  if (!carte) return;
+  carte.classList.remove("corr-confirmee");
+  carte.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = Number(o.dataset.id) === compteId;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  const statut = compteImportStatut();
+  const pastille = carte.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+  carte.querySelector("[data-corr-libelle]").textContent = t("Confirmer");
+  if (defiler) {
+    const roue = carte.querySelector(".corr-roue");
+    const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+    roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: "smooth" });
   }
-  document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
-  document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
-  document.getElementById("compte-import-texte-monnaies").style.display = monnaies.length ? "" : "none";
-  document.getElementById("modale-compte-import-titre").textContent = monnaies.length
-    ? t("Compte et monnaies de ce relevé")
-    : t("Dans quel compte va ce relevé ?");
+  document.getElementById("compte-import-erreur").style.display = "none";
+}
+
+/** « Confirmer » sur la carte : le compte est retenu. S'il n'y a rien d'autre à demander, la fenêtre se valide. */
+function compteImportConfirmer() {
+  if (compteImport.choix == null) {
+    // La molette n'a encore rien de choisi : la ligne centrée est le choix (cf. brancherMolettes).
+    const premiere = compteImportOptions()[0];
+    if (!premiere) return;
+    compteImportChoisir(premiere.id);
+  }
+  compteImport.confirme = true;
+  const carte = document.querySelector("#compte-import-board .corr-colonne");
+  if (carte) {
+    carte.classList.add("corr-confirmee");
+    carte.querySelector("[data-corr-libelle]").textContent = t("Confirmée");
+  }
+  const { noms, monnaies } = compteImportBesoins();
+  if (!noms.length && !monnaies.length && !compteImportExtensionDemandee()) {
+    validerChoixCompteImport();
+    return;
+  }
+  const suivant = document.querySelector("#compte-import-mappings select, #compte-import-monnaies select");
+  if (suivant) suivant.focus();
+  else document.getElementById("btn-compte-import-valider").focus();
+}
+
+async function compteImportCreerCompte() {
+  const compte = await demanderCreationCompte();
+  const encadre = document.querySelector("#compte-import-creer details");
+  if (encadre) encadre.open = false;
+  if (!compte) return;
+  compteImportNouveaux.add(compte.id);
+  if (document.getElementById("compte-import-defaut-bloc").style.display !== "none") {
+    // Créé pour cette carte : il en devient le choix - à confirmer.
+    compteImport.choix = compte.id;
+    compteImport.manuel = true;
+    compteImport.confirme = false;
+    renderCompteImportCarte({ focus: true });
+  }
+  renderCompteImportNoms();
+  // Le compte « pour ce fichier » de la page aussi le connaît.
+  updateImportCompteDefautVisibility();
+}
+
+/** Les comptes que le fichier nomme : une ligne chacun, comme avant. */
+function renderCompteImportNoms() {
+  const { noms } = compteImportBesoins();
   const surChangement = () => {
     appliquerMappingsLocalement();
     renderImportApercu();
@@ -14938,45 +15381,250 @@ function ouvrirChoixCompteImport() {
   const liste = document.getElementById("compte-import-mappings");
   liste.innerHTML = "";
   noms.forEach((nomBanque) => {
-    liste.appendChild(creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, surChangement));
+    const ligne = creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, surChangement);
+    const select = ligne.querySelector("select");
+    if (importMappingComptes[nomBanque]) select.value = String(importMappingComptes[nomBanque]);
+    liste.appendChild(ligne);
   });
+  document.getElementById("compte-import-creer-compte-bloc").style.display = noms.length ? "" : "none";
+}
+
+/** Les devises que le fichier écrit sans que l'application les connaisse (extension « Monnaies » allumée). */
+function renderCompteImportMonnaies() {
+  const { monnaies } = compteImportBesoins();
+  const surChangement = () => {
+    appliquerMappingsLocalement();
+    renderImportApercu();
+  };
   const listeMonnaies = document.getElementById("compte-import-monnaies");
   listeMonnaies.innerHTML = "";
   monnaies.forEach((nomBanque) => {
     // Une monnaie éteinte n'est pas une cible (cf. renderImportMappings).
-    listeMonnaies.appendChild(
-      creerLigneMapping(
-        nomBanque,
-        state.monnaies.filter((m) => m.active !== false),
-        importMappingMonnaies,
-        surChangement
-      )
+    const ligne = creerLigneMapping(
+      nomBanque,
+      state.monnaies.filter((m) => m.active !== false),
+      importMappingMonnaies,
+      surChangement
     );
+    const select = ligne.querySelector("select");
+    if (importMappingMonnaies[nomBanque]) select.value = String(importMappingMonnaies[nomBanque]);
+    listeMonnaies.appendChild(ligne);
   });
+  document.getElementById("compte-import-texte-monnaies").style.display = monnaies.length ? "" : "none";
+  document.getElementById("compte-import-creer-monnaie-bloc").style.display =
+    monnaies.length && choixDeMonnaiePossible() ? "" : "none";
+}
+
+/** LE FICHIER LIT UNE DEVISE ALORS QUE L'EXTENSION « MONNAIES » EST ÉTEINTE : l'application n'a qu'une
+ *  monnaie, et rien à quoi rattacher « USD ». La ligne d'activation de l'extension (celle de Paramètres →
+ *  Extensions : son rendu, sa route) se pose alors dans l'étape, renommée « Comptes & Monnaies ».
+ *  L'ALLUMER rend la main aux devises (une monnaie à choisir ou à créer pour chacune). NE PAS L'ALLUMER :
+ *  la colonne de devise n'est pas lue (retirée des colonnes, le fichier relu sans elle) et toutes les
+ *  opérations vont dans la monnaie de l'application - ce que la fenêtre dit sous la ligne d'activation. */
+function compteImportExtensionDemandee() {
+  return importLitUneMonnaie() && !choixDeMonnaiePossible();
+}
+
+/** L'étape parle-t-elle aussi de monnaies ? Elle s'appelle alors « Comptes & Monnaies » (fenêtre et graphe). */
+function etapeCompteAvecMonnaies() {
+  return importLitUneMonnaie() && (compteImportExtensionDemandee() || compteImportBesoins().monnaies.length > 0 || compteImportExtensionAllumee);
+}
+
+/** La monnaie de l'application quand l'extension est éteinte : celle où tout ira. */
+function monnaieUniqueApplication() {
+  const actives = (state.monnaies || []).filter((m) => m.active !== false);
+  return monnaieParId(monnaiePreferee(actives.map((m) => m.id))) || actives[0] || null;
+}
+
+// L'extension a été allumée DEPUIS la fenêtre (sa ligne reste affichée, « Activée »).
+let compteImportExtensionAllumee = false;
+
+async function renderCompteImportExtension() {
+  const bloc = document.getElementById("compte-import-extension-bloc");
+  if (!compteImportExtensionDemandee() && !compteImportExtensionAllumee) {
+    bloc.style.display = "none";
+    return;
+  }
+  let extension = null;
+  try {
+    extension = (await apiFetch("/extensions")).find((e) => e.id === "monnaies") || null;
+  } catch (err) {
+    extension = null;
+  }
+  const zone = document.getElementById("compte-import-extension");
+  zone.innerHTML = extension ? carteExtensionHtml(extension) : "";
+  appliquerPuces(zone);
+  const monnaie = monnaieUniqueApplication();
+  const eteinte = document.getElementById("compte-import-extension-eteinte");
+  eteinte.textContent = compteImportExtensionDemandee()
+    ? t(texteAide("noyau.import-compte-extension-eteinte"), { monnaie: monnaie ? monnaie.nom : "" })
+    : "";
+  eteinte.style.display = eteinte.textContent ? "" : "none";
+  bloc.style.display = "";
+}
+
+async function surExtensionCompteImport() {
+  compteImportExtensionAllumee = choixDeMonnaiePossible();
+  await refreshMonnaies();
+  // Les colonnes de devise se montrent de nouveau (ou plus) dans la configuration du fichier.
+  renderImportConfig();
+  majTitreCompteImport();
+  majEtapesImport("modale-compte-import", "compte");
+  await renderCompteImportExtension();
+  renderCompteImportMonnaies();
+  renderImportMappings();
+}
+
+/** Sans l'extension, la colonne de devise n'est pas lue : retirée des colonnes, le fichier est relu sans elle. */
+function retirerColonnesMonnaieImport() {
+  importConfigColonnes = importConfigColonnes.filter((c) => !PROPRIETES_IMPORT_MONNAIE.has(c.propriete));
+  renderImportConfig();
+}
+
+/**
+ * UN COMPTE NE REÇOIT QUE SES MONNAIES : une ligne en dollars rattachée à un compte qui ne porte que l'euro
+ * est ignorée à la confirmation (cf. le serveur, « ne porte pas la monnaie de cette ligne »). L'aperçu ne le
+ * dit pas ; l'étape « Comptes & Monnaies » le dit AVANT, compte par compte, et propose d'ajouter les monnaies
+ * qui manquent - l'utilisateur valide, rien ne s'ajoute de soi-même. Seules comptent les lignes dont le
+ * fichier écrit la devise : sans elle, une ligne prend la monnaie de son compte.
+ */
+function monnaiesManquantesDesComptes() {
+  const defautBloc = document.getElementById("compte-import-defaut-bloc");
+  const compteFichier =
+    defautBloc.style.display !== "none" && compteImport.choix != null
+      ? compteImport.choix
+      : Number(compteIdDefautChoisi()) || compteDuPresetImport();
+  const manquantes = new Map(); // compte_id -> Set(monnaie_id)
+  lignesLuesParImport().forEach((l) => {
+    if (!l.nom_banque_monnaie) return;
+    const monnaieId = l.monnaie_id ?? importMappingMonnaies[l.nom_banque_monnaie];
+    const compteId =
+      l.compte_id ?? (l.nom_banque_compte ? importMappingComptes[l.nom_banque_compte] : null) ?? compteFichier;
+    const compte = compteId != null ? compteParId(Number(compteId)) : null;
+    if (!monnaieId || !compte) return;
+    const portees = (compte.monnaies || []).filter((m) => m.active !== false).map((m) => m.monnaie_id);
+    if (portees.includes(monnaieId)) return;
+    if (!manquantes.has(compte.id)) manquantes.set(compte.id, new Set());
+    manquantes.get(compte.id).add(monnaieId);
+  });
+  return manquantes;
+}
+
+function afficherMonnaiesManquantes(manquantes) {
+  const bloc = document.getElementById("compte-import-monnaies-manquantes");
+  if (!manquantes.size) {
+    bloc.style.display = "none";
+    return;
+  }
+  const phrases = [...manquantes].map(([compteId, monnaies]) =>
+    t(texteAide("noyau.import-compte-monnaies-manquantes"), {
+      compte: nomCompte(compteId),
+      monnaies: [...monnaies].map((id) => (monnaieParId(id) || {}).nom || `#${id}`).join(", "),
+    })
+  );
+  bloc.querySelector("[data-texte]").textContent = phrases.join(" ");
+  bloc.style.display = "";
+}
+
+/** « Ajouter au compte » : chaque compte reçoit les monnaies qui lui manquent, à la suite des siennes. */
+async function ajouterMonnaiesManquantes() {
+  const manquantes = monnaiesManquantesDesComptes();
+  try {
+    for (const [compteId, monnaies] of manquantes) {
+      const compte = compteParId(compteId);
+      await apiFetch(`/comptes/${compteId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          monnaies: [
+            ...compte.monnaies.map((m) => ({
+              monnaie_id: m.monnaie_id,
+              solde_initial: m.solde_initial,
+              solde_actuel_renseigne: m.solde_actuel_renseigne ?? null,
+              active: m.active !== false,
+            })),
+            ...[...monnaies].map((monnaie_id) => ({ monnaie_id })),
+          ],
+        }),
+      });
+    }
+    await refreshComptes();
+    document.getElementById("compte-import-monnaies-manquantes").style.display = "none";
+    await validerChoixCompteImport();
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+}
+
+async function compteImportCreerMonnaie() {
+  const monnaie = await demanderCreationMonnaie();
+  if (!monnaie) return;
+  await refreshMonnaies();
+  renderCompteImportMonnaies();
+  renderImportMappings();
+}
+
+/** Ouvre l'étape 3 si elle a quelque chose à demander ; rend vrai quand elle s'est ouverte. La base peut
+ *  n'avoir aucun compte : la fenêtre s'ouvre quand même, l'encadré violet en crée un. */
+function ouvrirChoixCompteImport() {
+  if (importCompteDemande || tutorielEnCours() || !importApercu) return false;
+  const { defaut, noms, monnaies } = compteImportBesoins();
+  if (!defaut && !noms.length && !monnaies.length && !compteImportExtensionDemandee()) return false;
+  importCompteDemande = true;
+  importParcours.vues.add("compte");
+
+  const blocDefaut = document.getElementById("compte-import-defaut-bloc");
+  blocDefaut.style.display = defaut ? "" : "none";
+  if (defaut) {
+    compteImport.choix = null;
+    compteImport.manuel = false;
+    compteImport.confirme = false;
+    document.getElementById("compte-import-creer").innerHTML = compteImportCreerHtml();
+    renderCompteImportCarte();
+  }
+  document.getElementById("compte-import-texte-defaut").style.display = defaut ? "" : "none";
+  document.getElementById("compte-import-texte-noms").style.display = noms.length ? "" : "none";
+  compteImportExtensionAllumee = false;
+  majTitreCompteImport();
+  renderCompteImportNoms();
+  renderCompteImportMonnaies();
+  renderCompteImportExtension();
+  majAideFleches();
   document.getElementById("compte-import-erreur").style.display = "none";
+  document.getElementById("compte-import-monnaies-manquantes").style.display = "none";
   majEtapesImport("modale-compte-import", "compte");
   document.getElementById("modale-compte-import").style.display = "";
   document.body.classList.add("modale-ouverte");
-  const premier = defaut ? document.getElementById("compte-import-defaut") : liste.querySelector("select");
-  if (premier) premier.focus();
+  if (defaut) {
+    document.querySelector("#compte-import-board .corr-roue").focus({ preventScroll: true });
+  } else {
+    const premier = document.querySelector("#compte-import-mappings select, #compte-import-monnaies select");
+    if (premier) premier.focus();
+  }
   return true;
 }
 
+function majTitreCompteImport() {
+  document.getElementById("modale-compte-import-titre").textContent = etapeCompteAvecMonnaies()
+    ? t("Comptes & Monnaies")
+    : t("Dans quel compte va ce relevé ?");
+}
+
+/** Fermée (validée, « Plus tard », la croix) : le parcours continue - les virements internes, le contrôle. */
 function fermerChoixCompteImport() {
   document.getElementById("modale-compte-import").style.display = "none";
   document.body.classList.remove("modale-ouverte");
-  versControleImport();
+  ouvrirSuiteImport();
 }
 
 async function validerChoixCompteImport() {
   const blocDefaut = document.getElementById("compte-import-defaut-bloc");
   const erreur = document.getElementById("compte-import-erreur");
-  const choix = document.getElementById("compte-import-defaut");
   const defautDemande = blocDefaut.style.display !== "none";
-  if (defautDemande && !choix.value) {
+  if (defautDemande && (compteImport.choix == null || !compteImport.confirme)) {
     erreur.textContent = t("Choisis le compte où vont les opérations de ce relevé.");
     erreur.style.display = "";
-    choix.focus();
+    const roue = document.querySelector("#compte-import-board .corr-roue");
+    if (roue) roue.focus();
     return;
   }
   const besoins = compteImportBesoins();
@@ -14990,9 +15638,22 @@ async function validerChoixCompteImport() {
     erreur.style.display = "";
     return;
   }
-  if (defautDemande) {
+  // L'extension « Monnaies » laissée éteinte : la colonne de devise n'est pas lue (cf.
+  // `compteImportExtensionDemandee`), et le fichier est relu sans elle.
+  const sansMonnaie = compteImportExtensionDemandee();
+  if (!sansMonnaie) {
+    const manquantes = monnaiesManquantesDesComptes();
+    afficherMonnaiesManquantes(manquantes);
+    if (manquantes.size) return;
+  }
+  if (sansMonnaie) retirerColonnesMonnaieImport();
+  if (defautDemande || sansMonnaie) {
     // Le compte « pour ce fichier » de la page est la seule mémoire : l'aperçu et la confirmation le lisent.
-    document.getElementById("import-compte-defaut").value = choix.value;
+    if (defautDemande) {
+      const page = document.getElementById("import-compte-defaut");
+      fillComptesSelect(page, comptesProposables(compteImport.choix), { keepFirst: true });
+      page.value = String(compteImport.choix);
+    }
     // La fenêtre reste ouverte le temps de la relecture, comme aux étapes d'avant.
     const libere = occuperBoutonImport("btn-compte-import-valider");
     try {
@@ -15011,6 +15672,30 @@ async function validerChoixCompteImport() {
   document.getElementById("btn-compte-import-fermer").addEventListener("click", fermerChoixCompteImport);
   document.getElementById("btn-compte-import-plus-tard").addEventListener("click", fermerChoixCompteImport);
   document.getElementById("btn-compte-import-valider").addEventListener("click", validerChoixCompteImport);
+  document.getElementById("btn-compte-import-creer-compte").addEventListener("click", compteImportCreerCompte);
+  document.getElementById("btn-compte-import-creer-monnaie").addEventListener("click", compteImportCreerMonnaie);
+  document.getElementById("btn-compte-import-ajouter-monnaies").addEventListener("click", ajouterMonnaiesManquantes);
+  // LA LIGNE D'ACTIVATION DE L'EXTENSION « MONNAIES » : le même menu et la même route que dans Paramètres →
+  // Extensions (cf. `basculerExtensionDepuisMenu`).
+  document.getElementById("compte-import-extension").addEventListener("change", async (e) => {
+    const menu = e.target.closest("select[data-extension-id]");
+    if (!menu) return;
+    await basculerExtensionDepuisMenu(menu, { apres: surExtensionCompteImport });
+  });
+  // L'encadré violet ouvre la fenêtre de création au lieu de se déplier.
+  document.getElementById("compte-import-creer").addEventListener("click", (e) => {
+    if (!e.target.closest("[data-compte-creer] summary")) return;
+    e.preventDefault();
+    compteImportCreerCompte();
+  });
+  brancherMolettes(document.getElementById("compte-import-board"), {
+    courante: () => 0,
+    definirCourante: () => {},
+    choisir: (i, id, options) => compteImportChoisir(id, options),
+    valeur: () => compteImport.choix,
+    nombre: () => 1,
+    confirmer: compteImportConfirmer,
+  });
   // Changer le compte dans la page relit le fichier SANS rien défaire (et sans rouvrir de tableau).
   document.getElementById("import-compte-defaut").addEventListener("change", async () => {
     if (!importFichierActuel || !importApercu || !document.getElementById("import-compte-defaut").value) return;
@@ -15018,8 +15703,18 @@ async function validerChoixCompteImport() {
   });
   document.addEventListener("keydown", (e) => {
     if (!compteImportOuvert()) return;
-    if (e.key === "Escape") fermerChoixCompteImport();
-    else if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+    // Une fenêtre de création ouverte par-dessus garde ses touches.
+    if (document.getElementById("modale-guide-compte").style.display !== "none") return;
+    if (comboEvenementImport(e) === toucheImport("confirmer")) {
+      e.preventDefault();
+      if (document.getElementById("compte-import-defaut-bloc").style.display !== "none" && !compteImport.confirme) {
+        compteImportConfirmer();
+      } else {
+        validerChoixCompteImport();
+      }
+    } else if (e.key === "Escape") {
+      fermerChoixCompteImport();
+    } else if (e.key === "Enter" && e.target.tagName !== "BUTTON" && !e.target.closest(".corr-roue")) {
       e.preventDefault();
       validerChoixCompteImport();
     }
@@ -15034,7 +15729,8 @@ async function validerChoixCompteImport() {
 function majSuggestionDetection() {
   const suggestion = document.getElementById("import-detection-suggestion");
   const lignes = (importApercu && importApercu.lignes) || [];
-  const enErreur = lignes.filter((l) => l.erreur).length;
+  // Des lignes MAL LUES, et non des questions sans réponse (cf. `ligneMalLue`).
+  const enErreur = lignes.filter(ligneMalLue).length;
   const proposer = lignes.length > 0 && enErreur / lignes.length > 0.5 && !importDetection;
   suggestion.style.display = proposer ? "" : "none";
   document.getElementById("btn-import-detecter").classList.toggle("a-relire", proposer);
@@ -15091,57 +15787,23 @@ function ecartEnteteLisible(ecart) {
   });
 }
 
+/**
+ * LE BANDEAU NE DIT PLUS QUE LES INTITULÉS CHANGÉS (« ecarts ») : un autre preset qui lit mieux le fichier,
+ * ou aucun preset qui le lit, passent par LA PROPOSITION DE PRESET, posée avant toute fenêtre de l'import.
+ */
 function renderImportReconnaissance() {
   const bandeau = document.getElementById("import-reconnaissance");
   const r = importReconnaissance;
-  // AU PREMIER IMPORT (aucun preset n'a encore servi), « aucun preset ne sait lire ce fichier » ne dit rien
-  // d'utile : aucun n'en a jamais lu un. Les fenêtres de l'import prennent la suite.
-  const premierImport = (importPresets || []).every((p) => !p.dernier_import);
-  if (
-    !r ||
-    r.decision === "appliquer" ||
-    (r.decision === "ecarts" && !r.ecarts.length) ||
-    (r.decision === "aucun" && premierImport)
-  ) {
+  if (!r || r.decision !== "ecarts" || !r.ecarts.length) {
     bandeau.style.display = "none";
     bandeau.innerHTML = "";
     return;
   }
-  let texte = "";
-  let detail = "";
-  let actions = "";
-  if (r.decision === "basculer") {
-    const preset = r.propose.nom;
-    texte =
-      r.propose.entetes != null
-        ? t(texteAide("noyau.reconnaissance-basculer"), {
-            preset,
-            pourcentage: Math.round(r.propose.entetes * 100),
-          })
-        : t(texteAide("noyau.reconnaissance-basculer-lecture"), { preset });
-    actions = `
-      <button type="button" class="primary" data-reconnaissance="basculer">${escapeHtml(
-        t("Basculer sur « {preset} »", { preset })
-      )}</button>
-      <button type="button" data-reconnaissance="fermer">${escapeHtml(
-        t("Garder « {preset} »", { preset: nomPresetImport(r.preset_selectionne) })
-      )}</button>`;
-  } else if (r.decision === "ecarts") {
-    texte = t(texteAide("noyau.reconnaissance-ecarts"));
-    detail = `<ul>${r.ecarts
-      .map((e) => `<li>${escapeHtml(ecartEnteteLisible(e))}</li>`)
-      .join("")}</ul>`;
-    actions = `
+  const texte = t(texteAide("noyau.reconnaissance-ecarts"));
+  const detail = `<ul>${r.ecarts.map((e) => `<li>${escapeHtml(ecartEnteteLisible(e))}</li>`).join("")}</ul>`;
+  const actions = `
       <button type="button" data-reconnaissance="retenir">${t("Retenir ces intitulés")}</button>
       <button type="button" data-reconnaissance="fermer">${t("Fermer")}</button>`;
-  } else {
-    texte = t(texteAide("noyau.reconnaissance-aucun"));
-    actions = `
-      <button type="button" class="primary" data-reconnaissance="creer">${t(
-        "Créer un preset pour ce fichier"
-      )}</button>
-      <button type="button" data-reconnaissance="fermer">${t("Fermer")}</button>`;
-  }
   bandeau.className = `import-reconnaissance import-reconnaissance-${r.decision}`;
   bandeau.innerHTML = `
     <p>${escapeHtml(texte)}</p>
@@ -15164,6 +15826,8 @@ async function basculerPresetImport(presetId) {
   await loadImportConfiguration();
   await loadImportMappingsOverview();
   await loadImportHistorique();
+  // Ce que le NOUVEAU preset dit du fichier : c'est sur lui que le parcours décide de l'étape 1.
+  await reconnaitrePresetImport();
   await executerPrevisualisation();
 }
 
@@ -15189,7 +15853,9 @@ async function memoriserSignatureImport() {
  */
 async function creerPresetPourFichierImport() {
   const nom = prompt(t("Nom du nouveau preset (ex. nom de la banque) :"));
-  if (!nom || !nom.trim()) return;
+  // Laissé sans nom : rien n'est créé, la proposition (s'il y en a une) reste posée.
+  if (!nom || !nom.trim()) return false;
+  if (importParcours.proposition) terminerPropositionPreset();
   try {
     const preset = await apiFetch("/import/presets", {
       method: "POST",
@@ -15200,36 +15866,165 @@ async function creerPresetPourFichierImport() {
       }),
     });
     importPresets = await apiFetch("/import/presets");
+    // Le parcours ouvre l'étape 1 sur ce preset neuf, qui n'a encore rien lu.
+    importParcours.presetTraite = true;
+    importParcours.forcerChamps = true;
+    importDetectionProposee = false;
     await basculerPresetImport(preset.id);
-    document.getElementById("import-config-fichier").open = true;
-    await detecterColonnesImport();
     showMessage(
       t("Preset « {preset} » créé : vérifie les colonnes devinées, puis enregistre la configuration.", {
         preset: preset.nom,
       }),
       "success"
     );
+    return true;
   } catch (err) {
     showMessage(err.message, "error");
+    return false;
   }
 }
+
+/* ---------- LA PROPOSITION DE PRESET ----------
+ *
+ * À l'ouverture d'un fichier, TOUS les presets sont comparés à lui (cf. `reconnaitrePresetImport`). Quand le
+ * preset sélectionné n'est pas le bon, l'application le dit AVANT D'OUVRIR TOUTE AUTRE FENÊTRE :
+ *
+ *   - un autre preset lit mieux ce fichier (« basculer ») : il est entouré dans la liste, et un pop-up demande
+ *     « L'app lirait mieux ce fichier avec ce preset. Souhaites-tu changer ? » - Oui change de preset en
+ *     gardant le fichier, Non garde celui-ci ;
+ *   - aucun preset ne le lit (« aucun ») : c'est « + Nouveau preset » qui est entouré - Oui en crée un pour ce
+ *     fichier, Non garde le preset sélectionné.
+ *
+ * LA LISTE DES PRESETS DESCEND alors entre le choix du fichier et « Le fichier tel qu'il est », et la page ne
+ * montre rien d'autre (ni la configuration du fichier, ni les correspondances, ni l'aperçu : classe
+ * `import-en-proposition`). Après la réponse, tout reprend sa place et le parcours continue - les étapes s'il y
+ * a des ajustements, rien sinon. JAMAIS AU PREMIER IMPORT (le preset livré reçoit la configuration), ni
+ * pendant un tutoriel. Une fois par fichier.
+ */
+function proposerPresetImport() {
+  if (importParcours.presetTraite) return false;
+  importParcours.presetTraite = true;
+  if (tutorielEnCours() || premierImportBancaire() || !importFichierActuel) return false;
+  const r = importReconnaissance;
+  if (!r) return false;
+  if (r.decision === "basculer" && r.propose) {
+    afficherPropositionPreset({ type: "basculer", presetId: r.propose.preset_id, nom: r.propose.nom });
+    return true;
+  }
+  if (r.decision === "aucun") {
+    afficherPropositionPreset({ type: "aucun" });
+    return true;
+  }
+  return false;
+}
+
+// Où la liste des presets se range quand la proposition est finie.
+let propositionPresetPlace = null;
+
+function afficherPropositionPreset(proposition) {
+  importParcours.proposition = proposition;
+  const bloc = document.getElementById("import-presets-bloc");
+  const zone = document.getElementById("import-proposition-preset");
+  if (!propositionPresetPlace) {
+    propositionPresetPlace = document.createComment("place de la liste des presets");
+    bloc.parentNode.insertBefore(propositionPresetPlace, bloc);
+  }
+  zone.appendChild(bloc);
+  zone.style.display = "";
+  document.getElementById("sous-section-parametres-import").classList.add("import-en-proposition");
+  renderImportPresetChips();
+  const cible =
+    proposition.type === "basculer"
+      ? document.querySelector(`#import-preset-chips button[data-preset-id="${proposition.presetId}"]`)
+      : document.getElementById("btn-import-preset-creer");
+  document.getElementById("btn-import-preset-creer").classList.toggle("preset-propose", proposition.type === "aucun");
+  const texte =
+    proposition.type === "basculer"
+      ? t(texteAide("noyau.import-preset-propose"))
+      : t(texteAide("noyau.import-preset-aucun"));
+  const bulle = document.createElement("div");
+  bulle.id = "import-proposition-bulle";
+  bulle.className = "import-proposition-bulle";
+  bulle.setAttribute("role", "dialog");
+  bulle.setAttribute("aria-live", "polite");
+  bulle.innerHTML = `<p>${escapeHtml(texte)}</p>
+    <div class="actions">
+      <button type="button" class="primary" data-proposition="oui">${escapeHtml(t("Oui"))}</button>
+      <button type="button" data-proposition="non">${escapeHtml(t("Non"))}</button>
+    </div>`;
+  bloc.querySelector(".preset-panel").appendChild(bulle);
+  placerBullePropositionPreset(cible);
+  zone.scrollIntoView({ behavior: "smooth", block: "start" });
+  bulle.querySelector("[data-proposition='oui']").focus({ preventScroll: true });
+}
+
+/** Le pop-up se pose sous ce qu'il désigne, sa pointe en face. */
+function placerBullePropositionPreset(cible) {
+  const bulle = document.getElementById("import-proposition-bulle");
+  if (!bulle || !cible) return;
+  const panneau = bulle.parentElement.getBoundingClientRect();
+  const rect = cible.getBoundingClientRect();
+  const gauche = Math.max(0, Math.min(rect.left - panneau.left, panneau.width - bulle.offsetWidth));
+  bulle.style.left = `${gauche}px`;
+  bulle.style.top = `${rect.bottom - panneau.top + 10}px`;
+  bulle.style.setProperty("--pointe", `${Math.max(12, rect.left - panneau.left - gauche + rect.width / 2 - 7)}px`);
+}
+
+function terminerPropositionPreset() {
+  importParcours.proposition = null;
+  const bulle = document.getElementById("import-proposition-bulle");
+  if (bulle) bulle.remove();
+  document.querySelectorAll(".preset-propose").forEach((b) => b.classList.remove("preset-propose"));
+  const bloc = document.getElementById("import-presets-bloc");
+  if (propositionPresetPlace && propositionPresetPlace.parentNode) {
+    propositionPresetPlace.parentNode.insertBefore(bloc, propositionPresetPlace);
+  }
+  document.getElementById("import-proposition-preset").style.display = "none";
+  document.getElementById("sous-section-parametres-import").classList.remove("import-en-proposition");
+}
+
+async function repondrePropositionPreset(oui) {
+  const proposition = importParcours.proposition;
+  if (!proposition) return;
+  if (!oui) {
+    terminerPropositionPreset();
+    await ouvrirSuiteImport();
+    return;
+  }
+  if (proposition.type === "aucun") {
+    await creerPresetPourFichierImport();
+    return;
+  }
+  terminerPropositionPreset();
+  await basculerPresetImport(proposition.presetId);
+  showMessage(t("Preset « {preset} » sélectionné, fichier relu.", { preset: proposition.nom }), "success");
+}
+
+document.getElementById("import-proposition-preset").addEventListener("click", (e) => {
+  const bouton = e.target.closest("[data-proposition]");
+  if (bouton) repondrePropositionPreset(bouton.dataset.proposition === "oui");
+});
+
+window.addEventListener("resize", () => {
+  const p = importParcours.proposition;
+  if (!p) return;
+  placerBullePropositionPreset(
+    p.type === "basculer"
+      ? document.querySelector(`#import-preset-chips button[data-preset-id="${p.presetId}"]`)
+      : document.getElementById("btn-import-preset-creer")
+  );
+});
 
 document.getElementById("import-reconnaissance").addEventListener("click", async (e) => {
   const bouton = e.target.closest("[data-reconnaissance]");
   if (!bouton || !importReconnaissance) return;
   const action = bouton.dataset.reconnaissance;
-  if (action === "basculer") {
-    const cible = importReconnaissance.propose;
-    await basculerPresetImport(cible.preset_id);
-    showMessage(t("Preset « {preset} » sélectionné, fichier relu.", { preset: cible.nom }), "success");
-  } else if (action === "retenir") {
+  if (action === "retenir") {
     if (await memoriserSignatureImport()) {
       importReconnaissance = null;
       renderImportReconnaissance();
       showMessage(t("Intitulés retenus pour ce preset."), "success");
     }
-  } else if (action === "creer") {
-    await creerPresetPourFichierImport();
   } else if (action === "fermer") {
     importReconnaissance = null;
     renderImportReconnaissance();
@@ -15351,7 +16146,12 @@ function renderImportControle() {
     a.lignes_vides ? t("{n} ligne(s) vide(s) au milieu des opérations", { n: a.lignes_vides }) : "",
   ].filter(Boolean);
 
-  bloc.innerHTML = `
+  // LE GRAPHE DU PARCOURS, quand il s'est posé ici (cf. `finirParcoursImport`) : l'étape 4, ou « Importer ».
+  const graphe =
+    importParcours.etapeFinale && !tutorielEnCours()
+      ? `<div class="import-etapes">${etapesImportHtml(importParcours.etapeFinale)}</div>`
+      : "";
+  bloc.innerHTML = `${graphe}
     <div class="import-controle-titre">${t("Contrôle avant import")}<i class="info-bulle" tabindex="0" data-info="${escapeHtml(
       t(texteAide("noyau.controle-avant-import"))
     )}">i</i></div>
@@ -16057,6 +16857,7 @@ function majAideFleches() {
 function ouvrirCorrespondances({ chaine = false } = {}) {
   if (!importApercu || !demandesDeMapping().categories.length) return;
   corrChaine = chaine === true;
+  importParcours.vues.add("categories");
   // Les menus de la page sèment `importMappingCategories` depuis les propositions du serveur.
   renderImportMappings();
   corrPoserCreerCentral();
@@ -16078,7 +16879,7 @@ function fermerCorrespondances({ suite = false } = {}) {
   if (importApercu) corrAppliquer();
   const chaine = corrChaine;
   corrChaine = false;
-  if (suite === true && chaine && !ouvrirChoixCompteImport()) versControleImport();
+  if (suite === true && chaine) ouvrirSuiteImport();
 }
 
 /** Le rang de l'option permise la plus proche de `rang` en allant dans le sens `sens` (+1 vers le bas,
@@ -19386,10 +20187,13 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
     })
   );
 
+  // Lu AVANT l'envoi : la confirmation date le dernier import du preset.
+  const premierImport = premierImportBancaire() && !tutorielEnCours();
   try {
     const resultat = await apiFetchForm(importUrl("/confirmer"), formData);
     importDernierHistoriqueId = resultat.historique_id ?? null;
     afficherResultatImport(resultat);
+    if (premierImport) await enregistrerPremierImport();
     // LES DEUX NOMBRES QUAND IL Y A LIEU. Une ligne rapprochée est bien
     // importée — elle compte dans le total — mais elle n'AJOUTE pas
     // d'opération : sans cette précision, le total ne collerait pas avec ce
@@ -20197,10 +21001,10 @@ function renderExtensions(extensions) {
   appliquerPuces(bloc);
 }
 
-// Délégation : les cartes sont reconstruites à chaque rendu.
-document.getElementById("extensions-liste").addEventListener("change", async (e) => {
-  const case_ = e.target.closest("select[data-extension-id]");
-  if (!case_) return;
+/** Le menu d'une carte d'extension : allume ou éteint l'extension (la route, puis le chargement de ses
+ *  fichiers), puis `apres()`. PARTAGÉ par Paramètres → Extensions et par l'étape « Comptes & Monnaies » de
+ *  l'import, qui pose la même carte (`carteExtensionHtml`). */
+async function basculerExtensionDepuisMenu(case_, { apres = loadExtensions } = {}) {
   const id = case_.dataset.extensionId;
   const actif = case_.value === "actif";
   try {
@@ -20217,7 +21021,7 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     // On REDESSINE toute la liste, et pas seulement la carte touchée : éteindre
     // une extension peut en priver une autre de son hôte, dont la case doit
     // alors se griser sur-le-champ.
-    await loadExtensions();
+    await apres();
     showMessage(
       actif ? t("Extension activée.") : t("Extension désactivée. Aucune donnée n'a été supprimée."),
       "success"
@@ -20227,6 +21031,13 @@ document.getElementById("extensions-liste").addEventListener("change", async (e)
     case_.value = actif ? "inactif" : "actif";
     showMessage(err.message, "error");
   }
+}
+
+// Délégation : les cartes sont reconstruites à chaque rendu.
+document.getElementById("extensions-liste").addEventListener("change", async (e) => {
+  const case_ = e.target.closest("select[data-extension-id]");
+  if (!case_) return;
+  await basculerExtensionDepuisMenu(case_);
 });
 
 /* ---------- Infobulles : une seule bulle, placée à la demande ----------
