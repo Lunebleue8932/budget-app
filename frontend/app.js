@@ -1212,7 +1212,11 @@ function fillSelect(selectEl, values, { keepFirst = false, labels = null } = {})
  * groupe vide.
  */
 function fillComptesSelect(selectEl, comptes, { keepFirst = false } = {}) {
-  const firstOption = keepFirst ? selectEl.firstElementChild : null;
+  // « + Créer un compte » et son trait, en tête (cf. ajouterOptionCreer), ne sont pas la ligne à garder :
+  // c'est à la liste de les reposer après l'avoir remplie.
+  const firstOption = keepFirst
+    ? [...selectEl.children].find((el) => !el.dataset.ligneCreer) || null
+    : null;
   selectEl.innerHTML = "";
   if (firstOption) selectEl.appendChild(firstOption);
 
@@ -2363,18 +2367,20 @@ async function refreshCategories() {
  *
  * UNE BASE NEUVE N'A AUCUN COMPTE, et le formulaire d'une opération en demande un : l'utilisateur qui
  * débute y trouvait une liste vide et rien pour s'en sortir, sinon un détour par Paramètres →
- * Configuration. Les listes de comptes et de catégories du formulaire portent donc, en dernière
- * ligne, « + Créer un compte » / « + Créer une catégorie » : choisie, elle ouvre une petite fenêtre
- * (un nom, un type ou la case des entrées d'argent), puis la liste se remplit de ce qu'on vient de
- * créer, qui devient le choix. Annuler remet la liste où elle était.
+ * Configuration. Les listes de comptes, de catégories et (avec l'extension « Monnaies ») de monnaies
+ * du formulaire et de la page d'import portent donc, en tête, « + Créer un compte » / « + Créer une
+ * catégorie » / « + Créer une monnaie » : choisie, la ligne ouvre une petite fenêtre (un nom, un type
+ * et les monnaies ; la case des entrées d'argent ; un symbole), puis la liste se remplit de ce qu'on
+ * vient de créer, qui devient le choix. Annuler remet la liste où elle était.
  *
  * LES DEUX FENÊTRES SONT AUSSI CELLES DU GUIDE DU PREMIER IMPORT (cf. premier-demarrage.js) et du
  * tableau des catégories de la banque : une seule façon de créer, partout. Elles rendent l'élément
  * créé, ou null quand on a laissé tomber. */
 const VALEUR_CREER = "__creer__";
 
-/** La fenêtre qui crée un compte : un nom, un type. `typesAdmis` (noms de type) restreint le menu quand le
- *  compte doit pouvoir servir à l'opération qu'on saisit. Rend le compte créé, ou null. */
+/** La fenêtre qui crée un compte : un nom, un type et, avec l'extension « Monnaies », ses monnaies.
+ *  `typesAdmis` (noms de type) restreint le menu quand le compte doit pouvoir servir à l'opération qu'on
+ *  saisit. Rend le compte créé, ou null. */
 function demanderCreationCompte({
   titre = "Créer un compte",
   cle = "noyau.creation-compte",
@@ -2391,6 +2397,16 @@ function demanderCreationCompte({
   const courant = types.find((x) => x.nom === "courant");
   if (courant) type.value = courant.id;
   nom.value = "";
+  // LES MONNAIES DU COMPTE, AVEC L'EXTENSION « MONNAIES » SEULEMENT : les mêmes lignes que dans Paramètres →
+  // Configuration (cf. renderCompteMonnaies), la monnaie préférée cochée d'office. Sans l'extension,
+  // l'application n'a qu'une monnaie et le compte la prend sans rien demander.
+  const choixMonnaies = choixDeMonnaiePossible();
+  const listeMonnaies = document.getElementById("guide-compte-monnaies");
+  const allumees = (state.monnaies || []).filter((m) => m.active !== false).map((m) => m.id);
+  document.getElementById("guide-compte-monnaies-bloc").style.display = choixMonnaies ? "" : "none";
+  if (choixMonnaies) {
+    renderCompteMonnaies([{ monnaie_id: monnaiePreferee(allumees), solde_initial: 0 }], listeMonnaies);
+  }
   erreur.style.display = "none";
   fond.style.display = "flex";
   nom.focus();
@@ -2399,49 +2415,68 @@ function demanderCreationCompte({
     const formulaire = document.getElementById("form-guide-compte");
     const plusTard = document.getElementById("btn-guide-compte-plus-tard");
     const creer = document.getElementById("btn-guide-compte-creer");
+    const creerMonnaie = document.getElementById("btn-guide-compte-creer-monnaie");
     const fermer = (reponse) => {
       fond.style.display = "none";
       formulaire.removeEventListener("submit", surEnvoi);
       plusTard.removeEventListener("click", surPlusTard);
+      creerMonnaie.removeEventListener("click", surCreerMonnaie);
       document.removeEventListener("keydown", surTouche, true);
       resolve(reponse);
     };
     const surPlusTard = () => fermer(null);
     const surTouche = (e) => {
-      if (e.key === "Escape") {
+      // Une monnaie demandée par-dessus (cf. surCreerMonnaie) : Échap ne ferme qu'elle.
+      if (e.key === "Escape" && !creationMonnaieOuverte()) {
         e.stopPropagation();
         fermer(null);
       }
     };
+    // « + Créer une monnaie », sous les monnaies : la monnaie créée rejoint la liste, cochée, sans rien
+    // défaire de ce qui y était déjà choisi.
+    const surCreerMonnaie = async () => {
+      const deja = lireCompteMonnaies(listeMonnaies);
+      const monnaie = await demanderCreationMonnaie();
+      creerMonnaie.focus();
+      if (!monnaie) return;
+      renderCompteMonnaies([...deja, { monnaie_id: monnaie.id, solde_initial: 0 }], listeMonnaies);
+    };
+    const montrerErreur = (message) => {
+      const p = document.createElement("p");
+      p.className = "import-avertissement";
+      p.textContent = message;
+      erreur.replaceChildren(p);
+      erreur.style.display = "";
+    };
     const surEnvoi = async (e) => {
       e.preventDefault();
-      const monnaies = (state.monnaies || []).filter((m) => m.active !== false).map((m) => m.id);
+      const monnaies = choixMonnaies
+        ? lireCompteMonnaies(listeMonnaies)
+        : [{ monnaie_id: monnaiePreferee(allumees) }];
+      // Le même refus que le formulaire de Paramètres → Configuration, avant le serveur.
+      if (monnaies.length === 0) {
+        montrerErreur(t("Choisis au moins une monnaie pour ce compte."));
+        return;
+      }
       creer.disabled = true;
       erreur.style.display = "none";
       try {
         const compte = await apiFetch("/comptes", {
           method: "POST",
-          body: JSON.stringify({
-            nom: nom.value.trim(),
-            type_id: Number(type.value),
-            monnaies: [{ monnaie_id: monnaiePreferee(monnaies) }],
-          }),
+          body: JSON.stringify({ nom: nom.value.trim(), type_id: Number(type.value), monnaies }),
         });
         await refreshComptes();
         showMessage(t("Compte créé"), "success");
         fermer(compte);
       } catch (err) {
-        const p = document.createElement("p");
-        p.className = "import-avertissement";
-        p.textContent = traduireMessageServeur(err.message);
-        erreur.replaceChildren(p);
-        erreur.style.display = "";
+        montrerErreur(traduireMessageServeur(err.message));
       } finally {
         creer.disabled = false;
       }
     };
     formulaire.addEventListener("submit", surEnvoi);
     plusTard.addEventListener("click", surPlusTard);
+    creerMonnaie.addEventListener("click", surCreerMonnaie);
     document.addEventListener("keydown", surTouche, true);
   });
 }
@@ -2518,24 +2553,168 @@ function demanderCreationCategorie({ nomPropose = "" } = {}) {
   });
 }
 
+/** La fenêtre de création d'une monnaie est-elle ouverte ? Elle peut l'être PAR-DESSUS celle d'un compte
+ *  (« + Créer une monnaie » sous ses monnaies) : Échap ne ferme alors qu'elle. */
+function creationMonnaieOuverte() {
+  return document.getElementById("modale-creation-monnaie").style.display === "flex";
+}
+
 /**
- * Ajoute « + Créer un compte » / « + Créer une catégorie » en dernière ligne d'une liste du formulaire
- * d'opération, à appeler APRÈS son remplissage. Une liste sans aucun choix reçoit d'abord une ligne vide :
- * sans elle, « créer » serait la seule option, donc déjà sélectionnée, et choisir ce qui l'est déjà ne
- * déclenche rien.
+ * La fenêtre qui crée une monnaie : un nom et un symbole, comme le formulaire de l'extension « Monnaies »
+ * (même route, `POST /monnaies`). N'existe qu'avec l'extension : sans elle l'application n'a qu'une monnaie,
+ * et la promesse rend null aussitôt. Rend la monnaie créée, ou null quand on a laissé tomber.
  */
-function ajouterOptionCreer(select, nature) {
+function demanderCreationMonnaie({ nomPropose = "" } = {}) {
+  if (!choixDeMonnaiePossible()) return Promise.resolve(null);
+  const fond = document.getElementById("modale-creation-monnaie");
+  const nom = document.getElementById("creation-monnaie-nom");
+  const symbole = document.getElementById("creation-monnaie-symbole");
+  const erreur = document.getElementById("creation-monnaie-erreur");
+  nom.value = nomPropose;
+  symbole.value = "";
+  erreur.style.display = "none";
+  fond.style.display = "flex";
+  nom.focus();
+
+  return new Promise((resolve) => {
+    const formulaire = document.getElementById("form-creation-monnaie");
+    const annuler = document.getElementById("btn-creation-monnaie-annuler");
+    const creer = document.getElementById("btn-creation-monnaie-creer");
+    const fermer = (reponse) => {
+      fond.style.display = "none";
+      formulaire.removeEventListener("submit", surEnvoi);
+      annuler.removeEventListener("click", surAnnuler);
+      document.removeEventListener("keydown", surTouche, true);
+      resolve(reponse);
+    };
+    const surAnnuler = () => fermer(null);
+    const surTouche = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fermer(null);
+      }
+    };
+    const surEnvoi = async (e) => {
+      e.preventDefault();
+      creer.disabled = true;
+      erreur.style.display = "none";
+      try {
+        const monnaie = await apiFetch("/monnaies", {
+          method: "POST",
+          body: JSON.stringify({ nom: nom.value.trim(), symbole: symbole.value.trim() }),
+        });
+        await refreshMonnaies();
+        showMessage(t("Monnaie créée"), "success");
+        fermer(monnaie);
+      } catch (err) {
+        const p = document.createElement("p");
+        p.className = "import-avertissement";
+        p.textContent = traduireMessageServeur(err.message);
+        erreur.replaceChildren(p);
+        erreur.style.display = "";
+      } finally {
+        creer.disabled = false;
+      }
+    };
+    formulaire.addEventListener("submit", surEnvoi);
+    annuler.addEventListener("click", surAnnuler);
+    document.addEventListener("keydown", surTouche, true);
+  });
+}
+
+/**
+ * Crée une monnaie (cf. demanderCreationMonnaie) et l'AJOUTE AU COMPTE : les menus de monnaie d'une
+ * opération ne proposent que celles de son compte, une monnaie neuve qui n'y serait pas n'y apparaîtrait
+ * jamais. Elle se range en dernier : la monnaie proposée par défaut reste la même. Rend la monnaie, ou null.
+ */
+async function creerMonnaiePourCompte(compteId) {
+  const monnaie = await demanderCreationMonnaie();
+  if (!monnaie) return null;
+  const compte = compteParId(compteId);
+  if (!compte) return monnaie;
+  try {
+    await apiFetch(`/comptes/${compte.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        monnaies: [
+          ...compte.monnaies.map((m) => ({
+            monnaie_id: m.monnaie_id,
+            solde_initial: m.solde_initial,
+            solde_actuel_renseigne: m.solde_actuel_renseigne ?? null,
+            active: m.active !== false,
+          })),
+          { monnaie_id: monnaie.id, solde_initial: 0 },
+        ],
+      }),
+    });
+    await refreshComptes();
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    return null;
+  }
+  return monnaie;
+}
+
+/** Ce que fait la ligne « créer » d'une liste (cf. ajouterOptionCreer), relu à chaque choix : une liste
+ *  remplie à nouveau peut changer de contexte sans être rebranchée. */
+const CREER_SUR_LISTE = new WeakMap();
+
+/** Sélectionne le premier vrai choix d'une liste : ni la ligne « créer », ni une ligne grisée. */
+function choisirPremierChoix(select) {
+  const premier = [...select.options].find((o) => o.value !== VALEUR_CREER && !o.disabled);
+  if (premier) select.value = premier.value;
+}
+
+/** Le libellé de la ligne « créer », par nature de liste. */
+const LIBELLES_CREER = {
+  compte: "+ Créer un compte",
+  categorie: "+ Créer une catégorie",
+  monnaie: "+ Créer une monnaie",
+};
+
+/**
+ * Ajoute « + Créer un compte » / « + Créer une catégorie » / « + Créer une monnaie » à une liste, à appeler
+ * APRÈS chacun de ses remplissages (la ligne n'est jamais posée deux fois).
+ *
+ * LA LIGNE EST EN TÊTE, EN GRIS, ET UN TRAIT LA SÉPARE DU RESTE : posée en dernière ligne, sous des comptes
+ * groupés par type ou vingt catégories, elle ne se voyait pas. Le trait est un <hr> et non une option
+ * grisée : le navigateur le dessine dans la liste dépliée, et comme ce n'est pas une option, ni les flèches
+ * ni la frappe d'une lettre ne peuvent s'y arrêter.
+ *
+ * Une liste sans aucun choix reçoit une ligne vide : sans elle, « créer » serait la seule option, donc déjà
+ * sélectionnée, et choisir ce qui l'est déjà ne déclenche rien. Et comme le navigateur sélectionne d'office
+ * la première option d'une liste, la ligne de tête ne doit jamais rester choisie : on retombe alors sur le
+ * premier vrai choix.
+ *
+ * Par défaut, la liste est celle du formulaire d'opération (comptes, catégories). Ailleurs, et pour toute
+ * liste de monnaies, `demander()` ouvre la fenêtre et rend ce qu'elle a créé (ou null), `remplir()` remplit
+ * à nouveau les listes concernées.
+ */
+function ajouterOptionCreer(select, nature, { demander = null, remplir = null } = {}) {
+  select.querySelectorAll("[data-ligne-creer]").forEach((el) => el.remove());
   const vide = ![...select.options].some((o) => o.value && o.value !== VALEUR_CREER);
-  if (vide) select.insertBefore(new Option(t("— choisir —"), ""), select.firstChild);
-  select.appendChild(
-    new Option(nature === "compte" ? t("+ Créer un compte") : t("+ Créer une catégorie"), VALEUR_CREER)
-  );
-  select.dataset.creer = nature;
+  if (vide && ![...select.options].some((o) => o.value === "")) {
+    select.insertBefore(new Option(t("— choisir —"), ""), select.firstChild);
+  }
+  const ligne = new Option(t(LIBELLES_CREER[nature]), VALEUR_CREER);
+  ligne.className = "option-creer";
+  ligne.dataset.ligneCreer = "1";
+  const trait = document.createElement("hr");
+  trait.dataset.ligneCreer = "1";
+  select.prepend(ligne, trait);
+  if (select.value === VALEUR_CREER) choisirPremierChoix(select);
+  CREER_SUR_LISTE.set(select, { nature, demander, remplir });
   if (select.dataset.creerBranche) return;
   select.dataset.creerBranche = "1";
   select.dataset.precedent = select.value;
+  // Relevé AUSSI quand on entre dans la liste : une valeur posée par le code (l'opération qu'on rouvre, cf.
+  // fillOperationForm) ne passe par aucun « change », et « Plus tard » ramenait alors à un compte périmé.
+  select.addEventListener("focus", () => {
+    if (select.value !== VALEUR_CREER) select.dataset.precedent = select.value;
+  });
   // EN PHASE DE CAPTURE, et on coupe la suite : les autres écouteurs du menu (monnaies du compte, case
-  // « à déclarer ») ne doivent jamais voir passer la ligne « créer » comme un choix.
+  // « à déclarer », relecture du fichier à l'import) ne doivent jamais voir passer la ligne « créer » comme
+  // un choix.
   select.addEventListener(
     "change",
     async (e) => {
@@ -2545,17 +2724,20 @@ function ajouterOptionCreer(select, nature) {
       }
       e.stopImmediatePropagation();
       select.value = select.dataset.precedent || "";
-      const type = document.getElementById("operation-type").value;
-      const cree =
-        select.dataset.creer === "compte"
-          ? await demanderCreationCompte({
-              typesAdmis: type === "virement" ? null : ["courant"],
-              cle: "noyau.creation-compte-operation",
-            })
-          : await demanderCreationCategorie();
+      if (select.selectedIndex < 0 || select.value === VALEUR_CREER) choisirPremierChoix(select);
+      const contexte = CREER_SUR_LISTE.get(select);
+      let cree;
+      if (contexte.demander) cree = await contexte.demander();
+      else if (contexte.nature === "compte") {
+        const type = document.getElementById("operation-type").value;
+        cree = await demanderCreationCompte({
+          typesAdmis: type === "virement" ? null : ["courant"],
+          cle: "noyau.creation-compte-operation",
+        });
+      } else cree = await demanderCreationCategorie();
       if (!cree) return;
       // Les listes se remplissent à nouveau de ce que la base contient, la nouvelle comprise.
-      updateOperationTypeFields();
+      (contexte.remplir || updateOperationTypeFields)();
       select.value = String(cree.id);
       select.dataset.precedent = select.value;
       select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -6728,8 +6910,9 @@ function activerEditionDoubleClic(conteneur, onEdit) {
  * dans l'ordre voulu — la première ALLUMÉE est la monnaie proposée par défaut à
  * la saisie d'une opération.
  */
-function renderCompteMonnaies(selection = []) {
-  const bloc = document.getElementById("compte-monnaies");
+function renderCompteMonnaies(selection = [], bloc = document.getElementById("compte-monnaies")) {
+  // `bloc` : la liste de Paramètres → Configuration, ou celle de la fenêtre qui crée un compte sur place
+  // (cf. demanderCreationCompte) — les mêmes lignes, pour qu'un compte se crée pareil des deux côtés.
   bloc.innerHTML = "";
   if (state.monnaies.length === 0) {
     bloc.innerHTML =
@@ -6799,21 +6982,28 @@ function renderCompteMonnaies(selection = []) {
     caseChoisie.addEventListener("change", () => {
       champSolde.disabled = !caseChoisie.checked;
       majEtatActive();
-      majLignesSoldeActuel();
+      majLignesSoldeActuel(bloc);
     });
     caseActive.addEventListener("change", majEtatActive);
-    row.querySelector("input[data-role='solde-actuel']").addEventListener(
-      "input",
-      majLignesSoldeActuel
+    row.querySelector("input[data-role='solde-actuel']").addEventListener("input", () =>
+      majLignesSoldeActuel(bloc)
     );
     row.querySelector("[data-role='supprimer-solde-actuel']").addEventListener("click", () => {
       delete row.dataset.soldeActuel;
-      majLignesSoldeActuel();
+      majLignesSoldeActuel(bloc);
     });
     majEtatActive();
     bloc.appendChild(row);
   });
-  majLignesSoldeActuel();
+  majLignesSoldeActuel(bloc);
+}
+
+/** L'option « Calculer le solde initial avec le solde actuel » est-elle cochée dans le formulaire qui porte
+ *  cette liste de monnaies ? Seul celui de Paramètres → Configuration l'a : un compte qu'on crée sur place n'a
+ *  encore aucune opération d'où déduire quoi que ce soit. */
+function soldeActuelDemande(bloc) {
+  const option = bloc.closest("form")?.querySelector("#compte-calcul-solde");
+  return Boolean(option && option.checked);
 }
 
 /**
@@ -6824,10 +7014,9 @@ function renderCompteMonnaies(selection = []) {
  * initial est alors grisé ; pour le modifier, on supprime d'abord le solde actuel renseigné
  * (la croix de la ligne). Le serveur applique la même règle — cf. routers/comptes.
  */
-function majLignesSoldeActuel() {
-  const option = document.getElementById("compte-calcul-solde");
-  const activee = Boolean(option && option.checked);
-  document.querySelectorAll("#compte-monnaies .import-mapping-row").forEach((row) => {
+function majLignesSoldeActuel(bloc = document.getElementById("compte-monnaies")) {
+  const activee = soldeActuelDemande(bloc);
+  bloc.querySelectorAll(".import-mapping-row").forEach((row) => {
     const choisie = row.querySelector("input[data-role='choisie']").checked;
     const verrouille = row.dataset.soldeActuel !== undefined;
     const champActuel = row.querySelector("input[data-role='solde-actuel']");
@@ -6839,13 +7028,13 @@ function majLignesSoldeActuel() {
   });
 }
 
-function lireCompteMonnaies() {
-  return [...document.querySelectorAll("#compte-monnaies .import-mapping-row")]
+function lireCompteMonnaies(bloc = document.getElementById("compte-monnaies")) {
+  const optionActivee = soldeActuelDemande(bloc);
+  return [...bloc.querySelectorAll(".import-mapping-row")]
     .filter((row) => row.querySelector("input[data-role='choisie']").checked)
     .map((row) => {
       const saisi = row.querySelector("input[data-role='solde-actuel']").value.trim();
       const verrouille = row.dataset.soldeActuel !== undefined;
-      const optionActivee = document.getElementById("compte-calcul-solde").checked;
       return {
         monnaie_id: Number(row.dataset.monnaieId),
         solde_initial: parseFloat(
@@ -6864,7 +7053,7 @@ function lireCompteMonnaies() {
     });
 }
 
-document.getElementById("compte-calcul-solde").addEventListener("change", majLignesSoldeActuel);
+document.getElementById("compte-calcul-solde").addEventListener("change", () => majLignesSoldeActuel());
 
 function resetCompteForm() {
   // Le formulaire retourne à sa place (le bloc de création, en bas de page) :
@@ -7696,6 +7885,14 @@ function syncSelectMonnaieCompte(
     opt.textContent = `${m.monnaie_nom} (${m.monnaie_symbole})`;
     select.appendChild(opt);
   });
+  // « + Créer une monnaie » en tête (cf. ajouterOptionCreer) : la monnaie créée rejoint le compte choisi, seul
+  // moyen qu'elle apparaisse dans ce menu (cf. creerMonnaiePourCompte).
+  if (choixDeMonnaiePossible() && compteParId(compteId)) {
+    ajouterOptionCreer(select, "monnaie", {
+      demander: () => creerMonnaiePourCompte(compteId),
+      remplir: () => updateOperationMonnaieFields(),
+    });
+  }
   if (monnaies.some((m) => m.monnaie_id === precedente)) {
     select.value = precedente;
   }
@@ -8029,7 +8226,7 @@ function updateOperationTypeFields() {
   // CE QUE LE MENU PORTE DÉJÀ RESTE PROPOSÉ, même éteint : c'est l'opération
   // qu'on est en train de rouvrir (cf. comptesEligibles).
   const valeurDe = (el) => Number(el.value) || null;
-  // Chaque liste se termine par « + Créer un compte » / « + Créer une catégorie » (cf. ajouterOptionCreer).
+  // Chaque liste commence par « + Créer un compte » / « + Créer une catégorie » (cf. ajouterOptionCreer).
   const remplirComptes = (id) =>
     _refillPreservingSelection(document.getElementById(id), (el) => {
       fillComptesSelect(el, comptesEligibles(type, valeurDe(el)));
@@ -12954,9 +13151,14 @@ function toggleImportCompteDefautBloc() {
 
 function updateImportCompteDefautVisibility() {
   toggleImportCompteDefautBloc();
-  _refillPreservingSelection(document.getElementById("import-compte-defaut"), (el) =>
-    fillComptesSelect(el, comptesProposables(Number(el.value) || null), { keepFirst: true })
-  );
+  _refillPreservingSelection(document.getElementById("import-compte-defaut"), (el) => {
+    fillComptesSelect(el, comptesProposables(Number(el.value) || null), { keepFirst: true });
+    // Le compte créé devient le choix, et ce choix relit le fichier comme tout autre (cf. initCompteImport).
+    ajouterOptionCreer(el, "compte", {
+      demander: () => demanderCreationCompte(),
+      remplir: updateImportCompteDefautVisibility,
+    });
+  });
 }
 
 function compteIdDefautChoisi() {
@@ -15118,12 +15320,12 @@ function renderImportMappings() {
   const compteBloc = document.getElementById("import-mappings-comptes");
   compteBloc.innerHTML = "";
   demandes.comptes.forEach((nomBanque) => {
-    compteBloc.appendChild(
-      creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, () => {
-        appliquerMappingsLocalement();
-        renderImportApercu();
-      })
-    );
+    const ligne = creerLigneMapping(nomBanque, comptesProposables(), importMappingComptes, () => {
+      appliquerMappingsLocalement();
+      renderImportApercu();
+    });
+    ajouterOptionCreer(ligne.querySelector("select"), "compte", CREER_COMPTE_A_CORRESPONDRE);
+    compteBloc.appendChild(ligne);
   });
 
   // Devises qu'aucune correspondance mémorisée n'a permis de rattacher (cf.
@@ -15134,18 +15336,53 @@ function renderImportMappings() {
   const monnaieBloc = document.getElementById("import-mappings-monnaies");
   monnaieBloc.innerHTML = "";
   monnaiesInconnues.forEach((nomBanque) => {
-    monnaieBloc.appendChild(
-      // Une monnaie éteinte n'est pas une cible : elle se lit (liste, cours) et
-      // rien d'autre — le serveur ignore d'ailleurs un choix qui la désignerait.
-      creerLigneMapping(nomBanque, state.monnaies.filter((m) => m.active !== false), importMappingMonnaies, () => {
-        appliquerMappingsLocalement();
-        renderImportApercu();
-      })
-    );
+    // Une monnaie éteinte n'est pas une cible : elle se lit (liste, cours) et
+    // rien d'autre — le serveur ignore d'ailleurs un choix qui la désignerait.
+    const ligne = creerLigneMapping(nomBanque, state.monnaies.filter((m) => m.active !== false), importMappingMonnaies, () => {
+      appliquerMappingsLocalement();
+      renderImportApercu();
+    });
+    if (choixDeMonnaiePossible()) {
+      ajouterOptionCreer(ligne.querySelector("select"), "monnaie", CREER_MONNAIE_A_CORRESPONDRE);
+    }
+    monnaieBloc.appendChild(ligne);
   });
 
   renderImportMonnaiesResolues();
 }
+
+/** « + Créer un compte » dans « Comptes bancaires à faire correspondre » (cf. ajouterOptionCreer) : le compte
+ *  créé rejoint TOUTES les listes du bloc, et devient le choix de celle d'où on l'a demandé. */
+const CREER_COMPTE_A_CORRESPONDRE = {
+  demander: () => demanderCreationCompte(),
+  remplir: () => {
+    document.querySelectorAll("#import-mappings-comptes select").forEach((select) => {
+      _refillPreservingSelection(select, (el) => {
+        el.replaceChildren(
+          new Option(t("— choisir —"), ""),
+          ...comptesProposables().map((c) => new Option(c.nom, c.id))
+        );
+        ajouterOptionCreer(el, "compte", CREER_COMPTE_A_CORRESPONDRE);
+      });
+    });
+  },
+};
+
+/** « + Créer une monnaie » dans « Devises à faire correspondre » : même chose que pour les comptes. */
+const CREER_MONNAIE_A_CORRESPONDRE = {
+  demander: () => demanderCreationMonnaie(),
+  remplir: () => {
+    document.querySelectorAll("#import-mappings-monnaies select").forEach((select) => {
+      _refillPreservingSelection(select, (el) => {
+        el.replaceChildren(
+          new Option(t("— choisir —"), ""),
+          ...state.monnaies.filter((m) => m.active !== false).map((m) => new Option(m.nom, m.id))
+        );
+        ajouterOptionCreer(el, "monnaie", CREER_MONNAIE_A_CORRESPONDRE);
+      });
+    });
+  },
+};
 
 /**
  * Les devises déjà rattachées par une correspondance mémorisée, en lecture

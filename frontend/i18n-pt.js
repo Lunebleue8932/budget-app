@@ -4059,3 +4059,12 @@ Object.assign(TRADUCTIONS.pt, {
   "Les tutoriels sont ici": "Os tutoriais ficam aqui",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le premier lancement à trois choix
+// >>> TRADUCTIONS AJOUTÉES : créer uma conta, uma categoria ou uma moeda a partir de uma lista
+Object.assign(TRADUCTIONS.pt, {
+  "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.":
+    "Uma moeda é aquilo em que seus valores são escritos: o euro, o dólar… Dê a ela um nome e o símbolo que aparecerá ao lado dos valores. Você poderá renomeá-la, desativá-la ou acompanhar suas cotações depois em Ajustes → Moedas.",
+  "+ Créer une monnaie": "+ Criar uma moeda",
+  "Créer une monnaie": "Criar uma moeda",
+  "Créer la monnaie": "Criar a moeda",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : criar a partir de uma lista

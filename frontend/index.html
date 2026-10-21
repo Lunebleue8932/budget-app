@@ -285,9 +285,10 @@
   </div>
 
   <!-- LE COMPTE DU PREMIER IMPORT : un relevé se range dans un compte, et une base neuve n'en a
-       aucun. Cette fenêtre en crée un (un nom, un type) sans passer par Paramètres → Configuration,
-       qui est trop pour un début. Ouverte par le guide du premier import seulement (cf.
-       premier-demarrage.js). -->
+       aucun. Cette fenêtre en crée un (un nom, un type, et ses monnaies avec l'extension « Monnaies »)
+       sans passer par Paramètres → Configuration, qui est trop pour un début. Ouverte par le guide du
+       premier import (cf. premier-demarrage.js) et par « + Créer un compte » des listes de comptes
+       (cf. app.js, `demanderCreationCompte`). -->
   <div id="modale-guide-compte" class="modale-fond" style="display:none" role="presentation">
     <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-guide-compte-titre">
       <h2 id="modale-guide-compte-titre">Créer un compte</h2>
@@ -299,10 +300,41 @@
         <label class="full-width">Type de compte
           <select id="guide-compte-type"></select>
         </label>
+        <!-- Les mêmes lignes que « Monnaies du compte » dans Paramètres → Configuration (cf.
+             renderCompteMonnaies) ; masqué sans l'extension « Monnaies ». -->
+        <div class="full-width guide-compte-monnaies-bloc" id="guide-compte-monnaies-bloc" style="display:none">
+          <label for="guide-compte-monnaies">Monnaies du compte<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaies-du-compte">i</i></label>
+          <div id="guide-compte-monnaies" class="import-mappings"></div>
+          <button type="button" class="bouton-creer-monnaie" id="btn-guide-compte-creer-monnaie">+ Créer une monnaie</button>
+        </div>
         <div id="guide-compte-erreur" class="import-avertissements" style="display:none"></div>
         <div class="modale-actions">
           <button type="button" id="btn-guide-compte-plus-tard">Plus tard</button>
           <button type="submit" class="primary" id="btn-guide-compte-creer">Créer le compte</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CRÉER UNE MONNAIE SUR PLACE (extension « Monnaies » seulement) : depuis les listes de monnaies
+       (« + Créer une monnaie ») et sous les monnaies de la fenêtre d'un compte, par-dessus laquelle elle
+       s'ouvre — d'où sa place APRÈS elle. Un nom et un symbole, comme le formulaire de l'extension (cf.
+       app.js, `demanderCreationMonnaie`). -->
+  <div id="modale-creation-monnaie" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-creation-monnaie-titre">
+      <h2 id="modale-creation-monnaie-titre">Créer une monnaie</h2>
+      <p class="modale-texte" data-texte-cle="noyau.creation-monnaie"></p>
+      <form id="form-creation-monnaie" class="modale-formulaire" autocomplete="off">
+        <label class="full-width">Nom de la monnaie
+          <input type="text" id="creation-monnaie-nom" placeholder="ex. Dollar américain" required maxlength="60" />
+        </label>
+        <label class="full-width">Symbole
+          <input type="text" id="creation-monnaie-symbole" placeholder="ex. $" required maxlength="8" />
+        </label>
+        <div id="creation-monnaie-erreur" class="import-avertissements" style="display:none"></div>
+        <div class="modale-actions">
+          <button type="button" id="btn-creation-monnaie-annuler">Annuler</button>
+          <button type="submit" class="primary" id="btn-creation-monnaie-creer">Créer la monnaie</button>
         </div>
       </form>
     </div>

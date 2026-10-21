@@ -1228,4 +1228,8 @@ Object.assign(TEXTES, {
     "Chaque carte est un tutoriel guidé, avec sa progression. Commence par /bold(Prendre l'application en main) : le tour de l'app, sur des données fictives. Son bouton le lance quand tu es prêt.",
   "noyau.guide-tutoriels-bouton":
     "Les tutoriels guidés, pas à pas devant l'écran : la prise en main de l'app, puis l'import d'un relevé. Ta progression est gardée, tu reprends quand tu veux.",
+/* ----- Créer une monnaie sur place (listes de monnaies, fenêtre d'un compte) ----- */
+Object.assign(TEXTES, {
+  "noyau.creation-monnaie":
+    "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.",
 });
