@@ -102,7 +102,9 @@ def test_migration_0019_reussit_sur_une_base_avec_operations_de_types_systeme(tm
             "select nature from operation where categorie_id is null"
         ).fetchall()
     }
-    assert sans_categorie == {"Prêt Marie", "Remb Marie", "Virement Livret", "Remb prêt"}
+    # Le virement, lui, a retrouvé une catégorie bien plus loin : celle des virements internes,
+    # que la migration 0090 pose sur toutes les jambes.
+    assert sans_categorie == {"Prêt Marie", "Remb Marie", "Remb prêt"}
 
     # Les quatre anciennes catégories système ont disparu de la table : c'est
     # ce que 0019 vérifie ici. Des six autres catégories livrées par 0006, il ne
@@ -110,4 +112,4 @@ def test_migration_0019_reussit_sur_une_base_avec_operations_de_types_systeme(tm
     # dans la chaîne : la migration 0061 retire celles qui n'ont jamais servi, et
     # les seules opérations de ce test tombent dans « Autres ».
     noms_categories = {r[0] for r in conn.execute("select nom from categorie").fetchall()}
-    assert noms_categories == {"Autres"}
+    assert noms_categories == {"Autres", "Virements internes"}

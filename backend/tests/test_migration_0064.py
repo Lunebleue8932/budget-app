@@ -33,13 +33,20 @@ def _alembic(db_path: Path, revision: str):
     return resultat
 
 
+# LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) est posée dans toute base qui monte
+# jusqu'au bout : elle ne dit rien de ce que 0064 fait aux catégories d'orientation.
+def _sans_virements(conn, requete: str) -> str:
+    colonnes = {r[1] for r in conn.execute("PRAGMA table_info(categorie)")}
+    return requete + (" WHERE est_virement = 0" if "est_virement" in colonnes else "")
+
+
 def _categories(db_path: Path) -> dict:
     conn = sqlite3.connect(db_path)
     try:
         return {
             nom: {"ordre": ordre, "couleur": couleur, "est_entree": est_entree}
             for nom, ordre, couleur, est_entree in conn.execute(
-                "SELECT nom, ordre, couleur_index, est_entree FROM categorie"
+                _sans_virements(conn, "SELECT nom, ordre, couleur_index, est_entree FROM categorie")
             )
         }
     finally:
