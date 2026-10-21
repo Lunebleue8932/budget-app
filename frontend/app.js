@@ -21764,6 +21764,15 @@ const CONTENEURS_VALIDATION = [
  */
 const VALIDATION_INTERDITE = new Set(["btn-import-confirmer"]);
 
+// Les fenêtres de l'import qui écoutent elles-mêmes leur touche de confirmation (cf. plus bas).
+const FENETRES_A_TOUCHES_PROPRES = new Set([
+  "modale-detection",
+  "modale-mots-cles",
+  "modale-correspondances",
+  "modale-compte-import",
+  "modale-virements-import",
+]);
+
 /** La boîte de la fenêtre modale ouverte, s'il y en a une. */
 function modaleOuverte() {
   return [...document.querySelectorAll(".modale-fond")]
@@ -21802,10 +21811,11 @@ document.addEventListener("keydown", (evenement) => {
   const conteneur =
     modaleOuverte() || (depart && depart.closest(CONTENEURS_VALIDATION));
   if (!conteneur) return;
-  // Une fenêtre de l'import ouverte PAR CETTE FRAPPE (la dernière confirmation de l'étape d'avant) n'est pas
-  // validée par elle : son premier bouton principal est la confirmation de sa première carte.
+  // LES TABLEAUX À CARTES DE L'IMPORT ont leur propre touche de confirmation (cf. `toucheImport`), qui vise
+  // la carte COURANTE : leur premier bouton principal est la confirmation de la PREMIÈRE carte, qu'un clic
+  // d'ici confirmerait en plus, sans qu'on l'ait choisie - ou dans la fenêtre que la frappe vient d'ouvrir.
   const fond = conteneur.closest(".modale-fond");
-  if (fond && toucheAvantOuverture(evenement, fond.id)) return;
+  if (fond && FENETRES_A_TOUCHES_PROPRES.has(fond.id)) return;
 
   const bouton = boutonDeValidation(conteneur);
   if (!bouton) return;
