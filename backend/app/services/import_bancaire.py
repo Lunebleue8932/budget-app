@@ -618,6 +618,77 @@ def _signe_depuis_sens(
     return None
 
 
+# ---------- LE GARDE-FOU DES MONTANTS : le signe décide, jamais la catégorie ----------
+#
+# UNE SEULE RÈGLE, ÉCRITE ICI. Un relevé dit si l'argent entre ou sort de trois façons : le
+# signe du montant, un mot de la colonne « Sens », la colonne remplie d'un couple débit/crédit.
+# Les deux dernières sont CONVERTIES en montant signé dès la lecture (`montant_signe`, cf.
+# _signe_depuis_sens et _montant_scinde) ; la règle ne connaît plus que ce signe.
+#
+# CE QU'ELLE CORRIGE. Sur un relevé simplement signé, le sens d'une opération classique venait
+# de sa CATÉGORIE (`crud._sens_pour_type`) : une ligne de +15 € rangée dans « Alimentaire » (un
+# article remboursé) s'écrivait en dépense, une ligne de -100 € rangée dans « Entrées d'argent »
+# en entrée — le solde du compte s'écartait de celui de la banque du double du montant. Seuls la
+# colonne « Sens » et le débit/crédit y échappaient (l'ancien `sens_explicite`).
+#
+# LES TYPES AU SENS IMPOSÉ ne sont pas réécrits : une dépense remboursable et un remboursement de
+# prêt sortent, un remboursement reçu et un prêt reçu entrent. Un signe contraire met la ligne en
+# erreur — l'importer dans le sens du type inverserait le solde, l'importer dans le sens du
+# signe ferait d'un prêt reçu une sortie, ce que plus aucun écran ne sait lire.
+#
+# SANS SIGNE (montant illisible, saisi à la main dans l'aperçu), le relevé n'a rien dit : c'est
+# le seul cas où la catégorie donne encore le sens d'une opération classique, comme à la saisie
+# manuelle.
+
+# Le sens que la nature d'un type impose, catégorie ignorée.
+_SENS_PAR_TYPE = {
+    TypeOperation.remboursable: Sens.depense,
+    TypeOperation.remboursement_pret: Sens.depense,
+    TypeOperation.remboursements: Sens.entree,
+    TypeOperation.pret: Sens.entree,
+}
+
+# Messages d'erreur (traduits côté écran, cf. i18n.js) : un par type et par sens contraire.
+ERREURS_SENS_CONTRAIRE = {
+    TypeOperation.remboursable: "dépense remboursable : le relevé dit que l'argent entre",
+    TypeOperation.remboursement_pret: "remboursement de prêt : le relevé dit que l'argent entre",
+    TypeOperation.remboursements: "remboursement reçu : le relevé dit que l'argent sort",
+    TypeOperation.pret: "prêt reçu : le relevé dit que l'argent sort",
+}
+
+
+def signe_du_montant(montant_signe: Optional[float]) -> Optional[int]:
+    """+1 l'argent entre, -1 il sort, None : le relevé ne le dit pas (ou un montant nul)."""
+    if not montant_signe:
+        return None
+    return 1 if montant_signe > 0 else -1
+
+
+def sens_selon_le_montant(type_code: str, signe: Optional[int]) -> tuple[Optional[Sens], Optional[str]]:
+    """LA RÈGLE : (sens de l'opération, erreur). Le sens vaut None pour une opération classique
+    SANS signe — la catégorie en décidera (cf. sens_de_la_ligne)."""
+    code = TypeOperation(type_code)
+    if code == TypeOperation.virement:
+        return (Sens.transfert_sortant if signe is not None and signe < 0 else Sens.transfert_entrant), None
+    if code in _SENS_PAR_TYPE:
+        nature = _SENS_PAR_TYPE[code]
+        if signe is not None and (signe > 0) != (nature == Sens.entree):
+            return None, ERREURS_SENS_CONTRAIRE[code]
+        return nature, None
+    if signe is None:
+        return None, None
+    return (Sens.entree if signe > 0 else Sens.depense), None
+
+
+def sens_de_la_ligne(db, ligne: schemas.ImportLigne) -> tuple[Optional[Sens], Optional[str]]:
+    """Le sens que l'opération de cette ligne recevra (ou l'erreur qui la refuse)."""
+    sens, erreur = sens_selon_le_montant(ligne.type_code, signe_du_montant(ligne.montant_signe))
+    if sens is None and erreur is None:
+        categorie = crud.get_categorie(db, ligne.categorie_id) if ligne.categorie_id else None
+        sens = Sens.entree if categorie is not None and categorie.est_entree else Sens.depense
+    return sens, erreur
+
+
 # Écrit ici plutôt qu'aux deux endroits qui le disent : la lecture de la ligne
 # (_montant_scinde) et la vérification d'avant import (_erreur_ligne), qui
 # reconstruit ses messages à partir du seul état de la ligne.
@@ -2207,6 +2278,10 @@ def _resoudre_ligne(
         if resultat_regle is not None and resultat_regle.type_code
         else TypeOperation.classique.value
     )
+    # Un type au sens imposé que le signe du relevé contredit (cf. sens_selon_le_montant).
+    _, erreur_sens = sens_selon_le_montant(type_code, signe_du_montant(montant_op))
+    if erreur_sens:
+        erreurs.append(erreur_sens)
 
     # LES FRAIS, MAINTENANT SEULEMENT : quel montant fait l'opération et ce que
     # les frais lui font dépendent du SENS et du TYPE, tous deux connus depuis
@@ -2874,6 +2949,9 @@ def _erreur_ligne(ligne: schemas.ImportLigne) -> Optional[str]:
     # exactement ce cas-là. Refusée plutôt qu'importée à l'envers.
     if est_virement and ligne.montant_signe is None:
         manques.append("virement interne : le sens de la ligne est indéterminé")
+    _, erreur_sens = sens_selon_le_montant(ligne.type_code, signe_du_montant(ligne.montant_signe))
+    if erreur_sens:
+        manques.append(erreur_sens)
     if not ligne.nature:
         manques.append("nature manquante")
     # UNE LIGNE DÉCOUPÉE EST CLASSÉE, même sans `categorie_id` : ses parts SONT
@@ -3024,6 +3102,13 @@ def chercher_previsionnelle(
         return None
     if ligne.erreur:
         return None
+    # DANS LE MÊME SENS SEULEMENT : depuis que le signe décide (cf. sens_de_la_ligne), un article
+    # remboursé de 50 € rangé dans « Alimentaire » est une ENTRÉE, et il ne solde pas la dépense
+    # de 50 € qu'on avait prévue là.
+    sens, erreur_sens = sens_de_la_ligne(db, ligne)
+    if erreur_sens:
+        return None
+    previsionnelles = [p for p in previsionnelles if p.sens == sens]
     type_id = ids_types.get(ligne.type_code)
     return rapprochement_previsionnel.chercher(
         previsionnelles,
@@ -3077,7 +3162,9 @@ def _resoudre_comptes_virement(ligne: schemas.ImportLigne) -> tuple[Optional[int
     )
 
 
-def _reimputer_frais(ligne: schemas.ImportLigne) -> schemas.ImportLigne:
+def _reimputer_frais(
+    ligne: schemas.ImportLigne, sortante: Optional[bool] = None
+) -> schemas.ImportLigne:
     """Rejoue le calcul des montants à partir des valeurs HORS FRAIS de la
     ligne, avec son type et son sens ACTUELS.
 
@@ -3094,7 +3181,12 @@ def _reimputer_frais(ligne: schemas.ImportLigne) -> schemas.ImportLigne:
     base propre, sans avoir à défalquer une imputation précédente.
 
     `montant_signe` est laissé intact : il porte le montant du fichier, qui
-    n'appartient pas au calcul et sert uniquement à orienter."""
+    n'appartient pas au calcul et sert uniquement à orienter.
+
+    `sortante` : le sens d'une ligne SANS signe, quand l'appelant le connaît (cf. confirmer :
+    c'est alors la catégorie ou le type qui le donne, et les frais doivent le suivre)."""
+    if sortante is None:
+        sortante = (ligne.montant_signe or 0) < 0
     resultat = _appliquer_frais(
         ligne.montant_hors_frais,
         ligne.montant_envoye_hors_frais,
@@ -3106,7 +3198,7 @@ def _reimputer_frais(ligne: schemas.ImportLigne) -> schemas.ImportLigne:
         # et non d'une cellule : elle est « lue » dès qu'elle est renseignée.
         nom_monnaie_frais=ligne.nom_banque_monnaie_frais
         or ("x" if ligne.monnaie_frais_id is not None else ""),
-        sortante=(ligne.montant_signe or 0) < 0,
+        sortante=sortante,
         est_virement=TypeOperation(ligne.type_code) == TypeOperation.virement,
     )
     # Repasser une ligne EN virement dans l'aperçu doit l'orienter comme si le
@@ -3119,7 +3211,7 @@ def _reimputer_frais(ligne: schemas.ImportLigne) -> schemas.ImportLigne:
         lit_montant_envoye=ligne.montant_envoye_hors_frais is not None
         and not ligne.montant_envoye_deduit,
         lit_la_monnaie=bool(ligne.nom_banque_monnaie),
-        sortante=(ligne.montant_signe or 0) < 0,
+        sortante=sortante,
     )
     montant = abs(resultat.montant) if resultat.montant is not None else None
     montant_envoye = (
@@ -3319,6 +3411,11 @@ def _retoucher_ligne(
     type_avant = ligne.type_code
     retouches = override.model_dump(exclude_none=True)
     liens_remboursement = retouches.pop("operations_remboursees", None)
+    # UNE RETOUCHE DONNE UNE GRANDEUR, JAMAIS UN SENS (garde-fou des montants) : le formulaire
+    # refuse le négatif, le serveur ne s'en remet pas à lui. Le sens reste celui du relevé.
+    for champ in ("montant", "montant_envoye", "frais"):
+        if retouches.get(champ) is not None:
+            retouches[champ] = abs(retouches[champ])
     # Un montant envoyé SAISI n'est plus déduit : l'utilisateur dit
     # lui-même ce qui est parti, et la ligne décrit dès lors ses deux
     # jambes comme le ferait un relevé qui porte la colonne.
@@ -3601,6 +3698,21 @@ def confirmer(
 
         ligne, erreur_frais, liens_remboursement = retouchees[ligne.ligne]
 
+        # LE SENS, PAR LA RÈGLE UNIQUE (cf. sens_de_la_ligne). Une ligne SANS signe tient le sien
+        # de son type ou de sa catégorie : ses frais, imputés « en entrée » faute de signe, se
+        # refont alors dans ce sens-là — retranchés d'une entrée, ajoutés à une dépense.
+        sens_final, _ = sens_de_la_ligne(db, ligne)
+        if (
+            ligne.montant_signe is None
+            and ligne.frais
+            and sens_final in (Sens.depense, Sens.entree)
+            and TypeOperation(ligne.type_code) != TypeOperation.virement
+        ):
+            avant = ligne.erreur
+            ligne = _reimputer_frais(ligne, sortante=sens_final == Sens.depense)
+            if ligne.erreur and ligne.erreur != avant:
+                erreur_frais = ligne.erreur
+
         # « OUI » : la ligne décrit une jambe que l'app connaît déjà. Elle n'est
         # PAS importée — le virement ne doit exister qu'une fois — mais ses
         # colonnes entrent au stock, en désignant la jambe existante (un TÉMOIN) :
@@ -3769,25 +3881,13 @@ def confirmer(
         # sortie dans le solde du compte, et l'opération n'apparaîtrait pas
         # dans l'onglet Virements du frontend (qui se fie à ce sens pour
         # distinguer émetteur/récepteur, cf. loadOperations côté app.js).
-        sens_impose = None
-        if TypeOperation(ligne.type_code) == TypeOperation.virement:
-            emetteur = ligne.montant_signe is not None and ligne.montant_signe < 0
-            sens_impose = Sens.transfert_sortant if emetteur else Sens.transfert_entrant
-        elif (
-            ligne.sens_explicite
-            and TypeOperation(ligne.type_code) == TypeOperation.classique
-        ):
-            # Le fichier dit lui-même si l'argent entre ou sort : cela prime sur
-            # la déduction par la catégorie (_sens_pour_type), qui ne connaît
-            # qu'une seule catégorie d'entrée et classerait donc en dépense un
-            # salaire rangé ailleurs qu'« Entrées d'argent ».
-            #
-            # Uniquement pour `classique` : les autres types portent leur sens
-            # par nature (une dépense remboursable est une sortie, un prêt reçu
-            # une entrée), et un libellé du relevé ne doit pas pouvoir les
-            # inverser.
-            entree = ligne.montant_signe is not None and ligne.montant_signe > 0
-            sens_impose = Sens.entree if entree else Sens.depense
+        # LE SENS VIENT DU SIGNE DU RELEVÉ, et de lui seul (garde-fou des montants, cf.
+        # sens_selon_le_montant) : la catégorie ne le donne plus que faute de signe. Un virement
+        # sans second compte reste une écriture simple, mais transfert_sortant / entrant selon
+        # ce signe — sans quoi un virement reçu compterait comme une sortie du compte. Tous les
+        # types y passent : une dépense remboursable rangée dans une catégorie d'entrée restait
+        # sinon une entrée, et la catégorie aurait décidé à la place du relevé.
+        sens_impose = sens_final
 
         # Monnaie de la ligne : celle que le fichier déclare (colonne
         # « monnaie » de la configuration avancée) si le preset la lit, sinon

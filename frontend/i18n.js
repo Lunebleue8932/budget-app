@@ -4801,3 +4801,16 @@ Object.assign(TRADUCTIONS.en, {
   "Lecture du fichier…": "Reading the file…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : garde-fou des montants (type contraire au sens du relevé)
+Object.assign(TRADUCTIONS.en, {
+  "dépense remboursable : le relevé dit que l'argent entre":
+    "refundable expense: the statement says the money comes in",
+  "remboursement de prêt : le relevé dit que l'argent entre":
+    "loan repayment: the statement says the money comes in",
+  "remboursement reçu : le relevé dit que l'argent sort":
+    "refund received: the statement says the money goes out",
+  "prêt reçu : le relevé dit que l'argent sort":
+    "loan received: the statement says the money goes out",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : garde-fou des montants

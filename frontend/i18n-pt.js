@@ -4026,3 +4026,16 @@ Object.assign(TRADUCTIONS.pt, {
   "Lecture du fichier…": "Lendo o arquivo…",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : monnaies dans l'étape du compte
+
+// >>> TRADUCTIONS AJOUTÉES : garde-fou des montants (type contraire au sens du relevé)
+Object.assign(TRADUCTIONS.pt, {
+  "dépense remboursable : le relevé dit que l'argent entre":
+    "despesa reembolsável: o extrato diz que o dinheiro entra",
+  "remboursement de prêt : le relevé dit que l'argent entre":
+    "reembolso de empréstimo: o extrato diz que o dinheiro entra",
+  "remboursement reçu : le relevé dit que l'argent sort":
+    "reembolso recebido: o extrato diz que o dinheiro sai",
+  "prêt reçu : le relevé dit que l'argent sort":
+    "empréstimo recebido: o extrato diz que o dinheiro sai",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : garde-fou des montants

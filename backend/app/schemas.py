@@ -1392,12 +1392,10 @@ class ImportLigne(BaseModel):
     # débit/crédit. Les deux disent la même chose de deux façons, d'où ce
     # booléen plutôt qu'un test sur `nom_banque_sens`.
     #
-    # Ce qu'il change : sur une opération classique, le sens du fichier impose
-    # entrée/dépense là où la catégorie seule en décidait (cf.
-    # services/import_bancaire.confirmer) ; dans l'aperçu, le montant s'affiche
-    # précédé de son signe. Un montant simplement SIGNÉ ne suffit pas — il
-    # oriente les virements, mais n'a jamais rien imposé aux opérations
-    # classiques, et ce n'est pas le sujet de cette propriété.
+    # PLUS RIEN NE S'EN SERT POUR DÉCIDER DU SENS (garde-fou des montants) : un montant
+    # simplement signé tranche désormais de la même façon que les deux autres, par
+    # `montant_signe` (cf. services/import_bancaire.sens_selon_le_montant). Gardé pour
+    # dire à l'écran que le relevé a écrit le sens à part.
     sens_explicite: bool = False
     # True quand la ligne a rempli SES DEUX colonnes de montant (débit et
     # crédit) : deux montants ont été lus, et rien ne dit lequel fait
