@@ -12043,7 +12043,6 @@ function reinitialiserImport() {
   restaurerVocabulairesImport();
   reinitialiserParcoursImport();
   importCompteDemande = false;
-  importMappingsManquaient = null;
   corrNouvelles.clear();
   corrChaine = false;
   ["modale-mots-cles", "modale-compte-import"].forEach((id) => {
@@ -12071,7 +12070,6 @@ function definirFichierImport(fichier) {
   restaurerVocabulairesImport();
   reinitialiserParcoursImport();
   importCompteDemande = false;
-  importMappingsManquaient = null;
   corrNouvelles.clear();
   document.getElementById("import-fichier-nom").textContent = fichier ? fichier.name : "";
   // Un nouveau fichier peut venir d'une autre banque : les réglages de
@@ -16840,24 +16838,6 @@ function renderImportMonnaiesResolues() {
     .join("");
 }
 
-// Confirme d'un coup toutes les catégories suggérées. Coche directement les
-// cases du DOM plutôt que de rappeler renderImportMappings() : cette
-// dernière re-sème importMappingCategories depuis les suggestions
-// automatiques, ce qui écraserait les choix de select déjà faits à la main.
-document.getElementById("btn-import-mappings-tout-confirmer").addEventListener("click", () => {
-  if (!importApercu) return;
-  demandesDeMapping().categories.forEach((nomBanque) =>
-    importCategoriesConfirmees.add(nomBanque)
-  );
-  document
-    .querySelectorAll("#import-mappings-categories input[type='checkbox']")
-    .forEach((checkbox) => {
-      checkbox.checked = true;
-    });
-  appliquerMappingsLocalement();
-  renderImportApercu();
-});
-
 // `libelleHtml` n'est que l'affichage : `nomBanque` reste la clé envoyée au
 // serveur, sinon le « (Courant) » ajouté pour l'œil partirait dans la
 // correspondance mémorisée.
@@ -16877,36 +16857,15 @@ function creerLigneMapping(nomBanque, options, dictionnaireCible, onChange, { av
   if (avecConfirmation && valeurInitiale) select.value = String(valeurInitiale);
   select.addEventListener("change", () => {
     dictionnaireCible[nomBanque] = select.value ? Number(select.value) : null;
-    // Un changement de valeur redemande une confirmation explicite.
-    if (avecConfirmation) {
-      importCategoriesConfirmees.delete(nomBanque);
-      const checkbox = row.querySelector("input[type='checkbox']");
-      if (checkbox) checkbox.checked = false;
-    }
+    // CHOISIR DANS LA LISTE, C'EST CONFIRMER : la case verte « Confirmer » n'existe plus - la confirmation
+    // se fait dans le tableau des catégories, et la liste ne sert qu'à changer une correspondance.
+    if (avecConfirmation) importCategoriesConfirmees.add(nomBanque);
     onChange();
   });
 
   row.appendChild(label);
   row.appendChild(select);
 
-  if (avecConfirmation) {
-    const confirmLabel = document.createElement("label");
-    confirmLabel.className = "import-mapping-confirmer";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    // Restaurée depuis l'état mémorisé : le bloc est reconstruit à chaque
-    // retour sur la page, une case décochée d'office redemanderait un travail
-    // déjà fait.
-    checkbox.checked = importCategoriesConfirmees.has(nomBanque);
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) importCategoriesConfirmees.add(nomBanque);
-      else importCategoriesConfirmees.delete(nomBanque);
-      onChange();
-    });
-    confirmLabel.appendChild(checkbox);
-    confirmLabel.appendChild(document.createTextNode(" Confirmer"));
-    row.appendChild(confirmLabel);
-  }
 
   return row;
 }
@@ -18075,13 +18034,10 @@ document.getElementById("btn-bulle-import").addEventListener("click", async () =
   majBulleInformationsImport();
 });
 /**
- * LES CORRESPONDANCES SONT REPLIÉES : les fenêtres de l'import (catégories, comptes, monnaies) y répondent
- * déjà, et trois blocs ouverts sous le fichier rendaient la page illisible. Un bloc ne s'ouvre que s'il
- * MANQUE encore quelque chose (une catégorie non confirmée, un compte ou une devise non rattachés) - ce qui
- * ne devrait plus arriver après les fenêtres - et se referme quand plus rien ne manque. Le repli ne bouge
- * qu'à ces deux changements : un bloc qu'on a ouvert à la main pour relire reste ouvert.
+ * LES CORRESPONDANCES SONT REPLIÉES, toujours, au départ : les fenêtres de l'import (catégories, comptes,
+ * monnaies) y répondent déjà. Le récapitulatif ne les ouvre jamais de lui-même ; on les déplie pour relire
+ * ou changer une correspondance.
  */
-let importMappingsManquaient = null;
 
 /**
  * LE RÉCAPITULATIF DE TES CHOIX (#import-recapitulatif) : le fichier tel que l'app le lit, puis les
@@ -18120,21 +18076,6 @@ function sortirFichierDuRecapitulatif(sortir) {
   majRecapitulatifImport();
 }
 
-function majRepliMappings() {
-  const d = importApercu ? demandesDeMapping() : { categories: [], comptes: [], monnaies: [] };
-  const manque = {
-    categories: d.categories.some((nom) => !importCategoriesConfirmees.has(nom)),
-    comptes: d.comptes.some((nom) => !importMappingComptes[nom]),
-    monnaies: d.monnaies.some((nom) => !importMappingMonnaies[nom]),
-  };
-  Object.keys(manque).forEach((cle) => {
-    if (importMappingsManquaient && importMappingsManquaient[cle] === manque[cle]) return;
-    const bloc = document.getElementById(`import-details-${cle}`);
-    if (bloc) bloc.open = manque[cle];
-  });
-  importMappingsManquaient = manque;
-}
-
 /** Après la dernière fenêtre de l'import, la page se pose sur le contrôle avant import, juste au-dessus du
  *  bouton « Confirmer l'import ». */
 function versControleImport() {
@@ -18150,7 +18091,6 @@ function versControleImport() {
 }
 
 function renderImportApercu() {
-  majRepliMappings();
   document.getElementById("import-apercu-bloc").style.display = "";
   document.getElementById("import-apercu-nombre").textContent = importApercu.lignes.length;
   renderImportPrevisionnelles();

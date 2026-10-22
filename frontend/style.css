@@ -3619,15 +3619,6 @@ button.danger:hover {
   margin: 0 0 0.4rem;
 }
 
-.import-mapping-confirmer {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
 /* Chaque ligne doublon (même format de tableau que les autres sections) est
    suivie de la ligne déjà en base suspectée, en lecture seule : distinguées
    par un léger changement de fond, séparées des paires suivantes par un
@@ -7997,4 +7988,42 @@ button.preset-propose {
   margin: 0.35rem 0 0.4rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+/* LE RÉCAPITULATIF DE TES CHOIX : le fichier à gauche, les correspondances à droite (un quart de la page),
+   repliées. Sous 900 px, l'un sous l'autre. */
+#import-recapitulatif-contenu {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+#import-recapitulatif-contenu > #import-apercu-fichier-bloc {
+  min-width: 0;
+}
+
+.import-recap-droite {
+  min-width: 0;
+}
+
+.import-recap-droite > div > .toggle-titre:first-child {
+  margin-top: 0;
+}
+
+/* Une colonne étroite : le nom du fichier au-dessus de sa liste. */
+.import-recap-droite .import-mapping-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.import-recap-droite .import-mapping-row select {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  #import-recapitulatif-contenu {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

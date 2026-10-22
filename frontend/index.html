@@ -264,7 +264,7 @@
              bouton. app.js le révèle quand l'API répond présente. -->
         <button type="button" id="btn-modale-bdd-parcourir" style="display:none">Parcourir…</button>
         <button type="button" class="primary" id="btn-modale-bdd-valider">
-          Confirmer
+          Ranger mes données ici
         </button>
       </div>
     </div>
@@ -2502,16 +2502,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <p class="hint" id="import-apercu-fichier-info"></p>
           </div>
 
+          <div class="import-recap-droite">
           <div id="import-mappings-bloc" style="display:none">
             <details class="toggle-titre toggle-2" id="import-details-categories">
               <summary><h3>Les correspondances entre catégories<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires-a-confirmer">i</i></h3></summary>
               <div class="toggle-contenu">
                 <div class="actions">
-                  <!-- EN RELIEF : c'est le geste attendu de ce bloc. Les catégories
-                       proposées sont presque toujours bonnes, et les confirmer une par
-                       une devant quinze libellés est un travail que ce bouton existe
-                       pour éviter — encore faut-il le voir. -->
-                  <button type="button" class="primary" id="btn-import-mappings-tout-confirmer">Tout confirmer</button>
                   <!-- LE TABLEAU DES CORRESPONDANCES : les mêmes catégories, avec les opérations
                        concernées sous les yeux. S'ouvre tout seul à la lecture d'un fichier. -->
                   <button type="button" id="btn-import-correspondances">Classer avec les opérations concernées</button>
@@ -2539,7 +2535,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
                ne sont plus demandées, et cette liste est le seul endroit où l'on
                peut relire ce qui va s'appliquer sans ouvrir le preset. -->
           <div id="import-monnaies-resolues-bloc" style="display:none">
-            <details class="toggle-titre toggle-2" open>
+            <details class="toggle-titre toggle-2">
               <summary><h3>Devises déjà rattachées<i class="info-bulle" tabindex="0" data-info-cle="noyau.devises-deja-rattachees">i</i></h3></summary>
               <div class="toggle-contenu">
                 <div id="import-monnaies-resolues" class="import-mappings"></div>
@@ -2547,6 +2543,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             </details>
           </div>
 
+          </div>
           </div>
         </details>
       </div>
