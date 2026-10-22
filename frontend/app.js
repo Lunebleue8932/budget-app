@@ -15874,6 +15874,25 @@ function virSensTexte(ligne) {
   return t("Compte en face de {compte} :", { compte });
 }
 
+/** Le même sens, en HTML : le verbe (« envoie », « reçoit », et leurs traductions) en bleu, pour qu'on voie
+ *  d'un coup d'œil dans quel sens va chaque virement. Le verbe est le mot qui suit le nom du compte. */
+function virSensHtml(ligne) {
+  const texte = virSensTexte(ligne);
+  if (!jambeDuFichierLigne(ligne)) return escapeHtml(texte);
+  const compte = ligne.compte_id != null ? nomCompte(ligne.compte_id) : ligne.nom_banque_compte || t("Ce relevé");
+  const debut = texte.indexOf(compte);
+  if (debut < 0) return escapeHtml(texte);
+  const apres = debut + compte.length;
+  const verbe = texte.slice(apres).match(/^(\s*)(\S+)/);
+  if (!verbe) return escapeHtml(texte);
+  const fin = apres + verbe[0].length;
+  return (
+    escapeHtml(texte.slice(0, apres) + verbe[1]) +
+    `<span class="vir-sens-verbe">${escapeHtml(verbe[2])}</span>` +
+    escapeHtml(texte.slice(fin))
+  );
+}
+
 function virMontantHtml(ligne) {
   if (ligne.montant_signe != null) return formatMontant(ligne.montant_signe, ligne.monnaie_id);
   if (ligne.montant_envoye != null) return formatMontant(-Math.abs(ligne.montant_envoye), ligne.monnaie_envoyee_id);
@@ -15903,7 +15922,7 @@ function virCarteHtml(n, i) {
           <span class="hint">${ligne.date ? formatDateCourte(ligne.date) : ""}</span>
           <span class="corr-operation-montant">${virMontantHtml(ligne)}</span>
         </div>
-        <div class="vir-sens">${escapeHtml(virSensTexte(ligne))}</div>
+        <div class="vir-sens">${virSensHtml(ligne)}</div>
         <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
       </div>
       <div class="corr-roue-cadre">
@@ -16153,7 +16172,12 @@ async function virDemanderPropositions() {
  *  ouverte. */
 function ouvrirVirementsImport({ chaine = false } = {}) {
   if (!importApercu || tutorielEnCours()) return false;
-  virLignes = lignesVirementsEnFace().map((l) => l.ligne);
+  // LES ENTRANTS D'ABORD, PUIS LES SORTANTS (puis ceux dont le sens est inconnu), chacun dans l'ordre du fichier.
+  const rangSens = (l) => ({ entrante: 0, sortante: 1 })[jambeDuFichierLigne(l)] ?? 2;
+  virLignes = lignesVirementsEnFace()
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => rangSens(a.l) - rangSens(b.l) || a.i - b.i)
+    .map(({ l }) => l.ligne);
   if (!virLignes.length) return false;
   virChaine = chaine === true;
   importParcours.vues.add("virements");
@@ -18061,6 +18085,22 @@ function majRecapitulatifImport() {
     if (bloc) observateur.observe(bloc, { attributes: true, attributeFilter: ["style"] });
   });
   majRecapitulatifImport();
+
+  // LA COLONNE DES CORRESPONDANCES NE DÉPASSE PAS LE FICHIER : déplier une liste ne rallonge pas la page, on
+  // défile dans la colonne. Sa hauteur maximale suit celle du fichier prévisualisé (et rien quand les deux
+  // blocs sont l'un sous l'autre, ou que le fichier n'est pas montré).
+  const fichier = document.getElementById("import-apercu-fichier-bloc");
+  const droite = document.querySelector("#import-recapitulatif .import-recap-droite");
+  if (fichier && droite && window.ResizeObserver) {
+    const borner = () => {
+      const cote = getComputedStyle(document.getElementById("import-recapitulatif-contenu"))
+        .gridTemplateColumns.split(" ").length > 1;
+      const hauteur = fichier.offsetHeight;
+      droite.style.maxHeight = cote && hauteur > 0 && droite.parentElement.contains(fichier) ? `${hauteur}px` : "";
+    };
+    new ResizeObserver(borner).observe(fichier);
+    window.addEventListener("resize", borner);
+  }
 })();
 
 /** Pendant une proposition de preset, « Le fichier tel qu'il est » sort du récapitulatif (masqué) pour se

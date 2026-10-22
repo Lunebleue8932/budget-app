@@ -8005,6 +8005,8 @@ button.preset-propose {
 
 .import-recap-droite {
   min-width: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .import-recap-droite > div > .toggle-titre:first-child {
@@ -8026,4 +8028,9 @@ button.preset-propose {
   #import-recapitulatif-contenu {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* 3bis : le verbe du sens (« envoie », « reçoit ») ressort en bleu. */
+.vir-sens-verbe {
+  color: var(--accent-light);
 }
