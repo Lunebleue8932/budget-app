@@ -143,6 +143,9 @@
           Afficher les titres archivés
         </label>
         <button type="button" id="btn-titres-etf" disabled>Titres d'ETFs</button>
+        <!-- « GESTION DES FONDS » : la fenêtre qui range les fonds (ETF et indices) et permet de
+             lier chacun à un import de composition. Dessinée par gestion-fonds.js (préfixe `gfonds`). -->
+        <button type="button" id="btn-gestion-fonds">Gestion des fonds</button>
         <!-- DEUX TITRES REPLIABLES : ce qu'on détient aujourd'hui, et ce qu'on suit sans le
              détenir (vendu, ou composant d'un ETF importé pour les graphes). Ces derniers
              peuvent se compter par dizaines, et noyaient la poignée de titres qu'on possède.
@@ -157,6 +160,13 @@
           <details class="toggle-titre toggle-1" id="placements-titres-non-possedes" open>
             <summary><h3>Titres non possédés <span class="placements-titres-compte" id="placements-titres-non-possedes-nb"></span></h3></summary>
             <div class="toggle-contenu import-mappings" id="placements-titres-liste-non-possedes"></div>
+          </details>
+          <!-- LES INDICES (migration 0093) : des titres qu'on ne peut pas détenir. On y suit un cours, et
+               on y calque des ETF (panneau « Détail » d'un ETF). Un bloc à part : ils ne sont ni
+               possédés ni de simples titres suivis. -->
+          <details class="toggle-titre toggle-1" id="placements-titres-indices" open>
+            <summary><h3>Indices <span class="placements-titres-compte" id="placements-titres-indices-nb"></span><i class="info-bulle" tabindex="0" data-info-cle="placements.indices">i</i></h3></summary>
+            <div class="toggle-contenu import-mappings" id="placements-titres-liste-indices"></div>
           </details>
           <!-- « TITRES D'ETFS » (migration 0092) : les titres que l'import d'une composition a créés ou
                retrouvés (`part_etf`), sauf ceux qu'on détient. Une FENÊTRE, et non un bloc de plus :
@@ -193,6 +203,10 @@
           </label>
           <label><span class="champ-titre">Classe d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classe-actif">i</i></span>
             <select id="titre-classe-actif"></select>
+          </label>
+          <label class="import-option-ligne">
+            <input type="checkbox" id="titre-est-indice" />
+            <span class="champ-titre">C'est un indice (ne peut pas être détenu)<i class="info-bulle" tabindex="0" data-info-cle="placements.indices">i</i></span>
           </label>
           <div class="actions">
             <button type="submit" class="primary">Ajouter le titre</button>
@@ -277,6 +291,18 @@
             <button type="button" id="btn-ietf-retour">Retour</button>
             <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
           </div>
+        </div>
+      </div>
+
+      <!-- ===== « GESTION DES FONDS » : tous les titres de type fonds (ETF, fonds, indices), avec la
+           possibilité de lier chacun à un import de composition. Contenu dessiné par gestion-fonds.js. ===== -->
+      <div id="placements-modale-gestion-fonds" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-gestion-fonds" role="dialog" aria-modal="true" aria-labelledby="gfonds-titre">
+          <div class="epargne-entete">
+            <h2 id="gfonds-titre">Gestion des fonds<i class="info-bulle" tabindex="0" data-info-cle="placements.gestion-fonds">i</i></h2>
+            <button type="button" id="btn-gfonds-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="gfonds-corps" class="import-mappings"></div>
         </div>
       </div>
 

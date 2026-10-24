@@ -1277,3 +1277,16 @@ Object.assign(TEXTES, {
   "noyau.guide-import-virements":
     "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.",
 });
+/* ----- Les indices, « Calquer sur un indice » et « Gestion des fonds » (2026-10-24) ----- */
+Object.assign(TEXTES, {
+  "placements.indices":
+    "Un indice est un titre que tu ne peux pas détenir : il sert à suivre un cours dans l'app, ou de modèle pour des ETF. -- Renseigne ses infos et son cours comme pour n'importe quel titre. -- Un ETF importé que tu ne détiens pas peut le devenir (« Transformer en indice »), et un ETF se calque sur un indice depuis son détail.",
+  "placements.gestion-fonds":
+    "Tous tes fonds au même endroit : ETF, fonds et indices, avec ce que chacun contient et la date de son dernier import. -- « Lier à un import » ouvre l'import avec le fonds déjà prêt à recevoir la composition du fichier.",
+  "placements.gestion-fonds-corps":
+    "Lier un fonds à un import lui fait recevoir la composition du fichier. C'est utile pour une réplique synthétique : son émetteur ne publie pas ce que l'indice contient, tu importes donc le fichier d'un fonds qui le suit vraiment. À l'étape « Fonds » de l'import, tu choisis ce que le fonds prend et ce qu'il garde.",
+  "placements.calque-indice":
+    "Reprendre sur cet ETF ce que porte un indice : sa composition, sa classe d'actif, ses zones, ses secteurs. -- Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice. -- Ce que tu prends remplace d'un bloc ce que l'ETF porte aujourd'hui.",
+  "import-etf.fonds":
+    "Qui reçoit la composition ? Le fonds du fichier, et tous les ETF que tu branches dessus (par exemple un ETF synthétique qui suit le même indice). -- Pour chacun, coche ce qu'il prend : ce qui reste décoché n'est pas touché. -- Ce qu'un fonds prend REMPLACE ce qu'il porte aujourd'hui : c'est signalé en orange, et c'est effacé à l'import.",
+});

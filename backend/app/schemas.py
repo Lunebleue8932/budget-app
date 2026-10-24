@@ -1045,6 +1045,9 @@ class TitreCreate(BaseModel):
     # L'autre axe : à QUOI le titre expose (« Actions », « Obligations »…). Même
     # table, même nature, même absence d'effet sur le moindre calcul.
     classe_actif_id: Optional[int] = None
+    # Un INDICE ne peut pas être détenu (cf. models.TitrePossede.est_indice) : il se crée ici pour
+    # suivre un cours ou servir de modèle à des ETF.
+    est_indice: bool = False
 
 
 class TitreUpdate(BaseModel):
@@ -1074,6 +1077,17 @@ class TitreUpdate(BaseModel):
     # ISIN représentent) suit la même convention, zéro la retire.
     composition: Optional[dict[str, float]] = None
     composition_couverture_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    # Transformer en indice / redevenir un titre ordinaire. `None` ne change rien. Refusé pour un
+    # titre qui a eu des mouvements (cf. routeur_titres.update_titre).
+    est_indice: Optional[bool] = None
+
+
+class CalqueTitre(BaseModel):
+    """Calquer un fonds sur un indice : les propriétés de l'indice que le fonds PREND (les autres
+    restent telles quelles). Propriétés : composition, classe, zone, secteur."""
+
+    indice_id: int
+    proprietes: list[str] = Field(min_length=1)
 
 
 class ExpositionLigneEcriture(BaseModel):
@@ -1133,6 +1147,8 @@ class TitreRead(BaseModel):
     # « Part d'un ETF ? » (migration 0092) : posé par l'import d'une composition. L'écran range
     # ces titres dans « Titres d'ETFs » — sauf s'ils sont détenus.
     part_etf: bool = False
+    # Un indice ne peut pas être détenu : modèle d'ETF ou simple cours à suivre (migration 0093).
+    est_indice: bool = False
     code_isin: Optional[str] = None
     # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
     # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs. Et la

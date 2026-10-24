@@ -10,7 +10,11 @@
  *                    remplit l'autre) ;
  *   3. Secteurs    - à quel secteur de l'app correspond chaque secteur du fichier ;
  *   4. Zones       - idem pour les pays, regroupés en zones ;
- *   5. Importer    - le récapitulatif, puis la confirmation.
+ *   5. Fonds       - QUI reçoit la composition : le fonds du fichier et, en plus, des ETF qu'on branche
+ *                    dessus (réplique synthétique : on importe celle d'un autre fonds). Pour chacun,
+ *                    ce que le fonds porte déjà est montré, et on coche ce qu'il PREND (le reste est
+ *                    laissé tel quel) ;
+ *   ✓. Importer    - le récapitulatif, puis la confirmation.
  *
  * Aucun calcul de lecture ici : tout est au serveur (service_import_etf.py). Seule la couverture se
  * calcule des deux côtés sur le MÊME cumul, que le serveur envoie. CHARGÉ APRÈS placements.js ; tout
@@ -22,7 +26,15 @@ const IETF_ETAPES = [
   { id: "couverture", numero: "2", nom: "Couverture" },
   { id: "secteurs", numero: "3", nom: "Secteurs" },
   { id: "zones", numero: "4", nom: "Zones" },
+  { id: "fonds", numero: "5", nom: "Fonds" },
   { id: "importer", numero: "✓", nom: "Importer" },
+];
+
+// Ce que l'import sait poser sur un fonds (cf. service_import_etf.PROPRIETES_IMPORT).
+const IETF_PROPRIETES = [
+  { cle: "composition", nom: "Composition" },
+  { cle: "secteur", nom: "Secteur" },
+  { cle: "zone", nom: "Zone géographique" },
 ];
 
 const IETF_HAUTEUR_OPTION = 30;
@@ -56,6 +68,13 @@ const IETF = {
   zones: {},
   // Les étiquettes que l'utilisateur ajoute à la main, par axe.
   extra: { secteurs: [], zones: [] },
+  // QUI REÇOIT : ce que prend le fonds du fichier (composition / secteur / zone cochés), et les fonds
+  // branchés en plus (identifiant -> mêmes cases). Cf. l'étape « Fonds ».
+  proprietesEtf: {},
+  cibles: new Map(),
+  // Un fonds à brancher d'office : l'import ouvert depuis « Gestion des fonds ».
+  preselection: null,
+  principalVoulu: null,
 };
 
 function ietfEl(id) {
@@ -64,11 +83,16 @@ function ietfEl(id) {
 
 /* ---------- La fenêtre ---------- */
 
-function ietfOuvrir() {
+function ietfOuvrir(options = {}) {
   IETF.fichier = null;
   IETF.lecture = null;
   IETF.rang = 0;
   IETF.extra = { secteurs: [], zones: [] };
+  IETF.proprietesEtf = {};
+  IETF.cibles = new Map();
+  IETF.preselection = options.cibleId ? Number(options.cibleId) : null;
+  // Un fonds qui doit être LE récepteur du fichier (un indice), et non un fonds branché en plus.
+  IETF.principalVoulu = options.principalId ? Number(options.principalId) : null;
   ietfEl("placements-modale-import-etf").style.display = "";
   document.body.classList.add("modale-ouverte");
   ietfRendre();
@@ -88,7 +112,7 @@ function ietfPoserBouton() {
   bouton.id = "btn-ietf-ouvrir";
   bouton.className = "placements-titre-action";
   bouton.textContent = t("Importer des titres");
-  bouton.addEventListener("click", ietfOuvrir);
+  bouton.addEventListener("click", () => ietfOuvrir());
   actions.appendChild(bouton);
 }
 
@@ -145,6 +169,7 @@ function ietfRendre() {
     couverture: ietfRendreCouverture,
     secteurs: () => ietfRendreCorrespondances("secteurs"),
     zones: () => ietfRendreCorrespondances("zones"),
+    fonds: ietfRendreFonds,
     importer: ietfRendreRecap,
   })[id](corps);
   const dernier = id === "importer";
@@ -260,11 +285,163 @@ async function ietfLire(e) {
 function ietfInitialiserChoix() {
   const l = IETF.lecture;
   IETF.etfId = l.etf.titre_id ? String(l.etf.titre_id) : "nouveau";
+  if (IETF.principalVoulu && l.etf.candidats.some((c) => c.id === IETF.principalVoulu)) {
+    IETF.etfId = String(IETF.principalVoulu);
+  }
   IETF.etfNom = l.fonds.nom || "";
   IETF.etfIsin = l.fonds.isin || "";
   IETF.lignes = Math.min(l.couverture.defaut_lignes, l.nb_possessions);
   IETF.secteurs = Object.fromEntries(l.secteurs.map((s) => [s.brut, s.propose || ""]));
   IETF.zones = Object.fromEntries(l.zones.map((z) => [z.brut, z.propose || ""]));
+  IETF.proprietesEtf = ietfToutesCochees();
+  IETF.cibles = new Map();
+  if (IETF.preselection && l.etf.branchables.some((b) => b.id === IETF.preselection)) {
+    IETF.cibles.set(IETF.preselection, ietfToutesCochees());
+  }
+}
+
+/* ---------- 5. Les fonds qui reçoivent ---------- */
+
+/** Les propriétés que CE FICHIER peut apporter (un secteur ou une zone seulement s'il en dit). */
+function ietfDisponibles() {
+  return IETF_PROPRIETES.filter((p) => IETF.lecture.apport[p.cle]).map((p) => p.cle);
+}
+
+function ietfToutesCochees() {
+  return Object.fromEntries(ietfDisponibles().map((cle) => [cle, true]));
+}
+
+function ietfCochees(choix) {
+  return ietfDisponibles().filter((cle) => choix[cle]);
+}
+
+/** Ce que l'import posera, en une ligne, pour une propriété. */
+function ietfApportTexte(cle) {
+  if (cle === "composition") {
+    return t("{n} composant(s), {pct} % du fonds", { n: IETF.lignes, pct: ietfPct(ietfPctPourLignes(IETF.lignes)) });
+  }
+  return t("répartition lue dans le fichier");
+}
+
+function ietfNomPropriete(cle) {
+  return t(IETF_PROPRIETES.find((p) => p.cle === cle).nom);
+}
+
+/** Une carte par fonds qui reçoit : ce qu'il porte, ce que l'import apporte, et les cases. */
+function ietfCarteFondHtml({ cle, nom, badge, donnees, choix, retirable }) {
+  const disponibles = ietfDisponibles();
+  const effacees = ietfCochees(choix).filter((p) => donnees && donnees[p] && donnees[p].nb > 0);
+  const lignes = IETF_PROPRIETES.map(({ cle: prop }) => {
+    const dispo = disponibles.includes(prop);
+    const aujourdhui = donnees ? expoResumeTexte(prop, donnees[prop]) : t("Rien de renseigné");
+    return `<label class="ietf-fond-ligne ${dispo ? "" : "ietf-fond-ligne-vide"}">
+      <input type="checkbox" data-ietf-prop="${prop}" ${choix[prop] && dispo ? "checked" : ""} ${dispo ? "" : "disabled"} />
+      <span class="ietf-fond-prop">${escapeHtml(ietfNomPropriete(prop))}</span>
+      <span class="hint">${escapeHtml(t("Aujourd'hui :"))} ${escapeHtml(aujourdhui)}</span>
+      <span class="hint">${escapeHtml(dispo ? `→ ${ietfApportTexte(prop)}` : t("Le fichier n'en dit rien"))}</span>
+    </label>`;
+  }).join("");
+  return `<section class="ietf-fond" data-ietf-fond="${escapeHtml(cle)}">
+    <header><b>${escapeHtml(nom)}</b> <span class="ietf-pastille">${escapeHtml(badge)}</span>
+      ${retirable ? `<button type="button" data-ietf-retirer="${escapeHtml(cle)}">${escapeHtml(t("Retirer"))}</button>` : ""}
+    </header>
+    ${lignes}
+    ${
+      effacees.length
+        ? `<p class="ietf-avertissement">${escapeHtml(
+            t("Ce que ce fonds porte aujourd'hui pour {liste} sera effacé.", {
+              liste: effacees.map((p) => ietfNomPropriete(p).toLowerCase()).join(", "),
+            })
+          )}</p>`
+        : ""
+    }
+  </section>`;
+}
+
+/** Le fonds du fichier : nouveau (rien à effacer) ou déjà dans l'app (ce qu'il porte est montré). */
+function ietfCartePrincipale() {
+  const l = IETF.lecture;
+  if (IETF.etfId === "nouveau") {
+    return `<section class="ietf-fond" data-ietf-fond="etf">
+      <header><b>${escapeHtml(IETF.etfNom.trim() || t("Fonds sans nom"))}</b> <span class="ietf-pastille ietf-pastille-nouveau">${escapeHtml(t("à créer"))}</span></header>
+      <p class="hint">${escapeHtml(t("Nouveau fonds : il reçoit la composition et les répartitions du fichier, rien n'est effacé."))}</p>
+    </section>`;
+  }
+  const candidat = l.etf.candidats.find((c) => String(c.id) === IETF.etfId);
+  return ietfCarteFondHtml({
+    cle: "etf",
+    nom: candidat ? candidat.nom : "",
+    badge: candidat && candidat.est_indice ? t("indice") : t("fonds du fichier"),
+    donnees: candidat ? candidat.donnees : null,
+    choix: IETF.proprietesEtf,
+    retirable: false,
+  });
+}
+
+function ietfRendreFonds(corps) {
+  const l = IETF.lecture;
+  const principalId = IETF.etfId === "nouveau" ? null : Number(IETF.etfId);
+  const branchables = l.etf.branchables.filter((b) => b.id !== principalId);
+  const cartes = [...IETF.cibles.entries()]
+    .map(([id, choix]) => {
+      const b = branchables.find((x) => x.id === id);
+      return b
+        ? ietfCarteFondHtml({
+            cle: String(id),
+            nom: b.nom,
+            badge: b.detenu ? t("détenu") : t("non détenu"),
+            donnees: b.donnees,
+            choix,
+            retirable: true,
+          })
+        : "";
+    })
+    .join("");
+  const libres = branchables.filter((b) => !IETF.cibles.has(b.id));
+  corps.innerHTML = `
+    <p class="modale-texte" data-texte-cle="import-etf.fonds"></p>
+    <h3>${escapeHtml(t("Fonds qui reçoivent la composition"))}</h3>
+    <div class="ietf-fonds-liste">${ietfCartePrincipale()}${cartes}</div>
+    <h3>${escapeHtml(t("Brancher un autre fonds"))}</h3>
+    ${
+      libres.length
+        ? `<div class="ietf-etf selecteur-contexte">
+            <label>${escapeHtml(t("Fonds à brancher"))}
+              <select id="ietf-brancher">
+                <option value="">${escapeHtml(t("— Choisir un fonds —"))}</option>
+                ${libres
+                  .map((b) => `<option value="${b.id}">${escapeHtml(b.nom)} (${escapeHtml(b.detenu ? t("détenu") : t("non détenu"))})</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <button type="button" id="btn-ietf-brancher">${escapeHtml(t("+ Brancher"))}</button>
+          </div>`
+        : `<p class="hint">${escapeHtml(t("Aucun autre ETF à brancher."))}</p>`
+    }`;
+  if (typeof appliquerTextes === "function") appliquerTextes(corps);
+  const brancher = ietfEl("btn-ietf-brancher");
+  if (brancher) {
+    brancher.addEventListener("click", () => {
+      const id = Number(ietfEl("ietf-brancher").value);
+      if (!id) return;
+      IETF.cibles.set(id, ietfToutesCochees());
+      ietfRendreFonds(corps);
+    });
+  }
+  corps.querySelectorAll("[data-ietf-prop]").forEach((caseACocher) => {
+    caseACocher.addEventListener("change", () => {
+      const cle = caseACocher.closest("[data-ietf-fond]").dataset.ietfFond;
+      const choix = cle === "etf" ? IETF.proprietesEtf : IETF.cibles.get(Number(cle));
+      choix[caseACocher.dataset.ietfProp] = caseACocher.checked;
+      ietfRendreFonds(corps);
+    });
+  });
+  corps.querySelectorAll("[data-ietf-retirer]").forEach((bouton) => {
+    bouton.addEventListener("click", () => {
+      IETF.cibles.delete(Number(bouton.dataset.ietfRetirer));
+      ietfRendreFonds(corps);
+    });
+  });
 }
 
 /* ---------- 2. L'ETF et la couverture ---------- */
@@ -360,7 +537,7 @@ function ietfRendreCouverture(corps) {
   const options = [
     `<option value="nouveau">${escapeHtml(t("— Nouvel ETF —"))}</option>`,
     ...l.etf.candidats.map(
-      (c) => `<option value="${c.id}" ${String(c.id) === IETF.etfId ? "selected" : ""}>${escapeHtml(c.nom)}${c.isin ? ` (${escapeHtml(c.isin)})` : ""}</option>`
+      (c) => `<option value="${c.id}" ${String(c.id) === IETF.etfId ? "selected" : ""}>${escapeHtml(c.nom)}${c.isin ? ` (${escapeHtml(c.isin)})` : ""}${c.est_indice ? ` — ${escapeHtml(t("indice"))}` : ""}</option>`
     ),
   ].join("");
   corps.innerHTML = `
@@ -392,6 +569,10 @@ function ietfRendreCouverture(corps) {
     <div id="ietf-composants">${ietfComposantsHtml()}</div>`;
   if (typeof appliquerTextes === "function") appliquerTextes(corps);
   const majEtf = () => {
+    if (ietfEl("ietf-etf").value !== IETF.etfId) {
+      IETF.proprietesEtf = ietfToutesCochees();
+      IETF.cibles.delete(Number(ietfEl("ietf-etf").value));
+    }
     IETF.etfId = ietfEl("ietf-etf").value;
     ietfEl("ietf-etf-nom").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("ietf-etf-isin").closest("label").hidden = IETF.etfId !== "nouveau";
@@ -552,11 +733,35 @@ function ietfRendreRecap(corps) {
   const compte = (s) => statuts.filter((x) => x === s).length;
   const cibles = l.etf.candidats.find((c) => String(c.id) === IETF.etfId);
   const etf = IETF.etfId === "nouveau" ? `${IETF.etfNom} (${t("à créer")})` : cibles ? cibles.nom : "";
+  const principalId = IETF.etfId === "nouveau" ? null : Number(IETF.etfId);
+  // Le détail de ce que chaque fonds prend, et ce qu'il perdra : le dernier regard avant d'écrire.
+  const ligneFond = (nom, choix, donnees) => {
+    const prises = ietfCochees(choix);
+    const perdues = prises.filter((p) => donnees && donnees[p] && donnees[p].nb > 0);
+    return `<li><b>${escapeHtml(nom)}</b> : ${
+      prises.length ? escapeHtml(prises.map((p) => ietfNomPropriete(p).toLowerCase()).join(", ")) : escapeHtml(t("rien (il reste tel quel)"))
+    }${
+      perdues.length
+        ? ` — <span class="ietf-avertissement">${escapeHtml(
+            t("écrase {liste}", { liste: perdues.map((p) => ietfNomPropriete(p).toLowerCase()).join(", ") })
+          )}</span>`
+        : ""
+    }</li>`;
+  };
+  const fonds = [
+    IETF.etfId === "nouveau" ? `<li><b>${escapeHtml(etf)}</b></li>` : ligneFond(etf, IETF.proprietesEtf, cibles ? cibles.donnees : null),
+    ...[...IETF.cibles.entries()]
+      .filter(([id]) => id !== principalId)
+      .map(([id, choix]) => {
+        const b = l.etf.branchables.find((x) => x.id === id);
+        return b ? ligneFond(b.nom, choix, b.donnees) : "";
+      }),
+  ].join("");
   const etiquettes = ietfEtiquettesACreer();
   corps.innerHTML = `
     <p class="modale-texte" data-texte-cle="import-etf.recap"></p>
     <ul class="ietf-recap">
-      <li><b>${escapeHtml(t("ETF"))}</b> : ${escapeHtml(etf)}</li>
+      <li><b>${escapeHtml(t("Fonds qui reçoivent"))}</b><ul class="ietf-recap-fonds">${fonds}</ul></li>
       <li><b>${escapeHtml(t("Composition"))}</b> : ${escapeHtml(ietfResumeCouverture())}</li>
       <li><b>${escapeHtml(t("Titres"))}</b> : ${escapeHtml(
         t("{a} créé(s), {b} retrouvé(s), {c} écarté(s) car ambigu(s)", { a: compte("nouveau"), b: compte("existant"), c: compte("ambigu") })
@@ -576,7 +781,13 @@ async function ietfConfirmer() {
   formulaire.append(
     "choix",
     JSON.stringify({
-      etf: IETF.etfId === "nouveau" ? { nom: IETF.etfNom.trim(), isin: IETF.etfIsin.trim() } : { titre_id: Number(IETF.etfId) },
+      etf:
+        IETF.etfId === "nouveau"
+          ? { nom: IETF.etfNom.trim(), isin: IETF.etfIsin.trim() }
+          : { titre_id: Number(IETF.etfId), proprietes: ietfCochees(IETF.proprietesEtf) },
+      cibles: [...IETF.cibles.entries()]
+        .filter(([id]) => String(id) !== IETF.etfId)
+        .map(([id, choix]) => ({ titre_id: id, proprietes: ietfCochees(choix) })),
       nb_lignes: IETF.lignes,
       secteurs: IETF.secteurs,
       zones: IETF.zones,
@@ -596,6 +807,12 @@ async function ietfConfirmer() {
       }),
       "success"
     );
+    if (r.branches && r.branches.length) {
+      showMessage(
+        t("Composition aussi posée sur : {noms}", { noms: r.branches.map((b) => b.nom).join(", ") }),
+        "success"
+      );
+    }
     r.avertissements.forEach((m) => showMessage(traduireMessageServeur(m), "error"));
     ietfFermer();
     await refreshTypesTitre();

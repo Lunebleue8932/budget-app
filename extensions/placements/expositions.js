@@ -57,9 +57,10 @@ function expoNormaliser(texte) {
     .trim();
 }
 
-/** Vrai pour un titre dont l'enveloppe se nomme « ETF » (ou « ETFs », « ETF actions »…). */
+/** Vrai pour un titre dont l'enveloppe se nomme « ETF » (ou « ETFs », « ETF actions »…), ou pour un
+ *  indice : il porte une composition comme un ETF, c'est même tout son intérêt. */
 function expoEstEtf(titre) {
-  return /^etf/.test(expoNormaliser(titre.type_titre_nom));
+  return !!titre.est_indice || /^etf/.test(expoNormaliser(titre.type_titre_nom));
 }
 
 /** Vrai pour une « Action en direct » : une étiquette par axe, à 100 %, VERROUILLÉ au serveur
@@ -198,6 +199,147 @@ function expoCompositionHtml(titre) {
     </div>`;
 }
 
+/* ---------- Calquer un ETF sur un indice ----------
+ *
+ * Un INDICE (titre qu'on ne détient pas, cf. models.est_indice) porte une composition et des
+ * répartitions. « Calquer » les recopie sur l'ETF — mais PROPRIÉTÉ PAR PROPRIÉTÉ, au choix : ce que
+ * l'ETF porte déjà bien reste, ce qu'on prend de l'indice REMPLACE d'un bloc (services/calque_fonds).
+ * L'écran montre les deux côtés avant d'écraser quoi que ce soit.
+ */
+
+const EXPO_PROPRIETES_CALQUE = [
+  { cle: "composition", nom: "Composition" },
+  { cle: "classe", nom: "Classe d'actif" },
+  { cle: "zone", nom: "Zone géographique" },
+  { cle: "secteur", nom: "Secteur" },
+];
+
+/** Ce qu'une propriété porte, en une ligne lisible (`donnees` = un résumé du serveur). */
+function expoResumeTexte(cle, donnees) {
+  if (!donnees || !donnees.nb) return t("Rien de renseigné");
+  if (cle === "composition") {
+    return t("{n} composant(s), {pct} % de l'indice couverts", {
+      n: donnees.nb,
+      pct: expoFormatPoids(donnees.couverture_pct ?? donnees.poids_pct),
+    });
+  }
+  const lignes = donnees.lignes.slice(0, 3).map((l) => `${l.nom} ${expoFormatPoids(l.poids_pct)} %`);
+  return lignes.join(", ") + (donnees.lignes.length > 3 ? "…" : "");
+}
+
+function expoCalqueHtml(titre) {
+  const indices = state.titres.filter((x) => x.est_indice && !x.archivee);
+  const entete = `
+      <div class="expo-axe-titre">
+        ${escapeHtml(t("Calquer sur un indice"))}<i class="info-bulle" tabindex="0" data-info-cle="placements.calque-indice">i</i>
+      </div>`;
+  if (!indices.length) {
+    return `<div class="expo-calque">${entete}<p class="hint">${escapeHtml(
+      t("Aucun indice : crée-en un, ou transforme un ETF importé que tu ne détiens pas.")
+    )}</p></div>`;
+  }
+  return `
+    <div class="expo-calque" data-expo-calque>${entete}
+      <select data-expo-calque-indice>
+        <option value="">${escapeHtml(t("— Choisir un indice —"))}</option>
+        ${indices.map((i) => `<option value="${i.id}">${escapeHtml(i.nom_affiche)}</option>`).join("")}
+      </select>
+      <div data-expo-calque-detail></div>
+    </div>`;
+}
+
+/** Le tableau de choix : pour chaque propriété, ce que porte l'ETF, ce que porte l'indice, et lequel on garde. */
+function expoCalqueDetailHtml(titreId, cible, indice) {
+  const lignes = EXPO_PROPRIETES_CALQUE.map(({ cle, nom }) => {
+    const aLaCible = cible[cle].nb > 0;
+    const aIndice = indice[cle].nb > 0;
+    // Par défaut : on prend de l'indice ce que l'ETF n'a pas, et on GARDE ce qu'il a déjà.
+    const prendre = aIndice && !aLaCible;
+    const radio = `calque-${titreId}-${cle}`;
+    return `<tr data-propriete="${cle}">
+      <th scope="row">${escapeHtml(t(nom))}</th>
+      <td>${escapeHtml(expoResumeTexte(cle, cible[cle]))}</td>
+      <td>${escapeHtml(expoResumeTexte(cle, indice[cle]))}</td>
+      <td class="expo-calque-choix">
+        <label><input type="radio" name="${radio}" value="etf" ${prendre ? "" : "checked"} /> ${escapeHtml(t("Garder celle de l'ETF"))}</label>
+        <label><input type="radio" name="${radio}" value="indice" ${prendre ? "checked" : ""} ${aIndice ? "" : "disabled"} /> ${escapeHtml(t("Prendre celle de l'indice"))}</label>
+      </td>
+    </tr>`;
+  }).join("");
+  return `
+    <div class="expo-calque-cadre"><table class="expo-calque-table">
+      <thead><tr><th></th><th>${escapeHtml(t("Cet ETF aujourd'hui"))}</th><th>${escapeHtml(t("L'indice"))}</th><th>${escapeHtml(t("Que garder ?"))}</th></tr></thead>
+      <tbody>${lignes}</tbody>
+    </table></div>
+    <p class="expo-calque-alerte" data-expo-calque-alerte></p>
+    <div class="expo-actions">
+      <button type="button" class="primary" data-expo-calque-appliquer>${escapeHtml(t("Calquer"))}</button>
+    </div>`;
+}
+
+/** Les propriétés que l'utilisateur a choisi de PRENDRE à l'indice. */
+function expoCalquePrises(zone) {
+  return [...zone.querySelectorAll("tr[data-propriete]")]
+    .filter((tr) => tr.querySelector("input[value='indice']").checked)
+    .map((tr) => tr.dataset.propriete);
+}
+
+/** Dit ce que le choix actuel va EFFACER sur l'ETF, et grise « Calquer » s'il ne prend rien. */
+function expoCalqueMajAlerte(zone, cible) {
+  const prises = expoCalquePrises(zone);
+  const effacees = prises.filter((cle) => cible[cle].nb > 0);
+  const nom = (cle) => t(EXPO_PROPRIETES_CALQUE.find((p) => p.cle === cle).nom).toLowerCase();
+  zone.querySelector("[data-expo-calque-alerte]").textContent = effacees.length
+    ? t("Ce que l'ETF porte aujourd'hui pour {liste} sera effacé.", { liste: effacees.map(nom).join(", ") })
+    : "";
+  zone.querySelector("[data-expo-calque-appliquer]").disabled = !prises.length;
+}
+
+async function expoCalqueChoisir(menu) {
+  const panneau = menu.closest(".expo-panneau");
+  const zone = menu.closest("[data-expo-calque]").querySelector("[data-expo-calque-detail]");
+  if (!menu.value) {
+    zone.innerHTML = "";
+    return;
+  }
+  const titreId = Number(panneau.dataset.titre);
+  try {
+    const [cible, indice] = await Promise.all([
+      apiFetch(`/titres/${titreId}/donnees`),
+      apiFetch(`/titres/${menu.value}/donnees`),
+    ]);
+    zone.innerHTML = expoCalqueDetailHtml(titreId, cible, indice);
+    zone._cible = cible;
+    expoCalqueMajAlerte(zone, cible);
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+  }
+}
+
+async function expoCalqueAppliquer(bouton) {
+  const bloc = bouton.closest("[data-expo-calque]");
+  const zone = bloc.querySelector("[data-expo-calque-detail]");
+  const titreId = Number(bouton.closest(".expo-panneau").dataset.titre);
+  const indiceId = Number(bloc.querySelector("[data-expo-calque-indice]").value);
+  const proprietes = expoCalquePrises(zone);
+  if (!indiceId || !proprietes.length) return;
+  const effacees = proprietes.filter((cle) => zone._cible[cle].nb > 0);
+  if (effacees.length && !confirm(t("Remplacer ce que l'ETF porte déjà par ce que porte l'indice ?"))) return;
+  bouton.disabled = true;
+  try {
+    const lu = await apiFetch(`/titres/${titreId}/calque`, {
+      method: "PUT",
+      body: JSON.stringify({ indice_id: indiceId, proprietes }),
+    });
+    showMessage(t("ETF calqué sur l'indice"), "success");
+    expoRemplacerTitre(lu);
+    await refreshTypesTitre();
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    bouton.disabled = false;
+  }
+}
+
 /* ---------- Le panneau ---------- */
 
 function expoPanneauHtml(titre) {
@@ -209,6 +351,7 @@ function expoPanneauHtml(titre) {
   return `
     ${EXPO_AXES.map((config) => expoAxeHtml(titre, config)).join("")}
     ${expoEstEtf(titre) ? expoCompositionHtml(titre) : ""}
+    ${expoEstEtf(titre) && !titre.est_indice ? expoCalqueHtml(titre) : ""}
     ${avertissements ? `<ul class="expo-avertissements">${avertissements}</ul>` : ""}
     <div class="expo-actions expo-actions-panneau">
       <button type="button" class="primary" data-expo-enregistrer>${escapeHtml(t("Enregistrer"))}</button>
@@ -341,6 +484,8 @@ async function expoEnregistrer(panneau) {
       expoMajTotal(axeEl);
     } else if (e.target.closest("[data-expo-enregistrer]")) {
       await expoEnregistrer(panneau);
+    } else if (e.target.closest("[data-expo-calque-appliquer]")) {
+      await expoCalqueAppliquer(e.target.closest("[data-expo-calque-appliquer]"));
     }
   });
 
@@ -351,5 +496,12 @@ async function expoEnregistrer(panneau) {
   bloc.addEventListener("change", (e) => {
     const axeEl = e.target.closest(".expo-axe");
     if (axeEl) expoMajTotal(axeEl);
+    const menu = e.target.closest("[data-expo-calque-indice]");
+    if (menu) expoCalqueChoisir(menu);
+    const radio = e.target.closest(".expo-calque-table input[type='radio']");
+    if (radio) {
+      const zone = radio.closest("[data-expo-calque-detail]");
+      expoCalqueMajAlerte(zone, zone._cible);
+    }
   });
 })();

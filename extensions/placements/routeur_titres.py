@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, object_session
 from app import crud, schemas
 from app.constants import AXES_EXPOSITION, AxeTitre
 from app.database import get_db
-from app.services import exposition, identite_titre, placements
+from app.services import calque_fonds, exposition, identite_titre, placements
 
 router = APIRouter(prefix="/titres", tags=["placements"])
 
@@ -68,6 +68,7 @@ def _titre_read(
         archivee=titre.archivee,
         detenu=detenu,
         part_etf=bool(titre.part_etf),
+        est_indice=bool(titre.est_indice),
         code_isin=titre.code_isin,
         # Le libellé voyage à côté de l'identifiant : les tableaux l'affichent
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
@@ -175,6 +176,7 @@ def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
             payload.code_isin,
             payload.type_titre_id,
             payload.classe_actif_id,
+            est_indice=payload.est_indice,
         )
     )
 
@@ -235,10 +237,27 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
                     "titre(s)) : vends la position avant de l'archiver."
                 ),
             )
+    # UN INDICE NE SE DÉTIENT PAS : on ne transforme pas ce qu'on possède, ni ce qui a déjà porté des
+    # mouvements (leur historique deviendrait celui d'un titre qui ne peut pas exister).
+    if payload.est_indice and not titre.est_indice:
+        if placements.quantite_detenue_totale(db, titre_id) > placements.EPSILON_QUANTITE:
+            raise HTTPException(
+                status_code=409,
+                detail=f"« {titre.nom_affiche} » est détenu : un indice ne peut pas l'être.",
+            )
+        if crud.titre_est_utilise(db, titre_id):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"« {titre.nom_affiche} » a des mouvements enregistrés : il ne peut pas devenir "
+                    "un indice."
+                ),
+            )
     return _titre_read(
         crud.update_titre(
             db,
             titre,
+            est_indice=payload.est_indice,
             nom=payload.nom,
             nom_affichage=payload.nom_affichage,
             valeur=payload.valeur,
@@ -296,6 +315,38 @@ def remplacer_expositions(
     db.commit()
     db.refresh(titre)
     return _titre_read(titre)
+
+
+@router.get("/{titre_id}/donnees")
+def donnees_du_titre(titre_id: int, db: Session = Depends(get_db)):
+    """Ce que le titre porte (composition, classe, zone, secteur), résumé : l'écran le montre AVANT
+    d'écraser quoi que ce soit (cf. services/calque_fonds)."""
+    titre = crud.get_titre(db, titre_id)
+    if titre is None:
+        raise HTTPException(status_code=404, detail="Titre introuvable")
+    return calque_fonds.resume(titre)
+
+
+@router.put("/{titre_id}/calque", response_model=schemas.TitreRead)
+def calquer_sur_indice(titre_id: int, payload: schemas.CalqueTitre, db: Session = Depends(get_db)):
+    """CALQUE un fonds sur un indice : les propriétés choisies de l'indice REMPLACENT celles du fonds,
+    les autres restent. Le choix, propriété par propriété, est celui de l'utilisateur."""
+    cible = crud.get_titre(db, titre_id)
+    if cible is None:
+        raise HTTPException(status_code=404, detail="Titre introuvable")
+    indice = crud.get_titre(db, payload.indice_id)
+    if indice is None or not indice.est_indice:
+        raise HTTPException(status_code=404, detail="Indice introuvable")
+    if cible.est_indice:
+        raise HTTPException(status_code=409, detail="Un indice ne se calque pas sur un autre indice")
+    try:
+        calque_fonds.calquer(db, cible, indice, payload.proprietes)
+    except calque_fonds.ErreurCalque as erreur:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(erreur)) from None
+    db.commit()
+    db.refresh(cible)
+    return _titre_read(cible)
 
 
 @router.delete("/{titre_id}", status_code=status.HTTP_204_NO_CONTENT)

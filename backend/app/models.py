@@ -1035,6 +1035,13 @@ class TitrePossede(Base):
     # plutôt que dans « Titres suivis » — SAUF s'il est détenu : ce qu'on possède reste sous les
     # yeux, quel que soit ce drapeau. Il ne change aucun calcul.
     part_etf = Column(Boolean, nullable=False, default=False, server_default=sa_false())
+    # « INDICE » (migration 0093) : un titre qu'on NE PEUT PAS DÉTENIR. Il porte une composition, des
+    # répartitions et un cours comme n'importe quel titre, mais ne sert qu'à deux choses : suivre son
+    # cours à l'écran, et servir de modèle à des ETF qu'on calque dessus (cf. services/calque_fonds).
+    # Posé à la main, ou par « Transformer en indice » sur un ETF importé que personne ne détient.
+    # Aucun mouvement ne peut le porter (crud.create_operation_titre refuse), et on ne transforme pas
+    # un titre qui en a déjà eu.
+    est_indice = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
     @property
     def nom_affiche(self) -> str:

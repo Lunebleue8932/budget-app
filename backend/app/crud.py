@@ -2734,11 +2734,13 @@ def create_titre(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
+    est_indice: bool = False,
 ) -> models.TitrePossede:
     titre = models.TitrePossede(
         nom=nom,
         valeur=valeur,
         monnaie_id=monnaie_id,
+        est_indice=est_indice,
         code_isin=code_isin or None,
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
@@ -2769,9 +2771,12 @@ def update_titre(
     composition: Optional[dict] = None,
     composition_couverture_pct: Optional[float] = None,
     part_etf: Optional[bool] = None,
+    est_indice: Optional[bool] = None,
 ) -> models.TitrePossede:
     if part_etf is not None:
         titre.part_etf = part_etf
+    if est_indice is not None:
+        titre.est_indice = est_indice
     if nom is not None:
         titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de
@@ -2953,7 +2958,12 @@ def create_operation_titre(
     La monnaie de l'écriture est celle de cotation du titre : le prix payé est
     libellé dans cette monnaie, donc les espèces bougent dans celle-là (le
     routeur vérifie que le compte la porte).
+
+    UN INDICE NE S'ACHÈTE NI NE SE VEND (models.TitrePossede.est_indice) : le refus est ICI, au
+    point de passage unique, pour que l'import de placements et la démo le subissent comme la saisie.
     """
+    if titre.est_indice:
+        raise ValueError(f"« {titre.nom_affiche} » est un indice : il ne peut pas être détenu")
     type_action = get_type_operation_par_code(db, TypeOperation.action.value)
     montant = quantite * prix_unitaire
     prefixe = "Achat" if sens == SensTitre.achat else "Vente"

@@ -231,6 +231,19 @@ function renderEtiquettes(config) {
   });
 }
 
+/** « Transformer en indice » : un ETF dont on a importé une composition, et que personne ne détient.
+ *  Le serveur refuse de toute façon un titre détenu ou qui a eu des mouvements (409). */
+function peutDevenirIndice(titre) {
+  return (
+    typeof expoEstEtf === "function" &&
+    expoEstEtf(titre) &&
+    !titre.est_indice &&
+    !titre.detenu &&
+    !!titre.composition &&
+    Object.keys(titre.composition).length > 0
+  );
+}
+
 async function refreshTitres() {
   // Les archivés ne sont demandés que lorsqu'on veut les voir. Le menu d'achat,
   // lui, n'en montre JAMAIS : on ne peut pas acheter un titre qu'on a rangé —
@@ -240,8 +253,9 @@ async function refreshTitres() {
   );
   _refillPreservingSelection(document.getElementById("operation-titre-titre"), (el) => {
     el.innerHTML = "";
+    // Un indice ne s'achète pas : il ne figure pas dans le menu d'achat.
     state.titres
-      .filter((a) => !a.archivee)
+      .filter((a) => !a.archivee && !a.est_indice)
       .forEach((a) => {
         const opt = document.createElement("option");
         opt.value = a.id;
@@ -263,16 +277,22 @@ function renderTitresSuivis() {
   const possedes = document.getElementById("placements-titres-liste-possedes");
   const nonPossedes = document.getElementById("placements-titres-liste-non-possedes");
   const deEtf = document.getElementById("placements-titres-liste-etf");
+  const indices = document.getElementById("placements-titres-liste-indices");
   possedes.innerHTML = "";
   nonPossedes.innerHTML = "";
   deEtf.innerHTML = "";
+  indices.innerHTML = "";
   // « PART D'UN ETF ? » (migration 0092) : les composants d'un ETF importé ne sont plus dans la
   // liste, ils ont leur fenêtre (« Titres d'ETFs »). UN TITRE DÉTENU RESTE DANS « Titres
   // possédés », quel que soit le drapeau : ce qu'on possède reste sous les yeux.
-  const estDeEtf = (titre) => titre.part_etf && !titre.detenu;
+  const estDeEtf = (titre) => titre.part_etf && !titre.detenu && !titre.est_indice;
   const nbPossedes = state.titres.filter((titre) => titre.detenu).length;
   const nbEtf = state.titres.filter(estDeEtf).length;
-  const nbSuivis = state.titres.length - nbPossedes - nbEtf;
+  // LES INDICES ont leur bloc (un indice n'est jamais détenu, mais l'ordre des tests le garantit aussi).
+  const nbIndices = state.titres.filter((titre) => titre.est_indice && !titre.detenu).length;
+  const nbSuivis = state.titres.length - nbPossedes - nbEtf - nbIndices;
+  document.getElementById("placements-titres-indices-nb").textContent = `(${nbIndices})`;
+  if (nbIndices === 0) indices.innerHTML = `<span class="hint">${t("Aucun indice.")}</span>`;
   document.getElementById("placements-titres-possedes-nb").textContent = `(${nbPossedes})`;
   document.getElementById("placements-titres-non-possedes-nb").textContent = `(${nbSuivis})`;
   const boutonEtf = document.getElementById("btn-titres-etf");
@@ -291,7 +311,13 @@ function renderTitresSuivis() {
     )}</span>`;
   }
   state.titres.forEach((titre) => {
-    const cible = titre.detenu ? possedes : estDeEtf(titre) ? deEtf : nonPossedes;
+    const cible = titre.detenu
+      ? possedes
+      : titre.est_indice
+        ? indices
+        : estDeEtf(titre)
+          ? deEtf
+          : nonPossedes;
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     // LE NOM DU COURTIER EN INFOBULLE quand le titre a été renommé : c'est lui
@@ -307,7 +333,7 @@ function renderTitresSuivis() {
         titre.archivee
           ? ` <span class="titre-archive-etiquette">${t("archivé")}</span>`
           : ""
-      }</span>
+      }${titre.est_indice ? ` <span class="titre-renomme-etiquette">${t("indice")}</span>` : ""}</span>
       <button type="button" data-action="renommer-titre" data-id="${titre.id}"
               title="${t("Changer le nom affiché (le nom du courtier ne bouge pas)")}">
         ${t("Renommer")}
@@ -331,6 +357,15 @@ function renderTitresSuivis() {
               title="${t("Classe d'actif : à quoi le titre expose — purement descriptif")}">
         ${optionsTypesTitre(titre.classe_actif_id, "classe")}
       </select>
+      ${
+        titre.est_indice
+          ? `<button type="button" data-action="retirer-indice" data-id="${titre.id}"
+              title="${escapeHtml(t("Redevient un titre ordinaire, qui peut être détenu"))}">${t("Ne plus être un indice")}</button>`
+          : peutDevenirIndice(titre)
+            ? `<button type="button" data-action="transformer-indice" data-id="${titre.id}"
+              title="${escapeHtml(t("Cet ETF n'est pas détenu : il peut devenir un indice, qui sert de modèle à d'autres ETF"))}">${t("Transformer en indice")}</button>`
+            : ""
+      }
       <button type="button" data-action="${titre.archivee ? "reactiver-titre" : "archiver-titre"}"
               data-id="${titre.id}"
               title="${
@@ -469,6 +504,31 @@ function renderTitresSuivis() {
           await loadPlacements();
         } catch (err) {
           showMessage(err.message, "error");
+        }
+      });
+    });
+
+  bloc
+    .querySelectorAll("button[data-action='transformer-indice'], button[data-action='retirer-indice']")
+    .forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const devient = btn.dataset.action === "transformer-indice";
+        const titre = state.titres.find((a) => a.id === Number(btn.dataset.id));
+        if (!titre) return;
+        if (
+          devient &&
+          !confirm(t("Transformer « {nom} » en indice ? Il ne pourra plus être détenu.", { nom: titre.nom_affiche }))
+        )
+          return;
+        try {
+          await apiFetch(`/titres/${titre.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ est_indice: devient }),
+          });
+          showMessage(devient ? t("Devenu un indice") : t("Redevenu un titre ordinaire"), "success");
+          await refreshTitres();
+        } catch (err) {
+          showMessage(traduireMessageServeur(err.message), "error");
         }
       });
     });
@@ -966,6 +1026,7 @@ document.getElementById("form-titre").addEventListener("submit", async (e) => {
         classe_actif_id: valeurTypeTitreEnvoyee(
           document.getElementById("titre-classe-actif").value
         ),
+        est_indice: document.getElementById("titre-est-indice").checked,
       }),
     });
     showMessage(t("Titre ajouté"), "success");
