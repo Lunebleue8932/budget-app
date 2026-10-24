@@ -662,10 +662,10 @@ class DomaineImport(str, enum.Enum):
 
     bancaire = "bancaire"
     placement = "placement"
-    # Un fichier qui DÉCRIT des titres (migration 0076) : une ligne par ISIN, avec son
-    # enveloppe, ses répartitions et, pour un ETF, son dictionnaire. Il ne crée aucune
-    # opération — c'est pourquoi il a son domaine, et non un mode de lecture de plus
-    # sur les placements : tout le modèle de cet import-là est orienté mouvements.
+    # L'ancien « Importer des titres » (migration 0076), REMPLACÉ par l'import de composition
+    # d'ETF (extension « Placements », /import-etf), qui lit le fichier de l'émetteur sans
+    # preset. La valeur reste : des presets de ce domaine dorment en base, et les routeurs des
+    # autres domaines continuent de les refuser.
     titre = "titre"
 
 
@@ -795,46 +795,6 @@ COLONNES_IMPORT_POSITION_PAR_DEFAUT = [
     {"index": 3, "propriete": "quantite"},
     {"index": 4, "propriete": "prix_revient"},
     {"index": 5, "propriete": "valeur_totale"},
-]
-
-# ---------- L'import de titres (fichier Excel ou CSV qui décrit des titres) ----------
-#
-#  - `code_isin` : la clé du fichier, et la seule propriété obligatoire. Un titre se
-#    reconnaît d'un import à l'autre par son ISIN (le nom du courtier change, pas lui) ;
-#  - `nom` : le libellé à donner à un titre CRÉÉ par le fichier. Jamais appliqué à un
-#    titre existant : son nom de courtier ne change pas (l'identité d'un titre est le
-#    couple (nom, ISIN), l'ISIN tranchant — cf. services/identite_titre.py) ;
-#  - `monnaie` : la monnaie de cotation, par son nom ou son symbole, pour un titre créé ;
-#  - `enveloppe` : comment le titre est détenu — UNE étiquette ;
-#  - `classe_actif`, `zone`, `secteur` : les trois répartitions. Une cellule vaut un
-#    libellé seul (100 %) ou « Libellé 70 ; Libellé 30 » (cf. services/exposition) ;
-#  - `couverture_pct` et `composition` : le dictionnaire d'un ETF ;
-#  - `cours` : le dernier cours unitaire, dans la monnaie de cotation. EN DERNIER, pour
-#    que les presets enregistrés avant elle lisent toujours les mêmes colonnes ; lue
-#    seulement quand l'extension « Lecture de cours » tourne (cf. service_import_titres).
-# Une cellule VIDE ne change rien : le fichier complète, il n'efface pas.
-PROPRIETES_IMPORT_TITRE = (
-    "code_isin",
-    "nom",
-    "monnaie",
-    "enveloppe",
-    "classe_actif",
-    "zone",
-    "secteur",
-    "couverture_pct",
-    "composition",
-    # Le lien de la page de cotation (Google Finance…), et non le cours : EN DERNIER, comme
-    # avant elle, pour que les formats enregistrés lisent toujours les mêmes colonnes.
-    "lien_valeur",
-)
-
-PROPRIETES_IMPORT_TITRE_OBLIGATOIRES = {"code_isin"}
-
-# L'ordre du fichier MODÈLE que l'application fait télécharger : un preset créé sans
-# rien configurer lit exactement ces colonnes.
-COLONNES_IMPORT_TITRE_PAR_DEFAUT = [
-    {"index": i, "propriete": propriete}
-    for i, propriete in enumerate(PROPRIETES_IMPORT_TITRE, start=1)
 ]
 
 COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT = [

@@ -173,6 +173,17 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pyinstaller==6.21.0 pyinstaller-hooks-contrib==2026.6 pywebview==6.2.1 pythonnet==3.1.0 clr_loader==0.3.1
 
+      # PYGOBJECT DANS LE PYTHON DU BUILD, ET PAS SEULEMENT VIA APT. `python3-gi`
+      # n'installe `gi` que pour le Python SYSTÈME (3.10 sur 22.04) ; celui de
+      # setup-python (3.14) ne le voit pas, et PyInstaller, qui n'embarque que
+      # ce que l'interpréteur du build peut importer, livrait un bundle sans
+      # `gi` (« No module named 'gi' » chez l'utilisateur, v1.3.0).
+      # Épinglé en 3.52.x, la série qui se compile contre libgirepository1.0
+      # (Ubuntu 22.04) ; les suivantes visent girepository-2.0, absent de cette image.
+      - name: PyGObject (Linux)
+        if: runner.os == 'Linux'
+        run: pip install PyGObject==3.52.4
+
       # Les trois formats sont produits depuis n'importe quel système (encodeurs
       # écrits en bibliothèque standard) : chaque runner régénère le sien plutôt
       # que de dépendre d'un binaire commité.
@@ -210,6 +221,22 @@ jobs:
             fi
           done
           echo "Bundle complet."
+
+      # PYGOBJECT ET LE MOTEUR WEB DANS LE BUNDLE. Un bundle sans `gi` se forme
+      # sans erreur et ne meurt qu'au lancement, chez l'utilisateur (v1.3.0).
+      - name: Vérifier PyGObject et WebKit (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -eu
+          racine="desktop/dist/Budget App"
+          for requis in "gi" "WebKit2-4.1.typelib" "Gtk-3.0.typelib"; do
+            if [ -z "$(find "$racine" -name "$requis" -print -quit)" ]; then
+              echo "Bundle sans $requis : l'application ne pourra pas ouvrir sa fenêtre." >&2
+              exit 1
+            fi
+          done
+          echo "PyGObject et typelibs présents."
 
       # LA GLIBC LA PLUS RÉCENTE QU'EXIGE LE BUNDLE, et un échec si elle dépasse
       # celle d'Ubuntu 22.04. Sans ce pas, un changement d'image ou une roue

@@ -48,6 +48,32 @@ def isin_valide(texte: str) -> bool:
     return bool(MOTIF_ISIN.match(texte))
 
 
+# LES COMPOSANTS SANS ISIN (migration 0092). Un fichier d'émetteur (iShares) ne donne pas l'ISIN de
+# ses lignes : la composition les cite alors par « titre:<id> », l'identifiant du titre que
+# l'import a créé ou retrouvé par son nom. Un ISIN reste la clé de tout composant qui en a un.
+MOTIF_CLE_TITRE = re.compile(r"^TITRE:\d+$")
+
+
+def cle_composant(titre) -> str:
+    """La clé sous laquelle la composition d'un ETF cite ce titre : son ISIN, à défaut `titre:<id>`."""
+    return normaliser_isin(titre.code_isin) or f"titre:{titre.id}"
+
+
+def cle_valide(texte: str) -> bool:
+    """Une clé de composition bien formée : un ISIN, ou `titre:<id>` (casse ignorée)."""
+    brut = normaliser_isin(texte)
+    return bool(MOTIF_ISIN.match(brut) or MOTIF_CLE_TITRE.match(brut))
+
+
+def composant_de(cle: str, par_isin: dict, par_id: Optional[dict] = None):
+    """Le titre qu'une clé de composition désigne, ou None. `par_isin` : ISIN normalisé -> titre ;
+    `par_id` : id -> titre (pour `titre:<id>`)."""
+    brut = normaliser_isin(cle)
+    if MOTIF_CLE_TITRE.match(brut):
+        return (par_id or {}).get(int(brut[6:]))
+    return par_isin.get(brut)
+
+
 def parser_poids(texte: object) -> float:
     """« 12,5 », « 12.5 % », « 15 » -> un flottant. L'unité est le POURCENT.
 
@@ -276,7 +302,7 @@ def valider_composition(
     60 % »), une somme qui s'en éloigne est SIGNALÉE : les deux nombres décrivent la
     même chose, et l'un des deux est faux ou périmé."""
     for isin, poids in composition.items():
-        if not isin_valide(isin):
+        if not cle_valide(isin):
             raise ErreurExposition(f"« {isin} » n'est pas un ISIN valide")
         if not (0 < poids <= 100):
             raise ErreurExposition(f"le poids de {isin} ({poids:g}) doit être compris entre 0 (exclu) et 100")

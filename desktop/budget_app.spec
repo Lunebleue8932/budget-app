@@ -101,6 +101,8 @@ a = Analysis(
         "app.models",
         "app.routers",
         *modules_du_noyau,
+        # Propres à un système (PyGObject sous Linux) : cf. platforms/<systeme>/.
+        *OPTIONS.get("imports_caches", []),
     ],
     hookspath=[],
     hooksconfig={},

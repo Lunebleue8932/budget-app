@@ -9,13 +9,13 @@
     "css": [
       "placements.css",
       "import-placements.css",
-      "import-titres.css"
+      "import-etf.css"
     ],
     "js": [
       "placements.js",
       "expositions.js",
       "import-placements.js",
-      "import-titres.js"
+      "import-etf.js"
     ]
   },
   "navigation": {

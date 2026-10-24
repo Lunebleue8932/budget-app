@@ -1130,6 +1130,9 @@ class TitreRead(BaseModel):
     # services/placements.titres_detenus) : « Titres suivis » range les titres en
     # possédés / non possédés d'après ce seul drapeau.
     detenu: bool = False
+    # « Part d'un ETF ? » (migration 0092) : posé par l'import d'une composition. L'écran range
+    # ces titres dans « Titres d'ETFs » — sauf s'ils sont détenus.
+    part_etf: bool = False
     code_isin: Optional[str] = None
     # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
     # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs. Et la

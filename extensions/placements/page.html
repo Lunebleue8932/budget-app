@@ -142,6 +142,7 @@
           <input type="checkbox" id="placements-voir-archives" />
           Afficher les titres archivés
         </label>
+        <button type="button" id="btn-titres-etf" disabled>Titres d'ETFs</button>
         <!-- DEUX TITRES REPLIABLES : ce qu'on détient aujourd'hui, et ce qu'on suit sans le
              détenir (vendu, ou composant d'un ETF importé pour les graphes). Ces derniers
              peuvent se compter par dizaines, et noyaient la poignée de titres qu'on possède.
@@ -157,6 +158,20 @@
             <summary><h3>Titres non possédés <span class="placements-titres-compte" id="placements-titres-non-possedes-nb"></span></h3></summary>
             <div class="toggle-contenu import-mappings" id="placements-titres-liste-non-possedes"></div>
           </details>
+          <!-- « TITRES D'ETFS » (migration 0092) : les titres que l'import d'une composition a créés ou
+               retrouvés (`part_etf`), sauf ceux qu'on détient. Une FENÊTRE, et non un bloc de plus :
+               ils se comptent par dizaines, voire par centaines. Elle est DANS `#placements-titres-liste`
+               pour que les gestes des lignes (cours, type, détail, suppression) et le panneau « Détail »
+               la trouvent comme le reste. -->
+          <div id="placements-modale-titres-etf" class="modale-fond" style="display:none" role="presentation">
+            <div class="modale modale-titres-etf" role="dialog" aria-modal="true" aria-labelledby="placements-titres-etf-titre">
+              <div class="epargne-entete">
+                <h2 id="placements-titres-etf-titre">Titres d'ETFs <span class="placements-titres-compte" id="placements-titres-etf-nb"></span><i class="info-bulle" tabindex="0" data-info-cle="placements.titres-etf">i</i></h2>
+                <button type="button" id="btn-titres-etf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+              </div>
+              <div class="import-mappings" id="placements-titres-liste-etf"></div>
+            </div>
+          </div>
         </div>
         <form id="form-titre">
           <label>Nom du titre
@@ -245,57 +260,24 @@
 
       </div>
 
-      <!-- ===== LE VOLET D'IMPORT DE TITRES (migration 0076) : un fichier Excel ou CSV qui
-           DÉCRIT des titres — enveloppe, répartitions, dictionnaire d'ETF — sans créer
-           la moindre opération. Frère des deux autres volets : on bascule de l'un à
-           l'autre localement, sans quitter la page. Tout son contenu est dessiné par
-           import-titres.js (préfixe `imt`). ===== -->
-      <div id="placements-vue-import-titres" style="display:none">
-        <div class="impl-entete">
-          <h2>Importer des titres<i class="info-bulle" tabindex="0" data-info-cle="import-titres.presentation">i</i></h2>
-          <button type="button" id="btn-imt-retour">&larr; Retour aux placements</button>
-        </div>
-
-        <h3>1. Lire le fichier<i class="info-bulle" tabindex="0" data-info-cle="import-titres.lire">i</i></h3>
-        <!-- `.selecteur-contexte` : la forme partagée des champs posés hors formulaire, qui leur
-             donne le style du thème (cf. style.css). Plusieurs champs sur une même ligne. -->
-        <div class="imt-fichier selecteur-contexte">
-          <label>Format
-            <select id="imt-preset"></select>
-          </label>
-          <button type="button" id="btn-imt-config">Configurer les colonnes</button>
-          <label>Fichier
-            <input type="file" id="imt-fichier" accept=".xlsx,.xlsm,.csv,.txt" />
-          </label>
-          <button type="button" class="primary" id="btn-imt-apercu">Prévisualiser</button>
-        </div>
-
-        <div id="imt-config" class="imt-config" hidden>
-          <div class="imt-config-ligne selecteur-contexte">
-            <label>Nom du format
-              <input type="text" id="imt-config-nom" />
-            </label>
-            <label>Lignes d'en-tête à sauter
-              <input type="number" id="imt-config-entete" min="0" max="20" value="1" />
-            </label>
-            <label>Séparateur (CSV)
-              <select id="imt-delimiteur">
-                <option value="">Automatique</option>
-                <option value=";">Point-virgule</option>
-                <option value=",">Virgule</option>
-                <option value="&#9;">Tabulation</option>
-              </select>
-            </label>
+      <!-- ===== L'IMPORT DE COMPOSITION D'ETF : une FENÊTRE en étapes, comme le parcours de l'import
+           bancaire (même graphe, mêmes cartes à molette), qui lit le fichier tel que l'émetteur le
+           publie. Tout son contenu est dessiné par import-etf.js (préfixe `ietf`). Elle remplace
+           l'ancien volet « Importer des titres ». ===== -->
+      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
+             aria-labelledby="ietf-titre">
+          <div class="epargne-entete">
+            <h2 id="ietf-titre">Importer la composition d'un ETF<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
+            <button type="button" id="btn-ietf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
           </div>
-          <div id="imt-config-colonnes" class="imt-config-colonnes"></div>
-          <div class="actions">
-            <button type="button" class="primary" id="btn-imt-config-enregistrer">Enregistrer ce format</button>
-            <button type="button" id="btn-imt-config-nouveau">Enregistrer sous un nouveau nom</button>
-            <button type="button" class="danger" id="btn-imt-config-supprimer">Supprimer ce format</button>
+          <div class="import-etapes" id="ietf-etapes"></div>
+          <div id="ietf-corps" class="ietf-corps"></div>
+          <div class="modale-actions">
+            <button type="button" id="btn-ietf-retour">Retour</button>
+            <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
           </div>
         </div>
-
-        <div id="imt-apercu"></div>
       </div>
 
       <!-- ===== LE VOLET D'IMPORT : caché tant qu'on ne l'a pas ouvert. ===== -->

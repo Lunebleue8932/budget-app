@@ -50,7 +50,7 @@ TYPE_NON_RENSEIGNE = None
 TAILLE_DU_TOP = 3
 
 
-def _parts_eclatees(un_titre, axe: str, par_isin: dict) -> list[tuple[object, float]]:
+def _parts_eclatees(un_titre, axe: str, par_isin: dict, par_id: dict | None = None) -> list[tuple[object, float]]:
     """L'ETF ÉCLATÉ PAR SA COMPOSITION (migration 0076), quand il n'a pas de répartition à lui
     sur cet axe : chaque ISIN du dictionnaire apporte sa propre répartition, au prorata de son
     poids dans l'ETF. Un composant inconnu de la base, ou sans répartition, n'apporte rien ;
@@ -58,7 +58,7 @@ def _parts_eclatees(un_titre, axe: str, par_isin: dict) -> list[tuple[object, fl
     cité dans la composition d'un autre ne s'éclate pas à son tour."""
     cumul: dict = {}
     for isin, poids in (un_titre.composition or {}).items():
-        composant = par_isin.get(exposition.normaliser_isin(isin))
+        composant = exposition.composant_de(isin, par_isin, par_id)
         if composant is None or composant.id == un_titre.id:
             continue
         for e in composant.repartition(axe):
@@ -67,7 +67,9 @@ def _parts_eclatees(un_titre, axe: str, par_isin: dict) -> list[tuple[object, fl
     return list(cumul.values())
 
 
-def _parts_du_titre(un_titre, axe: str, par_isin: dict | None = None) -> list[tuple[object, float]]:
+def _parts_du_titre(
+    un_titre, axe: str, par_isin: dict | None = None, par_id: dict | None = None
+) -> list[tuple[object, float]]:
     """Les `(étiquette, part)` d'un titre sur un axe, la part étant une fraction de 1.
 
     L'enveloppe : une étiquette, 100 %. Les axes d'exposition : une ligne par
@@ -82,8 +84,8 @@ def _parts_du_titre(un_titre, axe: str, par_isin: dict | None = None) -> list[tu
     if axe == AxeTitre.enveloppe.value:
         return [(un_titre.type_titre, 1.0)]
     parts = [(e.etiquette, e.poids_pct / 100.0) for e in un_titre.repartition(axe)]
-    if not parts and un_titre.composition and par_isin:
-        parts = _parts_eclatees(un_titre, axe, par_isin)
+    if not parts and un_titre.composition and (par_isin or par_id):
+        parts = _parts_eclatees(un_titre, axe, par_isin or {}, par_id)
     residu = 1.0 - sum(part for _, part in parts)
     if residu > 1e-9:
         parts.append((None, residu))
@@ -107,11 +109,9 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
     monnaies: dict = {}
     # Les composants d'un ETF se retrouvent par leur ISIN, archivés compris : ce sont
     # justement des titres qu'on suit sans les détenir (cf. `_parts_eclatees`).
-    par_isin = {
-        exposition.normaliser_isin(t.code_isin): t
-        for t in crud.get_titres(db, inclure_archivees=True)
-        if t.code_isin
-    }
+    tous = crud.get_titres(db, inclure_archivees=True)
+    par_isin = {exposition.normaliser_isin(t.code_isin): t for t in tous if t.code_isin}
+    par_id = {t.id: t for t in tous}
 
     for compte in placements.get_comptes_placement(db):
         for ligne in placements.detentions(db, compte.id):
@@ -132,7 +132,7 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
                 ligne["monnaie_id"],
                 {"monnaie_id": ligne["monnaie_id"], "monnaie_symbole": ligne["monnaie_symbole"]},
             )
-            for etiquette, part in _parts_du_titre(un_titre, axe, par_isin):
+            for etiquette, part in _parts_du_titre(un_titre, axe, par_isin, par_id):
                 type_id = etiquette.id if etiquette else TYPE_NON_RENSEIGNE
                 type_nom = etiquette.nom if etiquette else None
                 case = cases.setdefault(
@@ -230,11 +230,9 @@ def exposition_par_titre(db) -> list[dict]:
     recalculer de son côté.
 
     Un titre qui n'est pas un ETF et n'a pas de composition est sa propre part, en direct."""
-    par_isin = {
-        exposition.normaliser_isin(t.code_isin): t
-        for t in crud.get_titres(db, inclure_archivees=True)
-        if t.code_isin
-    }
+    tous = crud.get_titres(db, inclure_archivees=True)
+    par_isin = {exposition.normaliser_isin(t.code_isin): t for t in tous if t.code_isin}
+    par_id = {t.id: t for t in tous}
     # (monnaie_id, clé) -> part ; la clé est l'ISIN, ou l'identifiant d'un titre sans ISIN.
     parts: dict = {}
     monnaies: dict = {}
@@ -260,9 +258,10 @@ def exposition_par_titre(db) -> list[dict]:
             source_etf = (f"etf:{un_titre.id}", un_titre.nom_affiche, False)
             if un_titre.composition:
                 couvert = 0.0
-                for isin, poids in un_titre.composition.items():
-                    isin = exposition.normaliser_isin(isin)
-                    composant = par_isin.get(isin)
+                for cle_c, poids in un_titre.composition.items():
+                    # Un composant sans ISIN est cité par « titre:<id> » (cf. exposition.cle_composant).
+                    composant = exposition.composant_de(cle_c, par_isin, par_id)
+                    isin = exposition.cle_composant(composant) if composant else exposition.normaliser_isin(cle_c)
                     nom = composant.nom_affiche if composant else isin
                     ajouter(m_id, isin, nom, "titre", valeur * poids / 100.0, *source_etf)
                     couvert += poids
@@ -272,7 +271,7 @@ def exposition_par_titre(db) -> list[dict]:
             elif _est_etf(un_titre):
                 ajouter(m_id, "non_determine", None, "non_determine", valeur, *source_etf)
             else:
-                cle = exposition.normaliser_isin(un_titre.code_isin) or f"titre:{un_titre.id}"
+                cle = exposition.cle_composant(un_titre)
                 ajouter(m_id, cle, un_titre.nom_affiche, "titre", valeur, "direct", None, True)
 
     resultat = []

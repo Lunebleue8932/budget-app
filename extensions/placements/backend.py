@@ -24,7 +24,7 @@ from app.extensions import exiger_extension
 
 from routeur_titres import router as router_titres
 from routeur_import_placements import router as router_import_placements
-from routeur_import_titres import router as router_import_titres
+from routeur_import_etf import router as router_import_etf
 from routeur_placements import router as router_placements
 from routeur_regles_placements import router as router_regles_placements
 from routeur_types_titre import router as router_types_titre
@@ -44,7 +44,7 @@ router.include_router(router_types_titre)
 # noyau, migration 0041) : rien ne se perd à l'extinction.
 router.include_router(router_import_placements)
 router.include_router(router_regles_placements)
-# L'IMPORT DE TITRES (`/import-titres`) : un fichier Excel ou CSV qui DÉCRIT des titres
-# (enveloppe, répartitions, dictionnaire d'ETF) sans créer la moindre opération. Même
-# garde-fou : éteint avec l'extension, ses presets dorment en base (domaine `titre`).
-router.include_router(router_import_titres)
+# L'IMPORT DE COMPOSITION D'ETF (`/import-etf`) : le fichier que publie l'émetteur d'un ETF, lu
+# tel quel (aucun preset, aucune colonne à désigner), sans créer la moindre opération. Il
+# remplace l'ancien « Importer des titres » et ses presets (domaine `titre`, qui dorment en base).
+router.include_router(router_import_etf)

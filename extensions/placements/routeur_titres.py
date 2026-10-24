@@ -39,10 +39,14 @@ def _avertissements(titre) -> list[str]:
     return messages
 
 
-def _titre_read(titre, detenus: set[int] | None = None) -> schemas.TitreRead:
+def _titre_read(
+    titre, detenus: set[int] | None = None, cites: dict | None = None
+) -> schemas.TitreRead:
     """`detenus` : les titres détenus aujourd'hui, calculés UNE fois par la liste ; à défaut
-    (un seul titre relu après une modification), sa quantité est recomptée ici."""
+    (un seul titre relu après une modification), sa quantité est recomptée ici. `cites` : de même,
+    les ETF qui citent chaque titre (cf. crud.etf_qui_citent_tous)."""
     db = object_session(titre)
+    etf_citant = cites.get(titre.id, []) if cites is not None else crud.etf_qui_citent(db, titre)
     detenu = (
         titre.id in detenus
         if detenus is not None
@@ -54,11 +58,8 @@ def _titre_read(titre, detenus: set[int] | None = None) -> schemas.TitreRead:
         # `nom` identifie (c'est lui que l'import rapproche), `nom_affiche` se
         # lit, `code_isin` identifie mieux encore quand le fichier le porte.
         nom=titre.nom,
-        supprimable=(
-            not crud.titre_est_utilise(object_session(titre), titre.id)
-            and not crud.etf_qui_citent(object_session(titre), titre)
-        ),
-        cite_par=[etf.nom_affiche for etf in crud.etf_qui_citent(object_session(titre), titre)],
+        supprimable=not crud.titre_est_utilise(db, titre.id) and not etf_citant,
+        cite_par=[etf.nom_affiche for etf in etf_citant],
         nom_affichage=titre.nom_affichage,
         nom_affiche=titre.nom_affiche,
         valeur=titre.valeur,
@@ -66,6 +67,7 @@ def _titre_read(titre, detenus: set[int] | None = None) -> schemas.TitreRead:
         monnaie_symbole=titre.monnaie.symbole,
         archivee=titre.archivee,
         detenu=detenu,
+        part_etf=bool(titre.part_etf),
         code_isin=titre.code_isin,
         # Le libellé voyage à côté de l'identifiant : les tableaux l'affichent
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
@@ -144,8 +146,9 @@ def list_titres(inclure_archivees: bool = False, db: Session = Depends(get_db)):
     rangés — l'écran s'en sert pour la case « Afficher les titres archivés »,
     qui est le seul endroit d'où l'on peut en remettre un en service."""
     detenus = placements.titres_detenus(db)
+    cites = crud.etf_qui_citent_tous(db)
     return [
-        _titre_read(titre, detenus)
+        _titre_read(titre, detenus, cites)
         for titre in crud.get_titres(db, inclure_archivees=inclure_archivees)
     ]
 

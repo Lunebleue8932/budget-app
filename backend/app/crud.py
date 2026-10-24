@@ -18,7 +18,6 @@ from .constants import (
     CIBLE_PAR_TYPE_REGLEMENT,
     COLONNES_IMPORT_PAR_DEFAUT,
     COLONNES_IMPORT_PLACEMENT_PAR_DEFAUT,
-    COLONNES_IMPORT_TITRE_PAR_DEFAUT,
     COLONNES_IMPORT_POSITION_PAR_DEFAUT,
     MONNAIE_INITIALE_NOM,
     MONNAIE_INITIALE_SYMBOLE,
@@ -2769,7 +2768,10 @@ def update_titre(
     classe_actif_id: Optional[int] = None,
     composition: Optional[dict] = None,
     composition_couverture_pct: Optional[float] = None,
+    part_etf: Optional[bool] = None,
 ) -> models.TitrePossede:
+    if part_etf is not None:
+        titre.part_etf = part_etf
     if nom is not None:
         titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de
@@ -2857,14 +2859,30 @@ def etf_qui_citent(db: Session, titre: models.TitrePossede) -> list[models.Titre
     ISIN. Filtré en Python : une colonne JSON écrite à None est un « null » JSON, pas un NULL
     SQL, et la clé se compare normalisée (sans espaces, en capitales)."""
     normaliser = lambda texte: str(texte or "").replace(" ", "").replace("\u00a0", "").upper()
-    isin = normaliser(titre.code_isin)
-    if not isin:
-        return []
+    # Un composant sans ISIN est cité par « titre:<id> » (cf. services/exposition.cle_composant).
+    cles = {normaliser(titre.code_isin), f"TITRE:{titre.id}"} - {""}
     return [
         autre
         for autre in db.query(models.TitrePossede).filter(models.TitrePossede.id != titre.id)
-        if autre.composition and any(normaliser(cle) == isin for cle in autre.composition)
+        if autre.composition and any(normaliser(cle) in cles for cle in autre.composition)
     ]
+
+
+def etf_qui_citent_tous(db: Session) -> dict[int, list[models.TitrePossede]]:
+    """`etf_qui_citent` pour TOUS les titres d'un coup : id du composant -> les ETF qui le citent.
+    La liste des titres en a besoin pour chacun d'eux, et un import de composition en crée des
+    centaines : recalculer à chaque ligne relirait la table autant de fois."""
+    normaliser = lambda texte: str(texte or "").replace(" ", "").replace(" ", "").upper()
+    titres = db.query(models.TitrePossede).all()
+    par_cle = {normaliser(t.code_isin): t.id for t in titres if t.code_isin}
+    par_cle.update({f"TITRE:{t.id}": t.id for t in titres})
+    cites: dict[int, list[models.TitrePossede]] = {}
+    for etf in titres:
+        for cle in etf.composition or {}:
+            id_ = par_cle.get(normaliser(cle))
+            if id_ is not None and id_ != etf.id:
+                cites.setdefault(id_, []).append(etf)
+    return cites
 
 
 def supprimer_titres_sans_mouvement(db: Session, titre_ids) -> list[str]:
@@ -3035,9 +3053,7 @@ def create_import_preset(
     # faire dans un preset de placements, et une PHOTOGRAPHIE de compte ne lit
     # ni date ni type d'opération là où une liste de mouvements le fait.
     if colonnes is None:
-        if domaine == DomaineImport.titre.value:
-            colonnes = COLONNES_IMPORT_TITRE_PAR_DEFAUT
-        elif domaine == DomaineImport.placement.value:
+        if domaine == DomaineImport.placement.value:
             colonnes = (
                 COLONNES_IMPORT_POSITION_PAR_DEFAUT
                 if mode_lecture == ModeLecturePlacement.position.value

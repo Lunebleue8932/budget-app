@@ -262,22 +262,36 @@ function renderTitresSuivis() {
   // le repli choisi survive à un cours modifié ou à un panneau « Détail » ouvert.
   const possedes = document.getElementById("placements-titres-liste-possedes");
   const nonPossedes = document.getElementById("placements-titres-liste-non-possedes");
+  const deEtf = document.getElementById("placements-titres-liste-etf");
   possedes.innerHTML = "";
   nonPossedes.innerHTML = "";
+  deEtf.innerHTML = "";
+  // « PART D'UN ETF ? » (migration 0092) : les composants d'un ETF importé ne sont plus dans la
+  // liste, ils ont leur fenêtre (« Titres d'ETFs »). UN TITRE DÉTENU RESTE DANS « Titres
+  // possédés », quel que soit le drapeau : ce qu'on possède reste sous les yeux.
+  const estDeEtf = (titre) => titre.part_etf && !titre.detenu;
   const nbPossedes = state.titres.filter((titre) => titre.detenu).length;
+  const nbEtf = state.titres.filter(estDeEtf).length;
+  const nbSuivis = state.titres.length - nbPossedes - nbEtf;
   document.getElementById("placements-titres-possedes-nb").textContent = `(${nbPossedes})`;
-  document.getElementById("placements-titres-non-possedes-nb").textContent =
-    `(${state.titres.length - nbPossedes})`;
+  document.getElementById("placements-titres-non-possedes-nb").textContent = `(${nbSuivis})`;
+  const boutonEtf = document.getElementById("btn-titres-etf");
+  boutonEtf.textContent = `${t("Titres d'ETFs")} (${nbEtf})`;
+  boutonEtf.disabled = nbEtf === 0;
+  document.getElementById("placements-titres-etf-nb").textContent = `(${nbEtf})`;
+  if (nbEtf === 0) deEtf.innerHTML = `<span class="hint">${t("Aucun titre d'ETF.")}</span>`;
   if (nbPossedes === 0) {
     possedes.innerHTML = `<span class="hint">${t("Aucun titre détenu aujourd'hui.")}</span>`;
   }
   if (state.titres.length === 0) {
     nonPossedes.innerHTML = `<span class="hint">${t("Aucun titre. Ajoute-en un ci-dessous.")}</span>`;
-  } else if (nbPossedes === state.titres.length) {
-    nonPossedes.innerHTML = `<span class="hint">${t("Tous tes titres suivis sont détenus.")}</span>`;
+  } else if (nbSuivis === 0) {
+    nonPossedes.innerHTML = `<span class="hint">${t(
+      nbPossedes ? "Tous tes titres suivis sont détenus." : "Aucun titre suivi hors ETF."
+    )}</span>`;
   }
   state.titres.forEach((titre) => {
-    const cible = titre.detenu ? possedes : nonPossedes;
+    const cible = titre.detenu ? possedes : estDeEtf(titre) ? deEtf : nonPossedes;
     const row = document.createElement("div");
     row.className = "import-mapping-row";
     // LE NOM DU COURTIER EN INFOBULLE quand le titre a été renommé : c'est lui
@@ -1003,6 +1017,27 @@ document.getElementById("form-titre").addEventListener("submit", async (e) => {
 document
   .getElementById("placements-voir-archives")
   .addEventListener("change", () => refreshTitres());
+
+// « Titres d'ETFs » : la fenêtre des composants d'ETF (cf. renderTitresSuivis). Fermée par la croix,
+// un clic sur le fond ou Échap.
+(function cablerTitresEtf() {
+  const fenetre = document.getElementById("placements-modale-titres-etf");
+  const fermer = () => {
+    fenetre.style.display = "none";
+    document.body.classList.remove("modale-ouverte");
+  };
+  document.getElementById("btn-titres-etf").addEventListener("click", () => {
+    fenetre.style.display = "";
+    document.body.classList.add("modale-ouverte");
+  });
+  document.getElementById("btn-titres-etf-fermer").addEventListener("click", fermer);
+  fenetre.addEventListener("click", (e) => {
+    if (e.target === fenetre) fermer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && fenetre.style.display !== "none") fermer();
+  });
+})();
 
 /**
  * GREFFE SUR LA PAGE COMPTES : le noyau affiche le solde en espèces de
