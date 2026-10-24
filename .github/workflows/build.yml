@@ -178,11 +178,11 @@ jobs:
       # setup-python (3.14) ne le voit pas, et PyInstaller, qui n'embarque que
       # ce que l'interpréteur du build peut importer, livrait un bundle sans
       # `gi` (« No module named 'gi' » chez l'utilisateur, v1.3.0).
-      # Épinglé en 3.52.x, la série qui se compile contre libgirepository1.0
-      # (Ubuntu 22.04) ; les suivantes visent girepository-2.0, absent de cette image.
+      # Épinglé en 3.50.x, la dernière série qui se compile contre libgirepository1.0
+      # (Ubuntu 22.04) ; dès la 3.52 le build exige girepository-2.0, absent de cette image (échec vérifié en CI).
       - name: PyGObject (Linux)
         if: runner.os == 'Linux'
-        run: pip install PyGObject==3.52.4
+        run: pip install PyGObject==3.50.2
 
       # Les trois formats sont produits depuis n'importe quel système (encodeurs
       # écrits en bibliothèque standard) : chaque runner régénère le sien plutôt
