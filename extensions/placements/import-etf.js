@@ -62,6 +62,8 @@ const IETF = {
   etfId: "nouveau",
   etfNom: "",
   etfIsin: "",
+  // Le type d'un fonds créé à l'import : "indice", ou l'identifiant d'une enveloppe ("" = aucune).
+  typeChoisi: "",
   lignes: 0,
   // Les correspondances : libellé du fichier -> nom d'étiquette de l'app ("" = ne rien poser).
   secteurs: {},
@@ -111,7 +113,7 @@ function ietfPoserBouton() {
   bouton.type = "button";
   bouton.id = "btn-ietf-ouvrir";
   bouton.className = "placements-titre-action";
-  bouton.textContent = t("Importer des titres");
+  bouton.textContent = t("Importer des compositions");
   bouton.addEventListener("click", () => ietfOuvrir());
   actions.appendChild(bouton);
 }
@@ -288,6 +290,8 @@ function ietfInitialiserChoix() {
   if (IETF.principalVoulu && l.etf.candidats.some((c) => c.id === IETF.principalVoulu)) {
     IETF.etfId = String(IETF.principalVoulu);
   }
+  const etfDefaut = l.enveloppes.find((e) => /^etf/i.test(e.nom.trim()));
+  IETF.typeChoisi = etfDefaut ? String(etfDefaut.id) : "";
   IETF.etfNom = l.fonds.nom || "";
   IETF.etfIsin = l.fonds.isin || "";
   IETF.lignes = Math.min(l.couverture.defaut_lignes, l.nb_possessions);
@@ -535,7 +539,7 @@ function ietfComposantsHtml() {
 function ietfRendreCouverture(corps) {
   const l = IETF.lecture;
   const options = [
-    `<option value="nouveau">${escapeHtml(t("— Nouvel ETF —"))}</option>`,
+    `<option value="nouveau">${escapeHtml(t("— Nouvelle ligne —"))}</option>`,
     ...l.etf.candidats.map(
       (c) => `<option value="${c.id}" ${String(c.id) === IETF.etfId ? "selected" : ""}>${escapeHtml(c.nom)}${c.isin ? ` (${escapeHtml(c.isin)})` : ""}${c.est_indice ? ` — ${escapeHtml(t("indice"))}` : ""}</option>`
     ),
@@ -544,7 +548,7 @@ function ietfRendreCouverture(corps) {
     <p class="modale-texte" data-texte-cle="import-etf.couverture"></p>
     <h3>${escapeHtml(t("L'ETF"))}</h3>
     <div class="ietf-etf selecteur-contexte">
-      <label>${escapeHtml(t("ETF concerné"))}
+      <label>${escapeHtml(t("Ligne concernée"))}
         <select id="ietf-etf">${options}</select>
       </label>
       <label class="ietf-etf-nouveau">${escapeHtml(t("Nom"))}
@@ -552,6 +556,15 @@ function ietfRendreCouverture(corps) {
       </label>
       <label class="ietf-etf-nouveau">ISIN
         <input type="text" id="ietf-etf-isin" value="${escapeHtml(IETF.etfIsin)}" />
+      </label>
+      <label class="ietf-etf-nouveau">${escapeHtml(t("Type"))}
+        <select id="ietf-etf-type">
+          <option value="indice" ${IETF.typeChoisi === "indice" ? "selected" : ""}>${escapeHtml(t("Indice"))}</option>
+          <option value="" ${IETF.typeChoisi === "" ? "selected" : ""}>${escapeHtml(t("— Aucune enveloppe —"))}</option>
+          ${l.enveloppes
+            .map((e) => `<option value="${e.id}" ${String(e.id) === IETF.typeChoisi ? "selected" : ""}>${escapeHtml(e.nom)}</option>`)
+            .join("")}
+        </select>
       </label>
     </div>
     <h3>${escapeHtml(t("Jusqu'où descendre"))}</h3>
@@ -576,6 +589,7 @@ function ietfRendreCouverture(corps) {
     IETF.etfId = ietfEl("ietf-etf").value;
     ietfEl("ietf-etf-nom").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("ietf-etf-isin").closest("label").hidden = IETF.etfId !== "nouveau";
+    ietfEl("ietf-etf-type").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("btn-ietf-suivant").disabled = !ietfPeutAvancer();
   };
   ietfEl("ietf-etf").addEventListener("change", majEtf);
@@ -585,6 +599,9 @@ function ietfRendreCouverture(corps) {
   });
   ietfEl("ietf-etf-isin").addEventListener("input", (e) => {
     IETF.etfIsin = e.target.value;
+  });
+  ietfEl("ietf-etf-type").addEventListener("change", (e) => {
+    IETF.typeChoisi = e.target.value;
   });
   ietfEl("ietf-pct").addEventListener("input", () => ietfMajCouverture({ source: "pct" }));
   ietfEl("ietf-lignes").addEventListener("input", () => ietfMajCouverture({ source: "lignes" }));
@@ -732,7 +749,12 @@ function ietfRendreRecap(corps) {
   const statuts = l.statuts.slice(0, IETF.lignes);
   const compte = (s) => statuts.filter((x) => x === s).length;
   const cibles = l.etf.candidats.find((c) => String(c.id) === IETF.etfId);
-  const etf = IETF.etfId === "nouveau" ? `${IETF.etfNom} (${t("à créer")})` : cibles ? cibles.nom : "";
+  const typeNom = IETF.typeChoisi === "indice"
+    ? t("Indice")
+    : (l.enveloppes.find((e) => String(e.id) === IETF.typeChoisi) || {}).nom;
+  const etf = IETF.etfId === "nouveau"
+    ? `${IETF.etfNom} (${t("à créer")}${typeNom ? ` · ${typeNom}` : ""})`
+    : cibles ? cibles.nom : "";
   const principalId = IETF.etfId === "nouveau" ? null : Number(IETF.etfId);
   // Le détail de ce que chaque fonds prend, et ce qu'il perdra : le dernier regard avant d'écrire.
   const ligneFond = (nom, choix, donnees) => {
@@ -783,7 +805,11 @@ async function ietfConfirmer() {
     JSON.stringify({
       etf:
         IETF.etfId === "nouveau"
-          ? { nom: IETF.etfNom.trim(), isin: IETF.etfIsin.trim() }
+          ? {
+              nom: IETF.etfNom.trim(),
+              isin: IETF.etfIsin.trim(),
+              ...(IETF.typeChoisi === "indice" ? { indice: true } : IETF.typeChoisi ? { type_titre_id: Number(IETF.typeChoisi) } : {}),
+            }
           : { titre_id: Number(IETF.etfId), proprietes: ietfCochees(IETF.proprietesEtf) },
       cibles: [...IETF.cibles.entries()]
         .filter(([id]) => String(id) !== IETF.etfId)
@@ -812,6 +838,9 @@ async function ietfConfirmer() {
         t("Composition aussi posée sur : {noms}", { noms: r.branches.map((b) => b.nom).join(", ") }),
         "success"
       );
+    }
+    if (r.etf_suivis && r.etf_suivis.length) {
+      showMessage(t("ETF mis à jour avec l'indice : {noms}", { noms: r.etf_suivis.join(", ") }), "success");
     }
     r.avertissements.forEach((m) => showMessage(traduireMessageServeur(m), "error"));
     ietfFermer();

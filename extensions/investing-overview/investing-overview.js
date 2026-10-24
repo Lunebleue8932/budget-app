@@ -411,6 +411,9 @@ function ioRenderMonnaieActive() {
  */
 let ioTitres = [];
 let ioMasquerNonDetermine = false;
+// Combien de titres NOMMÉS le treemap montre (null = tous). « Détenu par ETF, non déterminé » et
+// « Autres titres » ne comptent pas dans ce nombre.
+let ioNbCarres = null;
 
 // Le gris clair des « Autres titres » : une part qui regroupe, pas un titre de plus — et
 // distinct du gris de la part non déterminée, qui dit tout autre chose.
@@ -557,8 +560,11 @@ function ioContenuInfobulleTitre(part, monnaieId, pourcentage) {
 function ioBlocTitres(bloc) {
   const masquer = ioMasquerNonDetermine;
   let rang = 0;
+  let nommes = 0;
+  const limite = ioNbCarres === null ? Infinity : ioNbCarres;
   const parts = bloc.parts
     .filter((part) => !(masquer && part.genre === "non_determine"))
+    .filter((part) => (part.genre === "non_determine" || part.genre === "autres" ? true : ++nommes <= limite))
     .map((part) => {
       const pourcentage = masquer ? part.part_determinee : part.part;
       const couleur =
@@ -595,11 +601,24 @@ function ioRenderTitres() {
   const aNonDetermine = bloc.parts.some((part) => part.genre === "non_determine");
   document.getElementById("io-titres-masquer-bloc").style.display = aNonDetermine ? "" : "none";
   document.getElementById("io-titres-masquer").checked = ioMasquerNonDetermine;
+  // Le curseur va de 1 au nombre de titres nommés ; à son maximum (ou sans choix), tout est montré.
+  const nbNommes = bloc.parts.filter((part) => part.genre !== "non_determine" && part.genre !== "autres").length;
+  const curseur = document.getElementById("io-titres-nb");
+  curseur.max = Math.max(nbNommes, 1);
+  curseur.value = ioNbCarres === null ? nbNommes : Math.min(ioNbCarres, nbNommes);
+  document.getElementById("io-titres-nb-valeur").textContent = curseur.value;
+  document.getElementById("io-titres-nb-bloc").style.display = nbNommes > 1 ? "" : "none";
   const vue = ioBlocTitres(bloc);
   ioRenderCarres(vue, "titre");
   ioRenderLegende(vue, "titre");
   ioCablerSurvol(vue, "titre");
 }
+
+document.getElementById("io-titres-nb")?.addEventListener("input", (e) => {
+  const valeur = Number(e.target.value);
+  ioNbCarres = valeur >= Number(e.target.max) ? null : valeur;
+  ioRenderTitres();
+});
 
 document.getElementById("io-titres-masquer")?.addEventListener("change", (e) => {
   ioMasquerNonDetermine = e.target.checked;

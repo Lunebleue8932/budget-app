@@ -4267,3 +4267,19 @@ Object.assign(TRADUCTIONS.pt, {
   "Importer une composition": "Importar uma composição",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : les indices, le calque et la gestion des fonds
+Object.assign(TRADUCTIONS.pt, {
+  "Aucun fonds. Importe la composition d'un ETF, puis transforme-le en indice.": "Nenhum fundo. Importe a composição de um ETF e depois transforme-o em índice.",
+});
+Object.assign(TRADUCTIONS.pt, {
+  "Importer des compositions": "Importar composições",
+  "Import de compositions": "Importação de composições",
+  "— Nouvelle ligne —": "— Nova linha —",
+  "Ligne concernée": "Linha de destino",
+  "Indice": "Índice",
+  "— Aucune enveloppe —": "— Sem envoltório —",
+  "ETF mis à jour avec l'indice : {noms}": "ETFs atualizados com o índice: {noms}",
+  "— Ne plus suivre l'indice —": "— Deixar de seguir o índice —",
+  "Calqué : {liste}. Une mise à jour de l'indice se répercute sur cet ETF.": "Espelhado: {liste}. Uma atualização do índice se reflete neste ETF.",
+  "ETF délié de l'indice": "ETF desvinculado do índice",
+  "Titres montrés": "Títulos mostrados",
+});

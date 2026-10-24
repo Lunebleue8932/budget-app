@@ -71,6 +71,27 @@ def poser_composition(titre: models.TitrePossede, composition: Optional[dict], c
     titre.composition_couverture_pct = (couverture or None) if propre else None
 
 
+def delier(cible: models.TitrePossede) -> None:
+    """L'ETF n'est plus calqué sur aucun indice ; ses données restent telles quelles."""
+    cible.indice_id = None
+    cible.calque_proprietes = None
+
+
+def propager(db, indice: models.TitrePossede) -> list[str]:
+    """L'indice vient d'être mis à jour : les ETF calqués dessus reprennent, pour les propriétés
+    qu'ils lui prennent, ce qu'il porte maintenant. Une propriété que l'indice ne porte plus est
+    laissée telle quelle (on n'efface pas un ETF parce que l'indice s'est vidé). Rend les noms des
+    ETF touchés. NE COMMITE PAS."""
+    touches = []
+    liés = db.query(models.TitrePossede).filter(models.TitrePossede.indice_id == indice.id).all()
+    for etf in liés:
+        prises = [p for p in (etf.calque_proprietes or []) if a_des_donnees(indice, p)]
+        if prises:
+            calquer(db, etf, indice, prises, retenir=False)
+            touches.append(etf.nom_affiche)
+    return touches
+
+
 def calquer(
     db,
     cible: models.TitrePossede,
@@ -78,8 +99,11 @@ def calquer(
     proprietes: Iterable[str],
     *,
     date_maj: Optional[date_type] = None,
+    retenir: bool = True,
 ) -> list[str]:
     """Recopie sur `cible` les `proprietes` choisies de `source`. Rend celles qui ont été posées.
+    `retenir` : l'ETF se SOUVIENT de l'indice et des propriétés prises (migration 0094), ce qui permet
+    de les mettre à jour avec lui (`propager`).
 
     Une propriété que la source ne porte pas est REFUSÉE plutôt que posée vide : demander de
     « prendre » ce qui n'existe pas effacerait la cible sans rien apporter, et ce n'est jamais ce
@@ -106,4 +130,7 @@ def calquer(
                 source=etiquette_source,
                 date_maj=aujourdhui,
             )
+    if retenir:
+        cible.indice_id = source.id
+        cible.calque_proprietes = choisies
     return choisies

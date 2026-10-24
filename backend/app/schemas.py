@@ -1086,8 +1086,9 @@ class CalqueTitre(BaseModel):
     """Calquer un fonds sur un indice : les propriétés de l'indice que le fonds PREND (les autres
     restent telles quelles). Propriétés : composition, classe, zone, secteur."""
 
-    indice_id: int
-    proprietes: list[str] = Field(min_length=1)
+    # None = DÉLIER l'ETF de son indice (ses données restent telles quelles).
+    indice_id: Optional[int] = None
+    proprietes: list[str] = Field(default_factory=list)
 
 
 class ExpositionLigneEcriture(BaseModel):
@@ -1149,6 +1150,10 @@ class TitreRead(BaseModel):
     part_etf: bool = False
     # Un indice ne peut pas être détenu : modèle d'ETF ou simple cours à suivre (migration 0093).
     est_indice: bool = False
+    # L'indice sur lequel cet ETF est calqué, et ce qu'il lui prend (migration 0094).
+    indice_id: Optional[int] = None
+    indice_nom: Optional[str] = None
+    calque_proprietes: list[str] = Field(default_factory=list)
     code_isin: Optional[str] = None
     # Le type et son libellé : l'identifiant pour les formulaires, le nom pour
     # les tableaux — qui n'ont ainsi rien à aller rechercher ailleurs. Et la

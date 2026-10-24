@@ -143,9 +143,6 @@
           Afficher les titres archivés
         </label>
         <button type="button" id="btn-titres-etf" disabled>Titres d'ETFs</button>
-        <!-- « GESTION DES FONDS » : la fenêtre qui range les fonds (ETF et indices) et permet de
-             lier chacun à un import de composition. Dessinée par gestion-fonds.js (préfixe `gfonds`). -->
-        <button type="button" id="btn-gestion-fonds">Gestion des fonds</button>
         <!-- DEUX TITRES REPLIABLES : ce qu'on détient aujourd'hui, et ce qu'on suit sans le
              détenir (vendu, ou composant d'un ETF importé pour les graphes). Ces derniers
              peuvent se compter par dizaines, et noyaient la poignée de titres qu'on possède.
@@ -282,7 +279,7 @@
         <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
              aria-labelledby="ietf-titre">
           <div class="epargne-entete">
-            <h2 id="ietf-titre">Importer la composition d'un ETF<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
+            <h2 id="ietf-titre">Import de compositions<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
             <button type="button" id="btn-ietf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
           </div>
           <div class="import-etapes" id="ietf-etapes"></div>
@@ -295,7 +292,8 @@
       </div>
 
       <!-- ===== « GESTION DES FONDS » : tous les titres de type fonds (ETF, fonds, indices), avec la
-           possibilité de lier chacun à un import de composition. Contenu dessiné par gestion-fonds.js. ===== -->
+           possibilité de calquer chacun sur un indice. Contenu dessiné par gestion-fonds.js ; son bouton
+           est posé dans la ligne de titre de la page, à côté de « Vue d'ensemble ». ===== -->
       <div id="placements-modale-gestion-fonds" class="modale-fond" style="display:none" role="presentation">
         <div class="modale modale-gestion-fonds" role="dialog" aria-modal="true" aria-labelledby="gfonds-titre">
           <div class="epargne-entete">

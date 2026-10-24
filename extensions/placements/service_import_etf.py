@@ -211,6 +211,8 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
             for f in fichier.feuilles
         ],
         "etf": {"titre_id": etf.id if etf else None, "candidats": candidats, "branchables": branchables},
+        # Les enveloppes qu'on peut poser sur un fonds créé à l'import (l'indice, lui, n'en a pas).
+        "enveloppes": [{"id": e.id, "nom": e.nom} for e in crud.get_types_titre(db, AxeTitre.enveloppe.value)],
         # Ce que ce fichier peut apporter à un fonds : la composition toujours, un secteur / une zone
         # seulement s'il en dit (feuille de répartition, ou colonne sur les possessions).
         "apport": {
@@ -370,9 +372,23 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
             if conflit:
                 raise ValueError(conflit)
             monnaie = ctx.monnaie(fichier.fonds_devise) or defaut
-            enveloppe = ctx.enveloppe_etf() or ctx.etiquette_ou_creation(AxeTitre.enveloppe.value, "ETF", creees)
+            # LE TYPE SE CHOISIT À L'IMPORT : un indice (sans enveloppe : il ne se détient pas), une
+            # enveloppe de la base, ou à défaut « ETF ».
+            est_indice = bool(visee.get("indice"))
+            if est_indice:
+                enveloppe_id = None
+            elif visee.get("type_titre_id"):
+                choisie = crud.get_type_titre(db, int(visee["type_titre_id"]))
+                if choisie is None or choisie.axe != AxeTitre.enveloppe.value:
+                    raise ValueError("le type choisi n'existe plus")
+                enveloppe_id = choisie.id
+            else:
+                enveloppe_id = (
+                    ctx.enveloppe_etf() or ctx.etiquette_ou_creation(AxeTitre.enveloppe.value, "ETF", creees)
+                ).id
             etf = models.TitrePossede(
-                nom=nom, valeur=0.0, monnaie_id=monnaie.id, code_isin=isin or None, type_titre_id=enveloppe.id
+                nom=nom, valeur=0.0, monnaie_id=monnaie.id, code_isin=isin or None,
+                type_titre_id=enveloppe_id, est_indice=est_indice,
             )
             db.add(etf)
             db.flush()
@@ -436,12 +452,17 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
     recepteurs = [(etf, proprietes_etf)] + _cibles_branchees(db, choix, etf)
     for titre, proprietes in recepteurs:
         _poser_sur(titre, proprietes, composition, couverture, repartitions, source, aujourdhui, db)
+    # UN INDICE MIS À JOUR : les ETF calqués dessus reprennent ce qu'ils lui prennent, sans qu'on ait
+    # à refaire la liaison (migration 0094).
+    etf_suivis = calque_fonds.propager(db, etf) if etf.est_indice else []
     avertissements += exposition.valider_composition(composition, couverture) if composition else []
     db.commit()
     return {
         "etf_id": etf.id,
         "etf_nom": etf.nom_affiche,
         "etf_cree": cree_etf,
+        "etf_est_indice": bool(etf.est_indice),
+        "etf_suivis": etf_suivis,
         "titres_crees": crees,
         "titres_retrouves": retrouves,
         "ecartes": ecartes,

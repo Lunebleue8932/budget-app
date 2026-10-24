@@ -69,6 +69,9 @@ def _titre_read(
         detenu=detenu,
         part_etf=bool(titre.part_etf),
         est_indice=bool(titre.est_indice),
+        indice_id=titre.indice_id,
+        indice_nom=titre.indice.nom_affiche if titre.indice else None,
+        calque_proprietes=list(titre.calque_proprietes or []),
         code_isin=titre.code_isin,
         # Le libellé voyage à côté de l'identifiant : les tableaux l'affichent
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
@@ -164,6 +167,8 @@ def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
     _valider_monnaie(db, payload.monnaie_id)
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
+    if payload.est_indice and payload.type_titre_id:
+        raise HTTPException(status_code=422, detail="Un indice n'a pas d'enveloppe")
     # L'ISIN VOYAGEAIT SANS ÊTRE ÉCRIT : le schéma l'acceptait, la création ne le
     # posait pas. Un titre saisi ici perdait donc son code, et l'import suivant,
     # qui rapproche par l'ISIN avant le nom, en créait un second.
@@ -207,6 +212,9 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
     _valider_composition(payload)
+    # UN INDICE N'A PAS D'ENVELOPPE : on ne lui en pose pas (le détypage, lui, reste permis).
+    if (titre.est_indice or payload.est_indice) and payload.est_indice is not False and payload.type_titre_id:
+        raise HTTPException(status_code=422, detail="Un indice n'a pas d'enveloppe")
     # Changer la monnaie de cotation d'un titre déjà mouvementé réécrirait le
     # sens de mouvements passés (le prix payé était libellé dans l'ancienne) :
     # les écritures d'espèces existantes, elles, ne bougeraient pas.
@@ -253,22 +261,25 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
                     "un indice."
                 ),
             )
-    return _titre_read(
-        crud.update_titre(
-            db,
-            titre,
-            est_indice=payload.est_indice,
-            nom=payload.nom,
-            nom_affichage=payload.nom_affichage,
-            valeur=payload.valeur,
-            monnaie_id=payload.monnaie_id,
-            archivee=payload.archivee,
-            type_titre_id=payload.type_titre_id,
-            classe_actif_id=payload.classe_actif_id,
-            composition=payload.composition,
-            composition_couverture_pct=payload.composition_couverture_pct,
-        )
+    mis_a_jour = crud.update_titre(
+        db,
+        titre,
+        est_indice=payload.est_indice,
+        nom=payload.nom,
+        nom_affichage=payload.nom_affichage,
+        valeur=payload.valeur,
+        monnaie_id=payload.monnaie_id,
+        archivee=payload.archivee,
+        type_titre_id=payload.type_titre_id,
+        classe_actif_id=payload.classe_actif_id,
+        composition=payload.composition,
+        composition_couverture_pct=payload.composition_couverture_pct,
     )
+    # L'indice vient de changer de composition : les ETF calqués dessus la reprennent.
+    if mis_a_jour.est_indice and payload.composition is not None:
+        calque_fonds.propager(db, mis_a_jour)
+        db.commit()
+    return _titre_read(mis_a_jour)
 
 
 @router.put("/{titre_id}/expositions", response_model=schemas.TitreRead)
@@ -312,6 +323,8 @@ def remplacer_expositions(
         source=payload.source,
         date_maj=payload.date_maj,
     )
+    if titre.est_indice:
+        calque_fonds.propager(db, titre)
     db.commit()
     db.refresh(titre)
     return _titre_read(titre)
@@ -334,11 +347,19 @@ def calquer_sur_indice(titre_id: int, payload: schemas.CalqueTitre, db: Session 
     cible = crud.get_titre(db, titre_id)
     if cible is None:
         raise HTTPException(status_code=404, detail="Titre introuvable")
+    if cible.est_indice:
+        raise HTTPException(status_code=409, detail="Un indice ne se calque pas sur un autre indice")
+    if payload.indice_id is None:
+        # Délier : l'ETF garde ses données, il ne suit plus l'indice.
+        calque_fonds.delier(cible)
+        db.commit()
+        db.refresh(cible)
+        return _titre_read(cible)
     indice = crud.get_titre(db, payload.indice_id)
     if indice is None or not indice.est_indice:
         raise HTTPException(status_code=404, detail="Indice introuvable")
-    if cible.est_indice:
-        raise HTTPException(status_code=409, detail="Un indice ne se calque pas sur un autre indice")
+    if not payload.proprietes:
+        raise HTTPException(status_code=422, detail="Choisis au moins une propriété à prendre à l'indice")
     try:
         calque_fonds.calquer(db, cible, indice, payload.proprietes)
     except calque_fonds.ErreurCalque as erreur:

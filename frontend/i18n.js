@@ -5044,3 +5044,20 @@ Object.assign(TRADUCTIONS.en, {
   "Importer une composition": "Import holdings",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : les indices, le calque et la gestion des fonds
+Object.assign(TRADUCTIONS.en, {
+  "Aucun fonds. Importe la composition d'un ETF, puis transforme-le en indice.": "No funds. Import an ETF's holdings, then turn it into an index.",
+});
+Object.assign(TRADUCTIONS.en, {
+  "Importer des compositions": "Import holdings",
+  "Import de compositions": "Holdings import",
+  "— Nouvelle ligne —": "— New line —",
+  "Ligne concernée": "Target line",
+  "Type": "Type",
+  "Indice": "Index",
+  "— Aucune enveloppe —": "— No wrapper —",
+  "ETF mis à jour avec l'indice : {noms}": "ETFs updated with the index: {noms}",
+  "— Ne plus suivre l'indice —": "— Stop following the index —",
+  "Calqué : {liste}. Une mise à jour de l'indice se répercute sur cet ETF.": "Mirrored: {liste}. An index update carries over to this ETF.",
+  "ETF délié de l'indice": "ETF unlinked from the index",
+  "Titres montrés": "Titles shown",
+});

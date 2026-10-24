@@ -173,9 +173,10 @@ function expoTexteEnComposition(texte) {
     .map((l) => l.trim())
     .filter(Boolean)
     .forEach((ligne) => {
-      const m = ligne.match(/^([A-Za-z0-9 ]+?)\s*[;:=\t]\s*(-?\d+(?:[.,]\d+)?)\s*%?$/);
+      // Un composant sans ISIN (iShares) est cité par « titre:<id> » : la clé garde sa casse d'origine.
+      const m = ligne.match(/^(titre:\d+|[A-Za-z0-9 ]+?)\s*[;:=\t]\s*(-?\d+(?:[.,]\d+)?)\s*%?$/i);
       if (!m) throw new Error(t("Ligne illisible : « {ligne} » (attendu : ISIN ; poids)", { ligne }));
-      const isin = m[1].replace(/\s+/g, "").toUpperCase();
+      const isin = /^titre:\d+$/i.test(m[1]) ? m[1].toLowerCase() : m[1].replace(/\s+/g, "").toUpperCase();
       if (isin in resultat) throw new Error(t("L'ISIN {isin} figure deux fois", { isin }));
       resultat[isin] = expoNombre(m[2]);
     });
@@ -229,6 +230,9 @@ function expoResumeTexte(cle, donnees) {
 
 function expoCalqueHtml(titre) {
   const indices = state.titres.filter((x) => x.est_indice && !x.archivee);
+  // UN ETF DÉJÀ CALQUÉ affiche son indice, en bleu, à la place de « Choisir » - comme un filtre
+  // actif sur la page des opérations : on voit d'un coup d'œil qu'il suit un indice.
+  const lie = titre.indice_id && indices.some((i) => i.id === titre.indice_id);
   const entete = `
       <div class="expo-axe-titre">
         ${escapeHtml(t("Calquer sur un indice"))}<i class="info-bulle" tabindex="0" data-info-cle="placements.calque-indice">i</i>
@@ -240,21 +244,35 @@ function expoCalqueHtml(titre) {
   }
   return `
     <div class="expo-calque" data-expo-calque>${entete}
-      <select data-expo-calque-indice>
-        <option value="">${escapeHtml(t("— Choisir un indice —"))}</option>
-        ${indices.map((i) => `<option value="${i.id}">${escapeHtml(i.nom_affiche)}</option>`).join("")}
+      <select data-expo-calque-indice class="${lie ? "expo-calque-lie" : ""}">
+        <option value="">${escapeHtml(lie ? t("— Ne plus suivre l'indice —") : t("— Choisir un indice —"))}</option>
+        ${indices
+          .map(
+            (i) => `<option value="${i.id}" ${i.id === titre.indice_id ? "selected" : ""}>${escapeHtml(i.nom_affiche)}</option>`
+          )
+          .join("")}
       </select>
+      ${
+        lie
+          ? `<p class="hint">${escapeHtml(
+              t("Calqué : {liste}. Une mise à jour de l'indice se répercute sur cet ETF.", {
+                liste: (titre.calque_proprietes || []).map((p) => t(EXPO_PROPRIETES_CALQUE.find((x) => x.cle === p).nom).toLowerCase()).join(", "),
+              })
+            )}</p>`
+          : ""
+      }
       <div data-expo-calque-detail></div>
     </div>`;
 }
 
 /** Le tableau de choix : pour chaque propriété, ce que porte l'ETF, ce que porte l'indice, et lequel on garde. */
-function expoCalqueDetailHtml(titreId, cible, indice) {
+function expoCalqueDetailHtml(titreId, cible, indice, dejaPrises = []) {
   const lignes = EXPO_PROPRIETES_CALQUE.map(({ cle, nom }) => {
     const aLaCible = cible[cle].nb > 0;
     const aIndice = indice[cle].nb > 0;
-    // Par défaut : on prend de l'indice ce que l'ETF n'a pas, et on GARDE ce qu'il a déjà.
-    const prendre = aIndice && !aLaCible;
+    // Par défaut : on prend de l'indice ce que l'ETF n'a pas, et on GARDE ce qu'il a déjà - sauf ce
+    // qu'il prenait déjà à cet indice (le lien persiste).
+    const prendre = aIndice && (!aLaCible || dejaPrises.includes(cle));
     const radio = `calque-${titreId}-${cle}`;
     return `<tr data-propriete="${cle}">
       <th scope="row">${escapeHtml(t(nom))}</th>
@@ -300,6 +318,20 @@ async function expoCalqueChoisir(menu) {
   const zone = menu.closest("[data-expo-calque]").querySelector("[data-expo-calque-detail]");
   if (!menu.value) {
     zone.innerHTML = "";
+    // « Ne plus suivre l'indice » : le lien se défait, les données de l'ETF restent.
+    const titre = state.titres.find((x) => x.id === Number(panneau.dataset.titre));
+    if (titre && titre.indice_id) {
+      try {
+        const lu = await apiFetch(`/titres/${titre.id}/calque`, {
+          method: "PUT",
+          body: JSON.stringify({ indice_id: null }),
+        });
+        showMessage(t("ETF délié de l'indice"), "success");
+        expoRemplacerTitre(lu);
+      } catch (err) {
+        showMessage(traduireMessageServeur(err.message), "error");
+      }
+    }
     return;
   }
   const titreId = Number(panneau.dataset.titre);
@@ -308,7 +340,9 @@ async function expoCalqueChoisir(menu) {
       apiFetch(`/titres/${titreId}/donnees`),
       apiFetch(`/titres/${menu.value}/donnees`),
     ]);
-    zone.innerHTML = expoCalqueDetailHtml(titreId, cible, indice);
+    const titre = state.titres.find((x) => x.id === titreId);
+    const dejaPrises = titre && titre.indice_id === Number(menu.value) ? titre.calque_proprietes || [] : [];
+    zone.innerHTML = expoCalqueDetailHtml(titreId, cible, indice, dejaPrises);
     zone._cible = cible;
     expoCalqueMajAlerte(zone, cible);
   } catch (err) {

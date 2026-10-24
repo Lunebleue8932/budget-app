@@ -142,3 +142,21 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* La rangée des réglages du treemap : la case « Masquer… » et le curseur du nombre de titres. */
+.io-options-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.5rem;
+}
+
+.io-curseur-carres {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.io-curseur-carres input[type="range"] {
+  width: 12rem;
+}

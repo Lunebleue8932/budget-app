@@ -349,10 +349,14 @@ function renderTitresSuivis() {
            expose. C'est data-axe qui dit lequel des deux l'écouteur écrit.
            (Pas d'accent grave dans ce commentaire : il vit DANS une chaîne
            gabarit, et un seul y refermerait la chaîne.) -->
-      <select data-action="type-titre" data-axe="enveloppe" data-id="${titre.id}"
-              title="${t("Enveloppe : comment le titre est détenu — purement descriptif")}">
+      ${
+        titre.est_indice
+          ? ""
+          : `<select data-action="type-titre" data-axe="enveloppe" data-id="${titre.id}"
+              title="${escapeHtml(t("Enveloppe : comment le titre est détenu — purement descriptif"))}">
         ${optionsTypesTitre(titre.type_titre_id, "enveloppe")}
-      </select>
+      </select>`
+      }
       <select data-action="type-titre" data-axe="classe" data-id="${titre.id}"
               title="${t("Classe d'actif : à quoi le titre expose — purement descriptif")}">
         ${optionsTypesTitre(titre.classe_actif_id, "classe")}
@@ -1009,6 +1013,10 @@ document.getElementById("form-achat-vente").addEventListener("submit", async (e)
   }
 });
 
+document.getElementById("titre-est-indice").addEventListener("change", (e) => {
+  document.getElementById("titre-enveloppe").disabled = e.target.checked;
+});
+
 document.getElementById("form-titre").addEventListener("submit", async (e) => {
   e.preventDefault();
   const nomInput = document.getElementById("titre-nom");
@@ -1020,9 +1028,10 @@ document.getElementById("form-titre").addEventListener("submit", async (e) => {
         nom: nomInput.value,
         valeur: parseFloat(valeurInput.value || "0"),
         monnaie_id: Number(document.getElementById("titre-monnaie").value),
-        type_titre_id: valeurTypeTitreEnvoyee(
-          document.getElementById("titre-enveloppe").value
-        ),
+        // Un indice n'a pas d'enveloppe : le menu est ignoré.
+        type_titre_id: document.getElementById("titre-est-indice").checked
+          ? null
+          : valeurTypeTitreEnvoyee(document.getElementById("titre-enveloppe").value),
         classe_actif_id: valeurTypeTitreEnvoyee(
           document.getElementById("titre-classe-actif").value
         ),

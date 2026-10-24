@@ -1,19 +1,19 @@
 /* ---------- « Gestion des fonds » (extension « Placements financiers ») ----------
  *
- * UNE FENÊTRE QUI RANGE LES FONDS : tous les titres de type fonds — ETF, fonds, et les INDICES — avec
- * ce que chacun porte (sa composition, la date de son dernier import) et, pour chacun, la possibilité
- * de le LIER À UN IMPORT de composition. Le geste ouvre l'import (import-etf.js) avec ce fonds déjà
- * prêt à recevoir :
+ * UNE FENÊTRE QUI RELIE LES FONDS À DES INDICES. Le parcours complet est :
  *
- *   - un ETF (détenu ou non) est BRANCHÉ sur l'import : il reçoit la composition du fichier en plus du
- *     fonds que le fichier décrit — c'est le cas d'une réplique synthétique, dont l'émetteur ne publie
- *     pas la composition de l'indice suivi ;
- *   - un indice est LE FONDS qui reçoit le fichier (on lui importe sa propre composition).
+ *   1. importer le fichier d'un fonds (« Importer des titres ») - celui d'un ETF qui suit l'indice
+ *      physiquement, ou l'indice lui-même ;
+ *   2. le TRANSFORMER EN INDICE (sur la page des titres : il change d'enveloppe et ne peut plus être
+ *      détenu) ;
+ *   3. l'ASSIGNER à un ETF qu'on détient, ici : la fenêtre liste tous les fonds, et chacun se
+ *      calque sur un indice au choix - propriété par propriété, comme dans le panneau « Détail ».
  *
- * L'import, lui, redemande à l'utilisateur ce que chaque fonds prend et ce qu'il garde.
+ * Les gestes du calque sont ceux de expositions.js (`expoCalque*`) : la fenêtre ne fait que les
+ * héberger, une ligne par fonds, dans un `.expo-panneau`.
  *
- * CHARGÉ APRÈS import-etf.js et expositions.js (il lit `state.titres`, `expoEstEtf`, `expoResumeTexte`
- * et `ietfOuvrir`) ; tout est préfixé `gfonds`/`GFONDS` (les scripts d'extension partagent une seule portée).
+ * Le bouton vit dans la ligne de titre de la page Placements (`.placements-titre-actions`), à côté de
+ * « Vue d'ensemble ». CHARGÉ APRÈS expositions.js ; tout est préfixé `gfonds`.
  */
 
 function gfondsEl(id) {
@@ -40,34 +40,39 @@ function gfondsOuvrir() {
   gfondsRendre();
 }
 
-/** Le dernier import de composition lu sur ce fonds : d'où il vient et de quand il date. */
-function gfondsDernierImport(titre) {
-  const lignes = (titre.expositions || []).filter((e) => e.source && e.date_maj);
-  if (!lignes.length) return "";
-  const recent = lignes.reduce((a, b) => (a.date_maj >= b.date_maj ? a : b));
-  return t("{source}, le {date}", { source: recent.source, date: recent.date_maj });
+function gfondsPoserBouton() {
+  if (gfondsEl("btn-gestion-fonds")) return;
+  const actions = document.querySelector("#placements-vue-principale .placements-titre-actions");
+  if (!actions) return;
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.id = "btn-gestion-fonds";
+  bouton.className = "placements-titre-action";
+  bouton.textContent = t("Gestion des fonds");
+  bouton.addEventListener("click", gfondsOuvrir);
+  actions.appendChild(bouton);
 }
 
-function gfondsLigneHtml(titre) {
+function gfondsResumeComposition(titre) {
   const nb = Object.keys(titre.composition || {}).length;
-  const etat = titre.est_indice ? t("indice") : titre.detenu ? t("détenu") : t("non détenu");
-  const composition = nb
+  return nb
     ? t("{n} composant(s), {pct} % de l'indice couverts", {
         n: nb,
         pct: expoFormatPoids(titre.composition_couverture_pct ?? 0),
       })
     : t("Aucune composition");
-  const source = gfondsDernierImport(titre);
-  return `<div class="import-mapping-row gfonds-ligne">
-    <span class="import-mapping-nom">${escapeHtml(titre.nom_affiche)}
-      <span class="titre-renomme-etiquette">${escapeHtml(etat)}</span></span>
-    <span class="hint">${escapeHtml(composition)}${source ? ` — ${escapeHtml(source)}` : ""}</span>
-    <button type="button" data-gfonds-lier="${titre.id}"
-            title="${escapeHtml(
-              titre.est_indice
-                ? t("Importer un fichier de composition dans cet indice")
-                : t("Brancher ce fonds sur un import : il recevra la composition du fichier")
-            )}">${escapeHtml(t("Lier à un import"))}</button>
+}
+
+/** Un fonds : son état, sa composition, et - s'il peut se calquer - le choix de l'indice. */
+function gfondsLigneHtml(titre) {
+  const etat = titre.est_indice ? t("indice") : titre.detenu ? t("détenu") : t("non détenu");
+  return `<div class="gfonds-ligne">
+    <div class="import-mapping-row">
+      <span class="import-mapping-nom">${escapeHtml(titre.nom_affiche)}
+        <span class="titre-renomme-etiquette">${escapeHtml(etat)}</span></span>
+      <span class="hint">${escapeHtml(gfondsResumeComposition(titre))}</span>
+    </div>
+    ${titre.est_indice ? "" : `<div class="expo-panneau" data-titre="${titre.id}">${expoCalqueHtml(titre)}</div>`}
   </div>`;
 }
 
@@ -81,45 +86,44 @@ function gfondsRendre() {
         Number(a.est_indice) - Number(b.est_indice) ||
         a.nom_affiche.localeCompare(b.nom_affiche, "fr")
     );
-  gfondsEl("gfonds-corps").innerHTML = `
+  const corps = gfondsEl("gfonds-corps");
+  corps.innerHTML = `
     <p class="modale-texte" data-texte-cle="placements.gestion-fonds-corps"></p>
-    <div class="actions">
-      <button type="button" class="primary" data-gfonds-importer>${escapeHtml(t("Importer une composition"))}</button>
-    </div>
     ${
       fonds.length
         ? fonds.map(gfondsLigneHtml).join("")
-        : `<span class="hint">${escapeHtml(t("Aucun fonds. Importe la composition d'un ETF, ou crée un indice."))}</span>`
+        : `<span class="hint">${escapeHtml(t("Aucun fonds. Importe la composition d'un ETF, puis transforme-le en indice."))}</span>`
     }`;
-  if (typeof appliquerTextes === "function") appliquerTextes(gfondsEl("gfonds-corps"));
-}
-
-/** Ouvre l'import (la fenêtre de gestion se referme : on ne superpose pas deux fenêtres). */
-function gfondsLancerImport(options) {
-  gfondsFermer();
-  ietfOuvrir(options);
+  if (typeof appliquerTextes === "function") appliquerTextes(corps);
 }
 
 (function gfondsCabler() {
   const fenetre = gfondsEl("placements-modale-gestion-fonds");
   if (!fenetre) return;
-  gfondsEl("btn-gestion-fonds").addEventListener("click", gfondsOuvrir);
+  gfondsPoserBouton();
   gfondsEl("btn-gfonds-fermer").addEventListener("click", gfondsFermer);
-  fenetre.addEventListener("click", (e) => {
+  fenetre.addEventListener("click", async (e) => {
     if (e.target === fenetre) {
       gfondsFermer();
       return;
     }
-    if (e.target.closest("[data-gfonds-importer]")) {
-      gfondsLancerImport({});
-      return;
+    const appliquer = e.target.closest("[data-expo-calque-appliquer]");
+    if (appliquer) {
+      await expoCalqueAppliquer(appliquer);
+      // Le fonds vient de changer : la fenêtre se redessine sur l'état relu.
+      if (gfondsOuvert()) gfondsRendre();
     }
-    const lier = e.target.closest("[data-gfonds-lier]");
-    if (!lier) return;
-    const titre = state.titres.find((x) => x.id === Number(lier.dataset.gfondsLier));
-    if (!titre) return;
-    // Un indice reçoit le fichier ; un ETF s'y branche.
-    gfondsLancerImport(titre.est_indice ? { principalId: titre.id } : { cibleId: titre.id });
+  });
+  // Mêmes gestes que le panneau « Détail » : choisir l'indice charge la comparaison, un bouton radio
+  // met l'avertissement à jour.
+  fenetre.addEventListener("change", (e) => {
+    const menu = e.target.closest("[data-expo-calque-indice]");
+    if (menu) expoCalqueChoisir(menu);
+    const radio = e.target.closest(".expo-calque-table input[type='radio']");
+    if (radio) {
+      const zone = radio.closest("[data-expo-calque-detail]");
+      expoCalqueMajAlerte(zone, zone._cible);
+    }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && gfondsOuvert()) gfondsFermer();

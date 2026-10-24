@@ -267,3 +267,66 @@ def test_donnees_du_titre_route(db_session):
     assert r["composition"]["nb"] == 2
     with pytest.raises(HTTPException):
         titres_routes.donnees_du_titre(99999, db=db_session)
+
+
+def test_un_indice_n_a_pas_d_enveloppe_et_redevenir_ordinaire_la_rend(db_session):
+    etf = _etf(db_session, "Fonds Physique", "IE000AAAAAA1")
+    etf.composition = {"US0378331005": 100.0}
+    db_session.commit()
+    assert etf.type_titre_id is not None
+    lu = titres_routes.update_titre(etf.id, schemas.TitreUpdate(est_indice=True), db=db_session)
+    assert lu.est_indice is True and lu.type_titre_id is None
+    # On ne lui en pose pas.
+    with pytest.raises(HTTPException) as erreur:
+        titres_routes.update_titre(etf.id, schemas.TitreUpdate(type_titre_id=1), db=db_session)
+    assert erreur.value.status_code == 422
+    with pytest.raises(HTTPException):
+        titres_routes.create_titre(
+            schemas.TitreCreate(nom="X", monnaie_id=_monnaie(db_session).id, est_indice=True, type_titre_id=1),
+            db=db_session,
+        )
+    lu = titres_routes.update_titre(etf.id, schemas.TitreUpdate(est_indice=False), db=db_session)
+    assert lu.est_indice is False and lu.type_titre_nom.lower().startswith("etf")
+
+
+def test_le_calque_se_souvient_de_l_indice_et_se_repercute_a_sa_mise_a_jour(db_session):
+    indice = _indice_importe(db_session)
+    etf = _etf(db_session, "Synthétique", "IE000BBBBBB1")
+    lu = titres_routes.calquer_sur_indice(
+        etf.id, schemas.CalqueTitre(indice_id=indice.id, proprietes=["composition"]), db=db_session
+    )
+    assert lu.indice_id == indice.id and lu.indice_nom == indice.nom_affiche and lu.calque_proprietes == ["composition"]
+    # L'indice est mis à jour par un nouvel import (sur la ligne existante) : l'ETF suit, sans refaire le lien.
+    resultat = service.confirmer(
+        db_session, _fichier(), None, {"nb_lignes": 1, "etf": {"titre_id": indice.id}}
+    )
+    assert resultat["etf_suivis"] == ["Synthétique"]
+    assert set(crud.get_titre(db_session, etf.id).composition) == {"US1912161007"}
+    # Délier : les données restent, le lien disparaît.
+    lu = titres_routes.calquer_sur_indice(etf.id, schemas.CalqueTitre(indice_id=None), db=db_session)
+    assert lu.indice_id is None and lu.composition
+
+
+def test_supprimer_un_indice_delie_les_etf(db_session):
+    indice = _indice_importe(db_session)
+    etf = _etf(db_session, "Synthétique", "IE000BBBBBB1")
+    titres_routes.calquer_sur_indice(
+        etf.id, schemas.CalqueTitre(indice_id=indice.id, proprietes=["secteur"]), db=db_session
+    )
+    # Les composants sont cités par l'indice : on vide sa composition avant de le supprimer.
+    indice.composition = None
+    db_session.commit()
+    crud.delete_titre(db_session, crud.get_titre(db_session, indice.id))
+    assert crud.get_titre(db_session, etf.id).indice_id is None
+
+
+def test_le_type_se_choisit_a_l_import(db_session):
+    r = service.confirmer(db_session, _fichier(), None, {"nb_lignes": 2, "etf": {"nom": "Indice X", "isin": "", "indice": True}})
+    indice = crud.get_titre(db_session, r["etf_id"])
+    assert indice.est_indice and indice.type_titre_id is None and r["etf_est_indice"] is True
+    env = crud.create_type_titre(db_session, "Fonds", AxeTitre.enveloppe.value)
+    r = service.confirmer(
+        db_session, _fichier("IE000CCCCCC1", "Autre"), None,
+        {"nb_lignes": 2, "etf": {"nom": "Autre", "isin": "IE000CCCCCC1", "type_titre_id": env.id}},
+    )
+    assert crud.get_titre(db_session, r["etf_id"]).type_titre_id == env.id

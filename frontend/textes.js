@@ -1282,9 +1282,9 @@ Object.assign(TEXTES, {
   "placements.indices":
     "Un indice est un titre que tu ne peux pas détenir : il sert à suivre un cours dans l'app, ou de modèle pour des ETF. -- Renseigne ses infos et son cours comme pour n'importe quel titre. -- Un ETF importé que tu ne détiens pas peut le devenir (« Transformer en indice »), et un ETF se calque sur un indice depuis son détail.",
   "placements.gestion-fonds":
-    "Tous tes fonds au même endroit : ETF, fonds et indices, avec ce que chacun contient et la date de son dernier import. -- « Lier à un import » ouvre l'import avec le fonds déjà prêt à recevoir la composition du fichier.",
+    "Tous tes fonds au même endroit : ETF, fonds et indices, avec ce que chacun contient. -- Chaque fonds peut se calquer sur un indice, propriété par propriété.",
   "placements.gestion-fonds-corps":
-    "Lier un fonds à un import lui fait recevoir la composition du fichier. C'est utile pour une réplique synthétique : son émetteur ne publie pas ce que l'indice contient, tu importes donc le fichier d'un fonds qui le suit vraiment. À l'étape « Fonds » de l'import, tu choisis ce que le fonds prend et ce qu'il garde.",
+    "Le parcours : tu importes le fichier d'un fonds qui suit l'indice (« Importer des compositions »), tu le transformes en indice, puis tu l'assignes ici à l'ETF que tu détiens. C'est utile pour une réplique synthétique : son émetteur ne publie pas ce que l'indice contient. Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice.",
   "placements.calque-indice":
     "Reprendre sur cet ETF ce que porte un indice : sa composition, sa classe d'actif, ses zones, ses secteurs. -- Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice. -- Ce que tu prends remplace d'un bloc ce que l'ETF porte aujourd'hui.",
   "import-etf.fonds":

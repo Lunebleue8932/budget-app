@@ -260,3 +260,10 @@
 .expo-calque-alerte:empty {
   display: none;
 }
+
+/* UN ETF CALQUÉ affiche son indice en bleu plein, comme un filtre actif (style.css, .filtre-menu-bouton). */
+.expo-calque select.expo-calque-lie {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

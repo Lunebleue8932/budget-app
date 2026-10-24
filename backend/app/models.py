@@ -1042,6 +1042,13 @@ class TitrePossede(Base):
     # Aucun mouvement ne peut le porter (crud.create_operation_titre refuse), et on ne transforme pas
     # un titre qui en a déjà eu.
     est_indice = Column(Boolean, nullable=False, default=False, server_default=sa_false())
+    # LE CALQUE SE SOUVIENT (migration 0094) : l'indice sur lequel cet ETF est calqué, et les
+    # propriétés qu'il lui prend (composition / classe / zone / secteur). Mettre l'indice à jour
+    # les repropage (services/calque_fonds.propager). NULL si l'indice disparaît.
+    indice_id = Column(
+        Integer, ForeignKey("titre_possede.id", ondelete="SET NULL"), nullable=True
+    )
+    calque_proprietes = Column(JSON, nullable=True)
 
     @property
     def nom_affiche(self) -> str:
@@ -1064,6 +1071,7 @@ class TitrePossede(Base):
     code_isin = Column(String, nullable=True)
 
     monnaie = relationship("Monnaie")
+    indice = relationship("TitrePossede", remote_side=[id], foreign_keys=[indice_id])
     type_titre = relationship("TypeTitre", foreign_keys=[type_titre_id])
     # LES RÉPARTITIONS sur les trois axes d'exposition (classe, zone, secteur),
     # en base dans `exposition_titre`. Supprimer le titre les emporte : la
