@@ -392,8 +392,29 @@ def test_la_feuille_de_repartition_de_l_etf_est_posee_sur_l_etf(db_session):
     assert {e.etiquette.nom: e.poids_pct for e in etf.repartition(AxeTitre.secteur.value)} == {
         "Consommation de base": pytest.approx(90.0), "Santé": pytest.approx(10.0)
     }
-    # Sans feuille de répartition, ses axes ne sont pas touchés.
-    assert etf.repartition(AxeTitre.zone.value) == []
+    # La zone, elle, n'a pas de feuille : elle se déduit des pays des possessions (toutes les lignes lues,
+    # ici 98 % États-Unis/Suisse/Nouvelle-Zélande… les 4 actions pèsent 99 %).
+    zones = {e.etiquette.nom: e.poids_pct for e in etf.repartition(AxeTitre.zone.value)}
+    assert zones == {"États-Unis": pytest.approx(68.0), "Europe": pytest.approx(30.0), "Océanie": pytest.approx(1.0)}
+
+
+def test_sans_feuille_de_repartition_l_etf_prend_celle_de_ses_actions(db_session):
+    resultat = service.confirmer(db_session, _fichier_amundi(), None, {"nb_lignes": 1})
+    etf = crud.get_titre(db_session, resultat["etf_id"])
+    # Une seule ligne importée, mais la répartition vient de TOUTES les actions du fichier.
+    secteurs = {e.etiquette.nom: e.poids_pct for e in etf.repartition(AxeTitre.secteur.value)}
+    assert secteurs == {"Consommation de base": pytest.approx(99.0)}
+    assert etf.composition_couverture_pct == pytest.approx(50.0)
+
+
+def test_un_fichier_sans_secteur_ni_pays_ne_pose_aucune_repartition(db_session):
+    feuille = [["Classe d'actifs", "Nom", "Code ISIN", "Poids"],
+               ["Action", "SAFRAN", "FR0000073272", 0.6], ["Action", "AIRBUS", "NL0000235190", 0.4]]
+    resultat = service.confirmer(
+        db_session, _xlsx({"Inventaire": feuille}), None, {"nb_lignes": 2, "etf": {"nom": "BNP Defense", "isin": ""}}
+    )
+    etf = crud.get_titre(db_session, resultat["etf_id"])
+    assert etf.repartition(AxeTitre.secteur.value) == [] and etf.repartition(AxeTitre.zone.value) == []
 
 
 def test_un_etf_existant_n_est_pas_recree(db_session):

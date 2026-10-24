@@ -13,9 +13,9 @@ pas une copie de ce qu'on a vu. Les deux gestes passent par `_preparer`, pour ne
 
 CE QUE L'IMPORT ÉCRIT.
   - L'ETF : sa composition `{clé: poids %}` (REMPLACÉE d'un bloc, c'est un instantané), sa couverture
-    (la somme des poids retenus), et ses répartitions de secteur / zone quand le fichier en a une
-    feuille. Sans feuille de répartition, ses axes ne bougent pas : les graphes l'éclatent par ses
-    composants ;
+    (la somme des poids retenus), et ses répartitions de secteur / zone : celles de la feuille de
+    répartition du fichier, à défaut déduites des secteurs et pays de ses possessions
+    (`_repartition_des_possessions`). Un fichier sans secteur ni pays (BNP) ne pose rien ;
   - un titre par composant retenu : créé s'il est inconnu, retrouvé sinon (par son ISIN, à défaut
     par son nom — cf. services/identite_titre). Tous reçoivent « Part d'un ETF ? » ;
   - sur un composant, secteur / zone / classe ne sont posés QUE s'il n'en a pas déjà : le fichier
@@ -218,6 +218,19 @@ def _nom_choisi(choix: dict, brut: Optional[str], proposer):
     return proposer(brut)[0]
 
 
+def _repartition_des_possessions(fichier, secteur: bool) -> list[tuple[str, float]]:
+    """SANS FEUILLE DE RÉPARTITION, celle de l'ETF se déduit de ses actions : le poids de chaque secteur
+    (ou pays) du fichier, additionné sur TOUTES les possessions lues — pas seulement les lignes retenues
+    à l'import, le fichier dit tout. Une action sans secteur (ou sans pays) reste « non renseignée » :
+    rien n'est renormalisé."""
+    cumul: dict[str, float] = {}
+    for p in fichier.possessions:
+        brut = p.secteur_brut if secteur else p.pays_brut
+        if brut:
+            cumul[brut] = cumul.get(brut, 0.0) + p.poids
+    return list(cumul.items())
+
+
 def _repartition_etf(ctx, paires, choix, axe, proposer, avertissements, creees) -> Optional[list[tuple[int, float]]]:
     """La répartition de l'ETF lue dans sa feuille de répartition, libellés confirmés, doublons additionnés."""
     cumul: dict[str, float] = {}
@@ -335,8 +348,10 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
     etf.composition = composition or None
     etf.composition_couverture_pct = couverture or None
     for axe, paires, correspondances, proposer in (
-        (AxeTitre.secteur.value, fichier.secteurs, secteurs, lambda b: corr.secteur_propose(b, ctx.noms(AxeTitre.secteur.value))),
-        (AxeTitre.zone.value, fichier.zones, zones, lambda b: corr.zone_proposee(b, ctx.noms(AxeTitre.zone.value))),
+        (AxeTitre.secteur.value, fichier.secteurs or _repartition_des_possessions(fichier, True), secteurs,
+         lambda b: corr.secteur_propose(b, ctx.noms(AxeTitre.secteur.value))),
+        (AxeTitre.zone.value, fichier.zones or _repartition_des_possessions(fichier, False), zones,
+         lambda b: corr.zone_proposee(b, ctx.noms(AxeTitre.zone.value))),
     ):
         if paires:
             lignes = _repartition_etf(ctx, paires, correspondances, axe, proposer, avertissements, creees)

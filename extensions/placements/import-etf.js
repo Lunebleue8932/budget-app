@@ -561,8 +561,8 @@ function ietfRendreRecap(corps) {
       <li><b>${escapeHtml(t("Titres"))}</b> : ${escapeHtml(
         t("{a} créé(s), {b} retrouvé(s), {c} écarté(s) car ambigu(s)", { a: compte("nouveau"), b: compte("existant"), c: compte("ambigu") })
       )}</li>
-      ${l.a_une_repartition_secteurs ? `<li>${escapeHtml(t("La répartition par secteur de l'ETF sera posée sur l'ETF."))}</li>` : ""}
-      ${l.a_une_repartition_zones ? `<li>${escapeHtml(t("La répartition par zone de l'ETF sera posée sur l'ETF."))}</li>` : ""}
+      ${l.secteurs.length ? `<li>${escapeHtml(t("La répartition par secteur de l'ETF sera posée sur l'ETF."))}</li>` : ""}
+      ${l.zones.length ? `<li>${escapeHtml(t("La répartition par zone de l'ETF sera posée sur l'ETF."))}</li>` : ""}
       ${etiquettes.length ? `<li><b>${escapeHtml(t("Étiquettes créées"))}</b> : ${escapeHtml(etiquettes.join(", "))}</li>` : ""}
     </ul>
     <p class="hint">${escapeHtml(t("Les titres reçoivent « Part d'un ETF » et rejoignent la fenêtre « Titres d'ETFs » ; ceux que tu détiens restent dans « Titres possédés »."))}</p>`;
