@@ -411,9 +411,35 @@ function ioRenderMonnaieActive() {
  */
 let ioTitres = [];
 let ioMasquerNonDetermine = false;
-// Combien de titres NOMMÉS le treemap montre (null = tous). « Détenu par ETF, non déterminé » et
-// « Autres titres » ne comptent pas dans ce nombre.
-let ioNbCarres = null;
+// Combien de titres NOMMÉS le treemap montre : les suivants se FONDENT dans « Autres titres ». Tout
+// n'est montré que si le curseur est au maximum (null). Par défaut, les quinze plus lourds.
+// « Détenu par ETF, non déterminé » et « Autres titres » ne comptent pas dans ce nombre.
+const IO_CARRES_DEFAUT = 15;
+let ioNbCarres = IO_CARRES_DEFAUT;
+
+/** Les parts du serveur, les titres au-delà de `limite` fondus dans une part « autres » (celle du
+ *  serveur s'il y en a une, qui s'y ajoute). Les sources de la part fondue nomment les plus lourds. */
+function ioFondreAuDela(parts, limite) {
+  const nommes = parts.filter((p) => p.genre === "titre");
+  if (nommes.length <= limite) return parts;
+  const gardes = new Set(nommes.slice(0, limite));
+  const fondus = nommes.slice(limite);
+  const autres = parts.find((p) => p.genre === "autres");
+  const somme = (cle) => fondus.reduce((s, p) => s + (p[cle] || 0), 0) + (autres ? autres[cle] || 0 : 0);
+  const fondue = {
+    cle: "autres",
+    nom: null,
+    genre: "autres",
+    valorisation: somme("valorisation"),
+    part: somme("part"),
+    part_determinee: somme("part_determinee"),
+    nombre_sources: fondus.length + (autres ? autres.nombre_sources : 0),
+    sources: [...fondus.map((p) => ({ nom: p.nom, direct: false, valorisation: p.valorisation })), ...(autres ? autres.sources : [])]
+      .sort((a, b) => b.valorisation - a.valorisation)
+      .slice(0, 3),
+  };
+  return [...parts.filter((p) => p.genre !== "autres" && (p.genre !== "titre" || gardes.has(p))), fondue];
+}
 
 // Le gris clair des « Autres titres » : une part qui regroupe, pas un titre de plus — et
 // distinct du gris de la part non déterminée, qui dit tout autre chose.
@@ -560,11 +586,9 @@ function ioContenuInfobulleTitre(part, monnaieId, pourcentage) {
 function ioBlocTitres(bloc) {
   const masquer = ioMasquerNonDetermine;
   let rang = 0;
-  let nommes = 0;
   const limite = ioNbCarres === null ? Infinity : ioNbCarres;
-  const parts = bloc.parts
+  const parts = ioFondreAuDela(bloc.parts, limite)
     .filter((part) => !(masquer && part.genre === "non_determine"))
-    .filter((part) => (part.genre === "non_determine" || part.genre === "autres" ? true : ++nommes <= limite))
     .map((part) => {
       const pourcentage = masquer ? part.part_determinee : part.part;
       const couleur =
@@ -605,6 +629,7 @@ function ioRenderTitres() {
   const nbNommes = bloc.parts.filter((part) => part.genre !== "non_determine" && part.genre !== "autres").length;
   const curseur = document.getElementById("io-titres-nb");
   curseur.max = Math.max(nbNommes, 1);
+  // Au-delà du nombre de titres, tout est montré : le curseur est alors à son maximum.
   curseur.value = ioNbCarres === null ? nbNommes : Math.min(ioNbCarres, nbNommes);
   document.getElementById("io-titres-nb-valeur").textContent = curseur.value;
   document.getElementById("io-titres-nb-bloc").style.display = nbNommes > 1 ? "" : "none";
