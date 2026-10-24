@@ -391,7 +391,9 @@ def test_titre_par_titre_le_direct_et_les_etf_se_rejoignent(db_session):
     assert parts["US0378331005"]["part_determinee"] == pytest.approx(700.0 / 900.0)
 
 
-def test_titre_par_titre_au_dela_des_premiers_les_titres_se_fondent(db_session):
+def test_titre_par_titre_au_dela_d_un_plafond_les_titres_se_fondent(db_session, monkeypatch):
+    """Sans plafond par défaut (le curseur de l'écran choisit), un plafond posé refond les suivants."""
+    monkeypatch.setattr(service_vue, "TITRES_NOMMES", 15)
     compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=1e9)
     for i in range(service_vue.TITRES_NOMMES + 3):
         titre = crud.create_titre(db_session, f"Titre {i:02d}", _monnaie(db_session), 1.0)
@@ -402,6 +404,16 @@ def test_titre_par_titre_au_dela_des_premiers_les_titres_se_fondent(db_session):
     autres = bloc["parts"][-1]
     assert autres["genre"] == "autres" and autres["nombre_sources"] == 3
     assert sum(p["valorisation"] for p in bloc["parts"]) == pytest.approx(bloc["total"])
+
+
+def test_titre_par_titre_sans_plafond_nomme_tous_les_titres(db_session):
+    compte = creer_compte(db_session, "PEA", type_nom="placements financiers", solde_initial=1e9)
+    for i in range(20):
+        titre = crud.create_titre(db_session, f"Titre {i:02d}", _monnaie(db_session), 1.0)
+        _acheter(db_session, compte, titre, 100 + i, 1.0)
+    (bloc,) = service_vue.exposition_par_titre(db_session)
+    assert [p["genre"] for p in bloc["parts"]].count("titre") == 20
+    assert "autres" not in [p["genre"] for p in bloc["parts"]]
 
 
 def test_la_classe_unique_donne_le_meme_camembert_qu_avant(db_session):
