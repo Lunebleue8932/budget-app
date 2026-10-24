@@ -222,21 +222,21 @@ jobs:
           done
           echo "Bundle complet."
 
-      # PYGOBJECT ET LE MOTEUR WEB DANS LE BUNDLE. Un bundle sans `gi` se forme
+      # PYGOBJECT DANS LE BUNDLE (le moteur web, lui, vient du système). Un bundle sans `gi` se forme
       # sans erreur et ne meurt qu'au lancement, chez l'utilisateur (v1.3.0).
-      - name: Vérifier PyGObject et WebKit (Linux)
+      - name: Vérifier PyGObject (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -eu
           racine="desktop/dist/Budget App"
-          for requis in "gi" "WebKit2-4.1.typelib" "Gtk-3.0.typelib"; do
+          for requis in "gi" "Gtk-3.0.typelib"; do
             if [ -z "$(find "$racine" -name "$requis" -print -quit)" ]; then
               echo "Bundle sans $requis : l'application ne pourra pas ouvrir sa fenêtre." >&2
               exit 1
             fi
           done
-          echo "PyGObject et typelibs présents."
+          echo "PyGObject et typelib Gtk présents."
 
       # LA GLIBC LA PLUS RÉCENTE QU'EXIGE LE BUNDLE, et un échec si elle dépasse
       # celle d'Ubuntu 22.04. Sans ce pas, un changement d'image ou une roue

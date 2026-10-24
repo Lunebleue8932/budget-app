@@ -76,9 +76,14 @@ def options_pyinstaller() -> dict:
     statique de PyInstaller ne le voit donc pas. Sans eux, le bundle partait
     SANS PyGObject et plantait au démarrage (« No module named 'gi' »), même
     sur une machine où `python3-gi` était installé : le Python embarqué ne
-    regarde jamais les paquets du Python système. Les noms `gi.repository.*`
-    déclenchent en plus les hooks qui embarquent les typelibs et bibliothèques
-    GTK/WebKit correspondantes."""
+    regarde jamais les paquets du Python système.
+
+    WEBKIT N'EST PAS EMBARQUÉ, et c'est voulu : PyInstaller n'a pas de hook
+    pour lui (constaté en CI : aucun `WebKit2-4.1.typelib` dans le bundle), et
+    ses processus auxiliaires sont cherchés par WebKit dans le dossier système
+    où il est installé. Le moteur vient donc du paquet `gir1.2-webkit2-4.1`
+    que le README demande d'installer ; seul PyGObject (+ le typelib Gtk) est
+    livré, parce que lui dépend de l'interpréteur embarqué."""
     return {
         "console": False,
         "icone_incrustee": False,
@@ -90,20 +95,14 @@ def options_pyinstaller() -> dict:
             "gi.repository.GLib",
             "gi.repository.Gio",
             "gi.repository.GObject",
-            "gi.repository.WebKit2",
         ],
-        # VERSIONS DES TYPELIBS À EMBARQUER. Plusieurs versions d'une même
-        # bibliothèque peuvent coexister sur une machine (WebKit2 4.0 et 4.1) ;
-        # le hook de PyInstaller ne sait pas laquelle pywebview chargera, et
-        # le bundle se formait sans WebKit2-4.1.typelib (constaté en CI, alors
-        # que `gir1.2-webkit2-4.1` était installé). On la nomme donc ici, avec
-        # les versions que demande pywebview (gtk.py).
+        # Versions des typelibs que le hook Gtk de PyInstaller doit embarquer :
+        # celles que demande pywebview (gtk.py).
         "hooksconfig": {
             "gi": {
                 "module-versions": {
                     "Gtk": "3.0",
                     "Gdk": "3.0",
-                    "WebKit2": "4.1",
                 },
             },
         },
