@@ -105,7 +105,7 @@ a = Analysis(
         *OPTIONS.get("imports_caches", []),
     ],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig=OPTIONS.get("hooksconfig", {}),
     runtime_hooks=[],
     excludes=["pytest", "tkinter"],
     noarchive=False,

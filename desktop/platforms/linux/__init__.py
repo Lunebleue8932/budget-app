@@ -92,4 +92,19 @@ def options_pyinstaller() -> dict:
             "gi.repository.GObject",
             "gi.repository.WebKit2",
         ],
+        # VERSIONS DES TYPELIBS À EMBARQUER. Plusieurs versions d'une même
+        # bibliothèque peuvent coexister sur une machine (WebKit2 4.0 et 4.1) ;
+        # le hook de PyInstaller ne sait pas laquelle pywebview chargera, et
+        # le bundle se formait sans WebKit2-4.1.typelib (constaté en CI, alors
+        # que `gir1.2-webkit2-4.1` était installé). On la nomme donc ici, avec
+        # les versions que demande pywebview (gtk.py).
+        "hooksconfig": {
+            "gi": {
+                "module-versions": {
+                    "Gtk": "3.0",
+                    "Gdk": "3.0",
+                    "WebKit2": "4.1",
+                },
+            },
+        },
     }
