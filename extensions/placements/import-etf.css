@@ -1,0 +1,184 @@
+/* ---------- Importer la composition d'un ETF ----------
+ *
+ * Tout descend de `#placements-modale-import-etf`, élément que cette extension pose elle-même : une
+ * feuille d'extension est chargée pour toute l'application. Le graphe d'étapes (`.import-etapes`) et
+ * les cartes à molette (`.corr-*`) sont ceux du parcours de l'import bancaire (style.css) : seul ce
+ * qui est propre à cet écran est écrit ici. Aucune couleur en dur — les variables du noyau portent
+ * le thème.
+ */
+
+#placements-modale-import-etf .ietf-corps {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+#placements-modale-import-etf .ietf-fichier,
+#placements-modale-import-etf .ietf-etf,
+#placements-modale-import-etf .ietf-couverture,
+#placements-modale-import-etf .ietf-creer {
+  margin-bottom: 0.6rem;
+}
+
+#placements-modale-import-etf .ietf-couverture input[type="range"] {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+}
+
+#placements-modale-import-etf .ietf-fonds {
+  margin: 0.4rem 0 0.8rem;
+}
+
+#placements-modale-import-etf .ietf-avertissement {
+  color: #d99a2b;
+  margin: 0.2rem 0;
+  font-size: 0.85rem;
+}
+
+/* ---------- Ce que l'app a lu ---------- */
+
+#placements-modale-import-etf .ietf-feuille {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.45rem;
+  background: var(--bg-surface-alt);
+}
+
+#placements-modale-import-etf .ietf-feuille > summary {
+  cursor: pointer;
+  padding: 0.45rem 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.7rem;
+}
+
+#placements-modale-import-etf .ietf-feuille-nom {
+  font-weight: 600;
+}
+
+#placements-modale-import-etf .ietf-feuille-non-reconnue {
+  opacity: 0.6;
+}
+
+#placements-modale-import-etf .ietf-colonnes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  padding: 0 0.7rem 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+#placements-modale-import-etf .ietf-pastille {
+  display: inline-block;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+#placements-modale-import-etf .ietf-pastille-possessions,
+#placements-modale-import-etf .ietf-pastille-existant {
+  color: var(--accent, #3b82f6);
+  border-color: var(--accent, #3b82f6);
+}
+
+#placements-modale-import-etf .ietf-pastille-secteurs,
+#placements-modale-import-etf .ietf-pastille-zones,
+#placements-modale-import-etf .ietf-pastille-nouveau {
+  color: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+#placements-modale-import-etf .ietf-pastille-ambigu {
+  color: #d99a2b;
+  border-color: #d99a2b;
+}
+
+/* ---------- Les tableaux ---------- */
+
+#placements-modale-import-etf .ietf-table-cadre {
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+#placements-modale-import-etf .ietf-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+#placements-modale-import-etf .ietf-table td {
+  padding: 0.18rem 0.55rem;
+  border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#placements-modale-import-etf .ietf-table tr.ietf-entete td {
+  background: rgba(59, 130, 246, 0.14);
+  font-weight: 600;
+}
+
+#placements-modale-import-etf .ietf-num {
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+#placements-modale-import-etf .ietf-poids {
+  text-align: right;
+}
+
+/* ---------- La courbe de couverture ---------- */
+
+#placements-modale-import-etf #ietf-courbe {
+  margin: 0.4rem 0 0.8rem;
+}
+
+#placements-modale-import-etf .ietf-courbe {
+  width: 100%;
+  height: 8rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+#placements-modale-import-etf .ietf-courbe-trait {
+  fill: none;
+  stroke: var(--accent, #3b82f6);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+#placements-modale-import-etf .ietf-courbe-repere {
+  stroke: #8b5cf6;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
+#placements-modale-import-etf .ietf-recap {
+  line-height: 1.7;
+  padding-left: 1.2rem;
+}
+
+/* ---------- La fenêtre « Titres d'ETFs » ---------- */
+
+#placements-modale-titres-etf .modale-titres-etf {
+  max-width: min(96vw, 72rem);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#placements-modale-titres-etf .modale-titres-etf > .import-mappings {
+  overflow-y: auto;
+  min-height: 0;
+}

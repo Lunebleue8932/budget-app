@@ -1030,6 +1030,11 @@ class TitrePossede(Base):
     # où l'on choisit un titre, et de la relecture des cours en ligne ; rien
     # d'autre ne change, l'historique reste entier.
     archivee = Column(Boolean, nullable=False, default=False)
+    # « PART D'UN ETF ? » (migration 0092) : vrai pour un titre que l'import d'une composition
+    # a créé ou retrouvé parmi les composants d'un ETF. L'écran le range dans « Titres d'ETFs »
+    # plutôt que dans « Titres suivis » — SAUF s'il est détenu : ce qu'on possède reste sous les
+    # yeux, quel que soit ce drapeau. Il ne change aucun calcul.
+    part_etf = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
     @property
     def nom_affiche(self) -> str:

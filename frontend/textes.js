@@ -446,10 +446,20 @@ const TEXTES = {
     "La répartition du titre par zone géographique, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit : États-Unis 65 %, Europe 15 %… -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
   "placements.repartition-secteur":
     "La répartition du titre par secteur d'activité, en pourcentage. Une action en direct tient sur une seule ligne à 100 %. -- Un ETF se répartit entre plusieurs secteurs. -- Ce qui manque pour atteindre 100 % reste « non renseigné » : rien n'est étiré.",
-  "import-titres.presentation":
-    "Un fichier Excel ou CSV qui DÉCRIT des titres : une ligne par ISIN, avec son enveloppe, ses répartitions (classe d'actif, zone, secteur) et, pour un ETF, la composition de son indice. -- Il ne crée aucune opération. -- Une cellule vide ne change rien : le fichier complète, il n'efface jamais. -- Tu peux le réimporter autant de fois que tu veux, par exemple pour mettre un ETF à jour.",
-  "import-titres.lire":
-    "Comme pour les autres imports, tu désignes quelle colonne contient quoi : ce format se mémorise. -- Seul l'ISIN est obligatoire, c'est la clé du fichier. -- Rien n'est écrit avant que tu aies relu l'aperçu et validé.",
+  "import-etf.presentation":
+    "Le fichier de composition que publie l'émetteur d'un ETF, lu tel quel : l'app en trouve l'en-tête, les colonnes et les feuilles (possessions, répartition par secteur ou par zone). -- Rien n'est écrit avant la dernière étape. -- Tu peux réimporter le fichier chaque mois : la composition de l'ETF est remplacée d'un bloc, ses titres sont retrouvés au lieu d'être recréés.",
+  "import-etf.fichier":
+    "Dépose le fichier de composition de l'ETF (Excel ou CSV). Les feuilles qui ne ressemblent pas à une composition sont signalées et laissées de côté.",
+  "import-etf.couverture":
+    "Choisis l'ETF concerné, puis jusqu'où descendre dans sa composition : en pourcentage du fonds ou en nombre de lignes, renseigner l'un remplit l'autre. -- Plus tu descends, plus le graphique d'exposition est précis, et plus l'app crée de titres.",
+  "import-etf.secteurs":
+    "À quel secteur de l'app correspond chaque secteur du fichier ? La proposition vient de mots-clés, puis de la ressemblance des noms. Fais défiler la molette pour changer, ou crée ton propre secteur. Un secteur laissé sur « aucun » ne pose rien.",
+  "import-etf.zones":
+    "Les pays du fichier sont regroupés en zones : la proposition par défaut est celle de l'app, tu peux la changer pays par pays. Une zone laissée sur « aucun » ne pose rien.",
+  "import-etf.recap":
+    "Voici ce que l'import va faire. Il complète tes titres sans jamais écraser un secteur, une zone ou une classe que tu as déjà renseignés.",
+  "placements.titres-etf":
+    "Les titres que l'import d'une composition a créés ou retrouvés parce qu'un ETF les contient. Ils servent aux graphiques d'exposition. -- Un titre que tu détiens reste dans « Titres possédés ».",
   "placements.composition-etf":
     "Les ISIN du haut de l'indice que suit l'ETF, avec leur poids en %, une ligne par ISIN (« ISIN ; poids »). -- La part de l'indice couverte est le « x % » que ces lignes représentent ensemble (60 % par défaut). -- Elle sert à éclater l'ETF dans les graphiques : exposition par action, et zone ou secteur quand rien de plus direct n'est renseigné.",
 
