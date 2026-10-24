@@ -4283,3 +4283,9 @@ Object.assign(TRADUCTIONS.pt, {
   "ETF délié de l'indice": "ETF desvinculado do índice",
   "Titres montrés": "Títulos mostrados",
 });
+Object.assign(TRADUCTIONS.pt, {
+  "Créer une nouvelle ligne": "Criar uma nova linha",
+  "Mettre à jour une ligne existante": "Atualizar uma linha existente",
+  "Aucune ligne existante ne ressemble à ce fonds.": "Nenhuma linha existente se parece com este fundo.",
+  "Lignes qui ressemblent à « {nom} » :": "Linhas parecidas com «{nom}»:",
+});

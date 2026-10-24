@@ -5061,3 +5061,9 @@ Object.assign(TRADUCTIONS.en, {
   "ETF délié de l'indice": "ETF unlinked from the index",
   "Titres montrés": "Titles shown",
 });
+Object.assign(TRADUCTIONS.en, {
+  "Créer une nouvelle ligne": "Create a new line",
+  "Mettre à jour une ligne existante": "Update an existing line",
+  "Aucune ligne existante ne ressemble à ce fonds.": "No existing line looks like this fund.",
+  "Lignes qui ressemblent à « {nom} » :": "Lines similar to “{nom}”:",
+});

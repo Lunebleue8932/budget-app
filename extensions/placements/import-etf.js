@@ -292,6 +292,12 @@ function ietfInitialiserChoix() {
   }
   const etfDefaut = l.enveloppes.find((e) => /^etf/i.test(e.nom.trim()));
   IETF.typeChoisi = etfDefaut ? String(etfDefaut.id) : "";
+  // Un fonds reconnu (même ISIN, même nom) est déjà choisi ; sinon la meilleure ressemblance l'est
+  // seulement si elle est très forte — l'utilisateur tranche entre créer et mettre à jour.
+  if (IETF.etfId === "nouveau") {
+    const meilleure = l.etf.suggestions[0];
+    if (meilleure && meilleure.score >= 0.85) IETF.etfId = String(meilleure.id);
+  }
   IETF.etfNom = l.fonds.nom || "";
   IETF.etfIsin = l.fonds.isin || "";
   IETF.lignes = Math.min(l.couverture.defaut_lignes, l.nb_possessions);
@@ -536,6 +542,20 @@ function ietfComposantsHtml() {
     ${reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autre(s)", { n: reste }))}</p>` : ""}`;
 }
 
+/** Les lignes existantes qui ressemblent au fonds du fichier, du plus proche au moins proche. */
+function ietfSuggestionsHtml() {
+  const s = IETF.lecture.etf.suggestions;
+  if (!s.length) return `<p class="hint">${escapeHtml(t("Aucune ligne existante ne ressemble à ce fonds."))}</p>`;
+  return `<p class="hint">${escapeHtml(t("Lignes qui ressemblent à « {nom} » :", { nom: IETF.lecture.fonds.nom || "" }))}</p>
+    ${s
+      .map(
+        (x) => `<button type="button" class="ietf-suggestion ${String(x.id) === IETF.etfId ? "ietf-suggestion-choisie" : ""}" data-ietf-suggestion="${x.id}">
+          <span>${escapeHtml(x.nom)}${x.est_indice ? ` — ${escapeHtml(t("indice"))}` : ""}</span>
+          <span class="hint">${escapeHtml(x.isin || "")} · ${Math.round(x.score * 100)} %</span></button>`
+      )
+      .join("")}`;
+}
+
 function ietfRendreCouverture(corps) {
   const l = IETF.lecture;
   const options = [
@@ -547,8 +567,15 @@ function ietfRendreCouverture(corps) {
   corps.innerHTML = `
     <p class="modale-texte" data-texte-cle="import-etf.couverture"></p>
     <h3>${escapeHtml(t("L'ETF"))}</h3>
+    <div class="ietf-mode">
+      <label><input type="radio" name="ietf-mode" value="creer" ${IETF.etfId === "nouveau" ? "checked" : ""} />
+        ${escapeHtml(t("Créer une nouvelle ligne"))}</label>
+      <label><input type="radio" name="ietf-mode" value="maj" ${IETF.etfId !== "nouveau" ? "checked" : ""} />
+        ${escapeHtml(t("Mettre à jour une ligne existante"))}</label>
+    </div>
+    <div class="ietf-suggestions" id="ietf-suggestions">${ietfSuggestionsHtml()}</div>
     <div class="ietf-etf selecteur-contexte">
-      <label>${escapeHtml(t("Ligne concernée"))}
+      <label class="ietf-etf-existant">${escapeHtml(t("Ligne concernée"))}
         <select id="ietf-etf">${options}</select>
       </label>
       <label class="ietf-etf-nouveau">${escapeHtml(t("Nom"))}
@@ -587,12 +614,38 @@ function ietfRendreCouverture(corps) {
       IETF.cibles.delete(Number(ietfEl("ietf-etf").value));
     }
     IETF.etfId = ietfEl("ietf-etf").value;
+    const maj = IETF.etfId !== "nouveau";
+    corps.querySelector("input[name='ietf-mode'][value='maj']").checked = maj;
+    corps.querySelector("input[name='ietf-mode'][value='creer']").checked = !maj;
+    ietfEl("ietf-etf").closest("label").hidden = !maj;
+    ietfEl("ietf-suggestions").hidden = !maj;
+    corps.querySelectorAll("[data-ietf-suggestion]").forEach((b) =>
+      b.classList.toggle("ietf-suggestion-choisie", b.dataset.ietfSuggestion === IETF.etfId)
+    );
     ietfEl("ietf-etf-nom").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("ietf-etf-isin").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("ietf-etf-type").closest("label").hidden = IETF.etfId !== "nouveau";
     ietfEl("btn-ietf-suivant").disabled = !ietfPeutAvancer();
   };
   ietfEl("ietf-etf").addEventListener("change", majEtf);
+  // Créer / mettre à jour : « mettre à jour » retient la meilleure ressemblance, ou la dernière ligne vue.
+  corps.querySelectorAll("input[name='ietf-mode']").forEach((radio) =>
+    radio.addEventListener("change", () => {
+      const select = ietfEl("ietf-etf");
+      if (radio.value === "creer") select.value = "nouveau";
+      else {
+        const premiere = l.etf.suggestions[0] || l.etf.candidats[0];
+        select.value = premiere ? String(premiere.id) : "nouveau";
+      }
+      majEtf();
+    })
+  );
+  corps.querySelectorAll("[data-ietf-suggestion]").forEach((bouton) =>
+    bouton.addEventListener("click", () => {
+      ietfEl("ietf-etf").value = bouton.dataset.ietfSuggestion;
+      majEtf();
+    })
+  );
   ietfEl("ietf-etf-nom").addEventListener("input", (e) => {
     IETF.etfNom = e.target.value;
     ietfEl("btn-ietf-suivant").disabled = !ietfPeutAvancer();

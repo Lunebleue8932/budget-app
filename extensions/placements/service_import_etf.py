@@ -32,6 +32,7 @@ LES COMPOSANTS SANS ISIN (iShares) sont cités dans la composition par `titre:<i
 (cf. services/exposition.cle_composant). Deux titres du même nom et sans ISIN ne se départagent
 pas : la ligne est écartée et signalée.
 """
+import difflib
 from datetime import date as date_type
 from typing import Optional
 
@@ -150,6 +151,47 @@ def _proposer_correspondances(ctx: _Contexte, fichier, axe_secteur: bool):
     return lignes
 
 
+# Sous ce score, une ligne n'est pas proposée ; au-dessus de PRESELECTION, elle est présélectionnée.
+SCORE_MIN_SUGGESTION = 0.45
+SCORE_PRESELECTION = 0.85
+NB_SUGGESTIONS = 5
+
+
+def _jetons(texte: str) -> set[str]:
+    return {j for j in corr.cle(texte).split() if j}
+
+
+def _score_nom(a: str, b: str) -> float:
+    """Ressemblance de deux noms de fonds, de 0 à 1 : le meilleur de la ressemblance des chaînes et du
+    recouvrement des mots (« AMUNDI MSCI WORLD UCITS ETF » ~ « Amundi MSCI World ETF Acc »)."""
+    ca, cb = corr.cle(a), corr.cle(b)
+    if not ca or not cb:
+        return 0.0
+    chaines = difflib.SequenceMatcher(None, ca, cb).ratio()
+    ja, jb = _jetons(a), _jetons(b)
+    recouvrement = len(ja & jb) / min(len(ja), len(jb)) if ja and jb else 0.0
+    return max(chaines, 0.9 * recouvrement)
+
+
+def _suggestions(ctx, fichier) -> list[dict]:
+    """Les lignes existantes qui ressemblent au fonds du fichier, de la plus proche à la moins proche.
+    On compare avec le NOM D'ORIGINE du titre (celui que l'import a posé, non modifiable), jamais avec
+    son nom d'affichage renommé à la main. Même ISIN = score 1."""
+    if not (fichier.fonds_nom or fichier.fonds_isin):
+        return []
+    isin = exposition.normaliser_isin(fichier.fonds_isin)
+    retenues = []
+    for t in ctx.titres:
+        if t.archivee:
+            continue
+        score = 1.0 if isin and exposition.normaliser_isin(t.code_isin) == isin else _score_nom(fichier.fonds_nom or "", t.nom)
+        if score >= SCORE_MIN_SUGGESTION:
+            retenues.append({"id": t.id, "nom": t.nom_affiche, "nom_courtier": t.nom, "isin": t.code_isin,
+                             "est_indice": bool(t.est_indice), "score": round(score, 3)})
+    retenues.sort(key=lambda s: (-s["score"], s["nom"].lower()))
+    return retenues[:NB_SUGGESTIONS]
+
+
 def _est_etf(titre) -> bool:
     return bool(titre.type_titre and titre.type_titre.nom.lower().startswith("etf"))
 
@@ -190,6 +232,15 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
         key=lambda b: (not b["detenu"], b["nom"].lower()),
     )
 
+    # LES LIGNES QUI RESSEMBLENT au fonds du fichier : proposées à l'utilisateur, qui choisit entre
+    # créer une nouvelle ligne et mettre à jour l'une d'elles. Elles rejoignent la liste des candidats.
+    suggestions = _suggestions(ctx, fichier)
+    deja = {c["id"] for c in candidats}
+    for s in suggestions:
+        if s["id"] not in deja:
+            titre = next(t for t in ctx.titres if t.id == s["id"])
+            candidats.append({"id": titre.id, "nom": titre.nom_affiche, "isin": titre.code_isin,
+                              "est_indice": bool(titre.est_indice), "donnees": calque_fonds.resume(titre)})
     composants = []
     for p in fichier.possessions[:LIGNES_APERCU]:
         statut, titre = _statut_composant(ctx, p)
@@ -210,7 +261,8 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
             }
             for f in fichier.feuilles
         ],
-        "etf": {"titre_id": etf.id if etf else None, "candidats": candidats, "branchables": branchables},
+        "etf": {"titre_id": etf.id if etf else None, "candidats": candidats, "branchables": branchables,
+                "suggestions": suggestions},
         # Les enveloppes qu'on peut poser sur un fonds créé à l'import (l'indice, lui, n'en a pas).
         "enveloppes": [{"id": e.id, "nom": e.nom} for e in crud.get_types_titre(db, AxeTitre.enveloppe.value)],
         # Ce que ce fichier peut apporter à un fonds : la composition toujours, un secteur / une zone

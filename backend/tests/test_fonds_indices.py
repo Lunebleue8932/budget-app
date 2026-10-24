@@ -330,3 +330,25 @@ def test_le_type_se_choisit_a_l_import(db_session):
         {"nb_lignes": 2, "etf": {"nom": "Autre", "isin": "IE000CCCCCC1", "type_titre_id": env.id}},
     )
     assert crud.get_titre(db_session, r["etf_id"]).type_titre_id == env.id
+
+
+def test_lire_propose_les_lignes_qui_ressemblent_au_fonds_du_fichier(db_session):
+    proche = _etf(db_session, "AMUNDI FONDS PHYSIQUE ETF", "IE000ZZZZZZ1")
+    _etf(db_session, "Tout autre chose", "IE000ZZZZZZ2")
+    # Le nom d'affichage renommé à la main ne compte pas : on compare au nom d'origine.
+    proche.nom_affichage = "Mon truc"
+    db_session.commit()
+    apercu = service.lire(db_session, _fichier(nom="Amundi Fonds Physique UCITS ETF"))
+    suggestions = apercu["etf"]["suggestions"]
+    assert suggestions and suggestions[0]["id"] == proche.id and suggestions[0]["score"] >= 0.6
+    assert all(s["nom_courtier"] != "Tout autre chose" for s in suggestions)
+    assert proche.id in [c["id"] for c in apercu["etf"]["candidats"]]
+
+
+def test_le_meme_isin_est_une_ressemblance_parfaite(db_session):
+    existant = _etf(db_session, "Nom différent", "IE000AAAAAA1")
+    apercu = service.lire(db_session, _fichier())
+    assert apercu["etf"]["suggestions"][0] == {
+        "id": existant.id, "nom": "Nom différent", "nom_courtier": "Nom différent",
+        "isin": "IE000AAAAAA1", "est_indice": False, "score": 1.0,
+    }
