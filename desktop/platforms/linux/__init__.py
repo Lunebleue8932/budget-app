@@ -45,7 +45,11 @@ def afficher_erreur(titre: str, message: str) -> bool:
     l'erreur qu'on essaie justement d'afficher.
     """
     tentatives = (
-        ["zenity", "--error", f"--title={titre}", f"--text={message}"],
+        # `--no-markup` : zenity lit son texte comme du Pango. Un message
+        # d'erreur contient volontiers des « < » ou « & » (une trace Python, un
+        # chemin) ; sans cette option, zenity échouait à son tour avec « Failed
+        # to set text » et la boîte affichait une erreur sur l'erreur.
+        ["zenity", "--error", "--no-markup", f"--title={titre}", f"--text={message}"],
         ["kdialog", "--error", message, "--title", titre],
     )
     for commande in tentatives:
@@ -65,9 +69,27 @@ def options_pyinstaller() -> dict:
     PAS D'OPTION `icon` : PyInstaller n'incruste pas d'icône dans un binaire
     ELF (le format n'a pas de section pour ça, contrairement au PE de Windows).
     L'icône est copiée à côté de l'exécutable et référencée par le fichier
-    `.desktop` — c'est ainsi que fonctionne le bureau Linux."""
+    `.desktop` — c'est ainsi que fonctionne le bureau Linux.
+
+    `imports_caches` : pywebview n'importe `gi` qu'à l'exécution, depuis un
+    module choisi selon le système (webview/platforms/gtk.py) — l'analyse
+    statique de PyInstaller ne le voit donc pas. Sans eux, le bundle partait
+    SANS PyGObject et plantait au démarrage (« No module named 'gi' »), même
+    sur une machine où `python3-gi` était installé : le Python embarqué ne
+    regarde jamais les paquets du Python système. Les noms `gi.repository.*`
+    déclenchent en plus les hooks qui embarquent les typelibs et bibliothèques
+    GTK/WebKit correspondantes."""
     return {
         "console": False,
         "icone_incrustee": False,
         "bundle": None,
+        "imports_caches": [
+            "gi",
+            "gi.repository.Gtk",
+            "gi.repository.Gdk",
+            "gi.repository.GLib",
+            "gi.repository.Gio",
+            "gi.repository.GObject",
+            "gi.repository.WebKit2",
+        ],
     }
