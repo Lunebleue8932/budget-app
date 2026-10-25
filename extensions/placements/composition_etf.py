@@ -315,6 +315,78 @@ def _lire_repartition(feuille, i_entete: int, roles: dict, role_libelle: str, ty
     ), [(lib, p * facteur) for lib, p in paires if p > 0]
 
 
+# LES FEUILLES À PLUSIEURS BLOCS (iShares, « Exposure Breakdowns ») : une seule feuille empile des
+# tableaux de répartition, chacun sous un TITRE (« Sector », « Geography/Locations »), puis « as of »,
+# « Type / Fund », puis des lignes « libellé ; poids [; code] ». Aucune ligne d'en-tête classique : la
+# feuille ne se reconnaît pas par `_chercher_entete`, on y cherche donc les titres de blocs.
+_TITRES_SECTEUR = ("sector", "secteur")
+_TITRES_ZONE = ("geograph", "location", "country", "countries", "pays", "region", "zone", "localisation")
+
+
+def _titre_de_bloc(ligne) -> Optional[str]:
+    """« secteurs » ou « zones » si la ligne est le titre d'un bloc de répartition (un seul libellé court,
+    le reste vide), sinon None."""
+    if not ligne or any(c is not None for c in ligne[1:]):
+        return None
+    texte = _texte(ligne[0])
+    if texte is None or len(texte) > 40:
+        return None
+    c = corr.cle(texte)
+    if not c or len(c.split()) > 4:
+        return None
+    if any(m in c for m in _TITRES_SECTEUR):
+        return "secteurs"
+    if any(m in c for m in _TITRES_ZONE):
+        return "zones"
+    return None
+
+
+def _lire_blocs_repartition(feuille, fichier) -> list:
+    """Les blocs de répartition d'une feuille sans en-tête : une `FeuilleLue` par bloc, et les paires
+    ajoutées à `fichier.secteurs` / `fichier.zones`. Les lignes de liquidités et de dérivés (« Cash and/or
+    Derivatives ») ne sont pas une part du fonds qu'on puisse classer : elles sont écartées."""
+    lignes = feuille.lignes
+    lues = []
+    n = 0
+    while n < len(lignes):
+        type_ = _titre_de_bloc(lignes[n])
+        if type_ is None:
+            n += 1
+            continue
+        debut = n
+        n += 1
+        paires = []
+        # Les lignes « as of » et « Type / Fund » précèdent les données ; on les saute jusqu'au premier libellé + poids.
+        while n < len(lignes) and len(lignes[n]) >= 2:
+            libelle, poids = _texte(lignes[n][0]), _nombre(lignes[n][1])
+            if libelle is None and not any(c is not None for c in lignes[n]):
+                if paires:
+                    break
+            elif libelle is not None and poids is not None and corr.cle(libelle) not in ("type", "as of"):
+                if corr.classe_normalisee(libelle) != "(hors titres)" and corr.cle(libelle) not in (
+                    "total", "totaux", "autres", "other", "others",
+                ):
+                    paires.append((libelle, poids))
+            elif paires:
+                break
+            n += 1
+        if not paires:
+            continue
+        somme = sum(p for _, p in paires if p > 0)
+        fractions = 0 < somme <= _SEUIL_FRACTIONS
+        facteur = 100.0 if fractions else 1.0
+        valides = [(lib, p * facteur) for lib, p in paires if p > 0]
+        (fichier.secteurs if type_ == "secteurs" else fichier.zones).extend(valides)
+        lue = FeuilleLue(
+            nom=f"{feuille.nom} — {_texte(lignes[debut][0])}", type=type_, ligne_entete=debut + 1,
+            colonnes={"secteur" if type_ == "secteurs" else "pays": _texte(lignes[debut][0])},
+            nb_lignes=len(valides), unite="fraction" if fractions else "%", somme_pct=round(somme * facteur, 4),
+        )
+        lue.apercu = _apercu(feuille, debut)
+        lues.append(lue)
+    return lues
+
+
 def _cellule_apercu(c) -> Optional[str]:
     """Une cellule montrée à l'écran : un nombre à virgule flottante garde six chiffres significatifs
     (« 0.12087710413939959 » n'apprend rien de plus que « 0.120877 »)."""
@@ -345,6 +417,10 @@ def lire(contenu: bytes, delimiteur: Optional[str] = None) -> FichierComposition
     for feuille in feuilles:
         i, roles, type_ = _chercher_entete(feuille.lignes)
         if type_ is None:
+            blocs = _lire_blocs_repartition(feuille, fichier)
+            if blocs:
+                fichier.feuilles.extend(blocs)
+                continue
             lue = FeuilleLue(nom=feuille.nom, type="non reconnue", nb_lignes=len(feuille.lignes))
             lue.apercu = _apercu(feuille, None)
             fichier.feuilles.append(lue)
@@ -360,6 +436,12 @@ def lire(contenu: bytes, delimiteur: Optional[str] = None) -> FichierComposition
             fichier.zones += paires
         lue.apercu = _apercu(feuille, i)
         fichier.feuilles.append(lue)
+    # iShares : le nom, l'ISIN et la devise du fonds sont dans les feuilles « Fund Header » et « Key Facts »,
+    # pas au-dessus des possessions. On n'y lit que ce que le reste n'a pas donné.
+    for feuille in feuilles:
+        nom = corr.cle(feuille.nom)
+        if any(m in nom for m in ("header", "key facts", "fund facts", "fiche", "caracteristiques")):
+            _metadonnees(feuille.lignes[:40], fichier)
     if not fichier.possessions:
         raise ValueError(
             "aucune feuille de possessions reconnue : il faut une feuille avec un nom (ou un ISIN) et un poids par titre"

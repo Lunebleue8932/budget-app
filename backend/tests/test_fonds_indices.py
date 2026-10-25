@@ -427,3 +427,53 @@ def test_deux_isin_differents_ne_se_rapprochent_jamais(db_session):
     assert rapproche.chercher(index, possession, secteur_propose=None, zone_proposee=None, monnaie_du=None, cle=str.lower) is None
     possession.isin = "US1912161007"
     assert rapproche.chercher(index, possession, secteur_propose=None, zone_proposee=None, monnaie_du=None, cle=str.lower).titre is coca
+
+
+def _fichier_ishares_multi_blocs() -> bytes:
+    """La structure du fichier iShares : une feuille « Exposure Breakdowns » qui empile des blocs de
+    répartition sous des titres, sans ligne d'en-tête, et le nom / l'ISIN du fonds dans d'autres feuilles."""
+    wb = Workbook()
+    wb.remove(wb.active)
+    wb.create_sheet("Fund Header").append(["iShares MSCI World Health Care Sector Advanced UCITS ETF"])
+    cles = wb.create_sheet("Key Facts")
+    cles.append(["ISIN", "IE0009QS7W62", None])
+    cles.append(["Base Currency", "USD", None])
+    ex = wb.create_sheet("Exposure Breakdowns")
+    for ligne in (
+        ["Sector", None, None], ["as of", "15/Oct/2026", None], ["Type", "Fund", None],
+        ["Health Care", "99.52", None], ["Cash and/or Derivatives", "0.48", None], [None, None, None], [None, None, None],
+        ["Geography/Locations", None, None], ["as of", "15/Oct/2026", None], ["Type", "Fund", None],
+        ["United States", "70.79", "US"], ["Switzerland", "12.42", "CH"], ["Other", "1.29", "OTHR"],
+        ["Cash and/or Derivatives", "0.48", "CASHD_C"], [None, None, None],
+        ["Allocations are subject to change.", None, None],
+    ):
+        ex.append(ligne)
+    h = wb.create_sheet("Holdings")
+    h.append(["All", None, None, None, None, None, None, None, None])
+    h.append(["as of", "15/Oct/2026"])
+    h.append(["Issuer Ticker", "Name", "Sector", "Asset Class", "Market Value", "Weight (%)", "Notional Value", "Nominal", "Market Currency"])
+    h.append(["LLY", "ELI LILLY", "Health Care", "Equity", "USD 1", "60", "1", "1", "USD"])
+    h.append(["NOVN", "NOVARTIS AG", "Health Care", "Equity", "USD 1", "40", "1", "1", "CHF"])
+    tampon = io.BytesIO()
+    wb.save(tampon)
+    return tampon.getvalue()
+
+
+def test_la_feuille_exposure_breakdowns_a_plusieurs_blocs_est_reconnue():
+    fichier = charger_module_extension("placements", "composition_etf.py").lire(_fichier_ishares_multi_blocs())
+    types = {f.nom.split(" — ")[-1]: f.type for f in fichier.feuilles}
+    assert types["Sector"] == "secteurs" and types["Geography/Locations"] == "zones"
+    # Liquidités et « Other » ne sont pas des parts classables.
+    assert fichier.secteurs == [("Health Care", pytest.approx(99.52))]
+    assert [lib for lib, _ in fichier.zones] == ["United States", "Switzerland"]
+    assert fichier.fonds_nom.startswith("iShares MSCI World Health Care") and fichier.fonds_isin == "IE0009QS7W62"
+    assert fichier.fonds_devise == "USD"
+
+
+def test_la_repartition_du_fonds_vient_de_la_feuille_de_blocs(db_session):
+    apercu = service.lire(db_session, _fichier_ishares_multi_blocs())
+    assert apercu["a_une_repartition_secteurs"] and apercu["a_une_repartition_zones"]
+    r = service.confirmer(db_session, _fichier_ishares_multi_blocs(), None, {"nb_lignes": 2})
+    etf = crud.get_titre(db_session, r["etf_id"])
+    assert [(e.etiquette.nom, e.poids_pct) for e in etf.repartition(AxeTitre.secteur.value)] == [("Santé", pytest.approx(99.52))]
+    assert {e.etiquette.nom for e in etf.repartition(AxeTitre.zone.value)} >= {"États-Unis"}
