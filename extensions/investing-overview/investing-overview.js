@@ -344,7 +344,7 @@ function ioRenderCamembert(bloc, axe) {
  *   - UNE ZONE EST UNE RÉGION : l'ensemble des pays qu'elle recouvre (`GET /zones-pays`, calculé
  *     d'après les zones DE LA BASE — renommées, créées —, cf. zones_pays.py) ;
  *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, du BAS vers le haut, l'AIRE
- *     coloriée valant part × aire de la région (cf. ioRemplissageParAire) : la hauteur s'en déduit ;
+ *     coloriée valant part × aire de la région (cf. ioRectanglesParTerritoire) : la hauteur s'en déduit ;
  *     le reste garde le fond de la carte ;
  *   - une zone qui ne désigne aucun pays (« Monde »), et la part « Sans zone », n'ont pas de place sur
  *     la carte : elles restent dans la légende, qui le dit.
@@ -402,46 +402,74 @@ function ioAireSousLigne(anneau, h) {
   return somme / 2;
 }
 
-/** La région (liste d'anneaux) : sa boîte, et la ligne SOUS laquelle se trouve `fraction` de son aire (on colore du bas). */
-function ioRemplissageParAire(anneaux, fraction) {
-  const points = anneaux.flat();
-  const [x0, x1] = [Math.min(...points.map((p) => p[0])), Math.max(...points.map((p) => p[0]))];
-  const [y0, y1] = [Math.min(...points.map((p) => p[1])), Math.max(...points.map((p) => p[1]))];
-  const aire = (h) => anneaux.reduce((somme, anneau) => somme + ioAireSousLigne(anneau, h), 0);
-  const signe = Math.sign(aire(y1)) || 1;
-  // L'aire AU-DESSUS de la ligne vaut (1 - part) × l'aire totale : ce qui reste dessous est colorié.
-  const cible = Math.abs(aire(y1)) * (1 - fraction);
-  let bas = y0;
-  let haut = y1;
-  for (let i = 0; i < 32; i++) {
-    const milieu = (bas + haut) / 2;
-    if (signe * aire(milieu) < cible) bas = milieu;
-    else haut = milieu;
-  }
-  const ligne = fraction >= 1 ? y0 : fraction <= 0 ? y1 : (bas + haut) / 2;
-  return { x0, x1, y0, y1, ligne, ratio: y1 > y0 ? (y1 - ligne) / (y1 - y0) : 0 };
+/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et ses îles) SE REMPLISSENT
+ *  CHACUN SELON SA PROPRE AIRE : pour la zone d'aire A et d'exposition e, et ses territoires séparés i
+ *  d'aire A_i, le critère est  A_i coloriée = A_i × e  POUR CHAQUE i — d'où une hauteur relative x_i par
+ *  territoire (de sa propre hauteur, depuis son bas), déduite du PROFIL d'aire de sa forme (le bas d'un
+ *  territoire effilé colore peu : x_i n'est pas e). La somme donne bien A coloriée = A × e, et aucun
+ *  territoire — l'Alaska, une île lointaine — ne paraît sur- ou sous-pondéré par sa latitude ou sa forme.
+ *
+ *  Un territoire est un anneau extérieur et les trous (lacs) qu'il contient. */
+function ioTerritoires(anneaux) {
+  const aires = anneaux.map((anneau) => ioAireSousLigne(anneau, 1e9));
+  const plusGrand = aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0);
+  const sens = Math.sign(plusGrand) || 1;
+  const boite = (anneau) => {
+    const xs = anneau.map((p) => p[0]);
+    const ys = anneau.map((p) => p[1]);
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  };
+  const territoires = [];
+  anneaux.forEach((anneau, i) => {
+    if (Math.sign(aires[i]) === sens) territoires.push({ anneaux: [anneau], boite: boite(anneau) });
+  });
+  // Un trou revient au plus petit territoire dont la boîte le contient.
+  anneaux.forEach((anneau, i) => {
+    if (Math.sign(aires[i]) === sens) return;
+    const [hx0, hx1, hy0, hy1] = boite(anneau);
+    const hote = territoires
+      .filter((t) => t.boite[0] <= hx0 && t.boite[1] >= hx1 && t.boite[2] <= hy0 && t.boite[3] >= hy1)
+      .sort((a, b) => (a.boite[1] - a.boite[0]) * (a.boite[3] - a.boite[2]) - (b.boite[1] - b.boite[0]) * (b.boite[3] - b.boite[2]))[0];
+    if (hote) hote.anneaux.push(anneau);
+  });
+  return { territoires, sens };
 }
 
-/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et ses îles) SE REMPLISSENT
- *  CHACUN À LA MÊME PROPORTION DE LEUR HAUTEUR : on calcule d'abord la hauteur relative qui colore la bonne
- *  aire pour la région entière (`ratio`), puis chaque morceau séparé est colorié de son bas jusqu'à ce
- *  ratio de SA propre hauteur. Une seule ligne horizontale pour toute la carte laisserait l'Alaska vide ou
- *  pleine selon sa latitude, et donnerait l'impression de surpondérer l'un ou l'autre.
- *  Rend les rectangles SVG ; l'appelant les découpe aux contours des pays. */
-function ioRectanglesParTerritoire(anneaux, ratio, couleur) {
-  if (ratio <= 0) return "";
-  const aires = anneaux.map((anneau) => ioAireSousLigne(anneau, 1e9));
-  const sensPrincipal = Math.sign(aires[aires.indexOf(aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0))]) || 1;
-  return anneaux
-    .filter((_, i) => Math.sign(aires[i]) === sensPrincipal) // les trous (lacs) ne sont pas des territoires
-    .map((anneau) => {
-      const xs = anneau.map((p) => p[0]);
-      const ys = anneau.map((p) => p[1]);
-      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-      const hauteur = (y1 - y0) * Math.min(ratio, 1);
+/** L'aire coloriée d'un territoire (depuis son bas) quand on en remplit la hauteur relative x. */
+function ioAireColoriee(territoire, x, sens) {
+  const [, , y0, y1] = territoire.boite;
+  const ligne = y1 - x * (y1 - y0);
+  return territoire.anneaux.reduce(
+    (somme, anneau) => somme + sens * (ioAireSousLigne(anneau, 1e9) - ioAireSousLigne(anneau, ligne)),
+    0
+  );
+}
+
+/** Les rectangles SVG de la zone (à découper aux contours des pays), et la hauteur relative de chaque territoire. */
+function ioRectanglesParTerritoire(anneaux, fraction, couleur) {
+  if (fraction <= 0 || !anneaux.length) return { rectangles: "", hauteurs: [] };
+  const { territoires, sens } = ioTerritoires(anneaux);
+  const e = Math.min(fraction, 1);
+  const hauteurs = territoires.map((t) => {
+    if (e >= 1) return 1;
+    const cible = ioAireColoriee(t, 1, sens) * e;
+    let bas = 0;
+    let haut = 1;
+    for (let i = 0; i < 32; i++) {
+      const milieu = (bas + haut) / 2;
+      if (ioAireColoriee(t, milieu, sens) < cible) bas = milieu;
+      else haut = milieu;
+    }
+    return (bas + haut) / 2;
+  });
+  const rectangles = territoires
+    .map((t, i) => {
+      const [x0, x1, y0, y1] = t.boite;
+      const hauteur = (y1 - y0) * hauteurs[i];
       return `<rect x="${x0}" y="${y1 - hauteur}" width="${x1 - x0}" height="${hauteur}" fill="${couleur}" />`;
     })
     .join("");
+  return { rectangles, hauteurs };
 }
 
 function ioRenderCarte(bloc) {
@@ -459,11 +487,11 @@ function ioRenderCarte(bloc) {
     .map(({ part, i, codes }) => {
       const fraction = Math.min(Math.max(part.part, 0), 1);
       const anneaux = codes.flatMap((c) => ioAnneauxPays(pays.get(c)));
-      const { ratio } = ioRemplissageParAire(anneaux, fraction);
+      const { rectangles } = ioRectanglesParTerritoire(anneaux, fraction, ioCouleurPart(part));
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
-        <g clip-path="url(#${identifiant})">${ioRectanglesParTerritoire(anneaux, ratio, ioCouleurPart(part))}</g>
+        <g clip-path="url(#${identifiant})">${rectangles}</g>
         <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
     })
     .join("");
