@@ -6,6 +6,8 @@ from app.constants import AXES_EXPOSITION, AxeTitre
 from app.database import get_db
 from app.services import calque_fonds, exposition, identite_titre, placements
 
+import service_nettoyage_titres as service_nettoyage
+
 router = APIRouter(prefix="/titres", tags=["placements"])
 
 
@@ -328,6 +330,25 @@ def remplacer_expositions(
     db.commit()
     db.refresh(titre)
     return _titre_read(titre)
+
+
+@router.get("/nettoyage")
+def proposer_nettoyage(db: Session = Depends(get_db)):
+    """Les GROUPES de titres qui se ressemblent et pourraient n'en faire qu'un (cf. service_nettoyage_titres) :
+    du plus sûr au moins sûr. Ne modifie rien."""
+    return service_nettoyage.proposer(db)
+
+
+@router.post("/nettoyage/fusionner")
+def fusionner_titres(payload: dict, db: Session = Depends(get_db)):
+    """Fusionne des titres dans l'un d'eux : `{garder_id, absorber_ids}`. Tout ou rien."""
+    try:
+        return service_nettoyage.fusionner(
+            db, int(payload.get("garder_id") or 0), [int(i) for i in payload.get("absorber_ids") or []]
+        )
+    except service_nettoyage.ErreurFusion as erreur:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(erreur)) from None
 
 
 @router.get("/{titre_id}/donnees")

@@ -147,3 +147,46 @@ def chercher(index: IndexMots, possession, *, secteur_propose, zone_proposee, mo
         if score >= SEUIL_PROPOSE and (meilleur is None or score > meilleur.score):
             meilleur = Rapprochement(titre, min(score, 1.0), raisons)
     return meilleur
+
+
+# ---------- Le nettoyage de la base : des titres déjà enregistrés qui se ressemblent ----------
+
+
+def score_paire(a, b) -> Optional["Rapprochement"]:
+    """La ressemblance de DEUX TITRES DE LA BASE (et non d'une ligne de fichier à un titre) : le nom d'origine,
+    corrigé par le secteur, la zone, la devise et l'enveloppe que chacun porte. None pour deux titres qui ne
+    peuvent pas être le même : deux ISIN différents, un indice et un titre ordinaire."""
+    if a.est_indice != b.est_indice:
+        return None
+    if a.code_isin and b.code_isin and a.code_isin.upper() != b.code_isin.upper():
+        return None
+    score = score_noms(a.nom, b.nom)
+    if score < SEUIL_PROPOSE - 0.15:
+        return None
+    raisons = [f"nom ({round(score * 100)} %)"]
+    for axe, bonus, malus, bien, mal in (
+        ("secteur", 0.07, 0.15, "même secteur", "secteur différent"),
+        ("zone", 0.05, 0.12, "même zone", "zone différente"),
+    ):
+        x, y = _premiere(a, axe), _premiere(b, axe)
+        if x and y:
+            if x.strip().lower() == y.strip().lower():
+                score += bonus
+                raisons.append(bien)
+            else:
+                score -= malus
+                raisons.append(mal)
+    if a.monnaie_id == b.monnaie_id:
+        score += 0.02
+    else:
+        score -= 0.1
+        raisons.append("devise différente")
+    if a.type_titre_id and b.type_titre_id and a.type_titre_id != b.type_titre_id:
+        score -= 0.1
+        raisons.append("enveloppe différente")
+    if a.code_isin and b.code_isin:
+        raisons.append("même ISIN")
+        score = max(score, 1.0)
+    if score < SEUIL_PROPOSE:
+        return None
+    return Rapprochement(b, min(score, 1.0), raisons)

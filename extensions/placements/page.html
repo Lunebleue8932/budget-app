@@ -282,7 +282,8 @@
            bancaire (même graphe, mêmes cartes à molette), qui lit le fichier tel que l'émetteur le
            publie. Tout son contenu est dessiné par import-etf.js (préfixe `ietf`). Elle remplace
            l'ancien volet « Importer des titres ». ===== -->
-      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation">
+      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation"
+           data-touches-propres>
         <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
              aria-labelledby="ietf-titre">
           <div class="epargne-entete">
@@ -295,6 +296,18 @@
             <button type="button" id="btn-ietf-retour">Retour</button>
             <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
           </div>
+        </div>
+      </div>
+
+      <!-- ===== « NETTOYER LA BASE » : les groupes de titres qui se ressemblent, à fusionner. Le bouton est posé à
+           côté de « Titres d'ETFs » par nettoyage-titres.js (préfixe `nett`). ===== -->
+      <div id="placements-modale-nettoyage" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-nettoyage" role="dialog" aria-modal="true" aria-labelledby="nett-titre">
+          <div class="epargne-entete">
+            <h2 id="nett-titre">Nettoyer la base<i class="info-bulle" tabindex="0" data-info-cle="placements.nettoyage">i</i></h2>
+            <button type="button" id="btn-nett-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="nett-corps"></div>
         </div>
       </div>
 

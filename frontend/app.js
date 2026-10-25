@@ -21861,7 +21861,8 @@ document.addEventListener("keydown", (evenement) => {
   // la carte COURANTE : leur premier bouton principal est la confirmation de la PREMIÈRE carte, qu'un clic
   // d'ici confirmerait en plus, sans qu'on l'ait choisie - ou dans la fenêtre que la frappe vient d'ouvrir.
   const fond = conteneur.closest(".modale-fond");
-  if (fond && FENETRES_A_TOUCHES_PROPRES.has(fond.id)) return;
+  // Une fenêtre d'extension écoute elle-même sa touche : elle le dit par `data-touches-propres`.
+  if (fond && (FENETRES_A_TOUCHES_PROPRES.has(fond.id) || fond.hasAttribute("data-touches-propres"))) return;
 
   const bouton = boutonDeValidation(conteneur);
   if (!bouton) return;

@@ -124,6 +124,38 @@ class _Contexte:
 # ---------- Ce que le fichier dit, rapproché de la base ----------
 
 
+def _note(brut: str, nom: str) -> float:
+    """La NOTE d'une étiquette de l'app pour un libellé du fichier, de 0 à 1 : l'égalité (casse, accents) vaut 1,
+    sinon la ressemblance des noms (chaînes et mots communs). Elle ordonne les molettes de l'écran."""
+    a, b = corr.cle(brut), corr.cle(nom)
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    mots_a, mots_b = set(a.split()), set(b.split())
+    commun = len(mots_a & mots_b) / max(1, min(len(mots_a), len(mots_b)))
+    inclus = 0.6 if (a in b or b in a) and min(len(a), len(b)) >= 4 else 0.0
+    return round(max(difflib.SequenceMatcher(None, a, b).ratio(), 0.9 * commun, inclus), 3)
+
+
+def _classement(existants: list[str], brut: str, propose: Optional[str], methode: str) -> list[dict]:
+    """Toutes les étiquettes candidates pour ce libellé, de la mieux notée à la moins bien : celles que l'app
+    a déjà, et la proposition si elle est à créer. La proposition du serveur (mot-clé, pays -> zone par
+    défaut) l'emporte sur une simple ressemblance de noms."""
+    notes = {nom: _note(brut, nom) for nom in existants}
+    if propose:
+        sure = methode in ("exact", "mot-clé", "défaut")
+        note_proposee = 0.97 if sure else 0.8
+        if propose in notes:
+            notes[propose] = max(notes[propose], note_proposee)
+        else:
+            notes[propose] = note_proposee
+    return [
+        {"nom": nom, "score": score, "a_creer": nom not in existants}
+        for nom, score in sorted(notes.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+    ]
+
+
 def _proposer_correspondances(ctx: _Contexte, fichier, axe_secteur: bool):
     """Les libellés du fichier sur un axe (secteur ou zone), du plus lourd au plus léger : ce que
     le fichier écrit, ce qu'on propose, comment, et si la base le connaît déjà."""
@@ -152,6 +184,7 @@ def _proposer_correspondances(ctx: _Contexte, fichier, axe_secteur: bool):
                 "propose": propose,
                 "methode": methode,
                 "a_creer": bool(propose) and ctx.etiquette(axe, propose) is None,
+                "classement": _classement(existants, brut, propose, methode),
             }
         )
     return lignes

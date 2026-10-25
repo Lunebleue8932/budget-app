@@ -477,3 +477,79 @@ def test_la_repartition_du_fonds_vient_de_la_feuille_de_blocs(db_session):
     etf = crud.get_titre(db_session, r["etf_id"])
     assert [(e.etiquette.nom, e.poids_pct) for e in etf.repartition(AxeTitre.secteur.value)] == [("Santé", pytest.approx(99.52))]
     assert {e.etiquette.nom for e in etf.repartition(AxeTitre.zone.value)} >= {"États-Unis"}
+
+
+# ---------- Le nettoyage de la base ----------
+
+nettoyage = charger_module_extension("placements", "service_nettoyage_titres.py")
+
+
+def _titre_complet(db, nom, isin=None, secteur=None, zone=None):
+    titre = crud.create_titre(db, nom, _monnaie(db).id, 10.0, isin)
+    for axe, libelle in ((AxeTitre.secteur.value, secteur), (AxeTitre.zone.value, zone)):
+        if libelle:
+            etiquette = next((e for e in crud.get_types_titre(db, axe) if e.nom == libelle), None) or crud.create_type_titre(db, libelle, axe)
+            crud.poser_repartition(db, titre, axe, [(etiquette.id, 100.0)])
+    db.commit()
+    return titre
+
+
+def test_le_nettoyage_propose_les_doublons_du_plus_sur_au_moins_sur(db_session):
+    a = _titre_complet(db_session, "COCA-COLA CO/THE", "US1912161007", "Consommation de base", "États-Unis")
+    b = _titre_complet(db_session, "The Coca-Cola Company", None, "Consommation de base", "États-Unis")
+    c = _titre_complet(db_session, "NESTLE SA-REG", "CH0038863350", "Consommation de base", "Europe")
+    d = _titre_complet(db_session, "Nestlé S.A.", None, "Consommation de base", "Europe")
+    _titre_complet(db_session, "TOTALEMENT AUTRE CHOSE", None)
+    groupes = nettoyage.proposer(db_session)
+    ids = [sorted(m["id"] for m in g["membres"]) for g in groupes]
+    assert sorted([a.id, b.id]) in ids and sorted([c.id, d.id]) in ids and len(groupes) == 2
+    assert [g["score"] for g in groupes] == sorted((g["score"] for g in groupes), reverse=True)
+    # Le gardien proposé est celui qui a un ISIN.
+    coca = next(g for g in groupes if a.id in [m["id"] for m in g["membres"]])
+    assert coca["gardien_propose"] == a.id
+
+
+def test_deux_isin_differents_ne_sont_jamais_proposes_ni_fusionnes(db_session):
+    a = _titre_complet(db_session, "COCA-COLA CO/THE", "US1912161007")
+    b = _titre_complet(db_session, "Coca-Cola Company", "US1912161999")
+    assert nettoyage.proposer(db_session) == []
+    with pytest.raises(nettoyage.ErreurFusion, match="ISIN"):
+        nettoyage.fusionner(db_session, a.id, [b.id])
+
+
+def test_la_fusion_deplace_mouvements_citations_et_repartitions(db_session):
+    garde = _titre_complet(db_session, "COCA-COLA CO/THE", "US1912161007")
+    absorbe = _titre_complet(db_session, "The Coca-Cola Company", None, "Consommation de base", "États-Unis")
+    _detenir(db_session, absorbe)
+    etf = _etf(db_session, "ETF Test", "IE000TESTTE1")
+    etf.composition = {f"titre:{absorbe.id}": 20.0, "US1912161007": 5.0}
+    etf.composition_couverture_pct = 25.0
+    db_session.commit()
+    resultat = nettoyage.fusionner(db_session, garde.id, [absorbe.id])
+    assert resultat["mouvements_deplaces"] == 1
+    assert crud.get_titre(db_session, absorbe.id) is None
+    garde = crud.get_titre(db_session, garde.id)
+    # Le titre gardé reprend les répartitions qu'il n'avait pas, et porte désormais le mouvement.
+    assert [e.etiquette.nom for e in garde.repartition(AxeTitre.secteur.value)] == ["Consommation de base"]
+    assert db_session.query(models.OperationTitre).filter_by(titre_id=garde.id).count() == 1
+    # Les deux citations de l'ETF se sont additionnées sous la clé canonique du titre gardé.
+    assert crud.get_titre(db_session, etf.id).composition == {"US1912161007": 25.0}
+    assert titres_routes.list_titres(db=db_session)
+
+
+def test_la_fusion_transfere_l_isin_au_titre_garde_qui_n_en_a_pas(db_session):
+    garde = _titre_complet(db_session, "The Coca-Cola Company")
+    absorbe = _titre_complet(db_session, "COCA-COLA CO/THE", "US1912161007")
+    nettoyage.fusionner(db_session, garde.id, [absorbe.id])
+    assert crud.get_titre(db_session, garde.id).code_isin == "US1912161007"
+
+
+def test_les_routes_du_nettoyage(db_session):
+    a = _titre_complet(db_session, "PEPSICO INC", "US7134481081")
+    b = _titre_complet(db_session, "PepsiCo, Inc.")
+    assert len(titres_routes.proposer_nettoyage(db=db_session)) == 1
+    r = titres_routes.fusionner_titres({"garder_id": a.id, "absorber_ids": [b.id]}, db=db_session)
+    assert r["fusionnes"] == 1
+    with pytest.raises(HTTPException) as erreur:
+        titres_routes.fusionner_titres({"garder_id": a.id, "absorber_ids": [99999]}, db=db_session)
+    assert erreur.value.status_code == 409

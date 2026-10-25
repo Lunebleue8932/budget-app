@@ -68,8 +68,9 @@ const IETF = {
   // Les correspondances : libellé du fichier -> nom d'étiquette de l'app ("" = ne rien poser).
   secteurs: {},
   zones: {},
-  // Les étiquettes que l'utilisateur ajoute à la main, par axe.
-  extra: { secteurs: [], zones: [] },
+  // Les cartes confirmées (libellé du fichier), et les étiquettes créées en route (violettes), par axe.
+  confirmes: { secteurs: new Set(), zones: new Set() },
+  nouvelles: { secteurs: new Set(), zones: new Set() },
   // QUI REÇOIT : ce que prend le fonds du fichier (composition / secteur / zone cochés), et les fonds
   // branchés en plus (identifiant -> mêmes cases). Cf. l'étape « Fonds ».
   proprietesEtf: {},
@@ -91,7 +92,8 @@ function ietfOuvrir(options = {}) {
   IETF.fichier = null;
   IETF.lecture = null;
   IETF.rang = 0;
-  IETF.extra = { secteurs: [], zones: [] };
+  IETF.confirmes = { secteurs: new Set(), zones: new Set() };
+  IETF.nouvelles = { secteurs: new Set(), zones: new Set() };
   IETF.proprietesEtf = {};
   IETF.cibles = new Map();
   IETF.preselection = options.cibleId ? Number(options.cibleId) : null;
@@ -183,10 +185,18 @@ function ietfRendre() {
   suivant.disabled = !ietfPeutAvancer();
 }
 
+function ietfCartesDe(id) {
+  return id === "secteurs" ? IETF.lecture.secteurs : IETF.lecture.zones;
+}
+
 function ietfPeutAvancer() {
   const id = IETF_ETAPES[IETF.rang].id;
   if (id === "fichier") return !!IETF.lecture;
   if (id === "couverture") return IETF.lignes >= 1 && (IETF.etfId !== "nouveau" || IETF.etfNom.trim() !== "");
+  // Les correspondances ne passent pas sans confirmation : rien ne s'applique en silence.
+  if (id === "secteurs" || id === "zones") {
+    return IETF.lecture.secteurs && ietfCartesDe(id).every((x) => IETF.confirmes[id].has(x.brut));
+  }
   return true;
 }
 
@@ -305,6 +315,8 @@ function ietfInitialiserChoix() {
   IETF.lignes = Math.min(l.couverture.defaut_lignes, l.nb_possessions);
   IETF.secteurs = Object.fromEntries(l.secteurs.map((s) => [s.brut, s.propose || ""]));
   IETF.zones = Object.fromEntries(l.zones.map((z) => [z.brut, z.propose || ""]));
+  IETF.confirmes = { secteurs: new Set(), zones: new Set() };
+  IETF.nouvelles = { secteurs: new Set(), zones: new Set() };
   IETF.proprietesEtf = ietfToutesCochees();
   IETF.rapprochements = Object.fromEntries(l.rapproches.map((r) => [r.ligne, r.accepte]));
   IETF.cibles = new Map();
@@ -354,10 +366,10 @@ function ietfCarteFondHtml({ cle, nom, badge, donnees, choix, retirable }) {
       <span class="hint">${escapeHtml(dispo ? `→ ${ietfApportTexte(prop)}` : t("Le fichier n'en dit rien"))}</span>
     </label>`;
   }).join("");
-  return `<section class="ietf-fond" data-ietf-fond="${escapeHtml(cle)}">
-    <header><b>${escapeHtml(nom)}</b> <span class="ietf-pastille">${escapeHtml(badge)}</span>
+  return `<div class="ietf-fond" data-ietf-fond="${escapeHtml(cle)}">
+    <div class="ietf-fond-entete"><b>${escapeHtml(nom)}</b> <span class="ietf-pastille">${escapeHtml(badge)}</span>
       ${retirable ? `<button type="button" data-ietf-retirer="${escapeHtml(cle)}">${escapeHtml(t("Retirer"))}</button>` : ""}
-    </header>
+    </div>
     ${lignes}
     ${
       effacees.length
@@ -368,17 +380,17 @@ function ietfCarteFondHtml({ cle, nom, badge, donnees, choix, retirable }) {
           )}</p>`
         : ""
     }
-  </section>`;
+  </div>`;
 }
 
 /** Le fonds du fichier : nouveau (rien à effacer) ou déjà dans l'app (ce qu'il porte est montré). */
 function ietfCartePrincipale() {
   const l = IETF.lecture;
   if (IETF.etfId === "nouveau") {
-    return `<section class="ietf-fond" data-ietf-fond="etf">
-      <header><b>${escapeHtml(IETF.etfNom.trim() || t("Fonds sans nom"))}</b> <span class="ietf-pastille ietf-pastille-nouveau">${escapeHtml(t("à créer"))}</span></header>
+    return `<div class="ietf-fond" data-ietf-fond="etf">
+      <div class="ietf-fond-entete"><b>${escapeHtml(IETF.etfNom.trim() || t("Fonds sans nom"))}</b> <span class="ietf-pastille ietf-pastille-nouveau">${escapeHtml(t("à créer"))}</span></div>
       <p class="hint">${escapeHtml(t("Nouveau fonds : il reçoit la composition et les répartitions du fichier, rien n'est effacé."))}</p>
-    </section>`;
+    </div>`;
   }
   const candidat = l.etf.candidats.find((c) => String(c.id) === IETF.etfId);
   return ietfCarteFondHtml({
@@ -699,121 +711,306 @@ function ietfRendreCouverture(corps) {
   majEtf();
 }
 
-/* ---------- 3 et 4. Les correspondances (cartes à molette du parcours de l'import) ---------- */
+/* ---------- 3 et 4. Les correspondances : le tableau à molettes de l'import classique ----------
+ *
+ * MÊME FONCTIONNEMENT QUE LE CLASSEMENT DES CATÉGORIES D'UN RELEVÉ (app.js, « LE TABLEAU DES CORRESPONDANCES ») :
+ * une carte par libellé du fichier, une molette dont les options sont ORDONNÉES PAR LA NOTE du rapprochement
+ * (la meilleure d'abord : elle colore le nom en bleu si elle est forte, en jaune si c'est une suggestion), un
+ * bouton « Confirmer » par carte — et la touche de confirmation (Ctrl+Entrée par défaut, cf. `toucheImport`)
+ * valide la carte COURANTE et passe à la suivante. RIEN N'EST APPLIQUÉ SANS CLIC : même une proposition forte
+ * attend sa confirmation (« Confirmer les propositions fortes » les valide d'un coup).
+ *
+ * UNE ÉTIQUETTE QUI MANQUE se crée dans L'ENCADRÉ VIOLET au-dessus des cartes : elle rejoint la molette de chaque
+ * carte, en violet et en tête de liste, sans devenir le choix de personne. Elle n'est écrite en base qu'à
+ * l'import (cf. « Étiquettes créées » du récapitulatif). Les molettes se câblent avec `brancherMolettes`
+ * (app.js), celles-là mêmes de l'import classique. */
 
-function ietfOptions(axe) {
-  const l = IETF.lecture;
-  const existants = axe === "secteurs" ? l.secteurs_existants : l.zones_existantes;
-  const lignes = axe === "secteurs" ? l.secteurs : l.zones;
-  const proposes = lignes.map((x) => x.propose).filter(Boolean);
-  const tous = [...new Set([...existants, ...proposes, ...IETF.extra[axe]])].sort((a, b) => a.localeCompare(b, "fr"));
-  return [{ nom: "", etat: "aucun" }].concat(
-    tous.map((nom) => ({ nom, etat: existants.includes(nom) ? "existant" : "nouveau" }))
-  );
+const IETF_AUCUN = "__aucun__";
+
+// Les cartes de l'étape courante (les libellés du fichier), et la carte courante.
+let ietfCartes = [];
+let ietfCourante = -1;
+
+function ietfAxeCourant() {
+  return IETF_ETAPES[IETF.rang].id === "secteurs" ? "secteurs" : "zones";
+}
+
+function ietfChoix(axe) {
+  return axe === "secteurs" ? IETF.secteurs : IETF.zones;
+}
+
+/** Les options de la molette d'une carte : d'abord les étiquettes CRÉÉES EN ROUTE (violettes), puis les
+ *  existantes et la proposition, DANS L'ORDRE DE LEUR NOTE, enfin « aucun ». `niveau` : forte / suggestion /
+ *  choix / nouvelle. */
+function ietfOptionsCarte(axe, ligne) {
+  const nouvelles = [...IETF.nouvelles[axe]].map((nom) => ({ id: nom, nom, niveau: "nouvelle" }));
+  const classes = ligne.classement
+    .filter((c) => !IETF.nouvelles[axe].has(c.nom))
+    .map((c, rang) => ({
+      id: c.nom,
+      nom: c.a_creer ? `${c.nom} (${t("à créer")})` : c.nom,
+      score: c.score,
+      niveau: rang === 0 && c.score >= 0.9 ? "forte" : c.score >= 0.45 ? "suggestion" : "choix",
+    }));
+  return [...nouvelles, ...classes, { id: IETF_AUCUN, nom: t("— aucun —"), niveau: "choix" }];
+}
+
+function ietfValeurCarte(axe, ligne) {
+  return ietfChoix(axe)[ligne.brut] || IETF_AUCUN;
+}
+
+function ietfStatutCarte(axe, ligne) {
+  const valeur = ietfValeurCarte(axe, ligne);
+  const option = ietfOptionsCarte(axe, ligne).find((o) => o.id === valeur);
+  if (valeur === IETF_AUCUN) return { cle: "choix", texte: t("Rien ne sera posé") };
+  if (option && option.niveau === "forte") return { cle: "forte", texte: t("Proposition forte") };
+  if (option && option.niveau === "suggestion") {
+    return { cle: "suggestions", texte: `${t("Suggestion")} · ${Math.round(option.score * 100)} %` };
+  }
+  return { cle: "choix", texte: t("Ton choix") };
 }
 
 function ietfCarteHtml(axe, ligne, i) {
-  const choix = (axe === "secteurs" ? IETF.secteurs : IETF.zones)[ligne.brut] ?? "";
-  const [classe, texte] = IETF_METHODES[ligne.methode] || IETF_METHODES.aucun;
-  const options = ietfOptions(axe)
+  const confirmee = IETF.confirmes[axe].has(ligne.brut);
+  const valeur = ietfValeurCarte(axe, ligne);
+  const statut = ietfStatutCarte(axe, ligne);
+  const options = ietfOptionsCarte(axe, ligne)
     .map(
-      (o) => `<div class="corr-roue-option ${o.etat === "nouveau" ? "corr-roue-nouvelle" : ""} ${
-        o.nom === choix ? "corr-roue-choisie" : ""
-      } ${o.nom && o.nom === ligne.propose ? "corr-roue-forte" : ""}" role="option" data-nom="${escapeHtml(o.nom)}"
-        aria-selected="${o.nom === choix}">${escapeHtml(o.nom || t("— aucun —"))}</div>`
+      (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${o.id === valeur ? "corr-roue-choisie" : ""}"
+        role="option" data-id="${escapeHtml(o.id)}" aria-selected="${o.id === valeur}">${escapeHtml(o.nom)}</div>`
     )
     .join("");
-  return `<section class="corr-colonne" data-ietf-i="${i}" tabindex="-1">
+  return `<section class="corr-colonne ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
     <div>
       <div class="corr-banque">${escapeHtml(ligne.brut)}</div>
       <div class="hint">${escapeHtml(
         ligne.nb ? t("{n} titre(s), {pct} % du fonds", { n: ligne.nb, pct: ietfPct(ligne.poids_pct) }) : t("Feuille de répartition")
       )}</div>
-      <span class="corr-statut corr-statut-${classe}">${escapeHtml(t(texte))}</span>
+      <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
     </div>
     <div class="corr-roue-cadre">
-      <div class="corr-roue" role="listbox" tabindex="0" aria-label="${escapeHtml(t("Correspondance de « {nom} »", { nom: ligne.brut }))}">${options}</div>
+      <div class="corr-roue" role="listbox" tabindex="0"
+           aria-label="${escapeHtml(t("Correspondance de « {nom} »", { nom: ligne.brut }))}">${options}</div>
     </div>
+    <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}"><span data-corr-libelle>${
+      confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
+    }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
   </section>`;
+}
+
+function ietfColonne(i) {
+  return document.querySelector(`#ietf-board [data-corr-i="${i}"]`);
+}
+
+function ietfCentrerRoue(i, doux) {
+  const colonne = ietfColonne(i);
+  if (!colonne) return;
+  const roue = colonne.querySelector(".corr-roue");
+  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
+  roue.scrollTo({ top: rang * IETF_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
+}
+
+function ietfDefinirCourante(i, { focus = false } = {}) {
+  ietfCourante = i;
+  document
+    .querySelectorAll("#ietf-board .corr-colonne")
+    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
+  const colonne = ietfColonne(i);
+  if (!colonne) return;
+  colonne.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  if (focus) colonne.querySelector(".corr-roue").focus({ preventScroll: true });
+}
+
+function ietfFortePrete(axe, ligne) {
+  const valeur = ietfValeurCarte(axe, ligne);
+  const option = ietfOptionsCarte(axe, ligne).find((o) => o.id === valeur);
+  return !!option && option.niveau === "forte" && !IETF.confirmes[axe].has(ligne.brut);
+}
+
+function ietfMajCompteur() {
+  const axe = ietfAxeCourant();
+  const lignes = ietfCartes;
+  const restantes = lignes.filter((l) => !IETF.confirmes[axe].has(l.brut)).length;
+  ietfEl("ietf-compteur").textContent = restantes
+    ? t("{n} correspondance(s) à confirmer", { n: restantes })
+    : t("Tout est confirmé.");
+  ietfEl("btn-ietf-fortes").disabled = !lignes.some((l) => ietfFortePrete(axe, l));
+  ietfEl("btn-ietf-suivant").disabled = !ietfPeutAvancer();
+}
+
+function ietfMajCarte(i) {
+  const axe = ietfAxeCourant();
+  const ligne = ietfCartes[i];
+  const colonne = ietfColonne(i);
+  if (!colonne) return;
+  const confirmee = IETF.confirmes[axe].has(ligne.brut);
+  colonne.classList.toggle("corr-confirmee", confirmee);
+  colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
+  const statut = ietfStatutCarte(axe, ligne);
+  const pastille = colonne.querySelector("[data-corr-statut]");
+  pastille.className = `corr-statut corr-statut-${statut.cle}`;
+  pastille.textContent = statut.texte;
+}
+
+function ietfChoisir(i, id, { defiler = true } = {}) {
+  const axe = ietfAxeCourant();
+  const ligne = ietfCartes[i];
+  ietfChoix(axe)[ligne.brut] = id === IETF_AUCUN ? "" : id;
+  IETF.confirmes[axe].delete(ligne.brut);
+  const colonne = ietfColonne(i);
+  if (!colonne) return;
+  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
+    const choisie = o.dataset.id === id;
+    o.classList.toggle("corr-roue-choisie", choisie);
+    o.setAttribute("aria-selected", String(choisie));
+  });
+  ietfMajCarte(i);
+  if (defiler) ietfCentrerRoue(i, true);
+  ietfMajCompteur();
+}
+
+function ietfProchaineNonConfirmee(apres) {
+  const axe = ietfAxeCourant();
+  const suivante = ietfCartes.findIndex((l, k) => k > apres && !IETF.confirmes[axe].has(l.brut));
+  return suivante !== -1 ? suivante : ietfCartes.findIndex((l) => !IETF.confirmes[axe].has(l.brut));
+}
+
+function ietfConfirmerCarte(i) {
+  if (i < 0 || i >= ietfCartes.length) return;
+  const axe = ietfAxeCourant();
+  IETF.confirmes[axe].add(ietfCartes[i].brut);
+  ietfMajCarte(i);
+  ietfMajCompteur();
+  const cible = ietfProchaineNonConfirmee(i);
+  if (cible === -1) {
+    showMessage(t("Toutes les correspondances sont confirmées."), "success");
+    ietfEl("btn-ietf-suivant").focus();
+    return;
+  }
+  ietfDefinirCourante(cible, { focus: true });
+}
+
+function ietfConfirmerFortes() {
+  const axe = ietfAxeCourant();
+  ietfCartes.forEach((ligne, i) => {
+    if (!ietfFortePrete(axe, ligne)) return;
+    IETF.confirmes[axe].add(ligne.brut);
+    ietfMajCarte(i);
+  });
+  ietfMajCompteur();
+  const premiere = ietfProchaineNonConfirmee(-1);
+  if (premiere !== -1) ietfDefinirCourante(premiere, { focus: true });
+}
+
+/** L'ENCADRÉ VIOLET : un seul, au centre, au-dessus des cartes (cf. corrCreerCentralHtml). */
+function ietfCreerCentralHtml(axe) {
+  return `<details class="corr-creer" data-ietf-creer>
+    <summary>${escapeHtml(
+      axe === "secteurs" ? t("Aucun secteur ne correspond ? Crée le tien") : t("Aucune zone ne correspond ? Crée la tienne")
+    )}</summary>
+    <div class="corr-creer-corps">
+      <input type="text" maxlength="60" data-ietf-creer-nom aria-label="${escapeHtml(axe === "secteurs" ? t("Nom du secteur") : t("Nom de la zone"))}"
+             placeholder="${escapeHtml(axe === "secteurs" ? t("Nom du secteur") : t("Nom de la zone"))}" />
+      <div class="corr-creer-actions">
+        <button type="button" data-ietf-creer-annuler>${escapeHtml(t("Annuler"))}</button>
+        <button type="button" class="primary" data-ietf-creer-valider>${escapeHtml(
+          axe === "secteurs" ? t("Créer le secteur") : t("Créer la zone")
+        )}</button>
+      </div>
+      <p class="import-avertissement" data-ietf-creer-erreur style="display:none"></p>
+    </div>
+  </details>`;
+}
+
+function ietfCreerEtiquette() {
+  const axe = ietfAxeCourant();
+  const zone = ietfEl("ietf-creer");
+  const champ = zone.querySelector("[data-ietf-creer-nom]");
+  const erreur = zone.querySelector("[data-ietf-creer-erreur]");
+  const nom = champ.value.trim();
+  erreur.style.display = "none";
+  const connus = new Set([
+    ...(axe === "secteurs" ? IETF.lecture.secteurs_existants : IETF.lecture.zones_existantes),
+    ...IETF.nouvelles[axe],
+    ...ietfCartes.flatMap((l) => l.classement.map((c) => c.nom)),
+  ].map((n) => n.toLowerCase()));
+  if (!nom || connus.has(nom.toLowerCase())) {
+    erreur.textContent = nom ? t("Cette étiquette existe déjà.") : t("Donne un nom.");
+    erreur.style.display = "";
+    champ.focus();
+    return;
+  }
+  IETF.nouvelles[axe].add(nom);
+  champ.value = "";
+  zone.querySelector("details").open = false;
+  const courante = Math.max(0, ietfCourante);
+  ietfRendreCorrespondances(axe);
+  ietfDefinirCourante(courante, { focus: true });
+  showMessage(t("Étiquette créée : elle sera écrite à l'import."), "success");
 }
 
 function ietfRendreCorrespondances(axe) {
   const l = IETF.lecture;
-  const lignes = axe === "secteurs" ? l.secteurs : l.zones;
-  const singulier = axe === "secteurs" ? "secteur" : "zone";
+  ietfCartes = axe === "secteurs" ? l.secteurs : l.zones;
   const corps = ietfEl("ietf-corps");
   corps.innerHTML = `
     <p class="modale-texte" data-texte-cle="import-etf.${axe}"></p>
-    <div class="ietf-creer selecteur-contexte">
-      <label>${escapeHtml(axe === "secteurs" ? t("Nouveau secteur") : t("Nouvelle zone"))}
-        <input type="text" id="ietf-creer-nom" />
-      </label>
-      <button type="button" id="btn-ietf-creer">${escapeHtml(t("+ Créer"))}</button>
-    </div>
-    <p class="hint" id="ietf-compteur-${axe}"></p>
-    <div class="corr-board" id="ietf-board">${lignes.map((x, i) => ietfCarteHtml(axe, x, i)).join("")}</div>`;
+    <p class="hint" id="ietf-compteur"></p>
+    <p class="hint corr-aide-fleches"></p>
+    <div id="ietf-creer" class="corr-creer-central">${ietfCreerCentralHtml(axe)}</div>
+    <div class="corr-board" id="ietf-board">${ietfCartes.map((x, i) => ietfCarteHtml(axe, x, i)).join("")}</div>
+    <div class="modale-actions ietf-actions-correspondances">
+      <button type="button" id="btn-ietf-fortes">${escapeHtml(t("Confirmer les propositions fortes"))}</button>
+    </div>`;
   if (typeof appliquerTextes === "function") appliquerTextes(corps);
-  const majCompteur = () => {
-    const choix = axe === "secteurs" ? IETF.secteurs : IETF.zones;
-    const sans = lignes.filter((x) => !choix[x.brut]).length;
-    ietfEl(`ietf-compteur-${axe}`).textContent = sans
-      ? t("{n} {mot} sans correspondance : rien ne sera posé pour eux.", { n: sans, mot: singulier })
-      : t("Tout est classé.");
-  };
-  majCompteur();
-  const board = ietfEl("ietf-board");
-  board.querySelectorAll(".corr-roue").forEach((roue) => {
-    const carte = roue.closest(".corr-colonne");
-    const ligne = lignes[Number(carte.dataset.ietfI)];
-    const options = [...roue.children];
-    const centrer = (doux) => {
-      const rang = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
-      roue.scrollTo({ top: rang * IETF_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
-    };
-    const choisir = (rang, { defiler = true } = {}) => {
-      const option = options[Math.min(Math.max(rang, 0), options.length - 1)];
-      (axe === "secteurs" ? IETF.secteurs : IETF.zones)[ligne.brut] = option.dataset.nom;
-      options.forEach((o) => {
-        o.classList.toggle("corr-roue-choisie", o === option);
-        o.setAttribute("aria-selected", String(o === option));
-      });
-      if (defiler) centrer(true);
-      majCompteur();
-    };
-    centrer(false);
-    options.forEach((o, rang) => o.addEventListener("click", () => choisir(rang)));
-    roue.addEventListener("keydown", (e) => {
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-      e.preventDefault();
-      const actuel = Math.max(0, options.findIndex((o) => o.classList.contains("corr-roue-choisie")));
-      choisir(actuel + (e.key === "ArrowDown" ? 1 : -1));
-    });
-    // Faire défiler la molette choisit la ligne qui s'arrête au centre.
-    let minuterie = null;
-    roue.addEventListener("scroll", () => {
-      clearTimeout(minuterie);
-      minuterie = setTimeout(() => {
-        const rang = Math.round(roue.scrollTop / IETF_HAUTEUR_OPTION);
-        if (!options[rang] || options[rang].classList.contains("corr-roue-choisie")) return;
-        choisir(rang, { defiler: false });
-      }, 140);
-    });
+  if (typeof majAideFleches === "function") majAideFleches();
+  ietfCartes.forEach((_, i) => ietfCentrerRoue(i, false));
+  ietfMajCompteur();
+  ietfEl("btn-ietf-fortes").addEventListener("click", ietfConfirmerFortes);
+  brancherMolettes(ietfEl("ietf-board"), {
+    courante: () => ietfCourante,
+    definirCourante: ietfDefinirCourante,
+    choisir: ietfChoisir,
+    valeur: (i) => ietfValeurCarte(axe, ietfCartes[i]),
+    nombre: () => ietfCartes.length,
+    confirmer: ietfConfirmerCarte,
   });
-  const creer = () => {
-    const champ = ietfEl("ietf-creer-nom");
-    const nom = champ.value.trim();
-    if (!nom) return;
-    const connus = ietfOptions(axe).map((o) => o.nom.toLowerCase());
-    if (!connus.includes(nom.toLowerCase())) IETF.extra[axe].push(nom);
-    ietfRendreCorrespondances(axe);
-  };
-  ietfEl("btn-ietf-creer").addEventListener("click", creer);
-  ietfEl("ietf-creer-nom").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      creer();
+  const encadre = ietfEl("ietf-creer");
+  encadre.addEventListener("click", (e) => {
+    if (e.target.closest("[data-ietf-creer-valider]")) ietfCreerEtiquette();
+    if (e.target.closest("[data-ietf-creer-annuler]")) {
+      encadre.querySelector("[data-ietf-creer-nom]").value = "";
+      encadre.querySelector("details").open = false;
+      if (ietfCourante >= 0) ietfDefinirCourante(ietfCourante, { focus: true });
     }
   });
+  encadre.addEventListener(
+    "toggle",
+    (e) => {
+      if (e.target.matches && e.target.matches("details[data-ietf-creer]") && e.target.open) {
+        e.target.querySelector("[data-ietf-creer-nom]").focus();
+      }
+    },
+    true
+  );
+  // Dans l'encadré, Entrée (ou la touche de confirmation) crée, Échap le replie sans fermer la fenêtre.
+  encadre.addEventListener("keydown", (e) => {
+    const zone = e.target.closest && e.target.closest("[data-ietf-creer]");
+    if (!zone) return;
+    const combo = comboEvenementImport(e);
+    if (e.key === "Escape") {
+      zone.open = false;
+      e.stopPropagation();
+    } else if (e.key === "Enter" || combo === toucheImport("confirmer")) {
+      e.preventDefault();
+      e.stopPropagation();
+      ietfCreerEtiquette();
+    } else {
+      e.stopPropagation();
+    }
+  });
+  const premiere = Math.max(0, ietfCartes.findIndex((x) => !IETF.confirmes[axe].has(x.brut)));
+  ietfDefinirCourante(premiere, { focus: true });
 }
 
 /* ---------- 5. Le récapitulatif ---------- */
@@ -967,6 +1164,17 @@ async function ietfConfirmer() {
     else ietfAller(ietfSuivante(IETF.rang, 1));
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && ietfEl("placements-modale-import-etf").style.display !== "none") ietfFermer();
+    if (ietfEl("placements-modale-import-etf").style.display === "none") return;
+    if (e.key === "Escape") {
+      ietfFermer();
+      return;
+    }
+    // LA TOUCHE DE CONFIRMATION (Ctrl+Entrée par défaut) : sur un tableau de correspondances, elle valide la
+    // carte COURANTE ; ailleurs, elle fait avancer — sauf à la dernière étape, où l'écriture reste à la souris.
+    if (comboEvenementImport(e) !== toucheImport("confirmer")) return;
+    const id = IETF_ETAPES[IETF.rang].id;
+    e.preventDefault();
+    if (id === "secteurs" || id === "zones") ietfConfirmerCarte(ietfCourante);
+    else if (id !== "importer" && !ietfEl("btn-ietf-suivant").disabled) ietfEl("btn-ietf-suivant").click();
   });
 })();

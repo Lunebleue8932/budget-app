@@ -1289,4 +1289,8 @@ Object.assign(TEXTES, {
     "Reprendre sur cet ETF ce que porte un indice : sa composition, sa classe d'actif, ses zones, ses secteurs. -- Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice. -- Ce que tu prends remplace d'un bloc ce que l'ETF porte aujourd'hui.",
   "import-etf.fonds":
     "Qui reçoit la composition ? Le fonds du fichier, et tous les ETF que tu branches dessus (par exemple un ETF synthétique qui suit le même indice). -- Pour chacun, coche ce qu'il prend : ce qui reste décoché n'est pas touché. -- Ce qu'un fonds prend REMPLACE ce qu'il porte aujourd'hui : c'est signalé en orange, et c'est effacé à l'import.",
+});/* ----- Nettoyer la base (2026-10-25) ----- */
+Object.assign(TEXTES, {
+  "placements.nettoyage":
+    "Relit tous tes titres et regroupe ceux qui se ressemblent : même société écrite autrement dans deux fichiers d'émetteurs, titre saisi à la main puis importé… -- La note croise le nom d'origine, le secteur, la zone, la devise et l'enveloppe. Deux ISIN différents ne sont jamais rapprochés. -- Dans chaque groupe, tu choisis le titre à garder et ceux qu'on y fond : les mouvements, les citations dans les ETF et les répartitions qui lui manquent lui sont rattachés. Rien n'est écrit avant « Fusionner ».",
 });

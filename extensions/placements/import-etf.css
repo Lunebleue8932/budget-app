@@ -199,7 +199,7 @@
   padding: 0.6rem 0.8rem;
 }
 
-#placements-modale-import-etf .ietf-fond > header {
+#placements-modale-import-etf .ietf-fond > .ietf-fond-entete {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -207,7 +207,7 @@
   margin-bottom: 0.3rem;
 }
 
-#placements-modale-import-etf .ietf-fond > header button {
+#placements-modale-import-etf .ietf-fond > .ietf-fond-entete button {
   margin-left: auto;
 }
 
@@ -307,4 +307,54 @@
 #placements-modale-import-etf .ietf-pastille-rapproche {
   background: var(--accent);
   color: #fff;
+}
+
+/* ---------- La fenêtre « Nettoyer la base » ---------- */
+
+#placements-modale-nettoyage .modale-nettoyage {
+  max-width: min(96vw, 60rem);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#placements-modale-nettoyage #nett-corps {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#placements-modale-nettoyage .nett-groupe {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+#placements-modale-nettoyage .nett-groupe > .nett-entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+#placements-modale-nettoyage .nett-groupe > .nett-entete button {
+  margin-left: auto;
+}
+
+#placements-modale-nettoyage .nett-membre {
+  display: grid;
+  grid-template-columns: 6rem 6rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.2rem 0.8rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+#placements-modale-nettoyage .nett-garder,
+#placements-modale-nettoyage .nett-fondre {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
