@@ -237,6 +237,15 @@ jobs:
             fi
           done
           echo "PyGObject et typelib Gtk présents."
+          # L'inverse : aucune bibliothèque graphique ne doit être livrée. Les
+          # copies d'Ubuntu 22.04 masquaient celles du système et faisaient
+          # mourir WebKitWebProcess sur une distribution plus récente.
+          interdites=$(find "$racine" \( -name 'libglib-2.0*' -o -name 'libgobject-2.0*'             -o -name 'libgio-2.0*' -o -name 'libcairo.so*' -o -name 'libgtk-3*' \) -print)
+          if [ -n "$interdites" ]; then
+            echo "Bibliothèques système embarquées à tort :" >&2
+            echo "$interdites" >&2
+            exit 1
+          fi
 
       # LA GLIBC LA PLUS RÉCENTE QU'EXIGE LE BUNDLE, et un échec si elle dépasse
       # celle d'Ubuntu 22.04. Sans ce pas, un changement d'image ou une roue

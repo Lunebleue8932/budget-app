@@ -96,6 +96,22 @@ def options_pyinstaller() -> dict:
             "gi.repository.Gio",
             "gi.repository.GObject",
         ],
+        # BIBLIOTHÈQUES À NE PAS LIVRER : toute la pile graphique GTK. Le hook
+        # Gtk de PyInstaller embarque celles de la machine de construction
+        # (Ubuntu 22.04 : glib 2.72, cairo 1.16) dans `_internal/`, que le
+        # lanceur place EN TÊTE du chemin de chargement — pour l'application
+        # ET pour le processus que WebKit démarre (WebKitWebProcess). Sur une
+        # distribution plus récente, le WebKit du système exige des fonctions
+        # que ces copies anciennes n'ont pas (`g_once_init_enter_pointer`,
+        # `cairo_set_hairline`) : le processus meurt, la fenêtre reste vide
+        # (constaté sur Ubuntu 24.04). Ces bibliothèques doivent venir du
+        # système, toutes ensemble : elles se chargent les unes les autres.
+        "binaires_exclus": (
+            "libgtk-3", "libgdk-3", "libgdk_pixbuf", "libatk", "libatspi",
+            "libpango", "libcairo", "libharfbuzz", "libfribidi", "libepoxy",
+            "libglib-2.0", "libgobject-2.0", "libgio-2.0", "libgmodule-2.0",
+            "libgthread-2.0", "libwayland",
+        ),
         # Versions des typelibs que le hook Gtk de PyInstaller doit embarquer :
         # celles que demande pywebview (gtk.py).
         "hooksconfig": {
