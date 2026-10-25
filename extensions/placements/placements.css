@@ -276,3 +276,29 @@
   color: var(--accent);
   font-weight: 700;
 }
+
+/* ---------- Les onglets « Titres suivis » et « Configuration », à droite de la barre ----------
+   Les onglets de comptes se lisent à gauche ; ces deux-là ne détiennent rien, ils se rangent à l'autre
+   bord. La marge automatique du premier pousse le couple. */
+#placements-onglets #placements-onglet-titres {
+  margin-left: auto;
+}
+
+/* ---------- Le titre de la page : « Mettre à jour les cours » à droite, les actions dessous ----------
+   Le bouton des cours (posé par l'extension « Lecture de cours ») prend la place des actions, qui passent
+   sur leur propre rangée sous le titre. */
+.placements-titre {
+  flex-wrap: wrap;
+}
+
+.placements-titre > #pw-rafraichir-tout {
+  order: 2;
+  margin-left: auto;
+}
+
+.placements-titre > .placements-titre-actions {
+  order: 3;
+  flex-basis: 100%;
+  margin-left: 0;
+  margin-top: 0.3rem;
+}

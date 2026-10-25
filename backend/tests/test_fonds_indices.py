@@ -352,3 +352,78 @@ def test_le_meme_isin_est_une_ressemblance_parfaite(db_session):
         "id": existant.id, "nom": "Nom différent", "nom_courtier": "Nom différent",
         "isin": "IE000AAAAAA1", "est_indice": False, "score": 1.0,
     }
+
+
+# ---------- Le rapprochement flou des composants ----------
+
+rapproche = charger_module_extension("placements", "rapprochement_titres.py")
+
+
+def _fichier_sans_isin(*lignes, nom="Fonds iShares") -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Holdings"
+    ws.append(["Fund Name", nom])
+    ws.append([])
+    ws.append(["Ticker", "Name", "Sector", "Asset Class", "Weight (%)", "Location"])
+    for ligne in lignes:
+        ws.append(list(ligne))
+    tampon = io.BytesIO()
+    wb.save(tampon)
+    return tampon.getvalue()
+
+
+def test_les_libelles_de_bourse_se_ressemblent_malgre_les_suffixes():
+    assert rapproche.score_noms("COCA-COLA CO/THE", "The Coca-Cola Company") >= 0.9
+    assert rapproche.score_noms("PEPSICO INC", "PepsiCo, Inc.") >= 0.9
+    assert rapproche.score_noms("NESTLE SA-REG", "Nestlé S.A.") >= 0.9
+    assert rapproche.score_noms("COCA-COLA CO/THE", "PROCTER & GAMBLE CO/THE") < 0.5
+    assert rapproche.score_noms("Bank of America", "Bank of China") < 0.8
+
+
+def test_un_titre_connu_sous_un_autre_nom_est_rapproche_et_non_duplique(db_session):
+    service.confirmer(db_session, _fichier(), None, {"nb_lignes": 2})
+    coca = next(t for t in crud.get_titres(db_session) if t.code_isin == "US1912161007")
+    avant = db_session.query(models.TitrePossede).count()
+    fichier = _fichier_sans_isin(
+        ("KO", "The Coca-Cola Company", "Consumer Staples", "Equity", 60.0, "United States"),
+        ("NESN", "Nestlé S.A.", "Consumer Staples", "Equity", 40.0, "Switzerland"),
+    )
+    apercu = service.lire(db_session, fichier)
+    proches = {r["nom"]: r for r in apercu["rapproches"]}
+    assert proches["The Coca-Cola Company"]["titre_id"] == coca.id and proches["The Coca-Cola Company"]["accepte"]
+    assert "même secteur" in proches["The Coca-Cola Company"]["raisons"]
+    r = service.confirmer(db_session, fichier, None, {"nb_lignes": 2, "etf": {"nom": "iShares X", "isin": ""}})
+    assert r["titres_rapproches"] == 2 and r["titres_crees"] == 0
+    assert db_session.query(models.TitrePossede).count() == avant + 1  # seul le fonds est nouveau
+    etf = crud.get_titre(db_session, r["etf_id"])
+    assert f"US1912161007" in etf.composition
+
+
+def test_un_rapprochement_refuse_cree_un_titre_et_un_secteur_contraire_le_decote(db_session):
+    service.confirmer(db_session, _fichier(), None, {"nb_lignes": 2})
+    fichier = _fichier_sans_isin(("KO", "The Coca-Cola Company", "Consumer Staples", "Equity", 100.0, "United States"))
+    apercu = service.lire(db_session, fichier)
+    ligne = apercu["rapproches"][0]["ligne"]
+    r = service.confirmer(
+        db_session, fichier, None,
+        {"nb_lignes": 1, "etf": {"nom": "iShares X", "isin": ""}, "rapprochements": {str(ligne): False}},
+    )
+    assert r["titres_rapproches"] == 0 and r["titres_crees"] == 1
+    # Le même nom dans un autre secteur et un autre pays pèse moins lourd.
+    contraire = _fichier_sans_isin(("KO", "The Coca-Cola Company", "Financials", "Equity", 100.0, "Japan"))
+    proche = service.lire(db_session, contraire)["rapproches"]
+    assert not proche or proche[0]["score"] < apercu["rapproches"][0]["score"]
+
+
+def test_deux_isin_differents_ne_se_rapprochent_jamais(db_session):
+    service.confirmer(db_session, _fichier(), None, {"nb_lignes": 2})
+    fichier = _fichier_sans_isin(("KO", "COCA-COLA CO/THE", "Consumer Staples", "Equity", 100.0, "United States"))
+    # Avec un ISIN différent dans le fichier, ce serait un autre titre : simulé en posant l'ISIN sur la possession.
+    p = rapproche.Rapprochement
+    index = rapproche.IndexMots(crud.get_titres(db_session))
+    coca = next(t for t in crud.get_titres(db_session) if t.code_isin == "US1912161007")
+    possession = type("P", (), {"nom": "COCA-COLA CO/THE", "isin": "US0000000002"})()
+    assert rapproche.chercher(index, possession, secteur_propose=None, zone_proposee=None, monnaie_du=None, cle=str.lower) is None
+    possession.isin = "US1912161007"
+    assert rapproche.chercher(index, possession, secteur_propose=None, zone_proposee=None, monnaie_du=None, cle=str.lower).titre is coca

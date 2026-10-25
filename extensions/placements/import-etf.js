@@ -74,6 +74,8 @@ const IETF = {
   // branchés en plus (identifiant -> mêmes cases). Cf. l'étape « Fonds ».
   proprietesEtf: {},
   cibles: new Map(),
+  // Les titres reconnus sous un autre nom : numéro de ligne du fichier -> accepté (vrai) ou refusé (faux).
+  rapprochements: {},
   // Un fonds à brancher d'office : l'import ouvert depuis « Gestion des fonds ».
   preselection: null,
   principalVoulu: null,
@@ -304,6 +306,7 @@ function ietfInitialiserChoix() {
   IETF.secteurs = Object.fromEntries(l.secteurs.map((s) => [s.brut, s.propose || ""]));
   IETF.zones = Object.fromEntries(l.zones.map((z) => [z.brut, z.propose || ""]));
   IETF.proprietesEtf = ietfToutesCochees();
+  IETF.rapprochements = Object.fromEntries(l.rapproches.map((r) => [r.ligne, r.accepte]));
   IETF.cibles = new Map();
   if (IETF.preselection && l.etf.branchables.some((b) => b.id === IETF.preselection)) {
     IETF.cibles.set(IETF.preselection, ietfToutesCochees());
@@ -518,7 +521,35 @@ function ietfMajCouverture({ source }) {
   ietfEl("btn-ietf-suivant").disabled = !ietfPeutAvancer();
 }
 
-const IETF_STATUTS = { nouveau: "À créer", existant: "Déjà dans l'app", ambigu: "Ambigu : écarté" };
+const IETF_STATUTS = {
+  nouveau: "À créer",
+  existant: "Déjà dans l'app",
+  ambigu: "Ambigu : écarté",
+  rapproche: "Reconnu sous un autre nom",
+};
+
+/** Les titres rapprochés parmi les lignes retenues (le nombre de lignes se règle plus haut). */
+function ietfRapprochesRetenus() {
+  return IETF.lecture.rapproches.filter((r) => r.rang < IETF.lignes);
+}
+
+/** Le bloc de revue : chaque titre que le fichier nomme autrement, avec ce qui le fait ressembler. */
+function ietfRapprochesHtml() {
+  const liste = ietfRapprochesRetenus();
+  if (!liste.length) return "";
+  const lignes = liste
+    .map(
+      (r) => `<label class="ietf-rapproche">
+        <input type="checkbox" data-ietf-rapproche="${r.ligne}" ${IETF.rapprochements[r.ligne] ? "checked" : ""} />
+        <span><b>${escapeHtml(r.nom)}</b> <span class="hint">→</span> <b>${escapeHtml(r.titre_nom)}</b></span>
+        <span class="hint">${escapeHtml(r.raisons.join(", "))} · ${Math.round(r.score * 100)} %</span>
+      </label>`
+    )
+    .join("");
+  return `<h3>${escapeHtml(t("Titres reconnus sous un autre nom"))}</h3>
+    <p class="hint">${escapeHtml(t("Coché : ce titre du fichier est fondu dans celui de l'app. Décoché : un nouveau titre est créé."))}</p>
+    <div class="ietf-rapproches">${lignes}</div>`;
+}
 
 function ietfComposantsHtml() {
   const l = IETF.lecture;
@@ -536,10 +567,16 @@ function ietfComposantsHtml() {
   const compte = (s) => statuts.filter((x) => x === s).length;
   return `
     <p class="hint">${escapeHtml(
-      t("{a} à créer, {b} déjà dans l'app, {c} écarté(s) car ambigu(s)", { a: compte("nouveau"), b: compte("existant"), c: compte("ambigu") })
+      t("{a} à créer, {b} déjà dans l'app, {r} reconnu(s) sous un autre nom, {c} écarté(s) car ambigu(s)", {
+        a: compte("nouveau"),
+        b: compte("existant"),
+        r: compte("rapproche"),
+        c: compte("ambigu"),
+      })
     )}</p>
     <div class="ietf-table-cadre"><table class="ietf-table"><tbody>${lignes}</tbody></table></div>
-    ${reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autre(s)", { n: reste }))}</p>` : ""}`;
+    ${reste > 0 ? `<p class="hint">${escapeHtml(t("… et {n} autre(s)", { n: reste }))}</p>` : ""}
+    ${ietfRapprochesHtml()}`;
 }
 
 /** Les lignes existantes qui ressemblent au fonds du fichier, du plus proche au moins proche. */
@@ -839,7 +876,11 @@ function ietfRendreRecap(corps) {
       <li><b>${escapeHtml(t("Fonds qui reçoivent"))}</b><ul class="ietf-recap-fonds">${fonds}</ul></li>
       <li><b>${escapeHtml(t("Composition"))}</b> : ${escapeHtml(ietfResumeCouverture())}</li>
       <li><b>${escapeHtml(t("Titres"))}</b> : ${escapeHtml(
-        t("{a} créé(s), {b} retrouvé(s), {c} écarté(s) car ambigu(s)", { a: compte("nouveau"), b: compte("existant"), c: compte("ambigu") })
+        t("{a} créé(s), {b} retrouvé(s), {c} écarté(s) car ambigu(s)", {
+          a: compte("nouveau") + ietfRapprochesRetenus().filter((r) => !IETF.rapprochements[r.ligne]).length,
+          b: compte("existant") + ietfRapprochesRetenus().filter((r) => IETF.rapprochements[r.ligne]).length,
+          c: compte("ambigu"),
+        })
       )}</li>
       ${l.secteurs.length ? `<li>${escapeHtml(t("La répartition par secteur de l'ETF sera posée sur l'ETF."))}</li>` : ""}
       ${l.zones.length ? `<li>${escapeHtml(t("La répartition par zone de l'ETF sera posée sur l'ETF."))}</li>` : ""}
@@ -868,6 +909,9 @@ async function ietfConfirmer() {
         .filter(([id]) => String(id) !== IETF.etfId)
         .map(([id, choix]) => ({ titre_id: id, proprietes: ietfCochees(choix) })),
       nb_lignes: IETF.lignes,
+      rapprochements: Object.fromEntries(
+        ietfRapprochesRetenus().map((r) => [r.ligne, !!IETF.rapprochements[r.ligne]])
+      ),
       secteurs: IETF.secteurs,
       zones: IETF.zones,
     })
@@ -909,6 +953,12 @@ async function ietfConfirmer() {
 
 (function ietfCabler() {
   if (!ietfEl("placements-modale-import-etf")) return;
+  // Une case de « Titres reconnus sous un autre nom » : le choix se retient, le résumé se met à jour.
+  ietfEl("ietf-corps").addEventListener("change", (e) => {
+    const caseRapproche = e.target.closest("[data-ietf-rapproche]");
+    if (!caseRapproche) return;
+    IETF.rapprochements[caseRapproche.dataset.ietfRapproche] = caseRapproche.checked;
+  });
   ietfPoserBouton();
   ietfEl("btn-ietf-fermer").addEventListener("click", ietfFermer);
   ietfEl("btn-ietf-retour").addEventListener("click", () => ietfAller(ietfSuivante(IETF.rang, -1)));

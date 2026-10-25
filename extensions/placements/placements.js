@@ -25,6 +25,8 @@ let placementDetail = null;
 // `let` n'existe pas avant sa ligne de déclaration, et `loadPlacements` l'écrit
 // avant de dessiner les onglets. Vit hors de `state` — le noyau ne le lit jamais.
 let vueTitres = false;
+// L'onglet « Configuration » (enveloppes, classes, zones, secteurs) : exclusif avec les deux autres vues.
+let vueConfiguration = false;
 
 /** La case « Afficher les titres archivés » est-elle cochée ? */
 function voirTitresArchives() {
@@ -629,12 +631,13 @@ function renderPlacementsOnglets(comptes) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = compte.compte_nom;
-    if (!vueTitres && compte.compte_id === state.placementCompteId) {
+    if (!vueTitres && !vueConfiguration && compte.compte_id === state.placementCompteId) {
       btn.classList.add("active");
     }
     btn.addEventListener("click", async () => {
       state.placementCompteId = compte.compte_id;
       vueTitres = false;
+      vueConfiguration = false;
       activer(btn);
       majVueTitres();
       await loadPlacementDetail(compte.compte_id);
@@ -649,10 +652,26 @@ function renderPlacementsOnglets(comptes) {
   if (vueTitres) btnTitres.classList.add("active");
   btnTitres.addEventListener("click", () => {
     vueTitres = true;
+    vueConfiguration = false;
     activer(btnTitres);
     majVueTitres();
   });
   barre.appendChild(btnTitres);
+
+  // « Titres suivis » et « Configuration » se rangent À DROITE de la barre (cf. placements.css) : ce
+  // ne sont pas des comptes qu'on détient, et le contraste les met à part.
+  const btnConfig = document.createElement("button");
+  btnConfig.type = "button";
+  btnConfig.id = "placements-onglet-configuration";
+  btnConfig.textContent = t("Configuration");
+  if (vueConfiguration) btnConfig.classList.add("active");
+  btnConfig.addEventListener("click", () => {
+    vueConfiguration = true;
+    vueTitres = false;
+    activer(btnConfig);
+    majVueTitres();
+  });
+  barre.appendChild(btnConfig);
 
   majVueTitres();
 }
@@ -668,10 +687,12 @@ function renderPlacementsOnglets(comptes) {
 function majVueTitres() {
   const contenu = document.getElementById("placements-contenu");
   const titres = document.getElementById("placements-titres");
+  const configuration = document.getElementById("placements-configuration");
   if (!titres) return;
   titres.style.display = vueTitres ? "" : "none";
+  if (configuration) configuration.style.display = vueConfiguration ? "" : "none";
   if (contenu && contenu.dataset.disponible === "1") {
-    contenu.style.display = vueTitres ? "none" : "";
+    contenu.style.display = vueTitres || vueConfiguration ? "none" : "";
   }
 }
 
@@ -1201,6 +1222,7 @@ async function ajouterTotauxPlacementsSurCartes() {
       lien.addEventListener("click", () => {
         state.placementCompteId = compte.compte_id;
         vueTitres = false;
+        vueConfiguration = false;
         switchSection("comptes-globale", { sousSection: "comptes-globale-placements" });
       });
       carte.appendChild(lien);

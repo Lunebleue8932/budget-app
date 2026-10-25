@@ -4293,3 +4293,10 @@ Object.assign(TRADUCTIONS.pt, {
   "Sans place sur la carte (aucun pays reconnu) : {zones}.": "Fora do mapa (nenhum país reconhecido): {zones}.",
   "Répartition par zone géographique": "Distribuição por zona geográfica",
 });
+Object.assign(TRADUCTIONS.pt, {
+  "Reconnu sous un autre nom": "Reconhecido com outro nome",
+  "Titres reconnus sous un autre nom": "Títulos reconhecidos com outro nome",
+  "Coché : ce titre du fichier est fondu dans celui de l'app. Décoché : un nouveau titre est créé.": "Marcado: este título do arquivo é fundido ao do app. Desmarcado: um novo título é criado.",
+  "{a} à créer, {b} déjà dans l'app, {r} reconnu(s) sous un autre nom, {c} écarté(s) car ambigu(s)": "{a} a criar, {b} já no app, {r} reconhecido(s) com outro nome, {c} ignorado(s) por ambiguidade",
+  "Configuration": "Configuração",
+});

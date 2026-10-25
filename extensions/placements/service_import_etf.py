@@ -38,6 +38,7 @@ from typing import Optional
 
 import composition_etf as lecture
 import correspondances_etf as corr
+import rapprochement_titres as rapprochement
 from app import crud, models
 from app.constants import COUVERTURE_COMPOSITION_DEFAUT, AxeTitre
 from app.services import calque_fonds, exposition, identite_titre, placements
@@ -73,6 +74,11 @@ class _Contexte:
         self.db = db
         self.titres = crud.get_titres(db, inclure_archivees=True)
         self.index = identite_titre.IndexTitres(self.titres)
+        # LES CANDIDATS AU RAPPROCHEMENT FLOU : des titres qui ne sont ni des fonds ni des indices (un
+        # composant d'ETF est une société), indexés par mot de leur nom d'origine.
+        self.mots = rapprochement.IndexMots(
+            [t for t in self.titres if not t.est_indice and not (t.type_titre and t.type_titre.nom.lower().startswith("etf"))]
+        )
         self.etiquettes = {
             axe.value: {corr.cle(e.nom): e for e in crud.get_types_titre(db, axe.value)} for axe in AxeTitre
         }
@@ -196,11 +202,32 @@ def _est_etf(titre) -> bool:
     return bool(titre.type_titre and titre.type_titre.nom.lower().startswith("etf"))
 
 
+def _rapprocher(ctx: _Contexte, p: lecture.Possession):
+    """Le titre connu qui ressemble à cette possession (nom, croisé avec secteur, zone et devise), ou None."""
+    secteur = corr.secteur_propose(p.secteur_brut, ctx.noms(AxeTitre.secteur.value))[0] if p.secteur_brut else None
+    zone = corr.zone_proposee(p.pays_brut, ctx.noms(AxeTitre.zone.value))[0] if p.pays_brut else None
+    return rapprochement.chercher(
+        ctx.mots, p, secteur_propose=secteur, zone_proposee=zone, monnaie_du=ctx.monnaie(p.devise), cle=corr.cle
+    )
+
+
 def _statut_composant(ctx: _Contexte, p: lecture.Possession):
     titre, erreur = ctx.index.identifier(p.nom, p.isin)
     if erreur:
         return "ambigu", None
     return ("existant", titre) if titre is not None else ("nouveau", None)
+
+
+def _rapprochements(ctx: _Contexte, possessions) -> dict[int, "rapprochement.Rapprochement"]:
+    """Pour chaque possession INCONNUE (ni ISIN ni nom exact), le titre connu qui lui ressemble."""
+    trouves = {}
+    for p in possessions:
+        if _statut_composant(ctx, p)[0] != "nouveau":
+            continue
+        r = _rapprocher(ctx, p)
+        if r is not None:
+            trouves[p.ligne] = r
+    return trouves
 
 
 def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
@@ -241,9 +268,13 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
             titre = next(t for t in ctx.titres if t.id == s["id"])
             candidats.append({"id": titre.id, "nom": titre.nom_affiche, "isin": titre.code_isin,
                               "est_indice": bool(titre.est_indice), "donnees": calque_fonds.resume(titre)})
+    # LES TITRES RECONNUS SOUS UN AUTRE NOM (cf. rapprochement_titres) : proposés, jamais appliqués sans l'utilisateur.
+    proches = _rapprochements(ctx, fichier.possessions)
     composants = []
     for p in fichier.possessions[:LIGNES_APERCU]:
         statut, titre = _statut_composant(ctx, p)
+        if p.ligne in proches:
+            statut = "rapproche"
         composants.append(
             {
                 "ligne": p.ligne, "nom": p.nom, "isin": p.isin, "ticker": p.ticker, "poids_pct": round(p.poids, 4),
@@ -251,7 +282,19 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
                 "statut": statut, "titre_id": titre.id if titre else None,
             }
         )
-    statuts = [_statut_composant(ctx, p)[0] for p in fichier.possessions]
+    statuts = [
+        "rapproche" if p.ligne in proches else _statut_composant(ctx, p)[0] for p in fichier.possessions
+    ]
+    rapproches = [
+        {
+            "rang": rang, "ligne": p.ligne, "nom": p.nom, "isin": p.isin, "poids_pct": round(p.poids, 4),
+            "titre_id": proches[p.ligne].titre.id, "titre_nom": proches[p.ligne].titre.nom_affiche,
+            "titre_isin": proches[p.ligne].titre.code_isin, "score": round(proches[p.ligne].score, 3),
+            "raisons": proches[p.ligne].raisons, "accepte": proches[p.ligne].accepte,
+        }
+        for rang, p in enumerate(fichier.possessions)
+        if p.ligne in proches
+    ]
     return {
         "fonds": {"nom": fichier.fonds_nom, "isin": fichier.fonds_isin, "devise": fichier.fonds_devise},
         "feuilles": [
@@ -284,6 +327,7 @@ def lire(db, contenu: bytes, delimiteur: Optional[str] = None) -> dict:
         },
         "composants": composants,
         "statuts": statuts,
+        "rapproches": rapproches,
         "secteurs": _proposer_correspondances(ctx, fichier, True),
         "zones": _proposer_correspondances(ctx, fichier, False),
         "a_une_repartition_secteurs": bool(fichier.secteurs),
@@ -449,13 +493,21 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
 
     # ---- Les composants ----
     composition: dict[str, float] = {}
-    crees = retrouves = ecartes = 0
+    crees = retrouves = ecartes = rapproches = 0
+    # Les rapprochements : `choix["rapprochements"]` dit, par numéro de ligne, ceux que l'utilisateur
+    # accepte (vrai) ou refuse (faux) ; sans réponse, un rapprochement sûr (cf. SEUIL_ACCEPTE) est accepté.
+    decisions = choix.get("rapprochements") or {}
     for p in retenues:
         titre, erreur = ctx.index.identifier(p.nom, p.isin)
         if erreur:
             ecartes += 1
             avertissements.append(f"« {p.nom} » écarté : {erreur}")
             continue
+        if titre is None:
+            proche = _rapprocher(ctx, p)
+            if proche is not None and decisions.get(str(p.ligne), proche.accepte):
+                titre = proche.titre
+                rapproches += 1
         nom_secteur = _nom_choisi(secteurs, p.secteur_brut, lambda b: corr.secteur_propose(b, ctx.noms(AxeTitre.secteur.value)))
         nom_zone = _nom_choisi(zones, p.pays_brut, lambda b: corr.zone_proposee(b, ctx.noms(AxeTitre.zone.value)))
         if titre is None:
@@ -469,6 +521,7 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
             db.add(titre)
             db.flush()
             ctx.index.ajouter(titre)
+            ctx.mots.ajouter(titre)
             crees += 1
         else:
             retrouves += 1
@@ -517,6 +570,7 @@ def confirmer(db, contenu: bytes, delimiteur: Optional[str], choix: dict) -> dic
         "etf_suivis": etf_suivis,
         "titres_crees": crees,
         "titres_retrouves": retrouves,
+        "titres_rapproches": rapproches,
         "ecartes": ecartes,
         "nb_composants": len(composition),
         "couverture_pct": couverture,

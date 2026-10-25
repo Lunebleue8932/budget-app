@@ -283,7 +283,7 @@ function ioRenderCamembert(bloc, axe) {
  *
  *   - UNE ZONE EST UNE RÉGION : l'ensemble des pays qu'elle recouvre (`GET /zones-pays`, calculé
  *     d'après les zones DE LA BASE — renommées, créées —, cf. zones_pays.py) ;
- *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, de haut en bas, l'AIRE
+ *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, du BAS vers le haut, l'AIRE
  *     coloriée valant part × aire de la région (cf. ioRemplissageParAire) : la hauteur s'en déduit ;
  *     le reste garde le fond de la carte ;
  *   - une zone qui ne désigne aucun pays (« Monde »), et la part « Sans zone », n'ont pas de place sur
@@ -293,8 +293,8 @@ function ioRenderCamembert(bloc, axe) {
  */
 let ioZonesPays = [];
 
-/* LE REMPLISSAGE SE MESURE EN AIRE, pas en hauteur. Une région se colore de HAUT EN BAS, et la hauteur
- * de coloration se DÉDUIT de la part : on cherche la ligne horizontale au-dessus de laquelle l'aire
+/* LE REMPLISSAGE SE MESURE EN AIRE, pas en hauteur. Une région se colore du BAS, et la hauteur
+ * de coloration se DÉDUIT de la part : on cherche la ligne horizontale au-dessous de laquelle l'aire
  * coloriée vaut `part × aire totale de la région` (65 % = 65 % de la surface dessinée, quelle que soit
  * la forme du pays — une Russie très haute et une Italie très étroite se lisent pareil). L'aire est celle
  * du DESSIN (la carte est plate : une aire n'est pas une surface réelle). Les anneaux des pays sont lus
@@ -342,14 +342,15 @@ function ioAireSousLigne(anneau, h) {
   return somme / 2;
 }
 
-/** La région (liste d'anneaux) : sa boîte, son aire, et la ligne qui colore `fraction` de son aire depuis le haut. */
+/** La région (liste d'anneaux) : sa boîte, et la ligne SOUS laquelle se trouve `fraction` de son aire (on colore du bas). */
 function ioRemplissageParAire(anneaux, fraction) {
   const points = anneaux.flat();
   const [x0, x1] = [Math.min(...points.map((p) => p[0])), Math.max(...points.map((p) => p[0]))];
   const [y0, y1] = [Math.min(...points.map((p) => p[1])), Math.max(...points.map((p) => p[1]))];
   const aire = (h) => anneaux.reduce((somme, anneau) => somme + ioAireSousLigne(anneau, h), 0);
   const signe = Math.sign(aire(y1)) || 1;
-  const cible = Math.abs(aire(y1)) * fraction;
+  // L'aire AU-DESSUS de la ligne vaut (1 - part) × l'aire totale : ce qui reste dessous est colorié.
+  const cible = Math.abs(aire(y1)) * (1 - fraction);
   let bas = y0;
   let haut = y1;
   for (let i = 0; i < 32; i++) {
@@ -357,7 +358,7 @@ function ioRemplissageParAire(anneaux, fraction) {
     if (signe * aire(milieu) < cible) bas = milieu;
     else haut = milieu;
   }
-  return { x0, x1, y0, ligne: fraction >= 1 ? y1 : (bas + haut) / 2 };
+  return { x0, x1, y1, ligne: fraction >= 1 ? y0 : fraction <= 0 ? y1 : (bas + haut) / 2 };
 }
 
 function ioRenderCarte(bloc) {
@@ -374,14 +375,14 @@ function ioRenderCarte(bloc) {
     .filter((r) => r.codes.length)
     .map(({ part, i, codes }) => {
       const fraction = Math.min(Math.max(part.part, 0), 1);
-      const { x0, x1, y0, ligne } = ioRemplissageParAire(
+      const { x0, x1, y1, ligne } = ioRemplissageParAire(
         codes.flatMap((c) => ioAnneauxPays(pays.get(c))),
         fraction
       );
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
-        <rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(ligne - y0, 0)}" fill="${ioCouleurPart(part)}"
+        <rect x="${x0}" y="${ligne}" width="${x1 - x0}" height="${Math.max(y1 - ligne, 0)}" fill="${ioCouleurPart(part)}"
               clip-path="url(#${identifiant})" />
         <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
     })
@@ -411,15 +412,24 @@ function ioRenderCarte(bloc) {
  * LA LÉGENDE DU DASHBOARD (`.camembert-legende`) : la pastille, le nom et la part. Le
  * montant et le nombre de titres sont dans l'infobulle, la même que celle du disque.
  */
+// LA LÉGENDE D'UN CAMEMBERT (comme ses parts, sur le côté) ne nomme que ce qui pèse plus de 5 % : sous ce
+// seuil la ligne ne se lit plus à côté d'un disque, et c'est l'infobulle de la part qui la donne. Chaque
+// ligne porte une petite barre dont la longueur est la part. La carte, elle, garde TOUTES ses zones.
+const IO_SEUIL_LEGENDE = 0.05;
+
 function ioRenderLegende(bloc, axe) {
   const legende = document.getElementById(`io-legende-${axe}`);
-  legende.innerHTML = `<ul class="camembert-legende">${bloc.parts
+  const lignes = bloc.parts
+    .map((part, i) => ({ part, i }))
+    .filter(({ part }) => axe === "zone" || part.part > IO_SEUIL_LEGENDE);
+  legende.innerHTML = `<ul class="camembert-legende io-legende-liste">${lignes
     .map(
-      (part, i) => `
+      ({ part, i }) => `
       <li class="camembert-legende-ligne" data-index="${i}" data-io-cle="${ioCle(part)}">
         <span class="camembert-pastille" style="background:${ioCouleurPart(part)}"></span>
         <span class="camembert-legende-nom">${escapeHtml(ioNomPart(part, axe))}</span>
         <span class="camembert-legende-part">${formatPourcentage(part.part * 100)}</span>
+        <span class="io-legende-barre" aria-hidden="true"><span style="width:${Math.min(part.part * 100, 100)}%;background:${ioCouleurPart(part)}"></span></span>
       </li>`
     )
     .join("")}</ul>`;
@@ -762,8 +772,8 @@ function ioRenderTitres() {
   document.getElementById("io-titres-nb-valeur").textContent = curseur.value;
   document.getElementById("io-titres-nb-bloc").style.display = nbNommes > 1 ? "" : "none";
   const vue = ioBlocTitres(bloc);
+  // PAS DE LÉGENDE : le nom est écrit sur chaque case et l'infobulle dit le reste.
   ioRenderCarres(vue, "titre");
-  ioRenderLegende(vue, "titre");
   ioCablerSurvol(vue, "titre");
 }
 

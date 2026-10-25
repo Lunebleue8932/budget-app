@@ -5071,3 +5071,10 @@ Object.assign(TRADUCTIONS.en, {
   "Sans place sur la carte (aucun pays reconnu) : {zones}.": "Not on the map (no country recognised): {zones}.",
   "Répartition par zone géographique": "Breakdown by geographic zone",
 });
+Object.assign(TRADUCTIONS.en, {
+  "Reconnu sous un autre nom": "Matched under another name",
+  "Titres reconnus sous un autre nom": "Titles matched under another name",
+  "Coché : ce titre du fichier est fondu dans celui de l'app. Décoché : un nouveau titre est créé.": "Checked: this title from the file is merged into the app's. Unchecked: a new title is created.",
+  "{a} à créer, {b} déjà dans l'app, {r} reconnu(s) sous un autre nom, {c} écarté(s) car ambigu(s)": "{a} to create, {b} already in the app, {r} matched under another name, {c} skipped as ambiguous",
+  "Configuration": "Configuration",
+});
