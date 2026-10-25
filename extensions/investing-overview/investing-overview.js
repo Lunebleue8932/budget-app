@@ -234,6 +234,61 @@ function ioContenuInfobulle(part, monnaieId, axe) {
     <ul class="histo-bulle-liste">${lignes}${suite}</ul>`;
 }
 
+// LES NOMS À CÔTÉ DU DISQUE, comme les pourcentages du camembert du dashboard : un petit crochet gris part de
+// chaque part et porte son NOM (là où le dashboard écrit le pourcentage) — mêmes crochets, même écart
+// minimal (`pieEcarterEtiquettes`), même gris (`.camembert-rappel`). Seules les parts de plus de 5 %
+// en ont un : en dessous le nom ne se lit plus à côté d'une tranche, et la légende dessous les donne toutes.
+const IO_SEUIL_RAPPEL = 0.05;
+const IO_RAPPEL_LARGEUR = 480; // le disque au milieu, de la place de chaque côté pour les noms
+const IO_RAPPEL_OBLIQUE = 12;
+const IO_RAPPEL_HORIZONTALE = 8;
+const IO_RAPPEL_NOM_MAX = 22;
+
+function ioNomCourt(nom) {
+  return nom.length > IO_RAPPEL_NOM_MAX ? `${nom.slice(0, IO_RAPPEL_NOM_MAX - 1)}…` : nom;
+}
+
+function ioRappelsCamembert(bloc, axe) {
+  const total = bloc.total;
+  if (!total || bloc.parts.length < 2) return "";
+  const decalage = (IO_RAPPEL_LARGEUR - 2 * IO_CENTRE) / 2; // le disque est centré dans la largeur élargie
+  const cx = IO_CENTRE + decalage;
+  let cumul = 0;
+  const etiquettes = [];
+  bloc.parts.forEach((part, i) => {
+    const fraction = part.valorisation / total;
+    const angle = (cumul + fraction / 2) * 2 * Math.PI;
+    cumul += fraction;
+    if (part.part <= IO_SEUIL_RAPPEL) return;
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+    etiquettes.push({
+      index: i,
+      nom: ioNomPart(part, axe),
+      ancreX: cx + (IO_RAYON + 1) * sin,
+      ancreY: IO_CENTRE - (IO_RAYON + 1) * cos,
+      coudeX: cx + (IO_RAYON + IO_RAPPEL_OBLIQUE) * sin,
+      y: IO_CENTRE - (IO_RAYON + IO_RAPPEL_OBLIQUE) * cos,
+      droite: sin >= 0,
+    });
+  });
+  const hauteur = IO_CENTRE * 2;
+  return [
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => e.droite), hauteur),
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => !e.droite), hauteur),
+  ]
+    .map((e) => {
+      const signe = e.droite ? 1 : -1;
+      const boutX = e.coudeX + signe * IO_RAPPEL_HORIZONTALE;
+      return `<g class="camembert-rappel" data-index="${e.index}">
+        <polyline points="${e.ancreX},${e.ancreY} ${e.coudeX},${e.y} ${boutX},${e.y}" fill="none" stroke="currentColor" stroke-width="1" />
+        <text x="${boutX + signe * 3}" y="${e.y}" dominant-baseline="middle" text-anchor="${e.droite ? "start" : "end"}"
+              font-size="10">${escapeHtml(ioNomCourt(e.nom))}</text>
+      </g>`;
+    })
+    .join("");
+}
+
 function ioRenderCamembert(bloc, axe) {
   const conteneur = document.getElementById(`io-camembert-${axe}`);
   conteneur.innerHTML = "";
@@ -261,16 +316,21 @@ function ioRenderCamembert(bloc, axe) {
     })
     .join("");
 
+  const decalage = (IO_RAPPEL_LARGEUR - 2 * IO_CENTRE) / 2;
   conteneur.innerHTML = `
-    <svg viewBox="0 0 240 240" width="240" height="240" xmlns="http://www.w3.org/2000/svg"
+    <svg class="camembert-svg io-camembert-svg" viewBox="0 0 ${IO_RAPPEL_LARGEUR} 240" width="${IO_RAPPEL_LARGEUR}" height="240"
+         xmlns="http://www.w3.org/2000/svg"
          role="img" aria-label="${escapeHtml(t("Répartition par type de titre"))}">
-      ${parts}
-      <text x="${IO_CENTRE}" y="${IO_CENTRE - 4}" text-anchor="middle"
-            font-size="9" fill="var(--text-secondary)">${escapeHtml(t("Total"))}</text>
-      <text x="${IO_CENTRE}" y="${IO_CENTRE + 12}" text-anchor="middle"
-            font-size="13" fill="var(--text-primary)">${escapeHtml(
-              formatMontant(total, bloc.monnaie_id)
-            )}</text>
+      <g transform="translate(${decalage} 0)">
+        ${parts}
+        <text x="${IO_CENTRE}" y="${IO_CENTRE - 4}" text-anchor="middle"
+              font-size="9" fill="var(--text-secondary)">${escapeHtml(t("Total"))}</text>
+        <text x="${IO_CENTRE}" y="${IO_CENTRE + 12}" text-anchor="middle"
+              font-size="13" fill="var(--text-primary)">${escapeHtml(
+                formatMontant(total, bloc.monnaie_id)
+              )}</text>
+      </g>
+      ${ioRappelsCamembert(bloc, axe)}
     </svg>
   `;
 }
@@ -358,7 +418,30 @@ function ioRemplissageParAire(anneaux, fraction) {
     if (signe * aire(milieu) < cible) bas = milieu;
     else haut = milieu;
   }
-  return { x0, x1, y1, ligne: fraction >= 1 ? y0 : fraction <= 0 ? y1 : (bas + haut) / 2 };
+  const ligne = fraction >= 1 ? y0 : fraction <= 0 ? y1 : (bas + haut) / 2;
+  return { x0, x1, y0, y1, ligne, ratio: y1 > y0 ? (y1 - ligne) / (y1 - y0) : 0 };
+}
+
+/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et ses îles) SE REMPLISSENT
+ *  CHACUN À LA MÊME PROPORTION DE LEUR HAUTEUR : on calcule d'abord la hauteur relative qui colore la bonne
+ *  aire pour la région entière (`ratio`), puis chaque morceau séparé est colorié de son bas jusqu'à ce
+ *  ratio de SA propre hauteur. Une seule ligne horizontale pour toute la carte laisserait l'Alaska vide ou
+ *  pleine selon sa latitude, et donnerait l'impression de surpondérer l'un ou l'autre.
+ *  Rend les rectangles SVG ; l'appelant les découpe aux contours des pays. */
+function ioRectanglesParTerritoire(anneaux, ratio, couleur) {
+  if (ratio <= 0) return "";
+  const aires = anneaux.map((anneau) => ioAireSousLigne(anneau, 1e9));
+  const sensPrincipal = Math.sign(aires[aires.indexOf(aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0))]) || 1;
+  return anneaux
+    .filter((_, i) => Math.sign(aires[i]) === sensPrincipal) // les trous (lacs) ne sont pas des territoires
+    .map((anneau) => {
+      const xs = anneau.map((p) => p[0]);
+      const ys = anneau.map((p) => p[1]);
+      const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+      const hauteur = (y1 - y0) * Math.min(ratio, 1);
+      return `<rect x="${x0}" y="${y1 - hauteur}" width="${x1 - x0}" height="${hauteur}" fill="${couleur}" />`;
+    })
+    .join("");
 }
 
 function ioRenderCarte(bloc) {
@@ -375,15 +458,12 @@ function ioRenderCarte(bloc) {
     .filter((r) => r.codes.length)
     .map(({ part, i, codes }) => {
       const fraction = Math.min(Math.max(part.part, 0), 1);
-      const { x0, x1, y1, ligne } = ioRemplissageParAire(
-        codes.flatMap((c) => ioAnneauxPays(pays.get(c))),
-        fraction
-      );
+      const anneaux = codes.flatMap((c) => ioAnneauxPays(pays.get(c)));
+      const { ratio } = ioRemplissageParAire(anneaux, fraction);
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
-        <rect x="${x0}" y="${ligne}" width="${x1 - x0}" height="${Math.max(y1 - ligne, 0)}" fill="${ioCouleurPart(part)}"
-              clip-path="url(#${identifiant})" />
+        <g clip-path="url(#${identifiant})">${ioRectanglesParTerritoire(anneaux, ratio, ioCouleurPart(part))}</g>
         <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
     })
     .join("");
@@ -412,24 +492,15 @@ function ioRenderCarte(bloc) {
  * LA LÉGENDE DU DASHBOARD (`.camembert-legende`) : la pastille, le nom et la part. Le
  * montant et le nombre de titres sont dans l'infobulle, la même que celle du disque.
  */
-// LA LÉGENDE D'UN CAMEMBERT (comme ses parts, sur le côté) ne nomme que ce qui pèse plus de 5 % : sous ce
-// seuil la ligne ne se lit plus à côté d'un disque, et c'est l'infobulle de la part qui la donne. Chaque
-// ligne porte une petite barre dont la longueur est la part. La carte, elle, garde TOUTES ses zones.
-const IO_SEUIL_LEGENDE = 0.05;
-
 function ioRenderLegende(bloc, axe) {
   const legende = document.getElementById(`io-legende-${axe}`);
-  const lignes = bloc.parts
-    .map((part, i) => ({ part, i }))
-    .filter(({ part }) => axe === "zone" || part.part > IO_SEUIL_LEGENDE);
-  legende.innerHTML = `<ul class="camembert-legende io-legende-liste">${lignes
+  legende.innerHTML = `<ul class="camembert-legende">${bloc.parts
     .map(
-      ({ part, i }) => `
+      (part, i) => `
       <li class="camembert-legende-ligne" data-index="${i}" data-io-cle="${ioCle(part)}">
         <span class="camembert-pastille" style="background:${ioCouleurPart(part)}"></span>
         <span class="camembert-legende-nom">${escapeHtml(ioNomPart(part, axe))}</span>
         <span class="camembert-legende-part">${formatPourcentage(part.part * 100)}</span>
-        <span class="io-legende-barre" aria-hidden="true"><span style="width:${Math.min(part.part * 100, 100)}%;background:${ioCouleurPart(part)}"></span></span>
       </li>`
     )
     .join("")}</ul>`;

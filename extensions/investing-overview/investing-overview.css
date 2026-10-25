@@ -197,45 +197,11 @@
   stroke-width: 1.4;
 }
 
-/* ---------- Légende à côté du disque, avec une petite barre ---------- */
-.io-camembert-bloc[data-io-axe="enveloppe"],
-.io-camembert-bloc[data-io-axe="classe"],
-.io-camembert-bloc[data-io-axe="secteur"] {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.io-camembert-bloc[data-io-axe="enveloppe"] .io-legende,
-.io-camembert-bloc[data-io-axe="classe"] .io-legende,
-.io-camembert-bloc[data-io-axe="secteur"] .io-legende {
-  align-self: center;
-  flex: 1 1 11rem;
-  min-width: 11rem;
-}
-
-.io-legende-liste {
-  grid-template-columns: 1fr;
-}
-
-.io-legende-liste .camembert-legende-ligne {
-  grid-template-columns: 0.65rem minmax(0, 1fr) 3.2rem;
-  row-gap: 0.15rem;
-}
-
-/* La barre : sous le nom, sur toute la largeur de la ligne ; son remplissage est la part. */
-.io-legende-barre {
-  grid-column: 2 / -1;
-  height: 0.28rem;
-  border-radius: 2px;
-  background: var(--border-soft);
-  overflow: hidden;
-}
-
-.io-legende-barre > span {
-  display: block;
-  height: 100%;
+/* Le disque et ses noms à côté (crochets du dashboard) : le dessin s'adapte à la cellule. */
+.io-camembert-svg {
+  width: 100%;
+  max-width: 480px;
+  height: auto;
 }
 
 /* La carte seule sur sa ligne : toute la largeur de la page. */
