@@ -208,7 +208,7 @@ def test_couverture_et_nombre_de_lignes_se_correspondent():
     [
         ("United States", "États-Unis"), ("États-Unis", "États-Unis"), ("China", "Chine"),
         ("Hong Kong", "Chine"), ("Suisse", "Europe"), ("Korea (South)", "Asie (hors Chine)"),
-        ("Canada", "Amérique (hors États-Unis)"), ("South Africa", "Afrique"),
+        ("Canada", "Amérique du Nord (hors États-Unis)"), ("South Africa", "Afrique"),
         ("NEW_ZEALAND", "Océanie"), ("Taiwan", "Asie (hors Chine)"),
     ],
 )

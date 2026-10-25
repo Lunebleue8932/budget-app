@@ -2609,6 +2609,36 @@ def create_type_titre(
     return type_titre
 
 
+def _enveloppe_par_nom(db: Session, nom: str, *, creer: bool) -> Optional[models.TypeTitre]:
+    existante = next(
+        (
+            e
+            for e in get_types_titre(db, AxeTitre.enveloppe.value)
+            if e.nom.strip().lower().startswith(nom.lower())
+        ),
+        None,
+    )
+    if existante is None and creer:
+        existante = create_type_titre(db, nom, AxeTitre.enveloppe.value)
+    return existante
+
+
+def poser_indice(db: Session, titre: models.TitrePossede, est_indice: bool) -> None:
+    """Fait d'un titre un INDICE, ou le rend à l'ordinaire. UN INDICE N'A PAS D'ENVELOPPE (elle dit
+    comment un titre est détenu, et un indice ne l'est pas) : elle passe à NULL. En sens inverse, un
+    titre qui porte une composition retrouve l'enveloppe « ETF » (s'il en existe une). Un indice n'est
+    calqué sur rien. NE COMMITE PAS."""
+    titre.est_indice = est_indice
+    if est_indice:
+        titre.type_titre_id = None
+        titre.indice_id = None
+        titre.calque_proprietes = None
+    elif titre.type_titre_id is None and titre.composition:
+        etf = _enveloppe_par_nom(db, "ETF", creer=False)
+        titre.type_titre_id = etf.id if etf else None
+    db.flush()
+
+
 def update_type_titre(
     db: Session,
     type_titre: models.TypeTitre,
@@ -2734,11 +2764,13 @@ def create_titre(
     code_isin: Optional[str] = None,
     type_titre_id: Optional[int] = None,
     classe_actif_id: Optional[int] = None,
+    est_indice: bool = False,
 ) -> models.TitrePossede:
     titre = models.TitrePossede(
         nom=nom,
         valeur=valeur,
         monnaie_id=monnaie_id,
+        est_indice=est_indice,
         code_isin=code_isin or None,
         # 0 comme None : le menu du formulaire envoie « aucun » sous la forme
         # d'une chaîne vide, que le schéma convertit en 0 plutôt qu'en None.
@@ -2746,6 +2778,8 @@ def create_titre(
     )
     db.add(titre)
     db.flush()
+    if est_indice:
+        poser_indice(db, titre, True)
     if classe_actif_id:
         # Une classe unique est une répartition à 100 % (migration 0076).
         poser_repartition(db, titre, AxeTitre.classe.value, [(classe_actif_id, 100.0)])
@@ -2769,9 +2803,12 @@ def update_titre(
     composition: Optional[dict] = None,
     composition_couverture_pct: Optional[float] = None,
     part_etf: Optional[bool] = None,
+    est_indice: Optional[bool] = None,
 ) -> models.TitrePossede:
     if part_etf is not None:
         titre.part_etf = part_etf
+    if est_indice is not None and est_indice != bool(titre.est_indice):
+        poser_indice(db, titre, est_indice)
     if nom is not None:
         titre.nom = nom
     # Une chaîne VIDE rend au titre son nom d'origine : c'est le seul moyen de
@@ -2794,7 +2831,7 @@ def update_titre(
     # geste pour défaire un choix qu'on regrette. Le menu envoie 0 quand on
     # sélectionne « aucun ».
     if type_titre_id is not None:
-        titre.type_titre_id = type_titre_id or None
+        titre.type_titre_id = None if titre.est_indice else (type_titre_id or None)
     # La classe d'actif suit exactement la même convention : c'est le même
     # objet, sur l'autre axe. Depuis la 0076 elle est une RÉPARTITION : choisir une
     # classe la pose à 100 %, le zéro la retire — c'est le geste du menu de saisie
@@ -2916,6 +2953,10 @@ def titre_est_utilise(db: Session, titre_id: int) -> bool:
 
 
 def delete_titre(db: Session, titre: models.TitrePossede) -> None:
+    # Les ETF calqués sur ce titre le quittent (SQLite n'applique pas toujours ON DELETE SET NULL).
+    for lie in db.query(models.TitrePossede).filter(models.TitrePossede.indice_id == titre.id):
+        lie.indice_id = None
+        lie.calque_proprietes = None
     db.delete(titre)
     db.commit()
 
@@ -2953,7 +2994,12 @@ def create_operation_titre(
     La monnaie de l'écriture est celle de cotation du titre : le prix payé est
     libellé dans cette monnaie, donc les espèces bougent dans celle-là (le
     routeur vérifie que le compte la porte).
+
+    UN INDICE NE S'ACHÈTE NI NE SE VEND (models.TitrePossede.est_indice) : le refus est ICI, au
+    point de passage unique, pour que l'import de placements et la démo le subissent comme la saisie.
     """
+    if titre.est_indice:
+        raise ValueError(f"« {titre.nom_affiche} » est un indice : il ne peut pas être détenu")
     type_action = get_type_operation_par_code(db, TypeOperation.action.value)
     montant = quantite * prix_unitaire
     prefixe = "Achat" if sens == SensTitre.achat else "Vente"

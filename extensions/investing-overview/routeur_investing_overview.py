@@ -12,6 +12,8 @@ from app.database import get_db
 
 from schemas_vue_ensemble import ExpositionMonnaie, ExpositionTitresMonnaie
 from service_vue_ensemble import exposition_par_axe, exposition_par_titre
+from zones_pays import affecter
+from app import crud
 
 router = APIRouter(prefix="/investing-overview", tags=["investing-overview"])
 
@@ -35,6 +37,16 @@ def get_exposition(
     l'état d'un portefeuille neuf, et l'écran le dit avec une phrase plutôt
     qu'avec un camembert à zéro part."""
     return exposition_par_axe(db, axe.value)
+
+
+@router.get("/zones-pays")
+def get_zones_pays(db: Session = Depends(get_db)):
+    """Pour la CARTE : les pays (codes ISO alpha-2) que chaque zone de la base recouvre. Les zones sont
+    celles de l'utilisateur (renommées, créées) : l'affectation est calculée à chaque lecture, au plus
+    précis d'abord (cf. zones_pays). Une zone qui ne désigne aucun pays (« Monde ») rend une liste vide."""
+    zones = crud.get_types_titre(db, AxeTitre.zone.value)
+    pays = affecter((z.id, z.nom) for z in zones)
+    return [{"type_titre_id": z.id, "nom": z.nom, "pays": pays[z.id]} for z in zones]
 
 
 @router.get("/exposition-titres", response_model=list[ExpositionTitresMonnaie])

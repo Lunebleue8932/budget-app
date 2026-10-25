@@ -1277,3 +1277,20 @@ Object.assign(TEXTES, {
   "noyau.guide-import-virements":
     "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.",
 });
+/* ----- Les indices, « Calquer sur un indice » et « Gestion des fonds » (2026-10-24) ----- */
+Object.assign(TEXTES, {
+  "placements.indices":
+    "Un indice est un titre que tu ne peux pas détenir : il sert à suivre un cours dans l'app, ou de modèle pour des ETF. -- Renseigne ses infos et son cours comme pour n'importe quel titre. -- Un ETF importé que tu ne détiens pas peut le devenir (« Transformer en indice »), et un ETF se calque sur un indice depuis son détail.",
+  "placements.gestion-fonds":
+    "Tous tes fonds au même endroit : ETF, fonds et indices, avec ce que chacun contient. -- Chaque fonds peut se calquer sur un indice, propriété par propriété.",
+  "placements.gestion-fonds-corps":
+    "Le parcours : tu importes le fichier d'un fonds qui suit l'indice (« Importer des compositions »), tu le transformes en indice, puis tu l'assignes ici à l'ETF que tu détiens. C'est utile pour une réplique synthétique : son émetteur ne publie pas ce que l'indice contient. Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice.",
+  "placements.calque-indice":
+    "Reprendre sur cet ETF ce que porte un indice : sa composition, sa classe d'actif, ses zones, ses secteurs. -- Pour chaque propriété, tu choisis de garder celle de l'ETF ou de prendre celle de l'indice. -- Ce que tu prends remplace d'un bloc ce que l'ETF porte aujourd'hui.",
+  "import-etf.fonds":
+    "Qui reçoit la composition ? Le fonds du fichier, et tous les ETF que tu branches dessus (par exemple un ETF synthétique qui suit le même indice). -- Pour chacun, coche ce qu'il prend : ce qui reste décoché n'est pas touché. -- Ce qu'un fonds prend REMPLACE ce qu'il porte aujourd'hui : c'est signalé en orange, et c'est effacé à l'import.",
+});/* ----- Nettoyer la base (2026-10-25) ----- */
+Object.assign(TEXTES, {
+  "placements.nettoyage":
+    "Relit tous tes titres et regroupe ceux qui se ressemblent : même société écrite autrement dans deux fichiers d'émetteurs, titre saisi à la main puis importé… -- La note croise le nom d'origine, le secteur, la zone, la devise et l'enveloppe. Deux ISIN différents ne sont jamais rapprochés. -- Dans chaque groupe, tu choisis le titre à garder et ceux qu'on y fond : les mouvements, les citations dans les ETF et les répartitions qui lui manquent lui sont rattachés. Rien n'est écrit avant « Fusionner ».",
+});

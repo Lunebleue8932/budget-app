@@ -158,6 +158,13 @@
             <summary><h3>Titres non possédés <span class="placements-titres-compte" id="placements-titres-non-possedes-nb"></span></h3></summary>
             <div class="toggle-contenu import-mappings" id="placements-titres-liste-non-possedes"></div>
           </details>
+          <!-- LES INDICES (migration 0093) : des titres qu'on ne peut pas détenir. On y suit un cours, et
+               on y calque des ETF (panneau « Détail » d'un ETF). Un bloc à part : ils ne sont ni
+               possédés ni de simples titres suivis. -->
+          <details class="toggle-titre toggle-1" id="placements-titres-indices" open>
+            <summary><h3>Indices <span class="placements-titres-compte" id="placements-titres-indices-nb"></span><i class="info-bulle" tabindex="0" data-info-cle="placements.indices">i</i></h3></summary>
+            <div class="toggle-contenu import-mappings" id="placements-titres-liste-indices"></div>
+          </details>
           <!-- « TITRES D'ETFS » (migration 0092) : les titres que l'import d'une composition a créés ou
                retrouvés (`part_etf`), sauf ceux qu'on détient. Une FENÊTRE, et non un bloc de plus :
                ils se comptent par dizaines, voire par centaines. Elle est DANS `#placements-titres-liste`
@@ -194,11 +201,22 @@
           <label><span class="champ-titre">Classe d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classe-actif">i</i></span>
             <select id="titre-classe-actif"></select>
           </label>
+          <label class="import-option-ligne">
+            <input type="checkbox" id="titre-est-indice" />
+            <span class="champ-titre">C'est un indice (ne peut pas être détenu)<i class="info-bulle" tabindex="0" data-info-cle="placements.indices">i</i></span>
+          </label>
           <div class="actions">
             <button type="submit" class="primary">Ajouter le titre</button>
           </div>
         </form>
 
+      </div>
+
+      <!-- LE VOLET « CONFIGURATION » : les quatre vocabulaires de titres (enveloppes, classes d'actif,
+           zones, secteurs), sortis du catalogue des titres. On les règle une fois ; l'onglet est donc
+           rangé à droite de la barre, avec « Titres suivis », loin des onglets de comptes qu'on consulte.
+           Les identifiants sont inchangés : seul l'endroit où les formulaires s'affichent a bougé. -->
+      <div id="placements-configuration" style="display:none">
         <!-- LES ÉTIQUETTES, gérées ici plutôt que dans les Paramètres : on crée
              « ETF » au moment où l'on en a besoin, c'est-à-dire en typant un
              titre, et repartir dans un autre écran pour ça ferait perdre le fil.
@@ -264,11 +282,12 @@
            bancaire (même graphe, mêmes cartes à molette), qui lit le fichier tel que l'émetteur le
            publie. Tout son contenu est dessiné par import-etf.js (préfixe `ietf`). Elle remplace
            l'ancien volet « Importer des titres ». ===== -->
-      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation">
+      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation"
+           data-touches-propres>
         <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
              aria-labelledby="ietf-titre">
           <div class="epargne-entete">
-            <h2 id="ietf-titre">Importer la composition d'un ETF<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
+            <h2 id="ietf-titre">Import de compositions<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
             <button type="button" id="btn-ietf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
           </div>
           <div class="import-etapes" id="ietf-etapes"></div>
@@ -277,6 +296,31 @@
             <button type="button" id="btn-ietf-retour">Retour</button>
             <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
           </div>
+        </div>
+      </div>
+
+      <!-- ===== « NETTOYER LA BASE » : les groupes de titres qui se ressemblent, à fusionner. Le bouton est posé à
+           côté de « Titres d'ETFs » par nettoyage-titres.js (préfixe `nett`). ===== -->
+      <div id="placements-modale-nettoyage" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-nettoyage" role="dialog" aria-modal="true" aria-labelledby="nett-titre">
+          <div class="epargne-entete">
+            <h2 id="nett-titre">Nettoyer la base<i class="info-bulle" tabindex="0" data-info-cle="placements.nettoyage">i</i></h2>
+            <button type="button" id="btn-nett-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="nett-corps"></div>
+        </div>
+      </div>
+
+      <!-- ===== « GESTION DES FONDS » : tous les titres de type fonds (ETF, fonds, indices), avec la
+           possibilité de calquer chacun sur un indice. Contenu dessiné par gestion-fonds.js ; son bouton
+           est posé dans la ligne de titre de la page, à côté de « Vue d'ensemble ». ===== -->
+      <div id="placements-modale-gestion-fonds" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-gestion-fonds" role="dialog" aria-modal="true" aria-labelledby="gfonds-titre">
+          <div class="epargne-entete">
+            <h2 id="gfonds-titre">Gestion des fonds<i class="info-bulle" tabindex="0" data-info-cle="placements.gestion-fonds">i</i></h2>
+            <button type="button" id="btn-gfonds-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="gfonds-corps" class="import-mappings"></div>
         </div>
       </div>
 

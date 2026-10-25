@@ -71,7 +71,8 @@ from . import base_decouverte
 # ancienne est alors proposée au rafraîchissement.
 # v5 : la catégorie « Virements internes » (migration 0090) sur toutes les jambes, et une règle
 # d'import qui la pose.
-VERSION = 5
+# v6 : un INDICE (migration 0093), qui ne peut pas être détenu et sert de modèle aux ETF.
+VERSION = 6
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45
@@ -224,6 +225,7 @@ _L = {
         "World equity ETF (sample)",
         "ETF ações mundo (exemplo)",
     ),
+    "titre_indice": ("Indice Monde (exemple)", "World index (sample)", "Índice mundo (exemplo)"),
     "titre_oblig": (
         "ETF Obligations monde (exemple)",
         "World bond ETF (sample)",
@@ -555,6 +557,11 @@ def _remplir_virements_et_titres(c: _Contexte) -> None:
     monde.composition_couverture_pct = round(sum(composition_monde.values()), 2)
     oblig.composition = composition_oblig
     oblig.composition_couverture_pct = round(sum(composition_oblig.values()), 2)
+    # Un INDICE : il ne se détient pas, on suit son cours et on y calque des ETF. Même composition que
+    # l'ETF Monde, pour que « Calquer sur un indice » ait de quoi montrer.
+    indice = crud.create_titre(db, c.t("titre_indice"), c.euro.id, valeur=3480.0, est_indice=True)
+    indice.composition = dict(composition_monde)
+    indice.composition_couverture_pct = monde.composition_couverture_pct
     db.commit()
 
     for mois_avant, titre, quantite, prix in (

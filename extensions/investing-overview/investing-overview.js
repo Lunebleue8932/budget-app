@@ -234,6 +234,61 @@ function ioContenuInfobulle(part, monnaieId, axe) {
     <ul class="histo-bulle-liste">${lignes}${suite}</ul>`;
 }
 
+// LES NOMS À CÔTÉ DU DISQUE, comme les pourcentages du camembert du dashboard : un petit crochet gris part de
+// chaque part et porte son NOM (là où le dashboard écrit le pourcentage) — mêmes crochets, même écart
+// minimal (`pieEcarterEtiquettes`), même gris (`.camembert-rappel`). Seules les parts de plus de 5 %
+// en ont un : en dessous le nom ne se lit plus à côté d'une tranche, et la légende dessous les donne toutes.
+const IO_SEUIL_RAPPEL = 0.05;
+const IO_RAPPEL_LARGEUR = 480; // le disque au milieu, de la place de chaque côté pour les noms
+const IO_RAPPEL_OBLIQUE = 12;
+const IO_RAPPEL_HORIZONTALE = 8;
+const IO_RAPPEL_NOM_MAX = 22;
+
+function ioNomCourt(nom) {
+  return nom.length > IO_RAPPEL_NOM_MAX ? `${nom.slice(0, IO_RAPPEL_NOM_MAX - 1)}…` : nom;
+}
+
+function ioRappelsCamembert(bloc, axe) {
+  const total = bloc.total;
+  if (!total || bloc.parts.length < 2) return "";
+  const decalage = (IO_RAPPEL_LARGEUR - 2 * IO_CENTRE) / 2; // le disque est centré dans la largeur élargie
+  const cx = IO_CENTRE + decalage;
+  let cumul = 0;
+  const etiquettes = [];
+  bloc.parts.forEach((part, i) => {
+    const fraction = part.valorisation / total;
+    const angle = (cumul + fraction / 2) * 2 * Math.PI;
+    cumul += fraction;
+    if (part.part <= IO_SEUIL_RAPPEL) return;
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+    etiquettes.push({
+      index: i,
+      nom: ioNomPart(part, axe),
+      ancreX: cx + (IO_RAYON + 1) * sin,
+      ancreY: IO_CENTRE - (IO_RAYON + 1) * cos,
+      coudeX: cx + (IO_RAYON + IO_RAPPEL_OBLIQUE) * sin,
+      y: IO_CENTRE - (IO_RAYON + IO_RAPPEL_OBLIQUE) * cos,
+      droite: sin >= 0,
+    });
+  });
+  const hauteur = IO_CENTRE * 2;
+  return [
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => e.droite), hauteur),
+    ...pieEcarterEtiquettes(etiquettes.filter((e) => !e.droite), hauteur),
+  ]
+    .map((e) => {
+      const signe = e.droite ? 1 : -1;
+      const boutX = e.coudeX + signe * IO_RAPPEL_HORIZONTALE;
+      return `<g class="camembert-rappel" data-index="${e.index}">
+        <polyline points="${e.ancreX},${e.ancreY} ${e.coudeX},${e.y} ${boutX},${e.y}" fill="none" stroke="currentColor" stroke-width="1" />
+        <text x="${boutX + signe * 3}" y="${e.y}" dominant-baseline="middle" text-anchor="${e.droite ? "start" : "end"}"
+              font-size="10">${escapeHtml(ioNomCourt(e.nom))}</text>
+      </g>`;
+    })
+    .join("");
+}
+
 function ioRenderCamembert(bloc, axe) {
   const conteneur = document.getElementById(`io-camembert-${axe}`);
   conteneur.innerHTML = "";
@@ -261,18 +316,266 @@ function ioRenderCamembert(bloc, axe) {
     })
     .join("");
 
+  const decalage = (IO_RAPPEL_LARGEUR - 2 * IO_CENTRE) / 2;
   conteneur.innerHTML = `
-    <svg viewBox="0 0 240 240" width="240" height="240" xmlns="http://www.w3.org/2000/svg"
+    <svg class="camembert-svg io-camembert-svg" viewBox="0 0 ${IO_RAPPEL_LARGEUR} 240" width="${IO_RAPPEL_LARGEUR}" height="240"
+         xmlns="http://www.w3.org/2000/svg"
          role="img" aria-label="${escapeHtml(t("Répartition par type de titre"))}">
-      ${parts}
-      <text x="${IO_CENTRE}" y="${IO_CENTRE - 4}" text-anchor="middle"
-            font-size="9" fill="var(--text-secondary)">${escapeHtml(t("Total"))}</text>
-      <text x="${IO_CENTRE}" y="${IO_CENTRE + 12}" text-anchor="middle"
-            font-size="13" fill="var(--text-primary)">${escapeHtml(
-              formatMontant(total, bloc.monnaie_id)
-            )}</text>
+      <g transform="translate(${decalage} 0)">
+        ${parts}
+        <text x="${IO_CENTRE}" y="${IO_CENTRE - 4}" text-anchor="middle"
+              font-size="9" fill="var(--text-secondary)">${escapeHtml(t("Total"))}</text>
+        <text x="${IO_CENTRE}" y="${IO_CENTRE + 12}" text-anchor="middle"
+              font-size="13" fill="var(--text-primary)">${escapeHtml(
+                formatMontant(total, bloc.monnaie_id)
+              )}</text>
+      </g>
+      ${ioRappelsCamembert(bloc, axe)}
     </svg>
   `;
+}
+
+/* ---------- La carte « Où c'est exposé » ----------
+ *
+ * LA RÉPARTITION PAR ZONE SE LIT SUR UNE CARTE DU MONDE (`carte-monde.js`, tracés projetés par
+ * outils/generer_carte.py). Les COULEURS sont celles du disque d'avant : chaque zone garde la sienne,
+ * et la légende dessous est la même. Ce qui change est la façon de montrer la part :
+ *
+ *   - UNE ZONE EST UNE RÉGION : l'ensemble des pays qu'elle recouvre (`GET /zones-pays`, calculé
+ *     d'après les zones DE LA BASE — renommées, créées —, cf. zones_pays.py) ;
+ *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, du BAS vers le haut, l'AIRE
+ *     coloriée valant part × aire de la région (cf. ioRectanglesParTerritoire) : la hauteur s'en déduit ;
+ *     le reste garde le fond de la carte ;
+ *   - une zone qui ne désigne aucun pays (« Monde »), et la part « Sans zone », n'ont pas de place sur
+ *     la carte : elles restent dans la légende, qui le dit.
+ *
+ * LE FOND SUIT LES COULEURS DE L'APPLICATION (variables du thème, cf. investing-overview.css).
+ */
+let ioZonesPays = [];
+
+/* LE REMPLISSAGE SE MESURE EN AIRE, pas en hauteur. Une région se colore du BAS, et la hauteur
+ * de coloration se DÉDUIT de la part : on cherche la ligne horizontale au-dessous de laquelle l'aire
+ * coloriée vaut `part × aire totale de la région` (65 % = 65 % de la surface dessinée, quelle que soit
+ * la forme du pays — une Russie très haute et une Italie très étroite se lisent pareil). L'aire est celle
+ * du DESSIN (la carte est plate : une aire n'est pas une surface réelle). Les anneaux des pays sont lus
+ * une fois (`ioAnneauxPays`), l'aire sous une ligne se calcule par découpe de chaque anneau. */
+const ioAnneauxCache = new Map();
+
+function ioAnneauxPays(pays) {
+  if (!ioAnneauxCache.has(pays.c)) {
+    ioAnneauxCache.set(
+      pays.c,
+      pays.d
+        .split("Z")
+        .filter(Boolean)
+        .map((anneau) =>
+          anneau
+            .slice(1)
+            .split("L")
+            .map((point) => point.split(",").map(Number))
+        )
+    );
+  }
+  return ioAnneauxCache.get(pays.c);
+}
+
+/** Aire (signée) d'un anneau limitée à y <= h : le polygone est découpé contre la droite y = h. */
+function ioAireSousLigne(anneau, h) {
+  const gardes = [];
+  for (let i = 0; i < anneau.length; i++) {
+    const a = anneau[i];
+    const b = anneau[(i + 1) % anneau.length];
+    const aDedans = a[1] <= h;
+    const bDedans = b[1] <= h;
+    if (aDedans) gardes.push(a);
+    if (aDedans !== bDedans) {
+      const k = (h - a[1]) / (b[1] - a[1]);
+      gardes.push([a[0] + k * (b[0] - a[0]), h]);
+    }
+  }
+  let somme = 0;
+  for (let i = 0; i < gardes.length; i++) {
+    const a = gardes[i];
+    const b = gardes[(i + 1) % gardes.length];
+    somme += a[0] * b[1] - b[0] * a[1];
+  }
+  return somme / 2;
+}
+
+/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et la Guyane) SE REMPLISSENT
+ *  CHACUN SELON SA PROPRE AIRE : pour la zone d'aire A et d'exposition e, et ses territoires séparés i
+ *  d'aire A_i, le critère est  A_i coloriée = A_i × e  POUR CHAQUE i — d'où une hauteur relative x_i par
+ *  territoire (de sa propre hauteur, depuis son bas), déduite du PROFIL d'aire de sa forme (le bas d'un
+ *  territoire effilé colore peu : x_i n'est pas e). La somme donne bien A coloriée = A × e, et aucun
+ *  territoire — l'Alaska, une île lointaine — ne paraît sur- ou sous-pondéré par sa latitude ou sa forme.
+ *
+ *  UN TERRITOIRE EST SÉPARÉ GÉOGRAPHIQUEMENT, pas distinct : les pays d'une même zone qui se touchent (la
+ *  France, l'Allemagne, l'Italie…) forment UN seul territoire, à la boîte, à l'aire et au coloriage
+ *  collectifs. La contiguïté vient du fond de carte (`v` : les anneaux limitrophes de chaque anneau, posés
+ *  par outils/generer_carte.py d'après les frontières partagées) et ne compte que les voisins DE LA ZONE.
+ *  Un territoire est un ensemble d'anneaux extérieurs contigus, et les trous (lacs, enclaves) qu'ils contiennent. */
+function ioNoeudsPays(pays) {
+  return ioAnneauxPays(pays).map((anneau, i) => ({
+    id: `${pays.c}:${i}`,
+    anneau,
+    voisins: (pays.v && pays.v[i]) || [],
+  }));
+}
+
+/* DES REGROUPEMENTS EXPLICITES, pour que la carte reste lisible : quand ces pays sont dans la même zone, leurs
+ * anneaux forment UN SEUL territoire, même séparés par la mer ou la glace.
+ *   - le CANADA, d'un seul tenant : le continent, l'archipel arctique et les glaciers ne se séparent pas ;
+ *   - le NORD DE L'EUROPE : l'Islande, le Groenland, les Féroé, le Svalbard (l'île au nord des pays nordiques),
+ *     les pays nordiques et les pays baltes forment un seul bloc. */
+const IO_REGROUPEMENTS = [
+  ["CA"],
+  ["IS", "GL", "FO", "SJ", "AX", "NO", "SE", "FI", "DK", "EE", "LV", "LT"],
+];
+
+function ioTerritoires(noeuds) {
+  const aires = noeuds.map((n) => ioAireSousLigne(n.anneau, 1e9));
+  const plusGrand = aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0);
+  const sens = Math.sign(plusGrand) || 1;
+  const boite = (anneau) => {
+    const xs = anneau.map((p) => p[0]);
+    const ys = anneau.map((p) => p[1]);
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  };
+  const exterieurs = noeuds.filter((_, i) => Math.sign(aires[i]) === sens).map((n) => ({ ...n, boite: boite(n.anneau) }));
+  const trous = noeuds.filter((_, i) => Math.sign(aires[i]) !== sens);
+  // Un trou revient au plus petit anneau extérieur dont la boîte le contient.
+  const hoteDuTrou = new Map();
+  trous.forEach((trou) => {
+    const [hx0, hx1, hy0, hy1] = boite(trou.anneau);
+    const hote = exterieurs
+      .filter((e) => e.boite[0] <= hx0 && e.boite[1] >= hx1 && e.boite[2] <= hy0 && e.boite[3] >= hy1)
+      .sort((a, b) => (a.boite[1] - a.boite[0]) * (a.boite[3] - a.boite[2]) - (b.boite[1] - b.boite[0]) * (b.boite[3] - b.boite[2]))[0];
+    if (hote) hoteDuTrou.set(trou.id, hote.id);
+  });
+  // Les anneaux extérieurs limitrophes (un trou compte pour son hôte) se regroupent.
+  const parent = new Map(exterieurs.map((e) => [e.id, e.id]));
+  const racine = (id) => {
+    while (parent.get(id) !== id) {
+      parent.set(id, parent.get(parent.get(id)));
+      id = parent.get(id);
+    }
+    return id;
+  };
+  const ancre = (id) => (parent.has(id) ? id : hoteDuTrou.get(id));
+  noeuds.forEach((n) => {
+    const a = ancre(n.id);
+    if (!a) return;
+    n.voisins.forEach((v) => {
+      const b = ancre(v);
+      if (b) parent.set(racine(a), racine(b));
+    });
+  });
+  IO_REGROUPEMENTS.forEach((codes) => {
+    const membres = exterieurs.filter((e) => codes.includes(e.id.split(":")[0]));
+    membres.slice(1).forEach((m) => {
+      parent.set(racine(m.id), racine(membres[0].id));
+    });
+  });
+  const groupes = new Map();
+  exterieurs.forEach((e) => {
+    const r = racine(e.id);
+    if (!groupes.has(r)) groupes.set(r, { anneaux: [], boite: [Infinity, -Infinity, Infinity, -Infinity] });
+    const g = groupes.get(r);
+    g.anneaux.push(e.anneau);
+    g.boite = [Math.min(g.boite[0], e.boite[0]), Math.max(g.boite[1], e.boite[1]), Math.min(g.boite[2], e.boite[2]), Math.max(g.boite[3], e.boite[3])];
+  });
+  trous.forEach((trou) => {
+    const hote = hoteDuTrou.get(trou.id);
+    if (hote) groupes.get(racine(hote)).anneaux.push(trou.anneau);
+  });
+  return { territoires: [...groupes.values()], sens };
+}
+
+/** L'aire coloriée d'un territoire (depuis son bas) quand on en remplit la hauteur relative x. */
+function ioAireColoriee(territoire, x, sens) {
+  const [, , y0, y1] = territoire.boite;
+  const ligne = y1 - x * (y1 - y0);
+  return territoire.anneaux.reduce(
+    (somme, anneau) => somme + sens * (ioAireSousLigne(anneau, 1e9) - ioAireSousLigne(anneau, ligne)),
+    0
+  );
+}
+
+/** Les rectangles SVG de la zone (à découper aux contours des pays), et la hauteur relative de chaque territoire. */
+function ioRectanglesParTerritoire(noeuds, fraction, couleur) {
+  if (fraction <= 0 || !noeuds.length) return { rectangles: "", fond: "", hauteurs: [] };
+  const { territoires, sens } = ioTerritoires(noeuds);
+  const e = Math.min(fraction, 1);
+  const hauteurs = territoires.map((t) => {
+    if (e >= 1) return 1;
+    const cible = ioAireColoriee(t, 1, sens) * e;
+    let bas = 0;
+    let haut = 1;
+    for (let i = 0; i < 32; i++) {
+      const milieu = (bas + haut) / 2;
+      if (ioAireColoriee(t, milieu, sens) < cible) bas = milieu;
+      else haut = milieu;
+    }
+    return (bas + haut) / 2;
+  });
+  const rectangles = territoires
+    .map((t, i) => {
+      const [x0, x1, y0, y1] = t.boite;
+      const hauteur = (y1 - y0) * hauteurs[i];
+      return `<rect x="${x0}" y="${y1 - hauteur}" width="${x1 - x0}" height="${hauteur}" fill="${couleur}" />`;
+    })
+    .join("");
+  // LE RESTE DE LA ZONE, de la même couleur mais très transparent : une zone détenue se distingue ainsi de ce
+  // qu'on n'a pas, même quand sa part colorée est mince.
+  const fond = territoires
+    .map((t) => {
+      const [x0, x1, y0, y1] = t.boite;
+      return `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="${couleur}" fill-opacity="${IO_OPACITE_RESTE}" />`;
+    })
+    .join("");
+  return { rectangles, fond, hauteurs };
+}
+
+// L'opacité de la partie non coloriée d'une zone détenue.
+const IO_OPACITE_RESTE = 0.16;
+
+function ioRenderCarte(bloc) {
+  const conteneur = document.getElementById("io-camembert-zone");
+  const pays = new Map(IO_CARTE.pays.map((p) => [p.c, p]));
+  const parZone = new Map(ioZonesPays.map((z) => [z.type_titre_id, z.pays.filter((c) => pays.has(c))]));
+  const regions = bloc.parts.map((part, i) => ({
+    part,
+    i,
+    codes: part.type_titre_id != null ? parZone.get(part.type_titre_id) || [] : [],
+  }));
+  const fond = IO_CARTE.pays.map((p) => `<path class="io-pays" d="${p.d}" />`).join("");
+  const remplissages = regions
+    .filter((r) => r.codes.length)
+    .map(({ part, i, codes }) => {
+      const fraction = Math.min(Math.max(part.part, 0), 1);
+      const noeuds = codes.flatMap((c) => ioNoeudsPays(pays.get(c)));
+      const { rectangles, fond } = ioRectanglesParTerritoire(noeuds, fraction, ioCouleurPart(part));
+      const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
+      const identifiant = `io-carte-zone-${i}`;
+      return `<clipPath id="${identifiant}">${formes}</clipPath>
+        <g clip-path="url(#${identifiant})">${fond}${rectangles}</g>
+        <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
+    })
+    .join("");
+  const horsCarte = regions.filter((r) => !r.codes.length);
+  conteneur.innerHTML = `<div class="io-carte">
+    <svg viewBox="0 0 ${IO_CARTE.largeur} ${IO_CARTE.hauteur}" role="img"
+         aria-label="${escapeHtml(t("Répartition par zone géographique"))}">${fond}${remplissages}</svg>
+    ${
+      horsCarte.length
+        ? `<p class="hint">${escapeHtml(
+            t("Sans place sur la carte (aucun pays reconnu) : {zones}.", {
+              zones: horsCarte.map((r) => `${ioNomPart(r.part, "zone")} ${formatPourcentage(r.part.part * 100)}`).join(", "),
+            })
+          )}</p>`
+        : ""
+    }
+  </div>`;
 }
 
 /* ---------- La légende ----------
@@ -391,7 +694,8 @@ function ioRenderMonnaieActive() {
     const aQuelqueChose = bloc && bloc.parts.some((part) => part.type_titre_id != null);
     if (cellule) cellule.style.display = aQuelqueChose ? "" : "none";
     if (!aQuelqueChose) return;
-    ioRenderCamembert(bloc, axe);
+    if (axe === "zone") ioRenderCarte(bloc);
+    else ioRenderCamembert(bloc, axe);
     ioRenderLegende(bloc, axe);
     ioCablerSurvol(bloc, axe);
   });
@@ -411,6 +715,35 @@ function ioRenderMonnaieActive() {
  */
 let ioTitres = [];
 let ioMasquerNonDetermine = false;
+// Combien de titres NOMMÉS le treemap montre : les suivants se FONDENT dans « Autres titres ». Tout
+// n'est montré que si le curseur est au maximum (null). Par défaut, les quinze plus lourds.
+// « Détenu par ETF, non déterminé » et « Autres titres » ne comptent pas dans ce nombre.
+const IO_CARRES_DEFAUT = 15;
+let ioNbCarres = IO_CARRES_DEFAUT;
+
+/** Les parts du serveur, les titres au-delà de `limite` fondus dans une part « autres » (celle du
+ *  serveur s'il y en a une, qui s'y ajoute). Les sources de la part fondue nomment les plus lourds. */
+function ioFondreAuDela(parts, limite) {
+  const nommes = parts.filter((p) => p.genre === "titre");
+  if (nommes.length <= limite) return parts;
+  const gardes = new Set(nommes.slice(0, limite));
+  const fondus = nommes.slice(limite);
+  const autres = parts.find((p) => p.genre === "autres");
+  const somme = (cle) => fondus.reduce((s, p) => s + (p[cle] || 0), 0) + (autres ? autres[cle] || 0 : 0);
+  const fondue = {
+    cle: "autres",
+    nom: null,
+    genre: "autres",
+    valorisation: somme("valorisation"),
+    part: somme("part"),
+    part_determinee: somme("part_determinee"),
+    nombre_sources: fondus.length + (autres ? autres.nombre_sources : 0),
+    sources: [...fondus.map((p) => ({ nom: p.nom, direct: false, valorisation: p.valorisation })), ...(autres ? autres.sources : [])]
+      .sort((a, b) => b.valorisation - a.valorisation)
+      .slice(0, 3),
+  };
+  return [...parts.filter((p) => p.genre !== "autres" && (p.genre !== "titre" || gardes.has(p))), fondue];
+}
 
 // Le gris clair des « Autres titres » : une part qui regroupe, pas un titre de plus — et
 // distinct du gris de la part non déterminée, qui dit tout autre chose.
@@ -557,7 +890,8 @@ function ioContenuInfobulleTitre(part, monnaieId, pourcentage) {
 function ioBlocTitres(bloc) {
   const masquer = ioMasquerNonDetermine;
   let rang = 0;
-  const parts = bloc.parts
+  const limite = ioNbCarres === null ? Infinity : ioNbCarres;
+  const parts = ioFondreAuDela(bloc.parts, limite)
     .filter((part) => !(masquer && part.genre === "non_determine"))
     .map((part) => {
       const pourcentage = masquer ? part.part_determinee : part.part;
@@ -595,11 +929,25 @@ function ioRenderTitres() {
   const aNonDetermine = bloc.parts.some((part) => part.genre === "non_determine");
   document.getElementById("io-titres-masquer-bloc").style.display = aNonDetermine ? "" : "none";
   document.getElementById("io-titres-masquer").checked = ioMasquerNonDetermine;
+  // Le curseur va de 1 au nombre de titres nommés ; à son maximum (ou sans choix), tout est montré.
+  const nbNommes = bloc.parts.filter((part) => part.genre !== "non_determine" && part.genre !== "autres").length;
+  const curseur = document.getElementById("io-titres-nb");
+  curseur.max = Math.max(nbNommes, 1);
+  // Au-delà du nombre de titres, tout est montré : le curseur est alors à son maximum.
+  curseur.value = ioNbCarres === null ? nbNommes : Math.min(ioNbCarres, nbNommes);
+  document.getElementById("io-titres-nb-valeur").textContent = curseur.value;
+  document.getElementById("io-titres-nb-bloc").style.display = nbNommes > 1 ? "" : "none";
   const vue = ioBlocTitres(bloc);
+  // PAS DE LÉGENDE : le nom est écrit sur chaque case et l'infobulle dit le reste.
   ioRenderCarres(vue, "titre");
-  ioRenderLegende(vue, "titre");
   ioCablerSurvol(vue, "titre");
 }
+
+document.getElementById("io-titres-nb")?.addEventListener("input", (e) => {
+  const valeur = Number(e.target.value);
+  ioNbCarres = valeur >= Number(e.target.max) ? null : valeur;
+  ioRenderTitres();
+});
 
 document.getElementById("io-titres-masquer")?.addEventListener("change", (e) => {
   ioMasquerNonDetermine = e.target.checked;
@@ -614,13 +962,15 @@ async function loadInvestingOverview() {
     // serveur (cf. routeur_investing_overview), et les demander ensemble évite
     // l'instant où l'un des camemberts décrit une autre lecture que ses
     // voisins.
-    const [titres, ...lus] = await Promise.all([
+    const [titres, zonesPays, ...lus] = await Promise.all([
       apiFetch("/investing-overview/exposition-titres"),
+      apiFetch("/investing-overview/zones-pays"),
       ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`)),
     ]);
     ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
     ioAttribuerCouleurs(ioExpositions);
     ioTitres = titres;
+    ioZonesPays = zonesPays;
 
     const vide = ioExpositions.enveloppe.length === 0;
     document.getElementById("io-vide").style.display = vide ? "" : "none";

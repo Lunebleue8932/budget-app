@@ -122,6 +122,11 @@ def create_operation_titre(
     titre = crud.get_titre(db, payload.titre_id)
     if titre is None:
         raise HTTPException(status_code=404, detail="Titre introuvable")
+    if titre.est_indice:
+        raise HTTPException(
+            status_code=400,
+            detail=f"« {titre.nom_affiche} » est un indice : il ne peut pas être acheté ni vendu.",
+        )
 
     # Le prix payé est libellé dans la monnaie de cotation du titre : les
     # espèces bougent donc dans celle-là, et le compte doit la porter.

@@ -59,14 +59,6 @@
             </div>
           </div>
 
-          <div class="io-cellule" data-io-axe="zone">
-            <h3>Où c'est exposé<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-zone">i</i></h3>
-            <div class="io-camembert-bloc" data-io-axe="zone">
-              <div id="io-camembert-zone" class="io-camembert"></div>
-              <div id="io-legende-zone" class="io-legende"></div>
-            </div>
-          </div>
-
           <div class="io-cellule" data-io-axe="secteur">
             <h3>Dans quels secteurs<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-secteur">i</i></h3>
             <div class="io-camembert-bloc" data-io-axe="secteur">
@@ -79,17 +71,35 @@
                ETF détiennent pour nous d'après leur composition. Ce que les compositions ne
                décrivent pas forme sa propre part, que le sélecteur retire pour ne lire que le
                reste (cf. ioRenderTitres). -->
-          <div class="io-cellule io-cellule-large" data-io-axe="titre">
+          <div class="io-cellule" data-io-axe="titre">
             <h3>Action par action<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-titre">i</i></h3>
-            <label class="import-option-ligne io-option" id="io-titres-masquer-bloc">
-              <input type="checkbox" id="io-titres-masquer" />
-              Masquer la part non déterminée des ETF
-            </label>
+            <div class="io-options-ligne">
+              <label class="import-option-ligne io-option" id="io-titres-masquer-bloc">
+                <input type="checkbox" id="io-titres-masquer" />
+                Masquer la part non déterminée des ETF
+              </label>
+              <!-- LE CURSEUR DE CARRÉS : combien de titres nommés le treemap montre, du plus lourd au
+                   plus léger. « Détenu par ETF, non déterminé » et « Autres titres » n'y comptent pas. -->
+              <label class="io-option io-curseur-carres" id="io-titres-nb-bloc">
+                <span>Titres montrés</span>
+                <input type="range" id="io-titres-nb" min="1" max="1" value="1" />
+                <output id="io-titres-nb-valeur"></output>
+              </label>
+            </div>
             <div class="io-camembert-bloc" data-io-axe="titre">
               <div id="io-camembert-titre" class="io-camembert"></div>
-              <div id="io-legende-titre" class="io-legende"></div>
             </div>
           </div>
+          <!-- LA CARTE : « Où c'est exposé » est une carte du monde aplatie, seule sur sa ligne, en bas de page
+               (cf. ioRenderCarte). -->
+          <div class="io-cellule io-cellule-large" data-io-axe="zone">
+            <h3>Où c'est exposé<i class="info-bulle" tabindex="0" data-info-cle="investing-overview.repartition-par-zone">i</i></h3>
+            <div class="io-camembert-bloc" data-io-axe="zone">
+              <div id="io-camembert-zone" class="io-camembert"></div>
+              <div id="io-legende-zone" class="io-legende"></div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>

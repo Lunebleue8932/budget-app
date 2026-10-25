@@ -15,7 +15,9 @@
       "placements.js",
       "expositions.js",
       "import-placements.js",
-      "import-etf.js"
+      "import-etf.js",
+      "gestion-fonds.js",
+      "nettoyage-titres.js"
     ]
   },
   "navigation": {

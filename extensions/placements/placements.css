@@ -205,3 +205,100 @@
   font-size: 0.82rem;
   color: var(--depense);
 }
+
+/* ---------- Calquer un ETF sur un indice (panneau « Détail », cf. expositions.js) ---------- */
+
+.expo-calque {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.expo-calque select {
+  align-self: flex-start;
+  min-width: 14rem;
+}
+
+.expo-calque-cadre {
+  overflow-x: auto;
+}
+
+.expo-calque-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.expo-calque-table th,
+.expo-calque-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.expo-calque-choix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.expo-calque-choix label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.expo-calque-alerte {
+  color: #d99a2b;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.expo-calque-alerte:empty {
+  display: none;
+}
+
+/* UN ETF CALQUÉ affiche le nom de son indice en bleu et en gras ; le reste du sélecteur ne change pas. */
+.expo-calque select.expo-calque-lie {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.expo-calque select.expo-calque-lie option {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.expo-calque select.expo-calque-lie option:checked {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---------- Les onglets « Titres suivis » et « Configuration », à droite de la barre ----------
+   Les onglets de comptes se lisent à gauche ; ces deux-là ne détiennent rien, ils se rangent à l'autre
+   bord. La marge automatique du premier pousse le couple. */
+#placements-onglets #placements-onglet-titres {
+  margin-left: auto;
+}
+
+/* ---------- Le titre de la page : « Mettre à jour les cours » à droite, les actions dessous ----------
+   Le bouton des cours (posé par l'extension « Lecture de cours ») prend la place des actions, qui passent
+   sur leur propre rangée sous le titre. */
+.placements-titre {
+  flex-wrap: wrap;
+}
+
+.placements-titre > #pw-rafraichir-tout {
+  order: 2;
+  margin-left: auto;
+}
+
+.placements-titre > .placements-titre-actions {
+  order: 3;
+  flex-basis: 100%;
+  margin-left: 0;
+  margin-top: 0.3rem;
+}

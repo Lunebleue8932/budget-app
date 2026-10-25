@@ -24,6 +24,8 @@ from app import constants
 
 US, CN, EU = "États-Unis", "Chine", "Europe"
 AS, AM, AF, OC = "Asie (hors Chine)", "Amérique (hors États-Unis)", "Afrique", "Océanie"
+# Le Canada a sa zone : l'Amérique (hors États-Unis) est alors le reste du continent (cf. migration 0095).
+NA = "Amérique du Nord (hors États-Unis)"
 
 
 def cle(texte) -> str:
@@ -43,12 +45,13 @@ _PAYS_PAR_ZONE = {
         "suisse", "switzerland", "pays bas", "netherlands", "belgique", "belgium", "italie", "italy", "espagne",
         "spain", "irlande", "ireland", "luxembourg", "autriche", "austria", "portugal", "finlande", "finland",
         "suede", "sweden", "norvege", "norway", "danemark", "denmark", "pologne", "poland", "grece", "greece",
-        "republique tcheque", "czech republic", "czechia", "hongrie", "hungary", "roumanie", "romania", "russie",
-        "russia", "russian federation", "islande", "iceland", "croatie", "croatia", "slovaquie", "slovakia",
+        "republique tcheque", "czech republic", "czechia", "hongrie", "hungary", "roumanie", "romania",
+        "islande", "iceland", "croatie", "croatia", "slovaquie", "slovakia",
         "slovenie", "slovenia", "estonie", "estonia", "lettonie", "latvia", "lituanie", "lithuania", "bulgarie",
         "bulgaria", "serbie", "serbia", "malte", "malta", "chypre", "cyprus", "jersey", "guernesey", "guernsey",
         "ile de man", "isle of man", "liechtenstein", "monaco", "ukraine", "turquie", "turkey", "turkiye",
         "union europeenne", "european union", "eurozone", "zone euro", "europe",
+        "groenland", "greenland", "iles feroe", "faroe islands", "svalbard", "iles aland", "aland islands",
     ],
     AS: [
         "japon", "japan", "coree du sud", "south korea", "korea south", "korea", "republic of korea", "taiwan",
@@ -56,11 +59,12 @@ _PAYS_PAR_ZONE = {
         "singapore", "philippines", "vietnam", "viet nam", "pakistan", "bangladesh", "sri lanka", "israel",
         "arabie saoudite", "saudi arabia", "emirats arabes unis", "united arab emirates", "uae", "qatar", "koweit",
         "kuwait", "bahrein", "bahrain", "oman", "jordanie", "jordan", "liban", "lebanon", "kazakhstan",
-        "mongolie", "mongolia", "cambodge", "cambodia", "nepal", "iran", "irak", "iraq", "asie", "asia",
+        "mongolie", "mongolia", "russie", "russia", "russian federation", "cambodge", "cambodia", "nepal", "iran", "irak", "iraq", "asie", "asia",
     ],
+    NA: ["canada", "bermudes", "bermuda", "saint pierre et miquelon"],
     AM: [
-        "canada", "bresil", "brazil", "mexique", "mexico", "argentine", "argentina", "chili", "chile", "colombie",
-        "colombia", "perou", "peru", "bermudes", "bermuda", "iles caimans", "cayman islands", "panama",
+        "bresil", "brazil", "mexique", "mexico", "argentine", "argentina", "chili", "chile", "colombie",
+        "colombia", "perou", "peru", "iles caimans", "cayman islands", "panama",
         "uruguay", "venezuela", "equateur", "ecuador", "costa rica", "bahamas", "jamaique", "jamaica",
         "puerto rico", "porto rico", "iles vierges britanniques", "british virgin islands", "curacao",
         "amerique latine", "latin america",

@@ -202,10 +202,11 @@ def exposition_par_axe(db, axe: str = AxeTitre.enveloppe.value) -> list[dict]:
 
 # ---------- Titre par titre : en direct ET à travers les ETF ----------
 
-# Combien de titres le camembert « action par action » nomme un par un ; les suivants
-# se fondent dans une part « Autres titres ». Un ETF World en compte des dizaines, et
-# un disque de cinquante tranches ne se lit plus.
-TITRES_NOMMES = 15
+# Combien de titres « action par action » nomme un par un. AUCUNE LIMITE : tous sont rendus, du plus
+# lourd au plus léger, et c'est le curseur du treemap (investing-overview.js) qui en choisit le nombre
+# montré. La part « Autres titres » n'est plus produite ici ; l'écran sait pourtant encore la lire.
+# Un entier rétablirait le plafond (les suivants se fondraient dans « Autres titres »).
+TITRES_NOMMES = None
 
 
 def _est_etf(un_titre) -> bool:
@@ -283,7 +284,9 @@ def exposition_par_titre(db) -> list[dict]:
             part["sources"] = sources[:TAILLE_DU_TOP]
         titres = sorted((p for p in du_bloc if p["genre"] == "titre"), key=lambda p: p["valorisation"], reverse=True)
         non_determine = [p for p in du_bloc if p["genre"] == "non_determine"]
-        nommes, fondus = titres[:TITRES_NOMMES], titres[TITRES_NOMMES:]
+        nommes, fondus = (
+            (titres, []) if TITRES_NOMMES is None else (titres[:TITRES_NOMMES], titres[TITRES_NOMMES:])
+        )
         if fondus:
             # LES AUTRES TITRES : leur détail nomme les plus lourds d'entre eux, comme le
             # détail de n'importe quelle part nomme ce qui la compose.

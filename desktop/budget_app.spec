@@ -105,12 +105,18 @@ a = Analysis(
         *OPTIONS.get("imports_caches", []),
     ],
     hookspath=[],
-    hooksconfig={},
+    hooksconfig=OPTIONS.get("hooksconfig", {}),
     runtime_hooks=[],
     excludes=["pytest", "tkinter"],
     noarchive=False,
     optimize=0,
 )
+
+# Bibliothèques que le système, et non le bundle, doit fournir (cf.
+# platforms/linux : « binaires_exclus »). Vide sous Windows et macOS.
+_exclus = tuple(OPTIONS.get("binaires_exclus", ()))
+if _exclus:
+    a.binaries = [b for b in a.binaries if not Path(b[0]).name.startswith(_exclus)]
 
 pyz = PYZ(a.pure)
 

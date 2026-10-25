@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session, object_session
 from app import crud, schemas
 from app.constants import AXES_EXPOSITION, AxeTitre
 from app.database import get_db
-from app.services import exposition, identite_titre, placements
+from app.services import calque_fonds, exposition, identite_titre, placements
+
+import service_nettoyage_titres as service_nettoyage
 
 router = APIRouter(prefix="/titres", tags=["placements"])
 
@@ -68,6 +70,10 @@ def _titre_read(
         archivee=titre.archivee,
         detenu=detenu,
         part_etf=bool(titre.part_etf),
+        est_indice=bool(titre.est_indice),
+        indice_id=titre.indice_id,
+        indice_nom=titre.indice.nom_affiche if titre.indice else None,
+        calque_proprietes=list(titre.calque_proprietes or []),
         code_isin=titre.code_isin,
         # Le libellé voyage à côté de l'identifiant : les tableaux l'affichent
         # tel quel, sans avoir à recharger la liste des types pour le résoudre.
@@ -163,6 +169,8 @@ def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
     _valider_monnaie(db, payload.monnaie_id)
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
+    if payload.est_indice and payload.type_titre_id:
+        raise HTTPException(status_code=422, detail="Un indice n'a pas d'enveloppe")
     # L'ISIN VOYAGEAIT SANS ÊTRE ÉCRIT : le schéma l'acceptait, la création ne le
     # posait pas. Un titre saisi ici perdait donc son code, et l'import suivant,
     # qui rapproche par l'ISIN avant le nom, en créait un second.
@@ -175,6 +183,7 @@ def create_titre(payload: schemas.TitreCreate, db: Session = Depends(get_db)):
             payload.code_isin,
             payload.type_titre_id,
             payload.classe_actif_id,
+            est_indice=payload.est_indice,
         )
     )
 
@@ -205,6 +214,9 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
     _valider_etiquette(db, payload.type_titre_id, AxeTitre.enveloppe.value)
     _valider_etiquette(db, payload.classe_actif_id, AxeTitre.classe.value)
     _valider_composition(payload)
+    # UN INDICE N'A PAS D'ENVELOPPE : on ne lui en pose pas (le détypage, lui, reste permis).
+    if (titre.est_indice or payload.est_indice) and payload.est_indice is not False and payload.type_titre_id:
+        raise HTTPException(status_code=422, detail="Un indice n'a pas d'enveloppe")
     # Changer la monnaie de cotation d'un titre déjà mouvementé réécrirait le
     # sens de mouvements passés (le prix payé était libellé dans l'ancienne) :
     # les écritures d'espèces existantes, elles, ne bougeraient pas.
@@ -235,21 +247,41 @@ def update_titre(titre_id: int, payload: schemas.TitreUpdate, db: Session = Depe
                     "titre(s)) : vends la position avant de l'archiver."
                 ),
             )
-    return _titre_read(
-        crud.update_titre(
-            db,
-            titre,
-            nom=payload.nom,
-            nom_affichage=payload.nom_affichage,
-            valeur=payload.valeur,
-            monnaie_id=payload.monnaie_id,
-            archivee=payload.archivee,
-            type_titre_id=payload.type_titre_id,
-            classe_actif_id=payload.classe_actif_id,
-            composition=payload.composition,
-            composition_couverture_pct=payload.composition_couverture_pct,
-        )
+    # UN INDICE NE SE DÉTIENT PAS : on ne transforme pas ce qu'on possède, ni ce qui a déjà porté des
+    # mouvements (leur historique deviendrait celui d'un titre qui ne peut pas exister).
+    if payload.est_indice and not titre.est_indice:
+        if placements.quantite_detenue_totale(db, titre_id) > placements.EPSILON_QUANTITE:
+            raise HTTPException(
+                status_code=409,
+                detail=f"« {titre.nom_affiche} » est détenu : un indice ne peut pas l'être.",
+            )
+        if crud.titre_est_utilise(db, titre_id):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"« {titre.nom_affiche} » a des mouvements enregistrés : il ne peut pas devenir "
+                    "un indice."
+                ),
+            )
+    mis_a_jour = crud.update_titre(
+        db,
+        titre,
+        est_indice=payload.est_indice,
+        nom=payload.nom,
+        nom_affichage=payload.nom_affichage,
+        valeur=payload.valeur,
+        monnaie_id=payload.monnaie_id,
+        archivee=payload.archivee,
+        type_titre_id=payload.type_titre_id,
+        classe_actif_id=payload.classe_actif_id,
+        composition=payload.composition,
+        composition_couverture_pct=payload.composition_couverture_pct,
     )
+    # L'indice vient de changer de composition : les ETF calqués dessus la reprennent.
+    if mis_a_jour.est_indice and payload.composition is not None:
+        calque_fonds.propager(db, mis_a_jour)
+        db.commit()
+    return _titre_read(mis_a_jour)
 
 
 @router.put("/{titre_id}/expositions", response_model=schemas.TitreRead)
@@ -293,9 +325,70 @@ def remplacer_expositions(
         source=payload.source,
         date_maj=payload.date_maj,
     )
+    if titre.est_indice:
+        calque_fonds.propager(db, titre)
     db.commit()
     db.refresh(titre)
     return _titre_read(titre)
+
+
+@router.get("/nettoyage")
+def proposer_nettoyage(db: Session = Depends(get_db)):
+    """Les GROUPES de titres qui se ressemblent et pourraient n'en faire qu'un (cf. service_nettoyage_titres) :
+    du plus sûr au moins sûr. Ne modifie rien."""
+    return service_nettoyage.proposer(db)
+
+
+@router.post("/nettoyage/fusionner")
+def fusionner_titres(payload: dict, db: Session = Depends(get_db)):
+    """Fusionne des titres dans l'un d'eux : `{garder_id, absorber_ids}`. Tout ou rien."""
+    try:
+        return service_nettoyage.fusionner(
+            db, int(payload.get("garder_id") or 0), [int(i) for i in payload.get("absorber_ids") or []]
+        )
+    except service_nettoyage.ErreurFusion as erreur:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(erreur)) from None
+
+
+@router.get("/{titre_id}/donnees")
+def donnees_du_titre(titre_id: int, db: Session = Depends(get_db)):
+    """Ce que le titre porte (composition, classe, zone, secteur), résumé : l'écran le montre AVANT
+    d'écraser quoi que ce soit (cf. services/calque_fonds)."""
+    titre = crud.get_titre(db, titre_id)
+    if titre is None:
+        raise HTTPException(status_code=404, detail="Titre introuvable")
+    return calque_fonds.resume(titre)
+
+
+@router.put("/{titre_id}/calque", response_model=schemas.TitreRead)
+def calquer_sur_indice(titre_id: int, payload: schemas.CalqueTitre, db: Session = Depends(get_db)):
+    """CALQUE un fonds sur un indice : les propriétés choisies de l'indice REMPLACENT celles du fonds,
+    les autres restent. Le choix, propriété par propriété, est celui de l'utilisateur."""
+    cible = crud.get_titre(db, titre_id)
+    if cible is None:
+        raise HTTPException(status_code=404, detail="Titre introuvable")
+    if cible.est_indice:
+        raise HTTPException(status_code=409, detail="Un indice ne se calque pas sur un autre indice")
+    if payload.indice_id is None:
+        # Délier : l'ETF garde ses données, il ne suit plus l'indice.
+        calque_fonds.delier(cible)
+        db.commit()
+        db.refresh(cible)
+        return _titre_read(cible)
+    indice = crud.get_titre(db, payload.indice_id)
+    if indice is None or not indice.est_indice:
+        raise HTTPException(status_code=404, detail="Indice introuvable")
+    if not payload.proprietes:
+        raise HTTPException(status_code=422, detail="Choisis au moins une propriété à prendre à l'indice")
+    try:
+        calque_fonds.calquer(db, cible, indice, payload.proprietes)
+    except calque_fonds.ErreurCalque as erreur:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(erreur)) from None
+    db.commit()
+    db.refresh(cible)
+    return _titre_read(cible)
 
 
 @router.delete("/{titre_id}", status_code=status.HTTP_204_NO_CONTENT)

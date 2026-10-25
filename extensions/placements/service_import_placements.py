@@ -1251,6 +1251,15 @@ def confirmer(
                 )
                 continue
 
+        if titre.est_indice:
+            # Un indice ne se détient pas : la ligne est écartée, le reste du relevé est bon.
+            lignes_ignorees.append(
+                ligne.model_copy(
+                    update={"erreur": f"« {titre.nom_affiche} » est un indice : il ne peut pas être détenu"}
+                )
+            )
+            continue
+
         mouvement = crud.create_operation_titre(
             db,
             compte_id=ligne.compte_id,

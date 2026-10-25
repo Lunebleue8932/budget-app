@@ -138,6 +138,7 @@ function poserBarre() {
     // Désactivée depuis les Paramètres pendant que l'app tourne : la barre
     // disparaît à la prochaine ouverture de l'écran, sans recharger la page.
     if (existante) existante.remove();
+    document.getElementById("pw-rafraichir-tout")?.remove();
     return;
   }
   if (existante) {
@@ -148,17 +149,18 @@ function poserBarre() {
   const barre = document.createElement("div");
   barre.id = "pw-barre";
   barre.className = "pw-barre";
-  barre.innerHTML = `
-    <button type="button" id="pw-rafraichir-tout" class="primary">
-      ${t("Mettre à jour les cours")}
-    </button>
-    <span class="hint" id="pw-etat"></span>
-  `;
+  barre.innerHTML = `<span class="hint" id="pw-etat"></span>`;
   const titre = section.querySelector("h2");
   titre.insertAdjacentElement("afterend", barre);
-  document
-    .getElementById("pw-rafraichir-tout")
-    .addEventListener("click", () => rafraichir("/cours/rafraichir"));
+  // LE BOUTON VIT DANS LE TITRE, à droite ; les boutons d'actions (import, gestion des fonds, vue
+  // d'ensemble) passent dessous (cf. placements.css) — la barre ne garde que l'état de la dernière mise à jour.
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.id = "pw-rafraichir-tout";
+  bouton.className = "primary";
+  bouton.textContent = t("Mettre à jour les cours");
+  bouton.addEventListener("click", () => rafraichir("/cours/rafraichir"));
+  titre.appendChild(bouton);
   majEtatBarre();
 }
 
