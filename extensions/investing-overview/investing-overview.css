@@ -85,7 +85,8 @@
    ce qui les rétrécit à leur contenu : un disque a une taille propre, mais des tuiles posées en
    absolu n'en ont aucune. Le conteneur tombait alors à largeur nulle, et `width: 100%` de
    `.io-carres` valait 100 % de rien — la légende, elle, restait visible. */
-.io-camembert-bloc[data-io-axe="titre"] > .io-camembert {
+.io-camembert-bloc[data-io-axe="titre"] > .io-camembert,
+.io-camembert-bloc[data-io-axe="zone"] > .io-camembert {
   align-self: stretch;
 }
 
@@ -159,4 +160,39 @@
 
 .io-curseur-carres input[type="range"] {
   width: 12rem;
+}
+
+/* ---------- La carte « Où c'est exposé » ----------
+   Le fond reprend les couleurs de l'application (variables du thème) : clair ou sombre, la carte suit. */
+.io-carte {
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.io-carte svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--bg-surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.io-carte .io-pays {
+  fill: var(--bg-surface);
+  stroke: var(--border);
+  stroke-width: 0.4;
+}
+
+/* Les régions remplies : un contour fin les détache, et le survol (ou celui de la légende) l'épaissit. */
+.io-carte .io-carte-zone path {
+  fill: transparent;
+  stroke: var(--text-secondary);
+  stroke-width: 0.5;
+  pointer-events: all;
+}
+
+.io-carte .io-carte-zone.survolee path {
+  stroke: var(--text-primary);
+  stroke-width: 1.4;
 }

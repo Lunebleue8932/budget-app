@@ -13,6 +13,7 @@
       "investing-overview.css"
     ],
     "js": [
+      "carte-monde.js",
       "investing-overview.js"
     ]
   },

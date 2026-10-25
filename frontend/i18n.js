@@ -5067,3 +5067,7 @@ Object.assign(TRADUCTIONS.en, {
   "Aucune ligne existante ne ressemble à ce fonds.": "No existing line looks like this fund.",
   "Lignes qui ressemblent à « {nom} » :": "Lines similar to “{nom}”:",
 });
+Object.assign(TRADUCTIONS.en, {
+  "Sans place sur la carte (aucun pays reconnu) : {zones}.": "Not on the map (no country recognised): {zones}.",
+  "Répartition par zone géographique": "Breakdown by geographic zone",
+});

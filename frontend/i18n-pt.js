@@ -4289,3 +4289,7 @@ Object.assign(TRADUCTIONS.pt, {
   "Aucune ligne existante ne ressemble à ce fonds.": "Nenhuma linha existente se parece com este fundo.",
   "Lignes qui ressemblent à « {nom} » :": "Linhas parecidas com «{nom}»:",
 });
+Object.assign(TRADUCTIONS.pt, {
+  "Sans place sur la carte (aucun pays reconnu) : {zones}.": "Fora do mapa (nenhum país reconhecido): {zones}.",
+  "Répartition par zone géographique": "Distribuição por zona geográfica",
+});

@@ -275,6 +275,69 @@ function ioRenderCamembert(bloc, axe) {
   `;
 }
 
+/* ---------- La carte « Où c'est exposé » ----------
+ *
+ * LA RÉPARTITION PAR ZONE SE LIT SUR UNE CARTE DU MONDE (`carte-monde.js`, tracés projetés par
+ * outils/generer_carte.py). Les COULEURS sont celles du disque d'avant : chaque zone garde la sienne,
+ * et la légende dessous est la même. Ce qui change est la façon de montrer la part :
+ *
+ *   - UNE ZONE EST UNE RÉGION : l'ensemble des pays qu'elle recouvre (`GET /zones-pays`, calculé
+ *     d'après les zones DE LA BASE — renommées, créées —, cf. zones_pays.py) ;
+ *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, du bas vers le haut : 65 % = les deux
+ *     tiers de la hauteur de la région, dans sa couleur ; le reste garde le fond de la carte ;
+ *   - une zone qui ne désigne aucun pays (« Monde »), et la part « Sans zone », n'ont pas de place sur
+ *     la carte : elles restent dans la légende, qui le dit.
+ *
+ * LE FOND SUIT LES COULEURS DE L'APPLICATION (variables du thème, cf. investing-overview.css).
+ */
+let ioZonesPays = [];
+
+function ioRenderCarte(bloc) {
+  const conteneur = document.getElementById("io-camembert-zone");
+  const pays = new Map(IO_CARTE.pays.map((p) => [p.c, p]));
+  const parZone = new Map(ioZonesPays.map((z) => [z.type_titre_id, z.pays.filter((c) => pays.has(c))]));
+  const regions = bloc.parts.map((part, i) => ({
+    part,
+    i,
+    codes: part.type_titre_id != null ? parZone.get(part.type_titre_id) || [] : [],
+  }));
+  const fond = IO_CARTE.pays.map((p) => `<path class="io-pays" d="${p.d}" />`).join("");
+  const remplissages = regions
+    .filter((r) => r.codes.length)
+    .map(({ part, i, codes }) => {
+      const boites = codes.map((c) => pays.get(c).b);
+      const [x0, y0, x1, y1] = [
+        Math.min(...boites.map((b) => b[0])),
+        Math.min(...boites.map((b) => b[1])),
+        Math.max(...boites.map((b) => b[2])),
+        Math.max(...boites.map((b) => b[3])),
+      ];
+      const fraction = Math.min(Math.max(part.part, 0), 1);
+      const haut = y1 - (y1 - y0) * fraction;
+      const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
+      const identifiant = `io-carte-zone-${i}`;
+      return `<clipPath id="${identifiant}">${formes}</clipPath>
+        <rect x="${x0}" y="${haut}" width="${x1 - x0}" height="${y1 - haut}" fill="${ioCouleurPart(part)}"
+              clip-path="url(#${identifiant})" />
+        <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
+    })
+    .join("");
+  const horsCarte = regions.filter((r) => !r.codes.length);
+  conteneur.innerHTML = `<div class="io-carte">
+    <svg viewBox="0 0 ${IO_CARTE.largeur} ${IO_CARTE.hauteur}" role="img"
+         aria-label="${escapeHtml(t("Répartition par zone géographique"))}">${fond}${remplissages}</svg>
+    ${
+      horsCarte.length
+        ? `<p class="hint">${escapeHtml(
+            t("Sans place sur la carte (aucun pays reconnu) : {zones}.", {
+              zones: horsCarte.map((r) => `${ioNomPart(r.part, "zone")} ${formatPourcentage(r.part.part * 100)}`).join(", "),
+            })
+          )}</p>`
+        : ""
+    }
+  </div>`;
+}
+
 /* ---------- La légende ----------
  *
  * SOUS LE CAMEMBERT ET NON DEDANS. Écrire les libellés sur les parts oblige à les
@@ -391,7 +454,8 @@ function ioRenderMonnaieActive() {
     const aQuelqueChose = bloc && bloc.parts.some((part) => part.type_titre_id != null);
     if (cellule) cellule.style.display = aQuelqueChose ? "" : "none";
     if (!aQuelqueChose) return;
-    ioRenderCamembert(bloc, axe);
+    if (axe === "zone") ioRenderCarte(bloc);
+    else ioRenderCamembert(bloc, axe);
     ioRenderLegende(bloc, axe);
     ioCablerSurvol(bloc, axe);
   });
@@ -658,13 +722,15 @@ async function loadInvestingOverview() {
     // serveur (cf. routeur_investing_overview), et les demander ensemble évite
     // l'instant où l'un des camemberts décrit une autre lecture que ses
     // voisins.
-    const [titres, ...lus] = await Promise.all([
+    const [titres, zonesPays, ...lus] = await Promise.all([
       apiFetch("/investing-overview/exposition-titres"),
+      apiFetch("/investing-overview/zones-pays"),
       ...IO_AXES.map((axe) => apiFetch(`/investing-overview/exposition?axe=${axe}`)),
     ]);
     ioExpositions = Object.fromEntries(IO_AXES.map((axe, i) => [axe, lus[i]]));
     ioAttribuerCouleurs(ioExpositions);
     ioTitres = titres;
+    ioZonesPays = zonesPays;
 
     const vide = ioExpositions.enveloppe.length === 0;
     document.getElementById("io-vide").style.display = vide ? "" : "none";
