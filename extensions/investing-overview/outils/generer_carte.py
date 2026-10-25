@@ -114,6 +114,11 @@ def main(chemin_topo, chemin_codes, *chemins_noms):
 
     brut = {}
     xs, ys = [], []
+    # LA CONTIGUÏTÉ : deux anneaux de pays différents qui partagent un arc de la topologie sont limitrophes.
+    # Elle sert à l'écran à regrouper en UN territoire les pays voisins d'une même zone (cf. ioTerritoires).
+    anneau_arcs: dict[int, set] = {}
+    anneau_pays: dict[int, str] = {}
+    prochain = 0
     for geom in topo["objects"]["countries"]["geometries"]:
         numerique = int(geom["id"]) if geom.get("id") not in (None, "") else None
         alpha2 = par_numerique.get(numerique)
@@ -123,9 +128,13 @@ def main(chemin_topo, chemin_codes, *chemins_noms):
         anneaux = []
         for poly in polys:
             for ring in poly:
+                identifiant = prochain
+                prochain += 1
+                anneau_arcs[identifiant] = {i if i >= 0 else ~i for i in ring}
+                anneau_pays[identifiant] = alpha2
                 pts = [projeter(lon, lat) for lon, lat in anneau(ring, arcs)]
                 for morceau in couper_a_l_antimeridien(pts):
-                    anneaux.append(morceau)
+                    anneaux.append((identifiant, morceau))
                     xs += [p[0] for p in morceau]
                     ys += [p[1] for p in morceau]
         brut.setdefault(alpha2, []).extend(anneaux)
@@ -135,12 +144,14 @@ def main(chemin_topo, chemin_codes, *chemins_noms):
     ymax = max(ys)
     hauteur = (ymax - y0) * echelle
     pays = []
+    finals: dict[str, list] = {}
     for alpha2, anneaux in sorted(brut.items()):
         morceaux = []
         bx0 = by0 = bx1 = by1 = 0.0
-        mis = [[((x - x0) * echelle, (ymax - y) * echelle) for x, y in pts] for pts in anneaux]
+        origines = [identifiant for identifiant, _ in anneaux]
+        mis = [[((x - x0) * echelle, (ymax - y) * echelle) for x, y in pts] for _, pts in anneaux]
         plus_grand = max(mis, key=aire)
-        for pts in mis:
+        for origine, pts in zip(origines, mis):
             est_grand = pts is plus_grand
             if not est_grand and aire(pts) < AIRE_MIN:
                 continue
@@ -168,8 +179,41 @@ def main(chemin_topo, chemin_codes, *chemins_noms):
                 bx1 = max(x for x, _ in dedup)
                 by1 = max(y for _, y in dedup)
             morceaux.append("M" + "L".join(f"{x:g},{y:g}" for x, y in dedup) + "Z")
+            finals.setdefault(alpha2, []).append(
+                (origine, (min(x for x, _ in dedup), min(y for _, y in dedup), max(x for x, _ in dedup), max(y for _, y in dedup)))
+            )
         if morceaux:
             pays.append({"c": alpha2, "d": "".join(morceaux), "b": [bx0, by0, bx1, by1]})
+
+    # Les voisins de chaque anneau final : `["FR:0", ...]` (pays : rang de l'anneau dans son tracé).
+    par_arc: dict[int, list] = {}
+    for identifiant, arcs_de in anneau_arcs.items():
+        for arc in arcs_de:
+            par_arc.setdefault(arc, []).append(identifiant)
+    limitrophes: dict[int, set] = {}
+    for liste in par_arc.values():
+        for a in liste:
+            for b in liste:
+                if a != b and anneau_pays[a] != anneau_pays[b]:
+                    limitrophes.setdefault(a, set()).add(b)
+    par_origine: dict[int, list] = {}
+    for alpha2, liste in finals.items():
+        for rang, (origine, boite) in enumerate(liste):
+            par_origine.setdefault(origine, []).append((alpha2, rang, boite))
+
+    def se_touchent(b1, b2, marge=3.0):
+        return not (b1[2] + marge < b2[0] or b2[2] + marge < b1[0] or b1[3] + marge < b2[1] or b2[3] + marge < b1[1])
+
+    for p in pays:
+        voisins = []
+        for rang, (origine, boite) in enumerate(finals[p["c"]]):
+            liens = []
+            for autre in limitrophes.get(origine, ()):
+                for code, r, b2 in par_origine.get(autre, []):
+                    if se_touchent(boite, b2):
+                        liens.append(f"{code}:{r}")
+            voisins.append(sorted(liens))
+        p["v"] = voisins
 
     dossier = Path(__file__).resolve().parent.parent
     carte = {"largeur": LARGEUR, "hauteur": round(hauteur, 1), "pays": pays}

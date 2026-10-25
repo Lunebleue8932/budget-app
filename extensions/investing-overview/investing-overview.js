@@ -402,16 +402,28 @@ function ioAireSousLigne(anneau, h) {
   return somme / 2;
 }
 
-/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et ses îles) SE REMPLISSENT
+/** LES TERRITOIRES SÉPARÉS d'une même zone (les États-Unis et l'Alaska, la France et la Guyane) SE REMPLISSENT
  *  CHACUN SELON SA PROPRE AIRE : pour la zone d'aire A et d'exposition e, et ses territoires séparés i
  *  d'aire A_i, le critère est  A_i coloriée = A_i × e  POUR CHAQUE i — d'où une hauteur relative x_i par
  *  territoire (de sa propre hauteur, depuis son bas), déduite du PROFIL d'aire de sa forme (le bas d'un
  *  territoire effilé colore peu : x_i n'est pas e). La somme donne bien A coloriée = A × e, et aucun
  *  territoire — l'Alaska, une île lointaine — ne paraît sur- ou sous-pondéré par sa latitude ou sa forme.
  *
- *  Un territoire est un anneau extérieur et les trous (lacs) qu'il contient. */
-function ioTerritoires(anneaux) {
-  const aires = anneaux.map((anneau) => ioAireSousLigne(anneau, 1e9));
+ *  UN TERRITOIRE EST SÉPARÉ GÉOGRAPHIQUEMENT, pas distinct : les pays d'une même zone qui se touchent (la
+ *  France, l'Allemagne, l'Italie…) forment UN seul territoire, à la boîte, à l'aire et au coloriage
+ *  collectifs. La contiguïté vient du fond de carte (`v` : les anneaux limitrophes de chaque anneau, posés
+ *  par outils/generer_carte.py d'après les frontières partagées) et ne compte que les voisins DE LA ZONE.
+ *  Un territoire est un ensemble d'anneaux extérieurs contigus, et les trous (lacs, enclaves) qu'ils contiennent. */
+function ioNoeudsPays(pays) {
+  return ioAnneauxPays(pays).map((anneau, i) => ({
+    id: `${pays.c}:${i}`,
+    anneau,
+    voisins: (pays.v && pays.v[i]) || [],
+  }));
+}
+
+function ioTerritoires(noeuds) {
+  const aires = noeuds.map((n) => ioAireSousLigne(n.anneau, 1e9));
   const plusGrand = aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0);
   const sens = Math.sign(plusGrand) || 1;
   const boite = (anneau) => {
@@ -419,20 +431,48 @@ function ioTerritoires(anneaux) {
     const ys = anneau.map((p) => p[1]);
     return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   };
-  const territoires = [];
-  anneaux.forEach((anneau, i) => {
-    if (Math.sign(aires[i]) === sens) territoires.push({ anneaux: [anneau], boite: boite(anneau) });
-  });
-  // Un trou revient au plus petit territoire dont la boîte le contient.
-  anneaux.forEach((anneau, i) => {
-    if (Math.sign(aires[i]) === sens) return;
-    const [hx0, hx1, hy0, hy1] = boite(anneau);
-    const hote = territoires
-      .filter((t) => t.boite[0] <= hx0 && t.boite[1] >= hx1 && t.boite[2] <= hy0 && t.boite[3] >= hy1)
+  const exterieurs = noeuds.filter((_, i) => Math.sign(aires[i]) === sens).map((n) => ({ ...n, boite: boite(n.anneau) }));
+  const trous = noeuds.filter((_, i) => Math.sign(aires[i]) !== sens);
+  // Un trou revient au plus petit anneau extérieur dont la boîte le contient.
+  const hoteDuTrou = new Map();
+  trous.forEach((trou) => {
+    const [hx0, hx1, hy0, hy1] = boite(trou.anneau);
+    const hote = exterieurs
+      .filter((e) => e.boite[0] <= hx0 && e.boite[1] >= hx1 && e.boite[2] <= hy0 && e.boite[3] >= hy1)
       .sort((a, b) => (a.boite[1] - a.boite[0]) * (a.boite[3] - a.boite[2]) - (b.boite[1] - b.boite[0]) * (b.boite[3] - b.boite[2]))[0];
-    if (hote) hote.anneaux.push(anneau);
+    if (hote) hoteDuTrou.set(trou.id, hote.id);
   });
-  return { territoires, sens };
+  // Les anneaux extérieurs limitrophes (un trou compte pour son hôte) se regroupent.
+  const parent = new Map(exterieurs.map((e) => [e.id, e.id]));
+  const racine = (id) => {
+    while (parent.get(id) !== id) {
+      parent.set(id, parent.get(parent.get(id)));
+      id = parent.get(id);
+    }
+    return id;
+  };
+  const ancre = (id) => (parent.has(id) ? id : hoteDuTrou.get(id));
+  noeuds.forEach((n) => {
+    const a = ancre(n.id);
+    if (!a) return;
+    n.voisins.forEach((v) => {
+      const b = ancre(v);
+      if (b) parent.set(racine(a), racine(b));
+    });
+  });
+  const groupes = new Map();
+  exterieurs.forEach((e) => {
+    const r = racine(e.id);
+    if (!groupes.has(r)) groupes.set(r, { anneaux: [], boite: [Infinity, -Infinity, Infinity, -Infinity] });
+    const g = groupes.get(r);
+    g.anneaux.push(e.anneau);
+    g.boite = [Math.min(g.boite[0], e.boite[0]), Math.max(g.boite[1], e.boite[1]), Math.min(g.boite[2], e.boite[2]), Math.max(g.boite[3], e.boite[3])];
+  });
+  trous.forEach((trou) => {
+    const hote = hoteDuTrou.get(trou.id);
+    if (hote) groupes.get(racine(hote)).anneaux.push(trou.anneau);
+  });
+  return { territoires: [...groupes.values()], sens };
 }
 
 /** L'aire coloriée d'un territoire (depuis son bas) quand on en remplit la hauteur relative x. */
@@ -446,9 +486,9 @@ function ioAireColoriee(territoire, x, sens) {
 }
 
 /** Les rectangles SVG de la zone (à découper aux contours des pays), et la hauteur relative de chaque territoire. */
-function ioRectanglesParTerritoire(anneaux, fraction, couleur) {
-  if (fraction <= 0 || !anneaux.length) return { rectangles: "", hauteurs: [] };
-  const { territoires, sens } = ioTerritoires(anneaux);
+function ioRectanglesParTerritoire(noeuds, fraction, couleur) {
+  if (fraction <= 0 || !noeuds.length) return { rectangles: "", hauteurs: [] };
+  const { territoires, sens } = ioTerritoires(noeuds);
   const e = Math.min(fraction, 1);
   const hauteurs = territoires.map((t) => {
     if (e >= 1) return 1;
@@ -486,8 +526,8 @@ function ioRenderCarte(bloc) {
     .filter((r) => r.codes.length)
     .map(({ part, i, codes }) => {
       const fraction = Math.min(Math.max(part.part, 0), 1);
-      const anneaux = codes.flatMap((c) => ioAnneauxPays(pays.get(c)));
-      const { rectangles } = ioRectanglesParTerritoire(anneaux, fraction, ioCouleurPart(part));
+      const noeuds = codes.flatMap((c) => ioNoeudsPays(pays.get(c)));
+      const { rectangles } = ioRectanglesParTerritoire(noeuds, fraction, ioCouleurPart(part));
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
