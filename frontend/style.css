@@ -8034,3 +8034,13 @@ button.preset-propose {
 .vir-sens-verbe {
   color: var(--accent-light);
 }
+
+/* UNE PAGE, DEUX SECTIONS. « Remboursements » (dépenses remboursables + remboursements reçus) et « Prêts »
+   (prêts reçus + remboursements de prêts) ont UN SEUL en-tête : le tri, les filtres et l'arbre de période
+   de la première section valent pour les deux. Ceux de la section compagnon restent dans le DOM (les filtres
+   se propagent par nom de champ, cf. propagerFiltreAuxAutresOnglets) mais ne s'affichent pas. */
+.sous-section-compagnon > .tri,
+.sous-section-compagnon > .filtres-repli,
+.sous-section-compagnon > .operations-periode {
+  display: none;
+}

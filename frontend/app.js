@@ -10921,6 +10921,9 @@ function synchroniserPeriodeAvecFiltres(onglet) {
   return true;
 }
 
+// La section compagne qui partage l'en-tête (tri, filtres, période) d'une section principale.
+const ONGLET_COMPAGNON = { remboursable: "remboursements", prets: "remboursement-prets" };
+
 function initTriSelects() {
   document.querySelectorAll("select.tri-select").forEach((select) => {
     const onglet = select.dataset.onglet;
@@ -10936,6 +10939,14 @@ function initTriSelects() {
       select.addEventListener("change", () => {
         state.triSelections[onglet] = select.value;
         trierEtRerender(onglet);
+        // UN SEUL TRI PAR PAGE : celui de la section principale vaut aussi pour sa compagne, quand elle
+        // le propose (« Reste à rembourser » n'existe pas côté remboursements : tri par date alors).
+        const compagnon = ONGLET_COMPAGNON[onglet];
+        if (compagnon) {
+          const propose = TRI_OPTIONS[compagnon].some(([valeur]) => valeur === select.value);
+          state.triSelections[compagnon] = propose ? select.value : TRI_PAR_DEFAUT_OPERATIONS;
+          trierEtRerender(compagnon);
+        }
       });
     }
   });
@@ -11466,6 +11477,10 @@ document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
     const menuTri = document.querySelector(`select.tri-select[data-onglet="${onglet}"]`);
     if (menuTri) menuTri.value = TRI_PAR_DEFAUT_OPERATIONS;
     trierEtRerender(onglet);
+    if (ONGLET_COMPAGNON[onglet]) {
+      state.triSelections[ONGLET_COMPAGNON[onglet]] = TRI_PAR_DEFAUT_OPERATIONS;
+      trierEtRerender(ONGLET_COMPAGNON[onglet]);
+    }
   });
 });
 

@@ -283,14 +283,82 @@ function ioRenderCamembert(bloc, axe) {
  *
  *   - UNE ZONE EST UNE RÉGION : l'ensemble des pays qu'elle recouvre (`GET /zones-pays`, calculé
  *     d'après les zones DE LA BASE — renommées, créées —, cf. zones_pays.py) ;
- *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, du bas vers le haut : 65 % = les deux
- *     tiers de la hauteur de la région, dans sa couleur ; le reste garde le fond de la carte ;
+ *   - ELLE SE REMPLIT AU PRORATA DE SA PART, comme une jauge, de haut en bas, l'AIRE
+ *     coloriée valant part × aire de la région (cf. ioRemplissageParAire) : la hauteur s'en déduit ;
+ *     le reste garde le fond de la carte ;
  *   - une zone qui ne désigne aucun pays (« Monde »), et la part « Sans zone », n'ont pas de place sur
  *     la carte : elles restent dans la légende, qui le dit.
  *
  * LE FOND SUIT LES COULEURS DE L'APPLICATION (variables du thème, cf. investing-overview.css).
  */
 let ioZonesPays = [];
+
+/* LE REMPLISSAGE SE MESURE EN AIRE, pas en hauteur. Une région se colore de HAUT EN BAS, et la hauteur
+ * de coloration se DÉDUIT de la part : on cherche la ligne horizontale au-dessus de laquelle l'aire
+ * coloriée vaut `part × aire totale de la région` (65 % = 65 % de la surface dessinée, quelle que soit
+ * la forme du pays — une Russie très haute et une Italie très étroite se lisent pareil). L'aire est celle
+ * du DESSIN (la carte est plate : une aire n'est pas une surface réelle). Les anneaux des pays sont lus
+ * une fois (`ioAnneauxPays`), l'aire sous une ligne se calcule par découpe de chaque anneau. */
+const ioAnneauxCache = new Map();
+
+function ioAnneauxPays(pays) {
+  if (!ioAnneauxCache.has(pays.c)) {
+    ioAnneauxCache.set(
+      pays.c,
+      pays.d
+        .split("Z")
+        .filter(Boolean)
+        .map((anneau) =>
+          anneau
+            .slice(1)
+            .split("L")
+            .map((point) => point.split(",").map(Number))
+        )
+    );
+  }
+  return ioAnneauxCache.get(pays.c);
+}
+
+/** Aire (signée) d'un anneau limitée à y <= h : le polygone est découpé contre la droite y = h. */
+function ioAireSousLigne(anneau, h) {
+  const gardes = [];
+  for (let i = 0; i < anneau.length; i++) {
+    const a = anneau[i];
+    const b = anneau[(i + 1) % anneau.length];
+    const aDedans = a[1] <= h;
+    const bDedans = b[1] <= h;
+    if (aDedans) gardes.push(a);
+    if (aDedans !== bDedans) {
+      const k = (h - a[1]) / (b[1] - a[1]);
+      gardes.push([a[0] + k * (b[0] - a[0]), h]);
+    }
+  }
+  let somme = 0;
+  for (let i = 0; i < gardes.length; i++) {
+    const a = gardes[i];
+    const b = gardes[(i + 1) % gardes.length];
+    somme += a[0] * b[1] - b[0] * a[1];
+  }
+  return somme / 2;
+}
+
+/** La région (liste d'anneaux) : sa boîte, son aire, et la ligne qui colore `fraction` de son aire depuis le haut. */
+function ioRemplissageParAire(anneaux, fraction) {
+  const points = anneaux.flat();
+  const [x0, x1] = [Math.min(...points.map((p) => p[0])), Math.max(...points.map((p) => p[0]))];
+  const [y0, y1] = [Math.min(...points.map((p) => p[1])), Math.max(...points.map((p) => p[1]))];
+  const aire = (h) => anneaux.reduce((somme, anneau) => somme + ioAireSousLigne(anneau, h), 0);
+  const signe = Math.sign(aire(y1)) || 1;
+  const cible = Math.abs(aire(y1)) * fraction;
+  let bas = y0;
+  let haut = y1;
+  for (let i = 0; i < 32; i++) {
+    const milieu = (bas + haut) / 2;
+    if (signe * aire(milieu) < cible) bas = milieu;
+    else haut = milieu;
+  }
+  return { x0, x1, y0, ligne: fraction >= 1 ? y1 : (bas + haut) / 2 };
+}
 
 function ioRenderCarte(bloc) {
   const conteneur = document.getElementById("io-camembert-zone");
@@ -305,19 +373,15 @@ function ioRenderCarte(bloc) {
   const remplissages = regions
     .filter((r) => r.codes.length)
     .map(({ part, i, codes }) => {
-      const boites = codes.map((c) => pays.get(c).b);
-      const [x0, y0, x1, y1] = [
-        Math.min(...boites.map((b) => b[0])),
-        Math.min(...boites.map((b) => b[1])),
-        Math.max(...boites.map((b) => b[2])),
-        Math.max(...boites.map((b) => b[3])),
-      ];
       const fraction = Math.min(Math.max(part.part, 0), 1);
-      const haut = y1 - (y1 - y0) * fraction;
+      const { x0, x1, y0, ligne } = ioRemplissageParAire(
+        codes.flatMap((c) => ioAnneauxPays(pays.get(c))),
+        fraction
+      );
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
-        <rect x="${x0}" y="${haut}" width="${x1 - x0}" height="${y1 - haut}" fill="${ioCouleurPart(part)}"
+        <rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${Math.max(ligne - y0, 0)}" fill="${ioCouleurPart(part)}"
               clip-path="url(#${identifiant})" />
         <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
     })

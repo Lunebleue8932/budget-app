@@ -1150,7 +1150,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-remboursable" class="sous-section" data-extension-onglet="suivi-remboursements" style="display:none">
-        <h3 class="sous-section-titre">Dépenses remboursables</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="remboursable"></select>
@@ -1204,12 +1203,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Reste à rembourser max
             <input type="number" step="0.01" min="0" data-filtre="resteMax" placeholder="ex. 500" />
           </label>
+          <label>Lié à une opération remboursable ?
+            <select data-filtre="lie"><option value="">Peu importe</option><option value="oui">Oui</option><option value="non">Non</option></select>
+          </label>
           <div class="filtres-actions">
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="remboursable">Réinitialiser</button>
           </div>
         </div>
         </details>
         <div id="operations-periode-remboursable" class="operations-periode"></div>
+        <h3 class="sous-section-titre">Dépenses remboursables</h3>
         <div class="ajouter-operation" data-onglet="remboursable" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1246,12 +1249,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
-          <!-- UN SEUL SÉLECTEUR DE DATES sur cet onglet : l'arbre de période (Tout > année > mois) sous la liste.
-               Les champs Du / Au restent dans le DOM, masqués et vides, pour que les filtres les lisent sans erreur. -->
-          <label hidden>Du
+          <label>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
-          <label hidden>Au
+          <label>Au
             <input type="date" data-filtre="dateFin" />
           </label>
           <label>Compte
@@ -1349,7 +1350,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
       </div>
 
       <div id="sous-section-prets" class="sous-section" data-extension-onglet="prets" style="display:none">
-        <h3 class="sous-section-titre">Prêts reçus</h3>
         <div class="tri">
           <label>Trier par
             <select class="tri-select" data-onglet="prets"></select>
@@ -1370,12 +1370,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
-          <!-- UN SEUL SÉLECTEUR DE DATES sur cet onglet : l'arbre de période (Tout > année > mois) sous la liste.
-               Les champs Du / Au restent dans le DOM, masqués et vides, pour que les filtres les lisent sans erreur. -->
-          <label hidden>Du
+          <label>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
-          <label hidden>Au
+          <label>Au
             <input type="date" data-filtre="dateFin" />
           </label>
           <label>Compte
@@ -1399,12 +1397,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Reste à rembourser max
             <input type="number" step="0.01" min="0" data-filtre="resteMax" placeholder="ex. 500" />
           </label>
+          <label>Remboursement lié à un prêt reçu ?
+            <select data-filtre="lie"><option value="">Peu importe</option><option value="oui">Oui</option><option value="non">Non</option></select>
+          </label>
           <div class="filtres-actions">
             <button type="button" class="btn-reset-filtres-onglet" data-onglet="prets">Réinitialiser</button>
           </div>
         </div>
         </details>
         <div id="operations-periode-prets" class="operations-periode"></div>
+        <h3 class="sous-section-titre">Prêts reçus</h3>
         <div class="ajouter-operation" data-onglet="prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>
