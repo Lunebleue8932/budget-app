@@ -422,6 +422,16 @@ function ioNoeudsPays(pays) {
   }));
 }
 
+/* DES REGROUPEMENTS EXPLICITES, pour que la carte reste lisible : quand ces pays sont dans la même zone, leurs
+ * anneaux forment UN SEUL territoire, même séparés par la mer ou la glace.
+ *   - le CANADA, d'un seul tenant : le continent, l'archipel arctique et les glaciers ne se séparent pas ;
+ *   - le NORD DE L'EUROPE : l'Islande, le Groenland, les Féroé, le Svalbard (l'île au nord des pays nordiques),
+ *     les pays nordiques et les pays baltes forment un seul bloc. */
+const IO_REGROUPEMENTS = [
+  ["CA"],
+  ["IS", "GL", "FO", "SJ", "AX", "NO", "SE", "FI", "DK", "EE", "LV", "LT"],
+];
+
 function ioTerritoires(noeuds) {
   const aires = noeuds.map((n) => ioAireSousLigne(n.anneau, 1e9));
   const plusGrand = aires.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a), 0);
@@ -460,6 +470,12 @@ function ioTerritoires(noeuds) {
       if (b) parent.set(racine(a), racine(b));
     });
   });
+  IO_REGROUPEMENTS.forEach((codes) => {
+    const membres = exterieurs.filter((e) => codes.includes(e.id.split(":")[0]));
+    membres.slice(1).forEach((m) => {
+      parent.set(racine(m.id), racine(membres[0].id));
+    });
+  });
   const groupes = new Map();
   exterieurs.forEach((e) => {
     const r = racine(e.id);
@@ -487,7 +503,7 @@ function ioAireColoriee(territoire, x, sens) {
 
 /** Les rectangles SVG de la zone (à découper aux contours des pays), et la hauteur relative de chaque territoire. */
 function ioRectanglesParTerritoire(noeuds, fraction, couleur) {
-  if (fraction <= 0 || !noeuds.length) return { rectangles: "", hauteurs: [] };
+  if (fraction <= 0 || !noeuds.length) return { rectangles: "", fond: "", hauteurs: [] };
   const { territoires, sens } = ioTerritoires(noeuds);
   const e = Math.min(fraction, 1);
   const hauteurs = territoires.map((t) => {
@@ -509,8 +525,19 @@ function ioRectanglesParTerritoire(noeuds, fraction, couleur) {
       return `<rect x="${x0}" y="${y1 - hauteur}" width="${x1 - x0}" height="${hauteur}" fill="${couleur}" />`;
     })
     .join("");
-  return { rectangles, hauteurs };
+  // LE RESTE DE LA ZONE, de la même couleur mais très transparent : une zone détenue se distingue ainsi de ce
+  // qu'on n'a pas, même quand sa part colorée est mince.
+  const fond = territoires
+    .map((t) => {
+      const [x0, x1, y0, y1] = t.boite;
+      return `<rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="${couleur}" fill-opacity="${IO_OPACITE_RESTE}" />`;
+    })
+    .join("");
+  return { rectangles, fond, hauteurs };
 }
+
+// L'opacité de la partie non coloriée d'une zone détenue.
+const IO_OPACITE_RESTE = 0.16;
 
 function ioRenderCarte(bloc) {
   const conteneur = document.getElementById("io-camembert-zone");
@@ -527,11 +554,11 @@ function ioRenderCarte(bloc) {
     .map(({ part, i, codes }) => {
       const fraction = Math.min(Math.max(part.part, 0), 1);
       const noeuds = codes.flatMap((c) => ioNoeudsPays(pays.get(c)));
-      const { rectangles } = ioRectanglesParTerritoire(noeuds, fraction, ioCouleurPart(part));
+      const { rectangles, fond } = ioRectanglesParTerritoire(noeuds, fraction, ioCouleurPart(part));
       const formes = codes.map((c) => `<path d="${pays.get(c).d}" />`).join("");
       const identifiant = `io-carte-zone-${i}`;
       return `<clipPath id="${identifiant}">${formes}</clipPath>
-        <g clip-path="url(#${identifiant})">${rectangles}</g>
+        <g clip-path="url(#${identifiant})">${fond}${rectangles}</g>
         <g class="io-part io-carte-zone" data-index="${i}" data-io-cle="${ioCle(part)}">${formes}</g>`;
     })
     .join("");

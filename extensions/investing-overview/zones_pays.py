@@ -27,7 +27,7 @@ from pays_iso import PAYS
 # (correspondances_etf) : Ukraine et Turquie y figurent. LA RUSSIE EST EN ASIE par défaut. Le Moyen-Orient est rangé en Asie.
 _EUROPE = set(
     "AL AD AT BY BE BA BG HR CY CZ DK EE FO FI FR DE GI GR GG HU IS IE IM IT JE XK LV LI LT LU MT MD MC ME NL "
-    "MK NO PL PT RO SM RS SK SI ES SE CH UA GB VA TR AX SJ".split()
+    "MK NO PL PT RO SM RS SK SI ES SE CH UA GB VA TR AX SJ GL".split()
 )
 _ASIE = set(
     "AF AM AZ BH BD BT BN KH GE IN ID IR IQ IL JP JO KZ KW KG LA LB MY MV MN MM NP KP OM PK PS PH QA SA SG KR LK "
@@ -35,7 +35,7 @@ _ASIE = set(
 )
 _CHINE = set("CN HK MO".split())
 _AMERIQUE_HORS_US = set(
-    "AI AG AR AW BS BB BZ BM BO BR VG CA KY CL CO CR CU CW DM DO EC SV FK GF GL GD GP GT GY HT HN JM MQ MX MS NI "
+    "AI AG AR AW BS BB BZ BM BO BR VG CA KY CL CO CR CU CW DM DO EC SV FK GF GD GP GT GY HT HN JM MQ MX MS NI "
     "PA PY PE PR BL KN LC MF PM VC SR TT TC UY VI VE BQ SX".split()
 )
 _AFRIQUE = set(
@@ -45,7 +45,10 @@ _AFRIQUE = set(
 _OCEANIE = set(
     "AS AU CK FJ PF GU KI MH FM NR NC NZ NU NF MP PW PG PN WS SB TK TO TV VU WF UM CC CX".split()
 )
-_AMERIQUE_LATINE = _AMERIQUE_HORS_US - {"CA", "GL", "BM", "PM"}
+# L'AMÉRIQUE DU NORD (hors États-Unis) est le Canada (et ses dépendances) ; le reste de l'Amérique hors États-Unis
+# — Mexique, Amérique centrale, Caraïbes, Amérique du Sud — forme l'autre zone. Le Groenland est en Europe.
+_AMERIQUE_DU_NORD_HORS_US = {"CA", "BM", "PM"}
+_AMERIQUE_LATINE = _AMERIQUE_HORS_US - _AMERIQUE_DU_NORD_HORS_US
 
 
 def cle(texte) -> str:
@@ -72,8 +75,12 @@ REGROUPEMENTS: dict[str, set[str]] = {
     "americas ex us": _AMERIQUE_HORS_US,
     "amerique": _AMERIQUE_HORS_US | {"US"},
     "americas": _AMERIQUE_HORS_US | {"US"},
-    "amerique du nord": {"US", "CA", "MX", "GL", "BM", "PM"},
-    "north america": {"US", "CA", "MX", "GL", "BM", "PM"},
+    "amerique du nord hors etats unis": _AMERIQUE_DU_NORD_HORS_US,
+    "north america ex us": _AMERIQUE_DU_NORD_HORS_US,
+    "amerique du nord": _AMERIQUE_DU_NORD_HORS_US | {"US"},
+    "north america": _AMERIQUE_DU_NORD_HORS_US | {"US"},
+    "amerique du sud": _AMERIQUE_LATINE,
+    "south america": _AMERIQUE_LATINE,
     "amerique latine": _AMERIQUE_LATINE,
     "latin america": _AMERIQUE_LATINE,
     "afrique": _AFRIQUE,

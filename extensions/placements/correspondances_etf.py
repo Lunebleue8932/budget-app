@@ -24,6 +24,8 @@ from app import constants
 
 US, CN, EU = "États-Unis", "Chine", "Europe"
 AS, AM, AF, OC = "Asie (hors Chine)", "Amérique (hors États-Unis)", "Afrique", "Océanie"
+# Le Canada a sa zone : l'Amérique (hors États-Unis) est alors le reste du continent (cf. migration 0095).
+NA = "Amérique du Nord (hors États-Unis)"
 
 
 def cle(texte) -> str:
@@ -49,6 +51,7 @@ _PAYS_PAR_ZONE = {
         "bulgaria", "serbie", "serbia", "malte", "malta", "chypre", "cyprus", "jersey", "guernesey", "guernsey",
         "ile de man", "isle of man", "liechtenstein", "monaco", "ukraine", "turquie", "turkey", "turkiye",
         "union europeenne", "european union", "eurozone", "zone euro", "europe",
+        "groenland", "greenland", "iles feroe", "faroe islands", "svalbard", "iles aland", "aland islands",
     ],
     AS: [
         "japon", "japan", "coree du sud", "south korea", "korea south", "korea", "republic of korea", "taiwan",
@@ -58,9 +61,10 @@ _PAYS_PAR_ZONE = {
         "kuwait", "bahrein", "bahrain", "oman", "jordanie", "jordan", "liban", "lebanon", "kazakhstan",
         "mongolie", "mongolia", "russie", "russia", "russian federation", "cambodge", "cambodia", "nepal", "iran", "irak", "iraq", "asie", "asia",
     ],
+    NA: ["canada", "bermudes", "bermuda", "saint pierre et miquelon"],
     AM: [
-        "canada", "bresil", "brazil", "mexique", "mexico", "argentine", "argentina", "chili", "chile", "colombie",
-        "colombia", "perou", "peru", "bermudes", "bermuda", "iles caimans", "cayman islands", "panama",
+        "bresil", "brazil", "mexique", "mexico", "argentine", "argentina", "chili", "chile", "colombie",
+        "colombia", "perou", "peru", "iles caimans", "cayman islands", "panama",
         "uruguay", "venezuela", "equateur", "ecuador", "costa rica", "bahamas", "jamaique", "jamaica",
         "puerto rico", "porto rico", "iles vierges britanniques", "british virgin islands", "curacao",
         "amerique latine", "latin america",

@@ -66,3 +66,24 @@ def test_la_russie_est_en_asie_par_defaut():
     correspondances = charger_module_extension("placements", "correspondances_etf.py")
     assert correspondances.zone_par_defaut("Russie") == "Asie (hors Chine)"
     assert correspondances.zone_par_defaut("Russian Federation") == "Asie (hors Chine)"
+
+
+def test_le_groenland_est_en_europe_et_le_canada_a_sa_zone():
+    zones = _livrees() + [(30, "Amérique du Nord (hors États-Unis)")]
+    resultat = zones_pays.affecter(zones)
+    europe = next(z for z, n in zones if n == "Europe")
+    amerique = next(z for z, n in zones if n == "Amérique (hors États-Unis)")
+    assert "GL" in resultat[europe] and "GL" not in resultat[amerique]
+    assert "CA" in resultat[30] and "CA" not in resultat[amerique]
+    # Le reste de l'Amérique (Mexique, Caraïbes, Amérique du Sud) reste ensemble.
+    assert {"MX", "BR", "CU"} <= set(resultat[amerique])
+    # Sans la zone du Canada, il reste dans l'Amérique hors États-Unis.
+    sans = zones_pays.affecter(_livrees())
+    assert "CA" in sans[amerique] and "GL" not in sans[amerique]
+
+
+def test_les_defauts_de_l_import_suivent_les_memes_regles():
+    correspondances = charger_module_extension("placements", "correspondances_etf.py")
+    assert correspondances.zone_par_defaut("Canada") == "Amérique du Nord (hors États-Unis)"
+    assert correspondances.zone_par_defaut("Greenland") == "Europe"
+    assert correspondances.zone_par_defaut("Brésil") == "Amérique (hors États-Unis)"
