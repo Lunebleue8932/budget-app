@@ -1246,10 +1246,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
-          <label>Du
+          <!-- UN SEUL SÉLECTEUR DE DATES sur cet onglet : l'arbre de période (Tout > année > mois) sous la liste.
+               Les champs Du / Au restent dans le DOM, masqués et vides, pour que les filtres les lisent sans erreur. -->
+          <label hidden>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
-          <label>Au
+          <label hidden>Au
             <input type="date" data-filtre="dateFin" />
           </label>
           <label>Compte
@@ -1368,10 +1370,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label data-extension-greffe="monnaies" style="display:none">Monnaie
             <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
-          <label>Du
+          <!-- UN SEUL SÉLECTEUR DE DATES sur cet onglet : l'arbre de période (Tout > année > mois) sous la liste.
+               Les champs Du / Au restent dans le DOM, masqués et vides, pour que les filtres les lisent sans erreur. -->
+          <label hidden>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
-          <label>Au
+          <label hidden>Au
             <input type="date" data-filtre="dateFin" />
           </label>
           <label>Compte

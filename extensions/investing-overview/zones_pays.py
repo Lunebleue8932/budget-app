@@ -24,14 +24,14 @@ from typing import Iterable
 from pays_iso import PAYS
 
 # Les pays par grande région, en codes ISO alpha-2. L'Europe suit le dictionnaire de l'import
-# (correspondances_etf) : Russie, Ukraine et Turquie y figurent. Le Moyen-Orient est rangé en Asie.
+# (correspondances_etf) : Ukraine et Turquie y figurent. LA RUSSIE EST EN ASIE par défaut. Le Moyen-Orient est rangé en Asie.
 _EUROPE = set(
     "AL AD AT BY BE BA BG HR CY CZ DK EE FO FI FR DE GI GR GG HU IS IE IM IT JE XK LV LI LT LU MT MD MC ME NL "
-    "MK NO PL PT RO RU SM RS SK SI ES SE CH UA GB VA TR AX SJ".split()
+    "MK NO PL PT RO SM RS SK SI ES SE CH UA GB VA TR AX SJ".split()
 )
 _ASIE = set(
     "AF AM AZ BH BD BT BN KH GE IN ID IR IQ IL JP JO KZ KW KG LA LB MY MV MN MM NP KP OM PK PS PH QA SA SG KR LK "
-    "SY TW TJ TH TL TM AE UZ VN YE IO".split()
+    "SY TW TJ TH TL TM AE UZ VN YE IO RU".split()
 )
 _CHINE = set("CN HK MO".split())
 _AMERIQUE_HORS_US = set(

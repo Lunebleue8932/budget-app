@@ -58,3 +58,11 @@ def test_la_carte_et_la_table_des_noms_disent_les_memes_pays():
     source = (Path(__file__).resolve().parents[2] / "extensions" / "investing-overview" / "carte-monde.js").read_text(encoding="utf-8")
     codes = set(re.findall(r'"c":"([A-Z]{2})"', source))
     assert codes == set(pays_iso.PAYS)
+
+
+def test_la_russie_est_en_asie_par_defaut():
+    resultat = zones_pays.affecter([(1, "Europe"), (2, "Asie (hors Chine)")])
+    assert "RU" in resultat[2] and "RU" not in resultat[1]
+    correspondances = charger_module_extension("placements", "correspondances_etf.py")
+    assert correspondances.zone_par_defaut("Russie") == "Asie (hors Chine)"
+    assert correspondances.zone_par_defaut("Russian Federation") == "Asie (hors Chine)"

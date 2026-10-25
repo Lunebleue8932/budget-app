@@ -261,9 +261,18 @@
   display: none;
 }
 
-/* UN ETF CALQUÉ affiche son indice en bleu plein, comme un filtre actif (style.css, .filtre-menu-bouton). */
+/* UN ETF CALQUÉ affiche le nom de son indice en bleu et en gras ; le reste du sélecteur ne change pas. */
 .expo-calque select.expo-calque-lie {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.expo-calque select.expo-calque-lie option {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.expo-calque select.expo-calque-lie option:checked {
+  color: var(--accent);
+  font-weight: 700;
 }

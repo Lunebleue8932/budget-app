@@ -223,6 +223,7 @@ PAYS = {
     "US": ("États-Unis d'Amérique", ["United States of America", "United States", "USA", "U.S.A.", "US", "U.S."], ["Estados Unidos", "Estados Unidos da América"]),
     "UY": ("Uruguay", "Uruguay", "Uruguai"),
     "UZ": ("Ouzbékistan", "Uzbekistan", "Uzbequistão"),
+    "VA": ("Saint-Siège (Vatican)", "Holy See (Vatican City State)", "Santa Sé"),
     "VC": ("Saint-Vincent-et-les-Grenadines", "Saint Vincent and the Grenadines", "São Vicente e Granadinas"),
     "VE": ("Venezuela", "Venezuela", "Venezuela"),
     "VG": ("Îles vierges britanniques", "Virgin Islands, British", "Ilhas Virgens Britânicas"),

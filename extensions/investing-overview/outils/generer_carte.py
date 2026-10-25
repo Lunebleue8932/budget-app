@@ -8,9 +8,11 @@ SOURCES (domaine public / licences libres, rien n'est lu à l'exécution de l'ap
 USAGE :
   python generer_carte.py <countries-50m.json> <codes.json> <fr.json> <en.json> <pt.json>
 
-PROJECTION : « Equal Earth » (les aires restent proportionnelles, ce qui compte pour une carte dont on
-remplit les surfaces), calculée ICI : l'écran ne reçoit que des tracés SVG déjà projetés dans une boîte
-de 1000 de large. L'Antarctique est omis.
+PROJECTION : équirectangulaire (« plate carrée »), une carte aplatie et classique : la longitude et la
+latitude deviennent x et y telles quelles. Moins réaliste qu'une projection qui conserve les aires, mais
+lisible d'un coup d'œil et peu haute (environ 2,6 de large pour 1), ce qui laisse la place d'une carte à côté
+d'un camembert. Calculée ICI : l'écran ne reçoit que des tracés SVG déjà projetés dans une boîte de 1000 de
+large. L'Antarctique est omis.
 """
 import json
 import math
@@ -22,6 +24,11 @@ LARGEUR = 1000.0
 
 
 def projeter(lon, lat):
+    return lon, lat
+
+
+def projeter_equal_earth(lon, lat):
+    """L'ancienne projection (aires conservées), gardée pour mémoire."""
     phi = math.radians(lat)
     lam = math.radians(lon)
     theta = math.asin(math.sqrt(3) / 2 * math.sin(phi))
@@ -79,7 +86,7 @@ def aire(points):
                    for i in range(len(points)))) / 2
 
 
-def couper_a_l_antimeridien(pts, seuil=3.0):
+def couper_a_l_antimeridien(pts, seuil=180.0):
     """Un anneau qui passe de +180° à -180° (la Russie) devient un trait à travers toute la carte : on le
     coupe à chaque saut, et chaque morceau se referme de son côté."""
     n = len(pts)
