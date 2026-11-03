@@ -340,6 +340,28 @@
     </div>
   </div>
 
+  <!-- AJOUTER UNE MONNAIE QUI EXISTE DÉJÀ À UN COMPTE, depuis le menu de monnaie d'une opération
+       (« + Ajouter une monnaie à ce compte »). Un compte ne porte que les monnaies qu'on lui a données :
+       payer en dollars depuis un compte en euros demandait d'aller dans Paramètres. La fenêtre propose les
+       monnaies de l'application que le compte n'a pas encore, et « Créer une nouvelle monnaie » pour les
+       autres (cf. app.js, `creerMonnaiePourCompte`). -->
+  <div id="modale-ajout-monnaie-compte" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale" role="dialog" aria-modal="true" aria-labelledby="modale-ajout-monnaie-compte-titre">
+      <h2 id="modale-ajout-monnaie-compte-titre">Ajouter une monnaie au compte</h2>
+      <p class="modale-texte" data-texte-cle="noyau.ajout-monnaie-compte"></p>
+      <form id="form-ajout-monnaie-compte" class="modale-formulaire" autocomplete="off">
+        <label class="full-width">Monnaie
+          <select id="ajout-monnaie-compte-choix"></select>
+        </label>
+        <div class="modale-actions">
+          <button type="button" id="btn-ajout-monnaie-compte-annuler">Annuler</button>
+          <button type="button" id="btn-ajout-monnaie-compte-creer">Créer une nouvelle monnaie</button>
+          <button type="submit" class="primary">Ajouter au compte</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- CRÉER UNE CATÉGORIE SUR PLACE : depuis la liste des catégories d'une opération (« + Créer une catégorie »)
        et depuis le tableau des catégories de la banque, à l'import. Un nom, et la case des entrées d'argent
        (cf. app.js, `demanderCreationCategorie`). -->
@@ -1666,11 +1688,26 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div id="operation-rapprochement-bloc" class="full-width" style="display:none">
           <div id="operation-rapprochement-champs" class="full-width" style="display:none">
             <p class="champ-titre full-width">Reconnaître à l'import<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement">i</i></p>
-            <label>Attendue à partir du
+            <!-- DATES SUR UNE PRÉVISIONNELLE, NUMÉROS DE JOUR SUR UNE RÉCURRENTE (cf. app.js,
+                 majModeFenetreRapprochement) : les dates restent la valeur de référence (c'est
+                 ce que le serveur enregistre), les numéros de jour les écrivent dans le mois
+                 de l'opération — chaque occurrence les reportera dans son propre mois. -->
+            <label data-fenetre="dates">Attendue à partir du
               <input type="date" id="operation-rapprochement-debut" />
             </label>
-            <label>Jusqu'au
+            <label data-fenetre="dates">Jusqu'au
               <input type="date" id="operation-rapprochement-fin" />
+            </label>
+            <label data-fenetre="jours" style="display:none">Attendue à partir du jour
+              <input type="number" id="operation-rapprochement-jour-debut" min="1" max="31" step="1" />
+            </label>
+            <label data-fenetre="jours" style="display:none">Jusqu'au jour
+              <input type="number" id="operation-rapprochement-jour-fin" min="1" max="31" step="1" />
+            </label>
+            <!-- RACCOURCI : « ± n jours » autour de la date de l'opération. Renseigné, il écrit
+                 les deux bornes ; on peut ensuite les retoucher à la main. -->
+            <label class="full-width">Ou à ± … jours de la date<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement-plus-moins">i</i>
+              <input type="number" id="operation-rapprochement-ecart" min="0" max="31" step="1" />
             </label>
             <label class="full-width"><span class="champ-titre">Mots-clés du libellé<i class="info-bulle" tabindex="0" data-info-cle="noyau.rapprochement-mots-cles">i</i></span>
               <span id="operation-rapprochement-mots-cles"></span>
@@ -2219,6 +2256,15 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="config-avancee-resume" id="import-config-avancee-resume"></span>
         </summary>
         <div id="import-config-colonnes-avancees"></div>
+
+        <!-- LES FRAIS SONT-ILS DÉJÀ DANS LES MONTANTS ? (migration 0097) Sans cette case, l'import
+             ajoute les frais à ce qui sort et les retranche de ce qui entre — juste quand le relevé
+             donne le montant avant frais, faux quand il écrit le total débité. Proposée seulement
+             quand une colonne « Frais » est lue. -->
+        <label class="import-option-ligne" id="import-frais-inclus-bloc" style="display:none">
+          <input type="checkbox" id="import-frais-inclus" />
+          Les frais sont déjà compris dans les montants du relevé<i class="info-bulle" tabindex="0" data-info-cle="noyau.frais-inclus">i</i>
+        </label>
 
         <!-- LES COLONNES DUMMY (migration 0079) : des colonnes que l'app ne rattache à aucune
              propriété, nommées pour que les règles d'« Imports Avancés » puissent les lire.

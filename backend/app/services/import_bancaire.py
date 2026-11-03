@@ -183,7 +183,12 @@ from pydantic import ValidationError
 import unicodedata
 
 from .. import crud, extensions, models, schemas
-from . import categorisation_intelligente, rapprochement_previsionnel, regles_categorisation
+from . import (
+    categorisation_intelligente,
+    rapprochement_previsionnel,
+    regles_categorisation,
+    renommages,
+)
 from .lecture_montants import format_nombres
 from ..constants import (
     DEVISE_PAR_MONTANT_AVANCE,
@@ -1849,6 +1854,8 @@ class ContextePreset:
         "format_date",
         "index_dummy",
         "categorie_virements_id",
+        "renommages",
+        "frais_inclus",
     )
 
     def __init__(
@@ -1872,6 +1879,12 @@ class ContextePreset:
         # LA CATÉGORIE DES VIREMENTS INTERNES (migration 0090) : la choisir fait d'une ligne un
         # virement (cf. _resoudre_ligne, _accorder_categorie_et_type).
         self.categorie_virements_id = crud.id_categorie_virements(db)
+        # LES RENOMMAGES (extension « Renommages », migration 0096) : {clé du libellé: entrée}, vide
+        # quand l'extension est éteinte.
+        self.renommages = renommages.charger(db)
+        # LES FRAIS DÉJÀ COMPRIS DANS LES MONTANTS DU FICHIER (migration 0097, cf. ImportPreset).
+        # `getattr` : les masques de preset (aperçu à colonnes d'essai) le laissent passer.
+        self.frais_inclus = bool(getattr(preset, "frais_inclus", False))
         # Le classement automatique est une EXTENSION (extensions/regles) : sans
         # elle, les règles dorment en base mais ne s'appliquent plus. Le moteur
         # reste ici parce qu'il appartient à l'import ; ce qui est optionnel,
@@ -2059,6 +2072,7 @@ def _appliquer_frais(
     nom_monnaie_frais: str = "",
     sortante: bool = True,
     est_virement: bool = False,
+    inclus: bool = False,
 ) -> ResultatFrais:
     """Quel montant l'opération porte, et ce que les frais lui font.
 
@@ -2103,6 +2117,11 @@ def _appliquer_frais(
     # aurait fait diverger les deux (une sortie à un seul compte doit porter le
     # montant envoyé, frais ou pas).
     frais = abs(frais) if frais else 0.0
+    # LES FRAIS DÉJÀ COMPRIS (ImportPreset.frais_inclus) : les montants du fichier sont ceux qui ont
+    # réellement bougé, frais compris. Les vérifications de devise ci-dessous restent faites avec les
+    # vrais frais (c'est elles qui disent quelle jambe les porte), mais plus rien ne s'ajoute ni ne
+    # se retranche : `frais_a_imputer` vaut 0.
+    frais_a_imputer = 0.0 if inclus else frais
 
     # Devise annoncée mais pas encore rattachée : on ne touche à rien, la ligne
     # porte déjà l'erreur « monnaie non résolue ».
@@ -2138,7 +2157,7 @@ def _appliquer_frais(
                     monnaie_operation_id,
                 )
             return _frais_incoherents(nom_monnaie_frais, "du montant", monnaie_operation_id)
-        magnitude, erreur = _grever(montant_op, frais, sortante)
+        magnitude, erreur = _grever(montant_op, frais_a_imputer, sortante)
         return ResultatFrais(magnitude, None, monnaie_operation_id, erreur=erreur)
 
     # ---------- Virement interne : deux jambes, la devise désigne laquelle ----------
@@ -2156,10 +2175,10 @@ def _appliquer_frais(
         if sur_lemission:
             if not concorde(monnaie_envoyee_id):
                 return _frais_incoherents(nom_monnaie_frais, "initiale", monnaie_operation_id)
-            return ResultatFrais(montant_abs, initial_abs + frais, monnaie_operation_id)
+            return ResultatFrais(montant_abs, initial_abs + frais_a_imputer, monnaie_operation_id)
         if not concorde(monnaie_id):
             return _frais_incoherents(nom_monnaie_frais, "du montant", monnaie_operation_id)
-        reste, erreur = _grever(montant_op, frais, sortante=False)
+        reste, erreur = _grever(montant_op, frais_a_imputer, sortante=False)
         return ResultatFrais(reste, initial_abs, monnaie_operation_id, erreur=erreur)
 
     # ---------- Un seul compte : le sens désigne le montant qui compte ----------
@@ -2167,12 +2186,12 @@ def _appliquer_frais(
         monnaie_operation_id = monnaie_envoyee_id or monnaie_id
         if not concorde(monnaie_envoyee_id):
             return _frais_incoherents(nom_monnaie_frais, "initiale", monnaie_operation_id)
-        magnitude, erreur = _grever(montant_envoye, frais, sortante=True)
+        magnitude, erreur = _grever(montant_envoye, frais_a_imputer, sortante=True)
         return ResultatFrais(magnitude, None, monnaie_operation_id, erreur=erreur)
 
     if not concorde(monnaie_id):
         return _frais_incoherents(nom_monnaie_frais, "du montant", monnaie_operation_id)
-    magnitude, erreur = _grever(montant_op, frais, sortante=False)
+    magnitude, erreur = _grever(montant_op, frais_a_imputer, sortante=False)
     return ResultatFrais(magnitude, None, monnaie_operation_id, erreur=erreur)
 
 
@@ -2186,6 +2205,8 @@ def _resoudre_ligne(
 
     date_op = parser_date(brute["date_brute"], contexte.format_date)
     nature = _texte(brute["nature"])
+    # Le libellé du relevé, avant tout renommage (cf. schemas.ImportLigne.nature_releve).
+    nature_releve = nature
     nom_categorie_banque = _texte(brute["categorie_banque"])
     nom_compte_banque = _texte(brute["compte_banque"])
     notes_fichier = _texte(brute["notes_banque"]) or None
@@ -2311,6 +2332,9 @@ def _resoudre_ligne(
             # 50 € » compare donc ce qu'on lit sur le relevé, ce qui est aussi
             # la seule valeur que l'utilisateur a sous les yeux en l'écrivant.
             "montant": abs(montant_op) if montant_op is not None else None,
+            # LE SENS, jugé comme partout dans l'import (colonne « Sens », crédit/débit ou signe) :
+            # « entree » si l'argent arrive, « depense » s'il part, rien si le relevé ne le dit pas.
+            "sens": {1: "entree", -1: "depense"}.get(signe_du_montant(montant_op)),
             # CE QUI ARRIVE ET CE QUI PART, tels que le fichier les donne. Sans
             # colonne « Montant envoyé », le relevé n'écrit qu'un montant et
             # il vaut des deux côtés — la même valeur que « montant ».
@@ -2379,6 +2403,7 @@ def _resoudre_ligne(
         nom_monnaie_frais_banque,
         sortante=montant_op is None or montant_op < 0,
         est_virement=TypeOperation(type_code) == TypeOperation.virement,
+        inclus=bool(contexte.frais_inclus),
     )
     resultat_frais = _orienter_jambe_virement(
         resultat_frais,
@@ -2541,6 +2566,16 @@ def _resoudre_ligne(
     a_declarer_regle = False
     amorti_regle = False
     debut_regle = fin_regle = None
+    # LES RENOMMAGES (extension « Renommages ») : un libellé déjà renommé l'est d'office, aux espaces,
+    # accents et casse près. UNE RÈGLE QUI RENOMME L'EMPORTE — elle a été écrite exprès pour cette
+    # ligne. Une ressemblance ne renomme jamais, et ne se propose pas ici : elle attend, à trancher,
+    # dans la page des renommages (cf. noter_a_trancher, appelé à la confirmation).
+    renomme = False
+    if contexte.renommages and nature_releve:
+        entree = renommages.nouveau_nom(contexte.renommages, nature_releve)
+        if entree is not None and not (resultat_regle is not None and resultat_regle.nature):
+            nature = entree.nom_nouveau
+            renomme = nature != nature_releve
     if resultat_regle is not None:
         if resultat_regle.nature:
             nature = resultat_regle.nature
@@ -2561,6 +2596,8 @@ def _resoudre_ligne(
         ligne=brute["ligne"],
         date=date_op,
         nature=nature,
+        nature_releve=nature_releve,
+        renommee=renomme,
         # Le montant de l'opération, frais compris : ce n'est pas forcément la
         # magnitude de `montant_signe` (une sortie à un seul compte porte le
         # montant envoyé, cf. _appliquer_frais).
@@ -2596,6 +2633,7 @@ def _resoudre_ligne(
         nom_banque_monnaie_envoyee=nom_monnaie_envoyee_banque,
         monnaie_envoyee_id=monnaie_envoyee_id,
         frais=abs(frais) if frais is not None else None,
+        frais_inclus=bool(contexte.frais_inclus),
         nom_banque_monnaie_frais=nom_monnaie_frais_banque,
         monnaie_frais_id=monnaie_frais_id,
         montant_hors_frais=montant_hors_frais,
@@ -2611,7 +2649,71 @@ def _resoudre_ligne(
         amortissement_fin=fin_regle,
         virement_par_categorie=virement_par_categorie,
     )
+    ligne_resolue = _accorder_monnaie_au_compte(
+        ligne_resolue, crud.get_compte(db, compte_id) if compte_id is not None else None
+    )
     return _accorder_categorie_et_type(ligne_resolue, contexte.categorie_virements_id)
+
+
+def _accorder_monnaie_au_compte(
+    ligne: schemas.ImportLigne, compte: Optional["models.Compte"]
+) -> schemas.ImportLigne:
+    """UN COMPTE N'A PAS BESOIN DE LA DEUXIÈME MONNAIE d'un paiement converti, tant qu'il possède l'une
+    des deux.
+
+    UNE LIGNE À DEUX MONTANTS (un paiement de 100 $ débité de 92 € sur un compte en euros) porte deux
+    monnaies, et `_appliquer_frais` choisit par défaut celle de ce qui PART (une sortie) ou de ce qui
+    ARRIVE (une entrée). Si le compte ne possède pas celle-là mais possède l'autre, l'opération est
+    écrite dans celle qu'il possède, avec le montant qui lui correspond — plutôt que de se mettre en
+    erreur (« le compte ne porte pas cette monnaie ») et d'obliger à ajouter une monnaie dont il n'a
+    que faire.
+
+    Les frais suivent : ajoutés (ou retranchés) seulement s'ils sont dans la monnaie retenue, ou sans
+    monnaie connue, et jamais quand ils sont déjà compris dans les montants du relevé. Un virement
+    n'est pas concerné (ses deux comptes portent chacun la leur), ni une ligne à un seul montant."""
+    if (
+        compte is None
+        or ligne.type_code == TypeOperation.virement.value
+        or ligne.montant_envoye_hors_frais is None
+        or ligne.montant_hors_frais is None
+        or ligne.monnaie_id is None
+        or ligne.monnaie_envoyee_id is None
+        or ligne.monnaie_id == ligne.monnaie_envoyee_id
+    ):
+        return ligne
+    possedees = compte.monnaie_ids
+    defaut = ligne.monnaie_operation_id or ligne.monnaie_id
+    if defaut in possedees:
+        return ligne
+    autre = ligne.monnaie_id if defaut == ligne.monnaie_envoyee_id else ligne.monnaie_envoyee_id
+    if autre not in possedees:
+        return ligne
+    base = ligne.montant_hors_frais if autre == ligne.monnaie_id else ligne.montant_envoye_hors_frais
+    frais = abs(ligne.frais) if ligne.frais else 0.0
+    if frais and not ligne.frais_inclus and ligne.monnaie_frais_id not in (None, autre):
+        # Des frais dans une troisième monnaie ne s'appliquent à aucun des deux montants : la ligne
+        # reste telle que le fichier la donne (et signalée si elle l'était).
+        return ligne
+    if ligne.frais_inclus:
+        frais = 0.0
+    sortante = (ligne.montant_signe or 0) < 0
+    montant = base + frais if sortante else base - frais
+    if montant <= 0:
+        return ligne
+    # LES FRAIS ÉTAIENT « INCOHÉRENTS » PARCE QUE LE CHOIX PAR DÉFAUT PRENAIT L'AUTRE MONNAIE : dans
+    # celle que le compte porte ils s'appliquent, la ligne n'est plus en erreur de ce côté-là.
+    erreur = ", ".join(
+        e for e in (ligne.erreur or "").split(", ") if e and not e.startswith("frais en «")
+    )
+    return ligne.model_copy(
+        update={
+            "montant": montant,
+            "monnaie_operation_id": autre,
+            "montant_envoye": None,
+            "frais_incoherents": False,
+            "erreur": erreur or None,
+        }
+    )
 
 
 # ---------- LA CATÉGORIE DES VIREMENTS INTERNES, À L'IMPORT (migration 0090) ----------
@@ -3371,6 +3473,7 @@ def _reimputer_frais(
         or ("x" if ligne.monnaie_frais_id is not None else ""),
         sortante=sortante,
         est_virement=TypeOperation(ligne.type_code) == TypeOperation.virement,
+        inclus=ligne.frais_inclus,
     )
     # Repasser une ligne EN virement dans l'aperçu doit l'orienter comme si le
     # fichier l'avait donnée telle quelle : sans ça, le montant du relevé
@@ -3911,7 +4014,12 @@ def confirmer(
         if ligne.ligne in overrides.lignes_supprimees:
             continue
 
+        nature_resolue = ligne.nature
         ligne, erreur_frais, liens_remboursement = retouchees[ligne.ligne]
+        # Une retouche a pu changer le compte (ou le montant) : la monnaie suit ce que le compte porte.
+        ligne = _accorder_monnaie_au_compte(
+            ligne, crud.get_compte(db, ligne.compte_id) if ligne.compte_id is not None else None
+        )
 
         # LE SENS, PAR LA RÈGLE UNIQUE (cf. sens_de_la_ligne). Une ligne SANS signe tient le sien
         # de son type ou de sa catégorie : ses frais, imputés « en entrée » faute de signe, se
@@ -3966,6 +4074,21 @@ def confirmer(
         if ligne.erreur:
             lignes_ignorees.append(ligne)
             continue
+
+        # UNE LIGNE RETOUCHÉE SOUS UN AUTRE NOM LAISSE UN RENOMMAGE (extension « Renommages ») : le
+        # prochain relevé qui écrit le même libellé arrivera directement sous ce nom. Seulement
+        # quand c'est la RETOUCHE qui a changé le nom (celui que l'import avait déjà trouvé, par
+        # une règle ou une entrée, n'est pas une décision d'aujourd'hui). Rendre à la ligne le
+        # libellé du relevé défait l'entrée.
+        if ligne.nature_releve and ligne.nature != nature_resolue and renommages.actif():
+            if ligne.nature == ligne.nature_releve:
+                renommages.oublier(db, ligne.nature_releve)
+            else:
+                renommages.enregistrer(db, ligne.nature_releve, ligne.nature, "import")
+        elif ligne.nature_releve and ligne.nature == ligne.nature_releve and contexte.renommages:
+            # UN LIBELLÉ QUI RESSEMBLE À UN LIBELLÉ DÉJÀ RENOMMÉ n'est jamais proposé ici : il attend,
+            # « à trancher », dans la page des renommages (cf. renommages.noter_a_trancher).
+            renommages.noter_a_trancher(db, contexte.renommages, ligne.nature_releve)
 
         # Les deux comptes d'un virement sont connus (compte_id résolu depuis
         # le fichier + compte_id_autre complété à la main) : un vrai virement

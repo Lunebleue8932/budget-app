@@ -1,0 +1,43 @@
+<!-- Écran de l'extension « Renommages ».
+
+     UN SOUS-ONGLET DE LA PAGE « RÈGLES » (cf. le manifeste : navigation.type = "greffe", hote =
+     "parametres-correspondances"), à côté des règles dont il est le cousin : une règle classe une ligne
+     d'après ce qu'elle dit, un renommage retient le nom qu'on a donné à un libellé.
+
+     Ce n'est PAS une `.sous-section` : le bloc vit dans la page hôte, et renommages.js y pose la barre
+     « Règles | Renommages » (cf. poserBarreRenommages) qui montre l'un ou l'autre. -->
+<div id="renommages-bloc">
+  <h3>Renommages<i class="info-bulle" tabindex="0" data-info-cle="renommages.renommages">i</i></h3>
+
+  <!-- Ajouter à la main : un libellé tel que le relevé l'écrit, et le nom qu'on veut lui donner. -->
+  <form id="renommage-formulaire" class="renommage-formulaire">
+    <label>Libellé du relevé
+      <input type="text" id="renommage-origine" placeholder="ex. CB CARREFOUR MARKET 0412" required />
+    </label>
+    <span class="renommage-fleche" aria-hidden="true">→</span>
+    <label>Nouveau nom
+      <input type="text" id="renommage-nouveau" placeholder="ex. Carrefour" required />
+    </label>
+    <button type="submit" class="primary">Ajouter</button>
+    <!-- Grisée tant qu'aucune opération de la base ne porte le libellé d'origine (cf. majOptionAppliquer). -->
+    <label class="renommage-appliquer" id="renommage-appliquer-etiquette">
+      <input type="checkbox" id="renommage-appliquer" disabled />
+      Appliquer aux opérations existantes
+    </label>
+  </form>
+
+  <!-- À TRANCHER : les libellés vus à l'import qui ressemblent à un renommage sans lui être identiques.
+       L'import ne propose rien ; c'est ici qu'on accepte (même nom) ou refuse. Masqué quand il n'y en a pas. -->
+  <div id="renommages-a-trancher" style="display:none">
+    <h4>À trancher<i class="info-bulle" tabindex="0" data-info-cle="renommages.a-trancher">i</i></h4>
+    <div id="renommages-a-trancher-liste" class="renommages-liste"></div>
+  </div>
+
+  <h4 id="renommages-titre-liste">Renommages retenus</h4>
+  <div class="renommage-filtre">
+    <input type="text" id="renommage-recherche" placeholder="Chercher un renommage" aria-label="Chercher un renommage" />
+    <span class="hint" id="renommage-compte"></span>
+  </div>
+
+  <div id="renommages-liste" class="renommages-liste"></div>
+</div>

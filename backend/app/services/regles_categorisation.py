@@ -34,6 +34,7 @@ from typing import NamedTuple, Optional
 
 from ..constants import (
     CHAMP_REGLE_LIGNE_ENTIERE,
+    CHAMP_REGLE_SENS,
     CHAMPS_REGLE_DEVISES,
     OPERATEURS_NOMBRE,
     TYPES_AVEC_CATEGORIE_LIBRE,
@@ -289,6 +290,9 @@ def evaluer_condition(condition: dict, brute: dict) -> bool:
         if colonne_dummy_non_lue(brute, condition["champ"]):
             return False
         valeur_champ = valeur_du_champ(brute, condition["champ"])
+        # Un sens que le relevé ne dit pas ne correspond à rien, « n'est pas » compris.
+        if condition["champ"] == CHAMP_REGLE_SENS and not valeur_champ:
+            return False
         return all(_comparer(valeur_champ, operateur, mot, brute) for mot in mots)
     return any(
         all(_comparer(valeur_du_champ(brute, champ), operateur, mot, brute) for mot in mots)

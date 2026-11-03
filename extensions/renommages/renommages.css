@@ -1,0 +1,129 @@
+/* ---------- Extension « Renommages » ---------- */
+
+/* LA BARRE « RÈGLES | RENOMMAGES » en tête de la page hôte (cf. poserBarreRenommages) : la classe
+   `vue-renommages` de la barre choisit ce qu'on voit. Barre visible et « Renommages » choisi : seuls la
+   barre et le bloc des renommages restent ; sinon le bloc des renommages est caché. Une barre masquée
+   (extension éteinte) ne compte pour rien. */
+#sous-section-parametres-correspondances:has(> .renommages-barre.vue-renommages:not([style*="none"]))
+  > :not(.renommages-barre):not(#renommages-bloc) {
+  display: none !important;
+}
+
+#sous-section-parametres-correspondances:not(:has(> .renommages-barre.vue-renommages:not([style*="none"])))
+  > #renommages-bloc {
+  display: none !important;
+}
+
+.renommages-barre {
+  margin-bottom: 1rem;
+}
+
+.renommage-formulaire {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.renommage-formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 14rem;
+}
+
+/* « Appliquer aux opérations existantes » : sur sa propre ligne sous les champs, la case (un
+   interrupteur, cf. style.css) devant son texte. Grisée, la ligne entière l'est — c'est elle qui porte
+   le tooltip, une case désactivée ne recevant pas le survol. */
+.renommage-formulaire label.renommage-appliquer {
+  flex: 1 1 100%;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.renommage-formulaire label.renommage-appliquer.desactivee {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.renommage-fleche {
+  padding-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.renommage-filtre {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Le style du champ (fond, bordure, halo au focus) vient de la règle commune de style.css, où
+   `.renommage-filtre` est listé avec les autres contenants de champs : ici, seule la largeur. */
+.renommage-filtre input {
+  flex: 0 1 22rem;
+}
+
+.renommages-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.renommage-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.renommage-noms {
+  flex: 1;
+  min-width: 0;
+}
+
+.renommage-nouveau {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* L'ancien libellé, comme dans l'aperçu d'import : sous le nouveau nom, en gris, en italique,
+   entre parenthèses et un peu plus petit. */
+.renommage-ancien {
+  font-size: 0.82em;
+  font-style: italic;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Un point à trancher se distingue d'un renommage retenu par le liseré d'accent. */
+.renommage-a-trancher {
+  border-left: 3px solid var(--accent);
+}
+
+#renommages-a-trancher {
+  margin-bottom: 1rem;
+}
+
+.renommage-origine {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.renommage-ligne button {
+  flex: none;
+}
+
+@media (max-width: 40rem) {
+  .renommage-ligne {
+    flex-wrap: wrap;
+  }
+}

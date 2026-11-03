@@ -65,14 +65,14 @@ from ..constants import (
     Statut,
     TypeOperation,
 )
-from . import base_decouverte
+from . import base_decouverte, renommages
 
 # À incrémenter quand la démo gagne de quoi montrer une fonctionnalité nouvelle : une démo plus
 # ancienne est alors proposée au rafraîchissement.
 # v5 : la catégorie « Virements internes » (migration 0090) sur toutes les jambes, et une règle
 # d'import qui la pose.
 # v6 : un INDICE (migration 0093), qui ne peut pas être détenu et sert de modèle aux ETF.
-VERSION = 6
+VERSION = 7
 # Au-delà, les dates de la démo ne ressemblent plus à « aujourd'hui » (le mois en cours est vide,
 # le solde prévisionnel part d'un passé lointain) : on propose de la refaire.
 JOURS_AVANT_RAFRAICHIR = 45
@@ -912,6 +912,33 @@ def _remplir_divers(c: _Contexte) -> None:
             ],
         },
     )
+
+    # DÉMO v7 : DEUX RENOMMAGES (extension « Renommages », migration 0096) — des noms propres, que
+    # les trois langues écrivent pareil. Le premier libellé est celui d'un relevé de banque.
+    entrees = {}
+    for origine, nouveau in (("CB CARREFOUR MARKET 0412", "Carrefour"), ("PRLV NETFLIX.COM", "Netflix")):
+        entrees[nouveau] = models.Renommage(
+            cle=renommages.cle(origine),
+            nom_origine=origine,
+            nom_nouveau=nouveau,
+            origine="manuel",
+            cree_le=maintenant,
+        )
+        db.add(entrees[nouveau])
+    db.commit()
+    # ET UN POINT À TRANCHER : un libellé vu à l'import qui ressemble au premier, sans lui être identique.
+    libelle = "PAIEMENT CB CARREFOUR MARKET PARIS 0503"
+    db.add(
+        models.RenommageATrancher(
+            cle=renommages.cle(libelle),
+            libelle=libelle,
+            entree_id=entrees["Carrefour"].id,
+            score=0.75,
+            outil="mots",
+            vu_le=maintenant,
+        )
+    )
+    db.commit()
 
     # LE PRESET QUI LIT LE RELEVÉ D'EXEMPLE (cf. base_decouverte.remplir_import) : on peut ainsi
     # importer `exemples/releve-exemple.csv` dans la démo, sans régler quoi que ce soit.

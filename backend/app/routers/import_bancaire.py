@@ -361,6 +361,7 @@ def create_preset(payload: schemas.ImportPresetCreate, db: Session = Depends(get
         payload.colonnes_comparaison,
         lignes_entete=payload.lignes_entete,
         lignes_pied=payload.lignes_pied,
+        frais_inclus=payload.frais_inclus,
         compte_id=payload.compte_id,
         mode_comparaison=payload.mode_comparaison.value,
         **_vocabulaires_nettoyes(payload),
@@ -392,6 +393,7 @@ def update_preset(preset_id: int, payload: schemas.ImportPresetUpdate, db: Sessi
         mode_comparaison=payload.mode_comparaison.value,
         lignes_entete=payload.lignes_entete,
         lignes_pied=payload.lignes_pied,
+        frais_inclus=payload.frais_inclus,
         compte_id=payload.compte_id,
         **_vocabulaires_nettoyes(payload),
     )
@@ -675,6 +677,10 @@ def _valider_colonnes_essai(colonnes: Optional[str]):
         vocabulaires = _vocabulaires_nettoyes(
             SimpleNamespace(**{champ: getattr(modele, champ) or [] for champ in champs})
         )
+    # « Les frais sont déjà compris » (migration 0097), quand l'écran l'a sous les yeux : même
+    # chemin que les mots-clés, il répond à la place du preset le temps de cette lecture.
+    if modele.frais_inclus is not None:
+        vocabulaires = {**(vocabulaires or {}), "frais_inclus": modele.frais_inclus}
     return import_bancaire.EssaiColonnes(
         [c.model_dump() for c in modele.colonnes], modele.lignes_entete, modele.lignes_pied, vocabulaires
     )

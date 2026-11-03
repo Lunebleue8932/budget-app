@@ -88,6 +88,14 @@
       "description": "Retrouve d'un coup ce qu'il faut déclarer. Sur une entrée d'argent ordinaire (un salaire, un loyer perçu, un revenu non salarié), une case « À déclarer » pose une étiquette : l'extension rassemble ensuite toutes les entrées ainsi marquées, année par année et monnaie par monnaie, avec leur total. Tu y notes aussi ton taux d'imposition et la date limite de ta déclaration pour chaque année, et l'app t'indique ce qu'il reste de temps et l'impôt estimé (total × taux, sans abattement ni barème : un ordre de grandeur, pas un calcul fiscal). La case existe seulement sur une entrée de type classique : un remboursement reçu, un prêt reçu ou un virement ne sont pas des revenus. Une règle d'import peut aussi poser l'étiquette. L'extension ne crée, ne modifie et ne supprime aucune opération, et ne change aucun solde ni aucun KPI : éteinte, les étiquettes dorment en base. Nécessite « Budget », dont elle est un onglet.",
       "version": "1.0.0",
       "type": "standard"
+    },
+    {
+      "id": "renommages",
+      "numero": 15,
+      "nom": "Renommages",
+      "description": "Retient comment tu renommes tes opérations. Chaque opération renommée laisse une entrée (le libellé d'origine, et le nom que tu lui as donné) ; au prochain import, les lignes dont le libellé est le même — aux espaces, accents et majuscules près — arrivent directement sous ton nom, l'ancien libellé restant lisible dessous. Les libellés qui RESSEMBLENT seulement à un libellé déjà renommé ne sont jamais renommés à l'import : ils s'accumulent, à trancher, dans le sous-onglet Renommages de la page Règles (Paramètres), où tu acceptes ou refuses un par un. Éteindre ne supprime rien : les entrées restent, l'import cesse simplement de les consulter.",
+      "version": "1.0.0",
+      "type": "standard"
     }
   ]
 }

@@ -592,6 +592,13 @@ CHAMPS_REGLE_DEVISES = {"devise_recue", "devise_envoyee"}
 #     vraie (cf. regles_categorisation.evaluer_condition).
 CHAMP_REGLE_LIGNE_ENTIERE = "ligne_entiere"
 MOTIF_CHAMP_REGLE_DUMMY = re.compile(r"^dummy_([1-9][0-9]*)$")
+# LE SENS DE LA LIGNE : l'argent entre ou il sort, tel que le relevé le dit (colonne « Sens », colonne
+# de crédit ou de débit, ou signe du montant — le même jugement que l'import, `signe_du_montant`).
+# Une règle ne le compare qu'à l'une des deux valeurs ci-dessous, avec « est » / « n'est pas » :
+# « le sens contient ent » ne voudrait rien dire. Un relevé qui ne le dit pas (montant nul) ne
+# correspond à rien, « n'est pas » compris.
+CHAMP_REGLE_SENS = "sens"
+VALEURS_SENS_REGLE = ("entree", "depense")
 
 CHAMPS_REGLE_VALIDES = {
     "nature",
@@ -599,6 +606,7 @@ CHAMPS_REGLE_VALIDES = {
     "compte_banque",
     "notes",
     CHAMP_REGLE_LIGNE_ENTIERE,
+    CHAMP_REGLE_SENS,
 } | CHAMPS_REGLE_NUMERIQUES | CHAMPS_REGLE_DEVISES
 
 
@@ -614,6 +622,8 @@ def operateurs_admis(champ: str) -> set:
     Le schéma Pydantic le lit pour refuser une condition incohérente, et le
     frontend expose la même partition dans son menu déroulant : sans cette
     fonction, les deux listes auraient divergé au premier ajout d'opérateur."""
+    if champ == CHAMP_REGLE_SENS:
+        return {OperateurRegle.est, OperateurRegle.nest_pas}
     return OPERATEURS_NOMBRE if champ in CHAMPS_REGLE_NUMERIQUES else OPERATEURS_TEXTE
 
 # Pendant du précédent pour les relevés de compte-titres (modèle

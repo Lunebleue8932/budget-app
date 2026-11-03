@@ -325,3 +325,71 @@
 .regle-dummy-info {
   margin: -0.15rem 0 0.45rem;
 }
+
+/* ---------- Les toggles : condition et sortie repliées en une ligne (cf. regles.js, creerToggleRegle) ---------- */
+/* L'enveloppe porte la bulle (position: relative) : elle ne peut pas vivre dans le <details>, qui
+   cache tout ce qui n'est pas son <summary> tant qu'il est fermé. */
+.regle-toggle {
+  position: relative;
+  margin-bottom: 0.4rem;
+}
+
+.regle-toggle > details > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+}
+
+.regle-toggle > details[open] > summary {
+  margin-bottom: 0.4rem;
+}
+
+.regle-toggle-debut {
+  flex: none;
+  font-weight: 600;
+}
+
+/* LE CHAMP DE LARGEUR FIXE : ce qui dépasse est coupé par « … », la dernière option visible
+   comprise. Plafonné à la largeur de la ligne sur un écran étroit. */
+.regle-toggle-options {
+  flex: 0 1 26rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.regle-toggle-fin {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Une sortie garde son filet d'accent, porté par l'enveloppe : la carte intérieure est dépliée. */
+.regle-toggle-sortie {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.4rem;
+}
+
+.regle-toggle-sortie .regle-sortie {
+  border-left: none;
+}
+
+/* LA ZONE DE LA BULLE A UNE HAUTEUR FIXE : trop d'options, elle défile (molette, barre, ou
+   curseur une fois la bulle figée par la touche de gel). */
+.regle-bulle-liste {
+  max-height: 10rem;
+  overflow-y: auto;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.regle-bulle-liste li {
+  overflow-wrap: anywhere;
+}

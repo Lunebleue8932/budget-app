@@ -481,6 +481,29 @@ def test_la_fenetre_heritee_est_rabattue_dans_son_mois(db_session):
     assert septembre.rapprochement_fin == date(2026, 9, 30)
 
 
+def test_la_fenetre_heritee_reporte_les_numeros_de_jour(db_session):
+    """Une récurrence mensuelle reporte les NUMÉROS DE JOUR du modèle (« du 29 au 31 »), pas un
+    écart de jours : l'occurrence d'un mois plus court tombe le 30, et un écart aurait glissé la
+    fenêtre au 28 — alors que le modèle dit « fin de mois »."""
+    compte = creer_compte(db_session, "CC")
+    _modele_recurrent(
+        db_session,
+        compte,
+        date_op=date(2026, 7, 31),
+        debut=date(2026, 7, 29),
+        fin=date(2026, 7, 31),
+    )
+    crud.generer_occurrences_recurrentes(db_session)
+
+    septembre = (
+        db_session.query(models.Operation)
+        .filter(models.Operation.date == date(2026, 9, 30))
+        .one()
+    )
+    assert septembre.rapprochement_debut == date(2026, 9, 29)
+    assert septembre.rapprochement_fin == date(2026, 9, 30)
+
+
 def test_une_occurrence_rapprochee_ne_revient_pas(db_session):
     """LE PIÈGE PROPRE À LA RÉCURRENCE. Le générateur reconnaît ses occurrences à
     leur date : une occurrence prévue au 5 mais passée au 6 aurait été recréée au

@@ -255,6 +255,15 @@ const TEXTES = {
     "Permet l'amélioration de la détection d'une dépense prévisionnelle renseignée dans l'app lors de son importation. L'import te proposera alors de valider la substitution.",
   "noyau.rapprochement-mots-cles":
     "Permet de ne pas confondre des dépenses de même montant, compte et date mais dont le libellé est différent.",
+  "noyau.frais-inclus":
+    "Coche-la si ton relevé écrit déjà le total réellement débité, frais compris : les frais restent notés sur l'opération mais ne s'ajoutent plus au montant. Décochée, l'import les ajoute à ce qui sort et les retranche de ce qui entre.",
+  "renommages.renommages":
+    "Chaque opération que tu renommes laisse ici une entrée : le libellé tel que le relevé l'écrit, et le nom que tu lui as donné. Au prochain import, les lignes qui portent ce libellé — aux espaces, accents et majuscules près — arrivent directement sous ton nom, l'ancien restant lisible dessous. Supprimer une entrée n'efface aucune opération déjà écrite.",
+  "renommages.appliquer-aucune-operation": "Aucune opération ne porte le nom à renommer",
+  "renommages.a-trancher":
+    "Des libellés vus à l'import qui ressemblent à un libellé déjà renommé, sans lui être identiques. L'import ne les renomme pas et ne te les propose pas : tu tranches ici. Accepter leur donne le même nom, et retient ce libellé pour les prochains imports ; refuser ne le reposera plus.",
+  "noyau.rapprochement-plus-moins":
+    "Raccourci : indique de combien de jours la vraie dépense peut s'écarter de la date de l'opération, avant ou après. Les deux bornes se remplissent toutes seules (sans sortir du mois) ; tu peux ensuite les retoucher.",
 
   /* ----- La cascade (waterfall) d'une monnaie : projets, détail d'une monnaie éteinte ----- */
   "noyau.frais-virements":
@@ -1242,6 +1251,8 @@ Object.assign(TEXTES, {
 
 /* ----- Créer une monnaie sur place (listes de monnaies, fenêtre d'un compte) ----- */
 Object.assign(TEXTES, {
+  "noyau.ajout-monnaie-compte":
+    "Un compte ne porte que les monnaies qu'on lui a données. Choisis une monnaie de l'application que ce compte n'a pas encore (elle démarre à 0), ou crées-en une nouvelle.",
   "noyau.creation-monnaie":
     "Une monnaie, c'est ce dans quoi s'écrivent tes montants : l'euro, le dollar… Donne-lui un nom et le symbole qui s'affichera à côté des montants. Tu pourras la renommer, l'éteindre ou suivre ses cours dans Paramètres → Monnaies.",
 });

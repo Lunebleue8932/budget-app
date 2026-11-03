@@ -1480,8 +1480,16 @@ def update_operation(
     montant_du_fourni = "montant_du" in data
     montant_a_rembourser_fourni = "montant_a_rembourser" in data
     _serialiser_mots_cles_rapprochement(data)
+    nature_avant = db_operation.nature
     for field, value in data.items():
         setattr(db_operation, field, value)
+    # EXTENSION « RENOMMAGES » : une opération renommée laisse une entrée, pour que le prochain
+    # relevé qui écrit l'ancien libellé arrive directement sous le nouveau nom. Inerte quand elle
+    # est éteinte (cf. services/renommages.enregistrer).
+    if "nature" in data and data["nature"] != nature_avant:
+        from .services import renommages
+
+        renommages.enregistrer(db, nature_avant, data["nature"], "operation", valider=False)
 
     _normaliser_amortissement(db_operation)
 
@@ -1692,10 +1700,13 @@ def _fenetre_heritee(modele: models.Operation, date_occurrence: date_type):
     fenêtre douze fois. Ce qu'on écrit sur le modèle — « le prélèvement tombe
     entre le 3 et le 8 » — doit valoir pour chacune de ses occurrences.
 
-    EN ÉCART DE JOURS, ET NON EN DATES RECOPIÉES : recopier telles quelles les
-    bornes de janvier sur l'occurrence de mars aurait donné une fenêtre située
-    deux mois avant l'opération qu'elle décrit, donc vide. On reporte donc
-    l'écart (`debut - date`, `fin - date`) sur la date de l'occurrence.
+    EN NUMÉROS DE JOUR (OU, PAR SEMAINE, EN ÉCART DE JOURS), ET NON EN DATES
+    RECOPIÉES : recopier telles quelles les bornes de janvier sur l'occurrence de
+    mars aurait donné une fenêtre située deux mois avant l'opération qu'elle
+    décrit, donc vide. Une récurrence mensuelle, trimestrielle ou annuelle reporte
+    les NUMÉROS DE JOUR du modèle dans le mois de l'occurrence (c'est ce que le
+    formulaire fait saisir) ; une hebdomadaire reporte l'écart (`debut - date`,
+    `fin - date`), le numéro du jour n'y disant rien.
 
     PUIS ON RABAT DANS SON MOIS. L'invariant « les deux bornes dans le même
     mois » vaut pour une occurrence comme pour toute autre opération, et un
@@ -1708,8 +1719,18 @@ def _fenetre_heritee(modele: models.Operation, date_occurrence: date_type):
     dernier = date_occurrence.replace(
         day=calendar.monthrange(date_occurrence.year, date_occurrence.month)[1]
     )
-    debut = date_occurrence + (modele.rapprochement_debut - modele.date)
-    fin = date_occurrence + (modele.rapprochement_fin - modele.date)
+    if modele.frequence == Frequence.hebdomadaire:
+        # D'une semaine à l'autre, le numéro du jour ne dit rien : seul l'écart à la date compte.
+        debut = date_occurrence + (modele.rapprochement_debut - modele.date)
+        fin = date_occurrence + (modele.rapprochement_fin - modele.date)
+    else:
+        # MENSUELLE, TRIMESTRIELLE, ANNUELLE : la fenêtre est celle des NUMÉROS DE JOUR du mois
+        # (« entre le 3 et le 8 », comme le formulaire la saisit), reportés tels quels dans le mois
+        # de chaque occurrence. Rabattus sur la fin du mois quand il est plus court (le 31 d'un
+        # modèle de janvier devient le 30 en avril) — plutôt que d'un écart de jours, qui
+        # décalait la fenêtre dès que la date de l'occurrence elle-même avait glissé.
+        debut = premier.replace(day=min(modele.rapprochement_debut.day, dernier.day))
+        fin = premier.replace(day=min(modele.rapprochement_fin.day, dernier.day))
     return max(premier, min(debut, dernier)), max(premier, min(fin, dernier))
 
 
@@ -3083,6 +3104,7 @@ def create_import_preset(
     compte_id: Optional[int] = None,
     mode_comparaison: Optional[str] = None,
     lignes_pied: int = 0,
+    frais_inclus: bool = False,
     libelles_sens_sortie: Optional[list[str]] = None,
     libelles_sens_entree: Optional[list[str]] = None,
     libelles_statut_execute: Optional[list[str]] = None,
@@ -3116,6 +3138,7 @@ def create_import_preset(
         mode_comparaison=mode_comparaison or ModeComparaison.exclusion.value,
         lignes_entete=lignes_entete,
         lignes_pied=lignes_pied,
+        frais_inclus=frais_inclus,
         libelles_sens_sortie=libelles_sens_sortie or [],
         libelles_sens_entree=libelles_sens_entree or [],
         libelles_statut_execute=libelles_statut_execute or [],
@@ -3148,6 +3171,7 @@ def update_import_preset(
     mode_comparaison: Optional[str] = None,
     lignes_entete: Optional[int] = None,
     lignes_pied: Optional[int] = None,
+    frais_inclus: Optional[bool] = None,
     compte_id=_INCHANGE,
     libelles_sens_sortie: Optional[list[str]] = None,
     libelles_sens_entree: Optional[list[str]] = None,
@@ -3176,6 +3200,8 @@ def update_import_preset(
         preset.lignes_entete = lignes_entete
     if lignes_pied is not None:
         preset.lignes_pied = lignes_pied
+    if frais_inclus is not None:
+        preset.frais_inclus = frais_inclus
     if libelles_sens_sortie is not None:
         preset.libelles_sens_sortie = libelles_sens_sortie
     if libelles_sens_entree is not None:

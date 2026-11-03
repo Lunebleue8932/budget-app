@@ -1,0 +1,20 @@
+{
+  "numero": 15,
+  "nom": "Renommages",
+  "description": "Retient comment tu renommes tes opérations. Chaque opération renommée laisse une entrée (le libellé d'origine, et le nom que tu lui as donné) ; au prochain import, les lignes dont le libellé est le même — aux espaces, accents et majuscules près — arrivent directement sous ton nom, l'ancien libellé restant lisible dessous. Les libellés qui RESSEMBLENT seulement à un libellé déjà renommé ne sont jamais renommés à l'import : ils s'accumulent, à trancher, dans le sous-onglet Renommages de la page Règles (Paramètres), où tu acceptes ou refuses un par un. Éteindre ne supprime rien : les entrées restent, l'import cesse simplement de les consulter.",
+  "version": "1.0.0",
+  "backend": "backend.py",
+  "frontend": {
+    "html": "page.html",
+    "css": [
+      "renommages.css"
+    ],
+    "js": [
+      "renommages.js"
+    ]
+  },
+  "navigation": {
+    "type": "greffe",
+    "hote": "parametres-correspondances"
+  }
+}

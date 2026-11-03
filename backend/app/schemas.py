@@ -5,8 +5,10 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .constants import (
+    CHAMP_REGLE_SENS,
     CHAMPS_REGLE_PLACEMENT_VALIDES,
     CHAMPS_REGLE_VALIDES,
+    VALEURS_SENS_REGLE,
     id_colonne_dummy_regle,
     MAX_LIGNES_ENTETE,
     MAX_LIGNES_PIED,
@@ -1393,6 +1395,12 @@ class ImportLigne(BaseModel):
     ligne: int  # numéro de ligne dans le fichier source, pour repérer une erreur
     date: Optional[date_type] = None
     nature: str = ""
+    # LE LIBELLÉ TEL QUE LE RELEVÉ L'ÉCRIT, avant tout renommage (règle, extension « Renommages » ou
+    # retouche). Vide pour une ligne construite sans fichier. L'aperçu l'écrit sous le nouveau nom
+    # quand les deux diffèrent ; l'import s'en sert pour noter un renommage fait à la main.
+    nature_releve: str = ""
+    # True quand l'extension « Renommages » a remplacé le libellé par un nom déjà connu.
+    renommee: bool = False
     montant: Optional[float] = None  # toujours positif ; cf. montant_signe pour le sens d'origine
     # Valeur brute du fichier bancaire (négative = sortie, positive = entrée),
     # ou résultat de la formule de montant quand le preset en définit une :
@@ -1488,6 +1496,10 @@ class ImportLigne(BaseModel):
     # frais quand l'utilisateur les corrige dans l'aperçu — sans eux, changer
     # des frais déjà incorporés obligerait à les défalquer à l'aveugle (cf.
     # services/import_bancaire._reimputer_frais).
+    # Les frais sont DÉJÀ compris dans les montants du fichier (cf. ImportPreset.frais_inclus) : ils
+    # sont gardés à titre descriptif et ne s'ajoutent ni ne se retranchent. Posé à la lecture, relu
+    # par la réimputation d'une retouche, qui n'a plus le preset sous la main.
+    frais_inclus: bool = False
     montant_hors_frais: Optional[float] = None
     montant_envoye_hors_frais: Optional[float] = None
     # True quand les frais lus ne sont dans aucune des deux monnaies de la
@@ -2237,6 +2249,8 @@ class ImportPresetRead(BaseModel):
     # De même au bas du fichier (migration 0087) : un total, un solde final
     # sous les opérations. Comptées en lignes non vides.
     lignes_pied: int = 0
+    # Les frais sont déjà dans les montants du fichier (migration 0097).
+    frais_inclus: bool = False
     # Vocabulaire de la colonne « Sens » propre à ce relevé. Listes vides =
     # celui du code (constants.LIBELLES_SENS_*), en français.
     libelles_sens_sortie: list[str] = Field(default_factory=list)
@@ -2278,6 +2292,8 @@ class ColonnesImportEssai(BaseModel):
     # du preset (la détection des colonnes en propose). Absentes, le preset décide.
     lignes_entete: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
     lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
+    # Même chose pour « les frais sont déjà compris » (migration 0097).
+    frais_inclus: Optional[bool] = None
     # Les mots-clés de « Sens » et d'« État » que l'écran a sous les yeux (l'étape « mots-clés » de
     # l'import les pose avant tout enregistrement). Absents (None), le preset décide ; présents, les
     # CINQ listes partent ensemble et remplacent celles du preset le temps de cette lecture.
@@ -2299,6 +2315,8 @@ class ImportPresetCreate(BaseModel):
     mode_comparaison: ModeComparaison = ModeComparaison.exclusion
     lignes_entete: int = Field(default=0, ge=0, le=MAX_LIGNES_ENTETE)
     lignes_pied: int = Field(default=0, ge=0, le=MAX_LIGNES_PIED)
+    # Les frais sont déjà dans les montants du fichier (cf. models.ImportPreset.frais_inclus).
+    frais_inclus: bool = False
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code
@@ -2333,6 +2351,7 @@ class ImportPresetUpdate(BaseModel):
     # None = ne pas y toucher, comme `colonnes_dummy` : les appelants qui ne
     # le connaissent pas (l'import de placements) ne remettent rien à zéro.
     lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_PIED)
+    frais_inclus: Optional[bool] = None
     libelles_sens_sortie: list[str] = Field(default_factory=list)
     libelles_sens_entree: list[str] = Field(default_factory=list)
     # Vocabulaire de la colonne « État ». Listes vides = celui du code
@@ -2500,6 +2519,14 @@ def _valider_condition(condition, champs_valides: set[str]):
     # toujours faux : dans les deux cas la règle ne veut rien dire.
     if not condition.valeur.strip():
         raise ValueError("la valeur à comparer ne peut pas être vide")
+    # LE SENS N'A QUE DEUX VALEURS (cf. constants.CHAMP_REGLE_SENS) : une autre ne correspondrait
+    # jamais à rien.
+    if condition.champ == CHAMP_REGLE_SENS:
+        for mot in condition.valeurs or [condition.valeur]:
+            if mot.strip() not in VALEURS_SENS_REGLE:
+                raise ValueError(
+                    f"le sens ne vaut que {' ou '.join(VALEURS_SENS_REGLE)} (reçu : « {mot} »)"
+                )
     # LA VALEUR D'UNE CONDITION NUMÉRIQUE EST UN NOMBRE OU UNE FORMULE (« montant_envoye
     # * 1,02 ») : relue par le parseur dès l'écriture, comme les formules de
     # découpe — une règle qui ne se lirait pas ne correspondrait jamais à rien,

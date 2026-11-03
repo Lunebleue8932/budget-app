@@ -45,6 +45,9 @@ const CHAMPS_REGLE = [
   // pour viser un mot où qu'il soit. Une COLONNE DUMMY (cf. DUMMY_REGLE) vise une colonne que
   // chaque format déclare lire à son propre numéro.
   ["ligne_entiere", "Toute la ligne"],
+  // L'ARGENT ENTRE OU IL SORT, jugé comme l'import le juge (colonne « Sens », crédit/débit ou
+  // signe du montant) : deux valeurs seulement, choisies dans un menu (cf. SENS_REGLE).
+  ["sens", "Sens"],
   // LE MONTANT EST TOUJOURS POSITIF, comme partout dans l'app : le sens
   // (dépense / recette) est une colonne à part, jamais un signe. « supérieur à
   // 50 » veut donc dire « plus de 50 € en jeu », quel que soit le sens.
@@ -81,6 +84,9 @@ async function chargerColonnesDummyRegles() {
 
 const colonneDummyRegle = (id) => colonnesDummyRegles.find((c) => c.id === id) || null;
 const CHAMPS_REGLE_NUMERIQUES = new Set(["montant", "montant_recu", "montant_envoye"]);
+// Le sens n'a que deux valeurs, que le serveur nomme sans accent (constants.VALEURS_SENS_REGLE).
+const CHAMP_SENS_REGLE = "sens";
+const SENS_REGLE = { entree: "Entrée d'argent", depense: "Dépense" };
 const CHAMPS_REGLE_DEVISES = new Set(["devise_recue", "devise_envoyee"]);
 // La devise de l'AUTRE montant, en guise de valeur (cf. regles_categorisation).
 const REFERENCE_DEVISE = { devise_recue: "@devise_envoyee", devise_envoyee: "@devise_recue" };
@@ -204,6 +210,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 function operateursAdmis(champ) {
+  if (champ === CHAMP_SENS_REGLE) return ["est", "n'est pas"];
   return CHAMPS_REGLE_NUMERIQUES.has(champ) ? OPERATEURS_NOMBRE : OPERATEURS_TEXTE;
 }
 
@@ -327,7 +334,11 @@ function libelleConditionRegle(condition) {
   // et n'en montrerait qu'un ferait passer une règle pour plus large qu'elle.
   const mots = motsClesCondition(condition)
     .map((mot) =>
-      LIBELLE_REFERENCE_DEVISE[mot] ? t(LIBELLE_REFERENCE_DEVISE[mot]) : `« ${mot} »`
+      LIBELLE_REFERENCE_DEVISE[mot]
+        ? t(LIBELLE_REFERENCE_DEVISE[mot])
+        : condition.champ === CHAMP_SENS_REGLE && SENS_REGLE[mot]
+        ? `« ${t(SENS_REGLE[mot])} »`
+        : `« ${mot} »`
     )
     .join(` ${t("et")} `);
   return `${libelle} ${t(condition.operateur)} ${mots}`;
@@ -654,7 +665,17 @@ function renderRegleGroupes(
         : "";
       const infoBulle = (cle) =>
         `<i class="info-bulle" tabindex="0" data-info="${escapeHtml(t(TEXTES[cle]))}">i</i>`;
-      const saisieValeur = estNumerique
+      // LE SENS SE CHOISIT dans un menu à deux entrées : pas de mot-clé libre.
+      const estSens = condition.champ === CHAMP_SENS_REGLE;
+      const sensChoisi = estSens ? motsClesCondition(condition)[0] || "depense" : "";
+      const saisieValeur = estSens
+        ? `<select data-role="sens">${Object.entries(SENS_REGLE)
+            .map(
+              ([v, l]) =>
+                `<option value="${v}" ${v === sensChoisi ? "selected" : ""}>${escapeHtml(t(l))}</option>`
+            )
+            .join("")}</select>`
+        : estNumerique
         ? `<span class="regle-condition-formule">
              <input type="text" inputmode="decimal" spellcheck="false" data-role="valeur"
                     placeholder="${t("ex. 50 ou montant_envoye * 1,02")}"
@@ -699,7 +720,17 @@ function renderRegleGroupes(
         }>×</button>
       `;
 
-      if (!estNumerique) {
+      if (estSens) {
+        // Une condition toute neuve sur le sens part de la valeur affichée.
+        if (!motsClesCondition(condition).length) {
+          condition.valeurs = [sensChoisi];
+          condition.valeur = sensChoisi;
+        }
+        ligne.querySelector("[data-role='sens']").addEventListener("change", (e) => {
+          condition.valeurs = [e.target.value];
+          condition.valeur = e.target.value;
+        });
+      } else if (!estNumerique) {
         // UN ÉDITEUR PAR CONDITION, redéclaré à chaque rendu : cette ligne est
         // reconstruite dès qu'on touche à un champ voisin, et un éditeur qui
         // garderait l'ancien nœud n'écouterait plus rien (cf.
@@ -735,7 +766,8 @@ function renderRegleGroupes(
           const changeDeFamille =
             CHAMPS_REGLE_NUMERIQUES.has(radio.value) !==
               CHAMPS_REGLE_NUMERIQUES.has(condition.champ) ||
-            CHAMPS_REGLE_DEVISES.has(radio.value) !== CHAMPS_REGLE_DEVISES.has(condition.champ);
+            CHAMPS_REGLE_DEVISES.has(radio.value) !== CHAMPS_REGLE_DEVISES.has(condition.champ) ||
+            (radio.value === CHAMP_SENS_REGLE) !== (condition.champ === CHAMP_SENS_REGLE);
           // « Colonne dummy » : le champ réel porte la colonne choisie dans le menu d'à côté.
           const champChoisi =
             radio.value === DUMMY_REGLE
@@ -812,7 +844,6 @@ function renderRegleGroupes(
         rendre();
       });
 
-      carte.appendChild(ligne);
       // OÙ CETTE CONDITION S'EXÉCUTE, quand elle lit une colonne dummy : rempli par
       // majInfosColonnesDummy, qui a besoin de toute la règle pour le dire.
       const info = document.createElement("p");
@@ -820,14 +851,21 @@ function renderRegleGroupes(
       info.dataset.groupe = iGroupe;
       info.dataset.condition = iCondition;
       info.hidden = true;
-      carte.appendChild(info);
+      // REPLIÉE D'OFFICE (cf. creerToggleRegle) : la condition se lit en une ligne, et ses
+      // radios, son opérateur et ses mots-clés ne se déplient que pour la modifier.
+      carte.appendChild(
+        creerToggleRegle(condition, () => resumeToggleCondition(condition), [ligne, info])
+      );
     });
 
     const ajout = document.createElement("div");
     ajout.className = "actions";
     ajout.innerHTML = '<button type="button">+ Ajouter une condition</button>';
     ajout.querySelector("button").addEventListener("click", () => {
-      groupe.conditions.push(conditionVide());
+      const neuve = conditionVide();
+      // Une condition qu'on vient d'ajouter se remplit : elle reste dépliée.
+      togglesRegleOuverts.add(neuve);
+      groupe.conditions.push(neuve);
       rendre();
     });
     carte.appendChild(ajout);
@@ -835,6 +873,126 @@ function renderRegleGroupes(
     bloc.appendChild(carte);
   });
   majInfosColonnesDummy();
+}
+
+/* ---------- LES TOGGLES : chaque condition et chaque sortie, repliée d'office ----------
+ *
+ * Une règle de quelques conditions et deux sorties remplissait plusieurs écrans de radios, de
+ * menus et de jetons, dont on ne cherche presque jamais que l'un. Chaque condition d'activation
+ * (et chaque sortie conditionnelle) se replie donc en UNE LIGNE : « Si [champ] est « a, b, c… » ».
+ *
+ * LES OPTIONS SONT DANS UN CHAMP DE LARGEUR FIXE (.regle-toggle-options), pour que la ligne tienne
+ * toujours à l'écran : seules les options RENSEIGNÉES s'y lisent, et ce que le champ ne contient
+ * pas est tronqué par « … » (la dernière visible est coupée, celles d'après ne se voient pas).
+ * LE SURVOL MONTRE TOUT, en liste, dans une zone de hauteur fixe qui défile — la bulle est celle
+ * des graphes (attacherInfobulleCategorie) : la touche de gel du noyau la fige, et on peut alors
+ * descendre la liste à la molette ou au curseur.
+ *
+ * Le dépli est gardé À PART de l'objet (une WeakSet), pas dans l'objet lui-même : ce dernier part
+ * tel quel au serveur. Une condition vide, ou qu'on vient d'ajouter, s'ouvre d'office.
+ */
+const togglesRegleOuverts = new WeakSet();
+
+/** Les options RENSEIGNÉES d'une condition, déjà lisibles (jamais un champ vide). */
+function optionsConditionRegle(condition) {
+  if (condition.champ === CHAMP_SENS_REGLE) {
+    return motsClesCondition(condition).map((m) => t(SENS_REGLE[m] || m));
+  }
+  return motsClesCondition(condition).map((mot) =>
+    LIBELLE_REFERENCE_DEVISE[mot] ? t(LIBELLE_REFERENCE_DEVISE[mot]) : mot
+  );
+}
+
+/** {debut, options} : « Si Nature / libellé contient » et ce qu'elle compare. */
+function resumeToggleCondition(condition) {
+  const champ = condition.champ || (condition.champs || [])[0];
+  const libelle =
+    idDummyRegle(champ) != null
+      ? colonneDummyRegle(idDummyRegle(champ))?.nom ?? t("Colonne dummy supprimée")
+      : t((CHAMPS_REGLE.find(([v]) => v === champ) || [champ, champ])[1]);
+  return {
+    debut: `${t("Si")} ${libelle} ${t(condition.operateur)}`,
+    options: optionsConditionRegle(condition),
+  };
+}
+
+/**
+ * Un toggle autour de `contenu` (liste de nœuds), dont l'en-tête est tiré de `lireResume()` à
+ * chaque ouverture/fermeture et à chaque modification du contenu.
+ *
+ * `cle` est l'objet (condition ou sortie) dont on retient le dépli.
+ */
+function creerToggleRegle(cle, lireResume, contenu, { classe = "" } = {}) {
+  const enveloppe = document.createElement("div");
+  // Le conteneur de la bulle (position: relative) : elle ne peut pas vivre dans le <details>,
+  // qui cache tout ce qui n'est pas son <summary> tant qu'il est fermé.
+  enveloppe.className = `regle-toggle ${classe}`.trim();
+  const details = document.createElement("details");
+  details.open = togglesRegleOuverts.has(cle) || resumeToggleVide(lireResume());
+  const resume = document.createElement("summary");
+  const corps = document.createElement("div");
+  corps.className = "regle-toggle-corps";
+  contenu.forEach((noeud) => corps.appendChild(noeud));
+  details.append(resume, corps);
+  enveloppe.appendChild(details);
+
+  const champOptions = document.createElement("span");
+  champOptions.className = "regle-toggle-options";
+  const dessinerResume = () => {
+    const { debut, options, fin } = lireResume();
+    resume.textContent = "";
+    const texteDebut = document.createElement("span");
+    texteDebut.className = "regle-toggle-debut";
+    texteDebut.textContent = debut;
+    resume.appendChild(texteDebut);
+    if (options && options.length) {
+      champOptions.textContent = `« ${options.join(", ")} »`;
+      resume.appendChild(champOptions);
+    }
+    if (fin) {
+      const texteFin = document.createElement("span");
+      texteFin.className = "regle-toggle-fin";
+      texteFin.textContent = fin;
+      resume.appendChild(texteFin);
+    }
+  };
+  dessinerResume();
+  details.addEventListener("toggle", () => {
+    if (details.open) togglesRegleOuverts.add(cle);
+    else togglesRegleOuverts.delete(cle);
+    dessinerResume();
+  });
+  // L'en-tête suit ce qu'on modifie dans le toggle ouvert.
+  corps.addEventListener("input", dessinerResume);
+  corps.addEventListener("change", dessinerResume);
+  corps.addEventListener("click", () => setTimeout(dessinerResume));
+
+  attacherInfobulleCategorie(enveloppe, [champOptions], () => {
+    const { debut, options } = lireResume();
+    return {
+      html: `<div class="histo-bulle-titre">${escapeHtml(debut)}</div>
+        <ul class="regle-bulle-liste">${(options || [])
+          .map((o) => `<li>${escapeHtml(o)}</li>`)
+          .join("")}</ul>`,
+    };
+  });
+  return enveloppe;
+}
+
+/** « Sortie 2 — Si Nature contient « a, b » » + « (+3 autres conditions) » : la première
+ *  condition parle pour la sortie. */
+function resumeToggleSortie(sortie, i) {
+  const toutes = sortie.conditions.groupes.flatMap((g) => g.conditions);
+  const premiere = resumeToggleCondition(toutes[0] || conditionVide());
+  return {
+    debut: `${t("Sortie")} ${i + 1} — ${premiere.debut}`,
+    options: premiere.options,
+    fin: toutes.length > 1 ? t("(+{n} autres)", { n: toutes.length - 1 }) : "",
+  };
+}
+
+function resumeToggleVide(resume) {
+  return !resume.options || resume.options.length === 0;
 }
 
 /** Le menu des colonnes dummy d'une condition. Une colonne disparue depuis (plus aucun format ne
@@ -1416,7 +1574,7 @@ function renderRegleSorties() {
       onChoix: (cle) => {
         affiches.push(cle);
         renderRegleSorties();
-        document.querySelector(`#regle-sorties .regle-sortie:nth-child(${i + 1}) [data-champ="${cle}"]`)?.focus();
+        document.querySelectorAll("#regle-sorties .regle-sortie")[i]?.querySelector(`[data-champ="${cle}"]`)?.focus();
       },
     });
 
@@ -1454,7 +1612,13 @@ function renderRegleSorties() {
       sortie.conditions.groupes.push(groupeVide());
       renderRegleSorties();
     });
-    bloc.appendChild(carte);
+    // REPLIÉE D'OFFICE : l'en-tête dit « Sortie 2 — Si … » avec la première condition ; le reste
+    // (autres conditions, actions) se lit en dépliant.
+    bloc.appendChild(
+      creerToggleRegle(sortie, () => resumeToggleSortie(sortie, i), [carte], {
+        classe: "regle-toggle-sortie",
+      })
+    );
     renderRegleGroupes(
       carte.querySelector('[data-role="groupes"]'),
       sortie.conditions.groupes,

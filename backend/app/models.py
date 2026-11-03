@@ -1290,6 +1290,13 @@ class ImportPreset(Base):
     # erreur à supprimer à la main. Comptées en lignes NON VIDES depuis le bas
     # (cf. services/import_bancaire.lire_lignes_brutes).
     lignes_pied = Column(Integer, nullable=False, default=0, server_default="0")
+    # LES FRAIS SONT DÉJÀ COMPRIS DANS LES MONTANTS DU RELEVÉ (migration 0097). Par défaut l'import
+    # ajoute les frais à ce qui sort et les retranche de ce qui entre (cf.
+    # services/import_bancaire._appliquer_frais) : c'est vrai d'un relevé qui donne le montant
+    # AVANT frais. D'autres banques écrivent le total réellement débité, frais compris — les
+    # ajouter une seconde fois fait diverger le solde de l'app de celui de la banque. Coché, les
+    # frais restent enregistrés (Operation.frais, à titre descriptif) mais ne changent plus le montant.
+    frais_inclus = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
     # LA SIGNATURE DU FICHIER QUE CE PRESET LIT (migration 0086), pour le
     # reconnaître à l'ouverture d'un fichier (services/reconnaissance_presets) :
@@ -1403,6 +1410,53 @@ class ColonneDummy(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nom = Column(String, nullable=False, unique=True)
+
+
+class Renommage(Base):
+    """UN LIBELLÉ QU'ON A RENOMMÉ, et ce qu'on en a fait (migration 0096, extension « Renommages »).
+
+    `cle` est le libellé d'origine ÉCRIT SANS ACCENTS NI ESPACES NI CASSE (services/renommages.cle) :
+    c'est elle qui est unique, et c'est elle que l'import compare — « CB  Carrefour » et
+    « cb carréfour » désignent le même libellé de relevé. `nom_origine` garde l'écriture vue la
+    première fois, pour l'affichage ; `nom_nouveau` est le nom qu'on lui donne désormais.
+
+    UN RENOMMAGE NE TOUCHE JAMAIS À UNE OPÉRATION DÉJÀ ÉCRITE : il ne sert qu'aux imports à venir,
+    qui remplacent le libellé de la ligne par `nom_nouveau` (l'ancien reste affiché dessous)."""
+
+    __tablename__ = "renommage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cle = Column(String, nullable=False, unique=True)
+    nom_origine = Column(String, nullable=False)
+    nom_nouveau = Column(String, nullable=False)
+    # D'où vient l'entrée : « operation » (une opération renommée à la main), « import » (la
+    # ligne retouchée dans le récapitulatif d'un import), « suggestion » (une proposition de
+    # l'app acceptée), « manuel » (écrite dans la page des renommages).
+    origine = Column(String, nullable=False, default="manuel", server_default="manuel")
+    cree_le = Column(DateTime, nullable=True)
+
+
+class RenommageATrancher(Base):
+    """UN LIBELLÉ QUI RESSEMBLE À UN LIBELLÉ DÉJÀ RENOMMÉ, et qui attend qu'on tranche (migration 0098,
+    extension « Renommages »).
+
+    L'import ne propose jamais un nom sur une ressemblance : il note ici le libellé vu (`libelle`, et sa
+    `cle`) et l'entrée dont il se rapproche (`entree_id`, avec le score et l'outil qui l'ont reconnu).
+    La page des renommages les liste « à trancher » : accepter crée l'entrée du nouveau libellé (même nom
+    que l'entrée voisine), refuser garde la ligne `refuse` pour ne plus jamais le reposer."""
+
+    __tablename__ = "renommage_a_trancher"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cle = Column(String, nullable=False, unique=True)
+    libelle = Column(String, nullable=False)
+    entree_id = Column(Integer, ForeignKey("renommage.id", ondelete="CASCADE"), nullable=False)
+    score = Column(Float, nullable=False, default=0.0)
+    outil = Column(String, nullable=False, default="")
+    refuse = Column(Boolean, nullable=False, default=False, server_default=sa_false())
+    vu_le = Column(DateTime, nullable=True)
+
+    entree = relationship("Renommage")
 
 
 class LectureColonneDummy(Base):

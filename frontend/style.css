@@ -1039,6 +1039,7 @@ form textarea,
 .reglage-bloc select,
 .import-option-ligne input,
 .reglage-ligne input,
+.renommage-filtre input,
 .modale-point input,
 .modale-point select {
   background: var(--bg-surface-alt);
@@ -1176,6 +1177,7 @@ form textarea:focus,
 .reglage-bloc select:focus,
 .import-option-ligne input:focus,
 .reglage-ligne input:focus,
+.renommage-filtre input:focus,
 .modale-point input:focus,
 .modale-point select:focus {
   outline: none;
@@ -8043,4 +8045,13 @@ button.preset-propose {
 .sous-section-compagnon > .filtres-repli,
 .sous-section-compagnon > .operations-periode {
   display: none;
+}
+
+/* ---------- Extension « Renommages » dans l'aperçu d'import ---------- */
+/* L'ancien libellé, sous le nouveau nom : gris, italique, entre parenthèses, un peu plus petit. */
+.import-nature-ancienne {
+  font-size: 0.82em;
+  font-style: italic;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }

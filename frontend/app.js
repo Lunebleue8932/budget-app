@@ -2623,14 +2623,76 @@ function demanderCreationMonnaie({ nomPropose = "" } = {}) {
 }
 
 /**
+ * La fenêtre qui fait choisir, parmi `monnaies`, celle qu'on ajoute à un compte. Rend la monnaie choisie,
+ * « creer » (le bouton « Créer une nouvelle monnaie »), ou null quand on a laissé tomber.
+ */
+function demanderMonnaieExistantePourCompte(monnaies) {
+  const fond = document.getElementById("modale-ajout-monnaie-compte");
+  const liste = document.getElementById("ajout-monnaie-compte-choix");
+  liste.innerHTML = monnaies
+    .map((m) => `<option value="${m.id}">${escapeHtml(m.nom)} (${escapeHtml(m.symbole)})</option>`)
+    .join("");
+  fond.style.display = "flex";
+  liste.focus();
+
+  return new Promise((resolve) => {
+    const formulaire = document.getElementById("form-ajout-monnaie-compte");
+    const annuler = document.getElementById("btn-ajout-monnaie-compte-annuler");
+    const creer = document.getElementById("btn-ajout-monnaie-compte-creer");
+    const fermer = (reponse) => {
+      fond.style.display = "none";
+      formulaire.removeEventListener("submit", surEnvoi);
+      annuler.removeEventListener("click", surAnnuler);
+      creer.removeEventListener("click", surCreer);
+      document.removeEventListener("keydown", surTouche, true);
+      resolve(reponse);
+    };
+    const surAnnuler = () => fermer(null);
+    const surCreer = () => fermer("creer");
+    const surEnvoi = (e) => {
+      e.preventDefault();
+      fermer(monnaies.find((m) => String(m.id) === liste.value) || null);
+    };
+    const surTouche = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fermer(null);
+      }
+    };
+    formulaire.addEventListener("submit", surEnvoi);
+    annuler.addEventListener("click", surAnnuler);
+    creer.addEventListener("click", surCreer);
+    document.addEventListener("keydown", surTouche, true);
+  });
+}
+
+/**
+ * Ajoute une monnaie au compte : une monnaie existante qu'il n'a pas encore, ou une monnaie créée pour
+ * l'occasion (cf. demanderCreationMonnaie). Les menus de monnaie d'une opération ne proposent que celles
+ * de son compte.
+ *
  * Crée une monnaie (cf. demanderCreationMonnaie) et l'AJOUTE AU COMPTE : les menus de monnaie d'une
  * opération ne proposent que celles de son compte, une monnaie neuve qui n'y serait pas n'y apparaîtrait
  * jamais. Elle se range en dernier : la monnaie proposée par défaut reste la même. Rend la monnaie, ou null.
  */
 async function creerMonnaiePourCompte(compteId) {
-  const monnaie = await demanderCreationMonnaie();
-  if (!monnaie) return null;
   const compte = compteParId(compteId);
+  // UNE MONNAIE QUI EXISTE DÉJÀ SE CHOISIT, elle ne se recrée pas : la fenêtre propose celles de
+  // l'application que le compte n'a pas encore, et « créer » pour les autres. Aucune à proposer : on crée.
+  const disponibles = compte
+    ? (state.monnaies || []).filter(
+        (m) => m.active !== false && !compte.monnaies.some((c) => c.monnaie_id === m.id)
+      )
+    : [];
+  let monnaie;
+  if (disponibles.length) {
+    const choix = await demanderMonnaieExistantePourCompte(disponibles);
+    if (choix === null) return null;
+    monnaie = choix === "creer" ? await demanderCreationMonnaie() : choix;
+  } else {
+    monnaie = await demanderCreationMonnaie();
+  }
+  if (!monnaie) return null;
   if (!compte) return monnaie;
   try {
     await apiFetch(`/comptes/${compte.id}`, {
@@ -2670,6 +2732,8 @@ const LIBELLES_CREER = {
   compte: "+ Créer un compte",
   categorie: "+ Créer une catégorie",
   monnaie: "+ Créer une monnaie",
+  // Le menu de monnaie d'une opération : celles du compte, et de quoi lui en ajouter une.
+  "monnaie-compte": "+ Ajouter une monnaie à ce compte",
 };
 
 /**
@@ -7910,7 +7974,7 @@ function syncSelectMonnaieCompte(
   // « + Créer une monnaie » en tête (cf. ajouterOptionCreer) : la monnaie créée rejoint le compte choisi, seul
   // moyen qu'elle apparaisse dans ce menu (cf. creerMonnaiePourCompte).
   if (choixDeMonnaiePossible() && compteParId(compteId)) {
-    ajouterOptionCreer(select, "monnaie", {
+    ajouterOptionCreer(select, "monnaie-compte", {
       demander: () => creerMonnaiePourCompte(compteId),
       remplir: () => updateOperationMonnaieFields(),
     });
@@ -8011,6 +8075,9 @@ function lireRapprochementFormulaire() {
       rapprochement_mots_cles: [],
     };
   }
+  // Sur une récurrente, ce sont les numéros de jour qui font foi : on les range dans les dates
+  // (le mois de l'opération) juste avant de lire.
+  if (fenetreEnJours()) appliquerJoursAuxDatesRapprochement();
   const debut = document.getElementById("operation-rapprochement-debut").value || null;
   const fin = document.getElementById("operation-rapprochement-fin").value || null;
   return {
@@ -8028,11 +8095,101 @@ function remplirRapprochement(op) {
     (op && op.rapprochement_debut) || "";
   document.getElementById("operation-rapprochement-fin").value =
     (op && op.rapprochement_fin) || "";
+  document.getElementById("operation-rapprochement-ecart").value = "";
   chargerMotsCles(GROUPE_MOTS_CLES_RAPPROCHEMENT, {
     mots: (op && op.rapprochement_mots_cles) || [],
   });
   majBlocRapprochement();
+  majModeFenetreRapprochement();
 }
+
+/* ---------- La fenêtre de reconnaissance : dates, numéros de jour, ± jours ----------
+ *
+ * UNE PRÉVISIONNELLE SE REPÈRE À DES DATES ; UNE RÉCURRENTE À DES NUMÉROS DE JOUR. Sur une
+ * récurrente, la fenêtre du modèle se reporte dans le mois de chaque occurrence (cf.
+ * crud._fenetre_heritee) : y saisir « le 3 du mois de juillet » n'aurait pas de sens, on saisit
+ * « le 3 ». Les dates restent pourtant la valeur de référence (c'est ce que le serveur
+ * enregistre, et ce qu'il relit) : les numéros de jour les écrivent dans le mois de l'opération.
+ *
+ * LE RACCOURCI « ± n jours » écrit les deux bornes autour de la date de l'opération, sans sortir
+ * de son mois (les deux bornes doivent y tenir, cf. schemas.OperationBase).
+ */
+const fenetreEnJours = () => document.getElementById("operation-recurrente").checked;
+
+/** « 2026-07-05 » → {annee, mois, jour}, sans passer par Date (aucun décalage de fuseau). */
+function decomposerDateIso(texte) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texte || "");
+  return m ? { annee: Number(m[1]), mois: Number(m[2]), jour: Number(m[3]) } : null;
+}
+
+const joursDuMois = (annee, mois) => new Date(annee, mois, 0).getDate();
+
+function composerDateIso(annee, mois, jour) {
+  const borne = Math.min(Math.max(jour, 1), joursDuMois(annee, mois));
+  return `${annee}-${String(mois).padStart(2, "0")}-${String(borne).padStart(2, "0")}`;
+}
+
+/** Montre les dates ou les numéros de jour selon la case « Récurrente », et les met d'accord. */
+function majModeFenetreRapprochement() {
+  const enJours = fenetreEnJours();
+  document.querySelectorAll("#operation-rapprochement-champs [data-fenetre]").forEach((el) => {
+    el.style.display = (el.dataset.fenetre === "jours") === enJours ? "" : "none";
+  });
+  if (enJours) {
+    // Les numéros reprennent les dates déjà saisies (le jour de chacune).
+    ["debut", "fin"].forEach((borne) => {
+      const d = decomposerDateIso(document.getElementById(`operation-rapprochement-${borne}`).value);
+      document.getElementById(`operation-rapprochement-jour-${borne}`).value = d ? d.jour : "";
+    });
+  }
+  // Dans l'autre sens, rien à faire : les numéros écrivent les dates à chaque frappe.
+}
+
+/** Écrit les dates de la fenêtre à partir des numéros de jour, dans le mois de l'opération. */
+function appliquerJoursAuxDatesRapprochement() {
+  const ref = decomposerDateIso(document.getElementById("operation-date").value);
+  ["debut", "fin"].forEach((borne) => {
+    const jour = Number(document.getElementById(`operation-rapprochement-jour-${borne}`).value);
+    const champ = document.getElementById(`operation-rapprochement-${borne}`);
+    if (!ref || !jour) {
+      // Pas de date d'opération, ou pas de numéro : on ne touche pas aux dates (elles restent
+      // celles d'une saisie en mode « dates »).
+      if (!jour && fenetreEnJours()) champ.value = "";
+      return;
+    }
+    champ.value = composerDateIso(ref.annee, ref.mois, jour);
+  });
+}
+
+/** « ± n jours » : les deux bornes autour de la date de l'opération, dans son mois. */
+function appliquerEcartRapprochement() {
+  const ref = decomposerDateIso(document.getElementById("operation-date").value);
+  const brut = document.getElementById("operation-rapprochement-ecart").value;
+  if (!ref || brut === "") return;
+  const ecart = Math.max(0, Math.floor(Number(brut)));
+  if (!Number.isFinite(ecart)) return;
+  const debut = composerDateIso(ref.annee, ref.mois, ref.jour - ecart);
+  const fin = composerDateIso(ref.annee, ref.mois, ref.jour + ecart);
+  document.getElementById("operation-rapprochement-debut").value = debut;
+  document.getElementById("operation-rapprochement-fin").value = fin;
+  document.getElementById("operation-rapprochement-jour-debut").value = decomposerDateIso(debut).jour;
+  document.getElementById("operation-rapprochement-jour-fin").value = decomposerDateIso(fin).jour;
+}
+
+document.getElementById("operation-rapprochement-ecart").addEventListener("input", appliquerEcartRapprochement);
+document.getElementById("operation-date").addEventListener("change", () => {
+  // La date de l'opération a changé : le raccourci et les numéros de jour se rejouent dans son mois.
+  if (document.getElementById("operation-rapprochement-ecart").value !== "") {
+    appliquerEcartRapprochement();
+  } else if (fenetreEnJours()) {
+    appliquerJoursAuxDatesRapprochement();
+  }
+});
+["debut", "fin"].forEach((borne) => {
+  document
+    .getElementById(`operation-rapprochement-jour-${borne}`)
+    .addEventListener("input", appliquerJoursAuxDatesRapprochement);
+});
 
 /**
  * Pose l'éditeur de mots-clés et les deux écouteurs du bloc, UNE SEULE FOIS.
@@ -8519,6 +8676,8 @@ let operationEditionModeleRecurrent = false;
 
 document.getElementById("operation-recurrente").addEventListener("change", () => {
   updateOperationTypeFields();
+  // Dates ↔ numéros de jour de la fenêtre de reconnaissance.
+  majModeFenetreRapprochement();
 });
 
 document.getElementById("operation-recurrence-infini").addEventListener("change", (e) => {
@@ -12352,6 +12511,8 @@ function signatureApercu(config) {
     mode_comparaison: config.mode_comparaison,
     lignes_entete: lignesEnteteDe(config),
     lignes_pied: lignesPiedDe(config),
+    // Les frais déjà compris dans les montants changent chaque montant importé : l'aperçu se relit.
+    frais_inclus: Boolean(config.frais_inclus),
     compte_id: config.compte_id ?? null,
     // Les mots-clés de sens décident du SIGNE de chaque montant, ceux d'état de
     // ce qui est importé ou non : en changer relit forcément le fichier
@@ -12375,6 +12536,7 @@ async function loadImportConfiguration() {
   document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
   document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
   document.getElementById("import-lignes-pied").value = lignesPiedDe(config);
+  document.getElementById("import-frais-inclus").checked = Boolean(config.frais_inclus);
   updateResumeLignesEntete();
   renderImportVocabulaires(config);
   renderImportConfig();
@@ -12818,6 +12980,12 @@ function vocabulairesSaisis() {
 // Un vocabulaire ne veut rien dire sans sa colonne : le bloc suit donc la
 // configuration des colonnes, pas seulement le chargement du preset.
 function updateVocabulaireVisibilite(cle) {
+  // La case « frais déjà compris » ne vaut qu'avec une colonne « Frais » : elle suit la même configuration.
+  document.getElementById("import-frais-inclus-bloc").style.display = importConfigColonnes.some(
+    (c) => c.propriete === "frais"
+  )
+    ? ""
+    : "none";
   const { propriete, bloc } = CHAMPS_VOCABULAIRE[cle];
   document.getElementById(bloc).style.display = importConfigColonnes.some(
     (c) => c.propriete === propriete
@@ -13316,6 +13484,7 @@ async function enregistrerConfigurationImport({
         mode_comparaison: modeComparaisonChoisi(),
         lignes_entete: lignesEnteteSaisies(),
         lignes_pied: lignesPiedSaisies(),
+        frais_inclus: document.getElementById("import-frais-inclus").checked,
         ...vocabulairesSaisis(),
       }),
     });
@@ -13334,6 +13503,7 @@ async function enregistrerConfigurationImport({
     document.getElementById("import-mode-comparaison").value = config.mode_comparaison;
     document.getElementById("import-lignes-entete").value = lignesEnteteDe(config);
     document.getElementById("import-lignes-pied").value = lignesPiedDe(config);
+    document.getElementById("import-frais-inclus").checked = Boolean(config.frais_inclus);
     // Réaffichés depuis la réponse : le serveur a retiré les entrées vides et
     // les doublons, l'utilisateur doit voir ce qui a réellement été retenu.
     renderImportVocabulaires(config);
@@ -13553,6 +13723,7 @@ function ajouterColonnesLues(formData) {
       // colonnes, sans rien enregistrer.
       lignes_entete: lignesEnteteSaisies(),
       lignes_pied: lignesPiedSaisies(),
+      frais_inclus: document.getElementById("import-frais-inclus").checked,
       // Les mots-clés de sens et d'état dits à l'étape « mots-clés » et pas encore enregistrés : sans eux,
       // le fichier serait relu avec ceux du preset et chaque ligne se mettrait en erreur.
       ...(importVocabulairesEssai || {}),
@@ -18946,6 +19117,21 @@ function categorieLigneApercuHtml(ligne) {
   } ${t("parts")}</span>`;
 }
 
+/**
+ * Sous le libellé d'une ligne de l'aperçu, ce que dit l'extension « Renommages » : le libellé du relevé
+ * quand la ligne a été renommée (en italique, gris, entre parenthèses, un peu plus petit). Les libellés
+ * qui ressemblent seulement à un libellé renommé ne se proposent jamais ici : ils attendent, à trancher,
+ * dans la page des renommages. Rien quand l'extension est éteinte.
+ */
+function renommageLigneApercuHtml(ligne) {
+  if (!BudgetApp.extensions.estActive("renommages")) return "";
+  const releve = (ligne.nature_releve || "").trim();
+  if (releve && releve !== (ligne.nature || "").trim()) {
+    return `<div class="import-nature-ancienne">(${escapeHtml(releve)})</div>`;
+  }
+  return "";
+}
+
 function creerLigneApercuAffichage(ligne, infoType, { lectureSeule = false } = {}) {
   const tr = document.createElement("tr");
   // Une ligne en lecture seule (ligne déjà en base, affichée pour
@@ -18999,7 +19185,7 @@ function creerLigneApercuAffichage(ligne, infoType, { lectureSeule = false } = {
   tr.innerHTML = `
     <td>${lectureSeule ? "Existant" : ligne.ligne}</td>
     <td>${ligne.date ? formatDate(ligne.date) : "-"}</td>
-    <td>${ligne.nature || "-"}${marqueurLien}</td>
+    <td>${ligne.nature || "-"}${marqueurLien}${lectureSeule ? "" : renommageLigneApercuHtml(ligne)}</td>
     <td>${montantLigneApercuHtml(ligne)}</td>
     <td>${ligne.nom_banque_categorie || "-"}</td>
     <td>${ligne.nom_banque_compte || "-"}</td>
