@@ -81,11 +81,20 @@ def _refuser_si_interne(operation: models.Operation) -> None:
         )
 
 
-def _valider_monnaie_du_compte(compte: models.Compte, monnaie_id: int) -> None:
+def _valider_monnaie_du_compte(
+    compte: models.Compte,
+    monnaie_id: int,
+    couples_precedents: frozenset = frozenset(),
+) -> None:
     """Une opération ne peut être libellée que dans une monnaie portée par son
     compte : c'est ce qui garantit que chaque montant retombe bien dans l'un
-    des soldes calculés pour ce compte (cf. services/soldes.py)."""
-    if monnaie_id in compte.monnaie_ids:
+    des soldes calculés pour ce compte (cf. services/soldes.py).
+
+    `couples_precedents` porte les (compte, monnaie) que l'opération occupait DÉJÀ : une
+    opération écrite avant que la monnaie du compte soit éteinte se renomme, se recatégorise
+    et s'enregistre comme avant — c'est la même règle que `_refuser_eteint`. Seul le geste qui
+    DÉSIGNE une monnaie éteinte est refusé, jamais celui qui la laisse où elle est."""
+    if monnaie_id in compte.monnaie_ids or (compte.id, monnaie_id) in couples_precedents:
         return
     monnaies_possibles = ", ".join(
         sorted(lien.monnaie.nom for lien in compte.monnaies_actives)
@@ -344,6 +353,7 @@ def valider_creation_operation(
     operation: schemas.OperationCreate,
     compte_precedent_id: Optional[int] = None,
     categorie_precedente_id: Optional[int] = None,
+    couples_precedents: frozenset = frozenset(),
 ) -> None:
     """Tout ce qu'une création d'opération doit respecter, en HTTPException.
 
@@ -357,7 +367,7 @@ def valider_creation_operation(
     _valider_compte_operations_libres(compte)
     if crud.get_monnaie(db, operation.monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
-    _valider_monnaie_du_compte(compte, operation.monnaie_id)
+    _valider_monnaie_du_compte(compte, operation.monnaie_id, couples_precedents)
 
     type_operation = _valider_type(db, operation.type_id)
     code = type_operation.code
@@ -435,7 +445,11 @@ def update_operation(
     )
     if updates.monnaie_id is not None and crud.get_monnaie(db, updates.monnaie_id) is None:
         raise HTTPException(status_code=404, detail="Monnaie introuvable")
-    _valider_monnaie_du_compte(compte_final, monnaie_finale)
+    _valider_monnaie_du_compte(
+        compte_final,
+        monnaie_finale,
+        couples_precedents=frozenset({(db_operation.compte_id, db_operation.monnaie_id)}),
+    )
 
     # Les deux écritures d'un virement doivent rester cohérentes : en reclasser
     # une seule laisserait un virement à moitié converti, dont les soldes ne

@@ -9,10 +9,18 @@ from .operations import _build_operation_read, valider_creation_operation
 router = APIRouter(prefix="/virements", tags=["virements"])
 
 
-def _valider_monnaie(db: Session, compte: models.Compte, monnaie_id: int, role: str) -> None:
+def _valider_monnaie(
+    db: Session,
+    compte: models.Compte,
+    monnaie_id: int,
+    role: str,
+    couples_precedents: frozenset = frozenset(),
+) -> None:
+    """`couples_precedents` : les (compte, monnaie) que le virement occupait déjà. Un virement
+    écrit avant l'extinction d'une monnaie se corrige comme avant (cf. operations._valider_monnaie_du_compte)."""
     if crud.get_monnaie(db, monnaie_id) is None:
         raise HTTPException(status_code=404, detail=f"Monnaie du compte {role} introuvable")
-    if monnaie_id not in compte.monnaie_ids:
+    if monnaie_id not in compte.monnaie_ids and (compte.id, monnaie_id) not in couples_precedents:
         monnaies_possibles = ", ".join(
             sorted(lien.monnaie.nom for lien in compte.monnaies_actives)
         )
@@ -123,9 +131,16 @@ def update_virement(
         precedents={operation.compte_id for operation in operations},
     )
 
-    _valider_monnaie(db, compte_source, virement.monnaie_id, "source")
+    couples_precedents = frozenset(
+        (operation.compte_id, operation.monnaie_id) for operation in operations
+    )
+    _valider_monnaie(db, compte_source, virement.monnaie_id, "source", couples_precedents)
     _valider_monnaie(
-        db, compte_destination, virement.monnaie_destination_resolue, "destination"
+        db,
+        compte_destination,
+        virement.monnaie_destination_resolue,
+        "destination",
+        couples_precedents,
     )
 
     op_sortante, op_entrante = crud.update_virement(
@@ -161,8 +176,9 @@ def convertir_en_operation(
             if operation.compte_id in {jambe.compte_id for jambe in jambes}
             else None
         ),
+        couples_precedents=frozenset((jambe.compte_id, jambe.monnaie_id) for jambe in jambes),
     )
-    nouvelle = crud.convertir_virement_en_operation(db, jambes, operation)
+    nouvelle =crud.convertir_virement_en_operation(db, jambes, operation)
     return _build_operation_read(db, nouvelle)
 
 

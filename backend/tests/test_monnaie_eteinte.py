@@ -198,6 +198,67 @@ def test_un_virement_vers_une_monnaie_eteinte_est_refuse(db_session):
     assert erreur.value.status_code == 400
 
 
+def test_une_operation_deja_ecrite_se_modifie_apres_l_extinction_de_sa_monnaie(db_session):
+    """L'opération existe déjà : elle a été créée quand la monnaie était allumée. La renommer
+    (ou changer toute autre propriété) ne désigne pas une monnaie éteinte, elle la laisse où
+    elle est."""
+    compte, euro, dollar = _compte_deux_monnaies(db_session, soldes_initiaux=(0.0, 10.0))
+    operation = _operation(db_session, compte, dollar, 10.0)
+    _eteindre(db_session, compte, dollar, [euro])
+    db_session.refresh(compte)
+
+    lu = routeur_operations.update_operation(
+        operation.id, schemas.OperationUpdate(nature="Marché", montant=12.0), db_session
+    )
+
+    assert (lu.nature, lu.montant, lu.monnaie_id) == ("Marché", 12.0, dollar)
+    # Même quand le formulaire renvoie la monnaie telle quelle.
+    routeur_operations.update_operation(
+        operation.id, schemas.OperationUpdate(monnaie_id=dollar, nature="Marché bio"), db_session
+    )
+
+
+def test_choisir_une_monnaie_eteinte_pour_une_operation_reste_refuse(db_session):
+    """Seul le geste qui DÉSIGNE la monnaie éteinte est refusé : une opération en euros ne peut
+    pas basculer en dollars une fois le dollar éteint."""
+    compte, euro, dollar = _compte_deux_monnaies(db_session)
+    operation = _operation(db_session, compte, euro, 10.0)
+    _eteindre(db_session, compte, dollar, [euro])
+    db_session.refresh(compte)
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_operations.update_operation(
+            operation.id, schemas.OperationUpdate(monnaie_id=dollar), db_session
+        )
+    assert erreur.value.status_code == 400
+
+
+def test_un_virement_deja_ecrit_se_modifie_apres_l_extinction_de_sa_monnaie(db_session):
+    # Le virement apporte 55 $ : le solde initial les compense, pour que le dollar soit soldé.
+    compte, euro, dollar = _compte_deux_monnaies(db_session, soldes_initiaux=(0.0, -55.0))
+    autre = creer_compte(db_session, "Autre", monnaies=[(euro, 500.0)])
+    corps = dict(
+        date=date(2026, 7, 2),
+        compte_source_id=autre.id,
+        compte_destination_id=compte.id,
+        monnaie_id=euro,
+        monnaie_destination_id=dollar,
+        montant=50.0,
+        montant_destination=55.0,
+    )
+    cree = routeur_virements.create_virement(schemas.VirementCreate(**corps), db_session)
+    _eteindre(db_session, compte, dollar, [euro])
+    db_session.refresh(compte)
+
+    corps["date"] = date(2026, 7, 3)
+    lu = routeur_virements.update_virement(
+        cree.virement_id, schemas.VirementCreate(**corps), db_session
+    )
+
+    assert lu.operation_entrante.monnaie_id == dollar
+    assert lu.operation_entrante.date == date(2026, 7, 3)
+
+
 def test_la_monnaie_principale_saute_une_monnaie_eteinte(db_session):
     """C'est elle que l'import retient pour une ligne dont le fichier ne dit pas
     la devise : éteindre la première monnaie d'un compte fait passer la suivante
