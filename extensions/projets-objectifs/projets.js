@@ -798,6 +798,9 @@ document.getElementById("btn-projet-enregistrer").addEventListener("click", asyn
     const brut = document.getElementById(id).value;
     return brut === "" ? null : Number(brut);
   };
+  // Lu AVANT le corps : `visible_dashboard` en dépend (une `const` lue avant sa ligne lève une erreur
+  // et rien ne s'enregistrait, création comprise).
+  const id = document.getElementById("projet-id").value;
   const payload = {
     nom,
     description: document.getElementById("projet-description").value.trim(),
@@ -811,7 +814,6 @@ document.getElementById("btn-projet-enregistrer").addEventListener("click", asyn
     // L'ÉPINGLE EST SUR LA CARTE : une modification garde l'état actuel, un projet neuf n'est pas épinglé.
     visible_dashboard: Boolean(projets.find((p) => p.id === Number(id))?.visible_dashboard),
   };
-  const id = document.getElementById("projet-id").value;
   try {
     if (id) {
       await apiFetch(`${PROJETS_BASE}/${id}`, {
