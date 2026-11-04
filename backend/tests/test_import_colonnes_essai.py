@@ -228,3 +228,84 @@ def test_confirmer_ne_touche_pas_au_preset(db_session):
     db_session.expire_all()
 
     assert crud.get_import_preset(db_session, preset.id).colonnes == COLONNES_DECALEES
+
+
+# ---------- Le compte lié que l'écran a sous les yeux, enregistré ou non ----------
+
+
+def _preset_non_lie(db):
+    return crud.create_import_preset(db, "Ma banque", COLONNES_JUSTES, [], compte_id=None)
+
+
+def test_le_compte_lie_non_enregistre_s_applique_a_l_apercu(db_session):
+    """Choisir le compte du preset sans l'enregistrer : les lignes de l'aperçu y vont déjà, au lieu de
+    rester « à mapper » jusqu'à l'enregistrement (qui obligeait alors à tout recommencer)."""
+    compte = creer_compte(db_session, "Courant")
+    preset = _preset_non_lie(db_session)
+    essai = routeur._valider_colonnes_essai(
+        '{"colonnes": [{"index": 1, "propriete": "date"}, {"index": 2, "propriete": "nature"},'
+        ' {"index": 3, "propriete": "montant"}], "compte_id": %d}' % compte.id,
+        db_session,
+    )
+
+    sans = _previsualiser(db_session, preset)
+    avec = import_bancaire.previsualiser(db_session, preset.id, CONTENU, colonnes=essai)
+
+    assert [l.compte_id for l in sans.lignes] == [None, None]
+    assert [l.compte_id for l in avec.lignes] == [compte.id, compte.id]
+    # Regarder n'écrit rien : le preset reste non lié.
+    db_session.expire_all()
+    assert crud.get_import_preset(db_session, preset.id).compte_id is None
+
+
+def test_un_essai_sans_compte_laisse_le_preset_decider(db_session):
+    compte = creer_compte(db_session, "Courant")
+    preset = crud.create_import_preset(db_session, "Lié", COLONNES_JUSTES, [], compte_id=compte.id)
+    essai = routeur._valider_colonnes_essai(
+        '{"colonnes": [{"index": 1, "propriete": "date"}, {"index": 3, "propriete": "montant"}]}',
+        db_session,
+    )
+
+    apercu = import_bancaire.previsualiser(db_session, preset.id, CONTENU, colonnes=essai)
+
+    assert [l.compte_id for l in apercu.lignes] == [compte.id, compte.id]
+
+
+def test_un_essai_peut_delier_le_preset(db_session):
+    """« Aucun compte lié » est une réponse : le champ présent à null remplace le lien du preset."""
+    compte = creer_compte(db_session, "Courant")
+    preset = crud.create_import_preset(db_session, "Lié", COLONNES_JUSTES, [], compte_id=compte.id)
+    essai = routeur._valider_colonnes_essai(
+        '{"colonnes": [{"index": 1, "propriete": "date"}, {"index": 3, "propriete": "montant"}],'
+        ' "compte_id": null}',
+        db_session,
+    )
+
+    apercu = import_bancaire.previsualiser(db_session, preset.id, CONTENU, colonnes=essai)
+
+    assert [l.compte_id for l in apercu.lignes] == [None, None]
+
+
+def test_un_essai_refuse_un_compte_inexistant(db_session):
+    with pytest.raises(HTTPException) as erreur:
+        routeur._valider_colonnes_essai(
+            '{"colonnes": [{"index": 1, "propriete": "date"}], "compte_id": 9999}', db_session
+        )
+    assert erreur.value.status_code == 404
+
+
+def test_confirmer_suit_le_compte_lie_de_l_essai(db_session):
+    compte = creer_compte(db_session, "Courant")
+    preset = _preset_non_lie(db_session)
+    essai = routeur._valider_colonnes_essai(
+        '{"colonnes": [{"index": 1, "propriete": "date"}, {"index": 2, "propriete": "nature"},'
+        ' {"index": 3, "propriete": "montant"}], "compte_id": %d}' % compte.id,
+        db_session,
+    )
+
+    resultat = import_bancaire.confirmer(
+        db_session, preset.id, CONTENU, schemas.ImportMappingOverrides(), colonnes=essai
+    )
+
+    assert resultat.operations_creees == 2
+    assert {o.compte_id for o in crud.get_operations(db_session)} == {compte.id}

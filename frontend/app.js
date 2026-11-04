@@ -12486,9 +12486,25 @@ function updateImportPresetCompteAvertissement() {
     "Ce preset lit aussi une colonne « Compte bancaire » : elle reste affichée dans l'aperçu, mais ne décide plus du compte — le compte lié ci-dessus s'applique à toutes les lignes.";
 }
 
-document.getElementById("import-preset-compte").addEventListener("change", () => {
+document.getElementById("import-preset-compte").addEventListener("change", async () => {
   updateImportPresetCompteAvertissement();
   toggleImportCompteDefautBloc();
+  // UN FICHIER DÉJÀ LU L'A ÉTÉ SANS CE COMPTE : ses lignes sont « à mapper », et comme le compte lié
+  // éteint la question « dans quel compte ? », plus aucune étape ne la poserait. On le relit donc tout de
+  // suite avec le compte choisi (enregistré ou non, cf. compteLieEssaiImport), SANS rien défaire de ce
+  // qui est déjà décidé. Et la signature de l'aperçu retient ce compte : enregistrer le preset ensuite
+  // ne trouve plus l'aperçu périmé, donc ne relit pas le fichier depuis le début.
+  if (!importFichierActuel || !importApercu) return;
+  await executerPrevisualisation({ conserver: true });
+  if (importSignatureApercuEnregistree) {
+    try {
+      const signature = JSON.parse(importSignatureApercuEnregistree);
+      signature.compte_id = importPresetCompteChoisi();
+      importSignatureApercuEnregistree = JSON.stringify(signature);
+    } catch (e) {
+      /* signature illisible : l'enregistrement relira le fichier, comme avant */
+    }
+  }
 });
 
 /**
@@ -13763,6 +13779,11 @@ document.getElementById("import-reglage-feuille").addEventListener("change", asy
  * import_bancaire.PresetAvecColonnes) : seul « Enregistrer la configuration »
  * touche au preset.
  */
+function compteLieEssaiImport() {
+  const choisi = importPresetCompteChoisi();
+  return choisi !== compteDuPresetImport() ? { compte_id: choisi } : {};
+}
+
 function ajouterColonnesLues(formData) {
   formData.append(
     "colonnes",
@@ -13773,6 +13794,10 @@ function ajouterColonnesLues(formData) {
       lignes_entete: lignesEnteteSaisies(),
       lignes_pied: lignesPiedSaisies(),
       frais_inclus: document.getElementById("import-frais-inclus").checked,
+      // Le compte lié choisi à l'écran et pas encore enregistré : le fichier est lu comme s'il l'était,
+      // sans quoi ses lignes restent « à mapper » (et plus aucune étape ne propose le compte) jusqu'à
+      // l'enregistrement du preset. Absent quand il ne diffère pas de celui du preset.
+      ...compteLieEssaiImport(),
       // Les mots-clés de sens et d'état dits à l'étape « mots-clés » et pas encore enregistrés : sans eux,
       // le fichier serait relu avec ceux du preset et chaque ligne se mettrait en erreur.
       ...(importVocabulairesEssai || {}),

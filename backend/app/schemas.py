@@ -2294,6 +2294,10 @@ class ColonnesImportEssai(BaseModel):
     lignes_pied: Optional[int] = Field(default=None, ge=0, le=MAX_LIGNES_ENTETE_ESSAI)
     # Même chose pour « les frais sont déjà compris » (migration 0097).
     frais_inclus: Optional[bool] = None
+    # LE COMPTE LIÉ au preset que l'écran a sous les yeux, enregistré ou non. Absent (le champ n'est
+    # pas dans le JSON), le preset décide ; PRÉSENT, null compris, il remplace le sien le temps de
+    # cette lecture — « aucun compte lié » est une réponse, pas une absence.
+    compte_id: Optional[int] = None
     # Les mots-clés de « Sens » et d'« État » que l'écran a sous les yeux (l'étape « mots-clés » de
     # l'import les pose avant tout enregistrement). Absents (None), le preset décide ; présents, les
     # CINQ listes partent ensemble et remplacent celles du preset le temps de cette lecture.

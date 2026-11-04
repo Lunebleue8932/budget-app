@@ -438,7 +438,7 @@ async def previsualiser(
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
-    colonnes_lues = _valider_colonnes_essai(colonnes)
+    colonnes_lues = _valider_colonnes_essai(colonnes, db)
     try:
         return import_bancaire.previsualiser(
             db,
@@ -476,7 +476,7 @@ async def controle_avant_import(
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
-    colonnes_lues = _valider_colonnes_essai(colonnes)
+    colonnes_lues = _valider_colonnes_essai(colonnes, db)
     try:
         apercu = import_bancaire.previsualiser(
             db,
@@ -645,7 +645,7 @@ def _completer_signature(
         db.rollback()
 
 
-def _valider_colonnes_essai(colonnes: Optional[str]):
+def _valider_colonnes_essai(colonnes: Optional[str], db: Optional[Session] = None):
     """Les colonnes d'un essai de lecture, ou None si la requête n'en donne pas.
 
     VALIDÉES PAR LE MÊME SCHÉMA QUE CELLES DU PRESET : un essai qui lirait deux
@@ -681,6 +681,13 @@ def _valider_colonnes_essai(colonnes: Optional[str]):
     # chemin que les mots-clés, il répond à la place du preset le temps de cette lecture.
     if modele.frais_inclus is not None:
         vocabulaires = {**(vocabulaires or {}), "frais_inclus": modele.frais_inclus}
+    # LE COMPTE LIÉ choisi à l'écran et pas encore enregistré : il s'applique à cette lecture comme s'il
+    # l'était (aperçu ET confirmation), sans quoi les lignes restaient « à mapper » tant qu'on n'avait pas
+    # enregistré le preset — et l'enregistrer obligeait à relire le fichier depuis le début.
+    if "compte_id" in modele.model_fields_set:
+        if db is not None:
+            _valider_compte_lie(db, modele.compte_id)
+        vocabulaires = {**(vocabulaires or {}), "compte_id": modele.compte_id}
     return import_bancaire.EssaiColonnes(
         [c.model_dump() for c in modele.colonnes], modele.lignes_entete, modele.lignes_pied, vocabulaires
     )
@@ -708,7 +715,7 @@ async def confirmer(
     separateur_decimal = _valider_separateur_decimal(separateur_decimal)
     format_date = _valider_format_date(format_date)
     contenu = await fichier.read()
-    colonnes_lues = _valider_colonnes_essai(colonnes)
+    colonnes_lues = _valider_colonnes_essai(colonnes, db)
     try:
         overrides = schemas.ImportMappingOverrides.model_validate_json(mappings)
     except Exception:
