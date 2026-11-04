@@ -5120,6 +5120,7 @@ Object.assign(TRADUCTIONS.en, {
   "ex. Carrefour": "e.g. Carrefour",
   "Chercher un renommage": "Search a renaming",
   "Appliquer aux opérations existantes": "Apply to existing transactions",
+  "+ Ajouter des frais": "+ Add fees",
   "Aucune opération ne porte le nom à renommer": "No transaction has the name to rename",
   "{n} opération(s) renommée(s)": "{n} transaction(s) renamed",
   "{n} renommage(s)": "{n} renaming(s)",

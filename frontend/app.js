@@ -8493,6 +8493,7 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
       Number(document.getElementById("operation-compte").value),
       { monnaieConservee: monnaie }
     );
+    majFraisSelonMonnaies();
     return;
   }
 
@@ -8539,6 +8540,7 @@ function updateOperationMonnaieFields({ monnaie = null, monnaieRecue = null } = 
   if (memeMonnaie) {
     document.getElementById("operation-montant-recu").value = "";
   }
+  majFraisSelonMonnaies();
 }
 
 // Changer de compte change les monnaies possibles : les menus doivent suivre.
@@ -9212,6 +9214,7 @@ function majChampsFraisOperation() {
   document.getElementById("operation-monnaie-frais-bloc").style.display = choixDevise
     ? ""
     : "none";
+  majBoutonAjoutFrais();
 
   const suffixe = actif ? " (hors frais)" : "";
   const labelMontant = document.getElementById("operation-montant-label");
@@ -9227,6 +9230,44 @@ function majChampsFraisOperation() {
     noeudRecu.nodeValue =
       t("Montant reçu") + (actif && operationFrais.cote === "recu" ? suffixe : "");
   }
+}
+
+/**
+ * « + Ajouter des frais » : proposé sur un VIREMENT qui n'en porte pas encore. Les champs de frais
+ * n'apparaissent d'eux-mêmes que pour des frais déjà là ; sans ce bouton, on ne pouvait pas en
+ * poser sur un virement saisi à la main.
+ */
+function majBoutonAjoutFrais() {
+  const estVirement = document.getElementById("operation-type").value === "virement";
+  document.getElementById("operation-frais-ajouter").style.display =
+    estVirement && !operationFrais.actif ? "" : "none";
+}
+
+/**
+ * À rappeler dès que les monnaies du formulaire changent : le menu de devise des frais suit les deux
+ * monnaies en jeu, et la devise choisie désigne la jambe grevée (cf. crud._jambe_des_frais) — des
+ * frais dans la monnaie reçue grèvent le montant reçu, tous les autres le montant envoyé. Des
+ * frais ajoutés à la main sur un virement qui devient autre chose sont retirés.
+ */
+function majFraisSelonMonnaies() {
+  const estVirement = document.getElementById("operation-type").value === "virement";
+  if (operationFrais.actif && operationFrais.ajoute && !estVirement) {
+    operationFrais = { actif: false, cote: "envoye", sortante: true };
+    document.getElementById("operation-frais").value = "";
+  }
+  if (operationFrais.actif && estVirement) {
+    const choisie = Number(document.getElementById("operation-monnaie-frais").value) || null;
+    remplirMonnaieFraisOperation(choisie);
+    const envoyee = Number(document.getElementById("operation-monnaie").value) || null;
+    const recue = Number(document.getElementById("operation-monnaie-recue").value) || null;
+    // À devise égale des deux côtés, la jambe reste celle posée à l'ouverture.
+    if (envoyee !== recue) {
+      const monnaie = Number(document.getElementById("operation-monnaie-frais").value) || null;
+      operationFrais.cote = monnaie === recue ? "recu" : "envoye";
+      operationFrais.sortante = operationFrais.cote !== "recu";
+    }
+  }
+  majChampsFraisOperation();
 }
 
 /**
@@ -9272,6 +9313,14 @@ function poserFraisOperation({ frais, monnaieFraisId, cote, sortante, champ }) {
   }
   majChampsFraisOperation();
 }
+
+document.getElementById("operation-frais-ajouter").addEventListener("click", () => {
+  operationFrais = { actif: true, cote: "envoye", sortante: true, ajoute: true };
+  remplirMonnaieFraisOperation(Number(document.getElementById("operation-monnaie").value) || null);
+  majFraisSelonMonnaies();
+  document.getElementById("operation-frais").focus();
+});
+document.getElementById("operation-monnaie-frais").addEventListener("change", majFraisSelonMonnaies);
 
 /** Deux décimales, sans traîner les flottants (102 - 2 = 99.99999999999999). */
 function arrondiMontant(valeur) {

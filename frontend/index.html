@@ -1548,6 +1548,9 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="champ-titre">Monnaie des frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-des-frais">i</i></span>
           <select id="operation-monnaie-frais"></select>
         </label>
+        <!-- Sur un VIREMENT seulement, et tant qu'il ne porte pas de frais : les champs ci-dessus
+             n'apparaissent d'eux-mêmes que pour des frais déjà là (cf. app.js, majBoutonAjoutFrais). -->
+        <button type="button" id="operation-frais-ajouter" class="operation-frais-ajouter" style="display:none">+ Ajouter des frais</button>
         <label>Date
           <input type="date" id="operation-date" required />
         </label>

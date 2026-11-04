@@ -4342,6 +4342,7 @@ Object.assign(TRADUCTIONS.pt, {
   "ex. Carrefour": "ex.: Carrefour",
   "Chercher un renommage": "Buscar um renomeamento",
   "Appliquer aux opérations existantes": "Aplicar às operações existentes",
+  "+ Ajouter des frais": "+ Adicionar tarifas",
   "Aucune opération ne porte le nom à renommer": "Nenhuma operação tem o nome a renomear",
   "{n} opération(s) renommée(s)": "{n} operação(ões) renomeada(s)",
   "{n} renommage(s)": "{n} renomeamento(s)",

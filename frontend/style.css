@@ -1139,6 +1139,25 @@ select option.option-creer {
   cursor: pointer;
 }
 
+/* « + Ajouter des frais » du formulaire d'un virement : la même discrétion que « + Créer une monnaie »,
+   alignée sur le bas des champs voisins. */
+.operation-frais-ajouter {
+  align-self: flex-end;
+  margin-bottom: 0.45rem;
+  padding: 0.2rem 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.operation-frais-ajouter:hover,
+.operation-frais-ajouter:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 .bouton-creer-monnaie:hover,
 .bouton-creer-monnaie:focus-visible {
   color: var(--text-primary);
