@@ -37,11 +37,24 @@ class RenommageLecture(BaseModel):
     cree_le: Optional[datetime] = None
     #: Renseigné à la création seulement : combien d'opérations ont été renommées avec l'entrée.
     operations_renommees: int = 0
+    #: Permanent (l'import l'applique) ou « à valider » (cf. models.Renommage.valide).
+    valide: bool = True
+    #: Renseigné par la liste : combien d'opérations de la base porteraient encore le libellé d'origine
+    #: sous un autre nom que le nouveau — ce que « Appliquer aux opérations existantes » renommerait.
+    operations_a_renommer: int = 0
 
     model_config = {"from_attributes": True}
 
 
 class OperationsConcernees(BaseModel):
+    nombre: int
+
+
+class LotIds(BaseModel):
+    ids: list[int]
+
+
+class NombreTouche(BaseModel):
     nombre: int
 
 
@@ -67,12 +80,44 @@ def _entree_ou_404(db: Session, renommage_id: int) -> models.Renommage:
 
 @router.get("", response_model=list[RenommageLecture])
 def lister(db: Session = Depends(get_db)):
-    """Tous les renommages, les plus récents d'abord."""
-    return (
+    """Tous les renommages, les plus récents d'abord — permanents et « à valider » ensemble : la page les
+    range d'après `valide`."""
+    entrees = (
         db.query(models.Renommage)
         .order_by(models.Renommage.cree_le.desc(), models.Renommage.id.desc())
         .all()
     )
+    nombres = renommages.nombres_a_renommer(db, entrees)
+    lectures = []
+    for entree in entrees:
+        lecture = RenommageLecture.model_validate(entree)
+        lecture.operations_a_renommer = nombres.get(entree.id, 0)
+        lectures.append(lecture)
+    return lectures
+
+
+@router.post("/valider", response_model=NombreTouche)
+def valider(corps: LotIds, db: Session = Depends(get_db)):
+    """Rend permanents les renommages désignés : l'import les applique dès le prochain relevé."""
+    return NombreTouche(nombre=renommages.valider(db, corps.ids))
+
+
+@router.post("/supprimer-lot", response_model=NombreTouche)
+def supprimer_lot(corps: LotIds, db: Session = Depends(get_db)):
+    """Oublie les renommages désignés (nettoyage de la pile ou de la liste). Aucune opération déjà
+    écrite n'est touchée."""
+    return NombreTouche(nombre=renommages.supprimer_lot(db, corps.ids))
+
+
+@router.post("/{renommage_id}/appliquer", response_model=RenommageLecture)
+def appliquer(renommage_id: int, db: Session = Depends(get_db)):
+    """« Appliquer aux opérations existantes » pour un renommage déjà créé : renomme dans la base les
+    opérations qui portent son libellé d'origine."""
+    entree = _entree_ou_404(db, renommage_id)
+    renommees = renommages.appliquer_aux_operations(db, entree)
+    lecture = RenommageLecture.model_validate(entree)
+    lecture.operations_renommees = renommees
+    return lecture
 
 
 @router.get("/operations-concernees", response_model=OperationsConcernees)

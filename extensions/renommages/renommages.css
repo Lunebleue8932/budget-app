@@ -122,6 +122,44 @@
   flex: none;
 }
 
+/* LA BARRE DE SÉLECTION d'une liste : « Tout sélectionner », les gestes sur la sélection, le compte. */
+.renommage-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.renommage-selection:empty {
+  display: none;
+}
+
+#renommages-a-valider {
+  margin-bottom: 1.2rem;
+}
+
+/* Les renommages à valider se distinguent des retenus par le même liseré d'accent que les points à trancher. */
+#renommages-a-valider .renommage-ligne {
+  border-left: 3px solid var(--accent);
+}
+
+.renommage-case {
+  flex: none;
+}
+
+/* Le tooltip d'un bouton grisé : posé sur l'enveloppe, le bouton laisse passer le survol. */
+.renommage-appliquer-enveloppe {
+  flex: none;
+  display: inline-flex;
+}
+
+.renommage-appliquer-enveloppe button:disabled {
+  pointer-events: none;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 40rem) {
   .renommage-ligne {
     flex-wrap: wrap;

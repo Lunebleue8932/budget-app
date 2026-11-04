@@ -28,10 +28,17 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import NamedTuple, Optional
 
+from sqlalchemy import func
+
 from .. import extensions, models
 
 #: L'identifiant (nom de dossier) de l'extension.
 EXTENSION_RENOMMAGES = "renommages"
+
+#: Les origines dont l'entrée est permanente d'office : on l'a écrite soi-même (page des renommages) ou
+#: acceptée (suggestion). Les autres — une opération renommée, une ligne retouchée à l'import — sont
+#: notées par l'app sur le moment et attendent dans la pile « à valider » (cf. `Renommage.valide`).
+ORIGINES_VALIDEES = frozenset({"manuel", "suggestion"})
 
 
 def actif() -> bool:
@@ -64,12 +71,15 @@ class Entree(NamedTuple):
 
 def charger(db) -> dict:
     """{cle: Entree} — chargé UNE fois par fichier importé, comme les règles. Vide si l'extension
-    est éteinte : tout le reste de la résolution s'écrit sans se demander si elle est là."""
+    est éteinte : tout le reste de la résolution s'écrit sans se demander si elle est là.
+
+    SEULES LES ENTRÉES VALIDÉES : celles qui attendent dans la pile « à valider » ne renomment rien
+    à l'import, et ne servent pas non plus de modèle aux ressemblances."""
     if not actif():
         return {}
     return {
         r.cle: Entree(r.id, r.cle, r.nom_origine, r.nom_nouveau)
-        for r in db.query(models.Renommage).all()
+        for r in db.query(models.Renommage).filter(models.Renommage.valide.is_(True)).all()
     }
 
 
@@ -109,19 +119,22 @@ def enregistrer(
     cle_ancien = cle(ancien)
     entree = db.query(models.Renommage).filter(models.Renommage.cle == cle_ancien).one_or_none()
     if entree is None:
-        entree = models.Renommage(cle=cle_ancien, nom_origine=ancien, cree_le=datetime.now())
+        # À VALIDER, sauf si on l'a écrite soi-même : c'est la pile de la page des renommages.
+        entree = models.Renommage(
+            cle=cle_ancien, nom_origine=ancien, cree_le=datetime.now(), valide=False
+        )
         db.add(entree)
     entree.nom_nouveau = nouveau
     entree.origine = origine
+    # Une entrée déjà permanente le reste quand on la précise de nouveau : l'écraser en « à valider »
+    # ferait cesser de renommer à l'import ce qui l'était déjà.
+    if origine in ORIGINES_VALIDEES:
+        entree.valide = True
 
-    # Les entrées qui aboutissaient à `ancien` aboutissent désormais à `nouveau`.
-    for autre in db.query(models.Renommage).all():
-        if autre is entree or cle(autre.nom_nouveau) != cle_ancien:
-            continue
-        autre.nom_nouveau = nouveau
-        # « A -> B » puis « B -> A » : l'entrée n'a plus rien à dire.
-        if autre.nom_origine == nouveau:
-            _supprimer(db, autre)
+    # Une entrée à valider ne raccourcit encore aucune chaîne : elle ne renomme rien. C'est sa
+    # validation qui le fera (cf. `valider`).
+    if entree.valide:
+        _raccourcir_chaines(db, entree)
     # Ce libellé est tranché : il n'a plus rien à attendre dans les points à trancher.
     db.query(models.RenommageATrancher).filter(models.RenommageATrancher.cle == cle_ancien).delete()
     if valider:
@@ -132,6 +145,43 @@ def enregistrer(
         # qui écrira l'entrée, avec le reste.
         db.flush()
     return entree
+
+
+def _raccourcir_chaines(db, entree) -> None:
+    """Les entrées qui aboutissaient au libellé d'origine de `entree` aboutissent désormais à son
+    nouveau nom : « A -> B » puis « B -> C » devient « A -> C »."""
+    for autre in db.query(models.Renommage).all():
+        if autre is entree or cle(autre.nom_nouveau) != entree.cle:
+            continue
+        autre.nom_nouveau = entree.nom_nouveau
+        # « A -> B » puis « B -> A » : l'entrée n'a plus rien à dire.
+        if autre.nom_origine == entree.nom_nouveau:
+            _supprimer(db, autre)
+
+
+def valider(db, ids) -> int:
+    """Rend permanentes les entrées de la pile « à valider » désignées par `ids` (celles qui le sont
+    déjà ne comptent pas). Rend le nombre d'entrées validées."""
+    nombre = 0
+    for entree in db.query(models.Renommage).filter(models.Renommage.id.in_(list(ids))).all():
+        if entree.valide:
+            continue
+        entree.valide = True
+        nombre += 1
+        _raccourcir_chaines(db, entree)
+    db.commit()
+    return nombre
+
+
+def supprimer_lot(db, ids) -> int:
+    """Oublie les entrées désignées par `ids`, validées ou non. Aucune opération déjà écrite n'est
+    touchée. Rend le nombre d'entrées supprimées."""
+    nombre = 0
+    for entree in db.query(models.Renommage).filter(models.Renommage.id.in_(list(ids))).all():
+        _supprimer(db, entree)
+        nombre += 1
+    db.commit()
+    return nombre
 
 
 def oublier(db, libelle: Optional[str]) -> bool:
@@ -157,6 +207,24 @@ def operations_portant(db, libelle: Optional[str]) -> list:
         for operation in db.query(models.Operation).all()
         if cle(operation.nature) == k
     ]
+
+
+def nombres_a_renommer(db, entrees) -> dict:
+    """{id de l'entrée: nombre d'opérations que `appliquer_aux_operations` renommerait}, pour toutes
+    les entrées d'un coup (une seule lecture des noms d'opérations, pas une par entrée)."""
+    par_nom: dict = {}
+    for nature, nombre in db.query(models.Operation.nature, func.count()).group_by(
+        models.Operation.nature
+    ):
+        par_nom.setdefault(cle(nature), {})[nature] = nombre
+    return {
+        entree.id: sum(
+            nombre
+            for nature, nombre in par_nom.get(entree.cle, {}).items()
+            if nature != entree.nom_nouveau
+        )
+        for entree in entrees
+    }
 
 
 def appliquer_aux_operations(db, entree) -> int:

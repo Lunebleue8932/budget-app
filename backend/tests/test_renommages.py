@@ -289,3 +289,66 @@ def test_retoucher_le_nom_dans_le_recapitulatif_cree_l_entree(db_session):
 
     entree = db_session.query(models.Renommage).one()
     assert (entree.nom_origine, entree.nom_nouveau, entree.origine) == ("PRLV EDF 0701", "EDF", "import")
+
+
+# ---------- La pile « à valider » ----------
+
+
+def test_un_renommage_note_par_l_app_attend_d_etre_valide(db_session):
+    """Une opération renommée, une ligne retouchée à l'import : l'entrée existe mais ne renomme rien
+    à l'import tant qu'on ne l'a pas validée. Écrite à la main ou acceptée, elle est permanente d'office."""
+    a_valider = renommages.enregistrer(db_session, "CB EDF 0701", "EDF", "operation")
+    retouche = renommages.enregistrer(db_session, "PRLV NETFLIX", "Netflix", "import")
+    manuelle = renommages.enregistrer(db_session, "CB SNCF", "SNCF", "manuel")
+    acceptee = renommages.enregistrer(db_session, "CB TOTAL", "Total", "suggestion")
+
+    assert [e.valide for e in (a_valider, retouche, manuelle, acceptee)] == [False, False, True, True]
+    index = renommages.charger(db_session)
+    assert sorted(e.nom_nouveau for e in index.values()) == ["SNCF", "Total"]
+    assert renommages.nouveau_nom(index, "cb edf 0701") is None
+
+
+def test_preciser_une_entree_permanente_la_laisse_permanente(db_session):
+    renommages.enregistrer(db_session, "CB EDF 0701", "EDF", "manuel")
+
+    entree = renommages.enregistrer(db_session, "CB EDF 0701", "EDF Energie", "operation")
+
+    assert entree.valide is True
+    assert renommages.nouveau_nom(renommages.charger(db_session), "CB EDF 0701").nom_nouveau == "EDF Energie"
+
+
+def test_valider_rend_permanent_et_raccourcit_les_chaines(db_session):
+    renommages.enregistrer(db_session, "A", "B", "manuel")
+    attente = renommages.enregistrer(db_session, "B", "C", "operation")
+    # À valider : « A -> B » n'est pas encore raccourcie en « A -> C ».
+    assert renommages.nouveau_nom(renommages.charger(db_session), "A").nom_nouveau == "B"
+
+    assert renommages.valider(db_session, [attente.id, attente.id]) == 1
+    assert renommages.valider(db_session, [attente.id]) == 0
+
+    index = renommages.charger(db_session)
+    assert renommages.nouveau_nom(index, "A").nom_nouveau == "C"
+    assert renommages.nouveau_nom(index, "B").nom_nouveau == "C"
+
+
+def test_supprimer_en_lot_oublie_validees_et_en_attente(db_session):
+    a = renommages.enregistrer(db_session, "A", "B", "manuel")
+    b = renommages.enregistrer(db_session, "C", "D", "operation")
+    c = renommages.enregistrer(db_session, "E", "F", "manuel")
+
+    assert renommages.supprimer_lot(db_session, [a.id, b.id, 9999]) == 2
+
+    assert [e.nom_origine for e in db_session.query(models.Renommage).all()] == ["E"]
+    assert c.id is not None
+
+
+def test_nombres_a_renommer_compte_les_operations_par_entree(db_session):
+    compte = creer_compte(db_session, "CC")
+    for nature in ("CB EDF 0701", "cb edf 0701", "EDF", "Loyer"):
+        _operation_nommee(db_session, compte, nature)
+    entree = renommages.enregistrer(db_session, "CB EDF 0701", "EDF", "manuel")
+    vide = renommages.enregistrer(db_session, "Inconnu", "X", "manuel")
+
+    nombres = renommages.nombres_a_renommer(db_session, [entree, vide])
+
+    assert nombres == {entree.id: 2, vide.id: 0}

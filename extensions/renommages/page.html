@@ -33,11 +33,21 @@
     <div id="renommages-a-trancher-liste" class="renommages-liste"></div>
   </div>
 
+  <!-- LA PILE « À VALIDER » : les renommages que l'app a notés elle-même (opération renommée, ligne retouchée
+       à l'import). Ils ne s'appliquent pas encore à l'import : on les valide (ils deviennent permanents) ou on
+       les supprime, ligne à ligne ou par sélection. Masquée quand elle est vide. -->
+  <div id="renommages-a-valider" style="display:none">
+    <h4>À valider<i class="info-bulle" tabindex="0" data-info-cle="renommages.a-valider">i</i></h4>
+    <div class="renommage-selection" id="renommages-a-valider-barre"></div>
+    <div id="renommages-a-valider-liste" class="renommages-liste"></div>
+  </div>
+
   <h4 id="renommages-titre-liste">Renommages retenus</h4>
   <div class="renommage-filtre">
     <input type="text" id="renommage-recherche" placeholder="Chercher un renommage" aria-label="Chercher un renommage" />
     <span class="hint" id="renommage-compte"></span>
   </div>
+  <div class="renommage-selection" id="renommages-retenus-barre"></div>
 
   <div id="renommages-liste" class="renommages-liste"></div>
 </div>

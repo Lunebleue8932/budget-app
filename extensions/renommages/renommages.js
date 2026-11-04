@@ -124,52 +124,207 @@ function renderATrancher() {
   });
 }
 
+/* ---------- Sélection en lot : la pile « à valider » et la liste des renommages retenus ----------
+ *
+ * Chaque liste a sa sélection (des identifiants) et sa barre : « Tout sélectionner » (qui devient « Tout
+ * désélectionner » quand tout est coché), puis les gestes sur la sélection. La sélection porte sur ce qui est
+ * AFFICHÉ — la recherche la restreint — et ne survit pas à une ligne qui disparaît. */
+const selectionsRenommages = { aValider: new Set(), retenus: new Set() };
+
+function creerBarreSelection(conteneur, selection, visibles, actions) {
+  conteneur.innerHTML = "";
+  if (!visibles.length) return;
+  const toutCoche = visibles.every((r) => selection.has(r.id));
+  const bouton = (libelle, classe, action) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = libelle;
+    if (classe) b.className = classe;
+    b.addEventListener("click", action);
+    conteneur.appendChild(b);
+    return b;
+  };
+  bouton(toutCoche ? t("Tout désélectionner") : t("Tout sélectionner"), "", () => {
+    if (toutCoche) visibles.forEach((r) => selection.delete(r.id));
+    else visibles.forEach((r) => selection.add(r.id));
+    renderRenommages();
+  });
+  actions.forEach(({ libelle, classe, executer }) => {
+    const b = bouton(libelle, classe, () => executer([...selection]));
+    b.disabled = selection.size === 0;
+  });
+  const compteur = document.createElement("span");
+  compteur.className = "hint";
+  compteur.textContent = t("{n} sélectionné(s)", { n: selection.size });
+  conteneur.appendChild(compteur);
+}
+
+/** Un geste sur un lot : le serveur répond `{nombre}`, la page est relue. */
+async function gesteSurLot(chemin, ids, messageFait) {
+  try {
+    const reponse = await apiFetch(`/renommages/${chemin}`, {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+    showMessage(t(messageFait, { n: reponse.nombre }), "success");
+    await loadRenommages();
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+function supprimerSelection(ids) {
+  if (!ids.length) return;
+  if (!confirm(t("Oublier {n} renommage(s) ? Les opérations déjà écrites ne changent pas.", { n: ids.length }))) {
+    return;
+  }
+  return gesteSurLot("supprimer-lot", ids, "{n} renommage(s) supprimé(s)");
+}
+
+/** Une ligne de liste : case à cocher, noms, origine, puis les boutons que `construireBoutons` pose. */
+function creerLigneRenommage(r, selection, construireBoutons) {
+  const ligne = document.createElement("div");
+  ligne.className = "renommage-ligne";
+  ligne.innerHTML = `
+    <input type="checkbox" class="renommage-case" aria-label="${escapeHtml(t("Sélectionner"))}" ${
+      selection.has(r.id) ? "checked" : ""
+    } />
+    <div class="renommage-noms">
+      <div class="renommage-nouveau">${escapeHtml(r.nom_nouveau)}</div>
+      <div class="renommage-ancien">(${escapeHtml(r.nom_origine)})</div>
+    </div>
+    <span class="renommage-origine">${escapeHtml(t(LIBELLES_ORIGINE_RENOMMAGE[r.origine] || r.origine))}</span>`;
+  ligne.querySelector(".renommage-case").addEventListener("change", (e) => {
+    if (e.target.checked) selection.add(r.id);
+    else selection.delete(r.id);
+    renderRenommages();
+  });
+  construireBoutons(ligne);
+  return ligne;
+}
+
+function ajouterBouton(ligne, libelle, classe, executer) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = libelle;
+  if (classe) b.className = classe;
+  b.addEventListener("click", executer);
+  ligne.appendChild(b);
+  return b;
+}
+
+/**
+ * « Appliquer aux opérations existantes » sur un renommage DÉJÀ créé : grisé quand aucune opération de la
+ * base ne porte le libellé d'origine. Le tooltip est posé sur une enveloppe — un bouton désactivé ne reçoit
+ * pas le survol.
+ */
+function ajouterBoutonAppliquer(ligne, r) {
+  const enveloppe = document.createElement("span");
+  enveloppe.className = "renommage-appliquer-enveloppe";
+  const aucune = !r.operations_a_renommer;
+  enveloppe.title = aucune
+    ? t(texteAide("renommages.appliquer-aucune-operation"))
+    : t(texteAide("renommages.appliquer-existant"));
+  ligne.appendChild(enveloppe);
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.textContent = t("Appliquer aux opérations existantes");
+  bouton.disabled = aucune;
+  bouton.addEventListener("click", async () => {
+    if (
+      !confirm(
+        t("Renommer {n} opération(s) « {ancien} » en « {nouveau} » ?", {
+          n: r.operations_a_renommer,
+          ancien: r.nom_origine,
+          nouveau: r.nom_nouveau,
+        })
+      )
+    ) {
+      return;
+    }
+    try {
+      const faite = await apiFetch(`/renommages/${r.id}/appliquer`, { method: "POST" });
+      showMessage(t("{n} opération(s) renommée(s)", { n: faite.operations_renommees }), "success");
+      await loadRenommages();
+    } catch (err) {
+      showMessage(err.message, "error");
+    }
+  });
+  enveloppe.appendChild(bouton);
+}
+
 function renderRenommages() {
-  const liste = document.getElementById("renommages-liste");
   const filtre = document
     .getElementById("renommage-recherche")
     .value.trim()
     .toLowerCase();
-  const visibles = renommagesCharges.filter(
-    (r) =>
-      !filtre ||
-      r.nom_origine.toLowerCase().includes(filtre) ||
-      r.nom_nouveau.toLowerCase().includes(filtre)
-  );
+  const correspond = (r) =>
+    !filtre ||
+    r.nom_origine.toLowerCase().includes(filtre) ||
+    r.nom_nouveau.toLowerCase().includes(filtre);
+  const aValider = renommagesCharges.filter((r) => !r.valide && correspond(r));
+  const retenus = renommagesCharges.filter((r) => r.valide && correspond(r));
+  // Une sélection ne garde que ce qui existe encore.
+  const ids = new Set(renommagesCharges.map((r) => r.id));
+  Object.values(selectionsRenommages).forEach((s) => s.forEach((id) => ids.has(id) || s.delete(id)));
+
   document.getElementById("renommage-compte").textContent = t("{n} renommage(s)", {
-    n: renommagesCharges.length,
+    n: renommagesCharges.filter((r) => r.valide).length,
   });
+
+  // La pile « à valider » : masquée quand elle est vide.
+  document.getElementById("renommages-a-valider").style.display = aValider.length ? "" : "none";
+  const listeAValider = document.getElementById("renommages-a-valider-liste");
+  listeAValider.innerHTML = "";
+  creerBarreSelection(
+    document.getElementById("renommages-a-valider-barre"),
+    selectionsRenommages.aValider,
+    aValider,
+    [
+      {
+        libelle: t("Valider la sélection"),
+        classe: "primary",
+        executer: (lot) => gesteSurLot("valider", lot, "{n} renommage(s) validé(s)"),
+      },
+      { libelle: t("Supprimer la sélection"), classe: "danger", executer: supprimerSelection },
+    ]
+  );
+  aValider.forEach((r) => {
+    listeAValider.appendChild(
+      creerLigneRenommage(r, selectionsRenommages.aValider, (ligne) => {
+        ajouterBouton(ligne, t("Valider"), "primary", () => gesteSurLot("valider", [r.id], "{n} renommage(s) validé(s)"));
+        ajouterBouton(ligne, t("Modifier"), "", () => modifierRenommage(r));
+        ajouterBouton(ligne, t("Supprimer"), "danger", () => supprimerSelection([r.id]));
+      })
+    );
+  });
+
+  // Les renommages permanents.
+  const liste = document.getElementById("renommages-liste");
   liste.innerHTML = "";
-  if (!visibles.length) {
+  creerBarreSelection(
+    document.getElementById("renommages-retenus-barre"),
+    selectionsRenommages.retenus,
+    retenus,
+    [{ libelle: t("Supprimer la sélection"), classe: "danger", executer: supprimerSelection }]
+  );
+  if (!retenus.length) {
+    const sansRetenus = renommagesCharges.filter((r) => r.valide).length === 0;
     liste.innerHTML = `<p class="hint">${escapeHtml(
-      renommagesCharges.length
-        ? t("Aucun renommage ne correspond à cette recherche.")
-        : t("Aucun renommage pour le moment : renomme une opération, ou ajoutes-en un ci-dessus.")
+      sansRetenus && !filtre
+        ? t("Aucun renommage pour le moment : renomme une opération, ou ajoutes-en un ci-dessus.")
+        : t("Aucun renommage ne correspond à cette recherche.")
     )}</p>`;
     return;
   }
-  visibles.forEach((r) => {
-    const ligne = document.createElement("div");
-    ligne.className = "renommage-ligne";
-    ligne.innerHTML = `
-      <div class="renommage-noms">
-        <div class="renommage-nouveau">${escapeHtml(r.nom_nouveau)}</div>
-        <div class="renommage-ancien">(${escapeHtml(r.nom_origine)})</div>
-      </div>
-      <span class="renommage-origine">${escapeHtml(t(LIBELLES_ORIGINE_RENOMMAGE[r.origine] || r.origine))}</span>
-      <button type="button" data-action="modifier">${t("Modifier")}</button>
-      <button type="button" data-action="supprimer" class="danger">${t("Supprimer")}</button>`;
-    ligne.querySelector("[data-action='modifier']").addEventListener("click", () => modifierRenommage(r));
-    ligne.querySelector("[data-action='supprimer']").addEventListener("click", async () => {
-      if (!confirm(t("Oublier le renommage « {nom} » ?", { nom: r.nom_origine }))) return;
-      try {
-        await apiFetch(`/renommages/${r.id}`, { method: "DELETE" });
-        await loadRenommages();
-      } catch (err) {
-        showMessage(err.message, "error");
-      }
-    });
-    liste.appendChild(ligne);
+  retenus.forEach((r) => {
+    liste.appendChild(
+      creerLigneRenommage(r, selectionsRenommages.retenus, (ligne) => {
+        ajouterBoutonAppliquer(ligne, r);
+        ajouterBouton(ligne, t("Modifier"), "", () => modifierRenommage(r));
+        ajouterBouton(ligne, t("Supprimer"), "danger", () => supprimerSelection([r.id]));
+      })
+    );
   });
 }
 

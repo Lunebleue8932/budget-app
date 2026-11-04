@@ -260,6 +260,10 @@ const TEXTES = {
   "renommages.renommages":
     "Chaque opération que tu renommes laisse ici une entrée : le libellé tel que le relevé l'écrit, et le nom que tu lui as donné. Au prochain import, les lignes qui portent ce libellé — aux espaces, accents et majuscules près — arrivent directement sous ton nom, l'ancien restant lisible dessous. Supprimer une entrée n'efface aucune opération déjà écrite.",
   "renommages.appliquer-aucune-operation": "Aucune opération ne porte le nom à renommer",
+  "renommages.appliquer-existant":
+    "Renomme, dans la base, les opérations qui portent encore le libellé d'origine de ce renommage.",
+  "renommages.a-valider":
+    "Les renommages que l'app a notés elle-même : une opération que tu as renommée, une ligne que tu as retouchée à l'import. Ils ne s'appliquent pas encore aux prochains imports. Valide ceux que tu veux garder pour de bon, supprime les autres. Coche des lignes, ou « Tout sélectionner », pour nettoyer d'un coup.",
   "renommages.a-trancher":
     "Des libellés vus à l'import qui ressemblent à un libellé déjà renommé, sans lui être identiques. L'import ne les renomme pas et ne te les propose pas : tu tranches ici. Accepter leur donne le même nom, et retient ce libellé pour les prochains imports ; refuser ne le reposera plus.",
   "noyau.rapprochement-plus-moins":

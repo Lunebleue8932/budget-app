@@ -1434,6 +1434,11 @@ class Renommage(Base):
     # l'app acceptée), « manuel » (écrite dans la page des renommages).
     origine = Column(String, nullable=False, default="manuel", server_default="manuel")
     cree_le = Column(DateTime, nullable=True)
+    # PERMANENT OU À VALIDER (migration 0099). Une entrée écrite à la main ou née d'une suggestion
+    # acceptée est validée d'office ; celle que l'app a notée toute seule (opération renommée, ligne
+    # retouchée à l'import) attend dans la pile « à valider » de la page, et l'import ne l'applique
+    # pas tant qu'on ne l'a pas validée.
+    valide = Column(Boolean, nullable=False, default=True, server_default=sa_true())
 
 
 class RenommageATrancher(Base):
