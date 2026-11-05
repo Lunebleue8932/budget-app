@@ -10912,6 +10912,8 @@ function operationCorrespondFiltres(op, onglet, f, budget = false) {
   if (f.statut !== undefined && f.statut !== "" && op.statut !== f.statut) return false;
   if (f.recurrente !== undefined && !correspondBool(f.recurrente, op.recurrente)) return false;
   if (f.amortie !== undefined && !correspondBool(f.amortie, op.amorti)) return false;
+  // « Comporte des frais ? » : la présence de frais sur l'opération (cf. Operation.frais).
+  if (f.frais !== undefined && !correspondBool(f.frais, Boolean(op.frais))) return false;
   if (f.montantDuMin !== undefined && !correspondPlage(f.montantDuMin, f.montantDuMax, op.montant_du)) {
     return false;
   }
