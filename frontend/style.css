@@ -172,7 +172,6 @@
 
    Posé une fois pour TOUS les champs de date de l'application, extensions
    comprises. */
-input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator {
   filter: brightness(0) invert(1);
@@ -185,16 +184,181 @@ input[type="month"]::-webkit-calendar-picker-indicator {
    il serait blanc sur blanc. `brightness(0)` seul l'écrase en noir pur quelle
    que soit sa couleur d'origine — même raisonnement que plus haut, arrêté une
    étape plus tôt. */
-:root[data-theme="clair"] input[type="date"]::-webkit-calendar-picker-indicator,
 :root[data-theme="clair"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
 :root[data-theme="clair"] input[type="month"]::-webkit-calendar-picker-indicator {
   filter: brightness(0);
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator:hover,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
 input[type="month"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+
+/* ---------- LE CALENDRIER DES CHAMPS DE DATE (cf. calendrier.js) ----------
+   Le pictogramme natif d'un champ de date est masqué : le calendrier qu'il ouvrait est celui du navigateur,
+   hors de portée de tout CSS. Le nôtre est posé en FOND du champ, à droite (`!important` : les champs de
+   date prennent leur fond et leur marge intérieure de règles de contexte nombreuses — formulaires, filtres,
+   éditeur de règles… — dont le raccourci `background` écraserait l'image), et calendrier.js ouvre le
+   calendrier d'un clic sur cette bande. Deux dessins, un par thème : une image de fond ne lit pas les
+   variables CSS. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+input[type="date"] {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23d1d5db' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.6rem center !important;
+  background-size: 1rem 1rem !important;
+  padding-right: 2.2rem !important;
+  cursor: text;
+}
+
+:root[data-theme="clair"] input[type="date"] {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2'/><path d='M16 2v4M8 2v4M3 10h18'/></svg>") !important;
+}
+
+.calendrier-popup {
+  position: fixed;
+  z-index: 3000;
+  width: 17.5rem;
+  padding: 0.7rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.calendrier-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.calendrier-entete select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.4rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+
+.calendrier-entete select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.calendrier-entete select.calendrier-annee {
+  flex: 0 0 4.6rem;
+}
+
+.calendrier-fleche {
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.calendrier-fleche:hover {
+  border-color: var(--accent);
+}
+
+.calendrier-semaine,
+.calendrier-grille {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+}
+
+.calendrier-semaine {
+  margin-bottom: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.calendrier-jour {
+  height: 2rem;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.calendrier-jour:hover:not(:disabled) {
+  background: var(--bg-surface-alt);
+  border-color: var(--border);
+}
+
+.calendrier-jour:focus-visible {
+  outline: 2px solid var(--accent-light, var(--accent));
+  outline-offset: 1px;
+}
+
+.calendrier-hors-mois {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.calendrier-aujourdhui {
+  border-color: var(--accent);
+}
+
+.calendrier-jour.calendrier-choisi {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  opacity: 1;
+}
+
+.calendrier-jour:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.calendrier-pied {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-soft, var(--border));
+}
+
+.calendrier-pied button {
+  padding: 0.25rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.calendrier-pied button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.calendrier-pied button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 /* LA PAGE EST EN DEUX COLONNES : la barre latérale, puis tout le reste.
