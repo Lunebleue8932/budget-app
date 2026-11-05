@@ -168,6 +168,14 @@
       <p class="hint" id="projet-candidats-info"></p>
     </div>
 
+    <!-- LES SOUS-PROJETS, un volet chacun : leurs opérations n'apparaissent plus dans le tableau ci-dessous
+         (elles y étaient peut-être déjà), mais comptent dans tous les chiffres du projet. Posés AU-DESSUS
+         des opérations : relégués sous un long tableau, on ne les trouvait plus. -->
+    <div id="projet-sous-projets-bloc" style="display:none">
+      <h4>Sous-projets<i class="info-bulle" tabindex="0" data-info-cle="projets.sous-projets">i</i></h4>
+      <div id="projet-sous-projets"></div>
+    </div>
+
     <h4>Opérations du projet — <span id="projet-detail-nombre"></span></h4>
     <table>
       <thead>
@@ -178,13 +186,6 @@
       </thead>
       <tbody id="projet-operations-liste"></tbody>
     </table>
-
-    <!-- LES SOUS-PROJETS, un volet chacun : leurs opérations n'apparaissent plus dans le tableau ci-dessus
-         (elles y étaient peut-être déjà), mais comptent dans tous les chiffres du projet. -->
-    <div id="projet-sous-projets-bloc" style="display:none">
-      <h4>Sous-projets<i class="info-bulle" tabindex="0" data-info-cle="projets.sous-projets">i</i></h4>
-      <div id="projet-sous-projets"></div>
-    </div>
   </div>
     </div>
 

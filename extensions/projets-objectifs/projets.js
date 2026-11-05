@@ -574,7 +574,7 @@ function renderProjetOperations() {
     const toutEnSousProjets = (projetOuvert.sous_projets || []).length > 0 && projetOperations.length > 0;
     corps.innerHTML = `<tr><td colspan="6" class="hint">${t(
       toutEnSousProjets
-        ? "Toutes les opérations sont dans les sous-projets, plus bas."
+        ? "Toutes les opérations sont dans les sous-projets, au-dessus."
         : "Aucune opération dans ce projet."
     )}</td></tr>`;
     return;

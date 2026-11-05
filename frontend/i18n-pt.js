@@ -4354,7 +4354,7 @@ Object.assign(TRADUCTIONS.pt, {
   "Ajouter un sous-projet": "Adicionar um subprojeto",
   "Ranger sous ce projet ({n})": "Organizar sob este projeto ({n})",
   "Sous-projets": "Subprojetos",
-  "Toutes les opérations sont dans les sous-projets, plus bas.": "Todas as operações estão nos subprojetos, abaixo.",
+  "Toutes les opérations sont dans les sous-projets, au-dessus.": "Todas as operações estão nos subprojetos, acima.",
   "Aucun projet à ranger ici : un projet ne se range que sous un seul parent.": "Nenhum projeto para organizar aqui: um projeto fica sob um único pai.",
   "Un sous-projet est un projet rangé sous celui-ci : « Vol » et « Hôtel » sous « Voyage Italie ». Pour les chiffres (total, répartition, cascade, objectifs), c'est comme si toutes ses opérations avaient été versées ici, chacune comptée une fois. À l'écran, elles ne sont plus dans le tableau de ce projet mais dans un volet à son nom. Un projet n'a qu'un seul parent ; le sortir du projet le libère, sans rien supprimer.": "Um subprojeto é um projeto organizado sob este: «Voo» e «Hotel» sob «Viagem Itália». Para os números (total, distribuição, cascata, metas), é como se todas as suas operações tivessem sido adicionadas aqui, cada uma contada uma vez. Na tela, elas não ficam mais na tabela deste projeto, e sim numa seção com o nome dele. Um projeto tem um único pai; retirá-lo do projeto o libera, sem excluir nada.",
   "Mois précédent": "Mês anterior",
