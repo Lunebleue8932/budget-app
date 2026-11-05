@@ -481,6 +481,10 @@ async function ouvrirProjet(projet) {
     showMessage(err.message, "error");
     return;
   }
+  // LA CARTE DE LA LISTE SUIT : ce qui vient d'être relu est plus récent que ce que la liste a chargé,
+  // et revenir à la liste ne doit pas montrer les chiffres d'avant l'ajout ou le retrait d'une opération.
+  const rang = projets.findIndex((p) => p.id === projetOuvert.id);
+  if (rang >= 0) projets[rang] = projetOuvert;
 
   fermerEditeurProjet();
   fermerSelecteurProjet();
@@ -506,11 +510,13 @@ async function ouvrirProjet(projet) {
   renderProjetOperations();
 }
 
-function fermerProjet() {
+async function fermerProjet() {
   projetOuvert = null;
   projetOperations = [];
   fermerSelecteurProjet();
-  renderProjets();
+  // Relue : une carte ne doit pas montrer les chiffres du chargement de la liste après qu'on a ajouté ou
+  // retiré des opérations dans le projet.
+  await loadProjets();
 }
 
 /** Les colonnes communes aux deux tableaux : le projet ouvert et le sélecteur. */
