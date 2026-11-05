@@ -2950,6 +2950,10 @@ class SousFiltreTotal(BaseModel):
     depenses: float
     entrees: float
     solde: float
+    # Ce que le réglage « Totaux des projets : monnaies éteintes » a ajouté à cette ligne : les conversions
+    # vers une monnaie éteinte, nettes des retours (signé, négatif = sorti). 0 quand le réglage est
+    # éteint ou qu'aucune conversion n'a eu lieu ; déjà compris dans `depenses` / `entrees` / `solde`.
+    conversions_eteintes: float = 0.0
     # L'histogramme du projet DANS CETTE MONNAIE, dans la forme exacte de celui
     # du dashboard : l'écran le dessine avec la fonction de rendu du noyau
     # (cf. extensions/projets/service_projets.depenses_par_categorie). Rangé ici

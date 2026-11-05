@@ -25,6 +25,22 @@
 
 const PROJETS_BASE = "/projets";
 
+/* LE RÉGLAGE « TOTAUX DES PROJETS EN MONNAIES ÉTEINTES » (cf. modeTotauxProjetsEteintes, app.js) : « reporter »
+ * demande au serveur d'ajouter les conversions vers une monnaie éteinte au total de la monnaie d'origine, et
+ * l'écran ne montre plus le total d'une monnaie éteinte. Chaque lecture d'un projet passe par ici. */
+function projetsReporte() {
+  return modeTotauxProjetsEteintes() === "reporter";
+}
+
+function projetsUrl(chemin = "") {
+  return `${PROJETS_BASE}${chemin}${projetsReporte() ? "?reporter_eteintes=true" : ""}`;
+}
+
+/** Les totaux qu'on écrit : tous en mode « afficher », sans les monnaies éteintes en mode « reporter ». */
+function projetTotauxMontres(totaux) {
+  return projetsReporte() ? totaux.filter((total) => !monnaieEstEteinte(total.monnaie_id)) : totaux;
+}
+
 let projets = [];
 // Le projet ouvert, ou null quand on est sur la liste.
 let projetOuvert = null;
@@ -43,7 +59,7 @@ async function loadProjets() {
     await refreshCategories();
     await refreshMonnaies();
     await refreshTypesOperation();
-    projets = await apiFetch(PROJETS_BASE);
+    projets = await apiFetch(projetsUrl());
     // Rouvrir le projet qu'on regardait : revenir d'un autre onglet ne doit pas
     // le refermer sans qu'on l'ait demandé.
     if (projetOuvert) {
@@ -63,6 +79,10 @@ async function loadProjets() {
 function totauxHtml(totaux) {
   if (totaux.length === 0) {
     return `<span class="hint">${t("Aucune opération.")}</span>`;
+  }
+  totaux = projetTotauxMontres(totaux);
+  if (totaux.length === 0) {
+    return `<span class="hint">${t("Que des monnaies éteintes.")}</span>`;
   }
   // Une ligne PAR MONNAIE : l'app ne stocke aucun taux de change et
   // n'additionne jamais deux monnaies (cf. service_projets.py).
@@ -99,6 +119,10 @@ function totauxCartesHtml(totaux) {
   if (totaux.length === 0) {
     return `<span class="hint">${t("Aucune opération.")}</span>`;
   }
+  totaux = projetTotauxMontres(totaux);
+  if (totaux.length === 0) {
+    return `<span class="hint">${t("Que des monnaies éteintes.")}</span>`;
+  }
   return totaux
     .map((total) => {
       const solde = total.solde;
@@ -114,6 +138,15 @@ function totauxCartesHtml(totaux) {
             sorties: formatMontant(total.depenses || 0, total.monnaie_id),
           })
         )}</div>
+        ${
+          total.conversions_eteintes
+            ? `<div class="kpi-sous-texte">${escapeHtml(
+                t("Dont converti vers des monnaies éteintes : {montant}", {
+                  montant: formatMontant(Math.abs(total.conversions_eteintes), total.monnaie_id),
+                })
+              )}</div>`
+            : ""
+        }
       </div>`;
     })
     .join("");
@@ -475,7 +508,7 @@ async function ouvrirProjet(projet) {
   try {
     // Relu depuis le serveur : les totaux d'une carte de liste datent du
     // chargement de la liste, et l'écran de détail est celui où ils comptent.
-    projetOuvert = await apiFetch(`${PROJETS_BASE}/${projet.id}`);
+    projetOuvert = await apiFetch(projetsUrl(`/${projet.id}`));
     projetOperations = await apiFetch(`${PROJETS_BASE}/${projet.id}/operations`);
   } catch (err) {
     showMessage(err.message, "error");
@@ -826,7 +859,7 @@ document.getElementById("btn-projet-ranger-sous-projets").addEventListener("clic
     showMessage(t("{n} sous-projet(s) rangé(s).", { n: reponse.ranges }), "success");
     const ouvert = projetOuvert;
     // La liste est relue AVANT de rouvrir : les candidats suivants doivent savoir qui a désormais un parent.
-    projets = await apiFetch(PROJETS_BASE);
+    projets = await apiFetch(projetsUrl());
     await ouvrirProjet(ouvert);
   } catch (err) {
     showMessage(err.message, "error");
@@ -1164,7 +1197,7 @@ async function projRendreDashboard() {
   };
   if (!BudgetApp.extensions.estActive("projets-objectifs")) return vider();
   try {
-    const choisis = (await apiFetch(PROJETS_BASE)).filter((p) => p.visible_dashboard);
+    const choisis = (await apiFetch(projetsUrl())).filter((p) => p.visible_dashboard);
     if (!choisis.length) return vider();
     bloc.style.display = "";
     // Pas de titre : le noyau en pose un seul pour les projets et les objectifs (cf. index.html).

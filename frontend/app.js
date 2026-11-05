@@ -2008,6 +2008,29 @@ function modeMonnaiesEteintes() {
   }
 }
 
+/* LES TOTAUX DES PROJETS EN MONNAIES ÉTEINTES : « afficher » (défaut) ou « reporter ». Reporter, le serveur
+ * ajoute au total de la monnaie d'origine ce qui a été converti vers une monnaie éteinte (cf.
+ * service_projets.totaux_par_monnaie, paramètre `reporter_eteintes`) et l'écran n'affiche plus le total de la
+ * monnaie éteinte. Même stockage que le réglage d'au-dessus : une façon de regarder, propre au poste. */
+const CLE_PROJETS_MONNAIES_ETEINTES = "budget-app.projets.monnaies-eteintes";
+
+function modeTotauxProjetsEteintes() {
+  if (!BudgetApp.extensions.estActive("monnaies")) return "afficher";
+  try {
+    return localStorage.getItem(CLE_PROJETS_MONNAIES_ETEINTES) === "reporter" ? "reporter" : "afficher";
+  } catch (err) {
+    return "afficher";
+  }
+}
+
+document.getElementById("reglage-projets-eteintes")?.addEventListener("change", (e) => {
+  try {
+    localStorage.setItem(CLE_PROJETS_MONNAIES_ETEINTES, e.target.value);
+  } catch (err) {
+    // Stockage indisponible : le réglage vaut pour la session, rien de cassé.
+  }
+});
+
 function monnaieEstEteinte(monnaieId) {
   return (state.monnaies || []).some((m) => m.id === monnaieId && m.active === false);
 }
@@ -2146,6 +2169,8 @@ function loadParametresGeneraux() {
   majAffichageTouchesImport();
   const choixMonnaiesEteintes = document.getElementById("reglage-monnaies-eteintes");
   if (choixMonnaiesEteintes) choixMonnaiesEteintes.value = modeMonnaiesEteintes();
+  const choixProjetsEteintes = document.getElementById("reglage-projets-eteintes");
+  if (choixProjetsEteintes) choixProjetsEteintes.value = modeTotauxProjetsEteintes();
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
   if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();

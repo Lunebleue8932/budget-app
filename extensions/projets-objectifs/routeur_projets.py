@@ -73,8 +73,13 @@ def _periode_et_montants(db: Session, payload: schemas.SousFiltreBase) -> dict:
 
 
 @router.get("", response_model=list[schemas.SousFiltreRead])
-def list_projets(db: Session = Depends(get_db)):
-    return [service.lire_sous_filtre(sf) for sf in crud.list_sous_filtres(db)]
+def list_projets(reporter_eteintes: bool = False, db: Session = Depends(get_db)):
+    """`reporter_eteintes` : les conversions vers une monnaie éteinte comptent dans le total de la
+    monnaie d'origine (cf. service_projets.totaux_par_monnaie) — le réglage de l'écran."""
+    return [
+        service.lire_sous_filtre(sf, reporter_eteintes=reporter_eteintes)
+        for sf in crud.list_sous_filtres(db)
+    ]
 
 
 @router.post("", response_model=schemas.SousFiltreRead, status_code=201)
@@ -95,9 +100,11 @@ def reordonner_projets(payload: schemas.ReordonnerSousFiltres, db: Session = Dep
 
 
 @router.get("/{projet_id}", response_model=schemas.SousFiltreRead)
-def get_projet(projet_id: int, db: Session = Depends(get_db)):
+def get_projet(projet_id: int, reporter_eteintes: bool = False, db: Session = Depends(get_db)):
     # LE PROJET OUVERT porte ses cascades ; la liste, non (cf. lire_sous_filtre).
-    return service.lire_sous_filtre(_get_sous_filtre_ou_404(db, projet_id), db)
+    return service.lire_sous_filtre(
+        _get_sous_filtre_ou_404(db, projet_id), db, reporter_eteintes=reporter_eteintes
+    )
 
 
 @router.put("/{projet_id}", response_model=schemas.SousFiltreRead)

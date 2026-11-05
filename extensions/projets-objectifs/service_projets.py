@@ -34,8 +34,8 @@ SENS_SORTANTS = {Sens.depense, Sens.transfert_sortant}
 SENS_ENTRANTS = {Sens.entree, Sens.transfert_entrant}
 
 
-def totaux_par_monnaie(sous_filtre) -> list[dict]:
-    """[{monnaie_id, monnaie_nom, monnaie_symbole, depenses, entrees, solde}]
+def totaux_par_monnaie(sous_filtre, reporter_eteintes: bool = False) -> list[dict]:
+    """[{monnaie_id, monnaie_nom, monnaie_symbole, depenses, entrees, solde, conversions_eteintes}]
 
     CE QUE LE PROJET A COÛTÉ (ou rapporté) : les ENTRÉES moins les DÉPENSES, lues dans la
     cascade du projet (cf. services/cascade.py) — chaque catégorie AU NET, plus les frais de
@@ -52,6 +52,15 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
     qu'on n'a fait que convertir) : c'est elle qui porte aussi l'histogramme de la monnaie.
     Les monnaies sortent dans l'ordre de leur nom : une liste de totaux qui change de place
     d'une visite à l'autre se relit mal.
+
+    `reporter_eteintes` (le réglage « Totaux des projets : monnaies éteintes ») : les CONVERSIONS VERS UNE
+    MONNAIE ÉTEINTE entrent dans le total de la monnaie d'où l'on a converti — ce qui part, net de ce qui
+    revient, est une dépense (ou une entrée). La boucle est fermée : une monnaie éteinte a un solde nul, donc
+    ce qui y a été converti a été dépensé, ou reconverti, et la valeur dépensée là-bas est exactement celle
+    qui a quitté la monnaie d'origine (ses frais, qui sont dans la cascade, y sont déjà). Les lignes des
+    monnaies éteintes restent dans la liste, avec leurs chiffres propres et leur histogramme : c'est
+    l'écran qui n'en montre pas le total. `conversions_eteintes` dit ce qui a été ajouté ainsi à la ligne
+    (signé : négatif = sorti), pour que l'écran puisse l'écrire.
     """
     # SES SOUS-PROJETS COMPRIS (migration 0100) : pour les chiffres, c'est comme si chaque opération de
     # chaque sous-projet avait été versée dans ce projet, une fois (cf. SousFiltre.operations_effectives).
@@ -67,17 +76,52 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
                 "depenses": 0.0,
                 "entrees": 0.0,
                 "solde": 0.0,
+                "conversions_eteintes": 0.0,
             },
         )
     db = object_session(sous_filtre)
     if par_monnaie and db is not None:
+        eteintes = (
+            {m.id for m in db.query(models.Monnaie).filter(models.Monnaie.active.is_(False))}
+            if reporter_eteintes
+            else set()
+        )
         for cascade in service_cascade.cascades(db, operations):
+            # La conversion d'une monnaie ÉTEINTE vers une autre n'est pas reportée : on reporte ce qui
+            # part des monnaies allumées, pas l'inverse.
+            monnaie_allumee = cascade["monnaie_id"] not in eteintes
+
+            def reportee(colonne) -> bool:
+                return (
+                    monnaie_allumee
+                    and colonne["genre"] == service_cascade.GENRE_CONVERSION
+                    and colonne.get("monnaie_autre_id") in eteintes
+                )
+
             entree = par_monnaie.get(cascade["monnaie_id"])
             if entree is None:
-                continue
-            for colonne in cascade["colonnes"]:
-                if colonne["genre"] not in GENRES_DU_BILAN:
+                # UNE MONNAIE QU'ON N'A FAIT QUE CONVERTIR (le projet ne porte que la jambe en francs d'un
+                # change, la jambe en euros est relue en base) n'a pas de ligne… sauf si une conversion vers
+                # une monnaie éteinte doit y être reportée : c'est elle qui porte alors tout le coût.
+                if not any(reportee(c) for c in cascade["colonnes"]):
                     continue
+                entree = par_monnaie.setdefault(
+                    cascade["monnaie_id"],
+                    {
+                        "monnaie_id": cascade["monnaie_id"],
+                        "monnaie_nom": cascade["monnaie_nom"],
+                        "monnaie_symbole": cascade["monnaie_symbole"],
+                        "depenses": 0.0,
+                        "entrees": 0.0,
+                        "solde": 0.0,
+                        "conversions_eteintes": 0.0,
+                    },
+                )
+            for colonne in cascade["colonnes"]:
+                if colonne["genre"] not in GENRES_DU_BILAN and not reportee(colonne):
+                    continue
+                if reportee(colonne):
+                    entree["conversions_eteintes"] += colonne["montant"]
                 if colonne["montant"] > 0:
                     entree["entrees"] += colonne["montant"]
                 else:
@@ -87,6 +131,7 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
         entree["entrees"] = round(entree["entrees"], 2)
         entree["depenses"] = round(entree["depenses"], 2)
         entree["solde"] = round(entree["entrees"] - entree["depenses"], 2)
+        entree["conversions_eteintes"] = round(entree["conversions_eteintes"], 2)
 
     return sorted(par_monnaie.values(), key=lambda e: e["monnaie_nom"])
 
@@ -324,7 +369,7 @@ def _ids_montres(sous_filtre) -> list[int]:
     return [operation.id for operation in sous_filtre.operations if operation.id not in ids_des_enfants]
 
 
-def _noeud_sous_projet(sous_filtre) -> dict:
+def _noeud_sous_projet(sous_filtre, reporter_eteintes: bool = False) -> dict:
     """Un sous-projet tel que l'écran le range en volet : ses chiffres (sous-projets compris), ce qu'il
     montre lui-même et ses propres sous-projets, à toute profondeur. Les opérations elles-mêmes se lisent
     dans la liste du projet de tête, qui les porte toutes."""
@@ -332,13 +377,15 @@ def _noeud_sous_projet(sous_filtre) -> dict:
         "id": sous_filtre.id,
         "nom": sous_filtre.nom,
         "nombre_operations": len(sous_filtre.operations_effectives),
-        "totaux": totaux_par_monnaie(sous_filtre),
+        "totaux": totaux_par_monnaie(sous_filtre, reporter_eteintes),
         "operation_ids": _ids_montres(sous_filtre),
-        "sous_projets": [_noeud_sous_projet(enfant) for enfant in sous_filtre.sous_projets],
+        "sous_projets": [
+            _noeud_sous_projet(enfant, reporter_eteintes) for enfant in sous_filtre.sous_projets
+        ],
     }
 
 
-def lire_sous_filtre(sous_filtre, db=None) -> dict:
+def lire_sous_filtre(sous_filtre, db=None, reporter_eteintes: bool = False) -> dict:
     """Le projet tel que l'écran le lit : ses champs, son compte d'opérations et
     ses totaux — et ses CASCADES quand `db` est fourni (le projet ouvert : la
     liste n'en dessine aucune, et elles relisent en base la jambe d'en face de
@@ -351,7 +398,7 @@ def lire_sous_filtre(sous_filtre, db=None) -> dict:
     rien apprendre qu'une somme ne dise déjà.
     """
     par_monnaie = depenses_par_categorie(sous_filtre)
-    totaux = totaux_par_monnaie(sous_filtre)
+    totaux = totaux_par_monnaie(sous_filtre, reporter_eteintes)
     for total in totaux:
         total["depenses_par_categorie"] = par_monnaie.get(total["monnaie_id"], [])
     phase, jours_restants = periode_du_projet(sous_filtre)
@@ -369,7 +416,9 @@ def lire_sous_filtre(sous_filtre, db=None) -> dict:
         "parent_id": sous_filtre.parent_id,
         "parent_nom": sous_filtre.parent.nom if sous_filtre.parent else None,
         "operation_ids": _ids_montres(sous_filtre),
-        "sous_projets": [_noeud_sous_projet(enfant) for enfant in sous_filtre.sous_projets],
+        "sous_projets": [
+            _noeud_sous_projet(enfant, reporter_eteintes) for enfant in sous_filtre.sous_projets
+        ],
         "phase": phase,
         "jours_restants": jours_restants,
         "suivi": suivi_du_projet(sous_filtre, totaux),

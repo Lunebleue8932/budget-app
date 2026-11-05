@@ -440,6 +440,9 @@ const TEXTES = {
   "monnaies.affichage-monnaies-eteintes":
     "Sur la page : chaque monnaie a ses graphiques, éteinte ou non. // En pop-up : seules les monnaies allumées ont leurs graphiques. L'argent converti vers une monnaie éteinte y devient une colonne grise /italic(Conversion vers…) : survole-la pour ouvrir le détail de cette monnaie dans une fenêtre. // Au dashboard, ces colonnes n'existent qu'en pop-up. Dans un projet, chaque conversion a sa colonne dans les deux cas.",
 
+  "monnaies.totaux-projets-monnaies-eteintes":
+    "Afficher : dans un projet, chaque monnaie a son total, éteinte ou non. // Reporter : le total d'une monnaie éteinte n'est plus montré. À la place, ce qui a été converti vers elle compte dans le total de la monnaie d'origine. Une monnaie éteinte a un solde nul : l'argent qu'on y a converti y a été dépensé (ou reconverti), et ce que le projet a coûté se lit tout entier dans tes monnaies allumées. Les frais sont déjà comptés.",
+
   /* ----- Extension « Placements » ----- */
   "placements.titres-suivis":
     "Les titres que tu utilises sur l'app. Le cours se saisit à la main ou se lit en ligne avec l'extension Lecture de cours.",
