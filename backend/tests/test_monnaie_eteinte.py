@@ -18,6 +18,7 @@ from fastapi import HTTPException
 from app import models, schemas
 from app.constants import Statut
 from app.routers import comptes as routeur_comptes
+from app.routers import dashboard as routeur_dashboard
 from app.routers import operations as routeur_operations
 from app.routers import virements as routeur_virements
 from app.services import soldes
@@ -313,6 +314,29 @@ def test_elle_reparait_sur_une_periode_ou_le_compte_portait_encore_des_montants(
         if item["compte"].id == compte.id
     )
     assert juin["soldes"][dollar]["solde_projete"] == 100.0
+
+
+def test_le_dashboard_garde_une_monnaie_eteinte_qui_a_bouge_dans_la_periode(db_session):
+    """Le détail d'une monnaie éteinte (fenêtre ouverte depuis une colonne de conversion) lit le
+    dashboard : soldée à la fin du mois, elle en disparaissait, et l'année comme « tout » étaient
+    vides alors que des dépenses y figurent. Une période où elle n'a rien fait ne la ramène pas."""
+    compte, euro, dollar = _compte_deux_monnaies(db_session, soldes_initiaux=(0.0, 100.0))
+    _operation(db_session, compte, dollar, 100.0)  # le 1er juillet : solde à zéro
+    _eteindre(db_session, compte, dollar, [euro])
+
+    def monnaies(**periode):
+        lu = routeur_dashboard.get_dashboard(db=db_session, **periode)
+        return {k.monnaie_id: k for k in lu.kpis}
+
+    juillet = monnaies(annee=2026, mois=7)
+    assert dollar in juillet
+    assert [
+        d.categorie for d in juillet[dollar].depenses_par_categorie if d.total_reel
+    ] == ["Alimentaire"]
+    assert dollar in monnaies(annee=2026, vue="annee")
+    assert dollar in monnaies(annee=2026, vue="tout")
+    # Un mois où elle n'a rien fait : « tout se passe comme s'il n'y avait plus la monnaie ».
+    assert dollar not in monnaies(annee=2026, mois=9)
 
 
 def test_l_ecran_des_comptes_voit_encore_la_monnaie_eteinte(db_session):

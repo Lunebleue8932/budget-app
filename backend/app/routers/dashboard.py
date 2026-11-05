@@ -376,6 +376,33 @@ def get_periodes_monnaie(monnaie_id: int, db: Session = Depends(get_db)):
     ]
 
 
+def _monnaies_eteintes_ayant_bouge(db, agregats, annee, mois, deja_retenues: set) -> set:
+    """Les monnaies éteintes d'un compte (cf. models.CompteMonnaie.active) que `deja_retenues` a
+    écartées faute de solde, mais qui portent des entrées, des sorties ou des dépenses sur la période.
+    Une période où elles n'ont rien fait ne les ramène pas : « tout se passe comme s'il n'y avait plus
+    la monnaie »."""
+    candidates = {
+        monnaie_id
+        for (monnaie_id,) in db.query(models.CompteMonnaie.monnaie_id)
+        .filter(models.CompteMonnaie.active.is_(False))
+        .distinct()
+    } - deja_retenues
+    retenues = set()
+    for monnaie_id in candidates:
+        flux = agregats.get_flux_periode(db, annee, mois, monnaie_id)
+        # Les catégories sont listées même à zéro : c'est un MONTANT qui compte, pas une ligne.
+        if (
+            flux["entrees"]
+            or flux["sorties"]
+            or any(
+                d["total_reel"] or d["total_previsionnel"]
+                for d in agregats.get_depenses_par_categorie(db, annee, mois, monnaie_id)
+            )
+        ):
+            retenues.add(monnaie_id)
+    return retenues
+
+
 @router.get("", response_model=schemas.DashboardRead)
 def get_dashboard(
     annee: Optional[int] = None,
@@ -453,7 +480,14 @@ def get_dashboard(
     monnaies_utilisees = {
         monnaie_id for item in comptes_soldes for monnaie_id in item["soldes"]
     } | set(totaux)
-    monnaies = [m for m in crud.get_monnaies(db) if m.id in monnaies_utilisees]
+    # UNE MONNAIE ÉTEINTE QUI A BOUGÉ DANS LA PÉRIODE y reste, même soldée à la fin de celle-ci : sans
+    # cela, le détail d'une monnaie éteinte (fenêtre ouverte depuis une colonne de conversion) était vide
+    # sur tout mois où elle a fini à zéro, et sur l'année ou « tout » dès qu'elle était soldée à leur fin,
+    # alors que des dépenses y figurent.
+    monnaies_utilisees |= _monnaies_eteintes_ayant_bouge(
+        db, agregats, annee, mois, monnaies_utilisees
+    )
+    monnaies =[m for m in crud.get_monnaies(db) if m.id in monnaies_utilisees]
 
     # UN SEUL CALCUL POUR TOUTES LES MONNAIES, et hors de la boucle : c'est un
     # STOCK, sans période, donc rien dans les paramètres de l'écran ne le fait
