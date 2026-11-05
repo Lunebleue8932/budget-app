@@ -4316,6 +4316,54 @@ def ajouter_operations_au_sous_filtre(
     return ajoutees
 
 
+def erreur_sous_projet(parent: models.SousFiltre, enfant: models.SousFiltre) -> Optional[str]:
+    """Pourquoi `enfant` ne peut pas être rangé sous `parent`, ou None.
+
+    TROIS CAS : lui-même ; un projet qui est déjà au-dessus de `parent` (le ranger dessous ferait un
+    cycle, et les projets se compteraient les uns les autres sans fin) ; un projet déjà rangé sous un
+    AUTRE parent — il n'en a qu'un, et le déplacer en silence ferait disparaître ses opérations du
+    premier sans que personne l'ait demandé."""
+    if enfant.id == parent.id:
+        return "Un projet ne peut pas être son propre sous-projet."
+    if parent.id in enfant.ids_descendants():
+        return (
+            f"« {parent.nom} » est déjà sous « {enfant.nom} » : l'y ranger ferait tourner "
+            "les projets en rond."
+        )
+    if enfant.parent_id is not None and enfant.parent_id != parent.id:
+        return (
+            f"« {enfant.nom} » est déjà un sous-projet de « {enfant.parent.nom} » : "
+            "sors-le d'abord de celui-là."
+        )
+    return None
+
+
+def ranger_sous_projets(
+    db: Session, parent: models.SousFiltre, enfants: list[models.SousFiltre]
+) -> int:
+    """Range ces projets sous `parent` (ceux qui y sont déjà sont ignorés) et rend le nombre RÉELLEMENT
+    rangé. Les appelants vérifient avant (`erreur_sous_projet`)."""
+    ranges = 0
+    for enfant in enfants:
+        if enfant.parent_id == parent.id:
+            continue
+        enfant.parent_id = parent.id
+        ranges += 1
+    db.commit()
+    return ranges
+
+
+def sortir_sous_projets(db: Session, parent: models.SousFiltre, ids: list[int]) -> int:
+    """Sort ces sous-projets de `parent` : ils redeviennent des projets de tête, et leurs opérations
+    quittent celles de `parent` (qui ne compte plus que les siennes). RIEN n'est supprimé."""
+    a_sortir = set(ids)
+    sortis = [projet for projet in parent.sous_projets if projet.id in a_sortir]
+    for projet in sortis:
+        projet.parent_id = None
+    db.commit()
+    return len(sortis)
+
+
 def retirer_operations_du_sous_filtre(
     db: Session, sous_filtre: models.SousFiltre, operation_ids: list[int]
 ) -> int:

@@ -382,7 +382,7 @@ function renderProjets() {
         }
         <div class="projet-carte-compte">${t("{n} opération(s)", {
           n: projet.nombre_operations,
-        })}</div>
+        })}${projetRangHtml(projet)}</div>
         <div class="projet-totaux">${totauxHtml(projet.totaux)}</div>
         <div class="projet-suivi">${projetSuiviHtml(projet)}</div>
       </div>
@@ -494,6 +494,7 @@ async function ouvrirProjet(projet) {
   const description = document.getElementById("projet-detail-description");
   description.textContent = projetOuvert.description;
   description.style.display = projetOuvert.description ? "" : "none";
+  projetRenderParent();
   document.getElementById("projet-detail-suivi").innerHTML = projetSuiviHtml(projetOuvert);
   const totaux = document.getElementById("projet-detail-totaux");
   totaux.innerHTML = totauxCartesHtml(projetOuvert.totaux);
@@ -507,15 +508,18 @@ async function ouvrirProjet(projet) {
     n: projetOperations.length,
   });
 
+  fermerSelecteurSousProjets();
   renderProjetOperations();
+  renderSousProjets();
 }
 
 async function fermerProjet() {
   projetOuvert = null;
   projetOperations = [];
   fermerSelecteurProjet();
-  // Relue : une carte ne doit pas montrer les chiffres du chargement de la liste après qu'on a ajouté ou
-  // retiré des opérations dans le projet.
+  fermerSelecteurSousProjets();
+  // Relue : les chiffres d'une carte dépendent aussi des sous-projets, qu'on a pu modifier depuis leur
+  // propre page.
   await loadProjets();
 }
 
@@ -562,14 +566,21 @@ function projetLigneDecoupe(corps, operation, prefixe) {
 function renderProjetOperations() {
   const corps = document.getElementById("projet-operations-liste");
   corps.innerHTML = "";
-  if (projetOperations.length === 0) {
+  // Ce que le projet montre LUI-MÊME : ses opérations moins celles que ses sous-projets rangent dans leurs
+  // volets (cf. SousFiltreRead.operation_ids).
+  const montrees = new Set(projetOuvert.operation_ids || projetOperations.map((o) => o.id));
+  const visibles = projetOperations.filter((operation) => montrees.has(operation.id));
+  if (visibles.length === 0) {
+    const toutEnSousProjets = (projetOuvert.sous_projets || []).length > 0 && projetOperations.length > 0;
     corps.innerHTML = `<tr><td colspan="6" class="hint">${t(
-      "Aucune opération dans ce projet."
+      toutEnSousProjets
+        ? "Toutes les opérations sont dans les sous-projets, plus bas."
+        : "Aucune opération dans ce projet."
     )}</td></tr>`;
     return;
   }
 
-  projetOperations.forEach((operation) => {
+  visibles.forEach((operation) => {
     const ligne = document.createElement("tr");
     ligne.innerHTML = `
       ${cellulesOperationHtml(operation, "projet-op")}
@@ -596,6 +607,240 @@ function renderProjetOperations() {
     projetLigneDecoupe(corps, operation, "projet-op");
   });
 }
+
+/* ---------- Les sous-projets ----------
+ *
+ * Un sous-projet est un projet rangé sous un autre (migration 0100). POUR LES CHIFFRES, c'est comme si chaque
+ * opération de B avait été versée dans A : total, histogramme, cascade et nombre d'opérations de A les
+ * comptent, côté serveur (cf. SousFiltre.operations_effectives). À L'ÉCRAN, elles ne sont plus dans le
+ * tableau de A mais dans un VOLET « B » (un toggle), qui porte à son tour ses propres sous-projets.
+ *
+ * Le serveur dit ce que chaque projet montre lui-même (`operation_ids`) ; les opérations viennent toutes de
+ * la liste du projet de tête (`projetOperations`). Retirer une opération depuis un volet la retire de CE
+ * sous-projet, pas du projet de tête.
+ */
+
+// Les volets ouverts, retenus d'une relecture à l'autre : ranger ou retirer une opération ne doit pas
+// refermer ce qu'on était en train de lire.
+const projetVoletsOuverts = new Set();
+let projetSousProjetsChoisis = new Set();
+
+/** « · Sous-projet de « A » · 2 sous-projet(s) », à la suite du nombre d'opérations d'une carte. */
+function projetRangHtml(projet) {
+  const morceaux = [];
+  if (projet.parent_nom) {
+    morceaux.push(t("Sous-projet de « {nom} »", { nom: projet.parent_nom }));
+  }
+  const nombre = (projet.sous_projets || []).length;
+  if (nombre) morceaux.push(t("{n} sous-projet(s)", { n: nombre }));
+  return morceaux.length ? ` · ${escapeHtml(morceaux.join(" · "))}` : "";
+}
+
+/** La ligne « Sous-projet de A » de la page d'un projet, avec de quoi aller lire A ou en sortir. */
+function projetRenderParent() {
+  const bloc = document.getElementById("projet-detail-parent");
+  if (!projetOuvert.parent_id) {
+    bloc.style.display = "none";
+    return;
+  }
+  bloc.style.display = "";
+  document.getElementById("projet-detail-parent-texte").textContent = t("Sous-projet de « {nom} ».", {
+    nom: projetOuvert.parent_nom,
+  });
+}
+
+function renderSousProjets() {
+  const bloc = document.getElementById("projet-sous-projets-bloc");
+  const conteneur = document.getElementById("projet-sous-projets");
+  conteneur.innerHTML = "";
+  const noeuds = projetOuvert.sous_projets || [];
+  bloc.style.display = noeuds.length ? "" : "none";
+  const parId = new Map(projetOperations.map((operation) => [operation.id, operation]));
+  noeuds.forEach((noeud) => conteneur.appendChild(creerVoletSousProjet(noeud, parId, projetOuvert.id)));
+}
+
+/** Un volet : son nom, ses chiffres et ses deux gestes en tête ; ses opérations et ses propres volets dedans. */
+function creerVoletSousProjet(noeud, parId, parentId) {
+  const volet = document.createElement("details");
+  volet.className = "projet-volet";
+  volet.open = projetVoletsOuverts.has(noeud.id);
+  volet.addEventListener("toggle", () => {
+    if (volet.open) projetVoletsOuverts.add(noeud.id);
+    else projetVoletsOuverts.delete(noeud.id);
+  });
+
+  const resume = document.createElement("summary");
+  resume.innerHTML = `
+    <span class="projet-volet-nom">${escapeHtml(noeud.nom)}</span>
+    <span class="projet-volet-compte">${escapeHtml(t("{n} opération(s)", { n: noeud.nombre_operations }))}</span>
+    <span class="projet-totaux">${totauxHtml(noeud.totaux)}</span>
+    <span class="projet-volet-actions">
+      <button type="button" data-action="ouvrir">${t("Ouvrir")}</button>
+      <button type="button" data-action="sortir">${t("Sortir du projet")}</button>
+    </span>`;
+  // Les boutons vivent DANS le résumé : sans ceci, chaque clic replierait ou déplierait le volet.
+  resume.querySelector("[data-action='ouvrir']").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ouvrirProjet({ id: noeud.id });
+  });
+  resume.querySelector("[data-action='sortir']").addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await sortirSousProjet(parentId, noeud);
+  });
+  volet.appendChild(resume);
+
+  const corps = document.createElement("div");
+  corps.className = "projet-volet-corps";
+  const propres = (noeud.operation_ids || []).map((id) => parId.get(id)).filter(Boolean);
+  if (propres.length) {
+    const prefixe = `projet-sp${noeud.id}-op`;
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <thead><tr>
+        <th>${t("Nature")}</th><th>${t("Montant")}</th><th>${t("Compte")}</th><th>${t("Date")}</th>
+        <th>${t("Catégorie")}</th><th>${t("Actions")}</th>
+      </tr></thead>
+      <tbody></tbody>`;
+    const lignes = table.querySelector("tbody");
+    propres.forEach((operation) => {
+      const ligne = document.createElement("tr");
+      ligne.innerHTML = `
+        ${cellulesOperationHtml(operation, prefixe)}
+        <td><button type="button" data-action="retirer">${t("Retirer")}</button></td>`;
+      ligne.querySelector("[data-action='retirer']").addEventListener("click", async () => {
+        try {
+          await apiFetch(`${PROJETS_BASE}/${noeud.id}/operations`, {
+            method: "DELETE",
+            body: JSON.stringify({ operation_ids: [operation.id] }),
+          });
+          showMessage(t("Opération retirée du projet (elle reste en base)."), "success");
+          await ouvrirProjet(projetOuvert);
+        } catch (err) {
+          showMessage(err.message, "error");
+        }
+      });
+      lignes.appendChild(ligne);
+      projetLigneDecoupe(lignes, operation, prefixe);
+    });
+    corps.appendChild(table);
+  } else if (!(noeud.sous_projets || []).length) {
+    const vide = document.createElement("p");
+    vide.className = "hint";
+    vide.textContent = t("Aucune opération dans ce projet.");
+    corps.appendChild(vide);
+  }
+  (noeud.sous_projets || []).forEach((enfant) =>
+    corps.appendChild(creerVoletSousProjet(enfant, parId, noeud.id))
+  );
+  volet.appendChild(corps);
+  return volet;
+}
+
+/** Sort `noeud` de `parentId` : il redevient un projet de tête, ses opérations quittent celles du parent. */
+async function sortirSousProjet(parentId, noeud) {
+  try {
+    await apiFetch(`${PROJETS_BASE}/${parentId}/sous-projets`, {
+      method: "DELETE",
+      body: JSON.stringify({ ids: [noeud.id] }),
+    });
+    showMessage(t("« {nom} » n'est plus un sous-projet.", { nom: noeud.nom }), "success");
+    await ouvrirProjet(projetOuvert);
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+}
+
+/** Les projets au-dessus de `projetId` (son parent, le parent de celui-ci…) : on ne les range pas dessous. */
+function projetAncetresIds(projetId) {
+  const ancetres = new Set();
+  let courant = projets.find((p) => p.id === projetId);
+  while (courant && courant.parent_id != null && !ancetres.has(courant.parent_id)) {
+    ancetres.add(courant.parent_id);
+    courant = projets.find((p) => p.id === courant.parent_id);
+  }
+  return ancetres;
+}
+
+function fermerSelecteurSousProjets() {
+  document.getElementById("projet-sous-projet-selecteur").style.display = "none";
+  projetSousProjetsChoisis = new Set();
+}
+
+function majSelectionSousProjets() {
+  const nombre = projetSousProjetsChoisis.size;
+  document.getElementById("projet-sous-projet-nombre").textContent = nombre;
+  document.getElementById("btn-projet-ranger-sous-projets").disabled = nombre === 0;
+}
+
+/**
+ * Les projets qu'on peut ranger sous celui-ci : ni lui-même, ni un projet qui est AU-DESSUS (un cycle),
+ * ni un projet déjà rangé sous un parent (il n'en a qu'un : on l'en sort d'abord, depuis le parent).
+ */
+function ouvrirSelecteurSousProjets() {
+  const ancetres = projetAncetresIds(projetOuvert.id);
+  const candidats = projets.filter(
+    (p) => p.id !== projetOuvert.id && p.parent_id == null && !ancetres.has(p.id)
+  );
+  projetSousProjetsChoisis = new Set();
+  const liste = document.getElementById("projet-sous-projet-liste");
+  liste.innerHTML = "";
+  if (candidats.length === 0) {
+    liste.innerHTML = `<p class="hint">${t(
+      "Aucun projet à ranger ici : un projet ne se range que sous un seul parent."
+    )}</p>`;
+  }
+  candidats.forEach((projet) => {
+    const ligne = document.createElement("label");
+    ligne.className = "projet-sous-projet-choix";
+    ligne.innerHTML = `
+      <input type="checkbox" />
+      <span class="projet-sous-projet-nom">${escapeHtml(projet.nom)}</span>
+      <span class="hint">${escapeHtml(t("{n} opération(s)", { n: projet.nombre_operations }))}</span>`;
+    ligne.querySelector("input").addEventListener("change", (e) => {
+      if (e.target.checked) projetSousProjetsChoisis.add(projet.id);
+      else projetSousProjetsChoisis.delete(projet.id);
+      majSelectionSousProjets();
+    });
+    liste.appendChild(ligne);
+  });
+  majSelectionSousProjets();
+  document.getElementById("projet-sous-projet-selecteur").style.display = "";
+}
+
+document
+  .getElementById("btn-projet-ajouter-sous-projet")
+  .addEventListener("click", ouvrirSelecteurSousProjets);
+document
+  .getElementById("btn-projet-sous-projet-fermer")
+  .addEventListener("click", fermerSelecteurSousProjets);
+
+document.getElementById("btn-projet-ranger-sous-projets").addEventListener("click", async () => {
+  if (!projetOuvert || projetSousProjetsChoisis.size === 0) return;
+  try {
+    const reponse = await apiFetch(`${PROJETS_BASE}/${projetOuvert.id}/sous-projets`, {
+      method: "POST",
+      body: JSON.stringify({ ids: [...projetSousProjetsChoisis] }),
+    });
+    showMessage(t("{n} sous-projet(s) rangé(s).", { n: reponse.ranges }), "success");
+    const ouvert = projetOuvert;
+    // La liste est relue AVANT de rouvrir : les candidats suivants doivent savoir qui a désormais un parent.
+    projets = await apiFetch(PROJETS_BASE);
+    await ouvrirProjet(ouvert);
+  } catch (err) {
+    showMessage(err.message, "error");
+  }
+});
+
+document.getElementById("btn-projet-ouvrir-parent").addEventListener("click", () => {
+  if (projetOuvert && projetOuvert.parent_id) ouvrirProjet({ id: projetOuvert.parent_id });
+});
+
+document.getElementById("btn-projet-sortir-parent").addEventListener("click", async () => {
+  if (!projetOuvert || !projetOuvert.parent_id) return;
+  await sortirSousProjet(projetOuvert.parent_id, projetOuvert);
+});
 
 /* ---------- Le sélecteur d'opérations ---------- */
 

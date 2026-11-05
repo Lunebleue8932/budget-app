@@ -19,7 +19,7 @@ from datetime import date as date_type
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app import models
@@ -264,10 +264,18 @@ def lignes_detaillees(
         # LE PROJET SE JOINT, il ne se filtre pas en mémoire : un projet compte
         # quelques dizaines d'opérations, mais la période en compte des
         # milliers, et c'est elle qu'on lirait entière.
-        requete = requete.join(
-            operation_sous_filtre,
-            operation_sous_filtre.c.operation_id == models.Operation.id,
-        ).filter(operation_sous_filtre.c.sous_filtre_id == sous_filtre_id)
+        #
+        # AVEC SES SOUS-PROJETS (migration 0100), et par `IN` plutôt que par jointure : une opération
+        # versée dans le projet ET dans l'un de ses sous-projets ne doit compter qu'une fois.
+        projet = db.get(models.SousFiltre, sous_filtre_id)
+        ids_projets = {sous_filtre_id} | (projet.ids_descendants() if projet else set())
+        requete = requete.filter(
+            models.Operation.id.in_(
+                select(operation_sous_filtre.c.operation_id).where(
+                    operation_sous_filtre.c.sous_filtre_id.in_(ids_projets)
+                )
+            )
+        )
 
     lignes: list[tuple] = []
     for operation, code in requete.all():

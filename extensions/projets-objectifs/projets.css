@@ -261,3 +261,69 @@
 .projet-carte-dashboard:hover {
   border-color: var(--accent, #3b82f6);
 }
+
+/* ---------- Les sous-projets : un volet (toggle) par projet rangé sous celui-ci ---------- */
+.projet-volet {
+  margin-bottom: 0.5rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.projet-volet > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.projet-volet-nom {
+  font-weight: 600;
+}
+
+.projet-volet-compte {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.projet-volet > summary .projet-totaux {
+  margin: 0;
+}
+
+.projet-volet-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.projet-volet-corps {
+  padding: 0.2rem 0.8rem 0.8rem;
+}
+
+/* Un volet dans un volet : décalé, pour que l'arbre se lise. */
+.projet-volet .projet-volet {
+  margin-left: 0.8rem;
+  background: var(--bg-surface);
+}
+
+.projet-detail-parent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.projet-sous-projet-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.projet-sous-projet-choix {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}

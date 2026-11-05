@@ -3037,6 +3037,24 @@ class SousFiltreSuivi(BaseModel):
     min_atteint: Optional[bool] = None
 
 
+class SousProjetRead(BaseModel):
+    """Un sous-projet tel que l'écran le range : un volet dans son parent (migration 0100).
+
+    `nombre_operations` et `totaux` sont ceux du sous-projet ENTIER (ses propres sous-projets compris) ;
+    `operation_ids`, ce qu'il montre lui-même — ses opérations moins celles de ses sous-projets, qui sont
+    dans leurs volets. Les opérations se lisent dans la liste du projet de tête."""
+
+    id: int
+    nom: str
+    nombre_operations: int = 0
+    totaux: list[SousFiltreTotal] = []
+    operation_ids: list[int] = []
+    sous_projets: list["SousProjetRead"] = []
+
+
+SousProjetRead.model_rebuild()
+
+
 class SousFiltreRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -3050,6 +3068,14 @@ class SousFiltreRead(BaseModel):
     montant_min: Optional[float] = None
     monnaie_cible_id: Optional[int] = None
     visible_dashboard: bool = False
+    # LES SOUS-PROJETS (migration 0100). `parent_id` / `parent_nom` : le projet sous lequel celui-ci est
+    # rangé (None pour un projet de tête). `operation_ids` : les opérations que le projet montre LUI-MÊME,
+    # sans celles de ses sous-projets, rangées dans leurs volets (`sous_projets`). Les chiffres
+    # (`nombre_operations`, `totaux`, `cascades`) comptent tout, sous-projets compris.
+    parent_id: Optional[int] = None
+    parent_nom: Optional[str] = None
+    operation_ids: list[int] = []
+    sous_projets: list[SousProjetRead] = []
     # « a_venir », « en_cours » ou « termine » d'après la période et la date du jour ; None sans
     # période. `jours_restants` : jusqu'à la date de fin (0 une fois passée), None sans date de fin.
     phase: Optional[str] = None
@@ -3074,6 +3100,12 @@ class SousFiltreOperations(BaseModel):
     fait autant d'allers-retours que de cases cochées."""
 
     operation_ids: list[int]
+
+
+class SousFiltreSousProjets(BaseModel):
+    """Les projets qu'on range sous un autre, ou qu'on en sort (par lots, comme les opérations)."""
+
+    ids: list[int]
 
 
 class ReordonnerSousFiltres(BaseModel):

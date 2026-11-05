@@ -53,8 +53,11 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
     Les monnaies sortent dans l'ordre de leur nom : une liste de totaux qui change de place
     d'une visite à l'autre se relit mal.
     """
+    # SES SOUS-PROJETS COMPRIS (migration 0100) : pour les chiffres, c'est comme si chaque opération de
+    # chaque sous-projet avait été versée dans ce projet, une fois (cf. SousFiltre.operations_effectives).
+    operations = sous_filtre.operations_effectives
     par_monnaie: dict[int, dict] = {}
-    for operation in sous_filtre.operations:
+    for operation in operations:
         par_monnaie.setdefault(
             operation.monnaie_id,
             {
@@ -68,7 +71,7 @@ def totaux_par_monnaie(sous_filtre) -> list[dict]:
         )
     db = object_session(sous_filtre)
     if par_monnaie and db is not None:
-        for cascade in service_cascade.cascades(db, sous_filtre.operations):
+        for cascade in service_cascade.cascades(db, operations):
             entree = par_monnaie.get(cascade["monnaie_id"])
             if entree is None:
                 continue
@@ -160,7 +163,7 @@ def depenses_par_categorie(sous_filtre) -> dict[int, list[dict]]:
     dépensé ? ». Où l'argent est PARTI se lit dans la cascade.
     """
     par_monnaie: dict[int, dict[str, dict]] = {}
-    for operation in sous_filtre.operations:
+    for operation in sous_filtre.operations_effectives:
         if operation.sens not in SENS_SORTANTS:
             continue
         barres = par_monnaie.setdefault(operation.monnaie_id, {})
@@ -310,6 +313,31 @@ def suivi_du_projet(sous_filtre, totaux: list[dict]) -> dict | None:
     }
 
 
+def _ids_montres(sous_filtre) -> list[int]:
+    """Les opérations qu'un projet montre LUI-MÊME : les siennes, moins celles que ses sous-projets
+    rangent dans leurs volets (une opération présente des deux côtés n'est montrée que dans le volet)."""
+    ids_des_enfants = {
+        operation.id
+        for enfant in sous_filtre.sous_projets
+        for operation in enfant.operations_effectives
+    }
+    return [operation.id for operation in sous_filtre.operations if operation.id not in ids_des_enfants]
+
+
+def _noeud_sous_projet(sous_filtre) -> dict:
+    """Un sous-projet tel que l'écran le range en volet : ses chiffres (sous-projets compris), ce qu'il
+    montre lui-même et ses propres sous-projets, à toute profondeur. Les opérations elles-mêmes se lisent
+    dans la liste du projet de tête, qui les porte toutes."""
+    return {
+        "id": sous_filtre.id,
+        "nom": sous_filtre.nom,
+        "nombre_operations": len(sous_filtre.operations_effectives),
+        "totaux": totaux_par_monnaie(sous_filtre),
+        "operation_ids": _ids_montres(sous_filtre),
+        "sous_projets": [_noeud_sous_projet(enfant) for enfant in sous_filtre.sous_projets],
+    }
+
+
 def lire_sous_filtre(sous_filtre, db=None) -> dict:
     """Le projet tel que l'écran le lit : ses champs, son compte d'opérations et
     ses totaux — et ses CASCADES quand `db` est fourni (le projet ouvert : la
@@ -338,16 +366,20 @@ def lire_sous_filtre(sous_filtre, db=None) -> dict:
         "montant_min": sous_filtre.montant_min,
         "monnaie_cible_id": sous_filtre.monnaie_cible_id,
         "visible_dashboard": bool(sous_filtre.visible_dashboard),
+        "parent_id": sous_filtre.parent_id,
+        "parent_nom": sous_filtre.parent.nom if sous_filtre.parent else None,
+        "operation_ids": _ids_montres(sous_filtre),
+        "sous_projets": [_noeud_sous_projet(enfant) for enfant in sous_filtre.sous_projets],
         "phase": phase,
         "jours_restants": jours_restants,
         "suivi": suivi_du_projet(sous_filtre, totaux),
-        "nombre_operations": len(sous_filtre.operations),
+        "nombre_operations": len(sous_filtre.operations_effectives),
         # L'histogramme est rangé DANS le total de sa monnaie : c'est déjà la
         # ligne par monnaie que l'écran affiche, et deux listes parallèles à
         # réaccorder par identifiant n'auraient été qu'une occasion de plus de
         # les laisser diverger.
         "totaux": totaux,
         "cascades": (
-            service_cascade.cascades(db, sous_filtre.operations) if db is not None else []
+            service_cascade.cascades(db, sous_filtre.operations_effectives) if db is not None else []
         ),
     }

@@ -133,7 +133,39 @@ def list_operations_du_projet(projet_id: int, db: Session = Depends(get_db)):
     Opérations (`_build_operation_read`) : l'écran les affiche avec le même
     rendu, et une seconde forme n'aurait fait diverger les deux."""
     sous_filtre = _get_sous_filtre_ou_404(db, projet_id)
-    return [_build_operation_read(db, operation) for operation in sous_filtre.operations]
+    # TOUTES celles que le projet regroupe, sous-projets compris (cf. SousFiltre.operations_effectives) :
+    # l'écran range ensuite chacune dans son volet d'après `operation_ids` du projet et de ses
+    # sous-projets.
+    return [_build_operation_read(db, operation) for operation in sous_filtre.operations_effectives]
+
+
+@router.post("/{projet_id}/sous-projets")
+def ranger_sous_projets(
+    projet_id: int, payload: schemas.SousFiltreSousProjets, db: Session = Depends(get_db)
+):
+    """Range des projets sous celui-ci : leurs opérations passent dans un volet, et pour les chiffres
+    c'est comme si elles avaient été versées ici. Refusé (409) pour un projet qui est déjà au-dessus de
+    celui-ci (un cycle) ou déjà rangé sous un autre."""
+    parent = _get_sous_filtre_ou_404(db, projet_id)
+    enfants = []
+    for enfant_id in dict.fromkeys(payload.ids):
+        enfant = crud.get_sous_filtre(db, enfant_id)
+        if enfant is None:
+            raise HTTPException(status_code=404, detail="Projet introuvable")
+        erreur = crud.erreur_sous_projet(parent, enfant)
+        if erreur:
+            raise HTTPException(status_code=409, detail=erreur)
+        enfants.append(enfant)
+    return {"ranges": crud.ranger_sous_projets(db, parent, enfants)}
+
+
+@router.delete("/{projet_id}/sous-projets")
+def sortir_sous_projets(
+    projet_id: int, payload: schemas.SousFiltreSousProjets, db: Session = Depends(get_db)
+):
+    """Sort ces sous-projets de celui-ci : ils redeviennent des projets de tête. Rien n'est supprimé."""
+    parent = _get_sous_filtre_ou_404(db, projet_id)
+    return {"sortis": crud.sortir_sous_projets(db, parent, payload.ids)}
 
 
 @router.post("/{projet_id}/operations")

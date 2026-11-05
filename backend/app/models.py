@@ -2116,6 +2116,20 @@ class SousFiltre(Base):
         Boolean, nullable=False, default=False, server_default=sa_false()
     )
 
+    # UN SOUS-PROJET (migration 0100) : un projet rangé sous un autre. Un seul parent (NULL = projet de
+    # tête) ; l'arbre n'a pas de profondeur limitée, et jamais de cycle (cf. crud.ranger_sous_projets).
+    parent_id = Column(
+        Integer, ForeignKey("sous_filtre.id", ondelete="SET NULL"), nullable=True
+    )
+    parent = relationship(
+        "SousFiltre", remote_side=[id], back_populates="sous_projets"
+    )
+    sous_projets = relationship(
+        "SousFiltre",
+        back_populates="parent",
+        order_by="SousFiltre.ordre, SousFiltre.id",
+    )
+
     operations = relationship(
         "Operation",
         secondary=operation_sous_filtre,
@@ -2124,6 +2138,40 @@ class SousFiltre(Base):
         # d'abord, l'id départageant deux opérations du même jour.
         order_by="desc(Operation.date), desc(Operation.id)",
     )
+
+    def ids_descendants(self) -> set:
+        """Les identifiants de tous les sous-projets, à toute profondeur — pas le projet lui-même. Le
+        parcours retient ce qu'il a vu : une base qui aurait malgré tout un cycle ne le fait pas boucler."""
+        vus: set = {self.id}
+        pile = list(self.sous_projets)
+        while pile:
+            projet = pile.pop()
+            if projet.id in vus:
+                continue
+            vus.add(projet.id)
+            pile.extend(projet.sous_projets)
+        vus.discard(self.id)
+        return vus
+
+    @property
+    def operations_effectives(self) -> list:
+        """CE QUE LE PROJET REGROUPE VRAIMENT : ses opérations, plus celles de tous ses sous-projets,
+        chacune UNE FOIS (une opération présente des deux côtés ne compte pas deux fois). C'est la liste
+        que lisent les totaux, l'histogramme, la cascade, le nombre d'opérations et les objectifs :
+        verser B dans A revient, pour les chiffres, à verser dans A chaque opération de B. Même ordre
+        que `operations` : les plus récentes d'abord."""
+        vues: dict = {}
+        projets = [self]
+        deja: set = set()
+        while projets:
+            projet = projets.pop()
+            if projet.id in deja:
+                continue
+            deja.add(projet.id)
+            for operation in projet.operations:
+                vues.setdefault(operation.id, operation)
+            projets.extend(projet.sous_projets)
+        return sorted(vues.values(), key=lambda o: (o.date, o.id), reverse=True)
 
 
 class ProfilRemboursement(Base):

@@ -259,6 +259,8 @@ const TEXTES = {
     "Coche-la si ton relevé écrit déjà le total réellement débité, frais compris : les frais restent notés sur l'opération mais ne s'ajoutent plus au montant. Décochée, l'import les ajoute à ce qui sort et les retranche de ce qui entre.",
   "renommages.renommages":
     "Chaque opération que tu renommes laisse ici une entrée : le libellé tel que le relevé l'écrit, et le nom que tu lui as donné. Au prochain import, les lignes qui portent ce libellé — aux espaces, accents et majuscules près — arrivent directement sous ton nom, l'ancien restant lisible dessous. Supprimer une entrée n'efface aucune opération déjà écrite.",
+  "projets.sous-projets":
+    "Un sous-projet est un projet rangé sous celui-ci : « Vol » et « Hôtel » sous « Voyage Italie ». Pour les chiffres (total, répartition, cascade, objectifs), c'est comme si toutes ses opérations avaient été versées ici, chacune comptée une fois. À l'écran, elles ne sont plus dans le tableau de ce projet mais dans un volet à son nom. Un projet n'a qu'un seul parent ; le sortir du projet le libère, sans rien supprimer.",
   "renommages.appliquer-aucune-operation": "Aucune opération ne porte le nom à renommer",
   "renommages.appliquer-existant":
     "Renomme, dans la base, les opérations qui portent encore le libellé d'origine de ce renommage.",

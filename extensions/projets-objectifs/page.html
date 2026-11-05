@@ -73,6 +73,12 @@
       <button type="button" id="btn-projet-fermer">&larr; Retour aux projets</button>
     </div>
     <p class="hint" id="projet-detail-description"></p>
+    <!-- SOUS-PROJET : « Sous-projet de X », avec de quoi le sortir de X ou aller y lire le tout (cf. projets.js). -->
+    <p class="hint projet-detail-parent" id="projet-detail-parent" style="display:none">
+      <span id="projet-detail-parent-texte"></span>
+      <button type="button" id="btn-projet-ouvrir-parent">Ouvrir</button>
+      <button type="button" id="btn-projet-sortir-parent">Sortir de ce projet</button>
+    </p>
     <!-- La période et ce que le projet doit tenir, quand il en a (cf. projets.js, projetSuiviHtml). -->
     <div id="projet-detail-suivi" class="projet-suivi"></div>
 
@@ -101,6 +107,21 @@
       <button type="button" class="primary" id="btn-projet-ajouter-operations">
         + Ajouter des opérations
       </button>
+      <button type="button" id="btn-projet-ajouter-sous-projet">
+        + Ajouter un sous-projet
+      </button>
+    </div>
+
+    <!-- ----- Le sélecteur de sous-projets : les projets qu'on peut ranger sous celui-ci ----- -->
+    <div id="projet-sous-projet-selecteur" class="projet-selecteur" style="display:none">
+      <h4>Ajouter un sous-projet<i class="info-bulle" tabindex="0" data-info-cle="projets.sous-projets">i</i></h4>
+      <div id="projet-sous-projet-liste" class="projet-sous-projet-liste"></div>
+      <div class="actions barre-selection">
+        <button type="button" class="primary" id="btn-projet-ranger-sous-projets" disabled>
+          Ranger sous ce projet (<span id="projet-sous-projet-nombre">0</span>)
+        </button>
+        <button type="button" id="btn-projet-sous-projet-fermer">Fermer</button>
+      </div>
     </div>
 
     <!-- ----- Le sélecteur d'opérations ----- -->
@@ -157,6 +178,13 @@
       </thead>
       <tbody id="projet-operations-liste"></tbody>
     </table>
+
+    <!-- LES SOUS-PROJETS, un volet chacun : leurs opérations n'apparaissent plus dans le tableau ci-dessus
+         (elles y étaient peut-être déjà), mais comptent dans tous les chiffres du projet. -->
+    <div id="projet-sous-projets-bloc" style="display:none">
+      <h4>Sous-projets<i class="info-bulle" tabindex="0" data-info-cle="projets.sous-projets">i</i></h4>
+      <div id="projet-sous-projets"></div>
+    </div>
   </div>
     </div>
 
