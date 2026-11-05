@@ -9567,17 +9567,38 @@ async function populateRemboursementsChecklist(
     const toutes = await apiFetch("/operations");
     const cibleEstPret = typeReglement === "remboursement_pret";
     const codeCible = CIBLE_PAR_TYPE_REGLEMENT[typeReglement];
+    // GARDE-FOU DE MONNAIE : un remboursement se fait dans la monnaie de la dépense (le serveur le
+    // refuse sinon, cf. crud.erreur_operations_remboursees). On ne propose donc que les cibles dans la
+    // monnaie du règlement — plus celles déjà liées, qu'on ne retire pas en silence.
+    const monnaieReglement = Number(document.getElementById("operation-monnaie").value) || null;
+    let autresMonnaies = 0;
     // Pour l'instant, on ne propose que les opérations pas encore réglées (ou déjà
     // liées à CETTE opération de règlement, pour pouvoir les délier/modifier).
     const eligibles = toutes.filter((o) => {
       if (o.id === excludeOperationId || o.type_code !== codeCible) return false;
-      return o.montant_a_rembourser > 0 || preselection[o.id] !== undefined;
+      if (!(o.montant_a_rembourser > 0 || preselection[o.id] !== undefined)) return false;
+      if (monnaieReglement != null && o.monnaie_id !== monnaieReglement && preselection[o.id] === undefined) {
+        autresMonnaies += 1;
+        return false;
+      }
+      return true;
     });
     liste.innerHTML = "";
+    const noteAutresMonnaies = () => {
+      if (!autresMonnaies) return;
+      const note = document.createElement("span");
+      note.className = "hint";
+      note.textContent = t(
+        "{n} opération(s) dans une autre monnaie ne sont pas proposées : un remboursement se fait dans la monnaie de l'opération réglée.",
+        { n: autresMonnaies }
+      );
+      liste.appendChild(note);
+    };
     if (eligibles.length === 0) {
       liste.innerHTML = cibleEstPret
         ? `<span class="hint">${t("Aucun prêt non remboursé disponible.")}</span>`
         : `<span class="hint">${t("Aucune dépense non remboursée disponible.")}</span>`;
+      noteAutresMonnaies();
       return;
     }
     eligibles.forEach((o) => {
@@ -9590,6 +9611,7 @@ async function populateRemboursementsChecklist(
       const row = document.createElement("div");
       row.className = "checklist-row";
       row.dataset.depenseId = o.id;
+      row.dataset.monnaieId = o.monnaie_id;
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -9639,11 +9661,38 @@ async function populateRemboursementsChecklist(
       row.appendChild(label);
       liste.appendChild(row);
     });
+    noteAutresMonnaies();
     if (ajusterMontant) recalculerMontantRemboursement();
   } catch (err) {
     liste.innerHTML = "";
     showMessage(err.message, "error");
   }
+}
+
+// Changer la monnaie d'un règlement refait la liste : les cibles d'une autre monnaie en sortent, et les
+// liens déjà saisis sur elles tombent (ils ne tiendraient plus côté serveur). Changer de COMPTE change
+// la monnaie du formulaire de la même façon — son écouteur (cf. updateOperationMonnaieFields) est posé
+// avant celui-ci, la monnaie est donc déjà celle du nouveau compte.
+["operation-monnaie", "operation-compte"].forEach((id) =>
+  document.getElementById(id).addEventListener("change", rafraichirChecklistSelonMonnaie)
+);
+
+function rafraichirChecklistSelonMonnaie() {
+  const type = document.getElementById("operation-type").value;
+  if (type !== "remboursements" && type !== "remboursement_pret") return;
+  const monnaie = Number(document.getElementById("operation-monnaie").value) || null;
+  const saisis = {};
+  document.querySelectorAll("#operation-remboursements-liste .checklist-row").forEach((row) => {
+    const montant = parseFloat(row.querySelector(".remb-montant").value || "0");
+    if (montant > 0 && Number(row.dataset.monnaieId) === monnaie) {
+      saisis[Number(row.dataset.depenseId)] = montant;
+    }
+  });
+  populateRemboursementsChecklist(
+    saisis,
+    Number(document.getElementById("operation-id").value) || null,
+    type
+  );
 }
 
 function recalculerMontantRemboursement() {

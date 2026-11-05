@@ -5121,6 +5121,7 @@ Object.assign(TRADUCTIONS.en, {
   "Chercher un renommage": "Search a renaming",
   "Appliquer aux opérations existantes": "Apply to existing transactions",
   "+ Ajouter des frais": "+ Add fees",
+  "{n} opération(s) dans une autre monnaie ne sont pas proposées : un remboursement se fait dans la monnaie de l'opération réglée.": "{n} transaction(s) in another currency are not offered: a reimbursement is made in the currency of the transaction being settled.",
   "À valider": "To validate",
   "Tout sélectionner": "Select all",
   "Tout désélectionner": "Deselect all",

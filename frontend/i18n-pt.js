@@ -4343,6 +4343,7 @@ Object.assign(TRADUCTIONS.pt, {
   "Chercher un renommage": "Buscar um renomeamento",
   "Appliquer aux opérations existantes": "Aplicar às operações existentes",
   "+ Ajouter des frais": "+ Adicionar tarifas",
+  "{n} opération(s) dans une autre monnaie ne sont pas proposées : un remboursement se fait dans la monnaie de l'opération réglée.": "{n} operação(ões) em outra moeda não são oferecidas: um reembolso é feito na moeda da operação quitada.",
   "À valider": "A validar",
   "Tout sélectionner": "Selecionar tudo",
   "Tout désélectionner": "Desmarcar tudo",

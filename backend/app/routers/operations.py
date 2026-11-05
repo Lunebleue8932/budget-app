@@ -566,6 +566,13 @@ def update_operation(
             raise HTTPException(
                 status_code=400, detail=message_verrou.format(champ="le montant")
             )
+        # LA MONNAIE, ELLE AUSSI : un remboursement se fait dans la monnaie de la dépense, et les liens
+        # posés l'ont été sous cette condition. Changer la monnaie de la dépense les rendrait tous
+        # faux d'un coup, sans que rien ne les revérifie.
+        if updates.monnaie_id is not None and updates.monnaie_id != db_operation.monnaie_id:
+            raise HTTPException(
+                status_code=400, detail=message_verrou.format(champ="la monnaie")
+            )
         if updates.montant_du is not None and updates.montant_du != db_operation.montant_du:
             deja_rembourse = crud.total_rembourse(db, operation_id)
             if updates.montant_du < deja_rembourse - 0.005:
@@ -592,6 +599,26 @@ def update_operation(
         _valider_operations_remboursees(
             db,
             updates.operations_remboursees,
+            code_final,
+            montant,
+            monnaie_finale,
+            operation_remboursement_id=operation_id,
+        )
+    elif (
+        TypeOperation(code_final) in TYPES_REGLEMENT
+        and monnaie_finale != db_operation.monnaie_id
+    ):
+        # UN RÈGLEMENT QUI CHANGE DE MONNAIE sans renvoyer ses liens garde pourtant ceux qu'il a : ils
+        # sont revérifiés contre la nouvelle monnaie, sans quoi il solderait des dépenses d'une autre
+        # (cf. crud.erreur_operations_remboursees).
+        _valider_operations_remboursees(
+            db,
+            [
+                schemas.OperationRembourseeInput(operation_id=depense.id, montant=montant_lien)
+                for depense, montant_lien in crud.get_operations_remboursees_detail(
+                    db, operation_id
+                )
+            ],
             code_final,
             montant,
             monnaie_finale,

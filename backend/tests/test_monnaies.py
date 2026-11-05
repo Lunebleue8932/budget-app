@@ -450,6 +450,76 @@ def test_un_reglement_ne_peut_pas_regler_une_dette_dune_autre_monnaie(db_session
     assert "même monnaie" in erreur.value.detail
 
 
+def _dette_et_reglement(db, monnaie_dette, monnaies_compte):
+    """Une dette remboursable de 40 et un règlement de 40 qui la solde, dans la même monnaie."""
+    compte = creer_compte(db, "Voyage", monnaies=[(m, 0.0) for m in monnaies_compte])
+    dette = routeur_operations.create_operation(
+        schemas.OperationCreate(
+            date=date(2026, 7, 1),
+            compte_id=compte.id,
+            monnaie_id=monnaie_dette,
+            type_id=get_type_id(db, "remboursable"),
+            categorie_id=get_categorie_id(db, "Autres"),
+            nature="Avance",
+            montant=40.0,
+            statut=Statut.reel,
+        ),
+        db,
+    )
+    reglement = routeur_operations.create_operation(
+        schemas.OperationCreate(
+            date=date(2026, 7, 5),
+            compte_id=compte.id,
+            monnaie_id=monnaie_dette,
+            type_id=get_type_id(db, "remboursements"),
+            nature="Remboursement",
+            montant=40.0,
+            statut=Statut.reel,
+            operations_remboursees=[
+                schemas.OperationRembourseeInput(operation_id=dette.id, montant=40.0)
+            ],
+        ),
+        db,
+    )
+    return dette, reglement
+
+
+def test_une_depense_remboursee_ne_change_plus_de_monnaie(db_session):
+    """Les liens ont été posés sous la condition « même monnaie » : changer celle de la dépense les
+    rendrait faux d'un coup, sans que rien ne les revérifie."""
+    euro, dollar = _euro_et_dollar(db_session)
+    dette, _ = _dette_et_reglement(db_session, dollar, [euro, dollar])
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_operations.update_operation(
+            dette.id, schemas.OperationUpdate(monnaie_id=euro), db_session
+        )
+
+    assert erreur.value.status_code == 400
+    assert "la monnaie" in erreur.value.detail
+    # Renvoyer la monnaie telle quelle (l'écran renvoie tout) n'est pas un changement.
+    routeur_operations.update_operation(
+        dette.id, schemas.OperationUpdate(monnaie_id=dollar, nature="Avance bis"), db_session
+    )
+
+
+def test_un_reglement_qui_change_de_monnaie_est_revalide_contre_ses_liens(db_session):
+    """Sans renvoyer `operations_remboursees`, le règlement garde ses liens : passer en euros solderait
+    une dette en dollars."""
+    euro, dollar = _euro_et_dollar(db_session)
+    _, reglement = _dette_et_reglement(db_session, dollar, [euro, dollar])
+
+    with pytest.raises(HTTPException) as erreur:
+        routeur_operations.update_operation(
+            reglement.id, schemas.OperationUpdate(monnaie_id=euro), db_session
+        )
+
+    assert erreur.value.status_code == 400
+    assert "même monnaie" in erreur.value.detail
+    # Le règlement n'a pas bougé.
+    assert routeur_operations.read_operation(reglement.id, db_session).monnaie_id == dollar
+
+
 # ---------- Budgets ----------
 
 
