@@ -664,10 +664,14 @@ def test_la_page_operations_ignore_les_mois_damortissement(db_session):
 
     # Le mois de la dépense reste là : c'est là qu'elle se modifie.
     assert (2026, 7) in sans
-    # Aucun mois d'étalement, et donc aucun onglet d'année 2027.
+    # Aucun mois d'étalement, et donc aucun onglet d'année 2027. LE MOIS COURANT EN EST EXCLU : il est
+    # toujours proposé, même vide (cf. main.get_periodes), et le test ne doit pas dépendre du jour où il tourne.
+    aujourdhui = date.today()
+    courant = (aujourdhui.year, aujourdhui.month)
     for mois in (11, 12):
-        assert (2026, mois) not in sans
-    assert not any(annee == 2027 for annee, _ in sans)
+        if (2026, mois) != courant:
+            assert (2026, mois) not in sans
+    assert not any(annee == 2027 and (annee, mois) != courant for annee, mois in sans)
     # Le dashboard, lui, les garde : c'est bien là que la dépense pèse.
     assert (2027, 3) in _periodes(db_session)
 
