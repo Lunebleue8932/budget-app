@@ -10178,6 +10178,18 @@ function avecCelluleDate(noeud, dateIso, onglet, complement = "") {
   return noeud;
 }
 
+/**
+ * UNE OPÉRATION PRÉVISIONNELLE SE LIT D'UN COUP D'ŒIL : toute sa ligne (et ses lignes de détail, parts
+ * d'une découpe ou notes) passe en gris italique, cf. `tr.operation-previsionnelle` dans style.css.
+ * Le nœud peut être une ligne ou un fragment de lignes (cf. avecCelluleDate).
+ */
+function marquerPrevisionnelle(noeud, op) {
+  if (!noeud || !op || op.statut !== "prévisionnel") return noeud;
+  const lignes = noeud.tagName === "TR" ? [noeud] : [...noeud.querySelectorAll("tr")];
+  lignes.forEach((tr) => tr.classList.add("operation-previsionnelle"));
+  return noeud;
+}
+
 // Regroupe une liste déjà triée par date, en conservant l'ordre : le premier
 // jour rencontré reste le premier affiché.
 function grouperParJour(liste, dateDe = (op) => op.date) {
@@ -10229,7 +10241,12 @@ function remplirListeOperations(listeId, liste, construireLigne) {
     }
     bloc.elements.forEach((op) =>
       body.appendChild(
-        avecCelluleDate(construireLigne(op), op.date, onglet, complementDateOperation(op, onglet))
+        avecCelluleDate(
+          marquerPrevisionnelle(construireLigne(op), op),
+          op.date,
+          onglet,
+          complementDateOperation(op, onglet)
+        )
       )
     );
     table.appendChild(body);
@@ -10548,7 +10565,10 @@ function renderVirements(paires) {
           // ce qu'un fragment aurait dissous à l'insertion.
           const [, { sortante, entrante }] = paire;
           const reference = sortante || entrante;
-          if (reference.notes) body.appendChild(ligneDetailNote(reference, colonnes.length));
+          marquerPrevisionnelle(tr, reference);
+          if (reference.notes) {
+            body.appendChild(marquerPrevisionnelle(ligneDetailNote(reference, colonnes.length), reference));
+          }
         }
       });
       table.appendChild(body);

@@ -601,6 +601,11 @@ function cellulesOperationHtml(ligne, prefixe) {
   `;
 }
 
+/** Une opération prévisionnelle se lit en gris italique, comme dans la page Opérations (style.css). */
+function projetMarquerPrevisionnelle(ligne, operation) {
+  if (operation.statut === "prévisionnel") ligne.classList.add("operation-previsionnelle");
+}
+
 /** Regroupe les deux jambes d'un même virement interne en UNE ligne `{ operation, ids, sortante, entrante }`
  *  (`operation` : la jambe de référence, sortante d'abord) ; toute autre opération est sa propre ligne.
  *  L'ordre est celui de la première jambe rencontrée. */
@@ -658,6 +663,7 @@ function renderProjetOperations() {
   projetRegrouper(visibles).forEach((ligneProjet) => {
     const operation = ligneProjet.operation;
     const ligne = document.createElement("tr");
+    projetMarquerPrevisionnelle(ligne, operation);
     ligne.innerHTML = `
       ${cellulesOperationHtml(ligneProjet, "projet-op")}
       <td>
@@ -783,6 +789,7 @@ function creerVoletSousProjet(noeud, parId, parentId) {
     projetRegrouper(propres).forEach((ligneProjet) => {
       const operation = ligneProjet.operation;
       const ligne = document.createElement("tr");
+      projetMarquerPrevisionnelle(ligne, operation);
       ligne.innerHTML = `
         ${cellulesOperationHtml(ligneProjet, prefixe)}
         <td><button type="button" data-action="retirer">${t("Retirer")}</button></td>`;
@@ -1094,6 +1101,7 @@ function renderCandidatsProjet() {
   projetCandidats.forEach((candidat) => {
     const operation = candidat.operation;
     const ligne = document.createElement("tr");
+    projetMarquerPrevisionnelle(ligne, operation);
     ligne.innerHTML = `
       ${cellulesOperationHtml(candidat, "projet-cand")}
       <td>

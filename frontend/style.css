@@ -1322,6 +1322,15 @@ select option.option-creer {
   text-decoration: underline;
 }
 
+/* UNE OPÉRATION PRÉVISIONNELLE : toute la ligne en gris italique (cf. marquerPrevisionnelle, app.js), les
+   montants compris — leur couleur dit le sens de l'argent, mais ce qui est PRÉVU doit se distinguer de ce
+   qui a EU LIEU avant tout. Les boutons gardent leur couleur : ce sont des gestes, pas des données. */
+tr.operation-previsionnelle td,
+tr.operation-previsionnelle td *:not(button):not(.info-bulle) {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
 /* LE BLOC DE L'ARGENT du formulaire d'opération : trois colonnes FIXES (compte | montant | monnaie), pour
    que ce qui part et ce qui arrive d'un virement se lisent l'un au-dessus de l'autre. Chaque champ porte
    sa colonne (`operation-col-N`) : un champ masqué laisse sa case vide au lieu de décaler ses voisins. */
