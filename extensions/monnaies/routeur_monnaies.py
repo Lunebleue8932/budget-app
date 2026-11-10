@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 # Imports ABSOLUS : ce module n'est pas un sous-paquet de `app`, il est chargé
 # par chemin de fichier (cf. extensions/README.md).
-from app import crud, extensions as extensions_noyau, schemas
+from app import crud, extensions as extensions_noyau, models, schemas
 from app.database import get_db
 from app.services import soldes as service_soldes
 
@@ -115,6 +115,27 @@ def _obstacles_extinction(db: Session, monnaie_id: int) -> list[str]:
     return obstacles
 
 
+def _liens_allumes(db: Session, monnaie_id: int) -> list[models.CompteMonnaie]:
+    """Les liens (compte, monnaie) où cette monnaie est encore ALLUMÉE."""
+    return (
+        db.query(models.CompteMonnaie)
+        .filter(
+            models.CompteMonnaie.monnaie_id == monnaie_id,
+            models.CompteMonnaie.active.is_(True),
+        )
+        .all()
+    )
+
+
+@router.get("/{monnaie_id}/comptes-allumes", response_model=list[str])
+def comptes_ou_la_monnaie_est_allumee(monnaie_id: int, db: Session = Depends(get_db)):
+    """Les noms des comptes où cette monnaie est encore allumée : ce que l'écran
+    nomme dans la fenêtre de confirmation avant d'éteindre (cf. set_etat_monnaie)."""
+    if crud.get_monnaie(db, monnaie_id) is None:
+        raise HTTPException(status_code=404, detail="Monnaie introuvable")
+    return sorted({lien.compte.nom for lien in _liens_allumes(db, monnaie_id)})
+
+
 @router.put("/{monnaie_id}/etat", response_model=schemas.MonnaieRead)
 def set_etat_monnaie(
     monnaie_id: int, payload: schemas.MonnaieEtatUpdate, db: Session = Depends(get_db)
@@ -157,4 +178,41 @@ def set_etat_monnaie(
                 "rien, mais ferait disparaître ces montants des écrans."
             ),
         )
+
+    # ÉTEINDRE UNE MONNAIE L'ÉTEINT SUR TOUS LES COMPTES QUI LA PORTENT. Une monnaie
+    # éteinte pour l'application mais encore allumée sur un compte se proposerait
+    # quand même à la saisie de ce compte : l'extinction ne servirait à rien. Les
+    # soldes de ces comptes sont nuls (garde ci-dessus), donc rien ne disparaît.
+    liens = _liens_allumes(db, monnaie_id)
+    sans_autre = sorted(
+        lien.compte.nom
+        for lien in liens
+        if not any(
+            autre.active and autre.monnaie_id != monnaie_id
+            for autre in lien.compte.monnaies
+        )
+    )
+    if sans_autre:
+        # Un compte garde au moins une monnaie allumée (cf. routers/comptes.
+        # _valider_monnaies) : lui retirer la seule qu'il a le laisserait sans rien.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {monnaie.nom} » est la seule monnaie allumée de : "
+                f"{', '.join(sans_autre)}. Un compte doit garder au moins une monnaie "
+                f"active : ajoute-lui-en une autre avant d'éteindre « {monnaie.nom} »."
+            ),
+        )
+    if liens and not payload.eteindre_sur_comptes:
+        noms = sorted({lien.compte.nom for lien in liens})
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"« {monnaie.nom} » est encore allumée sur : {', '.join(noms)}. "
+                "L'éteindre l'éteint sur tous les comptes qui la portent : "
+                "confirme pour continuer."
+            ),
+        )
+    for lien in liens:
+        lien.active = False
     return crud.set_monnaie_active(db, monnaie, False)

@@ -793,9 +793,13 @@ def test_supprimer_la_monnaie_de_trop_rouvre_la_porte(db_session):
 # titre ne doit être détenu dans cette monnaie.
 
 
-def _eteindre(db, monnaie_id, active=False):
+def _eteindre(db, monnaie_id, active=False, confirmer=True):
+    # `confirmer` : le « oui » de la fenêtre qui prévient que la monnaie s'éteint aussi sur les comptes
+    # qui la portent encore (cf. set_etat_monnaie).
     return routeur_monnaies.set_etat_monnaie(
-        monnaie_id, schemas.MonnaieEtatUpdate(active=active), db=db
+        monnaie_id,
+        schemas.MonnaieEtatUpdate(active=active, eteindre_sur_comptes=confirmer),
+        db=db,
     )
 
 
@@ -811,6 +815,110 @@ def test_une_monnaie_soldee_partout_s_eteint(db_session):
     assert lue.active is False
     # RALLUMER NE DEMANDE RIEN : c'est le geste qui rend visible.
     assert _eteindre(db_session, dollar, active=True).active is True
+
+
+def _etats_du_lien(compte, monnaie_id):
+    return next(lien.active for lien in compte.monnaies if lien.monnaie_id == monnaie_id)
+
+
+def test_eteindre_une_monnaie_l_eteint_sur_tous_les_comptes_qui_la_portent(db_session):
+    """UNE MONNAIE ÉTEINTE POUR L'APPLICATION MAIS ENCORE ALLUMÉE SUR UN COMPTE se proposerait quand même
+    à la saisie de ce compte. L'extinction globale gagne donc tous les comptes — sauf ceux où elle est
+    déjà éteinte, qui n'ont rien à changer."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    voyage = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    epargne = creer_compte(db_session, "Épargne", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    deja_eteinte = creer_compte(db_session, "Ancien", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    deja_eteinte.monnaies[1].active = False
+    db_session.commit()
+
+    assert set(routeur_monnaies.comptes_ou_la_monnaie_est_allumee(dollar, db_session)) == {
+        "Voyage",
+        "Épargne",
+    }
+
+    _eteindre(db_session, dollar)
+
+    db_session.refresh(voyage)
+    db_session.refresh(epargne)
+    db_session.refresh(deja_eteinte)
+    assert _etats_du_lien(voyage, dollar) is False
+    assert _etats_du_lien(epargne, dollar) is False
+    assert _etats_du_lien(deja_eteinte, dollar) is False
+    # L'euro, lui, n'a pas bougé nulle part.
+    assert all(_etats_du_lien(c, euro) for c in (voyage, epargne, deja_eteinte))
+    assert routeur_monnaies.comptes_ou_la_monnaie_est_allumee(dollar, db_session) == []
+
+
+def test_eteindre_sans_confirmer_refuse_et_nomme_les_comptes(db_session):
+    """LE POP-UP A SON PENDANT CÔTÉ SERVEUR : sans le « oui », rien ne change et le refus nomme les
+    comptes concernés — un autre client de l'API ne modifie pas des comptes à son insu."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    voyage = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+
+    with pytest.raises(HTTPException) as erreur:
+        _eteindre(db_session, dollar, confirmer=False)
+    assert erreur.value.status_code == 409
+    assert "Voyage" in erreur.value.detail
+
+    db_session.refresh(voyage)
+    assert _etats_du_lien(voyage, dollar) is True
+    assert crud.get_monnaie(db_session, dollar).active is True
+
+
+def test_une_monnaie_deja_eteinte_partout_s_eteint_sans_confirmation(db_session):
+    """Aucun compte à prévenir : pas de fenêtre, pas de drapeau."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    compte = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    compte.monnaies[1].active = False
+    db_session.commit()
+
+    assert _eteindre(db_session, dollar, confirmer=False).active is False
+
+
+def test_un_compte_qui_n_a_que_cette_monnaie_bloque_l_extinction(db_session):
+    """UN COMPTE GARDE AU MOINS UNE MONNAIE ALLUMÉE (cf. routers/comptes._valider_monnaies) : lui retirer
+    la seule qu'il a le laisserait sans rien. Le refus nomme le compte, même confirmé."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    creer_compte(db_session, "Courant", monnaies=[(euro, 0.0)])
+    creer_compte(db_session, "Dollars seuls", monnaies=[(dollar, 0.0)])
+
+    with pytest.raises(HTTPException) as erreur:
+        _eteindre(db_session, dollar)
+    assert erreur.value.status_code == 409
+    assert "Dollars seuls" in erreur.value.detail
+    assert crud.get_monnaie(db_session, dollar).active is True
+
+
+def test_les_operations_d_un_compte_ou_la_monnaie_s_eteint_restent_en_base(db_session):
+    """Éteindre ne supprime rien, y compris par la cascade : l'opération soldée garde sa devise."""
+    euro = get_monnaie_id(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$").id
+    compte = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
+    for sens in ("entrée", "dépense"):
+        crud.create_operation(
+            db_session,
+            schemas.OperationCreate(
+                date=date(2026, 4, 2),
+                nature="Souvenir",
+                montant=40.0,
+                sens=sens,
+                statut=Statut.reel,
+                compte_id=compte.id,
+                monnaie_id=dollar,
+                categorie_id=get_categorie_id(db_session, "Loisirs & sorties"),
+                type_id=get_type_id(db_session, "classique"),
+                decoupes=[],
+            ),
+        )
+    _eteindre(db_session, dollar)
+
+    restantes = db_session.query(models.Operation).filter_by(monnaie_id=dollar).count()
+    assert restantes == 2
 
 
 def test_un_solde_non_nul_empeche_l_extinction_et_nomme_le_compte(db_session):

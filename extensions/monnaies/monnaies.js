@@ -88,10 +88,20 @@ function renderMonnaies() {
       eteint: monnaie.active === false,
       protege: false,
       url: `/monnaies/${monnaie.id}/etat`,
-      corps: { active: monnaie.active === false },
+      // ÉTEINDRE UNE MONNAIE L'ÉTEINT SUR TOUS LES COMPTES QUI LA PORTENT : le « oui » de la fenêtre
+      // (`avant`) est ce que `eteindre_sur_comptes` dit au serveur.
+      corps:
+        monnaie.active === false
+          ? { active: true }
+          : { active: false, eteindre_sur_comptes: true },
+      avant: monnaie.active === false ? null : () => confirmerExtinctionMonnaie(monnaie),
       message:
         monnaie.active === false ? t("Monnaie réactivée") : t("Monnaie désactivée"),
-      apres: loadMonnaies,
+      // Les comptes sont relus aussi : l'extinction a pu éteindre la monnaie sur certains d'entre eux.
+      apres: async () => {
+        await loadMonnaies();
+        await loadComptes();
+      },
     });
   };
   activerEditionDoubleClic(bloc, editerMonnaie);
@@ -112,6 +122,28 @@ function renderMonnaies() {
         showMessage(err.message, "error");
       }
     });
+  });
+}
+
+/**
+ * LA FENÊTRE QUI PRÉVIENT : éteindre une monnaie l'éteint sur TOUS les comptes qui la portent. Elle ne
+ * s'ouvre que s'il y en a (des comptes où elle est encore allumée, à solde nul — le serveur refuse sinon) ;
+ * sans eux, l'extinction part directement. Rend vrai quand on peut continuer.
+ */
+async function confirmerExtinctionMonnaie(monnaie) {
+  let comptes = [];
+  try {
+    comptes = await apiFetch(`/monnaies/${monnaie.id}/comptes-allumes`);
+  } catch (err) {
+    showMessage(traduireMessageServeur(err.message), "error");
+    return false;
+  }
+  if (comptes.length === 0) return true;
+  return demanderConfirmation({
+    titre: t("Éteindre « {nom} » ?", { nom: monnaie.nom }),
+    texte: t(texteAide("monnaies.extinction-comptes"), { nom: monnaie.nom }),
+    elements: comptes,
+    confirmer: t("Éteindre partout"),
   });
 }
 

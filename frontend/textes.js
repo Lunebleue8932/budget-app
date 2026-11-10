@@ -443,6 +443,9 @@ const TEXTES = {
   "monnaies.totaux-projets-monnaies-eteintes":
     "Afficher : dans un projet, chaque monnaie a son total, éteinte ou non. // Reporter : le total d'une monnaie éteinte n'est plus montré. À la place, ce qui a été converti vers elle compte dans le total de la monnaie d'origine. Une monnaie éteinte a un solde nul : l'argent qu'on y a converti y a été dépensé (ou reconverti), et ce que le projet a coûté se lit tout entier dans tes monnaies allumées. Les frais sont déjà comptés.",
 
+  "monnaies.extinction-comptes":
+    "« {nom} » est encore allumée sur les comptes ci-dessous. Éteindre une monnaie l'éteint sur tous les comptes qui la possèdent : elle ne sera plus proposée dans leurs formulaires ni dans leurs menus. // Leur solde dans cette monnaie est nul, donc rien ne disparaît des totaux, aucune opération n'est supprimée, et tu pourras la rallumer à tout moment.",
+
   /* ----- Extension « Placements » ----- */
   "placements.titres-suivis":
     "Les titres que tu utilises sur l'app. Le cours se saisit à la main ou se lit en ligne avec l'extension Lecture de cours.",

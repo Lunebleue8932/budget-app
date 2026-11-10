@@ -2578,6 +2578,74 @@ function demanderCreationCategorie({ nomPropose = "" } = {}) {
   });
 }
 
+/**
+ * UNE FENÊTRE DE CONFIRMATION, construite à l'appel : un titre, un texte d'aide (mis en forme comme les
+ * autres, cf. ecrireTexteAide), une liste facultative de ce que le geste touche, et deux boutons. Rend une
+ * promesse : true au « oui », false à « Annuler », à Échap ou au clic sur le fond.
+ *
+ * `texte` vient de textes.js (jamais écrit en dur ici) ; `confirmer` est le libellé du bouton d'accord.
+ */
+function demanderConfirmation({ titre, texte, elements = [], confirmer }) {
+  const fond = document.createElement("div");
+  fond.className = "modale-fond";
+  fond.style.display = "flex";
+  fond.setAttribute("role", "presentation");
+  const fenetre = document.createElement("div");
+  fenetre.className = "modale";
+  fenetre.setAttribute("role", "alertdialog");
+  fenetre.setAttribute("aria-modal", "true");
+  const h2 = document.createElement("h2");
+  h2.textContent = titre;
+  const paragraphe = document.createElement("div");
+  paragraphe.className = "modale-texte";
+  ecrireTexteAide(paragraphe, texte);
+  fenetre.append(h2, paragraphe);
+  if (elements.length) {
+    const liste = document.createElement("ul");
+    liste.className = "texte-aide-puces";
+    elements.forEach((nom) => {
+      const li = document.createElement("li");
+      li.textContent = nom;
+      liste.appendChild(li);
+    });
+    fenetre.appendChild(liste);
+  }
+  const actions = document.createElement("div");
+  actions.className = "modale-actions";
+  const annuler = document.createElement("button");
+  annuler.type = "button";
+  annuler.textContent = t("Annuler");
+  const accord = document.createElement("button");
+  accord.type = "button";
+  accord.className = "primary";
+  accord.textContent = confirmer;
+  actions.append(annuler, accord);
+  fenetre.appendChild(actions);
+  fond.appendChild(fenetre);
+  document.body.appendChild(fond);
+  annuler.focus();
+
+  return new Promise((resolve) => {
+    const fermer = (reponse) => {
+      document.removeEventListener("keydown", surTouche, true);
+      fond.remove();
+      resolve(reponse);
+    };
+    const surTouche = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        fermer(false);
+      }
+    };
+    annuler.addEventListener("click", () => fermer(false));
+    accord.addEventListener("click", () => fermer(true));
+    fond.addEventListener("mousedown", (e) => {
+      if (e.target === fond) fermer(false);
+    });
+    document.addEventListener("keydown", surTouche, true);
+  });
+}
+
 /** La fenêtre de création d'une monnaie est-elle ouverte ? Elle peut l'être PAR-DESSUS celle d'un compte
  *  (« + Créer une monnaie » sous ses monnaies) : Échap ne ferme alors qu'elle. */
 function creationMonnaieOuverte() {
@@ -7593,7 +7661,7 @@ function resetCategorieForm() {
  * cherchent par son nom), et le serveur le refuse de toute façon. Montrer un
  * bouton qui rend 409 n'apprend rien.
  */
-function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apres }) {
+function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apres, avant }) {
   const bouton = document.getElementById(boutonId);
   if (!bouton) return;
   if (protege) {
@@ -7604,6 +7672,8 @@ function cablerBoutonEtat(boutonId, { eteint, protege, url, corps, message, apre
   bouton.textContent = eteint ? t("Réactiver") : t("Désactiver");
   bouton.onclick = async () => {
     try {
+      // `avant` : une confirmation à obtenir avant le geste (une promesse de booléen) ; refusée, rien ne part.
+      if (avant && !(await avant())) return;
       await apiFetch(url, { method: "PUT", body: JSON.stringify(corps) });
       showMessage(message, "success");
       apres();

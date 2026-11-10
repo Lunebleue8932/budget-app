@@ -48,6 +48,9 @@ class MonnaieEtatUpdate(BaseModel):
     impossible de distinguer « éteins-la » d'un simple renommage."""
 
     active: bool
+    # ÉTEINDRE UNE MONNAIE L'ÉTEINT SUR TOUS LES COMPTES QUI LA PORTENT : tant qu'elle est encore allumée
+    # sur l'un d'eux, la route refuse (409) sauf si ce drapeau confirme (cf. l'extension « Monnaies »).
+    eteindre_sur_comptes: bool = False
 
 
 class MonnaieRead(BaseModel):
