@@ -20013,6 +20013,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       // pourtant le cas le plus ordinaire de frais.
       if (ligneAvecFrais) {
         const labelFraisSimple = document.createElement("label");
+        labelFraisSimple.dataset.place = "frais";
         labelFraisSimple.textContent = t("Frais");
         inputFrais = document.createElement("input");
         inputFrais.type = "number";
@@ -20035,6 +20036,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
         ];
         if (idsFrais.length > 1 || ligne.frais_incoherents) {
           const labelMonnaieFraisSimple = document.createElement("label");
+          labelMonnaieFraisSimple.dataset.place = "monnaie-frais";
           labelMonnaieFraisSimple.textContent = t("Monnaie des frais");
           selectMonnaieFrais = document.createElement("select");
           idsFrais.forEach((id) => {
@@ -20053,6 +20055,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       const compteId = compteChamp && compteChamp.estConfirme() ? Number(compteChamp.select.value) : null;
       if (compteId && monnaiesDuCompte(compteId).length <= 1) return;
       const label = document.createElement("label");
+      label.dataset.place = "monnaie";
       label.textContent = t("Monnaie");
       selectMonnaie = creerSelectMonnaie(compteId, ligne.monnaie_id);
       label.appendChild(selectMonnaie);
@@ -20075,6 +20078,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       : null;
 
     const labelMonnaieEnvoyee = document.createElement("label");
+    labelMonnaieEnvoyee.dataset.place = "monnaie";
     labelMonnaieEnvoyee.textContent = t("Monnaie envoyée");
     // PAR DÉFAUT, LA MONNAIE D'EN FACE EST CELLE QUE LE RELEVÉ A LUE : un virement
     // sans change est le cas ordinaire, et c'est seulement quand les deux
@@ -20086,11 +20090,13 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     labelMonnaieEnvoyee.appendChild(selectMonnaieEnvoyee);
 
     const labelMonnaieRecue = document.createElement("label");
+    labelMonnaieRecue.dataset.place = "monnaie-recue";
     labelMonnaieRecue.textContent = t("Monnaie reçue");
     selectMonnaie = creerSelectMonnaie(compteDestinationId, ligne.monnaie_id ?? monnaieLue);
     labelMonnaieRecue.appendChild(selectMonnaie);
 
     const labelMontantEnvoye = document.createElement("label");
+    labelMontantEnvoye.dataset.place = "montant";
     labelMontantEnvoye.textContent = ligneAvecFrais
       ? "Montant envoyé (hors frais)"
       : "Montant envoyé";
@@ -20121,6 +20127,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     // aucun des deux montants, et c'est précisément ce que le serveur refuse
     // (cf. _appliquer_frais / frais_incoherents).
     const labelFrais = document.createElement("label");
+    labelFrais.dataset.place = "frais";
     labelFrais.textContent = t("Frais");
     inputFrais = document.createElement("input");
     inputFrais.type = "number";
@@ -20130,6 +20137,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
     labelFrais.appendChild(inputFrais);
 
     const labelMonnaieFrais = document.createElement("label");
+    labelMonnaieFrais.dataset.place = "monnaie-frais";
     labelMonnaieFrais.textContent = t("Monnaie des frais");
     selectMonnaieFrais = document.createElement("select");
     labelMonnaieFrais.appendChild(selectMonnaieFrais);
@@ -20358,6 +20366,8 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
 
     montantWrap.innerHTML = "";
     const labelMontant = document.createElement("label");
+    // Sur un virement, ce champ est le montant REÇU (deuxième rangée) ; sinon le montant, à côté du compte.
+    labelMontant.dataset.place = info.virement ? "montant-recu" : "montant";
     labelMontant.textContent = t("Montant");
     // majChampsFrais le renomme en « Montant reçu » dès qu'un virement traverse
     // deux monnaies : il lui faut donc une référence, et non une variable locale.
@@ -20424,11 +20434,13 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       const valeurAutre = ligne.compte_id_autre ?? null;
 
       const labelEmetteur = document.createElement("label");
+      labelEmetteur.dataset.place = "compte1";
       labelEmetteur.textContent = t("Compte émetteur");
       compteChampEmetteur = creerChampCompteAvecIndice(emetteurActif ? ligne.compte_id : valeurAutre);
       labelEmetteur.appendChild(compteChampEmetteur.wrap);
 
       const labelRecepteur = document.createElement("label");
+      labelRecepteur.dataset.place = "compte2";
       labelRecepteur.textContent = t("Compte récepteur");
       compteChampRecepteur = creerChampCompteAvecIndice(!emetteurActif ? ligne.compte_id : valeurAutre);
       labelRecepteur.appendChild(compteChampRecepteur.wrap);
@@ -20443,6 +20455,7 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       compteChampEmetteur = null;
       compteChampRecepteur = null;
       const label = document.createElement("label");
+      label.dataset.place = "compte1";
       label.textContent = "Compte";
       compteChamp = creerChampCompteAvecIndice(ligne.compte_id);
       label.appendChild(compteChamp.wrap);
@@ -20548,19 +20561,25 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
 
   const formulaire = document.createElement("div");
   formulaire.className = "ligne-edition-form";
+  // L'ARGENT EN DERNIER, comme dans le formulaire d'opération : tout ce qui décrit la ligne d'abord, puis
+  // le compte (émetteur), le montant (envoyé) et la monnaie (envoyée) ; sur un virement, en dessous le
+  // compte récepteur, le montant reçu et la monnaie reçue ; enfin les frais. Trois colonnes fixes (cf.
+  // `.ligne-edition-argent`) : chaque champ porte sa place (`data-place`), les trois conteneurs ne sont
+  // que des tiroirs (`display: contents`).
+  const argent = document.createElement("div");
+  argent.className = "ligne-edition-argent";
+  argent.append(compteWrap, montantWrap, monnaieWrap);
   formulaire.append(
     labelDate,
     labelNature,
-    montantWrap,
     labelType,
     categorieWrap,
-    compteWrap,
-    monnaieWrap,
     montantDuWrap,
     checklistWrap,
     amortissementWrap,
     declarerWrap,
-    labelNotes
+    labelNotes,
+    argent
   );
 
   const tdFormulaire = document.createElement("td");

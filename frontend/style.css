@@ -4092,6 +4092,37 @@ tr.ligne-apercu-edition > td {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
+/* LE BLOC DE L'ARGENT du formulaire d'une ligne importée : trois colonnes fixes (compte | montant |
+   monnaie), les deux jambes d'un virement l'une sous l'autre. Les conteneurs ne sont que des tiroirs ;
+   chaque champ se place par son `data-place`, un champ masqué laisse sa case vide. */
+.ligne-edition-argent {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.ligne-edition-argent > .ligne-edition-champ {
+  display: contents;
+}
+
+.ligne-edition-argent [data-place] { min-width: 0; }
+.ligne-edition-argent [data-place="compte1"] { grid-area: 1 / 1; }
+.ligne-edition-argent [data-place="montant"] { grid-area: 1 / 2; }
+.ligne-edition-argent [data-place="monnaie"] { grid-area: 1 / 3; }
+.ligne-edition-argent [data-place="compte2"] { grid-area: 2 / 1; }
+.ligne-edition-argent [data-place="montant-recu"] { grid-area: 2 / 2; }
+.ligne-edition-argent [data-place="monnaie-recue"] { grid-area: 2 / 3; }
+.ligne-edition-argent [data-place="frais"] { grid-area: 3 / 1; }
+.ligne-edition-argent [data-place="monnaie-frais"] { grid-area: 3 / 2; }
+
+.ligne-edition-argent input,
+.ligne-edition-argent select {
+  width: 100%;
+  min-width: 0;
+}
+
 /* Amortissement et Notes passent la ligne : ce sont les deux seuls champs de
    ce formulaire qui ne décrivent pas la transaction mais ce qu'on en fait, et
    les laisser s'intercaler entre compte et monnaie brouillait la lecture des
