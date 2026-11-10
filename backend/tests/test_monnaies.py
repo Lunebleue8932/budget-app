@@ -898,8 +898,9 @@ def test_les_operations_d_un_compte_ou_la_monnaie_s_eteint_restent_en_base(db_se
     """Éteindre ne supprime rien, y compris par la cascade : l'opération soldée garde sa devise."""
     euro = get_monnaie_id(db_session)
     dollar = creer_monnaie(db_session, "Dollar", "$").id
-    compte = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 0.0)])
-    for sens in ("entrée", "dépense"):
+    # Deux dépenses de 40 sur un solde initial de 80 : le solde final est nul, la monnaie peut s'éteindre.
+    compte = creer_compte(db_session, "Voyage", monnaies=[(euro, 0.0), (dollar, 80.0)])
+    for sens in ("dépense", "dépense"):
         crud.create_operation(
             db_session,
             schemas.OperationCreate(
