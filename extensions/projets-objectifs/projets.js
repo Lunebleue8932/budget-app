@@ -579,9 +579,9 @@ function cellulesOperationHtml(ligne, prefixe) {
           `"decoupe-${operation.id}"`,
           `"${prefixe}-decoupe-${operation.id}"`
         )
-      : escapeHtml(nomCategorie(operation.categorie_id));
+      : categorieHtml(operation.categorie_id);
   let montant = montantHtml(operation.montant, operation.sens, operation.monnaie_id);
-  let compte = escapeHtml(nomCompte(operation.compte_id));
+  let compte = compteHtml(operation.compte_id);
   if (ligne.sortante || ligne.entrante) {
     // Une seule jambe dans le projet (l'autre n'y a pas été versée) : elle s'écrit seule.
     const jambes = [ligne.sortante, ligne.entrante].filter(Boolean);
@@ -589,7 +589,7 @@ function cellulesOperationHtml(ligne, prefixe) {
       .map((j) => `<span class="projet-double">${montantHtml(j.montant, j.sens, j.monnaie_id)}</span>`)
       .join("");
     compte = jambes
-      .map((j) => `<span class="projet-double">${escapeHtml(nomCompte(j.compte_id))}</span>`)
+      .map((j) => `<span class="projet-double">${compteHtml(j.compte_id)}</span>`)
       .join("");
   }
   return `

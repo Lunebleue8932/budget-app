@@ -104,6 +104,9 @@ class Categorie(Base):
     # la couleur d'une barre. Un index n'est repris que si la catégorie qui le
     # portait est supprimée (cf. crud._prochain_couleur_index).
     couleur_index = Column(Integer, nullable=False, default=0)
+    # L'ICÔNE (migration 0101) : un emoji choisi à la main, NULL tant qu'on n'en a pas choisi. Elle se
+    # pose à côté du nom dans les listes, avec la couleur ci-dessus.
+    icone = Column(String, nullable=True)
     # OBJECTIF DE RÉPARTITION, en pourcentage des dépenses de la période (0 =
     # aucun objectif, cf. migration 0055). À NE PAS CONFONDRE avec
     # `CategorieBudgetMensuel.montant`, l'enveloppe en valeur : celle-là dit
@@ -486,6 +489,11 @@ class Compte(Base):
     # permet de l'éteindre sans rien exiger — un solde qui n'est pas nul reste
     # affiché, donc rien ne disparaît en silence.
     actif = Column(Boolean, nullable=False, default=True, server_default=sa_true())
+    # L'ICÔNE ET LA COULEUR DU COMPTE (migration 0101), choisies à la main : un emoji, et un index dans la
+    # palette des catégories (cf. frontend `PALETTE_CATEGORIES`). NULL = rien choisi ; l'écran retombe
+    # alors sur la couleur du TYPE de compte et n'écrit aucune icône.
+    icone = Column(String, nullable=True)
+    couleur_index = Column(Integer, nullable=True)
 
     operations = relationship("Operation", back_populates="compte")
     type_compte = relationship("TypeCompte")

@@ -113,14 +113,38 @@ class CompteBase(BaseModel):
     type_id: int
 
 
+def _icone_propre(valeur: Optional[str]) -> Optional[str]:
+    """L'icône d'une catégorie ou d'un compte : un emoji (ou deux, ou un mot court), rognée ; vide = aucune.
+    Jamais plus de 16 caractères : un emoji composé (famille, drapeau) en prend jusqu'à une dizaine."""
+    if valeur is None:
+        return None
+    valeur = valeur.strip()
+    if not valeur:
+        return None
+    if len(valeur) > 16:
+        raise ValueError("L'icône est trop longue : un emoji suffit.")
+    return valeur
+
+
 class CompteCreate(CompteBase):
     # Au moins une : un compte sans monnaie ne pourrait porter aucune opération.
     monnaies: list[CompteMonnaieInput] = Field(min_length=1)
+    # Icône et couleur (migration 0101) : facultatives, NULL = rien choisi.
+    icone: Optional[str] = None
+    couleur_index: Optional[int] = Field(default=None, ge=0)
+
+    _icone = field_validator("icone")(_icone_propre)
 
 
 class CompteUpdate(BaseModel):
     nom: Optional[str] = None
     type_id: Optional[int] = None
+    # Envoyés, ils REMPLACENT (null compris : c'est ainsi qu'on retire l'icône ou la couleur) ; absents,
+    # ils ne bougent pas (cf. crud.update_compte, `exclude_unset`).
+    icone: Optional[str] = None
+    couleur_index: Optional[int] = Field(default=None, ge=0)
+
+    _icone = field_validator("icone")(_icone_propre)
     # None = ne pas toucher aux monnaies ; une liste les remplace toutes (le
     # routeur refuse de retirer une monnaie encore utilisée par une opération).
     monnaies: Optional[list[CompteMonnaieInput]] = Field(default=None, min_length=1)
@@ -134,6 +158,18 @@ class CompteRead(CompteBase):
     # la saisie, et toujours là. L'écran des comptes le montre barré, c'est de
     # là qu'on le rallume.
     actif: bool = True
+    # L'icône et la couleur choisies (cf. models.Compte.icone, migration 0101) ; NULL = rien choisi.
+    icone: Optional[str] = None
+    couleur_index: Optional[int] = None
+
+
+class CategorieIconeUpdate(BaseModel):
+    """L'icône d'une catégorie (migration 0101) : un emoji, ou null pour la retirer. Une route à part
+    comme le reste des réglages d'une catégorie (`CategorieUpdate` ne fait que renommer)."""
+
+    icone: Optional[str] = None
+
+    _icone = field_validator("icone")(_icone_propre)
 
 
 class CategorieCreate(BaseModel):
@@ -160,6 +196,8 @@ class CategorieRead(BaseModel):
     # Couleur de la catégorie dans l'histogramme, sous forme d'index de palette
     # (cf. models.Categorie.couleur_index).
     couleur_index: int = 0
+    # L'icône choisie à la main (cf. models.Categorie.icone, migration 0101) ; NULL = aucune.
+    icone: Optional[str] = None
     # OBJECTIF DE RÉPARTITION en % des dépenses de la période, 0 = aucun (cf.
     # models.Categorie.objectif_pourcentage). Rien du serveur ne le compare à
     # quoi que ce soit : c'est le camembert du dashboard qui le pose à côté de

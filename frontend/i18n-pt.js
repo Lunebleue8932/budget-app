@@ -4418,4 +4418,22 @@ Object.assign(TRADUCTIONS.pt, {
   "Éteindre partout": "Desligar em todos",
   "« {nom} » est encore allumée sur les comptes ci-dessous. Éteindre une monnaie l'éteint sur tous les comptes qui la possèdent : elle ne sera plus proposée dans leurs formulaires ni dans leurs menus. // Leur solde dans cette monnaie est nul, donc rien ne disparaît des totaux, aucune opération n'est supprimée, et tu pourras la rallumer à tout moment.": "“{nom}” ainda está ligada nas contas abaixo. Desligar uma moeda a desliga em todas as contas que a possuem: ela deixa de ser oferecida nos formulários e menus delas. // O saldo delas nessa moeda é zero, então nada some dos totais, nenhuma operação é apagada, e você pode religá-la a qualquer momento.",
 // <<< FIN DES TRADUCTIONS AJOUTÉES : éteindre une monnaie sur tous ses comptes
+// >>> TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
+  "Icône": "Ícone",
+  "Couleur": "Cor",
+  "Aucune": "Nenhuma",
+  "ou colle un emoji": "ou cole um emoji",
+  "Retirer l'icône": "Remover ícone",
+  "Changer l'icône": "Alterar ícone",
+  "Choisir une icône": "Escolher um ícone",
+  "Argent": "Dinheiro",
+  "Maison": "Casa",
+  "Courses et repas": "Compras e refeições",
+  "Santé et bien-être": "Saúde e bem-estar",
+  "Vêtements et achats": "Roupas e compras",
+  "Famille et études": "Família e estudos",
+  "Divers": "Diversos",
+  "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.": "Um emoji exibido antes do nome da categoria nas listas. Escolha um na grade ou cole o seu. O selo ao redor tem a cor da categoria no histograma: ela é definida na criação e não é escolhida aqui.",
+  "Un emoji affiché devant le nom du compte dans les listes. Choisis-en un dans la grille, ou colle le tien. La couleur se choisit juste en dessous : sans couleur ni icône, le compte n'a pas de pastille.": "Um emoji exibido antes do nome da conta nas listas. Escolha um na grade ou cole o seu. A cor é escolhida logo abaixo: sem cor nem ícone, a conta não tem selo.",
+// <<< FIN DES TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
 });

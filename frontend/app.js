@@ -7217,10 +7217,25 @@ function lireCompteMonnaies(bloc = document.getElementById("compte-monnaies")) {
 
 document.getElementById("compte-calcul-solde").addEventListener("change", () => majLignesSoldeActuel());
 
+// L'ICÔNE ET LA COULEUR DU COMPTE, créées à la première ouverture du formulaire (cf. pastilles.js).
+let champsPastillesCompte = null;
+function assurerChampsPastillesCompte() {
+  if (!champsPastillesCompte) {
+    champsPastillesCompte = {
+      icone: creerChampIcone(document.getElementById("compte-icone")),
+      couleur: creerChampCouleur(document.getElementById("compte-couleur")),
+    };
+  }
+  return champsPastillesCompte;
+}
+
 function resetCompteForm() {
   // Le formulaire retourne à sa place (le bloc de création, en bas de page) :
   // « annuler » et « enregistrer » passent tous deux par ici.
   fermerFormulaireEnLigne("form-compte");
+  const pastilles = assurerChampsPastillesCompte();
+  pastilles.icone.poser(null);
+  pastilles.couleur.poser(null);
   document.getElementById("compte-id").value = "";
   document.getElementById("compte-nom").value = "";
   // Par défaut la première monnaie de l'app : le cas mono-devise, de loin le
@@ -7243,6 +7258,9 @@ function fillCompteForm(compte, ancre) {
   // Sous la ligne double-cliquée, comme sur la page Opérations. Sans ancre
   // (appel programmatique), le formulaire reste à sa place.
   ouvrirFormulaireEnLigne("form-compte", "form-compte-titre", ancre);
+  const pastilles = assurerChampsPastillesCompte();
+  pastilles.icone.poser(compte.icone);
+  pastilles.couleur.poser(compte.couleur_index);
   document.getElementById("compte-id").value = compte.id;
   document.getElementById("compte-nom").value = compte.nom;
   document.getElementById("compte-type").value = compte.type_id;
@@ -7345,7 +7363,7 @@ function construireLigneCompte(compte) {
   ligne.dataset.id = compte.id;
   ligne.innerHTML = `
     <span class="drag-handle" title="${t("Glisser pour réordonner, ou vers une autre carte pour changer de type")}">⠿</span>
-    <span class="import-mapping-nom">${escapeHtml(compte.nom)}</span>
+    <span class="import-mapping-nom">${compteHtml(compte.id)}</span>
     <!-- LES ÉTEINTES RESTENT LISTÉES ICI, en grisé : c'est la ligne depuis
          laquelle on rallume, et une monnaie qu'on ne voit nulle part ne se
          rallume pas. Partout ailleurs (cartes de compte, onglets du dashboard)
@@ -7587,6 +7605,9 @@ document.getElementById("form-compte").addEventListener("submit", async (e) => {
     nom: document.getElementById("compte-nom").value,
     type_id: Number(document.getElementById("compte-type").value),
     monnaies,
+    // Toujours envoyés : null retire l'icône ou la couleur (cf. schemas.CompteUpdate).
+    icone: assurerChampsPastillesCompte().icone.lire(),
+    couleur_index: assurerChampsPastillesCompte().couleur.lire(),
   };
   try {
     if (id) {
@@ -7627,8 +7648,18 @@ document.getElementById("compte-annuler").addEventListener("click", resetCompteF
  * inatteignables — même règle que « Prêts » et ses deux types d'opération.
  */
 
+// LE CHAMP « ICÔNE » DE LA CATÉGORIE, créé à la première ouverture (cf. pastilles.js).
+let champIconeCategorie = null;
+function assurerChampIconeCategorie() {
+  if (!champIconeCategorie) {
+    champIconeCategorie = creerChampIcone(document.getElementById("categorie-icone"));
+  }
+  return champIconeCategorie;
+}
+
 function resetCategorieForm() {
   fermerFormulaireEnLigne("form-categorie");
+  assurerChampIconeCategorie().poser(null);
   document.getElementById("categorie-id").value = "";
   document.getElementById("categorie-nom").value = "";
   document.getElementById("categorie-nom").disabled = false;
@@ -7719,6 +7750,7 @@ document.getElementById("categorie-mots-cles-livres").addEventListener("click", 
 
 function fillCategorieForm(categorie, ancre) {
   ouvrirFormulaireEnLigne("form-categorie", "form-categorie-titre", ancre);
+  assurerChampIconeCategorie().poser(categorie.icone);
   document.getElementById("categorie-id").value = categorie.id;
   const champNom = document.getElementById("categorie-nom");
   champNom.value = categorie.nom;
@@ -7799,7 +7831,7 @@ function renderCategories() {
 
     tr.innerHTML = `
       <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
-      <td>${escapeHtml(libelleCategorie(c.nom))}${
+      <td>${categorieHtml(c.id)}${
         // UNE PASTILLE ET PAS UNE COLONNE : une colonne « Entrée ? » aurait
         // écrit vingt fois « non » pour dire une fois « oui ». Ce qui se voit
         // doit être ce qui a été décidé — même règle que la colonne d'objectifs
@@ -7918,13 +7950,29 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
           body: JSON.stringify({ mots_cles: mots }),
         });
       }
+      // L'ICÔNE, SEULEMENT SI ELLE A CHANGÉ (même raison que la case d'entrée : une route à part).
+      const icone = champIconeCategorie.lire();
+      if ((icone || null) !== ((avant && avant.icone) || null)) {
+        await apiFetch(`/categories/${id}/icone`, {
+          method: "PUT",
+          body: JSON.stringify({ icone }),
+        });
+      }
       showMessage(t("Catégorie modifiée"), "success");
     } else {
       const nomInput = document.getElementById("categorie-nom");
-      await apiFetch("/categories", {
+      const creee = await apiFetch("/categories", {
         method: "POST",
         body: JSON.stringify({ nom: nomInput.value }),
       });
+      // La route de création ne prend que le nom : l'icône choisie se pose juste après.
+      const icone = champIconeCategorie.lire();
+      if (icone) {
+        await apiFetch(`/categories/${creee.id}/icone`, {
+          method: "PUT",
+          body: JSON.stringify({ icone }),
+        });
+      }
       showMessage(t("Catégorie créée"), "success");
     }
     resetCategorieForm();
@@ -10366,7 +10414,7 @@ function ligneSeparatriceJour(jour, nbColonnes) {
  * qu'une infobulle au survol n'aurait pas été.
  */
 function celluleCategorieOperation(op) {
-  if (!op.decoupes || op.decoupes.length === 0) return nomCategorie(op.categorie_id);
+  if (!op.decoupes || op.decoupes.length === 0) return categorieHtml(op.categorie_id);
   const titre = t("Voir le détail de la découpe");
   return (
     `<button type="button" class="decoupe-bascule" data-bascule="decoupe-${op.id}"` +
@@ -10458,7 +10506,7 @@ function renderClassiques(liste) {
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${celluleMontantOperation(op, "classique")}</td>
-      <td>${nomCompte(op.compte_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
       ${sansCategorie ? "" : `<td>${celluleCategorieOperation(op)}</td>`}
       <td>${statutLabel(op.statut)}</td>
       <td>
@@ -10498,8 +10546,8 @@ function renderRemboursables(liste) {
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
-      <td>${nomCompte(op.compte_id)}</td>
-      <td>${nomCategorie(op.categorie_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
+      <td>${categorieHtml(op.categorie_id)}</td>
       <td class="montant neutre">${formatMontant(op.montant_du, op.monnaie_id)}</td>
       <td>${cellHtml}</td>
       <td>
@@ -10532,7 +10580,7 @@ function renderRemboursements(liste) {
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
-      <td>${nomCompte(op.compte_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
       <td>${couvre}</td>
       <td>
         <button data-action="edit" data-id="${op.id}">${t("Modifier")}</button>
@@ -10582,8 +10630,8 @@ function renderVirements(paires) {
     tr.innerHTML = `
       <td>${celluleNature(reference)}</td>
       <td>${change}</td>
-      <td>${sortante ? nomCompte(sortante.compte_id) : "-"}</td>
-      <td>${entrante ? nomCompte(entrante.compte_id) : "-"}</td>
+      <td>${sortante ? compteHtml(sortante.compte_id) : "-"}</td>
+      <td>${entrante ? compteHtml(entrante.compte_id) : "-"}</td>
       <td>${statutLabel(reference.statut)}</td>
       <td>
         <button data-action="edit-virement" data-virement-id="${virementId}">${t("Modifier")}</button>
@@ -10712,7 +10760,7 @@ function renderPrets(liste) {
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
-      <td>${nomCompte(op.compte_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
       <td>${cellHtml}</td>
       <td>
         <button data-action="edit" data-id="${op.id}">${t("Modifier")}</button>
@@ -10744,7 +10792,7 @@ function renderRemboursementPrets(liste) {
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
-      <td>${nomCompte(op.compte_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
       <td>${couvre}</td>
       <td>
         <button data-action="edit" data-id="${op.id}">${t("Modifier")}</button>

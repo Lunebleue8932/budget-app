@@ -779,6 +779,17 @@ def set_categorie_mots_cles(
     return db_categorie
 
 
+def set_categorie_icone(
+    db: Session, db_categorie: models.Categorie, icone: Optional[str]
+) -> models.Categorie:
+    """Pose (ou retire, avec None) l'icône d'une catégorie (migration 0101). Une route à part : le nom
+    se règle par `update_categorie`, et l'icône ne doit pas dépendre d'un renommage."""
+    db_categorie.icone = icone
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
 def set_categorie_est_entree(
     db: Session, db_categorie: models.Categorie, est_entree: bool
 ) -> models.Categorie:
@@ -997,6 +1008,8 @@ def create_compte(db: Session, compte: schemas.CompteCreate) -> models.Compte:
         nom=compte.nom,
         type_id=compte.type_id,
         ordre=ordre_suivant_dans_type(db, compte.type_id),
+        icone=compte.icone,
+        couleur_index=compte.couleur_index,
     )
     _appliquer_monnaies_compte(db_compte, compte.monnaies)
     db.add(db_compte)

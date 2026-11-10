@@ -297,6 +297,10 @@ const TEXTES = {
     "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.",
   "noyau.categorie-entree":
     "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
+  "noyau.icone-categorie":
+    "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.",
+  "noyau.icone-compte":
+    "Un emoji affiché devant le nom du compte dans les listes. Choisis-en un dans la grille, ou colle le tien. La couleur se choisit juste en dessous : sans couleur ni icône, le compte n'a pas de pastille.",
   "noyau.correspondances-memorisees":
     "Les correspondances - catégories, comptes bancaires, monnaies - que l'app a mémorisé de tes imports",
   "noyau.categories-bancaires":

@@ -1322,6 +1322,136 @@ select option.option-creer {
   text-decoration: underline;
 }
 
+/* ---------- Les pastilles : couleur et icône des catégories et des comptes (cf. pastilles.js) ---------- */
+
+.avec-puce {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* La puce : un disque à la couleur de l'élément, son icône (un emoji) dedans quand il en a une. Un disque
+   plein sans icône ; un anneau teinté avec icône, pour que l'emoji garde ses couleurs. */
+.puce {
+  --puce: var(--text-muted);
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--puce);
+}
+
+.puce.puce-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  background: color-mix(in srgb, var(--puce) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--puce);
+}
+
+/* LE CHAMP « ICÔNE » DES FORMULAIRES */
+.champ-icone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+form .champ-icone .icone-bouton {
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+form .champ-icone .icone-bouton.vide {
+  color: var(--text-muted);
+}
+
+.icone-panneau {
+  flex: 1 1 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem;
+  background: var(--bg-surface-alt);
+}
+
+.icone-panneau[hidden] {
+  display: none;
+}
+
+.icone-entete {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.icone-entete .icone-saisie {
+  max-width: 11rem;
+}
+
+.icone-famille {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.icone-grille {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+form .icone-grille .icone-choix {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1.05rem;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+form .icone-grille .icone-choix:hover,
+form .icone-grille .icone-choix:focus-visible {
+  border-color: var(--border);
+  background: var(--bg-surface);
+}
+
+/* LE CHAMP « COULEUR » D'UN COMPTE : les pastilles de la palette, celle qui est choisie cerclée. */
+.champ-couleur {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+form .champ-couleur .couleur-choix {
+  --puce: var(--text-muted);
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--puce);
+  border: 2px solid transparent;
+}
+
+form .champ-couleur .couleur-choix.choisie {
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--text-primary);
+}
+
+form .champ-couleur .couleur-aucune.choisie {
+  border-color: var(--text-primary);
+}
+
 /* UNE OPÉRATION PRÉVISIONNELLE : toute la ligne en gris italique (cf. marquerPrevisionnelle, app.js), les
    montants compris — leur couleur dit le sens de l'argent, mais ce qui est PRÉVU doit se distinguer de ce
    qui a EU LIEU avant tout. Les boutons gardent leur couleur : ce sont des gestes, pas des données. */

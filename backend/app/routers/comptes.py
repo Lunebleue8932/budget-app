@@ -44,6 +44,8 @@ def _compte_read(compte: models.Compte, soldes: dict | None = None) -> schemas.C
             for lien in compte.monnaies
         ],
         actif=compte.actif,
+        icone=compte.icone,
+        couleur_index=compte.couleur_index,
     )
 
 

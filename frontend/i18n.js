@@ -5195,4 +5195,22 @@ Object.assign(TRADUCTIONS.en, {
   "Éteindre partout": "Turn off everywhere",
   "« {nom} » est encore allumée sur les comptes ci-dessous. Éteindre une monnaie l'éteint sur tous les comptes qui la possèdent : elle ne sera plus proposée dans leurs formulaires ni dans leurs menus. // Leur solde dans cette monnaie est nul, donc rien ne disparaît des totaux, aucune opération n'est supprimée, et tu pourras la rallumer à tout moment.": "“{nom}” is still turned on for the accounts below. Turning off a currency turns it off on every account that holds it: it will no longer be offered in their forms or menus. // Their balance in this currency is zero, so nothing disappears from the totals, no transaction is deleted, and you can turn it back on at any time.",
 // <<< FIN DES TRADUCTIONS AJOUTÉES : éteindre une monnaie sur tous ses comptes
+// >>> TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
+  "Icône": "Icon",
+  "Couleur": "Color",
+  "Aucune": "None",
+  "ou colle un emoji": "or paste an emoji",
+  "Retirer l'icône": "Remove icon",
+  "Changer l'icône": "Change icon",
+  "Choisir une icône": "Choose an icon",
+  "Argent": "Money",
+  "Maison": "Home",
+  "Courses et repas": "Groceries and meals",
+  "Santé et bien-être": "Health and wellness",
+  "Vêtements et achats": "Clothing and shopping",
+  "Famille et études": "Family and studies",
+  "Divers": "Miscellaneous",
+  "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.": "An emoji shown in front of the category name in lists. Pick one from the grid, or paste your own. The badge around it has the category's histogram color: it is set when the category is created and cannot be chosen here.",
+  "Un emoji affiché devant le nom du compte dans les listes. Choisis-en un dans la grille, ou colle le tien. La couleur se choisit juste en dessous : sans couleur ni icône, le compte n'a pas de pastille.": "An emoji shown in front of the account name in lists. Pick one from the grid, or paste your own. The color is chosen just below: with no color and no icon, the account has no badge.",
+// <<< FIN DES TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
 });

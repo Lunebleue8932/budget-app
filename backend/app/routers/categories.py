@@ -194,6 +194,20 @@ def set_entree_categorie(
     return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
 
 
+@router.put("/{categorie_id}/icone", response_model=schemas.CategorieRead)
+def set_icone_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieIconeUpdate,
+    db: Session = Depends(get_db),
+):
+    """L'icône d'une catégorie (migration 0101) : un emoji ; `null` la retire. Elle se pose à côté du nom
+    dans les listes, avec la couleur de la catégorie dans l'histogramme."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return crud.set_categorie_icone(db, db_categorie, updates.icone)
+
+
 @router.put("/{categorie_id}/mots-cles", response_model=schemas.CategorieRead)
 def set_mots_cles_categorie(
     categorie_id: int,
