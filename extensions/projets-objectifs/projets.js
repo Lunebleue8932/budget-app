@@ -567,7 +567,12 @@ async function fermerProjet() {
 // LES IDENTIFIANTS SONT PRÉFIXÉS (`prefixe`) : la page Opérations vit dans le même document
 // et pose déjà des lignes `decoupe-<id>` — sans préfixe, le bouton d'ici déplierait la
 // sienne.
-function cellulesOperationHtml(operation, prefixe) {
+//
+// UN VIREMENT INTERNE EST UNE SEULE LIGNE, comme dans l'onglet Virements d'Opérations : ses deux jambes
+// (sortante, entrante) sont regroupées par `virement_id` (cf. projetRegrouper) et la ligne écrit les deux
+// comptes et les deux montants (monnaies comprises), l'un au-dessus de l'autre.
+function cellulesOperationHtml(ligne, prefixe) {
+  const operation = ligne.operation;
   const categorie =
     operation.decoupes && operation.decoupes.length > 0
       ? celluleCategorieOperation(operation).replaceAll(
@@ -575,13 +580,50 @@ function cellulesOperationHtml(operation, prefixe) {
           `"${prefixe}-decoupe-${operation.id}"`
         )
       : escapeHtml(nomCategorie(operation.categorie_id));
+  let montant = montantHtml(operation.montant, operation.sens, operation.monnaie_id);
+  let compte = escapeHtml(nomCompte(operation.compte_id));
+  if (ligne.sortante || ligne.entrante) {
+    // Une seule jambe dans le projet (l'autre n'y a pas été versée) : elle s'écrit seule.
+    const jambes = [ligne.sortante, ligne.entrante].filter(Boolean);
+    montant = jambes
+      .map((j) => `<span class="projet-double">${montantHtml(j.montant, j.sens, j.monnaie_id)}</span>`)
+      .join("");
+    compte = jambes
+      .map((j) => `<span class="projet-double">${escapeHtml(nomCompte(j.compte_id))}</span>`)
+      .join("");
+  }
   return `
     <td>${escapeHtml(operation.nature)}</td>
-    <td>${montantHtml(operation.montant, operation.sens, operation.monnaie_id)}</td>
-    <td>${escapeHtml(nomCompte(operation.compte_id))}</td>
+    <td>${montant}</td>
+    <td>${compte}</td>
     <td>${formatDate(operation.date)}</td>
     <td>${categorie}</td>
   `;
+}
+
+/** Regroupe les deux jambes d'un même virement interne en UNE ligne `{ operation, ids, sortante, entrante }`
+ *  (`operation` : la jambe de référence, sortante d'abord) ; toute autre opération est sa propre ligne.
+ *  L'ordre est celui de la première jambe rencontrée. */
+function projetRegrouper(operations) {
+  const lignes = [];
+  const parVirement = new Map();
+  operations.forEach((operation) => {
+    if (operation.type_code !== "virement" || !operation.virement_id) {
+      lignes.push({ operation, ids: [operation.id] });
+      return;
+    }
+    let ligne = parVirement.get(operation.virement_id);
+    if (!ligne) {
+      ligne = { operation, ids: [], sortante: null, entrante: null };
+      parVirement.set(operation.virement_id, ligne);
+      lignes.push(ligne);
+    }
+    ligne.ids.push(operation.id);
+    if (operation.sens === "transfert_sortant") ligne.sortante = operation;
+    else ligne.entrante = operation;
+    ligne.operation = ligne.sortante || ligne.entrante;
+  });
+  return lignes;
 }
 
 // Les deux tableaux de l'écran ont six colonnes : la ligne de détail les couvre toutes.
@@ -613,22 +655,23 @@ function renderProjetOperations() {
     return;
   }
 
-  visibles.forEach((operation) => {
+  projetRegrouper(visibles).forEach((ligneProjet) => {
+    const operation = ligneProjet.operation;
     const ligne = document.createElement("tr");
     ligne.innerHTML = `
-      ${cellulesOperationHtml(operation, "projet-op")}
+      ${cellulesOperationHtml(ligneProjet, "projet-op")}
       <td>
         <button type="button" data-action="retirer">${t("Retirer")}</button>
       </td>
     `;
     // RETIRER, PAS SUPPRIMER, et sans confirmation : l'opération reste en base
     // avec son compte, sa catégorie et son montant — c'est le lien qui part, et
-    // le remettre est un clic.
+    // le remettre est un clic. Un virement part avec ses deux jambes.
     ligne.querySelector("[data-action='retirer']").addEventListener("click", async () => {
       try {
         await apiFetch(`${PROJETS_BASE}/${projetOuvert.id}/operations`, {
           method: "DELETE",
-          body: JSON.stringify({ operation_ids: [operation.id] }),
+          body: JSON.stringify({ operation_ids: ligneProjet.ids }),
         });
         showMessage(t("Opération retirée du projet (elle reste en base)."), "success");
         await ouvrirProjet(projetOuvert);
@@ -737,16 +780,17 @@ function creerVoletSousProjet(noeud, parId, parentId) {
       </tr></thead>
       <tbody></tbody>`;
     const lignes = table.querySelector("tbody");
-    propres.forEach((operation) => {
+    projetRegrouper(propres).forEach((ligneProjet) => {
+      const operation = ligneProjet.operation;
       const ligne = document.createElement("tr");
       ligne.innerHTML = `
-        ${cellulesOperationHtml(operation, prefixe)}
+        ${cellulesOperationHtml(ligneProjet, prefixe)}
         <td><button type="button" data-action="retirer">${t("Retirer")}</button></td>`;
       ligne.querySelector("[data-action='retirer']").addEventListener("click", async () => {
         try {
           await apiFetch(`${PROJETS_BASE}/${noeud.id}/operations`, {
             method: "DELETE",
-            body: JSON.stringify({ operation_ids: [operation.id] }),
+            body: JSON.stringify({ operation_ids: ligneProjet.ids }),
           });
           showMessage(t("Opération retirée du projet (elle reste en base)."), "success");
           await ouvrirProjet(projetOuvert);
@@ -880,7 +924,7 @@ document.getElementById("btn-projet-sortir-parent").addEventListener("click", as
 /* LES TROIS FILTRES À COCHER : comptes, types, catégories. `null` = tout coché, c'est-à-dire
  * aucun filtre — la forme canonique du filtre du dashboard, qui garde « tout » vrai quand
  * une catégorie est créée entre deux ouvertures. Un Set d'identifiants sinon. */
-const projetFiltres = { comptes: null, types: null, categories: null };
+const projetFiltres = { comptes: null, types: null, categories: null, monnaies: null };
 
 function projetPoserFiltre(cle, conteneurId, libelle, options) {
   // Les intertitres (`{ titre }`) rangent, ils ne se cochent pas.
@@ -947,6 +991,16 @@ function ouvrirSelecteurProjet() {
       .filter((type) => !type.interne)
       .map((type) => ({ cle: type.id, libelle: type.nom }))
   );
+  // LES MONNAIES, éteintes comprises (une opération déjà écrite peut en porter une) : le menu ne paraît
+  // qu'avec une seconde monnaie, comme le champ « monnaie visée » du projet.
+  const monnaies = state.monnaies || [];
+  document.getElementById("projet-filtre-monnaies").style.display = monnaies.length > 1 ? "" : "none";
+  projetPoserFiltre(
+    "monnaies",
+    "projet-filtre-monnaies",
+    t("Monnaies"),
+    monnaies.map((m) => ({ cle: m.id, libelle: `${m.nom} (${m.symbole})` }))
+  );
   // Toutes les catégories, éteintes comprises : une opération déjà écrite peut en
   // porter une, et le sélecteur sert justement à retrouver des opérations. Avec leur
   // pastille de couleur, comme le filtre du dashboard.
@@ -1000,19 +1054,25 @@ async function chercherCandidatsProjet() {
       .value.trim()
       .toLowerCase();
     const deja = new Set(projetOperations.map((o) => o.id));
-    const { comptes, types } = projetFiltres;
-    projetCandidats = operations.filter(
-      (operation) =>
-        // Déjà dans le projet : la proposer inviterait à un geste sans effet
-        // (le serveur ignore les doublons, mais l'écran ne doit pas les
-        // suggérer).
-        !deja.has(operation.id) &&
-        (!comptes || comptes.has(operation.compte_id)) &&
-        // PAR TYPE : avec « Tout sélectionner », c'est le geste pour verser d'un coup
-        // toutes les dépenses remboursables, ou tous les virements, d'une période.
-        (!types || types.has(operation.type_id)) &&
-        projetPasseCategories(operation) &&
-        (!texte || operation.nature.toLowerCase().includes(texte))
+    const { comptes, types, monnaies } = projetFiltres;
+    const passe = (operation) =>
+      (!comptes || comptes.has(operation.compte_id)) &&
+      // PAR MONNAIE : la monnaie de l'opération elle-même (celle de chaque jambe, pour un virement).
+      (!monnaies || monnaies.has(operation.monnaie_id)) &&
+      // PAR TYPE : avec « Tout sélectionner », c'est le geste pour verser d'un coup
+      // toutes les dépenses remboursables, ou tous les virements, d'une période.
+      (!types || types.has(operation.type_id)) &&
+      projetPasseCategories(operation) &&
+      (!texte || operation.nature.toLowerCase().includes(texte));
+    // Déjà dans le projet : la proposer inviterait à un geste sans effet
+    // (le serveur ignore les doublons, mais l'écran ne doit pas les suggérer).
+    // UN VIREMENT EST UNE LIGNE : il est proposé dès qu'UNE de ses jambes passe les filtres, et se verse
+    // avec ses deux jambes (celles qui ne sont pas déjà dans le projet).
+    projetCandidats = projetRegrouper(operations.filter((operation) => !deja.has(operation.id))).filter(
+      (ligne) => {
+        const jambes = [ligne.sortante, ligne.entrante].filter(Boolean);
+        return (jambes.length ? jambes : [ligne.operation]).some(passe);
+      }
     );
   } catch (err) {
     showMessage(err.message, "error");
@@ -1031,19 +1091,19 @@ function renderCandidatsProjet() {
     { n: projetCandidats.length }
   );
 
-  projetCandidats.forEach((operation) => {
+  projetCandidats.forEach((candidat) => {
+    const operation = candidat.operation;
     const ligne = document.createElement("tr");
     ligne.innerHTML = `
-      ${cellulesOperationHtml(operation, "projet-cand")}
+      ${cellulesOperationHtml(candidat, "projet-cand")}
       <td>
         <input type="checkbox" data-role="selection" ${
-          projetSelection.has(operation.id) ? "checked" : ""
+          candidat.ids.every((id) => projetSelection.has(id)) ? "checked" : ""
         } />
       </td>
     `;
     ligne.querySelector("[data-role='selection']").addEventListener("change", (e) => {
-      if (e.target.checked) projetSelection.add(operation.id);
-      else projetSelection.delete(operation.id);
+      candidat.ids.forEach((id) => (e.target.checked ? projetSelection.add(id) : projetSelection.delete(id)));
       majSelectionProjet();
     });
     corps.appendChild(ligne);
@@ -1128,8 +1188,9 @@ document.getElementById("btn-projet-filtrer").addEventListener("click", chercher
 document.getElementById("btn-projet-tout-selectionner").addEventListener("click", () => {
   // Bascule : re-cliquer désélectionne tout, plutôt que de forcer à décocher
   // ligne à ligne ce qu'un clic vient de cocher.
-  const toutCoche = projetSelection.size === projetCandidats.length && projetCandidats.length > 0;
-  projetSelection = toutCoche ? new Set() : new Set(projetCandidats.map((o) => o.id));
+  const ids = projetCandidats.flatMap((c) => c.ids);
+  const toutCoche = ids.length > 0 && ids.every((id) => projetSelection.has(id));
+  projetSelection = toutCoche ? new Set() : new Set(ids);
   renderCandidatsProjet();
 });
 

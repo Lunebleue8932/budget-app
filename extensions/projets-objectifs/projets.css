@@ -327,3 +327,13 @@
   align-items: center;
   gap: 0.6rem;
 }
+
+/* UN VIREMENT INTERNE EN UNE LIGNE : ses deux comptes et ses deux montants, l'un au-dessus de l'autre. */
+.projet-double {
+  display: block;
+  white-space: nowrap;
+}
+.projet-double + .projet-double::before {
+  content: "→ ";
+  color: var(--text-secondary);
+}

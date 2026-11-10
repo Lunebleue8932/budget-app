@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=151" />
+  <link rel="stylesheet" href="style.css?v=152" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -1530,55 +1530,13 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <button type="button" data-type="remboursement_pret" data-extension="prets" style="display:none">Remboursement de prêt</button>
         </div>
 
+        <!-- L'ARGENT VIENT EN DERNIER (cf. `.operation-argent`, plus bas) : tout ce qui décrit
+             l'opération — nature, date, catégorie, cases, détails, notes — passe en premier. -->
         <label>Nature
           <input type="text" id="operation-nature" />
         </label>
-        <label>
-          <span id="operation-montant-label">Montant</span>
-          <input type="number" step="0.01" min="0" id="operation-montant" required />
-        </label>
-        <!-- La monnaie n'est proposée que lorsqu'elle se choisit vraiment : un
-             compte mono-monnaie n'a rien à demander, elle est déduite. -->
-        <label id="operation-monnaie-bloc" style="display:none">
-          <span id="operation-monnaie-label">Monnaie</span>
-          <select id="operation-monnaie"></select>
-        </label>
-        <label id="operation-montant-recu-bloc" style="display:none">Montant reçu
-          <input type="number" step="0.01" min="0" id="operation-montant-recu" />
-        </label>
-        <label id="operation-monnaie-recue-bloc" style="display:none">Monnaie reçue
-          <select id="operation-monnaie-recue"></select>
-        </label>
-        <!-- LES FRAIS COMPRIS DANS LE MONTANT, séparés pour être relus et
-             corrigés. Affichés SEULEMENT quand l'opération en porte : une
-             ligne sur cent en a, et deux champs de plus sur chaque saisie
-             ordinaire coûteraient plus qu'ils ne rendent. Le montant affiché
-             au-dessus passe alors HORS FRAIS, et les deux se recomposent à
-             l'enregistrement (cf. app.js, § « Frais d'une opération »). -->
-        <label id="operation-frais-bloc" style="display:none">
-          <span class="champ-titre">Frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.frais">i</i></span>
-          <input type="number" step="0.01" min="0" id="operation-frais" />
-        </label>
-        <label id="operation-monnaie-frais-bloc" style="display:none">
-          <span class="champ-titre">Monnaie des frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-des-frais">i</i></span>
-          <select id="operation-monnaie-frais"></select>
-        </label>
-        <!-- Sur un VIREMENT seulement, et tant qu'il ne porte pas de frais : les champs ci-dessus
-             n'apparaissent d'eux-mêmes que pour des frais déjà là (cf. app.js, majBoutonAjoutFrais). -->
-        <button type="button" id="operation-frais-ajouter" class="operation-frais-ajouter" style="display:none">+ Ajouter des frais</button>
         <label>Date
           <input type="date" id="operation-date" required />
-        </label>
-
-        <label id="operation-compte-bloc">Compte
-          <select id="operation-compte"></select>
-        </label>
-
-        <label id="operation-compte1-bloc" style="display:none">Compte source
-          <select id="operation-compte1"></select>
-        </label>
-        <label id="operation-compte2-bloc" style="display:none">Compte destination
-          <select id="operation-compte2"></select>
         </label>
 
         <label id="operation-categorie-bloc">Catégorie
@@ -1795,6 +1753,60 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           Notes<i class="info-bulle" tabindex="0" data-info-cle="noyau.notes-2">i</i>
           <textarea id="operation-notes" rows="3" placeholder="ex. facture partagée avec Léa, à revérifier sur le relevé de mars"></textarea>
         </label>
+
+        <!-- LE BLOC DE L'ARGENT, en trois colonnes qui s'alignent d'une rangée à l'autre :
+               rangée 1 — le compte (émetteur, pour un virement), le montant, la monnaie ;
+               rangée 2 — un virement seulement : le compte récepteur, le montant reçu, la monnaie reçue ;
+               rangée 3 — les frais, et la monnaie des frais.
+             Chaque champ garde sa colonne même quand son voisin est masqué (montant reçu quand les deux
+             monnaies sont les mêmes, monnaie quand le compte n'en porte qu'une) : ce qui part et ce qui
+             arrive se lisent l'un au-dessus de l'autre. -->
+        <div class="full-width operation-argent" id="operation-argent">
+          <label id="operation-compte-bloc" class="operation-col-1">Compte
+            <select id="operation-compte"></select>
+          </label>
+          <label id="operation-compte1-bloc" class="operation-col-1" style="display:none">Compte émetteur
+            <select id="operation-compte1"></select>
+          </label>
+          <label class="operation-col-2">
+            <span id="operation-montant-label">Montant</span>
+            <input type="number" step="0.01" min="0" id="operation-montant" required />
+          </label>
+          <!-- La monnaie n'est proposée que lorsqu'elle se choisit vraiment : un
+               compte mono-monnaie n'a rien à demander, elle est déduite. -->
+          <label id="operation-monnaie-bloc" class="operation-col-3" style="display:none">
+            <span id="operation-monnaie-label">Monnaie</span>
+            <select id="operation-monnaie"></select>
+          </label>
+
+          <label id="operation-compte2-bloc" class="operation-col-1" style="display:none">Compte récepteur
+            <select id="operation-compte2"></select>
+          </label>
+          <label id="operation-montant-recu-bloc" class="operation-col-2" style="display:none">Montant reçu
+            <input type="number" step="0.01" min="0" id="operation-montant-recu" />
+          </label>
+          <label id="operation-monnaie-recue-bloc" class="operation-col-3" style="display:none">Monnaie reçue
+            <select id="operation-monnaie-recue"></select>
+          </label>
+
+          <!-- LES FRAIS COMPRIS DANS LE MONTANT, séparés pour être relus et
+               corrigés. Affichés SEULEMENT quand l'opération en porte : une
+               ligne sur cent en a, et deux champs de plus sur chaque saisie
+               ordinaire coûteraient plus qu'ils ne rendent. Le montant affiché
+               au-dessus passe alors HORS FRAIS, et les deux se recomposent à
+               l'enregistrement (cf. app.js, § « Frais d'une opération »). -->
+          <label id="operation-frais-bloc" class="operation-col-1" style="display:none">
+            <span class="champ-titre">Frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.frais">i</i></span>
+            <input type="number" step="0.01" min="0" id="operation-frais" />
+          </label>
+          <label id="operation-monnaie-frais-bloc" class="operation-col-2" style="display:none">
+            <span class="champ-titre">Monnaie des frais<i class="info-bulle" tabindex="0" data-info-cle="noyau.monnaie-des-frais">i</i></span>
+            <select id="operation-monnaie-frais"></select>
+          </label>
+          <!-- Sur un VIREMENT seulement, et tant qu'il ne porte pas de frais : les champs ci-dessus
+               n'apparaissent d'eux-mêmes que pour des frais déjà là (cf. app.js, majBoutonAjoutFrais). -->
+          <button type="button" id="operation-frais-ajouter" class="operation-frais-ajouter operation-col-1" style="display:none">+ Ajouter des frais</button>
+        </div>
 
         <div class="actions full-width">
           <button type="submit" class="primary">Enregistrer</button>

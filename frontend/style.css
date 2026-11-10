@@ -1322,6 +1322,35 @@ select option.option-creer {
   text-decoration: underline;
 }
 
+/* LE BLOC DE L'ARGENT du formulaire d'opération : trois colonnes FIXES (compte | montant | monnaie), pour
+   que ce qui part et ce qui arrive d'un virement se lisent l'un au-dessus de l'autre. Chaque champ porte
+   sa colonne (`operation-col-N`) : un champ masqué laisse sa case vide au lieu de décaler ses voisins. */
+.operation-argent {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  align-items: end;
+}
+
+.operation-argent .operation-col-1 { grid-column: 1; }
+.operation-argent .operation-col-2 { grid-column: 2; }
+.operation-argent .operation-col-3 { grid-column: 3; }
+
+.operation-argent .operation-frais-ajouter { justify-self: start; }
+
+.operation-argent select,
+.operation-argent input {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .operation-argent { grid-template-columns: 1fr; }
+  .operation-argent .operation-col-1,
+  .operation-argent .operation-col-2,
+  .operation-argent .operation-col-3 { grid-column: 1; }
+}
+
 .bouton-creer-monnaie:hover,
 .bouton-creer-monnaie:focus-visible {
   color: var(--text-primary);
