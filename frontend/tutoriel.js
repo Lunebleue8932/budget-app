@@ -566,8 +566,11 @@ function etapesDecouverte() {
       ...extra,
     }));
 
-  const periode = "#section-dashboard .periode-selecteur";
-  const cartes = "#section-dashboard .flux-periode .flux-carte";
+  // LA PÉRIODE, LES QUATRE CARTES ET LES DEUX GRAPHIQUES VIVENT SUR LA PAGE BUDGET depuis que
+  // le dashboard tient sur une page et regarde vers l'avant : les étapes 3 à 5 s'y lisent.
+  const PAGE_BUDGET = () => surPage("budget", "budget-budget");
+  const periode = "#sous-section-budget-budget .periode-selecteur";
+  const cartes = "#ab-flux .flux-carte";
   return [
     ...groupe("Quatre écrans, et c'est tout", [
       ["1", "1", "header nav", { page: PAGE_DASHBOARD }],
@@ -576,24 +579,24 @@ function etapesDecouverte() {
       ["2", "2", "#section-dashboard .kpi-grid", { page: PAGE_DASHBOARD }],
     ]),
     ...groupe("Le choix de la période", [
-      ["3", "3", periode, { page: PAGE_DASHBOARD }],
-      ["3.1", "3-1", "#section-dashboard .periode-pastille"],
+      ["3", "3", periode, { page: PAGE_BUDGET }],
+      ["3.1", "3-1", "#sous-section-budget-budget .periode-pastille"],
       ["3.2", "3-2", periode],
     ]),
     ...groupe("Les cartes de la période", [
-      ["4", "4", "#section-dashboard .flux-periode"],
+      ["4", "4", "#ab-flux"],
       ["4.1", "4-1", `${cartes}:nth-child(1), ${cartes}:nth-child(2)`],
       ["4.2", "4-2", `${cartes}:nth-child(3), ${cartes}:nth-child(4)`],
       [
         "4.3",
         "4-3",
-        "#flux-ecart-actions",
+        "#ab-ecart-actions",
         { attente: true, siMasque: texteAide("noyau.tuto-pem-4-3-masque") },
       ],
     ]),
     ...groupe("Les deux graphiques", [
-      ["5.1", "5-1", "#section-dashboard .dashboard-graphes"],
-      ["5.2", "5-2", "#section-dashboard .dashboard-graphes"],
+      ["5.1", "5-1", "#sous-section-budget-budget .dashboard-graphes"],
+      ["5.2", "5-2", "#sous-section-budget-budget .dashboard-graphes"],
     ]),
     ...groupe("La page Opérations !", [
       ["6", "6", "#operations-sous-nav", { page: PAGE_OPERATIONS }],

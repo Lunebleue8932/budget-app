@@ -58,7 +58,9 @@
 
     <!-- LES MONNAIES EN ONGLETS, comme au dashboard (cf. abMonnaiesProposees). -->
     <div class="sous-onglets" id="ab-monnaies"></div>
-    <!-- LE MOIS SE CHOISIT COMME AU DASHBOARD (creerArbrePeriode, sans les semaines). -->
+    <!-- LA PÉRIODE SE CHOISIT DANS L'ARBRE QUE LE DASHBOARD PORTAIT : Tout > année > mois >
+         semaines (creerArbrePeriode, `avecSemaines`). Le dashboard d'une page ne remonte plus
+         le temps ; c'est ici qu'on relit une période passée. -->
     <div id="ab-periode" class="ab-periode"></div>
 
     <!-- ---------- LE BUDGET DU MOIS ---------- -->
@@ -94,6 +96,33 @@
          chose (et la comparaison de deux semaines, peu utile, est partie avec
          elle). Seule la comparée a ses propres listes. -->
     <h3>Tes dépenses face au budget<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.graphes">i</i></h3>
+
+    <!-- LES QUATRE CARTES DE LA PÉRIODE, venues du dashboard avec ses deux graphiques : ce que
+         la période COÛTE et RAPPORTE (les deux totaux et leur différence, la variation
+         attribuée), puis ce qui est PASSÉ sur les comptes (la variation brute, en jaune) et la
+         porte du détail de leur écart. Mêmes chiffres, mêmes infobulles : ils viennent de la
+         même réponse `/dashboard` que les barres juste en dessous (cf. abRenderFlux). -->
+    <div class="flux-periode" id="ab-flux">
+      <div class="flux-carte">
+        <div class="flux-label">Total Entrées<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-entrees">i</i></div>
+        <div class="flux-valeur positif" id="ab-total-entrees">-</div>
+      </div>
+      <div class="flux-carte">
+        <div class="flux-label">Total Dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-depenses">i</i></div>
+        <div class="flux-valeur negatif" id="ab-total-sorties">-</div>
+      </div>
+      <div class="flux-carte">
+        <div class="flux-label" id="ab-variation-attribuee-label">Variation attribuée au mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-attribuee-au-mois">i</i></div>
+        <div class="flux-valeur" id="ab-variation-attribuee">-</div>
+      </div>
+      <div class="flux-carte">
+        <div class="flux-label" id="ab-variation-label">Variation sur le mois brute<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-sur-le-mois-brute">i</i></div>
+        <div class="flux-valeur flux-valeur-brute" id="ab-variation">-</div>
+        <div class="flux-carte-actions" id="ab-ecart-actions">
+          <button type="button" id="btn-ab-ecart-variations" style="display:none">D'où vient l'écart ?</button>
+        </div>
+      </div>
+    </div>
     <div class="selecteur-contexte ab-contexte ab-graphes-periode">
       <label class="ab-comparer" for="ab-comparer">
         <input type="checkbox" id="ab-comparer" />
@@ -119,6 +148,15 @@
     <div class="dashboard-graphes ab-graphes">
       <div id="ab-histogramme" class="histogramme-cadre"></div>
       <div class="histogramme-cadre camembert-cadre">
+        <!-- LES DEUX VUES DU CAMEMBERT, comme au dashboard : les parts rapportées au total
+             dépensé (« État actuel ») ou au budget de la période (« Budget », la vue de cette
+             page par défaut). L'en-tête est hors de #ab-camembert, réécrit à chaque rendu. -->
+        <div class="camembert-entete">
+          <div class="sous-onglets camembert-vues" id="ab-camembert-vues">
+            <button type="button" data-ab-vue-pie="actuel">État actuel</button>
+            <button type="button" data-ab-vue-pie="budget" class="active">Budget<i class="info-bulle" tabindex="0" data-info-cle="noyau.camembert-vue-budget">i</i></button>
+          </div>
+        </div>
         <div id="ab-camembert" class="camembert-zone"></div>
       </div>
     </div>

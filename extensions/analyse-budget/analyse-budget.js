@@ -388,28 +388,66 @@ const abGraphes = {
   // dépenses entières : la même lecture que le dashboard offrait avant de la céder ici.
   moyenne: false,
   cmp: { annee: null, mois: null },
+  // LA VUE DU CAMEMBERT, comme au dashboard : « budget » (les parts rapportées au budget de la
+  // période, la vue de cette page par défaut) ou « actuel » (au total dépensé).
+  vuePie: VUE_PIE_BUDGET,
 };
 
 function abLibellePeriode(p) {
+  if (p.vue === "tout") return t("tout l'historique");
   if (p.vue === "annee") return String(p.annee);
   return `${MOIS_COURTS_FR[p.mois - 1]} ${p.annee}`;
+}
+
+/** La requête `/dashboard` d'une période : tout l'historique, une année, ou un mois. */
+function abUrlDashboard(p) {
+  if (p.vue === "tout") return "/dashboard?vue=tout";
+  if (p.vue === "annee") return `/dashboard?annee=${p.annee}&vue=annee`;
+  return `/dashboard?annee=${p.annee}&mois=${p.mois}`;
+}
+
+/** Comparer deux périodes et moyenner par semaine ne valent que pour un mois ou une année
+ *  ENTIERS : ni « tout », ni une semaine, n'ont de période précédente de même taille. */
+function abComparaisonPossible() {
+  const p = abPeriodeGraphes();
+  return (p.vue === "mois" || p.vue === "annee") && p.semaine == null;
 }
 
 /** {depenses, budgetTotal, libelle} d'une période, dans la monnaie de la page — ou dans
  *  `monnaieId` (la fenêtre d'une monnaie éteinte). */
 async function abDepensesDe(p, monnaieId = abMonnaieId, { moyenne = false } = {}) {
   if (moyenne) return abMoyenneDe(p, monnaieId);
-  const url =
-    p.vue === "annee"
-      ? `/dashboard?annee=${p.annee}&vue=annee`
-      : `/dashboard?annee=${p.annee}&mois=${p.mois}`;
-  const data = await apiFetch(url);
-  const kpis = (data.kpis || []).find((k) => k.monnaie_id === monnaieId);
-  return {
+  const data = await apiFetch(abUrlDashboard(p));
+  const kpis = (data.kpis || []).find((k) => k.monnaie_id === monnaieId) || null;
+  const lue = {
+    // Les KPI de la période ENTIÈRE : ce sont eux que les quatre cartes affichent (cf.
+    // abRenderFlux), semaine choisie ou non — comme au dashboard, où les cartes étaient
+    // celles du mois pendant qu'on en regardait une semaine.
+    kpis,
     depenses: kpis ? kpis.depenses_par_categorie || [] : [],
     budgetTotal: kpis ? kpis.budget_total || 0 : 0,
     libelle: abLibellePeriode(p),
     bornes: bornesPeriode({ vue: p.vue, annee: p.annee, mois: p.mois }),
+  };
+  if (p.semaine == null) return lue;
+
+  // UNE SEMAINE DU MOIS : ses barres et son budget (au prorata des jours) viennent de
+  // `/dashboard/semaines`, la route que l'arbre du dashboard lisait.
+  const semaines = await apiFetch(
+    `/dashboard/semaines?annee=${p.annee}&mois=${p.mois}&monnaie_id=${monnaieId}`
+  );
+  const semaine = (semaines.semaines || []).find((s) => s.numero === p.semaine);
+  if (!semaine) return lue;
+  return {
+    ...lue,
+    depenses: semaine.depenses || [],
+    budgetTotal: semaine.budget_total || 0,
+    libelle: t("du {debut} au {fin} {mois}", {
+      debut: semaine.jour_debut,
+      fin: semaine.jour_fin,
+      mois: libelleMois(p.annee, p.mois).toLowerCase(),
+    }),
+    bornes: bornesPeriode({ vue: "mois", annee: p.annee, mois: p.mois, semaine }),
   };
 }
 
@@ -447,6 +485,8 @@ function abPeriodeGraphes() {
     vue: abGraphes.vue,
     annee: abPeriode.annee,
     mois: abPeriode.mois,
+    // Le rang de la semaine dans le mois quand la pastille est sur elle, sinon null.
+    semaine: abPeriode.niveau === "semaine" ? abPeriode.semaine : null,
   };
 }
 
@@ -464,6 +504,17 @@ function abAfficher(id, visible) {
 
 async function abRemplirControlesGraphes() {
   const vue = abGraphes.vue;
+  // SUR « TOUT » OU SUR UNE SEMAINE, ni comparaison ni moyenne (cf. abComparaisonPossible) :
+  // leurs cases disparaissent, et ce qui était coché se décoche.
+  const possible = abComparaisonPossible();
+  if (!possible) {
+    abGraphes.comparer = false;
+    abGraphes.moyenne = false;
+  }
+  ["ab-comparer", "ab-moyenne"].forEach((id) => {
+    const etiquette = document.getElementById(id)?.closest("label");
+    if (etiquette) etiquette.style.display = possible ? "" : "none";
+  });
   document.getElementById("ab-comparer").checked = abGraphes.comparer;
   document.getElementById("ab-moyenne").checked = abGraphes.moyenne;
 
@@ -497,7 +548,11 @@ async function abConversions(p) {
   if (modeMonnaiesEteintes() !== "popup") return [];
   if (!state.monnaies.some((m) => m.active === false)) return [];
   const requete =
-    p.vue === "annee" ? `vue=annee&annee=${p.annee}` : `vue=mois&annee=${p.annee}&mois=${p.mois}`;
+    p.vue === "tout"
+      ? "vue=tout"
+      : p.vue === "annee"
+        ? `vue=annee&annee=${p.annee}`
+        : `vue=mois&annee=${p.annee}&mois=${p.mois}`;
   try {
     const cascade = await apiFetch(`/dashboard/cascade?monnaie_id=${abMonnaieId}&${requete}`);
     return (cascade.colonnes || [])
@@ -529,7 +584,7 @@ async function abConversions(p) {
 function abAvecFrais(depenses, p, monnaieId, bornes = null) {
   return depenses.map((d) => {
     if (d.colonne_speciale !== "frais_virements") return bornes ? { ...d, drill_bornes: bornes } : d;
-    const vue = p.vue === "annee" ? "annee" : "mois";
+    const vue = p.vue === "tout" ? "tout" : p.vue === "annee" ? "annee" : "mois";
     return {
       ...d,
       frais: {
@@ -540,6 +595,93 @@ function abAvecFrais(depenses, p, monnaieId, bornes = null) {
   });
 }
 
+/* ---------- LES QUATRE CARTES DE LA PÉRIODE ----------
+ *
+ * VENUES DU DASHBOARD avec ses deux graphiques, quand il est passé sur une page tournée vers
+ * l'avant. Mêmes chiffres et mêmes règles que `renderFluxPeriode` (app.js) :
+ *   - les deux totaux sont ceux que le serveur rend avec les barres ;
+ *   - la variation ATTRIBUÉE est leur soustraction, faite ici — celle qu'on refait de tête ;
+ *   - la variation BRUTE garde sa couleur fixe : elle dit ce qui est PASSÉ, pas si c'est bien ;
+ *   - le bouton de l'écart ne se montre que s'il y a un écart à expliquer.
+ */
+function abRenderFlux(kpis, p) {
+  const ecrire = (id, texte) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = texte;
+    return el;
+  };
+  const bouton = document.getElementById("btn-ab-ecart-variations");
+  const vue = p.vue;
+  const libelles = LIBELLES_VARIATION[vue] || LIBELLES_VARIATION.mois;
+  const attribueeLabel = document.getElementById("ab-variation-attribuee-label");
+  const bruteLabel = document.getElementById("ab-variation-label");
+  // `firstChild` : le libellé porte une pastille « i » que réécrire tout le texte emporterait.
+  if (attribueeLabel) attribueeLabel.firstChild.nodeValue = libelles.attribuee();
+  if (bruteLabel) bruteLabel.firstChild.nodeValue = libelles.brute();
+
+  if (!kpis) {
+    ["ab-total-entrees", "ab-total-sorties", "ab-variation-attribuee", "ab-variation"].forEach((id) =>
+      ecrire(id, "-")
+    );
+    if (bouton) bouton.style.display = "none";
+    return;
+  }
+  const monnaieId = kpis.monnaie_id;
+  const entrees = kpis.total_entrees || 0;
+  const sorties = kpis.total_sorties || 0;
+  const signe = (valeur, prefixe) =>
+    `${montantEstNul(valeur) ? "" : prefixe}${formatMontant(valeur, monnaieId)}`;
+  ecrire("ab-total-entrees", signe(entrees, "+"));
+  ecrire("ab-total-sorties", signe(sorties, "−"));
+  attacherInfobulleFlux(kpis, monnaieId, document.getElementById("ab-flux"), [
+    "ab-total-entrees",
+    "ab-total-sorties",
+  ]);
+
+  const attribuee = entrees - sorties;
+  const attribueeEl = ecrire(
+    "ab-variation-attribuee",
+    `${attribuee > 0 && !montantEstNul(attribuee) ? "+" : ""}${formatMontant(attribuee, monnaieId)}`
+  );
+  if (attribueeEl) {
+    attribueeEl.classList.toggle("positif", attribuee > 0 && !montantEstNul(attribuee));
+    attribueeEl.classList.toggle("negatif", attribuee < 0 && !montantEstNul(attribuee));
+    attribueeEl.classList.toggle("montant-nul", montantEstNul(attribuee));
+  }
+  const brute = kpis.variation_brute || 0;
+  const bruteEl = ecrire(
+    "ab-variation",
+    `${brute >= 0 && !montantEstNul(brute) ? "+" : ""}${formatMontant(brute, monnaieId)}`
+  );
+  if (bruteEl) bruteEl.classList.toggle("montant-nul", montantEstNul(brute));
+  if (bouton) bouton.style.display = montantEstNul(brute - attribuee) ? "none" : "";
+}
+
+// « D'où vient l'écart ? » : le même écran que depuis le dashboard, sur la période et la
+// monnaie de CETTE page, et qui y revient.
+document.getElementById("btn-ab-ecart-variations")?.addEventListener("click", () => {
+  const p = abPeriodeGraphes();
+  switchSection("ecart-variations", { ongletActif: "budget" });
+  loadEcartVariations({
+    annee: p.annee,
+    mois: p.mois,
+    vue: p.vue,
+    monnaieId: abMonnaieId,
+    retour: () => switchSection("budget", { sousSection: "budget-budget" }),
+  });
+});
+
+// Les deux vues du camembert : seule la répartition change, les barres portent des montants.
+document.getElementById("ab-camembert-vues")?.addEventListener("click", (e) => {
+  const bouton = e.target.closest("button[data-ab-vue-pie]");
+  if (!bouton) return;
+  abGraphes.vuePie = bouton.dataset.abVuePie;
+  document.querySelectorAll("#ab-camembert-vues button[data-ab-vue-pie]").forEach((b) => {
+    b.classList.toggle("active", b === bouton);
+  });
+  abRenderGraphes();
+});
+
 async function abRenderGraphes() {
   const histo = document.getElementById("ab-histogramme");
   if (!histo || abMonnaieId == null) return;
@@ -548,13 +690,21 @@ async function abRenderGraphes() {
     const p = abPeriodeGraphes();
     const moyenne = abGraphes.moyenne;
     const lue = await abDepensesDe(p, abMonnaieId, { moyenne });
+    // LES QUATRE CARTES, d'abord : ce sont les totaux de la période que les barres détaillent.
+    // Une moyenne hebdomadaire ne rend pas de KPI : on lit alors ceux de la période entière.
+    abRenderFlux(
+      lue.kpis !== undefined
+        ? lue.kpis
+        : (await abDepensesDe({ ...p, semaine: null }, abMonnaieId)).kpis,
+      p
+    );
     // Les conversions vers une monnaie éteinte ne se découpent pas en semaines : elles
     // rejoignent les barres de la période entière seulement (comme au dashboard).
     const principale = {
       ...lue,
       depenses: [
         ...abAvecFrais(lue.depenses, p, abMonnaieId, lue.bornes),
-        ...(moyenne ? [] : await abConversions(p)),
+        ...(moyenne || p.semaine != null ? [] : await abConversions(p)),
       ],
     };
     const comparee = abGraphes.comparer
@@ -586,7 +736,7 @@ async function abRenderGraphes() {
     // catégorie écartée ici n'aurait aucun moyen de revenir.
     const partsDe = (d) =>
       partsCategoriesDashboard(d.depenses, new Set(d.depenses.map((x) => x.categorie)), {
-        vue: VUE_PIE_BUDGET,
+        vue: abGraphes.vuePie,
         budgetTotal: d.budgetTotal,
       });
     const parts = partsDe(principale);
@@ -614,7 +764,7 @@ async function abRenderGraphes() {
           })
         : principale.libelle
     );
-    if (!(principale.budgetTotal > 0)) {
+    if (abGraphes.vuePie === VUE_PIE_BUDGET && !(principale.budgetTotal > 0)) {
       legende.push(t("Aucun budget posé sur cette période : le camembert rapporte chaque catégorie au total dépensé."));
     }
     document.getElementById("ab-graphes-legende").textContent = legende.join(" — ");
@@ -1259,8 +1409,10 @@ function abRemplirContexte() {
       // donc un niveau fixe, et sa propre copie de l'état pour ne pas imposer « mois » à
       // celui d'à côté.
       const graphes = ids.periode === "ab-periode";
-      if (graphes) {
-        abPeriode.niveau = abGraphes.vue === "annee" ? "annee" : "mois";
+      // LE NIVEAU EST CELUI QU'ON A CHOISI (tout, année, mois ou semaine) : il n'est plus
+      // ramené à « mois » à chaque rendu, sans quoi « Tout » et les semaines ne tiendraient pas.
+      if (graphes && !["tout", "annee", "mois", "semaine"].includes(abPeriode.niveau)) {
+        abPeriode.niveau = "mois";
         abPeriode.moisDeplie = true;
       }
       const etat = graphes ? abPeriode : { ...abPeriode, niveau: "mois", vue: "mois" };
@@ -1268,7 +1420,10 @@ function abRemplirContexte() {
         etat,
         annees: abAnneesProposees,
         moisDisponibles: () => Array.from({ length: 12 }, (_, i) => i + 1),
-        avecTout: false,
+        // L'ARBRE QUE LE DASHBOARD PORTAIT (Tout > année > mois > semaines) sur l'onglet des
+        // graphes ; l'onglet des catégories, lui, parle d'un MOIS et de rien d'autre.
+        avecTout: graphes,
+        avecSemaines: graphes,
         niveauFixe: graphes ? null : "mois",
         surChangement: (nouvel, avant) => {
           if (!graphes) {
@@ -1279,11 +1434,13 @@ function abRemplirContexte() {
           if (niveauChange) {
             // Changer de granularité change la question : la comparaison repart de la
             // période précédente, dans la nouvelle unité.
-            abGraphes.vue = nouvel.niveau === "annee" ? "annee" : "mois";
+            abGraphes.vue = vueDuNiveau(nouvel.niveau);
             abGraphes.cmp = { annee: null, mois: null };
           }
+          // Une autre semaine du même mois ne change que les graphes.
+          const semaineChange = graphes && nouvel.semaine !== avant.semaine;
           if (nouvel.annee !== avant.annee || nouvel.mois !== avant.mois) abCharger();
-          else if (niveauChange) abRenderGraphes();
+          else if (niveauChange || semaineChange) abRenderGraphes();
         },
       });
     }
