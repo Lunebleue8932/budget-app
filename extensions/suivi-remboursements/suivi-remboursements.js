@@ -599,12 +599,18 @@ BudgetApp.extensions.enregistrer(SUIVIR_ID, { chargeur: loadSuiviRemboursements 
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.id = "btn-suivir-ouvrir";
-  bouton.className = "suivir-porte";
+  // UN BOUTON DE NAVIGATION COMME LES AUTRES DU DASHBOARD (`dbr-nav`, cf. style.css) : chaque
+  // KPI y porte sa porte à droite, celle-ci comprise. `.suivir-porte` reste la prise de
+  // l'extension.
+  bouton.className = "suivir-porte dbr-nav";
   bouton.dataset.extension = SUIVIR_ID;
   // LE LIBELLÉ EST CELUI DE L'ÉCRAN, et pas une paraphrase de ce qu'on y fera :
   // « Voir par personne » décrivait l'écran sans le nommer, et rien ne reliait le
-  // bouton au nom sous lequel l'extension s'allume dans les Paramètres.
-  bouton.textContent = t("Suivi des remboursements");
+  // bouton au nom sous lequel l'extension s'allume dans les Paramètres. Abrégé en
+  // « Suivi » : la carte « Reste à rembourser » qui le porte dit déjà de quoi ; le nom
+  // entier reste dans l'infobulle.
+  bouton.textContent = `${t("Suivi")} →`;
+  bouton.title = t("Suivi des remboursements");
   bouton.style.display = BudgetApp.extensions.estActive(SUIVIR_ID) ? "" : "none";
   // `ongletActif` : cet écran n'a pas de bouton à lui dans la barre du haut (cf.
   // `bouton: false` dans le manifeste). Sans ce second argument, plus aucun

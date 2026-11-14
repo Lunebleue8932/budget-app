@@ -1456,7 +1456,11 @@ form .champ-couleur .couleur-aucune.choisie {
    montants compris — leur couleur dit le sens de l'argent, mais ce qui est PRÉVU doit se distinguer de ce
    qui a EU LIEU avant tout. Les boutons gardent leur couleur : ce sont des gestes, pas des données. */
 tr.operation-previsionnelle td,
-tr.operation-previsionnelle td *:not(button):not(.info-bulle) {
+tr.operation-previsionnelle td *:not(button):not(.info-bulle),
+/* Les lignes des listes du dashboard suivent la même convention (cf. « LE DASHBOARD SUR UNE
+   PAGE », en fin de feuille) ; leur montant, lui, garde la couleur du sens de l'argent. */
+.dbr-ligne.operation-previsionnelle > :not(.dbr-ligne-montant),
+.dbr-ligne.operation-previsionnelle > :not(.dbr-ligne-montant) * {
   color: var(--text-muted) !important;
   font-style: italic;
 }
@@ -8548,4 +8552,794 @@ button.preset-propose {
   font-style: italic;
   color: var(--text-muted);
   overflow-wrap: anywhere;
+}
+
+/* ====================================================================================
+   LE DASHBOARD SUR UNE PAGE (cf. dashboard-avenir.js, index.html « LE DASHBOARD TIENT
+   SUR UNE PAGE »)
+
+   QUATRE RANGÉES DANS LA HAUTEUR DE LA FENÊTRE : l'en-tête, les trois KPI, la rangée
+   centrale (qui prend ce qui reste) et la rangée du bas. La page ne défile pas : c'est la
+   courbe du « reste » qui absorbe la hauteur libre, et les deux listes se la partagent à
+   égalité. `main` garde ses marges (1,5rem en haut et en bas), d'où le `3rem` retranché.
+
+   SOUS 1000 PX DE LARGE, plus de hauteur imposée : une colonne, et la page défile
+   normalement — une grille de quatre rangées tassée dans une fenêtre étroite ne se lit plus.
+
+   Toutes les couleurs sont celles du thème (clair et sombre) : rien n'est écrit en dur.
+   ==================================================================================== */
+#section-dashboard.active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+@media (min-width: 1000px) {
+  #section-dashboard.active {
+    height: calc(100vh - 3rem);
+    min-height: calc(780px - 3rem);
+  }
+}
+
+/* ---------- L'en-tête, sur une ligne ---------- */
+.dbr-entete {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex: none;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+  padding-bottom: 0.45rem;
+}
+
+.dbr-entete h2 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.dbr-sous-titre {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dbr-entete .sous-onglets {
+  margin-bottom: 0;
+  border-bottom: none;
+  flex-wrap: nowrap;
+}
+
+.dbr-entete .sous-onglets button {
+  padding: 0.3rem 0.6rem;
+}
+
+/* L'interrupteur « Tout convertir » de l'extension Monnaies vient se poser après les
+   onglets : il part à droite, et les boutons de période le suivent. */
+.dbr-entete .monnaies-agregation {
+  margin: 0 0 0 auto;
+  font-size: 0.8rem;
+  max-width: 19rem;
+}
+
+.dbr-entete #monnaies-agregation-alerte {
+  font-size: 0.7rem;
+  margin-top: 0.1rem;
+}
+
+.dbr-periode {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.dbr-entete .monnaies-agregation ~ .dbr-periode {
+  margin-left: 0;
+}
+
+.dbr-periode button {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.dbr-periode button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.dbr-entete .info-bulle.info-bulle-astuce {
+  margin-left: 0;
+}
+
+/* LA PASTILLE « MODE DÉMO » se pose au centre de l'en-tête de chaque page, en absolu. Ici
+   l'en-tête est une ligne pleine (onglets de monnaie, interrupteur, période) : elle prend
+   donc sa place DANS la ligne, après le titre, au lieu de recouvrir ce qui s'y trouve. */
+.dbr-entete .pastille-sandbox {
+  position: static;
+  transform: none;
+  flex: none;
+  order: -1;
+  gap: 0.4rem;
+  padding-left: 0.6rem;
+  font-size: 0.72rem;
+}
+
+.dbr-entete .dbr-titre-bloc {
+  order: -2;
+}
+
+/* ---------- Les boutons de navigation : le cœur de la page ----------
+   Un bouton ordinaire de l'application, en plus petit, qui ne se replie jamais : son
+   libellé finit par une flèche, et une flèche renvoyée à la ligne ne désigne plus rien. */
+.dbr-nav {
+  flex: none;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.dbr-nav-discret {
+  background: none;
+  border-color: transparent;
+  color: var(--accent-light);
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+}
+
+/* ---------- Les trois KPI ---------- */
+.dbr-kpis {
+  flex: none;
+  gap: 0.6rem;
+  margin-bottom: 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.kpi-card.dbr-kpi {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.85rem;
+}
+
+.dbr-kpi-corps {
+  flex: 1;
+  min-width: 0;
+}
+
+.dbr-kpi .kpi-label {
+  display: flex;
+  align-items: center;
+  font-size: 0.7rem;
+  margin-bottom: 0.05rem;
+  white-space: nowrap;
+}
+
+.dbr-kpi .kpi-valeur {
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
+/* VALEUR ET DÉTAIL SUR LA MÊME LIGNE, alignés sur la ligne de base du grand chiffre : le
+   détail annote la valeur, il ne mérite pas sa rangée. */
+.dbr-kpi-ligne {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 0.55rem;
+}
+
+.dbr-kpi-detail {
+  margin-top: 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dbr-kpi .flux-carte-actions:not(:empty) {
+  margin-top: 0;
+  flex: none;
+}
+
+/* ---------- La rangée centrale ---------- */
+.dbr-centre {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+.dbr-colonne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dbr-bloc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 0.6rem 0.85rem;
+}
+
+.dbr-bloc-tete {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: none;
+  min-height: 1.9rem;
+}
+
+.dbr-bloc-titre {
+  display: flex;
+  align-items: center;
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.dbr-bloc-titre-capitales {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Le complément du titre (« · 6 jusqu'à fin de mois ») cède la place avant le bouton : il
+   se coupe par une ellipse, jamais sous le bouton. */
+.dbr-bloc-compte {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: pre;
+}
+
+/* ---------- « Reste pour finir le mois » ---------- */
+.dbr-reste {
+  flex: 1 1 auto;
+}
+
+.dbr-reste-chiffres {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.1rem;
+  flex: none;
+  margin: 0.2rem 0 0.45rem;
+}
+
+.dbr-reste-valeur {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dbr-reste-legende,
+.dbr-reste-annexe-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dbr-reste-annexe {
+  padding-left: 1.1rem;
+  border-left: 1px solid var(--border-soft);
+  min-width: 0;
+}
+
+.dbr-reste-annexe-valeur {
+  font-size: 0.98rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dbr-reste-annexe-valeur.positif { color: var(--positif); }
+.dbr-reste-annexe-valeur.negatif { color: var(--depense); }
+
+/* L'ALERTE : le solde projeté touche ou passe sous zéro avant la prochaine entrée. La
+   couleur d'avertissement du thème (celle des badges « remboursable »), sur le liseré du
+   bloc et sur les deux chiffres qui le disent — pas un fond rouge : c'est une information
+   à voir pour agir, pas une panne. */
+.dbr-reste.dbr-alerte {
+  border-color: var(--badge-remboursable-text);
+}
+
+.dbr-reste.dbr-alerte #dbr-point-bas,
+.dbr-reste.dbr-alerte #dbr-rythme {
+  color: var(--badge-remboursable-text);
+}
+
+.dbr-jauge {
+  display: flex;
+  flex: none;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-surface-alt);
+}
+
+.dbr-jauge-sorties {
+  background: var(--depense);
+}
+
+.dbr-jauge-libre {
+  background: var(--accent);
+}
+
+.dbr-jauge-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  flex: none;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.dbr-jauge-legende b {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dbr-courbe-legende {
+  display: flex;
+  gap: 0.9rem;
+  margin-left: auto;
+}
+
+.dbr-puce {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+}
+
+.dbr-puce-sorties { background: var(--depense); }
+.dbr-puce-libre { background: var(--accent); }
+
+.dbr-trait {
+  display: inline-block;
+  width: 1.1rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-top: 2px solid var(--accent-light);
+}
+
+.dbr-trait-projete {
+  border-top-style: dashed;
+}
+
+/* LA COURBE PREND CE QUI RESTE, 70 px au moins : c'est elle qui rend la page élastique. Le
+   SVG est dessiné à la taille mesurée du cadre (cf. dbrDessinerCourbe), il ne déborde donc
+   jamais ; `position: relative` ancre sa bulle. */
+.dbr-courbe {
+  position: relative;
+  flex: 1 1 70px;
+  min-height: 70px;
+  margin-top: 0.3rem;
+  overflow: hidden;
+}
+
+.dbr-courbe svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+.dbr-courbe-vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.dbr-courbe-bulle {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  box-shadow: var(--shadow-flottant);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+/* ---------- « Dépenses de la période », en compact ---------- */
+.dbr-depenses {
+  flex: none;
+}
+
+/* Le titre et les deux boutons sur une ligne, les trois chiffres sur la suivante : sur une
+   seule, ils se marchaient dessus dès que les montants dépassaient le millier. */
+.dbr-depenses .dbr-bloc-tete {
+  flex-wrap: wrap;
+  row-gap: 0.1rem;
+}
+
+.dbr-flux.flux-periode {
+  order: 5;
+  flex: 0 0 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0;
+  /* Pas d'ancre ici : la bulle des deux totaux s'ancre au bloc entier, plus large. */
+}
+
+.dbr-flux .flux-carte,
+.dbr-flux .dbr-flux-item {
+  background: none;
+  border: none;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.dbr-flux-label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.dbr-flux .flux-valeur {
+  font-size: 0.86rem;
+}
+
+.dbr-depenses .flux-carte-actions:not(:empty) {
+  margin-top: 0;
+}
+
+/* L'HISTOGRAMME DU NOYAU, sans son cadre (le bloc en est déjà un) et à hauteur réduite —
+   c'est `renderHistogrammeDashboard` qui lui passe sa hauteur compacte. */
+.histogramme-cadre.dbr-histogramme {
+  flex: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
+/* ---------- Les deux listes : cinq lignes, hauteurs égales ---------- */
+.dbr-liste-bloc {
+  flex: 1 1 0;
+}
+
+.dbr-liste {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0.3rem;
+  overflow: hidden;
+}
+
+/* UNE LIGNE, UNE SEULE : date, libellé, « · catégorie » en gris, montant. C'est le libellé
+   qui cède la place (ellipse) quand la ligne est trop longue — la date et le montant sont
+   ce qu'on vient lire. */
+.dbr-ligne {
+  display: grid;
+  grid-template-columns: 4.1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1 1 0;
+  min-height: 1.55rem;
+  max-height: 2.5rem;
+  border-top: 1px solid var(--border-soft);
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.dbr-ligne:hover {
+  background: var(--bg-surface-hover);
+}
+
+.dbr-ligne-date {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.dbr-ligne-texte {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.dbr-ligne-libelle {
+  flex: 0 1 auto;
+  min-width: 1.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.dbr-ligne-categorie {
+  flex: 0 0 auto;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.dbr-ligne-montant {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* UNE PRÉVISIONNELLE SE LIT COMME DANS LE TABLEAU DES OPÉRATIONS : gris, italique — la règle
+   est celle de `tr.operation-previsionnelle` (plus haut), étendue à ces lignes plutôt que
+   recopiée. Le libellé n'y est donc pas en gras, et le montant garde sa couleur : ici c'est
+   le sens de l'argent à venir qu'on lit. */
+.dbr-ligne.operation-previsionnelle .dbr-ligne-libelle {
+  font-weight: 400;
+}
+
+.dbr-ligne.operation-previsionnelle .dbr-ligne-montant {
+  font-style: italic;
+}
+
+.dbr-liste-vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* ---------- La rangée du bas : les épinglés, puis les notes ---------- */
+.dbr-bas {
+  display: flex;
+  gap: 0.6rem;
+  flex: none;
+  min-width: 0;
+}
+
+.dbr-bas h3 {
+  display: flex;
+  align-items: center;
+  margin: 0 0 0.3rem;
+  font-size: 0.74rem;
+}
+
+.dbr-epingles.dashboard-epingles {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.dbr-notes {
+  flex: 0 0 15rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rien d'épinglé : les notes prennent toute la rangée. */
+.dbr-epingles[style*="display: none"] + .dbr-notes,
+.dbr-epingles[style*="display:none"] + .dbr-notes {
+  flex: 1 1 auto;
+}
+
+/* TROIS CARTES SUR UNE LIGNE, et le bouton « +N → Budget » au bout quand il y en a
+   davantage (cf. dbrLimiterEpingles). */
+.dbr-epingles .dashboard-epingles-cartes {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.dbr-epingle-cachee {
+  display: none !important;
+}
+
+.dbr-epingles-plus {
+  align-self: center;
+}
+
+.dbr-epingles-plus[hidden] {
+  display: none;
+}
+
+.dbr-epingles .obj-carte,
+.dbr-epingles .projet-carte {
+  height: 110px;
+  box-sizing: border-box;
+  padding: 0.45rem 0.7rem;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* LA CARTE D'OBJECTIF, COMPACTE : le titre, les chiffres, la barre, puis sur UNE ligne les
+   pastilles de période et « Voir les opérations → ». Seule la mise en page change. */
+.dbr-epingles .obj-carte {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: space-between;
+  column-gap: 0.4rem;
+}
+
+.dbr-epingles .obj-carte-tete,
+.dbr-epingles .obj-chiffres,
+.dbr-epingles .obj-barre {
+  flex: 0 0 100%;
+  margin: 0;
+  min-width: 0;
+}
+
+.dbr-epingles .obj-nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+}
+
+.dbr-epingles .obj-etat {
+  font-size: 0.64rem;
+  flex: none;
+}
+
+.dbr-epingles .obj-chiffres {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.dbr-epingles .obj-liste-dashboard .obj-valeur {
+  font-size: 1.15rem;
+}
+
+.dbr-epingles .obj-unite,
+.dbr-epingles .obj-cible {
+  font-size: 0.72rem;
+}
+
+.dbr-epingles .obj-barre { order: 3; }
+.dbr-epingles .obj-bascule { order: 4; margin: 0; flex: none; }
+.dbr-epingles .obj-voir { order: 5; margin: 0 0 0 auto; }
+
+.dbr-epingles .obj-bascule button {
+  font-size: 0.66rem;
+  padding: 0.15rem 0.4rem;
+  white-space: nowrap;
+}
+
+/* « Voir les opérations → » et « Voir le projet → » : un bouton de navigation comme les
+   autres de cette page. */
+.dbr-epingles .obj-voir,
+.dbr-epingles .projet-voir {
+  flex: none;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.dbr-epingles .obj-voir:hover,
+.dbr-epingles .projet-voir:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--text-muted);
+}
+
+/* LA CARTE DE PROJET, COMPACTE : son nom, où il en est, et sa porte. */
+.dbr-epingles .projet-carte-corps {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.dbr-epingles .projet-carte-nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+}
+
+.dbr-epingles .projet-carte-compte {
+  display: none;
+}
+
+.dbr-epingles .projet-totaux,
+.dbr-epingles .projet-suivi {
+  margin-top: 0;
+  gap: 0.15rem 0.6rem;
+  font-size: 0.74rem;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.dbr-epingles .projet-suivi-periode {
+  display: none;
+}
+
+.dbr-epingles .projet-voir {
+  align-self: flex-start;
+}
+
+/* LES NOTES : hauteur fixe, défilement interne. La zone de saisie grandit toujours avec
+   son contenu (cf. ajusterHauteurNoteDashboard) ; c'est son cadre qui défile. */
+.dbr-notes .note-dashboard {
+  height: 110px;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  padding: 0.5rem 0.7rem;
+  overflow-y: auto;
+}
+
+.dbr-notes .note-dashboard textarea {
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.dbr-notes .note-dashboard-etat {
+  min-height: 0;
+  margin-top: 0;
+}
+
+/* ---------- Sous 1000 px : une colonne, et la page défile ---------- */
+@media (max-width: 999px) {
+  .dbr-centre {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dbr-courbe {
+    flex-basis: 160px;
+    height: 160px;
+  }
+
+  .dbr-liste-bloc {
+    flex: none;
+  }
+
+  .dbr-ligne {
+    flex: none;
+    height: 2rem;
+  }
+
+  .dbr-bas {
+    flex-direction: column;
+  }
+
+  .dbr-notes {
+    flex: none;
+  }
+
+  .dbr-epingles .dashboard-epingles-cartes {
+    grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  }
+
+  .dbr-reste-chiffres {
+    flex-wrap: wrap;
+  }
 }

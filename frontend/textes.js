@@ -119,6 +119,12 @@ const TEXTES = {
     "Pour les opérations à venir qui n'ont pas encore eu lieu. Elles comptent pour ton solde projeté et dans les graphiques du dashboard - de manière distincte.",
   "noyau.notes":
     "Un pense-bête, non lu par l'app. Ça s'enregistre tout seul.",
+
+  /* ----- Le dashboard d'une page (cf. dashboard-avenir.js) ----- */
+  "noyau.reste-periode":
+    "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là. Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.",
+  "noyau.depenses-periode":
+    "Les entrées et les dépenses attribuées à la période, et leur différence. L'histogramme détaille les dépenses par catégorie. // Le camembert, la comparaison de périodes et les mois passés se trouvent dans la page Budget.",
   "noyau.repartition-des-avoirs":
     "La répartition des avoirs en fonction du type de comptes - prends en compte la valorisation des titres possédés.",
   "noyau.montant-min":

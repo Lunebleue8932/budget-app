@@ -555,7 +555,18 @@ async function appliquerGestePeriode(geste) {
  */
 function creerArbrePeriode(
   hote,
-  { etat, annees, moisDisponibles, avecTout = true, niveauFixe = null, surChangement }
+  {
+    etat,
+    annees,
+    moisDisponibles,
+    avecTout = true,
+    niveauFixe = null,
+    // LES SEMAINES DU MOIS, comme l'arbre du dashboard les portait : la page Budget a repris
+    // cette vue (le dashboard d'une page ne remonte plus le temps), son sélecteur aussi.
+    // `etat` porte alors `semaine` et `semainesDeplie` en plus.
+    avecSemaines = false,
+    surChangement,
+  }
 ) {
   hote.innerHTML = "";
   const cadre = document.createElement("div");
@@ -569,6 +580,7 @@ function creerArbrePeriode(
   const normaliser = () => {
     if (niveauFixe) etat.niveau = niveauFixe;
     if (!avecTout && etat.niveau === "tout") etat.niveau = "annee";
+    if (!avecSemaines && etat.niveau === "semaine") etat.niveau = "mois";
     const liste = annees();
     if (liste.length && !liste.includes(etat.annee)) etat.annee = liste[0];
     const dispo = moisDisponibles(etat.annee);
@@ -580,7 +592,7 @@ function creerArbrePeriode(
   const geste = (g) => {
     const avant = { ...etat };
     const apres = transitionPeriode(
-      { ...etat, semaine: null, semainesDeplie: false },
+      avecSemaines ? { ...etat } : { ...etat, semaine: null, semainesDeplie: false },
       g,
       { aujourdhui: new Date(), moisDisponibles }
     );
@@ -590,6 +602,10 @@ function creerArbrePeriode(
       mois: apres.mois,
       moisDeplie: apres.moisDeplie,
     });
+    if (avecSemaines) {
+      etat.semaine = apres.semaine;
+      etat.semainesDeplie = apres.semainesDeplie;
+    }
     normaliser();
     rendre();
     surChangement(etat, avant);
@@ -674,12 +690,38 @@ function creerArbrePeriode(
       contenuMois.className = "sous-onglets sous-onglets-mois";
       moisDisponibles(etat.annee).forEach((m) => {
         contenuMois.appendChild(
-          bouton(MOIS_COURTS_FR[m - 1], m === etat.mois && etat.niveau === "mois", () =>
-            geste({ type: "mois", mois: m })
+          bouton(
+            MOIS_COURTS_FR[m - 1],
+            m === etat.mois && (etat.niveau === "mois" || etat.niveau === "semaine"),
+            () => geste({ type: "mois", mois: m })
           )
         );
       });
-      ligne("mois", contenuMois);
+      let chevronSemaines = null;
+      if (avecSemaines && !niveauFixe) {
+        chevronSemaines = document.createElement("button");
+        chevronSemaines.type = "button";
+        chevronSemaines.className = "periode-chevron";
+        chevronSemaines.innerHTML = etat.semainesDeplie ? ICONE_CHEVRON_HAUT : ICONE_CHEVRON_BAS;
+        chevronSemaines.setAttribute("aria-expanded", String(!!etat.semainesDeplie));
+        chevronSemaines.title = etat.semainesDeplie ? t("Replier les semaines") : t("Détailler par semaine");
+        chevronSemaines.setAttribute("aria-label", chevronSemaines.title);
+        chevronSemaines.addEventListener("click", () => geste({ type: "deplier", ligne: "semaines" }));
+      }
+      ligne("mois", contenuMois, chevronSemaines);
+    }
+    // LES SEMAINES DU MOIS DE RÉFÉRENCE, par leurs JOURS (« 8 → 14 »), comme au dashboard.
+    if (avecSemaines && etat.moisDeplie && etat.semainesDeplie) {
+      const contenuSemaines = document.createElement("div");
+      contenuSemaines.className = "sous-onglets sous-onglets-mois";
+      semainesDuMoisLocal(etat.annee, etat.mois).forEach((s) => {
+        contenuSemaines.appendChild(
+          bouton(`${s.debut} → ${s.fin}`, etat.niveau === "semaine" && etat.semaine === s.numero, () =>
+            geste({ type: "semaine", semaine: s.numero })
+          )
+        );
+      });
+      ligne("semaine", contenuSemaines);
     }
   }
 
@@ -2971,6 +3013,10 @@ async function loadDashboard() {
     dashboardPeriodesConnues = await apiFetch("/meta/periodes"); // triées desc par (année, mois)
     if (dashboardPeriodesConnues.length === 0) return;
     const p = state.dashboardPeriode;
+    // LE DASHBOARD EST TOUJOURS RELATIF À AUJOURD'HUI (cf. dashboard-avenir.js) : le mois ou
+    // l'année en cours, jamais une période qu'on aurait choisie plus tôt. La navigation
+    // dans le passé vit sur la page Budget.
+    if (typeof dbrCalerPeriode === "function") dbrCalerPeriode();
     if (!p.annee) {
       const defaut = periodeParDefaut(dashboardPeriodesConnues);
       p.annee = defaut.annee;
@@ -3272,6 +3318,7 @@ function renderKpisDashboard(kpis) {
     dashboardDepensesDuMois = [];
     dashboardBudgetTotalDuMois = 0;
     renderHistogrammeDashboard([], null);
+    if (typeof dbrRendre === "function") dbrRendre(null);
     return;
   }
   const monnaieId = kpis.monnaie_id;
@@ -3336,6 +3383,9 @@ function renderKpisDashboard(kpis) {
   dashboardDepensesDuMois = kpis.depenses_par_categorie || [];
   dashboardBudgetTotalDuMois = kpis.budget_total || 0;
   renderHistogrammeDashboard(dashboardDepensesDuMois, monnaieId);
+  // LE RESTE, LA COURBE ET LES LISTES (cf. dashboard-avenir.js) : rendus ICI parce que c'est
+  // le passage obligé de tout rendu du dashboard, vue convertie de « Monnaies » comprise.
+  if (typeof dbrRendre === "function") dbrRendre(kpis);
 }
 
 // Les deux libellés des variations, selon la vue : « au mois » au-dessus d'un total
@@ -3517,10 +3567,15 @@ function celluleMontantEcart(valeur, monnaieId) {
   return `<td class="num ${classe}">${signe}${formatMontant(valeur, monnaieId)}</td>`;
 }
 
-async function loadEcartVariations() {
-  const monnaieId = state.dashboardMonnaieId;
+// D'où l'écran a été ouvert : null pour le dashboard, sinon `{ annee, mois, vue, monnaieId,
+// retour }` — la page Budget, qui porte désormais les deux variations et leur bouton.
+let ecartVariationsContexte = null;
+
+async function loadEcartVariations(contexte = null) {
+  ecartVariationsContexte = contexte;
+  const monnaieId = contexte ? contexte.monnaieId : state.dashboardMonnaieId;
   if (!monnaieId) return;
-  const { annee, mois } = dashboardAnneeMoisActuel;
+  const { annee, mois } = contexte || dashboardAnneeMoisActuel;
   if (!annee) return;
 
   // LA MÊME PÉRIODE QUE LE DASHBOARD, reprise de l'état posé au moment du
@@ -3530,7 +3585,7 @@ async function loadEcartVariations() {
   //
   // LA VUE ANNUELLE PASSE `mois` À VIDE, exactement comme le dashboard : les
   // deux variations s'y calculent sur douze mois, leur écart aussi.
-  const vue = state.dashboardPeriode.vue;
+  const vue = contexte ? contexte.vue : state.dashboardPeriode.vue;
   const params = new URLSearchParams({ monnaie_id: monnaieId, annee });
   if (vue === "tout") params.set("tout", "true");
   else if (vue === "mois") params.set("mois", mois);
@@ -3604,7 +3659,11 @@ document.getElementById("btn-ecart-variations").addEventListener("click", () => 
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document
   .getElementById("btn-ecart-retour")
-  .addEventListener("click", () => switchSection("dashboard"));
+  .addEventListener("click", () =>
+    ecartVariationsContexte && ecartVariationsContexte.retour
+      ? ecartVariationsContexte.retour()
+      : switchSection("dashboard")
+  );
 
 /* ---------- Répartition des avoirs par type de compte (camembert) ---------- */
 
@@ -4594,8 +4653,14 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
  * écouteurs partent avec les anciens nœuds, et `data-infobulle-flux` garde le
  * conteneur de se voir poser deux bulles.
  */
-function attacherInfobulleFlux(kpis, monnaieId) {
-  const rangee = document.querySelector("#section-dashboard .flux-periode");
+function attacherInfobulleFlux(
+  kpis,
+  monnaieId,
+  // La rangée et ses deux valeurs : celles du dashboard par défaut, celles de la page Budget
+  // quand c'est elle qui appelle (elle porte désormais les quatre cartes de la période).
+  rangee = document.querySelector("#section-dashboard .flux-periode"),
+  [idEntrees, idSorties] = ["kpi-total-entrees", "kpi-total-sorties"]
+) {
   if (!rangee) return;
   let bulle = rangee.querySelector(".histo-bulle");
   if (!bulle) {
@@ -4606,8 +4671,8 @@ function attacherInfobulleFlux(kpis, monnaieId) {
   }
 
   const cartes = [
-    ["kpi-total-entrees", "Total Entrées", kpis.top_entrees],
-    ["kpi-total-sorties", "Total Dépenses", kpis.top_sorties],
+    [idEntrees, "Total Entrées", kpis.top_entrees],
+    [idSorties, "Total Dépenses", kpis.top_sorties],
   ];
 
   cartes.forEach(([idValeur, titre, top]) => {
@@ -4700,10 +4765,12 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
     return;
   }
 
-  const largeur = Math.max(container.clientWidth || 0, 600);
-  const hauteur = 320;
-  const margeBas = 70;
-  const margeHaut = 20;
+  // `options.hauteur`, `margeBas`, `margeHaut` : la version COMPACTE du dashboard d'une page
+  // (cf. DBR_HISTOGRAMME, dashboard-avenir.js). Sans elles, les dimensions de toujours.
+  const largeur = Math.max(container.clientWidth || 0, options.hauteur ? 320 : 600);
+  const hauteur = options.hauteur || 320;
+  const margeBas = options.margeBas ?? 70;
+  const margeHaut = options.margeHaut ?? 20;
   const margeCote = 20;
   const zoneHauteur = hauteur - margeBas - margeHaut;
 
@@ -6240,7 +6307,10 @@ function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   renderHistogrammeDepenses(
     parts.retenues,
     monnaieId,
-    document.getElementById("dashboard-histogramme")
+    document.getElementById("dashboard-histogramme"),
+    // EN VERSION COMPACTE sur le dashboard d'une page (cf. dashboard-avenir.js) : mêmes
+    // barres, mêmes infobulles, moins de hauteur.
+    typeof DBR_HISTOGRAMME !== "undefined" ? DBR_HISTOGRAMME : {}
   );
   renderPieChartDepenses(
     depenses,

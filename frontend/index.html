@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=157" />
+  <link rel="stylesheet" href="style.css?v=161" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -628,233 +628,222 @@
   <main>
     <!-- DASHBOARD -->
     <section id="section-dashboard" class="active">
-      <!-- EN-TÊTE FIGÉ (cf. .page-entete) : le titre et la première rangée d'onglets. -->
-      <div class="page-entete">
-      <!-- TIPS & TRICKS : une ampoule au bord droit du titre, dont la bulle porte le message du
-           moment (cf. textes.js, `noyau.astuces`). Une pastille d'info comme les autres — même
-           bulle, même placement — habillée d'un emoji plutôt que d'un « i ». -->
-      <h2 class="dashboard-titre">Dashboard<i class="info-bulle info-bulle-astuce" tabindex="0" data-info-cle="noyau.astuces" aria-label="Astuces">💡</i></h2>
+      <!-- LE DASHBOARD TIENT SUR UNE PAGE, ET REGARDE VERS L'AVANT (cf. dashboard-avenir.js) :
+           combien il reste, ce qui arrive, ce qui vient de se passer. Quatre rangées dans une
+           grille de la hauteur de la fenêtre — en-tête, trois KPI, la rangée centrale (le reste
+           et les dépenses à gauche, les deux listes à droite), puis les épinglés et les notes.
+           Chaque bloc porte le bouton qui mène à la page où l'on creuse : c'est le cœur de l'écran.
 
-      <!-- Les KPI agrégés et l'histogramme des dépenses somment des montants :
-           impossible d'additionner deux monnaies sans taux de change, donc un
-           onglet par monnaie plutôt qu'un total mélangé. L'onglet pilote aussi
-           les cartes de compte plus bas : seuls les comptes portant cette
-           monnaie s'y affichent, avec ce seul solde. -->
-      <div class="sous-onglets" id="dashboard-monnaies"></div>
+           LA NAVIGATION DANS LE PASSÉ VIT SUR LA PAGE BUDGET. L'arbre de période, les quatre
+           cartes de flux, le camembert et la légende y ont déménagé ; ici la période est toujours
+           relative à aujourd'hui (ce mois, cette année, tout).
+
+           PAS DE <section> IMBRIQUÉE : le noyau pose `section { display: none }`. Des <div>, avec
+           `aria-labelledby`. -->
+      <div class="page-entete dbr-entete">
+        <div class="dbr-titre-bloc">
+          <h2 class="dashboard-titre">Dashboard</h2>
+          <div class="dbr-sous-titre" id="dbr-sous-titre"></div>
+        </div>
+
+        <!-- Un onglet par monnaie : rien ne s'additionne sans taux de change. L'extension
+             « Monnaies » pose son interrupteur « Tout convertir » juste après cette barre. -->
+        <div class="sous-onglets" id="dashboard-monnaies"></div>
+
+        <!-- TROIS BOUTONS, TOUJOURS RELATIFS À AUJOURD'HUI : ils règlent `state.dashboardPeriode`
+             sur le mois ou l'année en cours (cf. dbrChoisirPeriode). -->
+        <div class="dbr-periode" id="dbr-periode" role="radiogroup" aria-label="Période">
+          <button type="button" role="radio" data-dbr-periode="mois" aria-checked="true" class="active">Mois</button>
+          <button type="button" role="radio" data-dbr-periode="annee" aria-checked="false">Année</button>
+          <button type="button" role="radio" data-dbr-periode="tout" aria-checked="false">Tout</button>
+        </div>
+
+        <!-- TIPS & TRICKS : l'ampoule, dont la bulle porte le message du moment (cf. textes.js,
+             `noyau.astuces`). -->
+        <i class="info-bulle info-bulle-astuce" tabindex="0" data-info-cle="noyau.astuces" aria-label="Astuces">💡</i>
       </div>
 
-      <div class="kpi-grid">
-        <!-- Solde réel et solde prévisionnel vivent dans la MÊME carte : ils
-             répondent à la même question à deux échéances près, et deux
-             cartes côte à côte pour deux variantes d'un même chiffre
-             occupaient une place que le reste du dashboard réclamait. Le
-             prévisionnel se pose à côté du réel, plus petit — il l'annote, il
-             ne le concurrence pas.
-
-             PLUS DE SOUS-TEXTE sous ces trois cartes : ils paraphrasaient un
-             libellé déjà clair, ligne après ligne, et repoussaient vers le bas
-             la seule chose qu'on vient lire ici — les chiffres. Ce qui méritait
-             d'être dit l'est dans l'infobulle de la section.
-
-             LES DEUX RANGÉES SE PARTAGENT LE TRAVAIL SELON LE TEMPS, et c'est
-             ce qui décide de quelle carte va où : ICI, ce qui NE DÉPEND PAS du
-             sélecteur de période — l'état des comptes et des dettes
-             aujourd'hui ; EN BAS, contre l'histogramme et sous le sélecteur, ce
-             qui se recalcule à chaque changement de mois. C'est pour ça que
-             « Reste à rembourser » (un stock) est monté ici et que « Variation
-             du mois » (un flux) est descendu là-bas : chacune était du mauvais
-             côté, et il fallait lire l'infobulle pour savoir laquelle suivait le
-             sélecteur. -->
-        <div class="kpi-card">
-          <div class="kpi-label">Solde total</div>
-          <div class="kpi-valeur-ligne">
-            <span class="kpi-valeur" id="kpi-solde-total">-</span>
-            <span class="kpi-valeur-annexe">
-              <span class="kpi-valeur-annexe-label">prévisionnel</span>
-              <span class="kpi-valeur-annexe-valeur" id="kpi-solde-projete">-</span>
-            </span>
+      <!-- ---------- LES TROIS KPI : l'état d'aujourd'hui, et la porte de chacun ---------- -->
+      <div class="kpi-grid dbr-kpis">
+        <div class="kpi-card dbr-kpi">
+          <div class="dbr-kpi-corps">
+            <div class="kpi-label">Solde total · comptes courants</div>
+            <div class="dbr-kpi-ligne">
+              <span class="kpi-valeur" id="kpi-solde-total">-</span>
+              <span class="dbr-kpi-detail">
+                <span id="dbr-projete-libelle">Projeté</span>
+                <span id="kpi-solde-projete">-</span>
+              </span>
+            </div>
           </div>
+          <button type="button" class="dbr-nav" data-dbr-aller="previsions" data-extension="analyse-budget" style="display:none">Prévisions →</button>
         </div>
-        <!-- CETTE CARTE N'EXISTE QUE SI UNE EXTENSION LA REMPLIT. « Reste à
-             rembourser » somme ce qu'on me doit (extension « Suivi des
-             remboursements ») et ce que je dois (extension « Prêts ») ; sans
-             ni l'une ni l'autre, les deux côtés valent zéro par construction
-             (cf. soldes.get_reste_a_rembourser) et la carte annonce un 0,00 €
-             qui ne veut rien dire. `renderKpisDashboard` l'ouvre dès que l'une
-             des deux tourne — deux extensions, donc du JS plutôt qu'un
-             `data-extension-onglet`, qui n'en nomme qu'une.
-
-             `display:none` dans le HTML, comme partout ailleurs : rien
-             n'appelle le rendu avant le premier chargement du dashboard, et
-             c'est l'extension qui ouvre, jamais le noyau qui ferme.
-
-             LA GRILLE S'OCCUPE DU RESTE : `auto-fit` répartit les cartes
-             restantes sur toute la largeur, sans qu'aucune règle n'ait à
-             connaître leur nombre. -->
-        <div class="kpi-card" id="kpi-carte-remboursements" style="display:none">
-          <div class="kpi-label">Reste à rembourser<i class="info-bulle" tabindex="0" data-info-cle="noyau.reste-a-rembourser">i</i></div>
-          <div class="kpi-valeur" id="kpi-reste-rembourser">-</div>
-          <!-- Le détail des deux composantes : un net à zéro peut cacher 500 €
-               de créances et 500 € de dettes. Masqué quand il n'y a rien à
-               détailler (extension « Prêts » éteinte, ou aucune dette). -->
-          <div class="flux-detail hint" id="kpi-reste-rembourser-detail"></div>
-          <!-- LA PORTE D'ENTRÉE DE « SUIVI DES REMBOURSEMENTS », posée par
-               l'extension elle-même (cf. extensions/suivi-remboursements) :
-               le noyau ne fait que réserver la place. Vide et sans hauteur tant
-               qu'aucune extension n'y met rien. -->
+        <!-- CETTE CARTE N'EXISTE QUE SI UNE EXTENSION LA REMPLIT (« Suivi des remboursements »,
+             « Prêts ») : `renderKpisDashboard` l'ouvre dès que l'une des deux tourne. Son bouton
+             est posé par l'extension « Suivi des remboursements » dans la place réservée. -->
+        <div class="kpi-card dbr-kpi" id="kpi-carte-remboursements" style="display:none">
+          <div class="dbr-kpi-corps">
+            <div class="kpi-label">Reste à rembourser<i class="info-bulle" tabindex="0" data-info-cle="noyau.reste-a-rembourser">i</i></div>
+            <div class="dbr-kpi-ligne">
+              <span class="kpi-valeur" id="kpi-reste-rembourser">-</span>
+              <span class="dbr-kpi-detail flux-detail" id="kpi-reste-rembourser-detail"></span>
+            </div>
+          </div>
           <div class="flux-carte-actions" id="flux-remboursements-actions"></div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Total des avoirs</div>
-          <div class="kpi-valeur" id="kpi-total-avoirs">-</div>
-        </div>
-      </div>
-
-      <!-- LA RÉPARTITION DES AVOIRS A DÉMÉNAGÉ, page « Vue des
-           avoirs ». Elle répartit un patrimoine ENTRE DES COMPTES : sa place
-           est au-dessus des cartes de compte qu'elle résume, et non au milieu
-           d'un écran qui parle du mois en cours. Elle y gagne au passage ce que
-           le dashboard ne pouvait pas lui donner — le choix de sa monnaie,
-           indépendant de l'onglet des KPI. -->
-
-      <h3>Dépenses par catégorie — <span id="dashboard-periode-libelle"></span>
-        <!-- Un seul contrôle, qui pilote À LA FOIS l'histogramme et le
-             camembert juste en dessous (cf. renderHistogrammeDashboard) :
-             filtrer les catégories affichées n'a de sens qu'une fois pour les
-             deux, pas une fois par graphe. -->
-        <span class="dashboard-filtre-categories">
-          <button type="button" id="btn-dashboard-filtre-categories"
-                  aria-haspopup="true" aria-expanded="false"
-                  aria-controls="dashboard-filtre-categories-panneau">Catégories ▾</button>
-          <div id="dashboard-filtre-categories-panneau" class="filtre-categories-panneau" hidden>
-            <label class="filtre-categories-tout">
-              <input type="checkbox" id="dashboard-filtre-categories-tout" checked />
-              Tout sélectionner
-            </label>
-            <div id="dashboard-filtre-categories-liste"></div>
+        <div class="kpi-card dbr-kpi">
+          <div class="dbr-kpi-corps">
+            <div class="kpi-label">Total des avoirs</div>
+            <div class="dbr-kpi-ligne">
+              <span class="kpi-valeur" id="kpi-total-avoirs">-</span>
+              <span class="dbr-kpi-detail" id="dbr-avoirs-detail"></span>
+            </div>
           </div>
-        </span>
-      </h3>
-      <!-- L'ARBRE DE PÉRIODE : Tout > année > mois > semaines. Chaque ligne a sa
-           PASTILLE ronde, bleue sur le niveau qui pilote le dashboard, grise
-           ailleurs ; les deux chevrons déplient les mois sous l'année et les
-           semaines sous le mois. Cliquer plus bas que la pastille la fait
-           descendre, cliquer plus haut ne change que l'année ou le mois de
-           référence — pour remonter, on clique la pastille de la ligne du
-           dessus. Tout le contenu est dessiné par renderArbrePeriode (app.js) ;
-           `.periode-selecteur` reste la prise du tutoriel. -->
-      <div class="periode-selecteur periode-selecteur-arbre">
-        <div class="periode-arbre" id="dashboard-periode-arbre" role="radiogroup"></div>
+          <button type="button" class="dbr-nav" data-dbr-aller="avoirs">Vue des avoirs →</button>
+        </div>
       </div>
 
-      <!-- CE QUE LA PÉRIODE COÛTE ET RAPPORTE, posé ICI et non parmi les cartes
-           du haut : c'est la question de l'histogramme juste en dessous, et les
-           deux chiffres doivent suivre le mois qu'on vient de choisir sans
-           qu'on ait à remonter la page.
+      <!-- ---------- LA RANGÉE CENTRALE ---------- -->
+      <div class="dbr-centre">
+        <div class="dbr-colonne">
+          <!-- CE QU'IL RESTE POUR FINIR LA PÉRIODE, EN CASH : le solde des comptes courants, ce
+               qui est prévu d'ici l'horizon, et le point le plus bas par lequel on passera (cf.
+               services/soldes.reste_periode). La courbe absorbe la hauteur libre. -->
+          <div class="dbr-bloc dbr-reste" id="dbr-reste" aria-labelledby="dbr-reste-titre">
+            <div class="dbr-bloc-tete">
+              <span class="dbr-bloc-titre" id="dbr-reste-titre"><span id="dbr-reste-titre-texte">Reste pour finir le mois</span><i class="info-bulle" tabindex="0" data-info-cle="noyau.reste-periode">i</i></span>
+              <button type="button" class="dbr-nav" data-dbr-aller="previsions" data-extension="analyse-budget" style="display:none">Détail dans Budget →</button>
+            </div>
+            <div class="dbr-reste-chiffres">
+              <div class="dbr-reste-principal">
+                <div class="dbr-reste-valeur" id="dbr-reste-libre">-</div>
+                <div class="dbr-reste-legende" id="dbr-reste-libre-legende"></div>
+              </div>
+              <div class="dbr-reste-annexe">
+                <div class="dbr-reste-annexe-label" id="dbr-point-bas-label">Point bas</div>
+                <div class="dbr-reste-annexe-valeur" id="dbr-point-bas">-</div>
+              </div>
+              <div class="dbr-reste-annexe">
+                <div class="dbr-reste-annexe-label" id="dbr-rythme-label">Rythme sûr</div>
+                <div class="dbr-reste-annexe-valeur" id="dbr-rythme">-</div>
+              </div>
+              <div class="dbr-reste-annexe">
+                <div class="dbr-reste-annexe-label" id="dbr-entree-label">Prochaine entrée</div>
+                <div class="dbr-reste-annexe-valeur" id="dbr-entree">-</div>
+              </div>
+            </div>
+            <div class="dbr-jauge" id="dbr-jauge" aria-hidden="true">
+              <span class="dbr-jauge-sorties" id="dbr-jauge-sorties"></span>
+              <span class="dbr-jauge-libre" id="dbr-jauge-libre"></span>
+            </div>
+            <div class="dbr-jauge-legende">
+              <span><i class="dbr-puce dbr-puce-sorties"></i>Sorties prévues <b id="dbr-sorties-prevues">-</b></span>
+              <span><i class="dbr-puce dbr-puce-libre"></i>Solde libre <b id="dbr-solde-libre">-</b></span>
+              <span class="dbr-courbe-legende">
+                <span><i class="dbr-trait"></i>Réel</span>
+                <span><i class="dbr-trait dbr-trait-projete"></i>Projeté</span>
+              </span>
+            </div>
+            <div class="dbr-courbe" id="dbr-courbe"></div>
+          </div>
 
-           PLUS DE « DIFFÉRENCE » : elle valait, à un signe près, la variation du
-           mois — deux chiffres pour une seule mesure, dont l'un devait finir par
-           sembler faux. C'est d'ailleurs la variation ELLE-MÊME qui a pris sa
-           place ici : elle se recalcule à chaque changement de période, sa place
-           est donc sous le sélecteur qui la commande, et non dans la rangée du
-           haut où rien ne bouge quand on change de mois. Les deux autres cartes
-           sont les totaux que l'histogramme détaille (cf.
-           services/soldes.get_flux_periode).
-
-           CES TROIS-LÀ RÉPONDENT À DEUX QUESTIONS DIFFÉRENTES, et leurs
-           infobulles le disent : « Total Entrées / Dépenses » à ce que la
-           période COÛTE et RAPPORTE (dépense amortie étalée, remboursable
-           réduite à son reste à charge) ; « Variation » à ce qui est PASSÉ sur
-           les comptes, à sa date et pour son montant. Elles n'ont donc jamais le
-           même chiffre, et c'est normal. -->
-      <div class="flux-periode">
-        <div class="flux-carte">
-          <div class="flux-label">Total Entrées<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-entrees">i</i></div>
-          <div class="flux-valeur positif" id="kpi-total-entrees">-</div>
+          <!-- CE QUE LA PÉRIODE A COÛTÉ, en version compacte : les trois chiffres et
+               l'histogramme du noyau (mêmes infobulles, même accès aux opérations). Le camembert,
+               la légende et le niveau semaine sont sur la page Budget. -->
+          <div class="dbr-bloc dbr-depenses" aria-labelledby="dbr-depenses-titre">
+            <div class="dbr-bloc-tete">
+              <span class="dbr-bloc-titre dbr-bloc-titre-capitales" id="dbr-depenses-titre">Dépenses de la période<i class="info-bulle" tabindex="0" data-info-cle="noyau.depenses-periode">i</i></span>
+              <div class="flux-periode dbr-flux">
+                <span class="flux-carte"><span class="dbr-flux-label">Entrées</span> <span class="flux-valeur positif" id="kpi-total-entrees">-</span></span>
+                <span class="flux-carte"><span class="dbr-flux-label">Dépenses</span> <span class="flux-valeur negatif" id="kpi-total-sorties">-</span></span>
+                <span class="dbr-flux-item"><span class="dbr-flux-label">Variation</span> <span class="flux-valeur" id="kpi-variation-attribuee">-</span></span>
+              </div>
+              <!-- « POURQUOI CET ÉCART ? » : masqué tant que la variation brute vaut l'attribuée
+                   (cf. renderFluxPeriode). -->
+              <div class="flux-carte-actions" id="flux-ecart-actions">
+                <button type="button" class="dbr-nav dbr-nav-discret" id="btn-ecart-variations" style="display:none">Pourquoi cet écart ?</button>
+              </div>
+              <button type="button" class="dbr-nav" data-dbr-aller="analyse" data-extension="analyse-budget" style="display:none">Analyse →</button>
+            </div>
+            <div id="dashboard-histogramme" class="histogramme-cadre dbr-histogramme"></div>
+          </div>
         </div>
-        <div class="flux-carte">
-          <div class="flux-label">Total Dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-depenses">i</i></div>
-          <div class="flux-valeur negatif" id="kpi-total-sorties">-</div>
-        </div>
-        <!-- LA VARIATION ATTRIBUÉE, POSÉE ENTRE LES DEUX TOTAUX ET LA BRUTE,
-             parce que c'est exactement là qu'elle se lit : elle vaut « Total
-             Entrées − Total Dépenses », les deux cartes qui la précèdent, et
-             elle se compare à la brute, la carte qui la suit. La ranger
-             ailleurs aurait obligé à sauter d'un bout à l'autre de la rangée
-             pour faire les deux lectures.
 
-             CE QU'ELLE RÉSOUT. Deux chiffres qui ne tombent jamais d'accord —
-             « ce que le mois coûte » et « ce qui a bougé sur le compte » — se
-             regardaient sans rien dire de leur écart, et le lecteur devait
-             croire sur parole qu'aucun des deux n'était faux. Les poser côte à
-             côte, l'un en couleur ordinaire et l'autre en jaune, rend l'écart
-             VISIBLE : ce qui reste est le décalage entre le moment où l'argent
-             sort et le mois auquel il appartient (dépense amortie étalée,
-             remboursable dont on récupérera une part). -->
-        <div class="flux-carte">
+        <div class="dbr-colonne">
+          <div class="dbr-bloc dbr-liste-bloc" aria-labelledby="dbr-prochaines-titre">
+            <div class="dbr-bloc-tete">
+              <span class="dbr-bloc-titre" id="dbr-prochaines-titre">Prochaines prévisionnelles<span class="dbr-bloc-compte" id="dbr-prochaines-compte"></span></span>
+              <button type="button" class="dbr-nav" data-dbr-aller="previsionnelles">Voir les prévisionnelles →</button>
+            </div>
+            <div class="dbr-liste" id="dbr-prochaines"></div>
+          </div>
+          <div class="dbr-bloc dbr-liste-bloc" aria-labelledby="dbr-dernieres-titre">
+            <div class="dbr-bloc-tete">
+              <span class="dbr-bloc-titre" id="dbr-dernieres-titre">Dernières opérations<span class="dbr-bloc-compte"> · 5 dernières</span></span>
+              <button type="button" class="dbr-nav" data-dbr-aller="operations">Voir les opérations →</button>
+            </div>
+            <div class="dbr-liste" id="dbr-dernieres"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- LA RANGÉE DU BAS : les épinglés, puis les notes ---------- -->
+      <div class="dbr-bas">
+        <!-- LES PROJETS ET LES OBJECTIFS ÉPINGLÉS, sur UNE ligne, projets d'abord. Les deux
+             conteneurs restent ceux que les extensions remplissent (`display: contents`) ; trois
+             cartes au plus, le reste derrière un bouton « +N → Budget » (cf. dbrLimiterEpingles).
+             Le bloc entier se masque tant que rien n'est épinglé (cf. majBlocEpingles, app.js). -->
+        <div class="dashboard-epingles dbr-epingles" id="dashboard-epingles" style="display:none" aria-labelledby="dbr-epingles-titre">
+          <h3 id="dbr-epingles-titre">Projets &amp; Objectifs<i class="info-bulle" tabindex="0" id="dashboard-epingles-info"
+              data-info-cle="objectifs.dashboard" style="display:none">i</i></h3>
+          <div class="dashboard-epingles-cartes">
+            <div id="dashboard-projets" style="display:none"></div>
+            <div id="dashboard-objectifs" style="display:none"></div>
+            <button type="button" class="dbr-nav dbr-epingles-plus" id="dbr-epingles-plus" hidden></button>
+          </div>
+        </div>
+
+        <!-- Bloc-notes libre, enregistré tout seul. Hauteur fixe ici : il défile en lui-même
+             plutôt que de pousser la page hors de l'écran. -->
+        <div class="dbr-notes" aria-labelledby="dbr-notes-titre">
+          <h3 id="dbr-notes-titre">Notes<i class="info-bulle" tabindex="0" data-info-cle="noyau.notes">i</i></h3>
+          <div class="note-dashboard">
+            <textarea id="dashboard-note" rows="4" placeholder="ex. vérifier que le prélèvement EDF de mars est bien passé
+relancer Marie pour les 40 € du restaurant"></textarea>
+            <div class="note-dashboard-etat hint" id="dashboard-note-etat"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- LA RÉSERVE : ce que le dashboard n'affiche plus ----------
+           Aucun de ces éléments n'est supprimé : le code qui les dessine (arbre de période,
+           camembert, légende, filtre des catégories, variation brute) continue de tourner, et la
+           page Budget porte désormais cette vue. Seul leur AFFICHAGE est retiré d'ici. -->
+      <div id="dbr-reserve" style="display:none" aria-hidden="true">
+        <h3>Dépenses par catégorie — <span id="dashboard-periode-libelle"></span>
+          <span class="dashboard-filtre-categories">
+            <button type="button" id="btn-dashboard-filtre-categories"
+                    aria-haspopup="true" aria-expanded="false"
+                    aria-controls="dashboard-filtre-categories-panneau">Catégories ▾</button>
+            <div id="dashboard-filtre-categories-panneau" class="filtre-categories-panneau" hidden>
+              <label class="filtre-categories-tout">
+                <input type="checkbox" id="dashboard-filtre-categories-tout" checked />
+                Tout sélectionner
+              </label>
+              <div id="dashboard-filtre-categories-liste"></div>
+            </div>
+          </span>
+        </h3>
+        <div class="periode-selecteur periode-selecteur-arbre">
+          <div class="periode-arbre" id="dashboard-periode-arbre" role="radiogroup"></div>
+        </div>
+        <div>
           <div class="flux-label" id="kpi-variation-attribuee-label">Variation attribuée au mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-attribuee-au-mois">i</i></div>
-          <div class="flux-valeur" id="kpi-variation-attribuee">-</div>
-        </div>
-        <div class="flux-carte">
-          <!-- LE MOUVEMENT BRUT DES COMPTES, et rien d'autre : tout ce qui est
-               passé, à sa date et pour son montant, sans étaler ni retrancher
-               (cf. services/soldes.get_variation_brute). C'est la question
-               qu'on se pose devant un relevé.
-
-               EN JAUNE, ET SEULE DE LA RANGÉE À L'ÊTRE. Le rouge et le vert
-               disent « bon » ou « mauvais » ; ce chiffre-là ne dit ni l'un ni
-               l'autre, il dit CE QUI EST PASSÉ. Lui donner la même paire de
-               couleurs que sa voisine attribuée invitait à les lire comme deux
-               versions de la même mesure, dont l'une aurait dû être fausse. Une
-               troisième couleur dit qu'on change de question, et c'est
-               précisément ce qu'il fallait signaler (cf. --badge-remboursable-
-               text, déjà le jaune de l'application). -->
           <div class="flux-label" id="kpi-variation-label">Variation sur le mois brute<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-sur-le-mois-brute">i</i></div>
           <div class="flux-valeur flux-valeur-brute" id="kpi-variation">-</div>
-          <!-- LA PORTE DU DÉTAIL DE L'ÉCART, posée sous le chiffre qui la
-               justifie — même procédé que le bouton « Suivi des remboursements »
-               dans la carte « Reste à rembourser ». On se pose la question
-               DEVANT le chiffre (« pourquoi ces deux-là ne disent-ils pas la même
-               chose ? ») : sa réponse doit s'ouvrir de là, et de nulle part
-               ailleurs.
-
-               MASQUÉ QUAND L'ÉCART EST NUL (cf. renderFluxPeriode) : sans écart,
-               il n'y a rien à expliquer, et un bouton qui ouvre une page vide
-               est une promesse non tenue. -->
-          <div class="flux-carte-actions" id="flux-ecart-actions">
-            <button type="button" id="btn-ecart-variations" style="display:none">D'où vient l'écart ?</button>
-          </div>
         </div>
-      </div>
-
-      <div class="dashboard-graphes">
-        <div id="dashboard-histogramme" class="histogramme-cadre"></div>
-        <!-- LE CAMEMBERT A DEUX VUES, L'HISTOGRAMME UNE SEULE, et c'est ce qui
-             met la bascule ICI et non au-dessus des deux. Un graphe de montants
-             ne change pas de dénominateur : une barre vaut ce qu'elle vaut.
-             Seules des PARTS peuvent être rapportées à autre chose.
-
-             L'en-tête est HORS de #dashboard-camembert : ce conteneur est
-             réécrit en entier à chaque rendu (innerHTML), la bascule y aurait
-             disparu au premier clic. -->
         <div class="histogramme-cadre camembert-cadre">
           <div class="camembert-entete">
-            <!-- LA VUE « BUDGET » APPARTIENT À L'EXTENSION DU MÊME NOM. Elle
-                 rapporte chaque catégorie au budget total du mois — un chiffre
-                 qui ne se pose plus que sur la page Budget, et qui n'existe donc
-                 que si l'extension tourne. Un onglet qui ouvre un graphe sans
-                 dénominateur, sans rien offrir pour lui en donner un, est une
-                 impasse : `data-extension` le fait disparaître avec elle (cf.
-                 extensions.js, majVisibiliteNavigation), et `display:none` dans
-                 le HTML parce que rien n'appelle ce mécanisme au démarrage pour
-                 une extension éteinte — c'est l'extension qui ouvre, jamais le
-                 noyau qui ferme.
-
-                 LE RÉGLAGE DU BUDGET A SUIVI. Il vivait ici, dans cette vue et
-                 elle seule : un champ à remplir posé entre deux graphes, sur
-                 l'écran où l'on vient LIRE ce qui s'est passé. Il est désormais
-                 en tête de la page Budget, avec les deux autres grandeurs
-                 auxquelles il se compare. -->
             <div class="sous-onglets camembert-vues" id="camembert-vues">
               <button type="button" data-vue-pie="actuel" class="active">État actuel</button>
               <button type="button" data-vue-pie="budget" data-extension="analyse-budget" style="display:none">Budget<i class="info-bulle" tabindex="0" data-info-cle="noyau.camembert-vue-budget">i</i></button>
@@ -862,44 +851,7 @@
           </div>
           <div id="dashboard-camembert" class="camembert-zone"></div>
         </div>
-      </div>
-
-      <!-- LA LÉGENDE, TROISIÈME BLOC ET NON MORCEAU D'UN GRAPHE. Les deux
-           graphes ci-dessus montrent les mêmes catégories dans les mêmes
-           couleurs : une légende par graphe revenait à écrire deux fois la même
-           liste, et à prendre deux fois la place — celle-là même dont le
-           camembert a besoin pour écrire ses pourcentages au bord des tranches.
-
-           SUR TOUTE LA LARGEUR, donc, sous les deux qu'elle sert. Survoler une
-           de ses lignes ouvre l'infobulle LA PLUS COMPLÈTE des trois (total,
-           part, objectif en pourcentage et en montant) et éclaire en même temps
-           la barre et la tranche correspondantes. -->
-      <div id="dashboard-legende" class="histogramme-cadre legende-cadre"></div>
-
-      <!-- LA PLACE DES OBJECTIFS, réservée par le noyau et remplie par
-           l'extension du même nom — même procédé que
-           `#flux-remboursements-actions` dans la carte « Reste à rembourser ».
-           Une extension qui fabriquerait son propre bloc devrait décider où
-           l'insérer, et se tromperait le jour où cette page change.
-
-           SOUS LA LÉGENDE, donc sous les deux graphes qu'elle commente : « est-ce
-           que je tiens ma règle ? » est une question qu'on se pose APRÈS avoir vu
-           ce qui s'est passé. Vide et sans hauteur tant qu'aucune extension n'y
-           met rien, et tant qu'aucun objectif n'a été coché pour le dashboard. -->
-      <!-- LES PROJETS ET LES OBJECTIFS ÉPINGLÉS FORMENT UN SEUL BLOC, sous un seul titre
-           (`.dashboard-epingles`) : leurs cartes sont de la même famille et se suivent sur la même
-           ligne, projets d'abord. Les deux conteneurs restent ceux que les extensions remplissent
-           (`display: contents` : seules leurs cartes comptent dans la grille) ; le bloc entier se
-           masque tant que les deux sont vides (cf. majBlocEpingles, app.js). -->
-      <div class="dashboard-epingles" id="dashboard-epingles" style="display:none">
-        <h3>Projets &amp; Objectifs<i class="info-bulle" tabindex="0" id="dashboard-epingles-info"
-            data-info-cle="objectifs.dashboard" style="display:none">i</i></h3>
-        <div class="dashboard-epingles-cartes">
-          <!-- LES PROJETS ÉPINGLÉS (extension « Projets et objectifs »), même réserve, même raison.
-               Vide tant qu'aucun projet n'est épinglé. -->
-          <div id="dashboard-projets" style="display:none"></div>
-          <div id="dashboard-objectifs" style="display:none"></div>
-        </div>
+        <div id="dashboard-legende" class="histogramme-cadre legende-cadre"></div>
       </div>
 
       <!-- L'ACCORD DES TROIS GRANDEURS DU BUDGET (cf. crud.incoherences_budgets).
@@ -925,18 +877,6 @@
             <button type="button" id="btn-coherence-laisser">Laisser tel quel</button>
           </div>
         </div>
-      </div>
-
-      <!-- Bloc-notes libre : aucune structure, aucune sémantique. Il grandit
-           avec son contenu (cf. ajusterHauteurNoteDashboard) parce qu'une note
-           qu'il faut faire défiler pour relire ne sert à rien, et s'enregistre
-           tout seul — un bouton « Enregistrer » sur un pense-bête ne fait
-           qu'ajouter une occasion de perdre ce qu'on vient d'écrire. -->
-      <h3>Notes<i class="info-bulle" tabindex="0" data-info-cle="noyau.notes">i</i></h3>
-      <div class="note-dashboard">
-        <textarea id="dashboard-note" rows="4" placeholder="ex. vérifier que le prélèvement EDF de mars est bien passé
-relancer Marie pour les 40 € du restaurant"></textarea>
-        <div class="note-dashboard-etat hint" id="dashboard-note-etat"></div>
       </div>
     </section>
 
@@ -3267,12 +3207,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=54"></script>
+  <script src="textes.js?v=55"></script>
   <script src="pastilles.js?v=1"></script>
-  <script src="i18n.js?v=106"></script>
-  <script src="i18n-pt.js?v=24"></script>
+  <script src="i18n.js?v=107"></script>
+  <script src="i18n-pt.js?v=25"></script>
   <script src="extensions.js?v=28"></script>
-  <script src="app.js?v=196"></script>
+  <script src="app.js?v=198"></script>
+  <!-- LE DASHBOARD D'UNE PAGE (période relative à aujourd'hui, reste, courbe, listes, boutons de
+       navigation). Après app.js, dont il réutilise les fonctions ; avant les extensions, qui
+       enveloppent `loadDashboardData`. -->
+  <script src="dashboard-avenir.js?v=1"></script>
   <script src="calendrier.js?v=3"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
@@ -3284,7 +3228,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        `switchSection`, `escapeHtml`, `showMessage` et `t`. Un fichier à part
        parce qu'il ne porte pas le comportement de l'application mais la bulle
        qui la montre, plus la mémoire de ce qu'on en a déjà parcouru. -->
-  <script src="tutoriel.js?v=8"></script>
+  <script src="tutoriel.js?v=9"></script>
   <!-- APRÈS app.js, comme les deux précédents : la démo appelle `apiFetch`, `showMessage`, `t`,
        `texteAide` et `ecrireTexteAide`. Elle pose la pastille jaune dans l'en-tête de chaque
        page et le rappel qui précède les gestes importants (`BudgetApp.confirmerEnSandbox`). -->

@@ -1238,6 +1238,10 @@ document.getElementById("projet-filtre-texte").addEventListener("keydown", (e) =
  * dashboard - il a les siennes -, la carte montre donc ce que la liste des projets montre : ses
  * totaux, sa période et où il en est face au montant à tenir. Un clic l'ouvre dans la page Budget.
  *
+ * SANS DESCRIPTION, ET AVEC SA PORTE : sur le dashboard d'une page, la carte tient en 110 px. La
+ * phrase de description reste sur la page des projets ; le bouton « Voir le projet → » pose
+ * `projetOuvert` et y mène (c'est le clic de la carte, rendu visible — cf. projOuvrirDepuisDashboard).
+ *
  * Même enveloppe de `loadDashboardData` que celle des objectifs (cf. objectifs.js), posée une seule fois.
  */
 function projetCarteDashboardHtml(projet) {
@@ -1245,14 +1249,10 @@ function projetCarteDashboardHtml(projet) {
     <div class="projet-carte projet-carte-dashboard" data-projet-ouvrir="${projet.id}" role="button" tabindex="0">
       <div class="projet-carte-corps">
         <div class="projet-carte-nom">${escapeHtml(projet.nom)}</div>
-        ${
-          projet.description
-            ? `<div class="projet-carte-description">${escapeHtml(projet.description)}</div>`
-            : ""
-        }
         <div class="projet-carte-compte">${t("{n} opération(s)", { n: projet.nombre_operations })}</div>
         <div class="projet-totaux">${totauxHtml(projet.totaux)}</div>
         <div class="projet-suivi">${projetSuiviHtml(projet)}</div>
+        <button type="button" class="projet-voir">${t("Voir le projet")} →</button>
       </div>
     </div>`;
 }
