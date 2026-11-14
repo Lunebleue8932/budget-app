@@ -6404,6 +6404,118 @@ td.apercu-col-hors-fichier {
   margin-bottom: 0;
 }
 
+/* ---------- Le plan de l'application (cf. plan-app.js) ----------
+   UNE CARTE MENTALE À L'HORIZONTALE : le nom de l'app à gauche, ses pages dans une colonne
+   à sa droite, puis leurs onglets, puis les parties d'un onglet. Les liens sont des filets
+   dessinés par les <li> eux-mêmes (un trait vers le nœud, une barre verticale entre
+   frères), sans image ni SVG : le plan suit donc le thème et le nombre de pages. Sur une
+   fenêtre étroite il défile, il ne se replie pas. */
+.plan-app {
+  overflow-x: auto;
+  padding: 0.5rem 0 1rem;
+}
+
+.plan-arbre {
+  display: flex;
+  align-items: center;
+  width: max-content;
+}
+
+.plan-racine {
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.plan-enfants {
+  list-style: none;
+  margin: 0 0 0 1.6rem;
+  padding: 0;
+  position: relative;
+}
+
+/* Le trait qui relie le parent à la barre verticale de ses enfants. */
+.plan-enfants::before {
+  content: "";
+  position: absolute;
+  left: -1.6rem;
+  top: 50%;
+  width: 1.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.plan-enfants > li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.2rem 0 0.2rem 1.6rem;
+}
+
+/* Un trait vers le nœud, et une barre qui rejoint les frères. */
+.plan-enfants > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 1.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.plan-enfants > li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+}
+
+.plan-enfants > li:first-child::after {
+  top: 50%;
+}
+
+.plan-enfants > li:last-child::after {
+  bottom: 50%;
+}
+
+.plan-enfants > li:only-child::after {
+  display: none;
+}
+
+.plan-noeud {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface-alt);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.plan-noeud:hover {
+  border-color: var(--accent-light);
+  color: var(--accent-light);
+}
+
+/* Trois niveaux, de plus en plus discrets : la page, son onglet, la partie de l'onglet. */
+.plan-page {
+  border-color: var(--accent-light);
+  font-weight: 600;
+}
+
+.plan-partie {
+  border-style: dashed;
+  background: none;
+  color: var(--text-secondary);
+}
+
 .notice-titre-actions {
   margin-left: auto;
   font-size: 0.9rem;

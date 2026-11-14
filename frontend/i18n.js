@@ -5213,4 +5213,8 @@ Object.assign(TRADUCTIONS.en, {
   "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.": "An emoji shown in front of the category name in lists. Pick one from the grid, or paste your own. The badge around it has the category's histogram color: it is set when the category is created and cannot be chosen here.",
   "Un emoji affiché devant le nom du compte dans les listes. Choisis-en un dans la grille, ou colle le tien. La couleur se choisit juste en dessous : sans couleur ni icône, le compte n'a pas de pastille.": "An emoji shown in front of the account name in lists. Pick one from the grid, or paste your own. The color is chosen just below: with no color and no icon, the account has no badge.",
 // <<< FIN DES TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
+// >>> TRADUCTIONS AJOUTÉES : le plan de l'application
+  "Plan de l'application": "App map",
+  "Où se trouve quoi dans l'app : les pages, leurs onglets, puis les parties d'un onglet. -- Clique sur une pastille pour aller à l'endroit qu'elle nomme. -- Seules les pages disponibles y figurent : celles d'une extension éteinte n'apparaissent pas, et reviennent dès que tu l'allumes.": "Where everything is in the app: the pages, their tabs, then the sections of a tab. -- Click a bubble to go to the place it names. -- Only the pages that are available are listed: those of a turned-off extension do not appear, and come back as soon as you turn it on.",
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le plan de l'application
 });

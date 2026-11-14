@@ -824,7 +824,28 @@ def _top_depenses_par_categorie(
     monnaie_id: int,
     semaine: Optional[int] = None,
 ) -> dict[str, list[dict]]:
-    """Les plus grosses dépenses de la période, par catégorie et fondues par
+    """Les plus grosses dépenses de la période, par catégorie (cf. `_top_depuis_cumuls`)."""
+    return _top_depuis_cumuls(
+        _cumuls_depenses_par_libelle(db, annee, mois, monnaie_id, semaine)
+    )
+
+
+def _cumuls_depenses_par_libelle(
+    db: Session,
+    annee: int,
+    mois: Optional[int],
+    monnaie_id: int,
+    semaine: Optional[int] = None,
+) -> dict:
+    """{catégorie: {libellé: [montant, nombre]}} des dépenses de la période.
+
+    LES CLÉS DISENT AUSSI QUELLES CATÉGORIES ONT AU MOINS UNE OPÉRATION sur la
+    période (une part de découpe ou une part d'amortissement comprise) — même quand
+    leur total vaut zéro, par annulation ou parce que la dépense est intégralement
+    due. C'est ce qui permet à l'histogramme de ne pas dessiner une barre vide
+    qu'aucune opération n'explique, sans écarter celle qui vaut zéro pour une raison.
+
+    Les plus grosses dépenses de la période, par catégorie et fondues par
     libellé — ce que montre l'infobulle d'une barre de l'histogramme.
 
     MÊME PÉRIMÈTRE QUE LA BARRE, ET C'EST TOUT L'ENJEU : mêmes filtres (sens,
@@ -917,7 +938,11 @@ def _top_depenses_par_categorie(
             if amortir:
                 montant_part *= part_amortie(operation, annee, mois) * prorata
             _fondre_par_libelle(cumuls, categorie, operation.nature, montant_part)
+    return cumuls
 
+
+def _top_depuis_cumuls(cumuls: dict) -> dict[str, list[dict]]:
+    """Les NB_TOP_DEPENSES plus grosses lignes de chaque catégorie, du plus lourd au plus léger."""
     resultats: dict[str, list[dict]] = {}
     for categorie, par_libelle in cumuls.items():
         classees = sorted(
@@ -1000,7 +1025,9 @@ def get_depenses_par_categorie(
     plus que de vraies (les quatre anciennes catégories système sont devenues
     des types, et leurs opérations n'ont plus de catégorie du tout).
 
-    TOUTES LES CATÉGORIES SONT RENDUES, et le tri se fait à l'écran. L'œil de
+    SEULES LES CATÉGORIES QUI ONT UNE OPÉRATION SUR LA PÉRIODE SONT RENDUES : une barre
+    à zéro que rien n'explique ne montre rien (cf. la boucle plus bas). Parmi elles, le tri
+    se fait à l'écran. L'œil de
     l'onglet Catégories filtrait ici, à la source ; il a été retiré (migration
     0056) au profit du filtre du dashboard, qui vit dans le titre du graphe et
     pilote l'histogramme, le camembert et la légende ensemble. Ce filtre-là
@@ -1035,12 +1062,21 @@ def get_depenses_par_categorie(
         db, annee, mois, Statut.previsionnel, monnaie_id, semaine
     )
     # Calculé une fois pour toutes les catégories, pas une requête par barre.
-    tops = _top_depenses_par_categorie(db, annee, mois, monnaie_id, semaine)
+    cumuls = _cumuls_depenses_par_libelle(db, annee, mois, monnaie_id, semaine)
+    tops = _top_depuis_cumuls(cumuls)
 
     resultats = []
     for categorie in categories:
         valeur_reelle = reel.get(categorie.nom, 0.0)
         valeur_previsionnelle = valeur_reelle + previsionnel_seul.get(categorie.nom, 0.0)
+        # PAS DE BARRE VIDE POUR UNE CATÉGORIE SANS OPÉRATION. Une catégorie qui n'a aucune
+        # opération sur la période (ni part de découpe, ni part d'amortissement) n'a rien à
+        # montrer : sa barre à zéro ne ferait que remplir l'histogramme — même si un budget y
+        # est posé (il se lit dans Budget → Budgets par catégorie). Une catégorie qui vaut zéro
+        # PARCE QU'ELLE A DES OPÉRATIONS (une dépense annulée par son remboursement, une dépense
+        # intégralement due) reste : le zéro y est une information.
+        if categorie.nom not in cumuls:
+            continue
         # UNE CATÉGORIE ÉTEINTE DISPARAÎT QUAND ELLE NE PORTE RIEN (cf.
         # models.Categorie.active). Une catégorie allumée garde sa barre à zéro,
         # elle a quelque chose à dire — « rien dépensé ce mois-ci » ; une

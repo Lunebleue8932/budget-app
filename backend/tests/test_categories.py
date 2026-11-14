@@ -304,7 +304,8 @@ def test_une_categorie_d_entree_n_a_pas_de_barre(db_session):
         db_session, 2026, 3, get_monnaie_id(db_session)
     )
     assert "Loyers perçus" not in {b["categorie"] for b in barres}
-    assert "Alimentaire" in {b["categorie"] for b in barres}
+    # Les autres catégories n'ont aucune opération ce mois-là : pas de barre non plus.
+    assert "Alimentaire" not in {b["categorie"] for b in barres}
 
 
 def test_cocher_la_case_ne_reecrit_aucune_operation(db_session):

@@ -211,9 +211,10 @@ def cascades(db: Session, operations, monnaies: list[models.Monnaie] | None = No
         if monnaie.id not in touchees:
             continue
         colonnes = []
-        lignes = [
-            (nom, c) for nom, c in categories[monnaie.id].items() if abs(c["montant"]) >= _EPSILON
-        ]
+        # UNE COLONNE EXISTE PARCE QU'UNE OPÉRATION LA PORTE, pas parce que son net est
+        # non nul : une catégorie qui s'annule (un achat remboursé en entier dans le même
+        # projet) garde sa marche à zéro. Seule l'absence d'opération supprime une barre.
+        lignes = list(categories[monnaie.id].items())
         # LES ENTRÉES D'ABORD, de la plus grosse à la plus petite, puis les
         # dépenses de la plus lourde à la plus légère : la cascade monte, puis
         # chaque marche explique ce qui l'entame.
@@ -221,7 +222,9 @@ def cascades(db: Session, operations, monnaies: list[models.Monnaie] | None = No
         for nom, c in lignes:
             colonnes.append(
                 {
-                    "genre": GENRE_ENTREE if c["montant"] > 0 else GENRE_DEPENSE,
+                    "genre": GENRE_ENTREE
+                    if c["montant"] >= _EPSILON or (abs(c["montant"]) < _EPSILON and c["est_entree"])
+                    else GENRE_DEPENSE,
                     "libelle": nom,
                     "montant": round(c["montant"], 2),
                     "est_entree": c["est_entree"],
@@ -229,7 +232,7 @@ def cascades(db: Session, operations, monnaies: list[models.Monnaie] | None = No
                     "top": _top(c["top"]),
                 }
             )
-        if abs(epargne[monnaie.id]) >= _EPSILON:
+        if epargne_top.get(monnaie.id):
             colonnes.append(
                 {
                     "genre": GENRE_EPARGNE,
@@ -238,7 +241,7 @@ def cascades(db: Session, operations, monnaies: list[models.Monnaie] | None = No
                     "top": _top(epargne_top[monnaie.id]),
                 }
             )
-        if abs(frais[monnaie.id]) >= _EPSILON:
+        if frais_top.get(monnaie.id):
             colonnes.append(
                 {
                     "genre": GENRE_FRAIS,
@@ -248,9 +251,9 @@ def cascades(db: Session, operations, monnaies: list[models.Monnaie] | None = No
                 }
             )
         for autre in monnaies:
-            net = conversions[monnaie.id].get(autre.id, 0.0)
-            if abs(net) < _EPSILON:
-                continue
+            if autre.id not in conversions[monnaie.id]:
+                continue  # aucun change entre ces deux monnaies : pas de colonne
+            net = conversions[monnaie.id][autre.id]
             colonnes.append(
                 {
                     "genre": GENRE_CONVERSION,

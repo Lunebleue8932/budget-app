@@ -133,7 +133,7 @@ def _somme_jambes_epargne(
     sens_cote_epargne: Sens,
     annee: int,
     mois: Optional[int],
-) -> float:
+) -> tuple[float, int]:
     """La somme des jambes de virement situées sur un compte HORS COURANT, dans
     un sens donné, dont la jambe d'en face est sur un compte COURANT.
 
@@ -165,8 +165,8 @@ def _somme_jambes_epargne(
     else:
         filtre_date = func.strftime("%Y-%m", jambe.date) == f"{annee:04d}-{mois:02d}"
 
-    total = (
-        db.query(func.sum(jambe.montant))
+    total, nombre = (
+        db.query(func.sum(jambe.montant), func.count(jambe.id))
         .select_from(jambe)
         .join(compte_jambe, jambe.compte_id == compte_jambe.id)
         .join(type_jambe, compte_jambe.type_id == type_jambe.id)
@@ -187,9 +187,12 @@ def _somme_jambes_epargne(
             type_face.nom.notin_(TYPES_COMPTE_HORS_COURANT),
             filtre_date,
         )
-        .scalar()
+        .one()
     )
-    return total or 0.0
+    # Le NOMBRE de jambes dit s'il s'est passé quelque chose : un total nul peut venir d'un
+    # versement repris à l'identique (une information), ou de l'absence de tout mouvement
+    # (rien à dessiner).
+    return total or 0.0, nombre or 0
 
 
 def epargne_periode(
@@ -202,22 +205,24 @@ def epargne_periode(
     ce sont deux mois très différents, et le second mérite au moins qu'on le
     remarque. Même raison que le détail sous « Reste à rembourser », qui écrit
     « on te doit X · tu dois Y » plutôt qu'un seul solde net."""
-    verse = _somme_jambes_epargne(db, monnaie_id, Sens.transfert_entrant, annee, mois)
-    retire = _somme_jambes_epargne(db, monnaie_id, Sens.transfert_sortant, annee, mois)
+    verse, nb_verse = _somme_jambes_epargne(db, monnaie_id, Sens.transfert_entrant, annee, mois)
+    retire, nb_retire = _somme_jambes_epargne(db, monnaie_id, Sens.transfert_sortant, annee, mois)
     return {
         "monnaie_id": monnaie_id,
         "verse": verse,
         "retire": retire,
         "net": verse - retire,
+        "nombre_operations": nb_verse + nb_retire,
     }
 
 
 def epargne_par_mois(db: Session, annee: int, monnaie_id: int) -> list[dict]:
     """Les douze mois de l'année, chacun avec ses trois chiffres.
 
-    DOUZE LIGNES TOUJOURS, y compris les mois où rien n'a bougé : un mois absent
-    de la liste se lirait comme un mois qu'on n'a pas encore atteint, alors qu'un
-    mois à zéro est une information — on n'a rien mis de côté."""
+    DOUZE LIGNES TOUJOURS, y compris les mois où rien n'a bougé : c'est l'écran qui
+    écarte du graphe ceux dont `nombre_operations` est nul (aucun mouvement, donc
+    aucune barre à dessiner) et garde ceux qui valent zéro PARCE QU'un versement a été
+    repris — là, le zéro dit quelque chose."""
     return [
         {"mois": mois, **epargne_periode(db, annee, mois, monnaie_id)}
         for mois in range(1, 13)
@@ -255,16 +260,18 @@ def imprevues_periode(
     """Ce que la période a coûté, et la part qu'on n'avait pas vue venir."""
     base = _depenses_de_la_periode(db, annee, mois, monnaie_id)
     total = base.with_entities(func.sum(models.Operation.montant)).scalar() or 0.0
-    imprevu = (
+    imprevu, nombre = (
         base.filter(models.Operation.imprevue.is_(True))
-        .with_entities(func.sum(models.Operation.montant))
-        .scalar()
-        or 0.0
+        .with_entities(func.sum(models.Operation.montant), func.count(models.Operation.id))
+        .one()
     )
+    imprevu = imprevu or 0.0
     return {
         "monnaie_id": monnaie_id,
         "total": total,
         "imprevu": imprevu,
+        # Combien d'opérations imprévues : zéro, et la barre du mois n'a rien à montrer.
+        "nombre_operations": nombre or 0,
         # La part, calculée ici et non à l'écran : deux endroits qui divisent
         # les mêmes nombres finissent par ne plus tomber d'accord à l'arrondi.
         # Zéro dépense donne zéro pour cent, et non une division par zéro.
@@ -308,17 +315,6 @@ def detail_imprevues(
 # ---------- Les dépenses d'UNE catégorie, période après période ----------
 
 
-def _periodes_avec_entrees(db: Session) -> set:
-    """Les (année, mois) où la base porte AU MOINS UNE opération, de n'importe quelle
-    catégorie, monnaie ou statut. C'est elle qui décide quels mois on affiche : un mois
-    sans la moindre entrée n'est pas un mois « à zéro », c'est un mois qui n'existe pas
-    encore dans les données (avant le premier relevé, ou après le dernier)."""
-    lignes = (
-        db.query(func.strftime("%Y-%m", models.Operation.date)).distinct().all()
-    )
-    return {(int(cle[:4]), int(cle[5:7])) for (cle,) in lignes if cle}
-
-
 def depenses_d_une_categorie(
     db: Session, categorie_id: int, monnaie_id: int, annee: int, vue: str = "mois"
 ) -> Optional[dict]:
@@ -331,18 +327,16 @@ def depenses_d_une_categorie(
     est l'autre lecture du noyau (`soldes.get_variation_brute`) : elle ne se découpe pas
     par catégorie, et la mélanger ici ferait mentir ce graphe face à celui du dessus.
 
-    ON NE MONTRE PAS UNE PÉRIODE SANS ENTRÉE : si la base ne porte aucune opération ce mois-là
-    (pas seulement dans la catégorie : aucune, toutes catégories confondues) et que le calcul
-    rend zéro, la période est écartée et comptée dans `masquees`. Un mois sans entrée dans
-    la catégorie mais où l'on a vécu garde sa barre à zéro : c'est une information. À
-    l'inverse, une période qui n'a pas d'opération datée mais que l'amortissement d'un achat
-    d'avant recouvre porte une valeur — elle reste.
+    ON NE MONTRE PAS UNE PÉRIODE OÙ LA CATÉGORIE N'A AUCUNE OPÉRATION : elle est écartée et
+    comptée dans `masquees` — une barre à zéro que rien n'explique ne dit rien. Une période
+    qui vaut zéro PARCE QUE ses opérations s'annulent garde sa barre : le zéro y est une
+    information. Et une période sans opération datée, mais que l'amortissement d'un achat
+    d'avant recouvre, porte une valeur : elle reste.
 
     Rend None si la catégorie n'existe pas."""
     categorie = db.get(models.Categorie, categorie_id)
     if categorie is None:
         return None
-    presentes = _periodes_avec_entrees(db)
     if vue == "annee":
         cibles = [(a, None) for a in soldes.annees_couvertes(db)]
     else:
@@ -351,10 +345,6 @@ def depenses_d_une_categorie(
     periodes = []
     masquees = 0
     for a, m in cibles:
-        if m is None:
-            a_des_entrees = any((a, mois) in presentes for mois in range(1, 13))
-        else:
-            a_des_entrees = (a, m) in presentes
         ligne = next(
             (
                 d
@@ -363,16 +353,19 @@ def depenses_d_une_categorie(
             ),
             None,
         )
-        total = ligne["total_reel"] if ligne else 0.0
-        if not a_des_entrees and not total:
+        # PAS DE BARRE POUR UNE PÉRIODE OÙ LA CATÉGORIE N'A AUCUNE OPÉRATION, qu'il y en ait
+        # ailleurs ou non : le noyau ne rend pas de ligne à une catégorie sans opération, et
+        # c'est elle qui fait foi. Une période qui vaut zéro PARCE QU'elle porte des opérations
+        # qui s'annulent (ou une part d'amortissement) a sa ligne, donc sa barre.
+        if ligne is None:
             masquees += 1
             continue
         periodes.append(
             {
                 "annee": a,
                 "mois": m,
-                "total": total,
-                "budget_alloue": ligne["budget_alloue"] if ligne else 0.0,
+                "total": ligne["total_reel"],
+                "budget_alloue": ligne["budget_alloue"],
             }
         )
     return {

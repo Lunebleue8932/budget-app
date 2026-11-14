@@ -464,6 +464,10 @@ function majVisibiliteNavigation(id, actif) {
     renommerSectionHote(navigation, actif);
     majBarreOnglets(navigation.hote_section);
   }
+
+  // Le plan de l'application (cf. plan-app.js) montre ce qui est allumé : il se redessine
+  // dès qu'une extension s'allume ou s'éteint.
+  if (typeof planRedessiner === "function") planRedessiner();
 }
 
 /**

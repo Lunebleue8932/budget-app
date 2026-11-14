@@ -17,13 +17,16 @@ CE QUE CES TESTS VERROUILLENT :
     signalement. C'est la seule promesse que la fenêtre fait à celui qui clique,
     et elle se vérifie en rejouant le calcul après la correction.
 """
+from datetime import date
+
 import pytest
 from pydantic import ValidationError
 
 from app import crud, models, schemas
+from app.constants import Sens, Statut
 from app.services import soldes
 
-from .conftest import creer_compte, get_categorie_id
+from .conftest import creer_compte, get_categorie_id, get_type_id
 
 
 def monnaie_id(db):
@@ -167,6 +170,22 @@ def test_l_objectif_survit_a_la_moyenne_des_semaines(db_session):
     m = monnaie_id(db_session)
     categorie = crud.get_categorie(db_session, get_categorie_id(db_session, "Alimentaire"))
     crud.set_objectif_pourcentage_categorie(db_session, categorie, 30.0)
+    # Sans opération, la catégorie n'a pas de barre : il lui en faut une pour figurer.
+    compte = creer_compte(db_session, "Courant")
+    crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 10),
+            nature="Courses",
+            montant=20.0,
+            sens=Sens.depense,
+            statut=Statut.reel,
+            compte_id=compte.id,
+            monnaie_id=m,
+            categorie_id=categorie.id,
+            type_id=get_type_id(db_session, "classique"),
+        ),
+    )
 
     reponse = soldes.get_depenses_par_semaine(db_session, 2026, 3, m)
     ligne = next(l for l in reponse["moyenne"] if l["categorie"] == "Alimentaire")

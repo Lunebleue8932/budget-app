@@ -211,7 +211,8 @@ def test_amortissement_importe_pese_sur_les_mois_designes(db_session):
         lignes = soldes.get_depenses_par_categorie(
             db_session, annee, mois, get_monnaie_id(db_session)
         )
-        return next(l["total_reel"] for l in lignes if l["categorie"] == "Alimentaire")
+        # Hors de la plage amortie, la catégorie n'a pas de barre : elle vaut zéro.
+        return next((l["total_reel"] for l in lignes if l["categorie"] == "Alimentaire"), 0.0)
 
     assert total(2026, 7) == pytest.approx(100.0)
     assert total(2027, 6) == pytest.approx(100.0)

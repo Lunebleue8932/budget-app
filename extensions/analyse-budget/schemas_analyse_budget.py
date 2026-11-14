@@ -27,6 +27,9 @@ class EpargnePeriodeRead(BaseModel):
     # Ce qui en est REPARTI vers un compte courant.
     retire: float = 0.0
     net: float = 0.0
+    # Combien de mouvements ont fait ces chiffres. Zéro : rien ne s'est passé, et l'écran
+    # ne dessine pas de barre pour ce mois (un net nul avec des mouvements, lui, se dessine).
+    nombre_operations: int = 0
 
 
 class EpargneMoisRead(EpargnePeriodeRead):
@@ -87,6 +90,8 @@ class ImprevuesPeriodeRead(BaseModel):
     # Calculée côté serveur : deux endroits qui divisent les mêmes nombres
     # finissent par ne plus tomber d'accord à l'arrondi.
     part: float = 0.0
+    # Combien d'opérations imprévues font `imprevu`. Zéro : le mois n'a pas de barre à dessiner.
+    nombre_operations: int = 0
 
 
 class ImprevuesMoisRead(ImprevuesPeriodeRead):
@@ -207,5 +212,5 @@ class DepensesCategorieRead(BaseModel):
     vue: str
     annee: int
     periodes: list[DepensePeriodeRead] = Field(default_factory=list)
-    # Combien de périodes ont été écartées faute de la moindre opération en base.
+    # Combien de périodes ont été écartées faute de la moindre opération dans la catégorie.
     masquees: int = 0

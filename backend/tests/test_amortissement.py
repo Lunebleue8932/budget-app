@@ -4,6 +4,7 @@ Ce qui est vérifié ici tient en une phrase : une dépense amortie pèse sur le
 mois qu'on lui a désignés, et sur rien d'autre — ni sur son propre mois, ni sur
 les soldes des comptes.
 """
+from collections import defaultdict
 from datetime import date
 
 import pytest
@@ -32,10 +33,18 @@ def _creer_depense(db, compte, **kwargs):
 
 
 def _depenses(db, annee, mois):
-    return {
-        ligne["categorie"]: ligne
-        for ligne in soldes.get_depenses_par_categorie(db, annee, mois, get_monnaie_id(db))
-    }
+    """Les barres de la période, par catégorie. Une catégorie sans opération sur la période n'a
+    pas de barre (cf. soldes.get_depenses_par_categorie) : elle se lit comme zéro ici."""
+    barres = defaultdict(
+        lambda: {"total_reel": 0.0, "total_previsionnel": 0.0, "budget_alloue": 0.0}
+    )
+    barres.update(
+        {
+            ligne["categorie"]: ligne
+            for ligne in soldes.get_depenses_par_categorie(db, annee, mois, get_monnaie_id(db))
+        }
+    )
+    return barres
 
 
 # ---------- Bornes, nombre de mois, montant mensuel ----------

@@ -33,8 +33,9 @@ def _depense(db, compte, nature, montant, **kwargs):
 
 def _top(db, annee=2026, mois=7, categorie="Alimentaire"):
     lignes = soldes.get_depenses_par_categorie(db, annee, mois, get_monnaie_id(db))
-    ligne = next(l for l in lignes if l["categorie"] == categorie)
-    return ligne["top_depenses"]
+    # Une catégorie sans opération sur la période n'a pas de barre : son top est vide.
+    ligne = next((l for l in lignes if l["categorie"] == categorie), None)
+    return ligne["top_depenses"] if ligne else []
 
 
 # ---------- Classement et agrégation ----------

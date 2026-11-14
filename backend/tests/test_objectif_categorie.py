@@ -10,12 +10,15 @@ CE QUE CES TESTS VERROUILLENT, et pourquoi chacun existe :
   - il ne pèse sur AUCUN calcul : les mêmes soldes, les mêmes barres, avec ou
     sans objectif. C'est ce qui autorise à le laisser entièrement libre.
 """
+from datetime import date
+
 import pytest
 from pydantic import ValidationError
 
 from app import crud, models, schemas
+from app.constants import Sens, Statut
 
-from .conftest import get_categorie_id
+from .conftest import creer_compte, get_categorie_id, get_type_id
 
 
 def test_objectif_vaut_zero_par_defaut(db_session):
@@ -105,6 +108,22 @@ def test_objectif_remonte_dans_les_depenses_par_categorie(db_session):
     categorie = crud.get_categorie(db_session, get_categorie_id(db_session, "Alimentaire"))
     crud.set_objectif_pourcentage_categorie(db_session, categorie, 30.0)
     monnaie_id = db_session.query(models.Monnaie).first().id
+    # Sans opération, la catégorie n'a pas de barre : il lui en faut une pour figurer.
+    compte = creer_compte(db_session, "Courant")
+    crud.create_operation(
+        db_session,
+        schemas.OperationCreate(
+            date=date(2026, 3, 10),
+            nature="Courses",
+            montant=20.0,
+            sens=Sens.depense,
+            statut=Statut.reel,
+            compte_id=compte.id,
+            monnaie_id=monnaie_id,
+            categorie_id=categorie.id,
+            type_id=get_type_id(db_session, "classique"),
+        ),
+    )
 
     lignes = soldes.get_depenses_par_categorie(db_session, 2026, 3, monnaie_id)
     ligne = next(l for l in lignes if l["categorie"] == "Alimentaire")

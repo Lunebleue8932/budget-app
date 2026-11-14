@@ -461,11 +461,32 @@ def test_depenses_par_categorie_rend_toutes_les_categories(db_session):
         for r in soldes.get_depenses_par_categorie(db_session, 2026, 7, get_monnaie_id(db_session))
     }
     assert resultats["Alimentaire"]["total_reel"] == 50.0
-    # Celles qui n'ont rien reçu sont là aussi, à zéro : l'écran a besoin de
-    # toutes les lignes, le filtre du dashboard se chargeant de l'affichage.
-    assert "Loisirs & sorties" in resultats
+    # Celles qui n'ont aucune opération (ni budget) n'ont pas de barre : une barre à zéro
+    # que rien n'explique ne montre rien.
+    assert "Loisirs & sorties" not in resultats
     # La catégorie d'entrée, elle, reste écartée.
     assert "Entrées d'argent" not in resultats
+
+
+def test_une_categorie_a_zero_garde_sa_barre_si_une_operation_l_explique(db_session):
+    """Une dépense remboursable intégralement due vaut zéro MAIS porte une opération : la barre
+    reste. Un budget posé sans aucune opération ne suffit pas à en dessiner une."""
+    compte = _make_compte(db_session, "Courant")
+    _make_operation(
+        db_session, compte, categorie="Loisirs & sorties", remboursable=True,
+        montant=80.0, montant_du=80.0, sens=Sens.depense, statut=Statut.reel,
+    )
+    monnaie = get_monnaie_id(db_session)
+    crud.set_budget_categorie(
+        db_session, get_categorie_id(db_session, "Alimentaire"), 2026, 7, monnaie, 150.0
+    )
+
+    barres = {
+        r["categorie"]: r
+        for r in soldes.get_depenses_par_categorie(db_session, 2026, 7, monnaie)
+    }
+    assert barres["Loisirs & sorties"]["total_reel"] == 0.0
+    assert "Alimentaire" not in barres
 
 
 def test_depenses_par_categorie_deduit_le_montant_du_pour_les_remboursables(db_session):
@@ -494,6 +515,10 @@ def test_depenses_par_categorie_deduit_le_montant_du_pour_les_remboursables(db_s
 def test_depenses_par_categorie_resout_le_budget_du_mois(db_session):
     categorie_id = get_categorie_id(db_session, "Alimentaire")
     crud.set_budget_categorie(db_session, categorie_id, 2026, 5, get_monnaie_id(db_session), 300.0)
+    # Une barre n'existe que si la catégorie a une opération sur la période : sans elle, le
+    # budget se lit dans Budget → Budgets par catégorie, pas dans l'histogramme.
+    compte = _make_compte(db_session, "Courant")
+    _make_operation(db_session, compte, categorie="Alimentaire", montant=10.0, date=date(2026, 7, 3))
 
     resultats = {
         r["categorie"]: r for r in soldes.get_depenses_par_categorie(db_session, 2026, 7, get_monnaie_id(db_session))
@@ -556,6 +581,9 @@ def test_depenses_par_categorie_mode_annee_somme_le_budget_des_12_mois(db_sessio
     categorie_id = get_categorie_id(db_session, "Alimentaire")
     crud.set_budget_categorie(db_session, categorie_id, 2026, 1, get_monnaie_id(db_session), 100.0)
     crud.set_budget_categorie(db_session, categorie_id, 2026, 6, get_monnaie_id(db_session), 200.0)
+    # Une opération dans l'année : sans elle, la catégorie n'a pas de barre (cf. ci-dessus).
+    compte = _make_compte(db_session, "Courant")
+    _make_operation(db_session, compte, categorie="Alimentaire", montant=10.0, date=date(2026, 3, 10))
 
     resultats = {
         r["categorie"]: r for r in soldes.get_depenses_par_categorie(db_session, 2026, None, get_monnaie_id(db_session))

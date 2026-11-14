@@ -2174,6 +2174,8 @@ function loadParametresGeneraux() {
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
   if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();
+  // Le plan de l'app suit les extensions allumées : même raison, même rappel.
+  if (typeof renderPlanApplication === "function") renderPlanApplication();
   chargerEtatSauvegarde();
 }
 
@@ -4053,8 +4055,9 @@ function partsCategoriesDashboard(depenses, visibles, options = {}) {
   const { vue = VUE_PIE_ACTUEL, budgetTotal = 0 } = options;
   const retenues = depenses.filter((d) => visibles.has(d.categorie));
   // Une catégorie à zéro ne DESSINE pas de tranche (un arc de longueur nulle
-  // n'existe pas) mais garde sa barre et sa ligne de légende : elle a quelque
-  // chose à dire — « aucune dépense sur la période ».
+  // n'existe pas) mais garde sa barre et sa ligne de légende : le serveur ne la
+  // rend que si des opérations l'expliquent (elles s'annulent, ou la dépense est
+  // intégralement due) — cf. soldes.get_depenses_par_categorie.
   // UNE CONVERSION « DEPUIS » une autre monnaie est de l'argent REVENU : elle a
   // sa barre (son montant se lit) mais pas de tranche dans une répartition de ce
   // qui est sorti.

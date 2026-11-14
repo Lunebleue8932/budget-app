@@ -4436,4 +4436,8 @@ Object.assign(TRADUCTIONS.pt, {
   "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.": "Um emoji exibido antes do nome da categoria nas listas. Escolha um na grade ou cole o seu. O selo ao redor tem a cor da categoria no histograma: ela é definida na criação e não é escolhida aqui.",
   "Un emoji affiché devant le nom du compte dans les listes. Choisis-en un dans la grille, ou colle le tien. La couleur se choisit juste en dessous : sans couleur ni icône, le compte n'a pas de pastille.": "Um emoji exibido antes do nome da conta nas listas. Escolha um na grade ou cole o seu. A cor é escolhida logo abaixo: sem cor nem ícone, a conta não tem selo.",
 // <<< FIN DES TRADUCTIONS AJOUTÉES : icônes et couleurs des catégories et des comptes
+// >>> TRADUCTIONS AJOUTÉES : le plan de l'application
+  "Plan de l'application": "Mapa do aplicativo",
+  "Où se trouve quoi dans l'app : les pages, leurs onglets, puis les parties d'un onglet. -- Clique sur une pastille pour aller à l'endroit qu'elle nomme. -- Seules les pages disponibles y figurent : celles d'une extension éteinte n'apparaissent pas, et reviennent dès que tu l'allumes.": "Onde fica cada coisa no aplicativo: as páginas, suas abas e depois as partes de uma aba. -- Clique em uma bolha para ir ao lugar que ela nomeia. -- Só aparecem as páginas disponíveis: as de uma extensão desligada não aparecem e voltam assim que você a liga.",
+// <<< FIN DES TRADUCTIONS AJOUTÉES : le plan de l'application
 });

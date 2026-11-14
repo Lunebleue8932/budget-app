@@ -5,9 +5,8 @@ CE QUE CES TESTS VERROUILLENT :
   - LA VALEUR D'UNE BARRE EST CELLE DE L'HISTOGRAMME DU DASHBOARD pour la même période :
     une dépense amortie est étalée sur ses mois, une remboursable ne pèse que son reste à
     charge. Un graphe qui annoncerait un autre chiffre que celui du dessus ne serait plus cru ;
-  - UN MOIS SANS LA MOINDRE OPÉRATION EN BASE N'EST PAS AFFICHÉ (ni avant le premier
-    relevé, ni après le dernier) ; un mois avec des opérations mais rien dans la catégorie
-    garde sa barre à zéro ;
+  - UNE PÉRIODE SANS OPÉRATION DANS LA CATÉGORIE N'EST PAS AFFICHÉE (qu'on ait vécu
+    ailleurs ou non) ; une période qui vaut zéro PAR ANNULATION garde sa barre ;
   - UN MOIS SANS OPÉRATION DATÉE MAIS RECOUVERT PAR UN AMORTISSEMENT PORTE SA VALEUR ;
   - LA VUE ANNUELLE SOMME CHAQUE ANNÉE.
 """
@@ -63,19 +62,44 @@ def _lire(db, annee=2026, vue="mois", categorie=CATEGORIE):
     )
 
 
-def test_les_mois_sans_aucune_entree_sont_masques(db_session, compte):
+def test_les_mois_sans_operation_dans_la_categorie_sont_masques(db_session, compte):
+    """Un mois où la base a vécu (une dépense d'une AUTRE catégorie) n'a pas pour autant de
+    barre : la catégorie n'y a aucune opération."""
     _depense(db_session, compte, 40.0, date(2026, 3, 5))
     _depense(db_session, compte, 10.0, date(2026, 5, 9), categorie="Autres")
     resultat = _lire(db_session)
     mois = {p["mois"]: p["total"] for p in resultat["periodes"]}
-    assert mois == {3: pytest.approx(40.0), 5: 0.0}
-    assert resultat["masquees"] == 10
+    assert mois == {3: pytest.approx(40.0)}
+    assert resultat["masquees"] == 11
 
 
-def test_un_mois_vecu_sans_la_categorie_garde_sa_barre_a_zero(db_session, compte):
+def test_un_mois_vecu_sans_la_categorie_n_a_pas_de_barre(db_session, compte):
     _depense(db_session, compte, 10.0, date(2026, 4, 9), categorie="Autres")
     resultat = _lire(db_session)
-    assert [(p["mois"], p["total"]) for p in resultat["periodes"]] == [(4, 0.0)]
+    assert resultat["periodes"] == []
+    assert resultat["masquees"] == 12
+
+
+def test_un_mois_a_zero_par_annulation_garde_sa_barre(db_session, compte):
+    """Une dépense remboursable intégralement due ne pèse rien (reste à charge nul) : le mois
+    vaut zéro, mais il porte une opération — le zéro y dit quelque chose."""
+    db_session.add(
+        models.Operation(
+            compte_id=compte.id,
+            date=date(2026, 6, 2),
+            nature="Avance remboursée",
+            montant=80.0,
+            montant_du=80.0,
+            sens=Sens.depense,
+            statut=Statut.reel,
+            monnaie_id=get_monnaie_id(db_session),
+            categorie_id=get_categorie_id(db_session, CATEGORIE),
+            type_id=get_type_id(db_session, TypeOperation.remboursable),
+        )
+    )
+    db_session.commit()
+    resultat = _lire(db_session)
+    assert [(p["mois"], p["total"]) for p in resultat["periodes"]] == [(6, 0.0)]
 
 
 def test_la_valeur_est_celle_de_l_histogramme(db_session, compte):

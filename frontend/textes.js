@@ -1263,6 +1263,8 @@ Object.assign(TEXTES, {
     "Chaque carte est un tutoriel guidé, avec sa progression. Commence par /bold(Prendre l'application en main) : le tour de l'app, sur des données fictives. Son bouton le lance quand tu es prêt.",
   "noyau.guide-tutoriels-bouton":
     "Les tutoriels guidés, pas à pas devant l'écran : la prise en main de l'app, puis l'import d'un relevé. Ta progression est gardée, tu reprends quand tu veux.",
+  "noyau.plan-application":
+    "Où se trouve quoi dans l'app : les pages, leurs onglets, puis les parties d'un onglet. -- Clique sur une pastille pour aller à l'endroit qu'elle nomme. -- Seules les pages disponibles y figurent : celles d'une extension éteinte n'apparaissent pas, et reviennent dès que tu l'allumes.",
 });
 
 /* ----- Créer une monnaie sur place (listes de monnaies, fenêtre d'un compte) ----- */

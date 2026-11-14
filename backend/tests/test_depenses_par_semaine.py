@@ -209,6 +209,11 @@ def test_le_budget_du_mois_est_lui_aussi_decoupe_au_prorata(db_session):
         db_session, categorie_id, 2026, 1, get_monnaie_id(db_session), 310.0
     )
 
+    # UNE OPÉRATION PAR SEMAINE : une semaine sans opération dans la catégorie n'a pas de
+    # barre, donc pas de trait de budget non plus.
+    for jour in (1, 5, 12, 19, 26):
+        _depense(db_session, compte, "Courses", 1.0, jour=jour)
+
     resultat = _semaines(db_session)
     budgets = [
         next(l for l in s["depenses"] if l["categorie"] == "Alimentaire")["budget_alloue"]

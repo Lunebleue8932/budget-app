@@ -83,9 +83,23 @@ let abBudgetTotalExplicite = true;
  * ABSOLUE : sans elle, un mois négatif se lirait comme une barre courte vers le
  * haut.
  */
-function abHistogramme(conteneur, valeurs, monnaieId, { libelle, couleur = null }) {
+function abHistogramme(conteneur, valeurs, monnaieId, { libelle, couleur = null, masquees = 0 }) {
   if (!conteneur) return;
   conteneur.innerHTML = "";
+  // PAS DE BARRE POUR UNE PÉRIODE SANS OPÉRATION : l'appelant a déjà écarté les périodes
+  // vides, et dit combien (`masquees`). Les barres à zéro qui restent valent zéro pour une
+  // raison (un versement repris à l'identique), et se dessinent.
+  const noteMasquees = masquees
+    ? `<div class="hint">${escapeHtml(
+        t("{n} période(s) sans aucune opération ne sont pas affichées.", { n: masquees })
+      )}</div>`
+    : "";
+  if (!valeurs.length) {
+    conteneur.innerHTML = `<span class="hint">${escapeHtml(
+      t("Aucune opération en base sur cette période.")
+    )}</span>`;
+    return;
+  }
   const max = Math.max(1, ...valeurs.map((v) => Math.abs(v.valeur)));
   const largeur = Math.max(conteneur.clientWidth || 0, 600);
   const hauteur = 220;
@@ -129,7 +143,15 @@ function abHistogramme(conteneur, valeurs, monnaieId, { libelle, couleur = null 
          xmlns="http://www.w3.org/2000/svg" class="ab-histo">
       <line class="ab-axe-zero" x1="0" y1="${yZero}" x2="${largeur}" y2="${yZero}" />
       ${barres}
-    </svg>`;
+    </svg>
+    ${noteMasquees}`;
+}
+
+/** Les mois d'une année qui portent au moins une opération (cf. `nombre_operations`), et
+ *  combien ont été écartés. */
+function abMoisAvecOperations(mois) {
+  const retenus = mois.filter((m) => m.nombre_operations > 0);
+  return { retenus, masquees: mois.length - retenus.length };
 }
 
 /* ---------- Ce qu'on a mis de côté ---------- */
@@ -158,10 +180,12 @@ function abRenderEpargne(donnees) {
     retire: formatMontant(donnees.total.retire, donnees.monnaie_id),
   });
 
+  const epargne = abMoisAvecOperations(donnees.mois);
   abHistogrammeDansCarte(
     "ab-epargne-mois",
-    donnees.mois.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.net })),
-    donnees.monnaie_id
+    epargne.retenus.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.net })),
+    donnees.monnaie_id,
+    epargne.masquees
   );
 }
 
@@ -183,8 +207,8 @@ function abRenderEpargne(donnees) {
 const abHistosCartes = {};
 const abCartesDepliees = new Set();
 
-function abHistogrammeDansCarte(id, valeurs, monnaieId) {
-  abHistosCartes[id] = { valeurs, monnaieId };
+function abHistogrammeDansCarte(id, valeurs, monnaieId, masquees = 0) {
+  abHistosCartes[id] = { valeurs, monnaieId, masquees };
   if (abCartesDepliees.has(id)) abDessinerHistoCarte(id);
 }
 
@@ -194,8 +218,8 @@ function abDessinerHistoCarte(id) {
   // Sans titre : le bouton qui l'a déplié le porte déjà.
   abHistogramme(document.getElementById(id), donnees.valeurs, donnees.monnaieId, {
     libelle: "",
+    masquees: donnees.masquees,
   });
-
 }
 
 function abBasculerCarte(bouton) {
@@ -311,10 +335,12 @@ function abRenderImprevues(donnees) {
     total: formatMontant(donnees.total.total, donnees.monnaie_id),
   });
 
+  const imprevues = abMoisAvecOperations(donnees.mois);
   abHistogrammeDansCarte(
     "ab-imprevues-mois",
-    donnees.mois.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.imprevu })),
-    donnees.monnaie_id
+    imprevues.retenus.map((m) => ({ libelle: MOIS_COURTS_FR[m.mois - 1], valeur: m.imprevu })),
+    donnees.monnaie_id,
+    imprevues.masquees
   );
 
   const corps = document.getElementById("ab-imprevues-lignes");
@@ -534,6 +560,27 @@ async function abRenderGraphes() {
     const comparee = abGraphes.comparer
       ? await abDepensesDe({ vue: abGraphes.vue, ...abGraphes.cmp }, abMonnaieId, { moyenne })
       : null;
+
+    // UNE CATÉGORIE QUI N'A DE DÉPENSE QUE SUR LA PÉRIODE COMPARÉE : le serveur ne rend pas de
+    // barre à une catégorie sans opération (cf. soldes.get_depenses_par_categorie), donc la
+    // période courante n'en a pas — et la barre hachurée de l'autre n'aurait plus où se poser.
+    // On lui garde une ligne à zéro, uniquement pour porter ce hachuré.
+    if (comparee) {
+      const presentes = new Set(principale.depenses.map((d) => d.categorie));
+      comparee.depenses
+        .filter(
+          (d) => !d.colonne_speciale && !presentes.has(d.categorie) && d.total_previsionnel > 0
+        )
+        .forEach((d) =>
+          principale.depenses.push({
+            ...d,
+            total_reel: 0,
+            total_previsionnel: 0,
+            budget_alloue: 0,
+            top_depenses: [],
+          })
+        );
+    }
 
     // TOUTES LES CATÉGORIES : il n'y a pas de filtre sur cette page, et une
     // catégorie écartée ici n'aurait aucun moyen de revenir.
