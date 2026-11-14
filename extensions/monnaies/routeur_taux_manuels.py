@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.database import get_db
+from app.services import soldes
 
 import service_conversion
 import service_dashboard_agrege
@@ -203,6 +204,33 @@ def get_dashboard_agrege(
         non_converties=[_non_convertie(m) for m in manquantes if m.id != vers],
         budget_detail=[BudgetParMonnaie(**ligne) for ligne in budget_detail],
     )
+
+
+@router.get("/reste-courbe", response_model=schemas.CourbeResteRead)
+def get_reste_courbe_agregee(vers: int, vue: str = "mois", db: Session = Depends(get_db)):
+    """La courbe du bloc « Reste » du dashboard, toutes monnaies ramenées à `vers`.
+
+    MÊME FORME ET MÊME CALCUL que `/dashboard/reste-courbe` : c'est la fonction
+    du noyau, à qui l'on passe la table de conversion au lieu d'une seule
+    monnaie. Seules les monnaies portées par un compte et reliées par un taux y
+    entrent — celles que le dashboard converti additionne déjà."""
+    if crud.get_monnaie(db, vers) is None:
+        raise HTTPException(status_code=404, detail="Monnaie introuvable")
+    if vue not in ("mois", "annee", "tout"):
+        raise HTTPException(status_code=400, detail="vue doit être 'mois', 'annee' ou 'tout'")
+    crud.generer_occurrences_recurrentes(db)
+    coefficients, _ = service_conversion.table_de_conversion(db, vers)
+    portees = {
+        monnaie_id
+        for item in soldes.get_soldes_comptes(db)
+        for monnaie_id in item["soldes"]
+    }
+    retenus = {
+        monnaie_id: coefficient
+        for monnaie_id, coefficient in coefficients.items()
+        if monnaie_id in portees and coefficient is not None
+    }
+    return schemas.CourbeResteRead(**soldes.courbe_reste(db, retenus, vue))
 
 
 @router.get("/table", response_model=dict)

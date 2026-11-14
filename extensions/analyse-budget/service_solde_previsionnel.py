@@ -44,16 +44,11 @@ from datetime import date as date_type
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models
-from app.constants import (
-    TYPES_COMPTE_HORS_COURANT,
-    Sens,
-    Statut,
-    TypeOperation,
-)
+from app.constants import Sens, Statut
 from app.services import lignes_depenses, soldes
 
 # Combien de jours séparent une prévisionnelle de la ligne réelle qui lui
@@ -80,45 +75,21 @@ FENETRE_SEMAINES_DEFAUT = 12
 # L'horizon par défaut, en jours.
 HORIZON_JOURS_DEFAUT = 90
 
-_ENTREES = (Sens.entree, Sens.transfert_entrant)
-
 CLE_PREFERENCE = "analyse-budget.solde-previsionnel"
 
 
-def _signe(sens) -> float:
-    return 1.0 if sens in _ENTREES else -1.0
-
-
-def _comptes_courants(db: Session, monnaie_id: int) -> dict[int, str]:
-    """`{compte_id: nom}` des comptes COURANTS qui portent cette monnaie.
-
-    Par `get_soldes_comptes`, donc avec ses règles : un compte éteint et soldé,
-    ou une monnaie éteinte et soldée, n'y figure pas — comme dans la carte
-    « Solde total »."""
-    courants: dict[int, str] = {}
-    for item in soldes.get_soldes_comptes(db):
-        compte = item["compte"]
-        if compte.type_nom in TYPES_COMPTE_HORS_COURANT:
-            continue
-        if monnaie_id in item["soldes"]:
-            courants[compte.id] = compte.nom
-    return courants
-
-
-def _solde_de_depart(db: Session, monnaie_id: int, comptes: dict[int, str]) -> float:
-    """Solde initial + intérêts perçus des comptes courants : ce que la courbe
-    porte AVANT le premier mouvement. Sans date, comme dans le noyau."""
-    interets = soldes._interets_percus_par_compte_monnaie(db)
-    total = 0.0
-    for item in soldes.soldes_de_tous_les_liens(db):
-        compte = item["compte"]
-        if compte.id not in comptes:
-            continue
-        lien = item["soldes"].get(monnaie_id)
-        if lien is None:
-            continue
-        total += lien["solde_initial"] + interets.get((compte.id, monnaie_id), 0.0)
-    return total
+# LES BRIQUES DE LA TRAJECTOIRE VIVENT AU NOYAU (cf. services/soldes.py, « Le solde des
+# comptes courants, jour après jour »). Elles sont nées ici ; le dashboard en a eu besoin
+# pour son « reste », et il ne peut pas dépendre d'une extension. Les noms d'origine restent,
+# en simples renvois : une seule définition de « ce qui bouge le solde, et quel jour », donc
+# une courbe et un « reste » qui ne peuvent pas diverger.
+_signe = soldes.signe_du_sens
+_comptes_courants = soldes.comptes_courants
+_solde_de_depart = soldes.solde_de_depart_courant
+_jour_pose = soldes.jour_pose
+_a_poser = soldes.operations_a_poser
+_ouverture = soldes.solde_ouverture_courant
+_restes_dus = soldes.restes_dus_prets_par_date
 
 
 def _ligne(operation, noms: dict[int, str]) -> dict:
@@ -129,14 +100,6 @@ def _ligne(operation, noms: dict[int, str]) -> dict:
         "montant": operation.montant,
         "compte_nom": noms.get(operation.compte_id, ""),
     }
-
-
-def _jour_pose(operation, aujourdhui: date_type) -> date_type:
-    """Le jour où la courbe compte l'opération. Une réelle : sa date. Une
-    prévisionnelle : sa date, mais jamais avant demain (cf. l'en-tête)."""
-    if operation.statut == Statut.previsionnel:
-        return max(operation.date, aujourdhui + timedelta(days=1))
-    return operation.date
 
 
 # ---------- La moyenne des dépenses passées ----------
@@ -246,80 +209,6 @@ def moyenne_depenses(
 
 
 # ---------- La courbe ----------
-
-
-def _a_poser(
-    db: Session,
-    monnaie_id: int,
-    comptes: dict[int, str],
-    debut: date_type,
-    fin: date_type,
-) -> list:
-    """Les opérations qui bougent la courbe entre `debut` et `fin`.
-
-    Les réelles DATÉES dans la fenêtre, et toutes les prévisionnelles datées
-    jusqu'à `fin` — y compris les échues, qui se posent demain. Ce qui est réel
-    et antérieur à `debut` est déjà dans le solde d'ouverture."""
-    return (
-        db.query(models.Operation)
-        .filter(
-            models.Operation.monnaie_id == monnaie_id,
-            models.Operation.compte_id.in_(list(comptes)),
-            or_(
-                and_(
-                    models.Operation.statut == Statut.reel,
-                    models.Operation.date >= debut,
-                    models.Operation.date <= fin,
-                ),
-                and_(
-                    models.Operation.statut == Statut.previsionnel,
-                    models.Operation.date <= fin,
-                ),
-            ),
-        )
-        .order_by(models.Operation.date, models.Operation.id)
-        .all()
-    )
-
-
-def _ouverture(
-    db: Session, monnaie_id: int, comptes: dict[int, str], avant: date_type
-) -> float:
-    """Le solde la veille de `avant` : départ + tout le réel antérieur."""
-    sums = (
-        db.query(models.Operation.sens, func.sum(models.Operation.montant))
-        .filter(
-            models.Operation.monnaie_id == monnaie_id,
-            models.Operation.compte_id.in_(list(comptes)),
-            models.Operation.statut == Statut.reel,
-            models.Operation.date < avant,
-        )
-        .group_by(models.Operation.sens)
-        .all()
-    )
-    return _solde_de_depart(db, monnaie_id, comptes) + sum(
-        _signe(sens) * (total or 0.0) for sens, total in sums
-    )
-
-
-def _restes_dus(
-    db: Session, monnaie_id: int, comptes: dict[int, str], fin: date_type
-) -> dict[date_type, float]:
-    """Le reste dû des prêts reçus, par date du prêt, retranché comme dans le
-    solde projeté du noyau (`soldes._reste_du_prets_par_compte_monnaie`)."""
-    lignes = (
-        db.query(models.Operation.date, func.sum(models.Operation.montant_a_rembourser))
-        .join(models.TypeOperationDB, models.Operation.type_id == models.TypeOperationDB.id)
-        .filter(
-            models.TypeOperationDB.code == TypeOperation.pret.value,
-            models.Operation.monnaie_id == monnaie_id,
-            models.Operation.compte_id.in_(list(comptes)),
-            models.Operation.date <= fin,
-        )
-        .group_by(models.Operation.date)
-        .all()
-    )
-    return {jour: (total or 0.0) for jour, total in lignes}
 
 
 def solde_previsionnel(

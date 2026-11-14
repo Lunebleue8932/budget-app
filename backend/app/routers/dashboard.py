@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..constants import TYPES_COMPTE_HORS_COURANT, Sens
 from ..database import get_db
-from ..services import cascade, periode_tout, placements, soldes
+from ..services import cascade, listes_dashboard, periode_tout, placements, soldes
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -494,6 +494,11 @@ def get_dashboard(
     # varier (cf. services/soldes.get_reste_a_rembourser).
     reste_a_rembourser = soldes.get_reste_a_rembourser(db)
 
+    # LE « RESTE » EST TOUJOURS RELATIF À AUJOURD'HUI, quels que soient l'année et
+    # le mois demandés : seule la vue (mois / année) déplace son horizon (cf.
+    # services/soldes.reste_periode).
+    horizon_reste = soldes.horizon_reste(vue, aujourdhui)
+
     kpis = []
     for monnaie in monnaies:
         totaux_monnaie = totaux.get(monnaie.id, {})
@@ -538,6 +543,9 @@ def get_dashboard(
                     schemas.DepenseParCategorie(**item)
                     for item in agregats.get_depenses_par_categorie(db, annee, mois, monnaie.id)
                 ],
+                reste=schemas.RestePeriodeRead(
+                    **soldes.reste_periode(db, {monnaie.id: 1.0}, horizon_reste, aujourdhui)
+                ),
             )
         )
 
@@ -545,4 +553,45 @@ def get_dashboard(
         comptes=comptes_read,
         monnaies=[schemas.MonnaieRead.model_validate(m) for m in monnaies],
         kpis=kpis,
+    )
+
+
+def _vue_reste(vue: str) -> str:
+    if vue not in ("mois", "annee", "tout"):
+        raise HTTPException(
+            status_code=400, detail="vue doit être 'mois', 'annee' ou 'tout'"
+        )
+    return vue
+
+
+@router.get("/reste-courbe", response_model=schemas.CourbeResteRead)
+def get_reste_courbe(monnaie_id: int, vue: str = "mois", db: Session = Depends(get_db)):
+    """La courbe du bloc « Reste pour finir le mois » : le solde réel des comptes
+    courants jusqu'à aujourd'hui, puis le projeté en escalier jusqu'à l'horizon.
+
+    À PART DES KPI : elle porte un point par jour de mouvement — sur toute
+    l'histoire en vue « tout » —, rien dont les chiffres du haut aient besoin
+    pour s'afficher. Les scalaires du même bloc voyagent, eux, avec les KPI."""
+    if crud.get_monnaie(db, monnaie_id) is None:
+        raise HTTPException(status_code=404, detail="Monnaie introuvable")
+    # Les prévisionnelles à venir doivent exister avant d'être tracées (cf.
+    # get_dashboard).
+    crud.generer_occurrences_recurrentes(db)
+    return schemas.CourbeResteRead(
+        **soldes.courbe_reste(db, {monnaie_id: 1.0}, _vue_reste(vue))
+    )
+
+
+@router.get("/listes", response_model=schemas.ListesDashboardRead)
+def get_listes(
+    vue: str = "mois", monnaie_id: Optional[int] = None, db: Session = Depends(get_db)
+):
+    """Les dernières opérations réelles et les prochaines prévisionnelles (cf.
+    services/listes_dashboard). Sans `monnaie_id` : toutes les monnaies, chaque
+    ligne dans la sienne."""
+    if monnaie_id is not None and crud.get_monnaie(db, monnaie_id) is None:
+        raise HTTPException(status_code=404, detail="Monnaie introuvable")
+    crud.generer_occurrences_recurrentes(db)
+    return schemas.ListesDashboardRead(
+        **listes_dashboard.listes(db, monnaie_id, _vue_reste(vue))
     )

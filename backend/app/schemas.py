@@ -843,6 +843,108 @@ class EcartVariationsRead(BaseModel):
     lignes: list[LigneEcartVariation] = Field(default_factory=list)
 
 
+class PointBasRead(BaseModel):
+    """Le plus bas par où le solde des comptes courants passera d'ici l'horizon,
+    et le palier où il y reste (du jour où il l'atteint à la veille du mouvement
+    suivant)."""
+
+    montant: float
+    date_debut: date_type
+    date_fin: date_type
+
+
+class ProchaineEntreeRead(BaseModel):
+    """La première prévisionnelle d'entrée à venir. `date` est le jour où elle se
+    POSE : demain si elle est échue (cf. services/soldes.jour_pose)."""
+
+    date: date_type
+    montant: float
+    libelle: str
+
+
+class RestePeriodeRead(BaseModel):
+    """Le bloc « Reste pour finir le mois » du dashboard, EN CASH sur les comptes
+    courants (cf. services/soldes.reste_periode, qui dit ce que chaque champ
+    compte).
+
+    TOUJOURS RELATIF À AUJOURD'HUI, quelle que soit la période demandée au
+    dashboard : seule la vue (mois / année) déplace l'horizon.
+
+    L'INVARIANT : `reste_libre` est le solde projeté courant borné à `horizon`
+    — le même chiffre que `solde_projete_courant` quand le dashboard regarde la
+    période en cours."""
+
+    aujourdhui: date_type
+    horizon: date_type
+    solde_actuel: float = 0.0
+    entrees_prevues: float = 0.0
+    sorties_prevues: float = 0.0
+    reste_libre: float = 0.0
+    point_bas: PointBasRead
+    prochaine_entree: Optional[ProchaineEntreeRead] = None
+    rythme_sur: float = 0.0
+    # Le nombre de jours sur lequel le rythme est calculé (jusqu'à la prochaine
+    # entrée, ou jusqu'à l'horizon quand aucune n'est prévue).
+    rythme_jours: int = 1
+    # Le solde projeté touche ou passe sous zéro avant la prochaine entrée : le
+    # rythme vaut alors 0 et l'écran passe le bloc en couleur d'avertissement.
+    alerte: bool = False
+
+
+class PointCourbeResteRead(BaseModel):
+    """Un point de la courbe du « reste » : le solde des comptes courants à la fin
+    de ce jour. `montant` et `libelle` ne sont renseignés que sur une marche du
+    projeté (ce qui tombe ce jour-là)."""
+
+    date: date_type
+    solde: float
+    montant: Optional[float] = None
+    libelle: Optional[str] = None
+
+
+class CourbeResteRead(BaseModel):
+    """La courbe du bloc « Reste » : le réel jusqu'à aujourd'hui, puis le projeté
+    en escalier jusqu'à l'horizon (cf. services/soldes.courbe_reste)."""
+
+    aujourdhui: date_type
+    horizon: date_type
+    reels: list[PointCourbeResteRead] = Field(default_factory=list)
+    projetes: list[PointCourbeResteRead] = Field(default_factory=list)
+
+
+class LigneListeDashboardRead(BaseModel):
+    """Une ligne des deux listes du dashboard (dernières opérations, prochaines
+    prévisionnelles). `montant` est positif : c'est `sens` qui dit s'il entre ou
+    s'il sort, comme dans le tableau des Opérations."""
+
+    id: int
+    date: date_type
+    # Le jour où une prévisionnelle se pose : sa date, ou demain si elle est échue.
+    jour_pose: date_type
+    nature: str
+    categorie_nom: Optional[str] = None
+    montant: float
+    sens: Sens
+    monnaie_id: int
+    recurrente: bool = False
+    # Le dernier mois de l'étalement d'une dépense amortie, sinon null.
+    etalee_jusqu_au: Optional[date_type] = None
+    # Prévisionnelle dont la date est passée, pas encore rapprochée.
+    en_retard: bool = False
+
+
+class ListesDashboardRead(BaseModel):
+    """Ce qui vient de se passer, et ce qui arrive (cf.
+    services/listes_dashboard)."""
+
+    horizon: date_type
+    dernieres: list[LigneListeDashboardRead] = Field(default_factory=list)
+    prochaines: list[LigneListeDashboardRead] = Field(default_factory=list)
+    # Combien de prévisionnelles se posent d'ici l'horizon — pas seulement les
+    # cinq affichées.
+    prochaines_total: int = 0
+
+
 class KpisMonnaieRead(BaseModel):
     """Tout ce que le dashboard agrège, pour UNE monnaie : additionner des
     euros et des dollars demanderait un taux de change que l'app n'a pas et ne
@@ -909,6 +1011,11 @@ class KpisMonnaieRead(BaseModel):
     # est de toute façon fermé : douze mois n'ont pas UN budget à qualifier.
     budget_total_explicite: bool = True
     depenses_par_categorie: list[DepenseParCategorie] = Field(default_factory=list)
+    # LE « RESTE » POUR FINIR LA PÉRIODE, EN CASH (cf. RestePeriodeRead). Dans la
+    # même charge que les KPI : le bloc s'affiche avec les cartes du haut, sans
+    # un instant où l'un a ses chiffres et l'autre non. Null quand la monnaie
+    # n'est portée par aucun compte courant.
+    reste: Optional[RestePeriodeRead] = None
 
 
 class SemaineDepensesRead(BaseModel):

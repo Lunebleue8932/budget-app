@@ -264,6 +264,58 @@ def test_le_reste_a_rembourser_est_converti_comme_le_reste(db_session):
     )
 
 
+def test_le_reste_pour_finir_la_periode_est_converti_lui_aussi(db_session):
+    """CE QU'IL PROTÈGE : le bloc « Reste pour finir le mois » du dashboard tombait
+    à zéro dès qu'on cochait « Tout convertir » si l'agrégation oubliait ses champs
+    — même piège que la carte « Reste à rembourser » juste au-dessus.
+
+    RECALCULÉ, PAS ADDITIONNÉ : le point bas de l'ensemble n'est pas la somme des
+    points bas de chaque monnaie (cf. service_dashboard_agrege._reste_agrege)."""
+    from datetime import timedelta
+
+    from app import schemas
+    from app.constants import Statut
+
+    euro = _euro(db_session)
+    dollar = creer_monnaie(db_session, "Dollar", "$")
+    compte_eur = creer_compte(db_session, "Courant EUR", solde_initial=1000.0)
+    compte_usd = creer_compte(db_session, "Courant USD", monnaies=[(dollar.id, 500.0)])
+    _taux(db_session, dollar, euro, 0.9)
+    demain = date.today() + timedelta(days=1)
+
+    def _prevue(compte, monnaie_id, montant):
+        crud.create_operation(
+            db_session,
+            schemas.OperationCreate(
+                date=demain,
+                compte_id=compte.id,
+                monnaie_id=monnaie_id,
+                type_id=get_type_id(db_session, "classique"),
+                categorie_id=get_categorie_id(db_session, "Charges fixes"),
+                nature="Loyer",
+                montant=montant,
+                statut=Statut.previsionnel,
+            ),
+        )
+
+    _prevue(compte_eur, euro.id, 300.0)
+    _prevue(compte_usd, dollar.id, 100.0)
+
+    # En vue « année » : demain reste dans l'horizon quel que soit le jour du lancement.
+    payload, _, _ = agrege.dashboard_agrege(db_session, None, None, "annee", euro.id)
+    (kpi,) = payload.kpis
+    assert kpi.reste is not None
+    assert kpi.reste.solde_actuel == pytest.approx(1000.0 + 500.0 * 0.9)
+    assert kpi.reste.sorties_prevues == pytest.approx(300.0 + 100.0 * 0.9)
+    assert kpi.reste.reste_libre == pytest.approx(kpi.solde_projete_courant)
+    assert kpi.reste.point_bas.montant == pytest.approx(1450.0 - 390.0)
+
+    # La courbe convertie finit sur le même chiffre.
+    courbe = routeur_taux.get_reste_courbe_agregee(vers=euro.id, vue="annee", db=db_session)
+    assert courbe.projetes[-1].solde == pytest.approx(kpi.reste.reste_libre)
+    assert courbe.reels[-1].solde == pytest.approx(kpi.reste.solde_actuel)
+
+
 def test_le_detail_des_deux_cartes_suit_leur_total(db_session):
     """CE QU'IL PROTÈGE. Les cartes « Total Entrées » et « Total Dépenses »
     portent une infobulle qui dit d'où vient leur total — les trois plus grosses

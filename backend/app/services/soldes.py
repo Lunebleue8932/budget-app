@@ -12,6 +12,7 @@ models.CompteMonnaie) au lieu d'être dupliqué.
 """
 import calendar
 from datetime import date as date_type
+from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy import and_, func, or_
@@ -2200,4 +2201,476 @@ def get_reste_a_rembourser(db: Session) -> dict:
             "net": a_recevoir.get(monnaie_id, 0.0) - a_rendre.get(monnaie_id, 0.0),
         }
         for monnaie_id in set(a_recevoir) | set(a_rendre)
+    }
+
+
+# ---------- Le solde des comptes courants, jour après jour ----------
+#
+# LES BRIQUES DE TOUTE TRAJECTOIRE DU SOLDE. Nées dans l'extension « Budget » pour
+# la courbe du solde prévisionnel (cf. extensions/analyse-budget/
+# service_solde_previsionnel.py), remontées ICI quand le dashboard a eu besoin du
+# même calcul pour son « reste » : le dashboard est au noyau et ne peut pas
+# dépendre d'une extension. L'extension les réutilise telles quelles — une seule
+# définition de « ce qui bouge le solde, et quel jour », donc une courbe et un
+# « reste » qui ne peuvent pas diverger.
+#
+# MÊME PÉRIMÈTRE ET MÊMES RÈGLES QUE LE « SOLDE TOTAL » ET SON PROJETÉ :
+#   - les comptes COURANTS seulement (`TYPES_COMPTE_HORS_COURANT` exclus) ;
+#   - le solde initial et les intérêts perçus, sans date ;
+#   - TOUS les mouvements, virements compris : un virement vers l'épargne fait
+#     baisser le solde courant, deux jambes entre comptes courants s'annulent ;
+#   - le reste dû des prêts reçus retranché à la date du prêt, comme dans le
+#     projeté (cf. _reste_du_prets_par_compte_monnaie) ;
+#   - une prévisionnelle ÉCHUE et non rapprochée se pose DEMAIN : elle compte
+#     dans le projeté, mais elle ne peut pas s'être produite un jour déjà vécu.
+
+_SENS_ENTRANTS = (Sens.entree, Sens.transfert_entrant)
+_SENS_TRANSFERTS = (Sens.transfert_entrant, Sens.transfert_sortant)
+
+
+def signe_du_sens(sens) -> float:
+    """+1 pour ce qui entre sur le compte, −1 pour ce qui en sort."""
+    return 1.0 if sens in _SENS_ENTRANTS else -1.0
+
+
+def comptes_courants(db: Session, monnaie_id: int) -> dict[int, str]:
+    """`{compte_id: nom}` des comptes COURANTS qui portent cette monnaie.
+
+    Par `get_soldes_comptes`, donc avec ses règles : un compte éteint et soldé,
+    ou une monnaie éteinte et soldée, n'y figure pas — comme dans la carte
+    « Solde total »."""
+    courants: dict[int, str] = {}
+    for item in get_soldes_comptes(db):
+        compte = item["compte"]
+        if compte.type_nom in TYPES_COMPTE_HORS_COURANT:
+            continue
+        if monnaie_id in item["soldes"]:
+            courants[compte.id] = compte.nom
+    return courants
+
+
+def solde_de_depart_courant(db: Session, monnaie_id: int, comptes: dict[int, str]) -> float:
+    """Solde initial + intérêts perçus des comptes courants : ce que la
+    trajectoire porte AVANT le premier mouvement. Sans date, comme partout."""
+    interets = _interets_percus_par_compte_monnaie(db)
+    total = 0.0
+    for item in soldes_de_tous_les_liens(db):
+        compte = item["compte"]
+        if compte.id not in comptes:
+            continue
+        lien = item["soldes"].get(monnaie_id)
+        if lien is None:
+            continue
+        total += lien["solde_initial"] + interets.get((compte.id, monnaie_id), 0.0)
+    return total
+
+
+def jour_pose(operation, aujourdhui: date_type) -> date_type:
+    """Le jour où la trajectoire compte l'opération. Une réelle : sa date. Une
+    prévisionnelle : sa date, mais jamais avant demain."""
+    if operation.statut == Statut.previsionnel:
+        return max(operation.date, aujourdhui + timedelta(days=1))
+    return operation.date
+
+
+def operations_a_poser(
+    db: Session,
+    monnaie_id: int,
+    comptes: dict[int, str],
+    debut: date_type,
+    fin: date_type,
+) -> list:
+    """Les opérations qui bougent le solde entre `debut` et `fin`.
+
+    Les réelles DATÉES dans la fenêtre, et toutes les prévisionnelles datées
+    jusqu'à `fin` — y compris les échues, qui se posent demain. Ce qui est réel
+    et antérieur à `debut` est déjà dans le solde d'ouverture."""
+    if not comptes:
+        return []
+    return (
+        db.query(models.Operation)
+        .filter(
+            models.Operation.monnaie_id == monnaie_id,
+            models.Operation.compte_id.in_(list(comptes)),
+            or_(
+                and_(
+                    models.Operation.statut == Statut.reel,
+                    models.Operation.date >= debut,
+                    models.Operation.date <= fin,
+                ),
+                and_(
+                    models.Operation.statut == Statut.previsionnel,
+                    models.Operation.date <= fin,
+                ),
+            ),
+        )
+        .order_by(models.Operation.date, models.Operation.id)
+        .all()
+    )
+
+
+def solde_ouverture_courant(
+    db: Session, monnaie_id: int, comptes: dict[int, str], avant: date_type
+) -> float:
+    """Le solde la veille de `avant` : départ + tout le réel antérieur."""
+    if not comptes:
+        return 0.0
+    sums = (
+        db.query(models.Operation.sens, func.sum(models.Operation.montant))
+        .filter(
+            models.Operation.monnaie_id == monnaie_id,
+            models.Operation.compte_id.in_(list(comptes)),
+            models.Operation.statut == Statut.reel,
+            models.Operation.date < avant,
+        )
+        .group_by(models.Operation.sens)
+        .all()
+    )
+    return solde_de_depart_courant(db, monnaie_id, comptes) + sum(
+        signe_du_sens(sens) * (total or 0.0) for sens, total in sums
+    )
+
+
+def restes_dus_prets_par_date(
+    db: Session, monnaie_id: int, comptes: dict[int, str], fin: date_type
+) -> dict[date_type, float]:
+    """Le reste dû des prêts reçus, par date du prêt, retranché comme dans le
+    solde projeté (`_reste_du_prets_par_compte_monnaie`)."""
+    if not comptes:
+        return {}
+    lignes = (
+        db.query(models.Operation.date, func.sum(models.Operation.montant_a_rembourser))
+        .join(models.TypeOperationDB, models.Operation.type_id == models.TypeOperationDB.id)
+        .filter(
+            models.TypeOperationDB.code == TypeOperation.pret.value,
+            models.Operation.monnaie_id == monnaie_id,
+            models.Operation.compte_id.in_(list(comptes)),
+            models.Operation.date <= fin,
+        )
+        .group_by(models.Operation.date)
+        .all()
+    )
+    return {jour: (total or 0.0) for jour, total in lignes}
+
+
+# ---------- Le « reste » pour finir la période (dashboard) ----------
+#
+# CE QUE LE BLOC DU DASHBOARD RÉPOND : « combien me restera-t-il, et par où
+# vais-je passer d'ici là ? ». EN CASH — ce qui sera sur les comptes courants,
+# pas ce que la période « coûte » : une dépense étalée compte donc ENTIÈRE à sa
+# date de paiement (c'est ce jour-là que l'argent sort), et le budget n'entre
+# nulle part. C'est le solde projeté, déplié jour par jour entre aujourd'hui et
+# l'horizon.
+#
+# L'INVARIANT, verrouillé par un test : `reste_libre` EST le solde projeté
+# courant du dashboard borné à la même date. Un « reste » qui finirait ailleurs
+# que le « Projeté » posé dans la carte juste au-dessus ne serait plus cru.
+#
+# `coefficients` : `{monnaie_id: coefficient}`. Une seule monnaie à 1.0 dans le
+# cas ordinaire. L'extension « Monnaies » y passe sa table de conversion pour la
+# case « Tout convertir » : la trajectoire est alors celle de TOUTES les
+# monnaies ramenées à une seule — son minimum n'est pas la somme des minimums de
+# chacune, il fallait donc refaire le calcul et non additionner des résultats.
+
+# Jusqu'où l'on cherche la prochaine entrée quand l'horizon est plus proche
+# qu'elle (un salaire du 1er, vu depuis le 28 en vue « Mois »).
+_JOURS_RECHERCHE_ENTREE = 366
+
+
+def horizon_reste(vue: str, aujourdhui: date_type) -> date_type:
+    """Jusqu'où le « reste » projette : la fin du mois en cours (vue « mois »), le
+    31 décembre sinon. « Tout » vaut « année » — seule la courbe y remonte plus
+    loin dans le passé."""
+    if vue == "mois":
+        return fin_de_periode(aujourdhui.year, aujourdhui.month)
+    return date_type(aujourdhui.year, 12, 31)
+
+
+def _trajectoire_courante(
+    db: Session, coefficients: dict[int, float], aujourdhui: date_type, fin: date_type
+) -> tuple[float, list[dict]]:
+    """Le solde des comptes courants ce soir, et tout ce qui le fera bouger de
+    demain à `fin` — converti par `coefficients`.
+
+    Chaque mouvement : `{"jour", "montant" (signé), "operation" (ou None pour le
+    reste dû d'un prêt), "monnaie_id"}`, triés par jour puis par opération."""
+    demain = aujourdhui + timedelta(days=1)
+    solde = 0.0
+    mouvements: list[dict] = []
+    for monnaie_id, coefficient in coefficients.items():
+        comptes = comptes_courants(db, monnaie_id)
+        if not comptes:
+            continue
+        restes = restes_dus_prets_par_date(db, monnaie_id, comptes, fin)
+        solde += coefficient * (
+            solde_ouverture_courant(db, monnaie_id, comptes, demain)
+            - sum(total for jour, total in restes.items() if jour <= aujourdhui)
+        )
+        for operation in operations_a_poser(db, monnaie_id, comptes, demain, fin):
+            mouvements.append(
+                {
+                    "jour": jour_pose(operation, aujourdhui),
+                    "montant": coefficient * signe_du_sens(operation.sens) * operation.montant,
+                    "operation": operation,
+                    "monnaie_id": monnaie_id,
+                }
+            )
+        for jour, total in restes.items():
+            if jour > aujourdhui and total:
+                mouvements.append(
+                    {
+                        "jour": jour,
+                        "montant": -coefficient * total,
+                        "operation": None,
+                        "monnaie_id": monnaie_id,
+                    }
+                )
+    mouvements.sort(key=lambda m: (m["jour"], m["operation"].id if m["operation"] else 0))
+    return solde, mouvements
+
+
+def _variations_par_jour(mouvements: list[dict]) -> list[tuple[date_type, float]]:
+    """La variation nette de chaque jour qui bouge, dans l'ordre."""
+    par_jour: dict[date_type, float] = {}
+    for mouvement in mouvements:
+        par_jour[mouvement["jour"]] = par_jour.get(mouvement["jour"], 0.0) + mouvement["montant"]
+    return sorted(par_jour.items())
+
+
+def _minimum_jusqu_a(
+    solde: float,
+    variations: list[tuple[date_type, float]],
+    aujourdhui: date_type,
+    fin: date_type,
+) -> tuple[float, date_type, date_type]:
+    """Le plus bas du solde sur [aujourd'hui, `fin`], et le palier où il y reste :
+    du jour où il l'atteint à la veille du mouvement suivant (ou à `fin`)."""
+    minimum, debut, palier_fin = solde, aujourdhui, fin
+    courant = solde
+    ouvert = True  # le palier du minimum court encore
+    for jour, variation in variations:
+        if jour > fin:
+            break
+        if ouvert:
+            palier_fin = jour - timedelta(days=1)
+            ouvert = False
+        courant += variation
+        if courant < minimum - 1e-9:
+            minimum, debut, palier_fin = courant, jour, fin
+            ouvert = True
+    return minimum, debut, palier_fin
+
+
+def reste_periode(
+    db: Session,
+    coefficients: dict[int, float],
+    horizon: date_type,
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """Les chiffres du bloc « Reste pour finir le mois », pour une monnaie — ou
+    pour plusieurs ramenées à une seule (cf. `coefficients`, en tête de section).
+
+      - `solde_actuel` : le solde des comptes courants ce soir. C'est le point
+        de la trajectoire à aujourd'hui : reste dû des prêts retranché, comme
+        dans le projeté — il peut donc différer du « Solde total » réel quand un
+        prêt reçu est en cours ;
+      - `entrees_prevues`, `sorties_prevues` : ce qui bougera ce solde d'ici
+        l'horizon. LES VIREMENTS Y SONT, AU NET DU JOUR : deux jambes entre
+        comptes courants s'annulent, un virement vers l'épargne est une sortie
+        (l'argent quitte bien les comptes courants). Le reste dû d'un prêt à
+        venir est une sortie ;
+      - `reste_libre` = solde_actuel + entrees_prevues − sorties_prevues, soit
+        le solde projeté à l'horizon ;
+      - `point_bas` : le minimum de la trajectoire sur [aujourd'hui, horizon],
+        avec le palier où elle y reste ;
+      - `prochaine_entree` : la première prévisionnelle d'ENTRÉE à venir (ni
+        virement, ni prêt), cherchée au-delà de l'horizon s'il le faut ;
+      - `rythme_sur` : ce qu'on peut dépenser par jour sans passer sous zéro
+        avant elle — le minimum de la trajectoire jusqu'à sa veille, divisé par
+        le nombre de jours qui en séparent. Sans entrée prévue, jusqu'à
+        l'horizon. Un minimum ≤ 0 donne 0 et lève `alerte`.
+    """
+    aujourdhui = aujourdhui or date_type.today()
+    horizon = max(horizon, aujourdhui)
+    limite = max(horizon, aujourdhui + timedelta(days=_JOURS_RECHERCHE_ENTREE))
+    solde, mouvements = _trajectoire_courante(db, coefficients, aujourdhui, limite)
+
+    # ---- Ce qui est prévu d'ici l'horizon ----
+    entrees = sorties = 0.0
+    transferts: dict[tuple, float] = {}
+    for mouvement in mouvements:
+        if mouvement["jour"] > horizon:
+            continue
+        operation = mouvement["operation"]
+        if operation is not None and operation.sens in _SENS_TRANSFERTS:
+            cle = (mouvement["jour"], mouvement["monnaie_id"])
+            transferts[cle] = transferts.get(cle, 0.0) + mouvement["montant"]
+        elif mouvement["montant"] >= 0:
+            entrees += mouvement["montant"]
+        else:
+            sorties -= mouvement["montant"]
+    for net in transferts.values():
+        if net >= 0:
+            entrees += net
+        else:
+            sorties -= net
+
+    variations = _variations_par_jour(mouvements)
+    minimum, bas_debut, bas_fin = _minimum_jusqu_a(solde, variations, aujourdhui, horizon)
+
+    # ---- La prochaine entrée, et le rythme tenable jusqu'à elle ----
+    prochaine = next(
+        (
+            m
+            for m in mouvements
+            if m["operation"] is not None
+            and m["operation"].statut == Statut.previsionnel
+            and m["operation"].sens == Sens.entree
+            and m["operation"].type_code != TypeOperation.pret.value
+        ),
+        None,
+    )
+    if prochaine is not None:
+        echeance = prochaine["jour"]
+        fin_rythme = echeance - timedelta(days=1)
+    else:
+        echeance = fin_rythme = horizon
+    minimum_rythme, _, _ = _minimum_jusqu_a(solde, variations, aujourdhui, fin_rythme)
+    jours = max((echeance - aujourdhui).days, 1)
+    alerte = minimum_rythme < EPSILON_SOLDE_NUL
+    rythme = 0.0 if alerte else minimum_rythme / jours
+
+    return {
+        "aujourdhui": aujourdhui,
+        "horizon": horizon,
+        "solde_actuel": solde,
+        "entrees_prevues": entrees,
+        "sorties_prevues": sorties,
+        "reste_libre": solde + entrees - sorties,
+        "point_bas": {"montant": minimum, "date_debut": bas_debut, "date_fin": bas_fin},
+        "prochaine_entree": (
+            {
+                "date": prochaine["jour"],
+                "montant": prochaine["montant"],
+                "libelle": prochaine["operation"].nature,
+            }
+            if prochaine is not None
+            else None
+        ),
+        "rythme_sur": rythme,
+        "rythme_jours": jours,
+        "alerte": alerte,
+    }
+
+
+def _premier_jour_reel(db: Session, coefficients: dict[int, float]) -> Optional[date_type]:
+    """La date de la plus ancienne opération réelle des comptes courants."""
+    premier = None
+    for monnaie_id in coefficients:
+        comptes = comptes_courants(db, monnaie_id)
+        if not comptes:
+            continue
+        jour = (
+            db.query(func.min(models.Operation.date))
+            .filter(
+                models.Operation.monnaie_id == monnaie_id,
+                models.Operation.compte_id.in_(list(comptes)),
+                models.Operation.statut == Statut.reel,
+            )
+            .scalar()
+        )
+        if jour is not None and (premier is None or jour < premier):
+            premier = jour
+    return premier
+
+
+def courbe_reste(
+    db: Session,
+    coefficients: dict[int, float],
+    vue: str,
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """La courbe du bloc « Reste » : le solde RÉEL jusqu'à aujourd'hui, puis le
+    PROJETÉ en escalier jusqu'à l'horizon.
+
+    LE PASSÉ COMMENCE au 1er du mois (vue « mois »), au 1er janvier (« année »),
+    à la première opération (« tout ») — et ne compte que le réel. UN POINT PAR
+    JOUR QUI BOUGE, pas un par jour du calendrier : entre deux mouvements le
+    solde est plat, et « tout » porterait sinon des milliers de points pour dire
+    la même chose.
+
+    LE FUTUR : une marche par jour d'échéance (réel postdaté, prévisionnelle —
+    échue posée demain —, reste dû d'un prêt), avec le libellé de ce qui tombe.
+    Le dernier point est donc le solde projeté à l'horizon : le `reste_libre`."""
+    aujourdhui = aujourdhui or date_type.today()
+    horizon = horizon_reste(vue, aujourdhui)
+    if vue == "mois":
+        debut = date_type(aujourdhui.year, aujourdhui.month, 1)
+    elif vue == "annee":
+        debut = date_type(aujourdhui.year, 1, 1)
+    else:
+        debut = _premier_jour_reel(db, coefficients) or aujourdhui
+    debut = min(debut, aujourdhui)
+
+    # ---- Le passé : le solde d'ouverture, puis chaque jour réel qui bouge ----
+    ouverture = 0.0
+    passe: dict[date_type, float] = {}
+    for monnaie_id, coefficient in coefficients.items():
+        comptes = comptes_courants(db, monnaie_id)
+        if not comptes:
+            continue
+        restes = restes_dus_prets_par_date(db, monnaie_id, comptes, aujourdhui)
+        ouverture += coefficient * (
+            solde_ouverture_courant(db, monnaie_id, comptes, debut)
+            - sum(total for jour, total in restes.items() if jour < debut)
+        )
+        for operation in operations_a_poser(db, monnaie_id, comptes, debut, aujourdhui):
+            if operation.statut != Statut.reel:
+                continue
+            passe[operation.date] = passe.get(operation.date, 0.0) + (
+                coefficient * signe_du_sens(operation.sens) * operation.montant
+            )
+        for jour, total in restes.items():
+            if jour >= debut:
+                passe[jour] = passe.get(jour, 0.0) - coefficient * total
+
+    reels = []
+    solde = ouverture
+    if debut not in passe:
+        reels.append({"date": debut, "solde": solde})
+    for jour in sorted(passe):
+        solde += passe[jour]
+        reels.append({"date": jour, "solde": solde})
+    if reels[-1]["date"] != aujourdhui:
+        reels.append({"date": aujourdhui, "solde": solde})
+
+    # ---- Le futur : une marche par jour d'échéance ----
+    solde_actuel, mouvements = _trajectoire_courante(db, coefficients, aujourdhui, horizon)
+    par_jour: dict[date_type, dict] = {}
+    for mouvement in mouvements:
+        marche = par_jour.setdefault(mouvement["jour"], {"montant": 0.0, "libelles": []})
+        marche["montant"] += mouvement["montant"]
+        operation = mouvement["operation"]
+        if operation is not None and operation.nature and operation.nature not in marche["libelles"]:
+            marche["libelles"].append(operation.nature)
+    projetes = []
+    solde = solde_actuel
+    for jour in sorted(par_jour):
+        marche = par_jour[jour]
+        solde += marche["montant"]
+        libelles = marche["libelles"]
+        projetes.append(
+            {
+                "date": jour,
+                "solde": solde,
+                "montant": marche["montant"],
+                "libelle": ", ".join(libelles[:3]) + ("…" if len(libelles) > 3 else ""),
+            }
+        )
+
+    return {
+        "aujourdhui": aujourdhui,
+        "horizon": horizon,
+        "reels": reels,
+        "projetes": projetes,
     }

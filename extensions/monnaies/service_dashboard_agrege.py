@@ -20,8 +20,41 @@ l'écran le dit.
 """
 from app import schemas
 from app.routers import dashboard as dashboard_noyau
+from app.services import soldes
 
 import service_conversion
+
+
+def coefficients_des_monnaies(kpis, coefficients: dict) -> dict:
+    """Les coefficients des seules monnaies du dashboard qu'un taux relie à la
+    monnaie visée — celles que l'agrégation additionne."""
+    return {
+        kpi.monnaie_id: coefficients[kpi.monnaie_id]
+        for kpi in kpis
+        if coefficients.get(kpi.monnaie_id) is not None
+    }
+
+
+def _reste_agrege(db, kpis, coefficients: dict):
+    """Le bloc « Reste pour finir le mois », toutes monnaies ramenées à une seule.
+
+    LE RESTE SE CONVERTIT COMME `reste_a_rembourser` : l'oublier ne ferait pas
+    « rien » — le bloc tomberait à zéro dès que la case « Tout convertir » est
+    cochée, ce qui est faux et silencieux.
+
+    RECALCULÉ, ET NON ADDITIONNÉ. Le solde, les entrées et les sorties prévues
+    s'additionnent ; le POINT BAS et le RYTHME, non : le minimum d'une somme
+    n'est pas la somme des minimums (les euros touchent leur plus bas le 5, les
+    dollars le 20). Le noyau refait donc la trajectoire sur toutes les monnaies
+    converties (cf. services/soldes.reste_periode, `coefficients`) — le même
+    calcul, une seule fois."""
+    avec_reste = next((kpi.reste for kpi in kpis if kpi.reste is not None), None)
+    retenus = coefficients_des_monnaies(kpis, coefficients)
+    if avec_reste is None or not retenus:
+        return None
+    return schemas.RestePeriodeRead(
+        **soldes.reste_periode(db, retenus, avec_reste.horizon, avec_reste.aujourdhui)
+    )
 
 
 # Combien de lignes garde l'infobulle d'un total, de chaque côté. Repris du
@@ -208,6 +241,7 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     # moins ce que je dois, et le convertir à part le ferait diverger de ses
     # deux composantes à l'arrondi.
     agrege.reste_a_rembourser = agrege.reste_a_recevoir - agrege.reste_a_rendre
+    agrege.reste = _reste_agrege(db, brut.kpis, coefficients)
     agrege.top_entrees = _classer_top(top_entrees)
     agrege.top_sorties = _classer_top(top_sorties)
 
