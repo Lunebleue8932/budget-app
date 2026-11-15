@@ -708,6 +708,15 @@ def quitter_sandbox() -> Path:
 def get_db():
     db = _etat.SessionLocal()
     try:
+        # Le mois (calendaire ou salarial) est un réglage de la base : on le rend partagé AVANT la route,
+        # pour que tous les filtres de période (services/soldes.bornes_periode) le lisent. Une base qu'on
+        # ne sait pas lire (sandbox vierge, migration en cours) laisse le calendrier.
+        try:
+            from .services import soldes
+
+            soldes.rafraichir_jour_salaire(db)
+        except Exception:  # noqa: BLE001
+            pass
         yield db
     finally:
         db.close()

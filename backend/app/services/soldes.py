@@ -11,6 +11,7 @@ permet à un compte multi-devises de rester UNE ligne en base (cf.
 models.CompteMonnaie) au lieu d'être dupliqué.
 """
 import calendar
+import math
 from datetime import date as date_type
 from datetime import timedelta
 from typing import Optional
@@ -101,6 +102,88 @@ def fin_de_periode(annee: int, mois: Optional[int]) -> date_type:
     if mois is None:
         return date_type(annee, 12, 31)
     return date_type(annee, mois, calendar.monthrange(annee, mois)[1])
+
+
+# Sentinelle : « lis le réglage » (None voulant dire « calendrier, rien à reporter »).
+_PAR_REGLAGE = object()
+
+
+# ---------- LE MOIS : calendaire ou salarial, UN SEUL RÉGLAGE POUR TOUT ----------
+#
+# Le réglage « Découpage des mois sur le salaire » (Paramètres généraux) ne règle plus seulement le reste
+# du dashboard : il décide de ce qu'est UN MOIS dans toute l'application — les entrées et dépenses d'un mois,
+# les dépenses par catégorie, les objectifs et leurs moyennes, le projeté. Calendaire (par défaut) : du 1er au
+# dernier jour. Salarial : de la coupure (par défaut le dernier jour du mois précédent) à la veille de la
+# suivante — le « mois de novembre » va alors du 31 octobre au 29 novembre.
+#
+# LE LIBELLÉ D'UN MOIS SALARIAL est le mois qui contient le 15 : « novembre » est la période du 15 novembre
+# (`periode_salariale(date(annee, mois, 15))`). Les périodes se suivent sans trou ni chevauchement, quel que
+# soit le jour de coupure.
+#
+# L'ÉTAT EST PARTAGÉ (un seul utilisateur, une seule base ouverte à la fois) plutôt que passé à chaque appel :
+# les filtres de période (`filtre_date_periode`…) n'ont pas de session, et une trentaine d'appelants les
+# utilisent. Il est rafraîchi par `rafraichir_jour_salaire`, à chaque requête (cf. database.get_db) et à chaque
+# écriture du réglage (cf. crud.set_preference_interface). Ce qui reste CALENDAIRE : les semaines (lundi au
+# dimanche, coupées aux bords du mois civil) et les mois d'amortissement (un mois d'amortissement est un mois civil).
+_etat_salaire: dict = {"jour": None}
+
+
+def definir_jour_salaire(jour: Optional[int]) -> None:
+    _etat_salaire["jour"] = jour
+
+
+def jour_salaire_partage() -> Optional[int]:
+    """Le jour de coupure du mois salarial, ou None quand les mois suivent le calendrier."""
+    return _etat_salaire["jour"]
+
+
+def rafraichir_jour_salaire(db: Session) -> Optional[int]:
+    """Relit le réglage en base et le rend partagé."""
+    jour = lire_decoupage_salaire(db)
+    definir_jour_salaire(jour)
+    return jour
+
+
+def bornes_periode(
+    annee: int, mois: Optional[int], jour_salaire=_PAR_REGLAGE
+) -> tuple[date_type, date_type]:
+    """Le premier et le dernier jour de la période AFFICHÉE : un mois (calendaire ou salarial selon le
+    réglage), ou l'année (douze mois de suite — du début du premier au dernier jour du douzième)."""
+    if jour_salaire is _PAR_REGLAGE:
+        jour_salaire = _etat_salaire["jour"]
+    if jour_salaire is None:
+        if mois is None:
+            return date_type(annee, 1, 1), date_type(annee, 12, 31)
+        return date_type(annee, mois, 1), date_type(annee, mois, calendar.monthrange(annee, mois)[1])
+    if mois is None:
+        return (
+            periode_salariale(date_type(annee, 1, 15), jour_salaire)[0],
+            periode_salariale(date_type(annee, 12, 15), jour_salaire)[1],
+        )
+    return periode_salariale(date_type(annee, mois, 15), jour_salaire)
+
+
+def fin_periode_affichee(annee: int, mois: Optional[int]) -> date_type:
+    """Le dernier jour de la période affichée, au mois calendaire ou salarial selon le réglage
+    (cf. `fin_de_periode`, qui reste purement calendaire)."""
+    return bornes_periode(annee, mois)[1]
+
+
+def mois_de(jour: date_type, jour_salaire=_PAR_REGLAGE) -> tuple[int, int]:
+    """`(année, mois)` du mois — calendaire ou salarial — qui CONTIENT ce jour : le mois « en cours »
+    d'un dashboard ouvert aujourd'hui. Le 30 novembre en mois salarial (coupure le dernier jour) est en
+    décembre."""
+    if jour_salaire is _PAR_REGLAGE:
+        jour_salaire = _etat_salaire["jour"]
+    if jour_salaire is None:
+        return jour.year, jour.month
+    precedent = (jour.year - 1, 12) if jour.month == 1 else (jour.year, jour.month - 1)
+    suivant = (jour.year + 1, 1) if jour.month == 12 else (jour.year, jour.month + 1)
+    for annee, mois in ((jour.year, jour.month), suivant, precedent):
+        debut, fin = bornes_periode(annee, mois, jour_salaire)
+        if debut <= jour <= fin:
+            return annee, mois
+    return jour.year, jour.month
 
 
 def _reste_du_prets_par_compte_monnaie(
@@ -444,12 +527,16 @@ def filtre_date_periode(
     dépense amortie au mois où l'argent est sorti, pour son montant entier (cf.
     get_variation_brute). Tous les autres agrégats de période veulent l'exclusion
     et passent donc par `_filtre_periode`."""
+    if semaine is not None and mois is not None:
+        debut, fin = _bornes_semaine(annee, mois, semaine)
+        return and_(models.Operation.date >= debut, models.Operation.date <= fin)
+    if _etat_salaire["jour"] is not None:
+        # MOIS SALARIAL : une fenêtre de dates, et non plus un mois civil.
+        debut, fin = bornes_periode(annee, mois)
+        return and_(models.Operation.date >= debut, models.Operation.date <= fin)
     if mois is None:
         return func.strftime("%Y", models.Operation.date) == f"{annee:04d}"
-    if semaine is None:
-        return func.strftime("%Y-%m", models.Operation.date) == f"{annee:04d}-{mois:02d}"
-    debut, fin = _bornes_semaine(annee, mois, semaine)
-    return and_(models.Operation.date >= debut, models.Operation.date <= fin)
+    return func.strftime("%Y-%m", models.Operation.date) == f"{annee:04d}-{mois:02d}"
 
 
 # ---------- Amortissement sur plusieurs mois ----------
@@ -1116,6 +1203,107 @@ def get_depenses_par_categorie(
     if ligne_frais is not None:
         resultats.append(ligne_frais)
     return resultats
+
+
+def regrouper_par_parent(
+    db: Session,
+    lignes: list[dict],
+    annee: int,
+    mois: Optional[int],
+    monnaie_id: int,
+    semaine: Optional[int] = None,
+) -> list[dict]:
+    """La barre de chaque catégorie PARENT = elle-même + ses sous-catégories (migration 0103).
+
+    C'EST LA SEULE LECTURE « PAR PARENT » : le dashboard affiche par catégorie parent (les enfants y sont
+    fondus dans leur parent, rien ne change à l'écran), et la page Budget empile les `composantes` de la même
+    barre. Toute autre lecture (budgets, objectifs, filtres, menus, projets) voit les sous-catégories comme
+    des catégories normales et passe par `get_depenses_par_categorie` tel quel.
+
+    LA BARRE DU PARENT : ses totaux sont la somme de sa part directe et de celles de ses enfants ; son budget
+    est le SIEN (celui de ses enfants s'y inscrit, leur somme lui étant inférieure ou égale) ; son objectif de
+    répartition ajoute ceux de ses enfants (leur part du camembert est fondue dans la sienne) ; ses plus
+    grosses dépenses sont reclassées sur l'ensemble. `composantes` ne liste que ce qui pèse quelque chose sur la
+    période : la part directe, puis chaque enfant dans l'ordre. Une catégorie sans enfant garde sa ligne, sans
+    composantes."""
+    categories = {c.nom: c for c in db.query(models.Categorie)}
+    par_id = {c.id: c for c in categories.values()}
+
+    def icone_de(categorie) -> Optional[str]:
+        if categorie.icone:
+            return categorie.icone
+        parent = par_id.get(categorie.parent_id) if categorie.parent_id else None
+        return parent.icone if parent else None
+
+    enfants: dict[int, list[tuple[dict, models.Categorie]]] = {}
+    propres: dict[int, dict] = {}
+    for ligne in lignes:
+        categorie = categories.get(ligne["categorie"])
+        if categorie is None or ligne.get("colonne_speciale"):
+            continue
+        if categorie.parent_id is not None:
+            enfants.setdefault(categorie.parent_id, []).append((ligne, categorie))
+        else:
+            propres[categorie.id] = ligne
+
+    def composante(ligne, categorie, direct, budget=None):
+        return {
+            "categorie_id": categorie.id,
+            "categorie": categorie.nom,
+            "direct": direct,
+            "total_reel": ligne["total_reel"] if ligne else 0.0,
+            "total_previsionnel": ligne["total_previsionnel"] if ligne else 0.0,
+            "budget_alloue": budget if budget is not None else (ligne["budget_alloue"] if ligne else 0.0),
+            "couleur_index": categorie.couleur_index,
+            "couleur_nuance": None if direct else categorie.couleur_nuance,
+            "icone": icone_de(categorie),
+        }
+
+    def barre_du_parent(parent: models.Categorie) -> dict:
+        propre = propres.get(parent.id)
+        filles = sorted(enfants.get(parent.id, []), key=lambda lc: lc[1].ordre)
+        budget_parent = (
+            propre["budget_alloue"]
+            if propre is not None
+            else _budget_alloue_periode(db, parent.id, annee, mois, monnaie_id, semaine)
+        )
+        budgets_enfants = sum(l["budget_alloue"] for l, _ in filles)
+        composantes = [composante(propre, parent, True, max(budget_parent - budgets_enfants, 0.0))]
+        composantes += [composante(l, c, False) for l, c in filles]
+        tops = sorted(
+            (propre["top_depenses"] if propre else []) + [t for l, _ in filles for t in l["top_depenses"]],
+            key=lambda d: (-d["montant"], d["nature"]),
+        )[:NB_TOP_DEPENSES]
+        return {
+            "categorie": parent.nom,
+            "categorie_id": parent.id,
+            "icone": icone_de(parent),
+            "total_reel": sum(c["total_reel"] for c in composantes),
+            "total_previsionnel": sum(c["total_previsionnel"] for c in composantes),
+            "budget_alloue": budget_parent,
+            "couleur_index": parent.couleur_index,
+            "objectif_pourcentage": (parent.objectif_pourcentage or 0.0)
+            + sum(c.objectif_pourcentage or 0.0 for _, c in filles),
+            "top_depenses": tops,
+            # Seules les composantes qui pèsent quelque chose se dessinent (une part directe à zéro, rien).
+            "composantes": [c for c in composantes if c["total_previsionnel"] or c["total_reel"]],
+        }
+
+    resultat: list[dict] = []
+    emis: set[int] = set()
+    for ligne in lignes:
+        categorie = categories.get(ligne["categorie"])
+        if categorie is None or ligne.get("colonne_speciale"):
+            resultat.append(ligne)
+            continue
+        parent = par_id.get(categorie.parent_id) if categorie.parent_id else categorie
+        if parent.id in enfants:
+            if parent.id not in emis:
+                emis.add(parent.id)
+                resultat.append(barre_du_parent(parent))
+            continue
+        resultat.append({**ligne, "categorie_id": categorie.id, "icone": icone_de(categorie)})
+    return resultat
 
 
 def _semaines_revolues(
@@ -2377,11 +2565,100 @@ def restes_dus_prets_par_date(
 _JOURS_RECHERCHE_ENTREE = 366
 
 
-def horizon_reste(vue: str, aujourdhui: date_type) -> date_type:
+# LE SALAIRE DE FIN DE MOIS VIT LE MOIS SUIVANT. Une entrée prévue tard dans le mois (le salaire du 28)
+# ne sert pas à finir CE mois : elle paie le suivant. Avec ce réglage (Paramètres généraux), le
+# « reste pour finir la période » ne la compte pas — ni dans l'entrée prévue, ni dans le point bas, ni
+# dans la courbe. PAR DÉFAUT RIEN NE CHANGE : le réglage est éteint, le calendrier fait foi.
+# Rangé en base (`preference_interface`) plutôt que dans le navigateur : le serveur calcule le reste, et
+# toutes les routes qui le calculent (dashboard, « Tout convertir ») doivent lire le même réglage.
+CLE_DECOUPAGE_SALAIRE = "dashboard.decoupage-salaire"
+# PAR DÉFAUT, LE DERNIER JOUR DU MOIS : 31 vaut « le dernier jour » quel que soit le mois (cf. _est_salaire_reporte,
+# qui ramène la coupure à la longueur du mois — le 30 en novembre, le 28 en février).
+JOUR_SALAIRE_DEFAUT = 31
+
+
+def lire_decoupage_salaire(db: Session) -> Optional[int]:
+    """Le jour du mois à partir duquel une entrée prévue compte pour le mois suivant, ou None
+    quand le réglage est éteint (le cas par défaut)."""
+    valeur = crud.get_preference_interface(db, CLE_DECOUPAGE_SALAIRE)
+    if not isinstance(valeur, dict) or not valeur.get("actif"):
+        return None
+    try:
+        jour = int(valeur.get("jour", JOUR_SALAIRE_DEFAUT))
+    except (TypeError, ValueError):
+        jour = JOUR_SALAIRE_DEFAUT
+    return min(max(jour, 1), 31)
+
+
+# Le SEUIL DE SÉCURITÉ (réglage de Paramètres généraux, un nombre ≥ 0) : le niveau sous lequel on ne veut pas
+# descendre. Le rythme sûr se calcule dessus (cf. `reste_periode`) ; la courbe du dashboard le trace en pointillés
+# jaunes. 0 par défaut : le rythme sûr frôle alors zéro, comme avant.
+CLE_SEUIL_SECURITE = "dashboard.seuil-securite"
+
+# « Le projeté du dashboard tient-il compte de la dépense moyenne par jour ? » (booléen, NON par défaut).
+CLE_PROJETE_DEPENSE_MOYENNE = "dashboard.projete-depense-moyenne"
+
+
+def lire_seuil_securite(db: Session) -> float:
+    """Le seuil de sécurité, jamais négatif : une valeur absente, illisible ou négative vaut 0."""
+    valeur = crud.get_preference_interface(db, CLE_SEUIL_SECURITE)
+    try:
+        seuil = float(valeur)
+    except (TypeError, ValueError):
+        return 0.0
+    return seuil if seuil > 0 else 0.0
+
+
+def lire_projete_avec_depense_moyenne(db: Session) -> bool:
+    return crud.get_preference_interface(db, CLE_PROJETE_DEPENSE_MOYENNE) is True
+
+
+def _est_salaire_reporte(
+    mouvement: dict, horizon: date_type, jour_salaire: Optional[int]
+) -> bool:
+    """Une entrée PRÉVUE (ni virement ni prêt) tombée à partir du jour de coupure dans le dernier
+    mois de la période : elle finance la période d'après, pas celle-ci. Le jour de coupure est ramené à la
+    longueur du mois : 31 veut dire « le dernier jour du mois », tous mois confondus."""
+    operation = mouvement["operation"]
+    if jour_salaire is None or operation is None:
+        return False
+    jour = mouvement["jour"]
+    return (
+        operation.statut == Statut.previsionnel
+        and operation.sens == Sens.entree
+        and operation.type_code != TypeOperation.pret.value
+        and jour <= horizon
+        and (jour.year, jour.month) == (horizon.year, horizon.month)
+        and jour.day >= min(jour_salaire, calendar.monthrange(jour.year, jour.month)[1])
+    )
+
+
+def _coupure_salaire(annee: int, mois: int, jour_salaire: int) -> date_type:
+    """Le jour de coupure d'un mois, ramené à sa longueur (31 = le dernier jour : le 30 en novembre)."""
+    return date_type(annee, mois, min(jour_salaire, calendar.monthrange(annee, mois)[1]))
+
+
+def periode_salariale(aujourdhui: date_type, jour_salaire: int) -> tuple[date_type, date_type]:
+    """Le MOIS SALARIAL qui contient `aujourdhui` : du jour de coupure à la veille du suivant. Avec
+    une coupure le 25, aujourd'hui le 14 novembre : du 25 octobre au 24 novembre."""
+    ce_mois = _coupure_salaire(aujourdhui.year, aujourdhui.month, jour_salaire)
+    if aujourdhui >= ce_mois:
+        annee, mois = (aujourdhui.year + 1, 1) if aujourdhui.month == 12 else (aujourdhui.year, aujourdhui.month + 1)
+        return ce_mois, _coupure_salaire(annee, mois, jour_salaire) - timedelta(days=1)
+    annee, mois = (aujourdhui.year - 1, 12) if aujourdhui.month == 1 else (aujourdhui.year, aujourdhui.month - 1)
+    return _coupure_salaire(annee, mois, jour_salaire), ce_mois - timedelta(days=1)
+
+
+def horizon_reste(vue: str, aujourdhui: date_type, jour_salaire: Optional[int] = None) -> date_type:
     """Jusqu'où le « reste » projette : la fin du mois en cours (vue « mois »), le
     31 décembre sinon. « Tout » vaut « année » — seule la courbe y remonte plus
-    loin dans le passé."""
+    loin dans le passé.
+
+    EN MOIS SALARIAL (`jour_salaire` : le réglage « le salaire de fin de mois vit le mois suivant »), la
+    période du mois se termine la VEILLE de la coupure, et non au dernier jour du calendrier."""
     if vue == "mois":
+        if jour_salaire is not None:
+            return periode_salariale(aujourdhui, jour_salaire)[1]
         return fin_de_periode(aujourdhui.year, aujourdhui.month)
     return date_type(aujourdhui.year, 12, 31)
 
@@ -2461,11 +2738,105 @@ def _minimum_jusqu_a(
     return minimum, debut, palier_fin
 
 
+def _minimum_prevision(
+    solde: float,
+    variations: list[tuple[date_type, float]],
+    depense_cumulee: dict,
+    aujourdhui: date_type,
+    fin: date_type,
+) -> tuple[float, date_type, date_type]:
+    """Le plus bas de la PRÉVISION sur [aujourd'hui, `fin`] : le solde projeté auquel on retranche, chaque
+    jour, ce qu'on aura dépensé en moyenne depuis ce soir (`depense_cumulee`, cf.
+    moyenne_depenses.estimation_depenses) — la courbe « prévision » du dashboard. Rend le minimum et son
+    palier (les jours consécutifs où la prévision y reste).
+
+    POURQUOI PAS LE PROJETÉ SEUL : sans prévisionnelle à venir, il reste égal au solde d'aujourd'hui, et le
+    « point bas » ne dirait jamais rien d'autre que le solde actuel."""
+    par_jour: dict[date_type, float] = {}
+    for jour, variation in variations:
+        par_jour[jour] = par_jour.get(jour, 0.0) + variation
+    courant = solde
+    minimum, debut, palier_fin = solde, aujourdhui, aujourdhui
+    jour = aujourdhui
+    while jour <= fin:
+        courant += par_jour.get(jour, 0.0)
+        valeur = courant - depense_cumulee.get(jour, 0.0)
+        if valeur < minimum - 1e-9:
+            minimum, debut, palier_fin = valeur, jour, jour
+        elif abs(valeur - minimum) <= 1e-9 and palier_fin == jour - timedelta(days=1):
+            palier_fin = jour  # le palier se prolonge
+        jour += timedelta(days=1)
+    return minimum, debut, palier_fin
+
+
+def debut_reste(vue: str, aujourdhui: date_type, jour_salaire: Optional[int] = None) -> date_type:
+    """Le début de la période du « reste » : le 1er du mois (vue « mois »), le 1er janvier sinon — ou, en
+    mois salarial, le jour de coupure qui ouvre la période (cf. `periode_salariale`)."""
+    if vue == "mois":
+        if jour_salaire is not None:
+            return periode_salariale(aujourdhui, jour_salaire)[0]
+        return date_type(aujourdhui.year, aujourdhui.month, 1)
+    return date_type(aujourdhui.year, 1, 1)
+
+
+def _entrees_et_sorties(mouvements: list[dict], limite: date_type) -> tuple[float, float]:
+    """Ce qui entre et ce qui sort des comptes courants dans ces mouvements, jusqu'à `limite`.
+
+    LES VIREMENTS Y SONT, AU NET DU JOUR : deux jambes entre comptes courants s'annulent, un virement
+    vers l'épargne est une sortie."""
+    entrees = sorties = 0.0
+    transferts: dict[tuple, float] = {}
+    for mouvement in mouvements:
+        if mouvement["jour"] > limite:
+            continue
+        operation = mouvement["operation"]
+        if operation is not None and operation.sens in _SENS_TRANSFERTS:
+            cle = (mouvement["jour"], mouvement["monnaie_id"])
+            transferts[cle] = transferts.get(cle, 0.0) + mouvement["montant"]
+        elif mouvement["montant"] >= 0:
+            entrees += mouvement["montant"]
+        else:
+            sorties -= mouvement["montant"]
+    for net in transferts.values():
+        if net >= 0:
+            entrees += net
+        else:
+            sorties -= net
+    return entrees, sorties
+
+
+def _mouvements_reels(
+    db: Session, coefficients: dict[int, float], debut: date_type, fin: date_type
+) -> list[dict]:
+    """Les mouvements RÉELS des comptes courants entre `debut` et `fin`, convertis par `coefficients`
+    (même forme que ceux de `_trajectoire_courante`)."""
+    mouvements: list[dict] = []
+    for monnaie_id, coefficient in coefficients.items():
+        comptes = comptes_courants(db, monnaie_id)
+        if not comptes:
+            continue
+        for operation in operations_a_poser(db, monnaie_id, comptes, debut, fin):
+            if operation.statut != Statut.reel or operation.date > fin:
+                continue
+            mouvements.append(
+                {
+                    "jour": operation.date,
+                    "montant": coefficient * signe_du_sens(operation.sens) * operation.montant,
+                    "operation": operation,
+                    "monnaie_id": monnaie_id,
+                }
+            )
+    return mouvements
+
+
 def reste_periode(
     db: Session,
     coefficients: dict[int, float],
     horizon: date_type,
     aujourdhui: Optional[date_type] = None,
+    jour_salaire=_PAR_REGLAGE,
+    debut: Optional[date_type] = None,
+    seuil=_PAR_REGLAGE,
 ) -> dict:
     """Les chiffres du bloc « Reste pour finir le mois », pour une monnaie — ou
     pour plusieurs ramenées à une seule (cf. `coefficients`, en tête de section).
@@ -2481,42 +2852,51 @@ def reste_periode(
         venir est une sortie ;
       - `reste_libre` = solde_actuel + entrees_prevues − sorties_prevues, soit
         le solde projeté à l'horizon ;
-      - `point_bas` : le minimum de la trajectoire sur [aujourd'hui, horizon],
-        avec le palier où elle y reste ;
+      - `point_bas` : le minimum de la PRÉVISION (le projeté moins la dépense moyenne cumulée, cf.
+        `_minimum_prevision`) sur [aujourd'hui, horizon], avec le palier où elle y reste ;
       - `prochaine_entree` : la première prévisionnelle d'ENTRÉE à venir (ni
         virement, ni prêt), cherchée au-delà de l'horizon s'il le faut ;
-      - `rythme_sur` : ce qu'on peut dépenser par jour sans passer sous zéro
-        avant elle — le minimum de la trajectoire jusqu'à sa veille, divisé par
-        le nombre de jours qui en séparent. Sans entrée prévue, jusqu'à
-        l'horizon. Un minimum ≤ 0 donne 0 et lève `alerte`.
+      - `rythme_sur` : ce qu'on peut dépenser par jour sans passer sous le SEUIL DE SÉCURITÉ
+        (`seuil`, 0 par défaut : sous zéro) avant elle — le minimum de la trajectoire jusqu'à sa
+        veille, moins le seuil, divisé par le nombre de jours qui en séparent. Sans entrée prévue,
+        jusqu'à l'horizon. Une marge ≤ 0 donne 0 et lève `alerte` ;
+      - `sorties_reelles` : tout ce qui est DÉJÀ sorti des comptes courants depuis `debut` (le début
+        de la période ; à défaut le 1er du mois de l'horizon) jusqu'à ce soir, virements vers
+        l'épargne compris, au net du jour. TOUTES LES DÉPENSES de la période y sont, que le mois
+        suive le calendrier ou le salaire : le réglage ne touche qu'aux ENTRÉES reportées. Avec
+        `sorties_prevues`, c'est la part « utilisée » de la barre de reste à vivre ;
+      - `entrees_reportees` : ce que le réglage « le salaire de fin de mois vit le mois
+        suivant » a écarté du reste (0 par défaut, réglage éteint). Le rythme sûr, lui, se
+        calcule sur TOUTE la trajectoire : jusqu'au salaire, on vit sur ce qu'on a.
     """
     aujourdhui = aujourdhui or date_type.today()
     horizon = max(horizon, aujourdhui)
+    if jour_salaire is _PAR_REGLAGE:
+        jour_salaire = lire_decoupage_salaire(db)
+    if seuil is _PAR_REGLAGE:
+        seuil = lire_seuil_securite(db)
     limite = max(horizon, aujourdhui + timedelta(days=_JOURS_RECHERCHE_ENTREE))
     solde, mouvements = _trajectoire_courante(db, coefficients, aujourdhui, limite)
+    reportes = [m for m in mouvements if _est_salaire_reporte(m, horizon, jour_salaire)]
+    ids_reportes = {id(m) for m in reportes}
+    retenus = [m for m in mouvements if id(m) not in ids_reportes]
 
-    # ---- Ce qui est prévu d'ici l'horizon ----
-    entrees = sorties = 0.0
-    transferts: dict[tuple, float] = {}
-    for mouvement in mouvements:
-        if mouvement["jour"] > horizon:
-            continue
-        operation = mouvement["operation"]
-        if operation is not None and operation.sens in _SENS_TRANSFERTS:
-            cle = (mouvement["jour"], mouvement["monnaie_id"])
-            transferts[cle] = transferts.get(cle, 0.0) + mouvement["montant"]
-        elif mouvement["montant"] >= 0:
-            entrees += mouvement["montant"]
-        else:
-            sorties -= mouvement["montant"]
-    for net in transferts.values():
-        if net >= 0:
-            entrees += net
-        else:
-            sorties -= net
+    # ---- Ce qui est prévu d'ici l'horizon, et ce qui est déjà sorti depuis le début de la période ----
+    entrees, sorties = _entrees_et_sorties(retenus, horizon)
+    debut = debut or bornes_periode(*mois_de(horizon))[0]
+    _, sorties_reelles = _entrees_et_sorties(
+        _mouvements_reels(db, coefficients, debut, aujourdhui), aujourdhui
+    )
 
     variations = _variations_par_jour(mouvements)
-    minimum, bas_debut, bas_fin = _minimum_jusqu_a(solde, variations, aujourdhui, horizon)
+    # LE POINT BAS SE CALCULE SUR LA PRÉVISION (le projeté moins la dépense moyenne), pas sur le projeté seul :
+    # sans prévisionnelle à venir, celui-ci resterait identique au solde actuel.
+    from . import moyenne_depenses  # tardif : ce module-là lit celui-ci
+
+    depense = moyenne_depenses.estimation_depenses(db, coefficients, aujourdhui, horizon)["cumul"]
+    minimum, bas_debut, bas_fin = _minimum_prevision(
+        solde, _variations_par_jour(retenus), depense, aujourdhui, horizon
+    )
 
     # ---- La prochaine entrée, et le rythme tenable jusqu'à elle ----
     prochaine = next(
@@ -2537,15 +2917,19 @@ def reste_periode(
         echeance = fin_rythme = horizon
     minimum_rythme, _, _ = _minimum_jusqu_a(solde, variations, aujourdhui, fin_rythme)
     jours = max((echeance - aujourdhui).days, 1)
-    alerte = minimum_rythme < EPSILON_SOLDE_NUL
-    rythme = 0.0 if alerte else minimum_rythme / jours
+    # LE RYTHME SE CALCULE SUR LA MARGE AU-DESSUS DU SEUIL : ce qu'on peut dépenser sans passer dessous.
+    marge = minimum_rythme - seuil
+    alerte = marge < EPSILON_SOLDE_NUL
+    rythme = 0.0 if alerte else marge / jours
 
     return {
         "aujourdhui": aujourdhui,
         "horizon": horizon,
         "solde_actuel": solde,
         "entrees_prevues": entrees,
+        "entrees_reportees": sum(m["montant"] for m in reportes),
         "sorties_prevues": sorties,
+        "sorties_reelles": sorties_reelles,
         "reste_libre": solde + entrees - sorties,
         "point_bas": {"montant": minimum, "date_debut": bas_debut, "date_fin": bas_fin},
         "prochaine_entree": (
@@ -2589,9 +2973,19 @@ def courbe_reste(
     coefficients: dict[int, float],
     vue: str,
     aujourdhui: Optional[date_type] = None,
+    jour_salaire=_PAR_REGLAGE,
 ) -> dict:
     """La courbe du bloc « Reste » : le solde RÉEL jusqu'à aujourd'hui, puis le
-    PROJETÉ en escalier jusqu'à l'horizon.
+    PROJETÉ en escalier jusqu'à l'horizon, puis DEUX ESTIMATIONS tracées à côté :
+
+      - `prevision` : le projeté auquel on retranche ce qu'on dépense en moyenne par jour,
+        d'après les dépenses passées — l'outil de la « prévision avancée » de la page
+        Budget (services/moyenne_depenses, mêmes réglages : fenêtre, cadence, exclusions).
+        Chaque point porte `ecart`, la demi-largeur de la PLAGE (± un écart-type) ; `estimation`
+        donne la moyenne et l'écart-type qui l'ont produite ;
+      - `rythme` : le projeté auquel on retranche, chaque jour, le RYTHME SÛR (arrondi à
+        l'entier inférieur), jusqu'à la veille de la prochaine entrée : il y descend vers
+        zéro sans le franchir.
 
     LE PASSÉ COMMENCE au 1er du mois (vue « mois »), au 1er janvier (« année »),
     à la première opération (« tout ») — et ne compte que le réel. UN POINT PAR
@@ -2603,9 +2997,11 @@ def courbe_reste(
     échue posée demain —, reste dû d'un prêt), avec le libellé de ce qui tombe.
     Le dernier point est donc le solde projeté à l'horizon : le `reste_libre`."""
     aujourdhui = aujourdhui or date_type.today()
-    horizon = horizon_reste(vue, aujourdhui)
+    if jour_salaire is _PAR_REGLAGE:
+        jour_salaire = lire_decoupage_salaire(db)
+    horizon = horizon_reste(vue, aujourdhui, jour_salaire)
     if vue == "mois":
-        debut = date_type(aujourdhui.year, aujourdhui.month, 1)
+        debut = debut_reste(vue, aujourdhui, jour_salaire)
     elif vue == "annee":
         debut = date_type(aujourdhui.year, 1, 1)
     else:
@@ -2645,7 +3041,8 @@ def courbe_reste(
         reels.append({"date": aujourdhui, "solde": solde})
 
     # ---- Le futur : une marche par jour d'échéance ----
-    solde_actuel, mouvements = _trajectoire_courante(db, coefficients, aujourdhui, horizon)
+    solde_actuel, mouvements_tous = _trajectoire_courante(db, coefficients, aujourdhui, horizon)
+    mouvements = [m for m in mouvements_tous if not _est_salaire_reporte(m, horizon, jour_salaire)]
     par_jour: dict[date_type, dict] = {}
     for mouvement in mouvements:
         marche = par_jour.setdefault(mouvement["jour"], {"montant": 0.0, "libelles": []})
@@ -2668,9 +3065,62 @@ def courbe_reste(
             }
         )
 
+    # ---- Les deux estimations : à la prévision, et au rythme sûr ----
+    from . import moyenne_depenses  # tardif : ce module-là lit celui-ci
+
+    def escalier(marches):
+        """Le solde projeté à la fin de chaque jour, d'aujourd'hui à l'horizon."""
+        variations = dict(_variations_par_jour(marches))
+        solde_jour, jour = solde_actuel, aujourdhui
+        while jour <= horizon:
+            solde_jour += variations.get(jour, 0.0)
+            yield jour, solde_jour
+            jour += timedelta(days=1)
+
+    estimation = moyenne_depenses.estimation_depenses(db, coefficients, aujourdhui, horizon)
+    depense = estimation["cumul"]
+    # `ecart` : la demi-largeur de la plage autour de la prévision, ± σ·√k (cf. estimation_depenses).
+    prevision = [
+        {
+            "date": jour,
+            "solde": solde_jour - depense.get(jour, 0.0),
+            "ecart": estimation["ecart"].get(jour, 0.0),
+        }
+        for jour, solde_jour in escalier(mouvements)
+    ]
+
+    reste = reste_periode(db, coefficients, horizon, aujourdhui, jour_salaire)
+    rythme_jour = float(math.floor(reste["rythme_sur"] + 1e-9))
+    prochaine = reste["prochaine_entree"]
+    dernier_jour = (
+        prochaine["date"] - timedelta(days=1)
+        if prochaine is not None and prochaine["date"] <= horizon
+        else horizon
+    )
+    rythme = []
+    if rythme_jour > 0:
+        rythme = [
+            {"date": jour, "solde": solde_jour - rythme_jour * (jour - aujourdhui).days}
+            for jour, solde_jour in escalier(mouvements_tous)
+            if jour <= dernier_jour
+        ]
+
     return {
         "aujourdhui": aujourdhui,
         "horizon": horizon,
         "reels": reels,
         "projetes": projetes,
+        "prevision": prevision,
+        "rythme": rythme,
+        "estimation": {
+            key: estimation[key]
+            for key in (
+                "cadence",
+                "moyenne_jour",
+                "moyenne_semaine",
+                "ecart_type_jour",
+                "ecart_type_semaine",
+                "jours",
+            )
+        },
     }

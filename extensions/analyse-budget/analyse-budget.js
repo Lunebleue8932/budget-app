@@ -583,6 +583,17 @@ async function abConversions(p) {
  *  cette même période (`drill_bornes`, cf. drillThroughCategorie). */
 function abAvecFrais(depenses, p, monnaieId, bornes = null) {
   return depenses.map((d) => {
+    // LE DÉTAIL D'UNE CATÉGORIE (fenêtre, detail-categorie.js) : pour une catégorie de premier niveau sur un mois
+    // ou une année — pas sur « Tout » ni sur une semaine, que la fenêtre ne sait pas lire.
+    const detail =
+      d.categorie_id && !d.colonne_speciale && (p.vue === "mois" || p.vue === "annee") && p.semaine == null
+        ? {
+            detail_possible: true,
+            detail_monnaie_id: monnaieId,
+            detail_periode: { vue: p.vue, annee: p.annee, mois: p.mois },
+          }
+        : {};
+    d = { ...d, ...detail };
     if (d.colonne_speciale !== "frais_virements") return bornes ? { ...d, drill_bornes: bornes } : d;
     const vue = p.vue === "tout" ? "tout" : p.vue === "annee" ? "annee" : "mois";
     return {
@@ -743,6 +754,8 @@ async function abRenderGraphes() {
     const partsCompare = comparee ? partsDe(comparee) : null;
 
     renderHistogrammeDepenses(parts.retenues, abMonnaieId, histo, {
+      // COLUMN CHART EMPILÉ (sous-catégories) : la page Budget empile les composantes d'une catégorie parent.
+      empiler: true,
       comparaison: comparee ? comparee.depenses : null,
       libelleCompare: comparee ? comparee.libelle : null,
     });
@@ -812,10 +825,11 @@ async function abRenderCategorie() {
     libelle: t("Catégorie"),
     unique: true,
     coches: [abCat.categorieId],
-    options: categories.map((c, i) => ({
+    // Les sous-catégories sous leur parent, en retrait (migration 0103) : ce sont des catégories comme les autres ici.
+    options: categoriesEnHierarchie(categories).map((c) => ({
       cle: c.id,
-      libelle: libelleCategorie(c.nom),
-      couleur: couleurBarre(c, i),
+      libelle: libelleCategorieMenu(c),
+      couleur: couleurDeCategorie(c),
     })),
     onChange: (choix) => {
       abCat.categorieId = [...choix][0];
@@ -1092,7 +1106,9 @@ function abRenderBudgetsCategories() {
   // plutôt qu'affichée à zéro, et son placeholder dit pourquoi.
   const sansTotal = !(abBudgetTotal > 0);
 
-  const lignes = abCategories
+  // Les sous-catégories sous leur parent, en retrait : leur budget s'inscrit DANS celui du parent (la somme des
+  // enfants reste inférieure ou égale au sien, le serveur le refuse sinon — migration 0103).
+  const lignes = categoriesEnHierarchie(abCategories)
     .map((c) => {
       const budget = abBudgets[c.id] || { montant: 0, explicite: false };
       const montant = budget.montant || 0;
@@ -1102,9 +1118,9 @@ function abRenderBudgetsCategories() {
       const part = abPourcentageDuMontant(montant);
       const partAffichee = part === null ? "" : abPourcentageAffiche(part) || "";
       return `
-      <div class="ab-budget-ligne" data-id="${c.id}">
+      <div class="ab-budget-ligne${c.niveau ? " ab-budget-enfant" : ""}" data-id="${c.id}">
         <div class="ab-budget-nom">
-          ${escapeHtml(libelleCategorie(c.nom))}
+          ${escapeHtml(libelleCategorieMenu(c))}
           ${
             budget.montant > 0 && !budget.explicite
               ? `<span class="badge-aucun">${t("hérité")}</span>`
@@ -1151,10 +1167,10 @@ function abRenderBudgetsCategories() {
 function abRenderSomme() {
   const pied = document.getElementById("ab-budget-somme");
   if (!pied) return;
-  const sommeMontants = abCategories.reduce(
-    (total, c) => total + ((abBudgets[c.id] || {}).montant || 0),
-    0
-  );
+  // LES SOUS-CATÉGORIES NE S'AJOUTENT PAS : leur budget est inscrit dans celui de leur parent, qui est déjà compté.
+  const sommeMontants = abCategories
+    .filter((c) => c.parent_id == null)
+    .reduce((total, c) => total + ((abBudgets[c.id] || {}).montant || 0), 0);
   const depasse = abBudgetTotal > 0 && sommeMontants > abBudgetTotal + 0.005;
   const part = abPourcentageDuMontant(sommeMontants);
   pied.innerHTML = `
@@ -1611,7 +1627,7 @@ function abRenderPrevisions(operations) {
           `"${prefixe}-decoupe-${op.id}"`
         );
       } else {
-        categorie = escapeHtml(nomCategorie(op.categorie_id));
+        categorie = categorieSouligneeHtml(op.categorie_id);
       }
       const ligne = document.createElement("tr");
       ligne.innerHTML = `

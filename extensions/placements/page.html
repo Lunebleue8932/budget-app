@@ -26,16 +26,8 @@
      rétrograder ce titre aurait décalé tout ce qui s'y accroche. -->
 <div id="sous-section-comptes-globale-placements" class="sous-section">
       <div id="placements-vue-principale">
-      <!-- LE CONTENEUR DES ACTIONS EST DÉCLARÉ ICI, chez l'hôte, même quand
-           aucune extension n'y pose de bouton. C'est ce qui garantit qu'elles
-           se GROUPENT au bord droit : chacune posant son bouton directement
-           dans le <h2>, il fallait à chacune un `margin-left: auto` — et deux
-           marges automatiques dans un même conteneur flex SE PARTAGENT
-           l'espace libre au lieu de pousser. Le premier bouton se retrouvait
-           planté au milieu du titre, à mi-chemin de son voisin.
-
-           Vide, il ne se voit pas (aucune bordure, aucun fond) et le titre est
-           exactement ce qu'il était. -->
+      <!-- LE CONTENEUR DES ACTIONS EST DÉCLARÉ ICI, chez l'hôte, même quand aucune extension n'y pose de bouton :
+           c'est ce qui garantit qu'elles se GROUPENT au bord droit (cf. placements.css). Vide, il ne se voit pas. -->
       <h2 class="placements-titre">
         Placements financiers
         <span class="placements-titre-actions"></span>
@@ -46,40 +38,30 @@
         le type "Placements financiers", puis alimente-le par un virement interne.
       </p>
 
+      <!-- LES ONGLETS (dessinés par placements.js) : Portefeuille · Titres · Opérations · Analyse · Paramètres.
+           Du plus consulté au plus rare. Ce ne sont plus des comptes : les possessions de TOUS les comptes
+           sont réunies dans l'onglet principal. -->
       <div class="sous-onglets" id="placements-onglets"></div>
 
-      <div id="placements-contenu" style="display:none">
-        <!-- Une grille de KPI par monnaie du compte : espèces, portefeuille et
-             plus-value ne s'additionnent pas d'une monnaie à l'autre. -->
-        <div id="placements-kpis"></div>
+      <!-- ===== PORTEFEUILLE : l'onglet principal ===== -->
+      <div id="placements-portefeuille" style="display:none">
+        <h3 class="placements-evolution-titre">
+          Évolution du portefeuille
+          <button type="button" id="placements-lien-analyse" class="placements-lien">Analyse avancée →</button>
+        </h3>
+        <div class="sous-onglets evo-selecteurs" id="placements-evolution-selecteurs"></div>
+        <div id="placements-evolution-graphe" class="evo-graphe evo-graphe-grand"></div>
+        <p class="hint evo-variation" id="placements-evolution-variation"></p>
 
-        <!-- SEPT COLONNES POUR UNE LIGNE, C'ÉTAIT TROP. Une détention porte sa
-             quantité, son prix de revient, ce qu'elle a coûté, son cours, ce
-             qu'elle vaut et ce qu'elle a gagné — et devant quinze lignes, on ne
-             lit plus rien. TROIS RÉPONDENT À LA QUESTION QU'ON SE POSE EN
-             ARRIVANT (« combien ça vaut, et est-ce que je gagne ? ») : cours,
-             valorisation, +/- value. Les trois autres racontent l'HISTOIRE de
-             la ligne — ce qu'on en a acheté, à quel prix, pour quelle somme —
-             et on ne les consulte qu'en y allant exprès : elles sont donc
-             éteintes au démarrage, et se rallument d'une case.
+        <h3 data-plan-partie data-plan-ouvrir="#placements-onglet-portefeuille">Possessions<span id="placements-colonnes-menu"></span></h3>
+        <!-- UN BLOC PAR COMPTE D'INVESTISSEMENT (placements.js, renderPossessions) : ses espèces, son portefeuille,
+             son total, sa plus-value latente, puis ses titres détenus. -->
+        <div id="placements-possessions"></div>
+      </div>
 
-             LE TITRE NE SE CACHE PAS : une ligne sans son nom ne se rattache
-             plus à rien. Sa case est présente et verrouillée, plutôt qu'absente
-             — une case manquante se cherche longtemps.
-
-             LE SÉLECTEUR EST CELUI DES CATÉGORIES DU DASHBOARD, mécanisme du
-             noyau (`creerMenuCases`) et non une copie : deux menus qui posent
-             la même question doivent se reconnaître d'un écran à l'autre, et
-             une copie aurait dérivé au premier ajustement. -->
-        <h3>Titres détenus<span id="placements-colonnes-menu"></span></h3>
-        <table id="placements-detentions-table">
-          <thead>
-            <tr id="placements-detentions-entete"></tr>
-          </thead>
-          <tbody id="placements-detentions"></tbody>
-        </table>
-
-        <h3 id="form-achat-vente-titre">Acheter / vendre</h3>
+      <!-- ===== OPÉRATIONS : acheter / vendre, et tout l'historique ===== -->
+      <div id="placements-operations" style="display:none">
+        <h3 id="form-achat-vente-titre" data-plan-partie data-plan-ouvrir="#placements-onglet-operations">Acheter / vendre</h3>
         <form id="form-achat-vente">
           <div class="sous-onglets full-width" id="operation-titre-sens-boutons">
             <button type="button" data-sens="achat" class="active">Achat</button>
@@ -87,6 +69,9 @@
           </div>
           <input type="hidden" id="operation-titre-sens" value="achat" />
 
+          <label>Compte
+            <select id="operation-titre-compte" required></select>
+          </label>
           <label>Titre
             <select id="operation-titre-titre" required></select>
           </label>
@@ -105,18 +90,70 @@
           </div>
         </form>
 
-        <h3>Mouvements sur titres</h3>
-        <table>
+        <!-- L'HISTORIQUE, organisé comme la page Opérations du noyau : une rangée de filtres, puis un tableau où
+             chaque DATE a sa ligne séparatrice (qui reste collée sous l'en-tête en défilant). -->
+        <h3 data-plan-partie data-plan-ouvrir="#placements-onglet-operations">Mouvements sur titres</h3>
+        <div class="selecteur-contexte ab-contexte placements-filtres" id="placements-ops-filtres">
+          <label>Compte
+            <select id="placements-ops-compte"></select>
+          </label>
+          <label>Sens
+            <select id="placements-ops-sens">
+              <option value="">Tous</option>
+              <option value="achat">Achats</option>
+              <option value="vente">Ventes</option>
+            </select>
+          </label>
+          <label>Titre
+            <select id="placements-ops-titre"></select>
+          </label>
+          <label>Période
+            <select id="placements-ops-periode">
+              <option value="tout">Tout</option>
+              <option value="annee">Année en cours</option>
+              <option value="mois">Mois en cours</option>
+            </select>
+          </label>
+        </div>
+        <!-- MÊME STRUCTURE QUE LE TABLEAU DES OPÉRATIONS DU NOYAU (`.table-operations`) : un <tbody class="jour-groupe">
+             par journée, ajoutés par placements.js (renderMouvementsTitres). La date collée sous l'en-tête reste
+             ainsi bornée à SA journée — dans un seul <tbody>, elle recouvrait les lignes des journées suivantes. -->
+        <table id="placements-ops-table" class="table-operations">
           <thead>
             <tr>
-              <th>Date</th><th>Sens</th><th>Titre</th><th>Quantité</th>
+              <th>Compte</th><th>Sens</th><th>Titre</th><th>Quantité</th>
               <th>Prix unitaire</th><th>Montant</th><th>Actions</th>
             </tr>
           </thead>
-          <tbody id="placements-mouvements"></tbody>
         </table>
       </div>
 
+      <!-- ===== ANALYSE : l'évolution séparée selon une propriété des titres ===== -->
+      <div id="placements-analyse" style="display:none">
+        <h3 data-plan-partie data-plan-ouvrir="#placements-onglet-analyse">Analyse avancée de l'évolution</h3>
+        <p class="hint">Sépare l'évolution du portefeuille selon une propriété : un graphe est tracé pour chaque élément (chaque compte, chaque zone, chaque secteur…).</p>
+        <div class="selecteur-contexte ab-contexte">
+          <label for="placements-analyse-axe">Séparer par
+            <select id="placements-analyse-axe"></select>
+          </label>
+          <label for="placements-analyse-mesure" id="placements-analyse-mesure-bloc">Courbes par élément
+            <select id="placements-analyse-mesure"></select>
+          </label>
+        </div>
+        <!-- « TITRE INDIVIDUEL » : un champ de sélection à cocher, comme le choix des catégories de la page Budget
+             (`creerMenuCases`, avec « Tout sélectionner »), limité à cinq lignes visibles et défilant. Une case par
+             titre détenu, tout décoché au départ ; seuls les titres cochés ont leur graphe. -->
+        <div class="selecteur-contexte ab-contexte evo-menu-titres" id="placements-analyse-titres" style="display:none">
+          <span class="evo-menu-titres-libelle">Titres à tracer</span>
+          <div id="placements-analyse-titres-menu"></div>
+          <span class="hint" id="placements-analyse-titres-nb"></span>
+        </div>
+        <div class="sous-onglets evo-selecteurs" id="placements-analyse-selecteurs"></div>
+        <div id="placements-analyse-total" class="evo-graphe evo-graphe-grand"></div>
+        <div id="placements-analyse-graphes" class="evo-grille"></div>
+      </div>
+
+      <!-- ===== TITRES : le catalogue ===== -->
       <!-- TROISIÈME VOLET DE LA PAGE : le catalogue des titres, et non un
            compte. Les onglets ci-dessus répondent à « qu'est-ce que je
            regarde ? » — ce PEA, ce CTO, ou la liste des valeurs elle-même.
@@ -132,7 +169,7 @@
            s'accroche à `#placements-titres-liste` et à `#form-titre`, qui ont
            déménagé avec le reste : elle n'a donc rien à changer. -->
       <div id="placements-titres" style="display:none">
-        <h3>Titres suivis<i class="info-bulle" tabindex="0" data-info-cle="placements.titres-suivis">i</i></h3>
+        <h3 data-plan-partie data-plan-ouvrir="#placements-onglet-titres">Titres suivis<i class="info-bulle" tabindex="0" data-info-cle="placements.titres-suivis">i</i></h3>
         <!-- ARCHIVER PLUTÔT QUE SUPPRIMER. Un titre entièrement vendu n'a plus
              sa place dans cette liste, mais il ne peut pas être supprimé : ses
              mouvements portent des opérations d'espèces réelles, et les effacer
@@ -212,123 +249,103 @@
 
       </div>
 
-      <!-- LE VOLET « CONFIGURATION » : les quatre vocabulaires de titres (enveloppes, classes d'actif,
-           zones, secteurs), sortis du catalogue des titres. On les règle une fois ; l'onglet est donc
-           rangé à droite de la barre, avec « Titres suivis », loin des onglets de comptes qu'on consulte.
-           Les identifiants sont inchangés : seul l'endroit où les formulaires s'affichent a bougé. -->
-      <div id="placements-configuration" style="display:none">
-        <!-- LES ÉTIQUETTES, gérées ici plutôt que dans les Paramètres : on crée
-             « ETF » au moment où l'on en a besoin, c'est-à-dire en typant un
-             titre, et repartir dans un autre écran pour ça ferait perdre le fil.
-             Même forme que les correspondances d'import (.import-mappings) :
-             une ligne par étiquette, un formulaire d'ajout en dessous. -->
-        <h3>Enveloppes<i class="info-bulle" tabindex="0" data-info-cle="placements.types-de-titre">i</i></h3>
-        <div id="placements-types-titre-liste" class="import-mappings"></div>
-        <form id="form-type-titre">
-          <label>Nom
-            <input type="text" id="type-titre-nom" placeholder="ex. ETF" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Ajouter l'enveloppe</button>
-          </div>
-        </form>
-
-        <!-- LE SECOND AXE, rangé juste dessous et de la même façon : c'est le
-             même objet, sur l'autre question. Cinq classes sont livrées par la
-             migration 0066 — un vocabulaire normalisé, le même pour tout le
-             monde, contrairement aux enveloppes que chacun nomme à sa façon. -->
-        <h3>Classes d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classes-actif">i</i></h3>
-        <div id="placements-classes-actif-liste" class="import-mappings"></div>
-        <form id="form-classe-actif">
-          <label>Nom
-            <input type="text" id="classe-actif-nom" placeholder="ex. Matières premières" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Ajouter la classe</button>
-          </div>
-        </form>
-
-        <!-- LES DEUX AXES SUIVANTS (migration 0076), rangés de la même façon : la zone
-             géographique et le secteur. Les zones livrées sont EXCLUSIVES — « Asie
-             (hors Chine) » et non « Asie » — pour qu'un même pays ne compte pas deux
-             fois dans la répartition d'un fonds. Elles se renomment, se suppriment
-             et s'étendent comme n'importe quelle étiquette. -->
-        <h3>Zones géographiques<i class="info-bulle" tabindex="0" data-info-cle="placements.zones">i</i></h3>
-        <div id="placements-zones-liste" class="import-mappings"></div>
-        <form id="form-zone">
-          <label>Nom
-            <input type="text" id="zone-nom" placeholder="ex. Japon" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Ajouter la zone</button>
-          </div>
-        </form>
-
-        <h3>Secteurs<i class="info-bulle" tabindex="0" data-info-cle="placements.secteurs">i</i></h3>
-        <div id="placements-secteurs-liste" class="import-mappings"></div>
-        <form id="form-secteur">
-          <label>Nom
-            <input type="text" id="secteur-nom" placeholder="ex. Luxe" required />
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary">Ajouter le secteur</button>
-          </div>
-        </form>
-      </div>
-
-      </div>
-
-      <!-- ===== L'IMPORT DE COMPOSITION D'ETF : une FENÊTRE en étapes, comme le parcours de l'import
-           bancaire (même graphe, mêmes cartes à molette), qui lit le fichier tel que l'émetteur le
-           publie. Tout son contenu est dessiné par import-etf.js (préfixe `ietf`). Elle remplace
-           l'ancien volet « Importer des titres ». ===== -->
-      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation"
-           data-touches-propres>
-        <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
-             aria-labelledby="ietf-titre">
-          <div class="epargne-entete">
-            <h2 id="ietf-titre">Import de compositions<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
-            <button type="button" id="btn-ietf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
-          </div>
-          <div class="import-etapes" id="ietf-etapes"></div>
-          <div id="ietf-corps" class="ietf-corps"></div>
-          <div class="modale-actions">
-            <button type="button" id="btn-ietf-retour">Retour</button>
-            <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
-          </div>
+      <!-- ===== PARAMÈTRES : Configuration, import d'opérations, import de compositions ===== -->
+      <div id="placements-parametres" style="display:none">
+        <div class="sous-onglets" id="placements-param-onglets">
+          <button type="button" id="placements-param-configuration" data-param="configuration" class="active">Configuration</button>
+          <button type="button" id="placements-param-import" data-param="import">Import d'opérations</button>
+          <button type="button" id="placements-param-compositions" data-param="compositions">Import de compositions</button>
         </div>
-      </div>
-
-      <!-- ===== « NETTOYER LA BASE » : les groupes de titres qui se ressemblent, à fusionner. Le bouton est posé à
-           côté de « Titres d'ETFs » par nettoyage-titres.js (préfixe `nett`). ===== -->
-      <div id="placements-modale-nettoyage" class="modale-fond" style="display:none" role="presentation">
-        <div class="modale modale-nettoyage" role="dialog" aria-modal="true" aria-labelledby="nett-titre">
-          <div class="epargne-entete">
-            <h2 id="nett-titre">Nettoyer la base<i class="info-bulle" tabindex="0" data-info-cle="placements.nettoyage">i</i></h2>
-            <button type="button" id="btn-nett-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+      <div id="placements-parametres-configuration">
+        <!-- LES ÉTIQUETTES, gérées ici plutôt que dans les Paramètres du noyau : on crée « ETF » au moment où l'on
+             en a besoin, c'est-à-dire en typant un titre. CHAQUE CHAMP SE REPLIE (replié au départ) : on les règle
+             une fois, puis on ne les rouvre que rarement, et cinq listes dépliées d'un coup noyaient la page.
+             Même forme que les correspondances d'import (.import-mappings) : une ligne par étiquette, un formulaire
+             d'ajout en dessous. Les identifiants sont inchangés. -->
+        <details class="toggle-titre toggle-1">
+          <summary><h3 data-plan-partie data-plan-ouvrir="#placements-param-configuration">Enveloppes<i class="info-bulle" tabindex="0" data-info-cle="placements.types-de-titre">i</i></h3></summary>
+          <div class="toggle-contenu">
+            <div id="placements-types-titre-liste" class="import-mappings"></div>
+            <form id="form-type-titre">
+              <label>Nom
+                <input type="text" id="type-titre-nom" placeholder="ex. ETF" required />
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Ajouter l'enveloppe</button>
+              </div>
+            </form>
           </div>
-          <div id="nett-corps"></div>
-        </div>
-      </div>
+        </details>
 
-      <!-- ===== « GESTION DES FONDS » : tous les titres de type fonds (ETF, fonds, indices), avec la
-           possibilité de calquer chacun sur un indice. Contenu dessiné par gestion-fonds.js ; son bouton
-           est posé dans la ligne de titre de la page, à côté de « Vue d'ensemble ». ===== -->
-      <div id="placements-modale-gestion-fonds" class="modale-fond" style="display:none" role="presentation">
-        <div class="modale modale-gestion-fonds" role="dialog" aria-modal="true" aria-labelledby="gfonds-titre">
-          <div class="epargne-entete">
-            <h2 id="gfonds-titre">Gestion des fonds<i class="info-bulle" tabindex="0" data-info-cle="placements.gestion-fonds">i</i></h2>
-            <button type="button" id="btn-gfonds-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+        <!-- LE SECOND AXE : le même objet, sur l'autre question. Cinq classes sont livrées par la migration 0066 —
+             un vocabulaire normalisé, contrairement aux enveloppes que chacun nomme à sa façon. -->
+        <details class="toggle-titre toggle-1">
+          <summary><h3 data-plan-partie data-plan-ouvrir="#placements-param-configuration">Classes d'actif<i class="info-bulle" tabindex="0" data-info-cle="placements.classes-actif">i</i></h3></summary>
+          <div class="toggle-contenu">
+            <div id="placements-classes-actif-liste" class="import-mappings"></div>
+            <form id="form-classe-actif">
+              <label>Nom
+                <input type="text" id="classe-actif-nom" placeholder="ex. Matières premières" required />
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Ajouter la classe</button>
+              </div>
+            </form>
           </div>
-          <div id="gfonds-corps" class="import-mappings"></div>
-        </div>
-      </div>
+        </details>
 
-      <!-- ===== LE VOLET D'IMPORT : caché tant qu'on ne l'a pas ouvert. ===== -->
+        <!-- LES DEUX AXES SUIVANTS (migration 0076) : la zone géographique et le secteur. Les zones livrées sont
+             EXCLUSIVES — « Asie (hors Chine) » et non « Asie » — pour qu'un même pays ne compte pas deux fois. -->
+        <details class="toggle-titre toggle-1">
+          <summary><h3 data-plan-partie data-plan-ouvrir="#placements-param-configuration">Zones géographiques<i class="info-bulle" tabindex="0" data-info-cle="placements.zones">i</i></h3></summary>
+          <div class="toggle-contenu">
+            <div id="placements-zones-liste" class="import-mappings"></div>
+            <form id="form-zone">
+              <label>Nom
+                <input type="text" id="zone-nom" placeholder="ex. Japon" required />
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Ajouter la zone</button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <details class="toggle-titre toggle-1">
+          <summary><h3 data-plan-partie data-plan-ouvrir="#placements-param-configuration">Secteurs<i class="info-bulle" tabindex="0" data-info-cle="placements.secteurs">i</i></h3></summary>
+          <div class="toggle-contenu">
+            <div id="placements-secteurs-liste" class="import-mappings"></div>
+            <form id="form-secteur">
+              <label>Nom
+                <input type="text" id="secteur-nom" placeholder="ex. Luxe" required />
+              </label>
+              <div class="actions">
+                <button type="submit" class="primary">Ajouter le secteur</button>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <!-- LA GESTION DES FONDS (gestion-fonds.js) : relier chaque ETF à un indice. Sa fenêtre s'ouvre depuis le
+             bouton que le script pose dans `#placements-config-fonds-actions`. -->
+        <details class="toggle-titre toggle-1">
+          <summary><h3 data-plan-partie data-plan-ouvrir="#placements-param-configuration">Gestion des fonds<i class="info-bulle" tabindex="0" data-info-cle="placements.gestion-fonds">i</i></h3></summary>
+          <div class="toggle-contenu">
+            <p class="hint">Les ETF, fonds et indices : calquer chaque fonds sur un indice, propriété par propriété.</p>
+            <div class="actions" id="placements-config-fonds-actions"></div>
+          </div>
+        </details>
+      </div>
+      <div id="placements-parametres-compositions" style="display:none">
+        <h3>Import de compositions<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h3>
+        <p class="hint">Importer la composition d'un ETF telle que son émetteur la publie (Amundi, BNP, iShares, SPDR…) : le fichier est lu sans réglage, puis les secteurs et les zones se rangent étape par étape.</p>
+        <div class="actions" id="placements-param-compositions-actions"></div>
+      </div>
+      <!-- ===== L'IMPORT D'OPÉRATIONS : un panneau de « Paramètres » (cf. placements.js, placementsMajParametres). ===== -->
       <div id="placements-vue-import" style="display:none">
       <div class="impl-entete">
-        <h2>Import de placements<i class="info-bulle" tabindex="0" data-info-cle="import-placements.import-de-placements">i</i></h2>
-        <button type="button" id="btn-impl-retour">&larr; Retour aux placements</button>
+        <h3>Import d'opérations<i class="info-bulle" tabindex="0" data-info-cle="import-placements.import-de-placements">i</i></h3>
+        <button type="button" id="btn-impl-retour" hidden>&larr; Retour aux placements</button>
       </div>
 
       <p class="hint" id="impl-aucun-compte" style="display:none">
@@ -828,4 +845,53 @@
         </div>
       </div>
       </div>
-    </div>
+      </div>
+
+      </div>
+
+      <!-- ===== L'IMPORT DE COMPOSITION D'ETF : une FENÊTRE en étapes, comme le parcours de l'import
+           bancaire (même graphe, mêmes cartes à molette), qui lit le fichier tel que l'émetteur le
+           publie. Tout son contenu est dessiné par import-etf.js (préfixe `ietf`). Elle remplace
+           l'ancien volet « Importer des titres ». ===== -->
+      <div id="placements-modale-import-etf" class="modale-fond" style="display:none" role="presentation"
+           data-touches-propres>
+        <div class="modale modale-correspondances modale-import-etf" role="dialog" aria-modal="true"
+             aria-labelledby="ietf-titre">
+          <div class="epargne-entete">
+            <h2 id="ietf-titre">Import de compositions<i class="info-bulle" tabindex="0" data-info-cle="import-etf.presentation">i</i></h2>
+            <button type="button" id="btn-ietf-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div class="import-etapes" id="ietf-etapes"></div>
+          <div id="ietf-corps" class="ietf-corps"></div>
+          <div class="modale-actions">
+            <button type="button" id="btn-ietf-retour">Retour</button>
+            <button type="button" id="btn-ietf-suivant" class="primary">Suivant</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== « NETTOYER LA BASE » : les groupes de titres qui se ressemblent, à fusionner. Le bouton est posé à
+           côté de « Titres d'ETFs » par nettoyage-titres.js (préfixe `nett`). ===== -->
+      <div id="placements-modale-nettoyage" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-nettoyage" role="dialog" aria-modal="true" aria-labelledby="nett-titre">
+          <div class="epargne-entete">
+            <h2 id="nett-titre">Nettoyer la base<i class="info-bulle" tabindex="0" data-info-cle="placements.nettoyage">i</i></h2>
+            <button type="button" id="btn-nett-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="nett-corps"></div>
+        </div>
+      </div>
+
+      <!-- ===== « GESTION DES FONDS » : tous les titres de type fonds (ETF, fonds, indices), avec la
+           possibilité de calquer chacun sur un indice. Contenu dessiné par gestion-fonds.js ; son bouton
+           est posé dans la ligne de titre de la page, à côté de « Vue d'ensemble ». ===== -->
+      <div id="placements-modale-gestion-fonds" class="modale-fond" style="display:none" role="presentation">
+        <div class="modale modale-gestion-fonds" role="dialog" aria-modal="true" aria-labelledby="gfonds-titre">
+          <div class="epargne-entete">
+            <h2 id="gfonds-titre">Gestion des fonds<i class="info-bulle" tabindex="0" data-info-cle="placements.gestion-fonds">i</i></h2>
+            <button type="button" id="btn-gfonds-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
+          <div id="gfonds-corps" class="import-mappings"></div>
+        </div>
+      </div>
+</div>

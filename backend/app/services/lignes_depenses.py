@@ -115,17 +115,22 @@ def unites_fenetre(
     # lui-même qui est écoulée. Un mois entier vaut 1, le mois en cours vaut ses
     # jours passés sur son nombre de jours — ses jours CONCERNÉS passés sur ses
     # jours concernés, quand un filtre « jours » est posé.
+    #
+    # LE MOIS EST CELUI DU RÉGLAGE (calendaire ou salarial, cf. soldes.bornes_periode) : un mois salarial va
+    # de la coupure à la veille de la suivante, et vaut 1 lui aussi une fois révolu.
     total = 0.0
-    annee, mois = debut.year, debut.month
-    while date_type(annee, mois, 1) <= borne:
-        jours_du_mois = calendar.monthrange(annee, mois)[1]
+    annee, mois = soldes.mois_de(debut)
+    while True:
+        premier_jour, dernier_du_mois = soldes.bornes_periode(annee, mois)
+        if premier_jour > borne:
+            break
+        jours_du_mois = (dernier_du_mois - premier_jour).days + 1
         if jours_filtre in JOURS_PAR_MOITIE_DE_SEMAINE:
-            premier = max(debut, date_type(annee, mois, 1))
-            dernier_du_mois = date_type(annee, mois, jours_du_mois)
+            premier = max(debut, premier_jour)
             ecoules = jours_concernes(premier, min(borne, dernier_du_mois), jours_filtre)
-            total += ecoules / jours_concernes(date_type(annee, mois, 1), dernier_du_mois, jours_filtre)
+            total += ecoules / jours_concernes(premier_jour, dernier_du_mois, jours_filtre)
         else:
-            comptes = borne.day if (borne.year, borne.month) == (annee, mois) else jours_du_mois
+            comptes = (min(borne, dernier_du_mois) - premier_jour).days + 1
             total += min(comptes, jours_du_mois) / jours_du_mois
         annee, mois = (annee + 1, 1) if mois == 12 else (annee, mois + 1)
     return total

@@ -39,6 +39,7 @@ CE SERVICE N'ÉCRIT RIEN. Les exclusions choisies à l'écran se rangent dans
 `preference_interface` (clé « analyse-budget.solde-previsionnel ») : elles
 désignent des identifiants de la base, donc elles vivent dans la base.
 """
+import math
 from collections import defaultdict
 from datetime import date as date_type
 from datetime import timedelta
@@ -50,6 +51,11 @@ from sqlalchemy.orm import Session
 from app import models
 from app.constants import Sens, Statut
 from app.services import lignes_depenses, soldes
+from app.services.moyenne_depenses import (  # noqa: F401  (ré-exports : anciens noms)
+    FENETRE_SEMAINES_DEFAUT,
+    _premier_jour_depense,
+    moyenne_depenses,
+)
 
 # Combien de jours séparent une prévisionnelle de la ligne réelle qui lui
 # ressemble pour qu'on les soupçonne d'être la même. Sept, comme la détection de
@@ -66,11 +72,6 @@ ECART_JOUR_DU_MOIS = 3
 # Combien de jours de passé la courbe montre avant aujourd'hui : assez pour
 # situer le présent sur le graphe, assez peu pour que l'avenir garde la place.
 JOURS_DE_PASSE = 30
-
-# Fenêtre d'historique par défaut de la prévision avancée, en semaines. Douze :
-# un trimestre, assez pour lisser un mois exceptionnel sans traîner une habitude
-# abandonnée depuis un an.
-FENETRE_SEMAINES_DEFAUT = 12
 
 # L'horizon par défaut, en jours.
 HORIZON_JOURS_DEFAUT = 90
@@ -99,112 +100,6 @@ def _ligne(operation, noms: dict[int, str]) -> dict:
         "nature": operation.nature,
         "montant": operation.montant,
         "compte_nom": noms.get(operation.compte_id, ""),
-    }
-
-
-# ---------- La moyenne des dépenses passées ----------
-
-
-def _premier_jour_depense(
-    db: Session, monnaie_id: int, comptes: dict[int, str]
-) -> Optional[date_type]:
-    """Le premier jour où l'on a une trace de dépense réelle sur ces comptes :
-    avant lui, il n'y a rien à moyenner, et le compter dans la durée diluerait
-    la moyenne d'un compte récent comme si l'on n'avait rien dépensé avant."""
-    if not comptes:
-        return None
-    return (
-        db.query(func.min(models.Operation.date))
-        .filter(
-            models.Operation.monnaie_id == monnaie_id,
-            models.Operation.compte_id.in_(list(comptes)),
-            models.Operation.statut == Statut.reel,
-            models.Operation.sens == Sens.depense,
-        )
-        .scalar()
-    )
-
-
-def moyenne_depenses(
-    db: Session,
-    monnaie_id: int,
-    aujourdhui: date_type,
-    fenetre_semaines: Optional[int] = FENETRE_SEMAINES_DEFAUT,
-    exclure_categories: Optional[set] = None,
-    exclure_types: Optional[set] = None,
-    exclure_operations: Optional[set] = None,
-    comptes: Optional[dict[int, str]] = None,
-) -> dict:
-    """Ce que l'on dépense en moyenne, par jour et par semaine.
-
-    LA FENÊTRE SE TERMINE AUJOURD'HUI et commence `fenetre_semaines` semaines
-    plus tôt — ou au premier jour de dépense si le compte est plus récent
-    (`fenetre_semaines=None` : tout l'historique). Le dénominateur est le temps
-    RÉELLEMENT écoulé dans cette fenêtre, jamais celui qu'on aurait voulu.
-
-    LES EXCLUSIONS retirent des LIGNES de la somme, pas des jours du temps :
-    exclure le loyer baisse la moyenne par jour, il ne raccourcit pas la
-    fenêtre. Catégorie et type : une opération découpée perd la fraction de son
-    montant qui relève d'une catégorie exclue (ses parts SONT sa classification).
-    """
-    comptes = comptes if comptes is not None else _comptes_courants(db, monnaie_id)
-    exclure_categories = exclure_categories or set()
-    exclure_types = exclure_types or set()
-    exclure_operations = exclure_operations or set()
-
-    vide = {
-        "par_jour": 0.0,
-        "par_semaine": 0.0,
-        "total": 0.0,
-        "jours": 0,
-        "nombre_operations": 0,
-        "debut": None,
-        "fin": aujourdhui,
-        "operations": [],
-    }
-    premier = _premier_jour_depense(db, monnaie_id, comptes)
-    if premier is None or premier > aujourdhui:
-        return vide
-    if fenetre_semaines is None:
-        debut = premier
-    else:
-        debut = max(aujourdhui - timedelta(days=7 * fenetre_semaines - 1), premier)
-
-    total = 0.0
-    retenues = []
-    for operation, retenu in lignes_depenses.lignes_detaillees(
-        db, debut, aujourdhui, monnaie_id, None
-    ):
-        if operation.compte_id not in comptes or operation.id in exclure_operations:
-            continue
-        if operation.type_code in exclure_types:
-            continue
-        if operation.decoupes:
-            # Découpée : la catégorie d'une part exclue sort au prorata.
-            part_exclue = sum(
-                part.montant
-                for part in operation.decoupes
-                if part.categorie_id in exclure_categories
-            )
-            if operation.montant:
-                retenu *= 1.0 - part_exclue / operation.montant
-        elif operation.categorie_id in exclure_categories:
-            continue
-        if not retenu:
-            continue
-        total += retenu
-        retenues.append((operation, retenu))
-
-    jours = (aujourdhui - debut).days + 1
-    return {
-        "par_jour": total / jours,
-        "par_semaine": total / jours * 7,
-        "total": total,
-        "jours": jours,
-        "nombre_operations": len(retenues),
-        "debut": debut,
-        "fin": aujourdhui,
-        "operations": retenues,
     }
 
 
@@ -286,6 +181,12 @@ def solde_previsionnel(
     if avancee:
         moyenne["active"] = True
 
+    # LA PLAGE autour de la prévision : après k périodes (jours, ou semaines en cadence « semaine »),
+    # la dépense cumulée s'écarte de sa moyenne de ± σ·√k (cf. moyenne_depenses.estimation_depenses —
+    # le même calcul que sur le dashboard). Seulement sur le futur de la prévision avancée.
+    sigma = moyenne["ecart_type_semaine"] if cadence == "semaine" else moyenne["ecart_type_jour"]
+    periodes = 0
+
     points = []
     solde = ouverture
     cumul_moyenne = 0.0
@@ -303,10 +204,17 @@ def solde_previsionnel(
                 # prélèvement quotidien.
                 if jour.weekday() == 6:
                     cumul_moyenne += moyenne["par_semaine"]
+                    periodes += 1
             else:
                 cumul_moyenne += moyenne["par_jour"]
+                periodes += 1
         points.append(
-            {"date": jour, "solde": solde - cumul_moyenne, "passe": not futur}
+            {
+                "date": jour,
+                "solde": solde - cumul_moyenne,
+                "passe": not futur,
+                "ecart": sigma * math.sqrt(periodes) if avancee and futur and sigma > 0 else None,
+            }
         )
         jour += timedelta(days=1)
 
@@ -469,3 +377,87 @@ def detecter_doublons(
                 }
             )
     return doublons
+
+
+# ---------- Le reste à vivre, et de quoi planifier ----------
+
+
+def _premier_jour_sous_zero(points: list, marge=lambda p: 0.0) -> Optional[date_type]:
+    return next((p["date"] for p in points if p["solde"] - marge(p) < 0), None)
+
+
+def planification(reste: dict, courbe: dict) -> dict:
+    """Ce que le dashboard ne montre pas et qu'il faut pour PLANIFIER : où la prévision se pose, où elle
+    se tient dans sa plage, et à quelle date elle passerait sous zéro.
+
+    Toutes les valeurs viennent de `courbe` (la prévision et sa plage ± σ·√k) et de `reste` (le rythme
+    sûr) : rien n'est recalculé, ce sont des lectures de ce que le dashboard a déjà."""
+    aujourdhui = courbe["aujourdhui"]
+    prevision = [p for p in courbe["prevision"] if p["date"] >= aujourdhui]
+    estimation = courbe.get("estimation") or {}
+    moyenne_jour = estimation.get("moyenne_jour", 0.0)
+    resultat = {
+        "moyenne_jour": moyenne_jour,
+        "ecart_type_jour": estimation.get("ecart_type_jour", 0.0),
+        "cadence": estimation.get("cadence", "jour"),
+        "jours_historique": estimation.get("jours", 0),
+        # Combien le rythme sûr laisse de marge sur la dépense moyenne : positif = on dépense, en moyenne,
+        # moins que le rythme sûr ; négatif = on le dépasse.
+        "marge_rythme": reste["rythme_sur"] - moyenne_jour,
+        "solde_fin": None,
+        "solde_fin_bas": None,
+        "solde_fin_haut": None,
+        "point_bas_prevision": None,
+        "point_bas_pessimiste": None,
+        "sous_zero_prevision": None,
+        "sous_zero_pessimiste": None,
+    }
+    if not prevision:
+        return resultat
+
+    def ecart(p):
+        return p.get("ecart") or 0.0
+
+    fin = prevision[-1]
+    resultat["solde_fin"] = fin["solde"]
+    resultat["solde_fin_bas"] = fin["solde"] - ecart(fin)
+    resultat["solde_fin_haut"] = fin["solde"] + ecart(fin)
+    bas = min(prevision, key=lambda p: p["solde"])
+    resultat["point_bas_prevision"] = {"date": bas["date"], "montant": bas["solde"]}
+    pessimiste = min(prevision, key=lambda p: p["solde"] - ecart(p))
+    resultat["point_bas_pessimiste"] = {
+        "date": pessimiste["date"],
+        "montant": pessimiste["solde"] - ecart(pessimiste),
+    }
+    resultat["sous_zero_prevision"] = _premier_jour_sous_zero(prevision)
+    resultat["sous_zero_pessimiste"] = _premier_jour_sous_zero(prevision, ecart)
+    return resultat
+
+
+def reste_a_vivre(
+    db: Session,
+    monnaie_id: int,
+    vue: str = "mois",
+    aujourdhui: Optional[date_type] = None,
+) -> dict:
+    """Le « reste pour finir le mois » du dashboard, pour UNE monnaie, avec sa courbe (réel, prévision,
+    rythme sûr, plage) et la planification. Les mêmes briques que le dashboard (services/soldes) : la
+    page Prévisions en est le prolongement, elle ne peut pas annoncer un autre chiffre."""
+    aujourdhui = aujourdhui or date_type.today()
+    coefficients = {monnaie_id: 1.0}
+    jour_salaire = soldes.lire_decoupage_salaire(db)
+    reste = soldes.reste_periode(
+        db,
+        coefficients,
+        soldes.horizon_reste(vue, aujourdhui, jour_salaire),
+        aujourdhui,
+        debut=soldes.debut_reste(vue, aujourdhui, jour_salaire),
+    )
+    courbe = soldes.courbe_reste(db, coefficients, vue, aujourdhui)
+    return {
+        "monnaie_id": monnaie_id,
+        "vue": vue,
+        "reste": reste,
+        "courbe": courbe,
+        "planification": planification(reste, courbe),
+    }

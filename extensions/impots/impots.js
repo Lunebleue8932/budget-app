@@ -168,7 +168,7 @@ function impRendreOperations() {
       <td>${escapeHtml(operation.nature)}</td>
       <td>${montantHtml(operation.montant, "entrée", operation.monnaie_id)}</td>
       <td>${escapeHtml(nomCompte(operation.compte_id))}</td>
-      <td>${escapeHtml(nomCategorie(operation.categorie_id))}</td>
+      <td>${categorieSouligneeHtml(operation.categorie_id)}</td>
       <td>${statutLabel(operation.statut)}</td>
       <td><button type="button" data-action="retirer">${t("Retirer")}</button></td>
     `;
@@ -241,13 +241,11 @@ async function impOuvrirSelecteur() {
     "categories",
     "impots-filtre-categories",
     t("Catégories"),
-    state.categories
-      .filter((c) => c.est_entree)
-      .map((c) => ({
-        cle: c.id,
-        libelle: libelleCategorie(c.nom),
-        couleur: couleurCategorie(c.couleur_index ?? 0),
-      }))
+    categoriesEnHierarchie(state.categories.filter((c) => c.est_entree)).map((c) => ({
+      cle: c.id,
+      libelle: libelleCategorieMenu(c),
+      couleur: couleurDeCategorie(c),
+    }))
   );
   impChercherCandidats();
 }
@@ -302,7 +300,7 @@ function impRendreCandidats() {
       <td>${montantHtml(operation.montant, operation.sens, operation.monnaie_id)}</td>
       <td>${escapeHtml(nomCompte(operation.compte_id))}</td>
       <td>${formatDate(operation.date)}</td>
-      <td>${escapeHtml(nomCategorie(operation.categorie_id))}</td>
+      <td>${categorieSouligneeHtml(operation.categorie_id)}</td>
       <td><input type="checkbox" data-role="selection" ${
         impSelection.has(operation.id) ? "checked" : ""
       } /></td>`;

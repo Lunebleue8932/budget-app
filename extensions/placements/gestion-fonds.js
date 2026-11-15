@@ -42,13 +42,13 @@ function gfondsOuvrir() {
 
 function gfondsPoserBouton() {
   if (gfondsEl("btn-gestion-fonds")) return;
-  const actions = document.querySelector("#placements-vue-principale .placements-titre-actions");
+  const actions = document.getElementById("placements-config-fonds-actions");
   if (!actions) return;
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.id = "btn-gestion-fonds";
-  bouton.className = "placements-titre-action";
-  bouton.textContent = t("Gestion des fonds");
+  bouton.className = "primary";
+  bouton.textContent = t("Ouvrir la gestion des fonds");
   bouton.addEventListener("click", gfondsOuvrir);
   actions.appendChild(bouton);
 }

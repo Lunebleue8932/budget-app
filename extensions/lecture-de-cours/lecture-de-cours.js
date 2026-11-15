@@ -138,7 +138,6 @@ function poserBarre() {
     // Désactivée depuis les Paramètres pendant que l'app tourne : la barre
     // disparaît à la prochaine ouverture de l'écran, sans recharger la page.
     if (existante) existante.remove();
-    document.getElementById("pw-rafraichir-tout")?.remove();
     return;
   }
   if (existante) {
@@ -146,22 +145,70 @@ function poserBarre() {
     return;
   }
 
+  // UNE COLONNE À DROITE DU TITRE, de haut en bas : « Mettre à jour les cours », « Récupérer l'historique des
+  // cours », puis le compte rendu de la dernière lecture (nombre de titres lus en ligne, et quand). Les boutons
+  // d'actions de la page (vue d'ensemble…) passent dessous (cf. placements.css).
+  const titre = section.querySelector("h2");
   const barre = document.createElement("div");
   barre.id = "pw-barre";
   barre.className = "pw-barre";
-  barre.innerHTML = `<span class="hint" id="pw-etat"></span>`;
-  const titre = section.querySelector("h2");
-  titre.insertAdjacentElement("afterend", barre);
-  // LE BOUTON VIT DANS LE TITRE, à droite ; les boutons d'actions (import, gestion des fonds, vue
-  // d'ensemble) passent dessous (cf. placements.css) — la barre ne garde que l'état de la dernière mise à jour.
+  titre.appendChild(barre);
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.id = "pw-rafraichir-tout";
   bouton.className = "primary";
   bouton.textContent = t("Mettre à jour les cours");
   bouton.addEventListener("click", () => rafraichir("/cours/rafraichir"));
-  titre.appendChild(bouton);
+  barre.appendChild(bouton);
+  // L'HISTORIQUE : les anciennes valeurs que la page de cotation publie (Yahoo Finance), de quoi tracer
+  // l'évolution du portefeuille loin dans le passé. À la demande — c'est un geste qu'on fait une fois, pas
+  // à chaque ouverture.
+  const historique = document.createElement("button");
+  historique.type = "button";
+  historique.id = "pw-historique";
+  historique.textContent = t("Récupérer l'historique des cours");
+  historique.title = t(
+    "Lit les anciens cours de chaque titre suivi (Yahoo Finance uniquement) pour tracer l'évolution du portefeuille."
+  );
+  historique.addEventListener("click", recupererHistorique);
+  barre.appendChild(historique);
+  const etat = document.createElement("span");
+  etat.className = "hint";
+  etat.id = "pw-etat";
+  barre.appendChild(etat);
   majEtatBarre();
+}
+
+/** « Récupérer l'historique des cours » : un compte rendu par titre, puis le graphe d'évolution se redessine. */
+async function recupererHistorique() {
+  const bouton = document.getElementById("pw-historique");
+  if (bouton) {
+    bouton.disabled = true;
+    bouton.textContent = t("Lecture en cours…");
+  }
+  try {
+    const reponse = await apiFetch("/cours/historique", { method: "POST" });
+    if (reponse.reussis > 0) {
+      showMessage(
+        t("{n} cours passés ajoutés pour {t} titre(s)", { n: reponse.ajoutes, t: reponse.reussis }),
+        "success"
+      );
+    }
+    reponse.resultats
+      .filter((resultat) => !resultat.ok)
+      .forEach((resultat) => showMessage(`${resultat.titre_nom} : ${resultat.erreur}`, "warning"));
+    if (reponse.reussis === 0 && reponse.echecs === 0) {
+      showMessage(t("Aucun titre n'a de lien à relire"), "warning");
+    }
+    document.dispatchEvent(new CustomEvent("budgetapp:cours-historique"));
+  } catch (err) {
+    showMessage(err.message, "error");
+  } finally {
+    if (bouton) {
+      bouton.disabled = false;
+      bouton.textContent = t("Récupérer l'historique des cours");
+    }
+  }
 }
 
 /** Le texte à côté du bouton : ce que la dernière mise à jour a donné. */

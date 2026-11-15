@@ -95,8 +95,7 @@ def unites_de_cadence(
     représente en semaines. Compter les blocs du calendrier aurait donné 5 ou 6
     pour un mois de 30 jours selon le jour où il commence, et fait varier une
     moyenne hebdomadaire au gré du calendrier plutôt qu'au gré des dépenses."""
-    debut = date_type(annee, mois or 1, 1)
-    fin = soldes.fin_de_periode(annee, mois)
+    debut, fin = soldes.bornes_periode(annee, mois)
     return unites_fenetre(cadence, debut, fin, aujourdhui, ecoulees)
 
 
@@ -107,7 +106,8 @@ def unites_de_cadence(
 
 
 def bornes_periode(annee: int, mois: Optional[int]) -> tuple[date_type, date_type]:
-    return date_type(annee, mois or 1, 1), soldes.fin_de_periode(annee, mois)
+    """Les bornes de la période : le mois du réglage (calendaire ou salarial), ou l'année."""
+    return soldes.bornes_periode(annee, mois)
 
 
 def _lignes_depenses(
@@ -269,7 +269,8 @@ def premier_jour_de_l_historique(
     )
     if premiere is None or premiere > aujourdhui:
         premiere = aujourdhui
-    return date_type(premiere.year, premiere.month, 1)
+    # Le début de SON MOIS (calendaire ou salarial, selon le réglage).
+    return soldes.bornes_periode(*soldes.mois_de(premiere))[0]
 
 
 def _fenetre(kind: str, debut: date_type, fin: date_type, annee=None, mois=None) -> dict:
@@ -282,7 +283,7 @@ def fenetre_tout(db: Session, monnaie_id: int, aujourdhui: date_type) -> dict:
     return _fenetre(
         "tout",
         premier_jour_de_l_historique(db, monnaie_id, aujourdhui),
-        date_type(aujourdhui.year, 12, 31),
+        soldes.fin_periode_affichee(aujourdhui.year, None),
     )
 
 
@@ -295,8 +296,9 @@ def _fenetres_tout(
         lundi = aujourdhui - timedelta(days=aujourdhui.weekday())
         actuelle = _fenetre("semaine", lundi, lundi + timedelta(days=6))
     else:
-        d, f = bornes_periode(aujourdhui.year, aujourdhui.month)
-        actuelle = _fenetre("mois", d, f, aujourdhui.year, aujourdhui.month)
+        annee_courante, mois_courant = soldes.mois_de(aujourdhui)
+        d, f = bornes_periode(annee_courante, mois_courant)
+        actuelle = _fenetre("mois", d, f, annee_courante, mois_courant)
     return {
         "actuelle": actuelle,
         "moyennee": fenetre_tout(db, objectif.monnaie_id, aujourdhui),
@@ -342,7 +344,7 @@ def fenetres_de_lecture(
     # Cadence « mois ». Sur la vue année, le mois de lecture est celui
     # d'aujourd'hui si l'année le contient, sinon son dernier (ou son premier).
     if mois is None:
-        mois_lecture = min(max(aujourdhui, debut_p), fin_p).month
+        mois_lecture = soldes.mois_de(min(max(aujourdhui, debut_p), fin_p))[1]
     else:
         mois_lecture = mois
     d, f = bornes_periode(annee, mois_lecture)
@@ -353,7 +355,7 @@ def fenetres_de_lecture(
     else:
         premier = premier_jour_de_l_historique(db, objectif.monnaie_id, aujourdhui)
         moyennee = _fenetre(
-            "tout", premier, date_type(max(aujourdhui.year, annee), 12, 31)
+            "tout", premier, soldes.fin_periode_affichee(max(aujourdhui.year, annee), None)
         )
     return {"actuelle": actuelle, "moyennee": moyennee}
 

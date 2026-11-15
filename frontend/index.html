@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget App</title>
-  <link rel="stylesheet" href="style.css?v=161" />
+  <link rel="stylesheet" href="style.css?v=173" />
   <!-- LE THÈME EST POSÉ AVANT LE PREMIER PIXEL, et c'est la raison de ce script
        en ligne : app.js est chargé en fin de page, après le rendu — appliquer le
        mode clair là-bas ferait clignoter tout l'écran en sombre à chaque
@@ -95,19 +95,22 @@
         </button>
       </div>
 
-      <!-- Recherche : surligne dans la page AFFICHÉE, à chaque caractère. Une
-           seule barre pour toute l'application plutôt qu'un champ par tableau —
-           c'est le même geste partout, et Ctrl+F y mène de n'importe où.
-           Les icônes (loupe, chevrons) sont injectées par app.js, comme l'œil et
-           la poubelle : au trait, en gris, dans la même famille de tracé. -->
+      <!-- Recherche : un espace qui OUVRE une fenêtre (cf. recherche-globale.js), au milieu de l'écran.
+           Le champ d'ici ne sert plus à saisir — il est en lecture seule, un clic ou Ctrl+F ouvre la
+           fenêtre où l'on tape, et où les résultats arrivent ligne par ligne : ceux de la page affichée
+           avec un peu de contexte, les autres avec le chemin de leur page. Choisir un résultat referme
+           la fenêtre et laisse la page surlignée : le compte et les deux chevrons d'ici servent alors à
+           parcourir les correspondances, la croix à tout effacer. Les icônes (loupe, chevrons, croix)
+           sont injectées par app.js, comme l'œil et la poubelle. -->
       <div class="recherche" id="recherche">
-        <button type="button" id="btn-recherche" title="Rechercher dans la page (Ctrl+F)" aria-label="Rechercher"></button>
-        <input type="search" id="recherche-champ" placeholder="Rechercher dans la page…" aria-label="Rechercher dans la page" />
+        <button type="button" id="btn-recherche" title="Rechercher dans l'application (Ctrl+F)" aria-label="Rechercher"></button>
+        <input type="search" id="recherche-champ" readonly placeholder="Rechercher…" aria-label="Rechercher dans l'application" />
         <span class="recherche-resultat hint" id="recherche-resultat"></span>
         <div class="recherche-navigation" id="recherche-navigation">
           <button type="button" id="btn-recherche-precedent" title="Correspondance précédente (Maj+Entrée)" aria-label="Correspondance précédente"></button>
           <button type="button" id="btn-recherche-suivant" title="Correspondance suivante (Entrée)" aria-label="Correspondance suivante"></button>
         </div>
+        <button type="button" id="btn-recherche-effacer" class="recherche-effacer" style="display:none" title="Effacer la recherche" aria-label="Effacer la recherche"></button>
       </div>
     </div>
 
@@ -131,26 +134,16 @@
               title="Voir les lignes non traitées" aria-label="Voir les lignes non traitées">&rarr;</button>
     </div>
 
-    <!-- LA DÉMO, juste au-dessus du retour : une porte, pas une page. Elle ouvre l'application
-         remplie de données fictives (cf. frontend/sandbox.js) ; une fois dedans, ce bloc disparaît
-         et c'est la pastille jaune de chaque en-tête qui porte le chemin du retour. -->
-    <!-- LE PREMIER IMPORT GUIDÉ, juste au-dessus de la démo : pour qui n'a pas choisi cette voie dans la
-         fenêtre de premier lancement et veut quand même du guide (cf. premier-demarrage.js). Masqué
-         dans la démo, comme elle : on n'y importe pas de vrai relevé. -->
-    <div class="barre-premier-import" data-sandbox-entree>
-      <button type="button" id="btn-premier-import">Premier import</button>
-      <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-premier-import-bouton">i</i>
-    </div>
-    <!-- LES TUTORIELS, entre le premier import et la démo : les trois portes dans l'ordre des cartes de la
-         fenêtre de premier lancement. Elle mène à l'écran des tutoriels et montre le premier, sans le lancer
-         (cf. premier-demarrage.js, `guideTutoriels`). Masquée dans la démo : on n'y lance pas de tutoriel. -->
-    <div class="barre-tutoriels" data-sandbox-entree>
-      <button type="button" id="btn-guide-tutoriels">Suivre les tutoriels</button>
-      <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-tutoriels-bouton">i</i>
-    </div>
-    <div class="barre-demo" data-sandbox-entree>
-      <button type="button" id="btn-sandbox-entrer">Essayer la démo</button>
-      <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
+    <!-- EN BAS DE LA BARRE : le plan de l'application (une fenêtre), la porte « Découvrir l'app » (une
+         fenêtre qui réunit le premier import, les tutoriels et la démo), puis le retour. Trois boutons
+         de la même forme, trois couleurs : gris, bleu, violet (cf. `.barre-bouton`). Découvrir est
+         masqué dans la démo, comme les trois portes qu'il contient (cf. sandbox.js). -->
+    <div class="barre-bas">
+      <button type="button" id="btn-mindmap" class="barre-bouton barre-mindmap">Mindmap</button>
+      <button type="button" id="btn-decouvrir" class="barre-bouton barre-decouvrir" data-sandbox-entree>Découvrir l'app</button>
+    <a class="barre-bouton barre-feedback" id="lien-feedback"
+       href="https://docs.google.com/forms/d/e/1FAIpQLScDDqoiMnph6BAxwCHNVW3xXvHN6xkUmb5T6VWSEStdLimmMA/viewform?usp=header"
+       target="_blank" rel="noopener noreferrer">Feedback</a>
     </div>
 
     <!-- FAIRE UN RETOUR, TOUT EN BAS ET SÉPARÉ DU RESTE.
@@ -169,9 +162,7 @@
 
          `rel="noopener noreferrer"` avec `target="_blank"` : sans `noopener`,
          la page ouverte garde une poignée sur celle-ci (`window.opener`). -->
-    <a class="barre-feedback" id="lien-feedback"
-       href="https://docs.google.com/forms/d/e/1FAIpQLScDDqoiMnph6BAxwCHNVW3xXvHN6xkUmb5T6VWSEStdLimmMA/viewform?usp=header"
-       target="_blank" rel="noopener noreferrer">Feedback</a>
+
 
   </header>
 
@@ -267,6 +258,81 @@
           Ranger mes données ici
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- DÉCOUVRIR L'APP : le titre, et les trois portes TELLES QU'ELLES ÉTAIENT dans la barre (mêmes
+       identifiants, mêmes bulles d'aide, donc mêmes comportements — cf. premier-demarrage.js et
+       sandbox.js). Rien d'autre. Ouverte et fermée par barre-laterale.js. -->
+  <div id="modale-decouvrir" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-decouvrir" role="dialog" aria-modal="true" aria-labelledby="modale-decouvrir-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-decouvrir-titre">Découvrir l'app</h2>
+        <button type="button" id="btn-decouvrir-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <!-- LA DÉMO, juste au-dessus du retour : une porte, pas une page. Elle ouvre l'application
+           remplie de données fictives (cf. frontend/sandbox.js) ; une fois dedans, ce bloc disparaît
+           et c'est la pastille jaune de chaque en-tête qui porte le chemin du retour. -->
+      <!-- LE PREMIER IMPORT GUIDÉ, juste au-dessus de la démo : pour qui n'a pas choisi cette voie dans la
+           fenêtre de premier lancement et veut quand même du guide (cf. premier-demarrage.js). Masqué
+           dans la démo, comme elle : on n'y importe pas de vrai relevé. -->
+      <div class="barre-premier-import" data-sandbox-entree>
+        <button type="button" id="btn-premier-import">Premier import</button>
+        <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-premier-import-bouton">i</i>
+      </div>
+      <!-- LES TUTORIELS, entre le premier import et la démo : les trois portes dans l'ordre des cartes de la
+           fenêtre de premier lancement. Elle mène à l'écran des tutoriels et montre le premier, sans le lancer
+           (cf. premier-demarrage.js, `guideTutoriels`). Masquée dans la démo : on n'y lance pas de tutoriel. -->
+      <div class="barre-tutoriels" data-sandbox-entree>
+        <button type="button" id="btn-guide-tutoriels">Suivre les tutoriels</button>
+        <i class="info-bulle" tabindex="0" data-info-cle="noyau.guide-tutoriels-bouton">i</i>
+      </div>
+      <div class="barre-demo" data-sandbox-entree>
+        <button type="button" id="btn-sandbox-entrer">Essayer la démo</button>
+        <i class="info-bulle" tabindex="0" data-info-cle="noyau.sandbox-entree">i</i>
+      </div>
+    </div>
+  </div>
+
+  <!-- LE LIEN EXTÉRIEUR DU FEEDBACK : une confirmation avant de quitter l'application, qui montre l'adresse
+       (cf. app.js, `#lien-feedback`, et barre-laterale.js). -->
+  <div id="modale-feedback" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-feedback" role="dialog" aria-modal="true" aria-labelledby="modale-feedback-titre">
+      <h2 id="modale-feedback-titre">Ouvrir un lien externe ?</h2>
+      <p class="modale-texte">Le formulaire de retour est un site extérieur à l'application : il s'ouvrira dans ton navigateur.</p>
+      <p class="modale-lien-externe" id="modale-feedback-lien"></p>
+      <div class="modale-actions">
+        <button type="button" id="btn-feedback-annuler">Annuler</button>
+        <button type="button" class="primary" id="btn-feedback-ouvrir">Ouvrir le lien</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LA FENÊTRE DE RECHERCHE : au milieu de l'écran, dans un gris translucide — la page reste visible
+       derrière, pour ne pas donner l'impression d'avoir changé d'écran. Ouverte et fermée par
+       recherche-globale.js ; elle ne bloque pas le défilement. -->
+  <div id="modale-recherche" class="modale-fond modale-recherche-fond" style="display:none" role="presentation">
+    <div class="modale-recherche" role="dialog" aria-modal="true" aria-label="Rechercher">
+      <div class="recherche-fenetre-barre">
+        <span class="recherche-fenetre-loupe" id="recherche-fenetre-loupe" aria-hidden="true"></span>
+        <input type="search" id="recherche-fenetre-champ" placeholder="Rechercher dans l'application…" aria-label="Rechercher dans l'application" autocomplete="off" spellcheck="false" />
+        <span class="hint recherche-fenetre-compte" id="recherche-fenetre-compte"></span>
+      </div>
+      <ul class="recherche-liste" id="recherche-fenetre-liste" role="listbox"></ul>
+      <div class="hint recherche-fenetre-aide" id="recherche-fenetre-aide">↑ ↓ pour choisir · Entrée pour ouvrir · Échap pour fermer</div>
+    </div>
+  </div>
+
+  <!-- LE PLAN DE L'APPLICATION : où est quoi, en carte mentale autour du Dashboard (cf. plan-app.js). Il
+       était dans Paramètres → Paramètres généraux ; il se reconstruit à chaque ouverture, d'après la
+       navigation réelle (donc sans les pages d'une extension éteinte). -->
+  <div id="modale-mindmap" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-mindmap" role="dialog" aria-modal="true" aria-labelledby="modale-mindmap-titre">
+      <div class="epargne-entete">
+        <h2 id="modale-mindmap-titre">Mindmap<i class="info-bulle" tabindex="0" data-info-cle="noyau.plan-application">i</i></h2>
+        <button type="button" id="btn-mindmap-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <div id="plan-app" class="plan-app"></div>
     </div>
   </div>
 
@@ -513,33 +579,6 @@
     </div>
   </div>
 
-  <!-- L'ÉTAPE 3bis DE L'IMPORT : les virements internes. Le relevé ne décrit qu'une jambe de chaque
-       virement ; une carte par ligne demande le compte de l'autre jambe (celui qui reçoit quand le compte du
-       fichier envoie, celui qui envoie quand il reçoit). Le même tableau à molettes que les catégories, et
-       l'encadré violet qui crée un compte sur place. Cf. app.js, « LES VIREMENTS INTERNES DE L'IMPORT ». -->
-  <div id="modale-virements-import" class="modale-fond" style="display:none" role="presentation">
-    <div class="modale modale-correspondances" role="dialog" aria-modal="true"
-         aria-labelledby="modale-virements-import-titre">
-      <div class="epargne-entete">
-        <h2 id="modale-virements-import-titre">Virements internes</h2>
-        <button type="button" id="btn-virements-import-fermer" class="epargne-fermer"
-                title="Fermer" aria-label="Fermer">&times;</button>
-      </div>
-      <div class="import-etapes" data-import-etapes></div>
-      <p class="modale-texte" data-texte-cle="noyau.import-virements-internes"></p>
-      <p class="hint" id="virements-import-compteur"></p>
-      <p class="hint corr-aide-fleches" id="virements-import-aide-fleches"></p>
-      <div id="virements-import-creer" class="corr-creer-central"></div>
-      <div id="virements-import-board" class="corr-board"></div>
-      <p class="import-avertissement" id="virements-import-erreur" role="alert" style="display:none"></p>
-      <div class="modale-actions">
-        <button type="button" id="btn-virements-import-plus-tard">Plus tard</button>
-        <button type="button" id="btn-virements-import-suggestions">Confirmer les suggestions</button>
-        <button type="button" id="btn-virements-import-valider" class="primary">Valider les comptes</button>
-      </div>
-    </div>
-  </div>
-
   <!-- LA DÉTECTION DES COLONNES (import) : le MÊME tableau que celui des correspondances - une colonne
        par colonne du fichier, la propriété proposée sur une molette, les mêmes pastilles et les mêmes
        touches. Elle passe avant les correspondances. Cf. app.js, « DEVINER LES COLONNES ». -->
@@ -734,14 +773,20 @@
             </div>
             <div class="dbr-jauge" id="dbr-jauge" aria-hidden="true">
               <span class="dbr-jauge-sorties" id="dbr-jauge-sorties"></span>
+              <span class="dbr-jauge-prevu" id="dbr-jauge-prevu" data-dbr-surligne="prevues"></span>
               <span class="dbr-jauge-libre" id="dbr-jauge-libre"></span>
             </div>
             <div class="dbr-jauge-legende">
-              <span><i class="dbr-puce dbr-puce-sorties"></i>Sorties prévues <b id="dbr-sorties-prevues">-</b></span>
+              <span><i class="dbr-puce dbr-puce-sorties"></i>Dépensé <b id="dbr-sorties-reelles">-</b></span>
+              <span data-dbr-surligne="prevues"><i class="dbr-puce dbr-puce-prevu"></i>Prévu <b id="dbr-sorties-prevues">-</b></span>
               <span><i class="dbr-puce dbr-puce-libre"></i>Solde libre <b id="dbr-solde-libre">-</b></span>
               <span class="dbr-courbe-legende">
                 <span><i class="dbr-trait"></i>Réel</span>
-                <span><i class="dbr-trait dbr-trait-projete"></i>Projeté</span>
+                <span><i class="dbr-trait dbr-trait-projete"></i>Prévision</span>
+                <span><i class="dbr-trait-plage"></i>Plage ± σ</span>
+                <span><i class="dbr-trait dbr-trait-rythme"></i>Rythme sûr</span>
+                <!-- LA DÉPENSE MOYENNE qui produit la courbe « Prévision » (cf. dbrDessinerCourbe). -->
+                <span class="dbr-courbe-moyenne" id="dbr-moyenne" hidden></span>
               </span>
             </div>
             <div class="dbr-courbe" id="dbr-courbe"></div>
@@ -761,7 +806,7 @@
               <!-- « POURQUOI CET ÉCART ? » : masqué tant que la variation brute vaut l'attribuée
                    (cf. renderFluxPeriode). -->
               <div class="flux-carte-actions" id="flux-ecart-actions">
-                <button type="button" class="dbr-nav dbr-nav-discret" id="btn-ecart-variations" style="display:none">Pourquoi cet écart ?</button>
+                <button type="button" class="dbr-nav dbr-nav-discret" id="btn-ecart-variations" style="display:none">Variation brute sur le mois</button>
               </div>
               <button type="button" class="dbr-nav" data-dbr-aller="analyse" data-extension="analyse-budget" style="display:none">Analyse →</button>
             </div>
@@ -772,14 +817,14 @@
         <div class="dbr-colonne">
           <div class="dbr-bloc dbr-liste-bloc" aria-labelledby="dbr-prochaines-titre">
             <div class="dbr-bloc-tete">
-              <span class="dbr-bloc-titre" id="dbr-prochaines-titre">Prochaines prévisionnelles<span class="dbr-bloc-compte" id="dbr-prochaines-compte"></span></span>
+              <span class="dbr-bloc-titre" id="dbr-prochaines-titre">Prochaines prévisionnelles</span>
               <button type="button" class="dbr-nav" data-dbr-aller="previsionnelles">Voir les prévisionnelles →</button>
             </div>
             <div class="dbr-liste" id="dbr-prochaines"></div>
           </div>
           <div class="dbr-bloc dbr-liste-bloc" aria-labelledby="dbr-dernieres-titre">
             <div class="dbr-bloc-tete">
-              <span class="dbr-bloc-titre" id="dbr-dernieres-titre">Dernières opérations<span class="dbr-bloc-compte"> · 5 dernières</span></span>
+              <span class="dbr-bloc-titre" id="dbr-dernieres-titre">Dernières opérations</span>
               <button type="button" class="dbr-nav" data-dbr-aller="operations">Voir les opérations →</button>
             </div>
             <div class="dbr-liste" id="dbr-dernieres"></div>
@@ -1195,6 +1240,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
       </div>
 
+      <!-- UN SEUL SÉLECTEUR DE PÉRIODE PAR PAGE : celui de la section principale (juste au-dessus) filtre aussi cette
+           section compagne — elles partagent la même période (cf. renderSelecteursPeriodeOperations). -->
       <div id="sous-section-remboursements" class="sous-section sous-section-compagnon" data-extension-onglet="suivi-remboursements" style="display:none">
         <h3 class="sous-section-titre">Remboursements reçus</h3>
         <div class="tri">
@@ -1237,7 +1284,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
-        <div id="operations-periode-remboursements" class="operations-periode"></div>
         <div class="ajouter-operation" data-onglet="remboursements" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1395,6 +1441,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </div>
       </div>
 
+      <!-- Pas de second sélecteur de période : celui de « Prêts » filtre aussi cette section compagne. -->
       <div id="sous-section-remboursement-prets" class="sous-section sous-section-compagnon" data-extension-onglet="prets" style="display:none">
         <h3 class="sous-section-titre">Remboursements de prêts</h3>
         <div class="tri">
@@ -1434,7 +1481,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </div>
         </div>
         </details>
-        <div id="operations-periode-remboursement-prets" class="operations-periode"></div>
         <div class="ajouter-operation" data-onglet="remboursement-prets" role="button" tabindex="0">
           + Ajouter une opération
         </div>
@@ -1868,6 +1914,44 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           </select>
         </div>
 
+        <!-- LE DÉCOUPAGE DES MOIS SUR LE SALAIRE (dashboard, « Reste pour finir le mois »). Un salaire qui
+             tombe à la fin du mois sert à vivre le mois SUIVANT : avec ce réglage il n'entre pas dans le reste
+             du mois en cours. Par défaut, le calendrier fait foi (rien ne change). Rangé en base, car c'est
+             le serveur qui calcule le reste (cf. soldes.lire_decoupage_salaire). -->
+        <div class="reglage-bloc" id="reglage-salaire-bloc">
+          <label for="reglage-salaire-mode">Découpage des mois sur le salaire<i class="info-bulle" tabindex="0" data-info-cle="noyau.decoupage-salaire">i</i></label>
+          <div class="reglage-salaire">
+            <select id="reglage-salaire-mode">
+              <option value="calendrier">Mois du calendrier</option>
+              <option value="salaire">Le salaire de fin de mois compte pour le mois suivant</option>
+            </select>
+            <label for="reglage-salaire-jour" id="reglage-salaire-jour-etiquette" style="display:none">à partir du jour
+              <input type="number" id="reglage-salaire-jour" min="1" max="31" step="1" value="31" title="31 = le dernier jour du mois" />
+            </label>
+          </div>
+        </div>
+
+        <!-- LE SEUIL DE SÉCURITÉ (dashboard, courbe de prévision) : la droite jaune en pointillés. Zéro par
+             défaut, où elle coïncide avec la droite blanche du vrai zéro. Ne touche que le dessin. -->
+        <div class="reglage-bloc" id="reglage-seuil-bloc">
+          <label for="reglage-seuil-securite">Seuil de sécurité<i class="info-bulle" tabindex="0" data-info-cle="noyau.seuil-securite">i</i></label>
+          <div class="reglage-salaire">
+            <input type="number" id="reglage-seuil-securite" step="any" min="0" value="0" title="0 = sur la droite blanche ; jamais négatif" />
+          </div>
+        </div>
+
+        <!-- « PROJETÉ » AVEC LA DÉPENSE MOYENNE (dashboard, « Projeté au … ») : par défaut non, le projeté ne
+             compte que les prévisionnelles. Rangé en base : c'est le serveur qui calcule le projeté. -->
+        <div class="reglage-bloc" id="reglage-projete-bloc">
+          <label for="reglage-projete-depense-moyenne">Projeté de fin de mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.projete-depense-moyenne">i</i></label>
+          <div class="reglage-salaire">
+            <select id="reglage-projete-depense-moyenne">
+              <option value="non">Sans la dépense moyenne par jour</option>
+              <option value="oui">Avec la dépense moyenne par jour</option>
+            </select>
+          </div>
+        </div>
+
         <div class="reglage-bloc">
           <label for="reglage-touche-gel">Touche qui fige l'infobulle<i class="info-bulle" tabindex="0" data-info-cle="noyau.touche-gel-infobulle">i</i></label>
           <div class="reglage-touche">
@@ -1933,14 +2017,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         <div class="reglage-bloc reglage-bloc-tutoriels">
           <label>Tutoriels guidés</label>
           <div id="tutoriels-liste" class="tutoriels-liste"></div>
-        </div>
-
-        <!-- LE PLAN DE L'APPLICATION : où est quoi. Reconstruit à chaque ouverture de cette page
-             à partir de la navigation réelle (cf. plan-app.js), donc sans les pages d'une
-             extension éteinte. Ce n'est pas un réglage : même classe que la notice. -->
-        <div class="reglage-bloc reglage-bloc-plan">
-          <label>Plan de l'application<i class="info-bulle" tabindex="0" data-info-cle="noyau.plan-application">i</i></label>
-          <div id="plan-app" class="plan-app"></div>
         </div>
 
         <!-- EXPORTER SES DONNÉES, ET LES COPIES DE SÉCURITÉ. Deux gestes voisins, deux questions
@@ -2068,6 +2144,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <span class="champ-titre">Icône<i class="info-bulle" tabindex="0" data-info-cle="noyau.icone-categorie">i</i></span>
             <div id="categorie-icone"></div>
           </div>
+          <!-- LES SOUS-CATÉGORIES (migration 0103) : une catégorie peut être rangée sous un parent (un seul
+               niveau). Elle en hérite la couleur — à la NUANCE près, qu'on choisit ci-dessous — et l'emoji tant
+               qu'elle n'a pas le sien. Vide : catégorie de premier niveau. -->
+          <label class="full-width" id="categorie-parent-bloc">Catégorie parente<i class="info-bulle" tabindex="0" data-info-cle="noyau.sous-categories">i</i>
+            <select id="categorie-parent"></select>
+          </label>
+          <div class="full-width" id="categorie-nuance-bloc" style="display:none">
+            <span class="champ-titre">Nuance de la couleur du parent</span>
+            <div id="categorie-nuance" class="nuances-choix"></div>
+          </div>
           <!-- CATÉGORIE D'ENTRÉE (migration 0060). La même rangée de cases que
                le formulaire d'opération, pour la même raison : une case se lit
                à côté de son libellé, jamais au-dessus. Masquée à la CRÉATION —
@@ -2180,7 +2266,7 @@ relancer Marie pour les 40 € du restaurant"></textarea>
            pas des règles mais ce que l'import a RETENU d'un import précédent,
            preset par preset. Elles servent même sans aucune règle écrite. -->
       <div id="sous-section-parametres-correspondances" class="sous-section">
-        <h3>Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info-cle="noyau.correspondances-memorisees">i</i></h3>
+        <h3 data-plan-partie data-plan-ouvrir=".renommages-barre [data-vue-hote='regles']">Correspondances mémorisées<i class="info-bulle" tabindex="0" data-info-cle="noyau.correspondances-memorisees">i</i></h3>
         <h4>Catégories bancaires<i class="info-bulle" tabindex="0" data-info-cle="noyau.categories-bancaires">i</i></h4>
         <div id="import-mapping-categories-liste" class="import-mappings"></div>
         <h4>Comptes bancaires<i class="info-bulle" tabindex="0" data-info-cle="noyau.comptes-bancaires">i</i></h4>
@@ -2668,8 +2754,6 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <span class="bulle-blocage" id="import-confirmer-bulle">
             <button type="button" class="primary" id="btn-import-confirmer" disabled>Confirmer l'import</button>
           </span>
-          <!-- L'ÉTAPE 3bis rouverte depuis la page, tant qu'un virement attend son compte en face. -->
-          <button type="button" id="btn-import-virements-internes" style="display:none">Comptes des virements internes</button>
           <button type="button" id="btn-import-tout-selectionner">Tout sélectionner</button>
           <button type="button" class="danger" id="btn-import-supprimer-selection" disabled>
             Supprimer la sélection (<span id="import-selection-nombre">0</span>)
@@ -3207,16 +3291,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
        textes.js ne fait que déclarer des constantes et deux fonctions ; c'est
        app.js qui, en tête, pose les textes PUIS traduit. L'ordre des balises
        n'a donc qu'une exigence : que les deux soient là avant lui. -->
-  <script src="textes.js?v=55"></script>
-  <script src="pastilles.js?v=1"></script>
-  <script src="i18n.js?v=107"></script>
-  <script src="i18n-pt.js?v=25"></script>
+  <script src="textes.js?v=59"></script>
+  <script src="pastilles.js?v=2"></script>
+  <script src="i18n.js?v=114"></script>
+  <script src="i18n-pt.js?v=32"></script>
   <script src="extensions.js?v=28"></script>
-  <script src="app.js?v=198"></script>
+  <script src="app.js?v=209"></script>
   <!-- LE DASHBOARD D'UNE PAGE (période relative à aujourd'hui, reste, courbe, listes, boutons de
        navigation). Après app.js, dont il réutilise les fonctions ; avant les extensions, qui
        enveloppent `loadDashboardData`. -->
-  <script src="dashboard-avenir.js?v=1"></script>
+  <script src="dashboard-avenir.js?v=10"></script>
   <script src="calendrier.js?v=3"></script>
   <!-- APRÈS app.js : la notice appelle `switchSection`, `apiFetch` et `t` — au
        clic, jamais à l'évaluation — et ses écouteurs se posent sur des éléments
@@ -3235,7 +3319,10 @@ relancer Marie pour les 40 € du restaurant"></textarea>
   <script src="sandbox.js?v=2"></script>
   <!-- APRÈS app.js : le plan appelle `switchSection` au clic, et c'est `loadParametresGeneraux`
        qui le redessine (s'il est là). Il lit la navigation déjà posée dans le document. -->
-  <script src="plan-app.js?v=1"></script>
+  <script src="plan-app.js?v=7"></script>
+  <script src="barre-laterale.js?v=2"></script>
+  <!-- APRÈS plan-app.js : la recherche lit les libellés de la navigation (planLibelle, planBarreOnglets) pour écrire le chemin des résultats. -->
+  <script src="recherche-globale.js?v=4"></script>
   <!-- APRÈS tutoriel.js (il pose sa bulle avec `placerBulleTutoriel`) et sandbox.js (il pointe le
        bouton de la démo) : le guide de la première visite, choisi dans la fenêtre de premier
        lancement. -->

@@ -25,6 +25,8 @@ const abSp = {
   avancee: false,
   cadence: "jour",
   fenetre: "12",
+  // La période du « reste à vivre » : « mois » ou « annee ».
+  vue: "mois",
   categories: [],
   types: [],
   operations: [],
@@ -33,6 +35,8 @@ const abSp = {
   charge: false,
   // Ce que la dernière lecture a rapporté, gardé pour le survol.
   donnees: null,
+  // Le « reste à vivre » (cf. service_solde_previsionnel.reste_a_vivre), ou null.
+  reste: null,
   referentiels: null,
 };
 
@@ -42,7 +46,7 @@ async function abSpLireRangement() {
   const rangement = await lirePreference(AB_SP_CLE);
   if (rangement && typeof rangement === "object") {
     for (const cle of Object.keys(abSp)) {
-      if (cle in rangement && !["charge", "donnees", "referentiels"].includes(cle)) {
+      if (cle in rangement && !["charge", "donnees", "reste", "referentiels"].includes(cle)) {
         abSp[cle] = rangement[cle];
       }
     }
@@ -51,8 +55,9 @@ async function abSpLireRangement() {
 }
 
 function abSpEcrireRangement() {
-  const { horizon, avancee, cadence, fenetre, categories, types, operations, ignores } = abSp;
+  const { horizon, avancee, cadence, fenetre, categories, types, operations, ignores, vue } = abSp;
   return ecrirePreference(AB_SP_CLE, {
+    vue,
     horizon,
     avancee,
     cadence,
@@ -143,7 +148,14 @@ function abLineChart(conteneur, donnees, monnaieId) {
   const zoneL = largeur - marge.gauche - marge.droite;
   const zoneH = hauteur - marge.haut - marge.bas;
 
-  const valeurs = points.map((p) => p.solde);
+  // LA PLAGE de la prévision avancée : ± σ·√k après k jours (ou semaines) — un cône qui part
+  // d'aujourd'hui et s'élargit, comme sur le dashboard. Seulement sur le futur.
+  const rythme = (donnees.rythme || []).filter((p) => p.date <= points[points.length - 1].date);
+  const avecPlage = donnees.moyenne.active && points.some((p) => !p.passe && p.ecart > 0);
+  const valeurs = [
+    ...points.flatMap((p) => (avecPlage && p.ecart ? [p.solde - p.ecart, p.solde + p.ecart] : [p.solde])),
+    ...rythme.map((p) => p.solde),
+  ];
   let min = Math.min(...valeurs);
   let max = Math.max(...valeurs);
   // Le seuil du matelas et le zéro entrent dans l'échelle quand ils sont proches
@@ -176,6 +188,29 @@ function abLineChart(conteneur, donnees, monnaieId) {
   // entre aujourd'hui et demain.
   const futur = points.filter((p) => !p.passe);
   const futurRelie = passe.length ? [passe[passe.length - 1], ...futur] : futur;
+
+  // La plage : le futur relié au dernier point du passé (écart nul : le cône part d'un point). Le bord
+  // suit l'escalier de la courbe, pour qu'elle reste au milieu de sa plage.
+  const bord = (liste, signe) => {
+    const pts = [];
+    liste.forEach((p, i) => {
+      if (i > 0) pts.push([x(p.date), y(liste[i - 1].solde + signe * (liste[i - 1].ecart || 0))]);
+      pts.push([x(p.date), y(p.solde + signe * (p.ecart || 0))]);
+    });
+    return pts;
+  };
+  const plage =
+    avecPlage && futurRelie.length > 1
+      ? `<polygon class="ab-sp-plage" points="${[...bord(futurRelie, 1), ...bord(futurRelie, -1).reverse()]
+          .map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`)
+          .join(" ")}" />`
+      : "";
+  // Le rythme sûr : le projeté moins le rythme sûr par jour, jusqu'à la veille de la prochaine entrée.
+  const traitRythme = rythme.length
+    ? `<polyline class="ab-sp-rythme" points="${rythme
+        .map((p) => `${x(p.date).toFixed(1)},${y(p.solde).toFixed(1)}`)
+        .join(" ")}" />`
+    : "";
 
   const reperesY = abSpGraduations(min, max)
     .map(
@@ -258,14 +293,18 @@ function abLineChart(conteneur, donnees, monnaieId) {
       ${matelas}
       <line class="ab-sp-aujourdhui" x1="${xAujourdhui}" y1="${marge.haut}" x2="${xAujourdhui}" y2="${hauteur - marge.bas}" />
       <text class="ab-sp-axe-texte" x="${xAujourdhui + 4}" y="${marge.haut + 10}">${escapeHtml(t("Aujourd'hui"))}</text>
+      ${plage}
       <path class="ab-sp-courbe-passe" d="${escalier(passe)}" />
       <path class="ab-sp-courbe-futur" d="${escalier(futurRelie)}" />
+      ${traitRythme}
       ${marqueurs}
       <line class="ab-sp-reticule" id="ab-sp-reticule" y1="${marge.haut}" y2="${hauteur - marge.bas}" style="display:none" />
       <rect class="ab-sp-survol" x="${marge.gauche}" y="${marge.haut}" width="${zoneL}" height="${zoneH}" />
     </svg>`;
 
-  abSpCablerSurvol(conteneur, donnees, { x, y, marge, largeur, hauteur, zoneL }, monnaieId);
+  const legendePlage = document.querySelector("#ab-sp-legende .ab-sp-legende-avancee");
+  if (legendePlage) legendePlage.hidden = !avecPlage;
+  abSpCablerSurvol(conteneur, donnees, { x, y, marge, largeur, hauteur, zoneL, avecPlage }, monnaieId);
 }
 
 /** Le survol : un repère vertical et une bulle avec le solde du jour et ce qui
@@ -300,10 +339,40 @@ function abSpCablerSurvol(conteneur, donnees, echelle, monnaieId) {
           }">${escapeHtml(formatMontant(ech.montant, monnaieId))}</span></div>`
       )
       .join("");
+    // SUR LA PLAGE : les chiffres qui la dessinent — la moyenne et l'écart-type calculés.
+    const py = ((e.clientY - rect.top) / rect.height) * echelle.hauteur;
+    const surLaPlage =
+      echelle.avecPlage &&
+      !point.passe &&
+      point.ecart > 0 &&
+      py >= echelle.y(point.solde + point.ecart) &&
+      py <= echelle.y(point.solde - point.ecart);
+    let plage = "";
+    if (surLaPlage) {
+      const moy = donnees.moyenne;
+      const m = (v) => escapeHtml(formatMontant(v, monnaieId));
+      const ligne = (libelle, valeur) =>
+        `<div class="ab-sp-bulle-ligne"><span>${escapeHtml(libelle)}</span><span>${valeur}</span></div>`;
+      plage =
+        ligne(t("Plage"), `${m(point.solde - point.ecart)} → ${m(point.solde + point.ecart)}`) +
+        ligne(
+          t("Dépense moyenne"),
+          `${m(moy.par_jour)} ${escapeHtml(t("/ jour"))} · ${m(moy.par_semaine)} ${escapeHtml(t("/ semaine"))}`
+        ) +
+        ligne(
+          t("Écart-type"),
+          `${m(moy.ecart_type_jour)} ${escapeHtml(t("/ jour"))} · ${m(moy.ecart_type_semaine)} ${escapeHtml(
+            t("/ semaine")
+          )}`
+        ) +
+        `<div class="ab-sp-bulle-ligne"><span>${escapeHtml(
+          t("± σ·√k (k = jours écoulés), σ calculé sur {n} jours d'historique", { n: moy.jours })
+        )}</span></div>`;
+    }
     bulle.innerHTML = `
       <div class="ab-sp-bulle-date">${escapeHtml(formatDate(point.date))}</div>
       <div class="ab-sp-bulle-solde">${escapeHtml(formatMontant(point.solde, monnaieId))}</div>
-      ${lignes}`;
+      ${lignes}${plage}`;
     bulle.hidden = false;
     const cadre = conteneur.parentElement.getBoundingClientRect();
     const gauche = e.clientX - cadre.left + 14;
@@ -341,8 +410,42 @@ function abSpRenderResume(donnees) {
           })
         : t("Aucune dépense passée à moyenner.")
     );
+    if (moy.nombre_operations && moy.ecart_type_jour > 0) {
+      morceaux.push(
+        t("Écart-type : {montant} par {unite}", {
+          montant: formatMontant(abSp.cadence === "semaine" ? moy.ecart_type_semaine : moy.ecart_type_jour, m),
+          unite: abSp.cadence === "semaine" ? t("semaine") : t("jour"),
+        })
+      );
+    }
   }
   resume.textContent = morceaux.join(" · ");
+}
+
+/** LES CHIFFRES DE LA PLAGE, EN CLAIR (hors infobulle) : la dépense moyenne, son écart-type par jour et par
+ *  semaine, et la formule. Le dashboard n'en montre qu'un résumé et renvoie ici. */
+function abSpRenderCalcul(donnees) {
+  const zone = document.getElementById("ab-sp-calcul");
+  if (!zone) return;
+  const moy = donnees.moyenne;
+  zone.hidden = !(moy.active && moy.nombre_operations);
+  if (zone.hidden) return;
+  const m = (v) => escapeHtml(formatMontant(v, donnees.monnaie_id));
+  const jour = escapeHtml(t("/ jour"));
+  const semaine = escapeHtml(t("/ semaine"));
+  const ligne = (libelle, valeur) =>
+    `<div class="ab-sp-calcul-ligne"><span>${escapeHtml(libelle)}</span><b>${valeur}</b></div>`;
+  zone.innerHTML =
+    `<div class="ab-sp-calcul-titre">${escapeHtml(t("Calcul de la plage"))}</div>` +
+    ligne(t("Dépense moyenne"), `${m(moy.par_jour)} ${jour} · ${m(moy.par_semaine)} ${semaine}`) +
+    ligne(t("Écart-type"), `${m(moy.ecart_type_jour)} ${jour} · ${m(moy.ecart_type_semaine)} ${semaine}`) +
+    ligne(t("Historique"), escapeHtml(t("{n} jours", { n: moy.jours }))) +
+    `<div class="ab-sp-calcul-formule">${escapeHtml(
+      t("Plage = prévision ± σ·√k : σ est l'écart-type de la dépense par {unite}, k le nombre de {unites} écoulés depuis aujourd'hui.", {
+        unite: abSp.cadence === "semaine" ? t("semaine") : t("jour"),
+        unites: abSp.cadence === "semaine" ? t("semaines") : t("jours"),
+      })
+    )}</div>`;
 }
 
 function abSpRenderEcheances(donnees) {
@@ -434,11 +537,24 @@ async function abSpRenderExclusions() {
   const cats = document.getElementById("ab-sp-exclure-categories");
   const types = document.getElementById("ab-sp-exclure-types");
   if (cats) {
+    // Les sous-catégories se rangent SOUS leur parent, en retrait (cf. `categoriesParParent`, app.js).
+    const rangees = [];
+    const parents = ref.categories.filter((c) => !c.parent_id);
+    parents.forEach((p) => {
+      rangees.push({ cle: p.id, nom: p.nom, enfant: false });
+      ref.categories
+        .filter((c) => c.parent_id === p.id)
+        .forEach((c) => rangees.push({ cle: c.id, nom: c.nom, enfant: true }));
+    });
+    // Une sous-catégorie dont le parent est absent de la liste (une catégorie d'entrée…) reste listée.
+    ref.categories
+      .filter((c) => c.parent_id && !parents.some((p) => p.id === c.parent_id))
+      .forEach((c) => rangees.push({ cle: c.id, nom: c.nom, enfant: true }));
     cats.innerHTML = `<legend>${escapeHtml(t("Catégories"))}</legend>${cases(
-      ref.categories.map((c) => ({ cle: c.id, nom: c.nom })),
+      rangees,
       abSp.categories,
       "data-ab-sp-categorie",
-      (c) => c.nom
+      (c) => (c.enfant ? `↳ ${c.nom}` : c.nom)
     )}`;
   }
   if (types) {
@@ -462,6 +578,8 @@ async function abSpRenderExclusions() {
 function abSpSynchroniserControles() {
   const horizon = document.getElementById("ab-sp-horizon");
   if (horizon) horizon.value = String(abSp.horizon);
+  const vue = document.getElementById("ab-rv-vue");
+  if (vue) vue.value = abSp.vue;
   const avancee = document.getElementById("ab-sp-avancee");
   if (avancee) avancee.checked = !!abSp.avancee;
   const options = document.getElementById("ab-sp-options-avancee");
@@ -472,6 +590,147 @@ function abSpSynchroniserControles() {
   if (fenetre) fenetre.value = String(abSp.fenetre);
 }
 
+/* ---------- Le reste à vivre ----------
+ *
+ * LE BLOC DU DASHBOARD, PLUS LOIN : mêmes chiffres (le serveur les calcule avec les mêmes briques), puis
+ * de quoi planifier. Rien ici ne recalcule : l'écran met en forme ce que `reste-a-vivre` rend.
+ */
+function abRvEntier(valeur, monnaieId) {
+  // Sans décimales, arrondi à l'entier inférieur — comme le point bas et le rythme du dashboard.
+  return formatMontant(Math.floor(valeur + 1e-9), monnaieId).replace(/[.,]00(?=\D*$)/, "");
+}
+
+function abRvCarte(libelle, valeur, detail = "", classe = "") {
+  return `
+    <div class="ab-rv-carte">
+      <div class="dbr-reste-annexe-label">${escapeHtml(libelle)}</div>
+      <div class="dbr-reste-annexe-valeur ${classe}">${valeur}</div>
+      ${detail ? `<div class="ab-rv-detail">${escapeHtml(detail)}</div>` : ""}
+    </div>`;
+}
+
+function abRvRendre(donnees) {
+  const bloc = document.getElementById("ab-rv");
+  if (!bloc) return;
+  if (!donnees) {
+    bloc.innerHTML = `<span class="hint">${escapeHtml(t("Aucune donnée à afficher."))}</span>`;
+    return;
+  }
+  const m = donnees.monnaie_id;
+  const reste = donnees.reste;
+  const plan = donnees.planification;
+  const jour = (iso) => formatDateCourte(iso);
+  bloc.classList.toggle("dbr-alerte", !!reste.alerte);
+
+  const bas = reste.point_bas;
+  const entree = reste.prochaine_entree;
+  const depensees = Math.max(reste.sorties_reelles || 0, 0);
+  const prevues = Math.max(reste.sorties_prevues || 0, 0);
+  const libreVisible = Math.max(reste.reste_libre || 0, 0);
+  const total = depensees + prevues + libreVisible;
+  const part = (v) => (total ? `${(v / total) * 100}%` : "0");
+
+  const entetes = `
+    <div class="dbr-reste-chiffres">
+      <div class="dbr-reste-principal">
+        <div class="dbr-reste-valeur ${reste.reste_libre < 0 ? "negatif" : ""}">${escapeHtml(
+          formatMontant(reste.reste_libre, m)
+        )}</div>
+        <div class="dbr-reste-legende">${escapeHtml(t("Solde libre au {date}", { date: jour(reste.horizon) }))}</div>
+      </div>
+      <div class="dbr-reste-annexe">
+        <div class="dbr-reste-annexe-label">${escapeHtml(t("Point bas"))} · ${escapeHtml(jour(bas.date_debut))}</div>
+        <div class="dbr-reste-annexe-valeur ab-rv-alerte">${escapeHtml(abRvEntier(bas.montant, m))}</div>
+      </div>
+      <div class="dbr-reste-annexe">
+        <div class="dbr-reste-annexe-label">${escapeHtml(t("Rythme sûr"))} · ${escapeHtml(
+          entree ? t("jusqu'à la prochaine entrée") : t("jusqu'au {date}", { date: jour(reste.horizon) })
+        )}</div>
+        <div class="dbr-reste-annexe-valeur ab-rv-alerte">≈ ${escapeHtml(abRvEntier(reste.rythme_sur, m))} ${escapeHtml(
+          t("/ jour")
+        )}</div>
+      </div>
+      <div class="dbr-reste-annexe">
+        <div class="dbr-reste-annexe-label">${escapeHtml(t("Prochaine entrée"))}${
+          entree ? ` · ${escapeHtml(jour(entree.date))}` : ""
+        }</div>
+        <div class="dbr-reste-annexe-valeur ${entree ? "positif" : "montant-nul"}" title="${escapeHtml(
+          entree ? entree.libelle || "" : ""
+        )}">${escapeHtml(entree ? formatMontant(entree.montant, m) : t("aucune prévue"))}</div>
+      </div>
+    </div>
+    <div class="dbr-jauge" aria-hidden="true">
+      <span class="dbr-jauge-sorties" style="width:${part(depensees)}"></span>
+      <span class="dbr-jauge-prevu" style="width:${part(prevues)}"></span>
+      <span class="dbr-jauge-libre" style="width:${part(libreVisible)}"></span>
+    </div>
+    <div class="dbr-jauge-legende">
+      <span><i class="dbr-puce dbr-puce-sorties"></i>${escapeHtml(t("Dépensé"))} <b>${escapeHtml(
+        formatMontant(depensees, m)
+      )}</b></span>
+      <span><i class="dbr-puce dbr-puce-prevu"></i>${escapeHtml(t("Prévu"))} <b>${escapeHtml(
+        formatMontant(prevues, m)
+      )}</b></span>
+      <span><i class="dbr-puce dbr-puce-libre"></i>${escapeHtml(t("Solde libre"))} <b>${escapeHtml(
+        formatMontant(reste.reste_libre, m)
+      )}</b></span>
+    </div>`;
+
+  // DE QUOI PLANIFIER : ce que le dashboard ne dit pas.
+  const unite = t("/ jour");
+  const marge = plan.marge_rythme;
+  const cartes = [
+    abRvCarte(
+      t("Dépense moyenne"),
+      `${escapeHtml(formatMontant(plan.moyenne_jour, m))} ${escapeHtml(unite)}`,
+      plan.jours_historique
+        ? `${t("Écart-type")} ${formatMontant(plan.ecart_type_jour, m)} ${unite} · ${t("sur {n} jours d'historique", {
+            n: plan.jours_historique,
+          })}`
+        : t("Aucune dépense passée à moyenner.")
+    ),
+    abRvCarte(
+      t("Marge sur le rythme sûr"),
+      `${marge >= 0 ? "+" : "−"}${escapeHtml(formatMontant(Math.abs(marge), m))} ${escapeHtml(unite)}`,
+      marge >= 0
+        ? t("Tu dépenses en moyenne moins que le rythme sûr.")
+        : t("Tu dépenses en moyenne plus que le rythme sûr."),
+      marge >= 0 ? "positif" : "negatif"
+    ),
+  ];
+  if (plan.solde_fin !== null) {
+    cartes.push(
+      abRvCarte(
+        t("Fin de période (prévision)"),
+        escapeHtml(formatMontant(plan.solde_fin, m)),
+        plan.solde_fin_bas !== plan.solde_fin
+          ? `${t("Plage")} ${formatMontant(plan.solde_fin_bas, m)} → ${formatMontant(plan.solde_fin_haut, m)}`
+          : ""
+      ),
+      abRvCarte(
+        t("Point bas probable"),
+        escapeHtml(abRvEntier(plan.point_bas_pessimiste.montant, m)),
+        `${jour(plan.point_bas_pessimiste.date)} · ${t("prévision : {montant}", {
+          montant: abRvEntier(plan.point_bas_prevision.montant, m),
+        })}`
+      ),
+      abRvCarte(
+        t("Sous zéro, selon la prévision"),
+        escapeHtml(plan.sous_zero_prevision ? jour(plan.sous_zero_prevision) : t("jamais d'ici là")),
+        "",
+        plan.sous_zero_prevision ? "negatif" : "positif"
+      ),
+      abRvCarte(
+        t("Sous zéro, dans le cas pessimiste"),
+        escapeHtml(plan.sous_zero_pessimiste ? jour(plan.sous_zero_pessimiste) : t("jamais d'ici là")),
+        t("bas de la plage ± σ·√k"),
+        plan.sous_zero_pessimiste ? "negatif" : "positif"
+      )
+    );
+  }
+  bloc.innerHTML = `${entetes}<div class="ab-rv-plan">${cartes.join("")}</div>`;
+}
+
 /* ---------- Le chargement ---------- */
 
 async function abSpCharger() {
@@ -479,13 +738,20 @@ async function abSpCharger() {
   try {
     if (!abSp.charge) await abSpLireRangement();
     abSpSynchroniserControles();
-    const [donnees] = await Promise.all([
+    const [donnees, reste] = await Promise.all([
       apiFetch(`/analyse-budget/solde-previsionnel?${abSpRequete()}`),
+      // Le reste à vivre ne doit pas faire tomber la courbe : une lecture qui échoue laisse son bloc vide.
+      apiFetch(`/analyse-budget/reste-a-vivre?monnaie_id=${abMonnaieId}&vue=${abSp.vue}`).catch(() => null),
       abSpRenderExclusions(),
     ]);
     abSp.donnees = donnees;
+    abSp.reste = reste;
+    // Le rythme sûr se trace sur la courbe : il vient du même calcul que le dashboard.
+    donnees.rythme = reste ? reste.courbe.rythme : [];
+    abRvRendre(reste);
     abLineChart(document.getElementById("ab-sp-graphe"), donnees, donnees.monnaie_id);
     abSpRenderResume(donnees);
+    abSpRenderCalcul(donnees);
     abSpRenderDoublons(donnees);
     abSpRenderEcheances(donnees);
   } catch (err) {
@@ -511,6 +777,9 @@ function abSpBasculer(liste, valeur, present) {
   const racine = document.getElementById("section-budget");
   if (!racine) return;
 
+  document.getElementById("ab-rv-vue")?.addEventListener("change", (e) => {
+    abSpChanger({ vue: e.target.value });
+  });
   document.getElementById("ab-sp-horizon")?.addEventListener("change", (e) => {
     abSpChanger({ horizon: Number(e.target.value) });
   });
@@ -524,11 +793,18 @@ function abSpBasculer(liste, valeur, present) {
     abSpChanger({ fenetre: e.target.value });
   });
 
-  racine.addEventListener("change", (e) => {
+  racine.addEventListener("change", async (e) => {
     const categorie = e.target.closest("[data-ab-sp-categorie]");
     if (categorie) {
       const id = Number(categorie.dataset.abSpCategorie);
-      abSpChanger({ categories: abSpBasculer(abSp.categories, id, categorie.checked) });
+      // UN PARENT ENTRAÎNE SES SOUS-CATÉGORIES : exclure « Charges fixes » exclut aussi ce qu'on y a rangé en dessous.
+      const ref = await abSpReferentiels();
+      const concernees = [id, ...ref.categories.filter((c) => c.parent_id === id).map((c) => c.id)];
+      let suite = abSp.categories;
+      concernees.forEach((cible) => {
+        suite = abSpBasculer(suite, cible, categorie.checked);
+      });
+      abSpChanger({ categories: suite });
       return;
     }
     const type = e.target.closest("[data-ab-sp-type]");

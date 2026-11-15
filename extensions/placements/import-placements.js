@@ -2543,15 +2543,13 @@ document.getElementById("impl-compte-defaut").addEventListener("change", () => {
  */
 
 function afficherVuePlacements(import_) {
-  const principale = document.getElementById("placements-vue-principale");
-  const vueImport = document.getElementById("placements-vue-import");
-  if (principale) principale.style.display = import_ ? "none" : "";
-  if (vueImport) vueImport.style.display = import_ ? "" : "none";
+  // L'import n'est plus un second volet de la page : c'est un panneau de l'onglet « Paramètres »
+  // (cf. placements.js, placementsOuvrirParametres). Demander « l'import » ouvre ce panneau.
+  if (import_ && typeof placementsOuvrirParametres === "function") placementsOuvrirParametres("import");
 }
 
 /** Ouvre le volet d'import (et charge ses données). */
 async function ouvrirImportPlacements() {
-  afficherVuePlacements(true);
   try {
     await loadImportPlacements();
   } catch (err) {
@@ -2561,25 +2559,11 @@ async function ouvrirImportPlacements() {
 
 /** Referme le volet d'import : la page Placements reprend sa place. */
 function fermerImportPlacements() {
-  afficherVuePlacements(false);
+  if (typeof placementsOuvrirParametres === "function") placementsOuvrirParametres("configuration");
 }
 
-function poserBoutonImportPlacements() {
-  if (document.getElementById("btn-impl-ouvrir")) return;
-  const actions = document.querySelector(
-    "#placements-vue-principale .placements-titre-actions"
-  );
-  if (!actions) return;
-  const bouton = document.createElement("button");
-  bouton.type = "button";
-  bouton.id = "btn-impl-ouvrir";
-  bouton.className = "placements-titre-action";
-  bouton.textContent = t("Importer des opérations");
-  bouton.addEventListener("click", ouvrirImportPlacements);
-  actions.appendChild(bouton);
-}
-
-poserBoutonImportPlacements();
+// PLUS DE BOUTON DANS LE TITRE : l'import est un panneau de l'onglet « Paramètres » (« Import d'opérations »),
+// qui le charge à chaque ouverture (cf. placements.js, placementsMajParametres).
 
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document

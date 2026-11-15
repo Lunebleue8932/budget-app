@@ -277,23 +277,19 @@
   font-weight: 700;
 }
 
-/* ---------- Les onglets « Titres suivis » et « Configuration », à droite de la barre ----------
-   Les onglets de comptes se lisent à gauche ; ces deux-là ne détiennent rien, ils se rangent à l'autre
-   bord. La marge automatique du premier pousse le couple. */
+/* ---------- Les onglets de la page ----------
+   Portefeuille · Vue d'ensemble · Analyse à gauche ; Titres suivis · Opérations · Paramètres rangés à
+   droite (la marge automatique du premier pousse le trio) : on les consulte moins souvent. */
 #placements-onglets #placements-onglet-titres {
   margin-left: auto;
 }
 
-/* ---------- Le titre de la page : « Mettre à jour les cours » à droite, les actions dessous ----------
-   Le bouton des cours (posé par l'extension « Lecture de cours ») prend la place des actions, qui passent
-   sur leur propre rangée sous le titre. */
+/* ---------- Le titre de la page : la colonne des cours à droite, les actions dessous ----------
+   La colonne des cours (posée par l'extension « Lecture de cours ») est à droite du titre ; les actions
+   passent sur leur propre rangée dessous. */
 .placements-titre {
   flex-wrap: wrap;
-}
-
-.placements-titre > #pw-rafraichir-tout {
-  order: 2;
-  margin-left: auto;
+  align-items: flex-start;
 }
 
 .placements-titre > .placements-titre-actions {
@@ -301,4 +297,172 @@
   flex-basis: 100%;
   margin-left: 0;
   margin-top: 0.3rem;
+}
+
+.placements-titre > .pw-barre {
+  order: 2;
+}
+
+/* ---------- L'évolution du portefeuille (evolution.js) ---------- */
+.placements-evolution-titre {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* LE LIEN BLEU vers l'analyse avancée : un lien, pas un bouton — même teinte que les « Voir … → » du
+   dashboard (.dbr-nav). */
+.placements-lien {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-light);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.placements-lien:hover {
+  text-decoration: underline;
+  background: none;
+}
+
+.evo-selecteurs {
+  margin-bottom: 0.5rem;
+}
+
+.evo-espace {
+  flex: 1;
+}
+
+.evo-graphe {
+  position: relative;
+  width: 100%;
+}
+
+.evo-graphe-grand {
+  min-height: 220px;
+}
+
+.evo-cadre svg {
+  display: block;
+  max-width: 100%;
+}
+
+.evo-vide {
+  padding: 1.5rem 0;
+}
+
+.evo-bulle {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+/* L'analyse : un graphe par élément, côte à côte tant que la largeur le permet. */
+.evo-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.evo-carte {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+}
+
+.evo-carte-entete {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.evo-carte-nom {
+  font-weight: 600;
+}
+
+/* ---------- Les possessions : un bloc par compte ---------- */
+.placements-compte {
+  margin-bottom: 1.5rem;
+}
+
+.placements-compte-nom {
+  margin: 0.75rem 0 0.25rem;
+}
+
+/* ---------- Les filtres de l'historique des opérations ---------- */
+.placements-filtres {
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+
+
+
+/* ---------- Les textes des graphiques de l'analyse : BLANCS ----------
+   Seules les plus-values (montant et pourcentage, signe compris) sont colorées (`.pv-gain` / `.pv-perte`) ;
+   le rappel « investi » est en gris italique. */
+.evo-variation,
+.evo-carte-perf,
+.evo-carte-valeur,
+.evo-carte-nom {
+  color: var(--text-primary);
+}
+
+.evo-variation,
+.evo-carte-perf {
+  font-size: 0.85rem;
+  margin: 0 0 0.25rem;
+}
+
+.evo-part {
+  margin-left: 0.4rem;
+}
+
+.evo-investi {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* « Titre individuel » : le champ de sélection (le menu à cocher du noyau) — cinq lignes visibles au plus,
+   la liste défile au-delà. */
+.evo-menu-titres {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.evo-menu-titres-libelle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.evo-menu-titres .filtre-categories-panneau {
+  max-height: 11.5rem;
+  overflow-y: auto;
+}
+
+/* La carte vide d'un graphe sans historique : même cadre, un texte centré. */
+.evo-carte-vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 1rem;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
 }

@@ -16,6 +16,7 @@ from .constants import (
     Statut,
 )
 from .database import get_db
+from .services import soldes
 from .routers import (
     categories,
     comptes,
@@ -174,7 +175,9 @@ def get_periodes(inclure_amortissements: bool = True, db: Session = Depends(get_
     ).all()
     periodes = set()
     for date_operation, debut, fin in lignes:
-        periodes.add((date_operation.year, date_operation.month))
+        # Le mois d'une opération est celui du RÉGLAGE (calendaire ou salarial, cf. soldes.mois_de) :
+        # une opération du 31 octobre est en novembre quand le mois salarial commence le 31.
+        periodes.add(soldes.mois_de(date_operation))
         if not inclure_amortissements or debut is None or fin is None:
             continue
         # Bornes incluses, normalisées au 1er du mois (cf. schemas.OperationBase) :
@@ -185,7 +188,7 @@ def get_periodes(inclure_amortissements: bool = True, db: Session = Depends(get_
     # lequel l'app s'ouvre (cf. periodeParDefaut côté frontend), et celui où
     # l'on saisit une opération qu'on vient de faire.
     aujourdhui = date.today()
-    periodes.add((aujourdhui.year, aujourdhui.month))
+    periodes.add(soldes.mois_de(aujourdhui))
     return [{"annee": annee, "mois": mois} for annee, mois in sorted(periodes, reverse=True)]
 
 

@@ -1053,3 +1053,9 @@ CLASSES_ACTIF_INITIALES = [
     "Matières premières",
     "Monétaire",
 ]
+
+
+# Combien de NUANCES la couleur d'une catégorie compte pour ses sous-catégories (migration 0103) : le rang
+# d'une sous-catégorie dans cette famille va de 0 à NB_NUANCES_CATEGORIE - 1 (cf. frontend, `nuancesDeCategorie`).
+# Six, c'est le plus de sous-catégories qu'un parent peut porter.
+NB_NUANCES_CATEGORIE = 6

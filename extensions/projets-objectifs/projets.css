@@ -109,7 +109,8 @@
 /* MÊME RÈGLE POUR LES LIGNES D'OPÉRATION des deux tableaux du projet. Elles
    passent par `montantHtml` du noyau, qui colore selon le sens (vert / orange)
    — pertinent sur la page Opérations, où entrées et sorties se mélangent, et
-   sans objet ici où presque tout sort. Le signe reste, la couleur part.
+   sans objet ici où presque tout sort. Le chiffre reste neutre ; le signe garde
+   sa couleur (règle commune, `.montant-signe`).
    Un ZÉRO garde la sienne (`.montant-nul`, plus discrète) : elle ne dit pas
    « négatif », elle dit « rien ». */
 #sous-section-budget-projets .montant.entree,

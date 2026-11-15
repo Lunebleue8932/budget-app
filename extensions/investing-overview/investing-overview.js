@@ -1007,47 +1007,8 @@ BudgetApp.extensions.enregistrer(IO_ID, { chargeur: loadInvestingOverview });
  * l'ordre alphabétique, « investing-overview » avant « placements ») : la pose
  * échoue au premier essai et se rejoue sur `budgetapp:extension-chargee`.
  */
-function poserBoutonVueEnsemble() {
-  const section = document.getElementById("sous-section-comptes-globale-placements");
-  if (!section) return false;
-  if (document.getElementById("btn-io-ouvrir")) return true;
-  const titre = section.querySelector("h2");
-  if (!titre) return false;
-  // Le conteneur des actions, déclaré par l'hôte dans son page.html. C'est LUI
-  // qui porte la marge automatique : chaque bouton portant la sienne, deux
-  // extensions se partageaient l'espace libre au lieu de se grouper à droite,
-  // et le premier bouton se retrouvait planté au milieu du titre.
-  const actions = titre.querySelector(".placements-titre-actions");
-  if (!actions) return false;
-
-  const bouton = document.createElement("button");
-  bouton.type = "button";
-  bouton.id = "btn-io-ouvrir";
-  bouton.className = "placements-titre-action";
-  // `data-extension` suffit à faire disparaître et réapparaître le bouton avec
-  // l'extension : le noyau montre et masque tout élément qui le porte
-  // (cf. majVisibiliteNavigation).
-  bouton.dataset.extension = IO_ID;
-  bouton.textContent = t("Vue d'ensemble");
-  bouton.style.display = BudgetApp.extensions.estActive(IO_ID) ? "" : "none";
-  // `ongletActif` : cet écran n'a pas de bouton à lui dans la barre du haut.
-  // Sans ce second argument, aucun onglet ne resterait allumé et l'application
-  // aurait l'air d'avoir quitté toutes ses pages.
-  bouton.addEventListener("click", () =>
-    switchSection(IO_ID, { ongletActif: "comptes-globale" })
-  );
-  actions.appendChild(bouton);
-  return true;
-}
-
-if (!poserBoutonVueEnsemble()) {
-  document.addEventListener("budgetapp:extension-chargee", (evenement) => {
-    if (evenement.detail && evenement.detail.id === IO_HOTE) {
-      poserBoutonVueEnsemble(); // idempotent, obligatoirement
-    }
-  });
-}
-
+// PLUS DE BOUTON DANS LE TITRE : « Vue d'ensemble » est le deuxième onglet de la page Placements, posé par
+// placements.js (renderPlacementsOnglets) quand cette extension est active.
 // La sortie : on revient d'où l'on vient, jamais ailleurs.
 document
   .getElementById("btn-io-retour")

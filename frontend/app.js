@@ -66,11 +66,25 @@ appliquerPuces(document.body);
  * deux cas, et c'est déjà ainsi que l'écran de premier démarrage choisit entre
  * le sélecteur du système et la saisie à la main.
  */
-document.getElementById("lien-feedback")?.addEventListener("click", (e) => {
+/*
+ * UNE CONFIRMATION AVANT DE QUITTER L'APPLICATION : le clic n'ouvre plus le lien, il ouvre une fenêtre
+ * (cf. `#modale-feedback`, barre-laterale.js) qui dit que le lien est extérieur et l'AFFICHE. C'est ELLE
+ * qui l'ouvre, par `ouvrirLienExterne` : par le pont de la fenêtre de bureau quand il existe, sinon
+ * dans un nouvel onglet du navigateur.
+ */
+function ouvrirLienExterne(adresse) {
   const pont = window.pywebview?.api?.ouvrir_lien_externe;
-  if (!pont) return; // Navigateur : `target="_blank"` fait le travail.
+  if (pont) pont(adresse);
+  else window.open(adresse, "_blank", "noopener,noreferrer");
+}
+
+document.getElementById("lien-feedback")?.addEventListener("click", (e) => {
   e.preventDefault();
-  pont(e.currentTarget.href);
+  if (typeof demanderConfirmationLienExterne === "function") {
+    demanderConfirmationLienExterne(e.currentTarget.href);
+  } else {
+    ouvrirLienExterne(e.currentTarget.href);
+  }
 });
 
 const state = {
@@ -354,10 +368,66 @@ function resteCellEtRowClass(montantDu, montantARembourser, monnaieId) {
  * bases dont toutes les opérations sont antérieures et dont l'horloge aurait
  * changé d'année en cours de session.
  */
+/* ---------- LE MOIS : calendaire ou salarial (un seul réglage pour toute l'application) ----------
+ *
+ * Miroir de `soldes.bornes_periode` / `soldes.mois_de` (backend) : le réglage « Découpage des mois sur le
+ * salaire » décide de ce qu'est un mois PARTOUT — les périodes du dashboard, de la page Budget, des
+ * opérations. Calendaire (par défaut) : du 1er au dernier jour. Salarial : de la coupure à la veille de la
+ * suivante ; le mois « novembre » est la période qui contient le 15 novembre. Posé par
+ * `dbrMajReglageSalaire` (dashboard-avenir.js) à chaque lecture ou écriture du réglage.
+ */
+const MOIS_SALARIAL = { actif: false, jour: 31 };
+
+function isoLocal(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function coupureSalaire(annee, mois) {
+  // `mois` de 1 à 12 ; le jour de coupure est ramené à la longueur du mois (31 = le dernier jour).
+  const dernier = new Date(annee, mois, 0).getDate();
+  return new Date(annee, mois - 1, Math.min(MOIS_SALARIAL.jour, dernier));
+}
+
+/** `{debut, fin}` (ISO) d'un mois — calendaire ou salarial — ou de l'année quand `mois` est nul. */
+function bornesDuMois(annee, mois) {
+  if (!MOIS_SALARIAL.actif) {
+    if (!mois) return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+    return { debut: isoLocal(new Date(annee, mois - 1, 1)), fin: isoLocal(new Date(annee, mois, 0)) };
+  }
+  if (!mois) return { debut: bornesDuMois(annee, 1).debut, fin: bornesDuMois(annee, 12).fin };
+  const ref = new Date(annee, mois - 1, 15);
+  const ceMois = coupureSalaire(ref.getFullYear(), ref.getMonth() + 1);
+  const unJour = 86400000;
+  if (ref >= ceMois) {
+    const suivant = new Date(ref.getFullYear(), ref.getMonth() + 1, 1);
+    const finCoupure = coupureSalaire(suivant.getFullYear(), suivant.getMonth() + 1);
+    return { debut: isoLocal(ceMois), fin: isoLocal(new Date(finCoupure.getTime() - unJour)) };
+  }
+  const precedent = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+  return {
+    debut: isoLocal(coupureSalaire(precedent.getFullYear(), precedent.getMonth() + 1)),
+    fin: isoLocal(new Date(ceMois.getTime() - unJour)),
+  };
+}
+
+/** `{annee, mois}` du mois — calendaire ou salarial — qui contient ce jour (un Date ou « AAAA-MM-JJ »). */
+function moisDuJour(jour) {
+  const date = typeof jour === "string" ? new Date(`${jour}T00:00:00`) : jour;
+  if (!MOIS_SALARIAL.actif) return { annee: date.getFullYear(), mois: date.getMonth() + 1 };
+  const iso = isoLocal(date);
+  for (const decalage of [0, 1, -1]) {
+    const candidat = new Date(date.getFullYear(), date.getMonth() + decalage, 1);
+    const bornes = bornesDuMois(candidat.getFullYear(), candidat.getMonth() + 1);
+    if (bornes.debut <= iso && iso <= bornes.fin) {
+      return { annee: candidat.getFullYear(), mois: candidat.getMonth() + 1 };
+    }
+  }
+  return { annee: date.getFullYear(), mois: date.getMonth() + 1 };
+}
+
 function periodeParDefaut(periodes) {
-  const aujourdhui = new Date();
-  const annee = aujourdhui.getFullYear();
-  const mois = aujourdhui.getMonth() + 1;
+  const { annee, mois } = moisDuJour(new Date());
   return periodes.find((p) => p.annee === annee && p.mois === mois) || periodes[0];
 }
 
@@ -469,8 +539,7 @@ function transitionPeriode(etat, geste, contexte) {
       if (cible === rang()) break;
       if (cible > rang() && (geste.niveau === "mois" || geste.niveau === "semaine")) {
         // DESCENDRE PAR LA PASTILLE amène sur le mois et la semaine EN COURS.
-        suivant.annee = aujourdhui.getFullYear();
-        suivant.mois = aujourdhui.getMonth() + 1;
+        ({ annee: suivant.annee, mois: suivant.mois } = moisDuJour(aujourdhui));
         suivant.semaine = rangSemaineDuJour(suivant.annee, suivant.mois, aujourdhui.getDate());
       }
       suivant.niveau = geste.niveau;
@@ -956,6 +1025,14 @@ const ICONE_LOUPE = `
   </svg>
 `;
 
+// La croix qui efface la recherche en cours : deux traits, au même tracé.
+const ICONE_CROIX = `
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+`;
+
 // Chevrons de navigation entre correspondances : un simple V, tracé au même
 // trait que le reste, plutôt qu'une flèche pleine — deux boutons qu'on clique
 // en rafale doivent rester discrets.
@@ -1039,6 +1116,17 @@ function classeMontant(valeur, signe) {
   return montantEstNul(valeur) ? "montant-nul" : signe;
 }
 
+/**
+ * LES MONTANTS GLOBAUX SE COLORENT EN ENTIER (chiffre ET signe) : vert pour un gain, orange pour une perte, rien
+ * pour zéro — entrées et dépenses du mois, différences, plus-values, totaux des projets. Les montants
+ * d'OPÉRATIONS, eux, ne colorent que leur signe (`montantHtml`). La variation brute reste l'exception : jaune.
+ * Les classes sont dans style.css (`.pv-gain`, `.pv-perte`).
+ */
+function classeMontantGlobal(valeur) {
+  if (montantEstNul(valeur)) return "pv-nulle";
+  return valeur > 0 ? "pv-gain" : "pv-perte";
+}
+
 // Montant d'une opération dans les listes : coloré selon le sens de l'argent
 // (vert = entre, orange = sort, neutre = virement interne), signé pour lever
 // toute ambiguïté même en scan rapide.
@@ -1048,11 +1136,12 @@ function montantHtml(montant, sens, monnaieId) {
   if (montantEstNul(montant)) {
     return `<span class="montant montant-nul">${formatMontant(montant, monnaieId)}</span>`;
   }
+  // SEUL LE SIGNE PORTE LA COULEUR (`.montant-signe`) ; le chiffre garde celle du texte.
   if (sens === "entrée") {
-    return `<span class="montant entree">+${formatMontant(montant, monnaieId)}</span>`;
+    return `<span class="montant entree"><span class="montant-signe">+</span>${formatMontant(montant, monnaieId)}</span>`;
   }
   if (sens === "dépense") {
-    return `<span class="montant sortie">−${formatMontant(montant, monnaieId)}</span>`;
+    return `<span class="montant sortie"><span class="montant-signe">−</span>${formatMontant(montant, monnaieId)}</span>`;
   }
   return `<span class="montant neutre">${formatMontant(montant, monnaieId)}</span>`;
 }
@@ -1293,14 +1382,15 @@ function fillCategoriesSelect(selectEl, categories, { keepFirst = false } = {}) 
   const firstOption = keepFirst ? selectEl.firstElementChild : null;
   selectEl.innerHTML = "";
   if (firstOption) selectEl.appendChild(firstOption);
-  categories.forEach((c) => {
+  // Les sous-catégories sous leur parent, en retrait (migration 0103).
+  categoriesEnHierarchie(categories).forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.id;
     // Par `libelleCategorie` comme partout ailleurs : les catégories livrées
     // ont un équivalent anglais, celles que l'utilisateur crée ressortent
     // inchangées. Un menu qui resterait en français sous une interface anglaise
     // se lirait comme un oubli.
-    opt.textContent = libelleCategorie(c.nom);
+    opt.textContent = libelleCategorieMenu(c);
     selectEl.appendChild(opt);
   });
 }
@@ -1678,6 +1768,9 @@ function majBoutonsNavigation() {
   // la main au style de la feuille (chaîne vide) la ferait donc réapparaître…
   // masquée.
   navigation.style.display = rechercheCorrespondances.length > 0 ? "flex" : "none";
+  // La croix suit le TERME, pas les correspondances : une recherche sans résultat s'efface aussi.
+  const effacer = document.getElementById("btn-recherche-effacer");
+  if (effacer) effacer.style.display = rechercheTerme.trim() ? "inline-flex" : "none";
   navigation.querySelectorAll("button").forEach((btn) => {
     btn.disabled = !actif;
   });
@@ -1693,6 +1786,11 @@ function allerCorrespondance(pas) {
 }
 
 function ouvrirRecherche() {
+  // La saisie se fait dans la FENÊTRE de recherche (recherche-globale.js), plus dans la barre.
+  if (typeof rechercheOuvrirFenetre === "function") {
+    rechercheOuvrirFenetre();
+    return;
+  }
   document.getElementById("recherche").classList.add("recherche-ouverte");
   const champ = document.getElementById("recherche-champ");
   champ.focus();
@@ -1703,6 +1801,8 @@ function fermerRecherche() {
   const champ = document.getElementById("recherche-champ");
   champ.value = "";
   rechercheTerme = "";
+  const champFenetre = document.getElementById("recherche-fenetre-champ");
+  if (champFenetre) champFenetre.value = "";
   appliquerRecherche({ conserverIndex: false });
   document.getElementById("recherche").classList.remove("recherche-ouverte");
   champ.blur();
@@ -1719,6 +1819,9 @@ function fermerRecherche() {
   btnSuivant.innerHTML = ICONE_CHEVRON_BAS;
   btnPrecedent.addEventListener("click", () => allerCorrespondance(-1));
   btnSuivant.addEventListener("click", () => allerCorrespondance(1));
+  const btnEffacer = document.getElementById("btn-recherche-effacer");
+  btnEffacer.innerHTML = ICONE_CROIX;
+  btnEffacer.addEventListener("click", fermerRecherche);
   majBoutonsNavigation();
 
   champ.addEventListener("input", () => {
@@ -1730,10 +1833,13 @@ function fermerRecherche() {
   // Entrée passe à la correspondance suivante (Maj+Entrée à la précédente),
   // comme la recherche d'un navigateur ; elle ne doit surtout pas valider un
   // formulaire environnant. Échap referme et rétablit la page.
+  // Le champ de la barre est en LECTURE SEULE : il ne montre pas la saisie, il ouvre la fenêtre où l'on
+  // tape (un clic, ou Entrée quand le clavier y est). Échap, lui, efface la recherche en cours.
+  champ.addEventListener("click", ouvrirRecherche);
   champ.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      allerCorrespondance(e.shiftKey ? -1 : 1);
+      ouvrirRecherche();
     }
     if (e.key === "Escape") fermerRecherche();
   });
@@ -1827,6 +1933,44 @@ function switchSection(name, { ongletActif = name, sousSection = null } = {}) {
   // dire ici.
   appliquerRecherche({ conserverIndex: false });
 }
+
+/**
+ * LA HAUTEUR DE L'EN-TÊTE FIGÉ, en variable CSS (`--entete-hauteur`) : la date d'une journée du tableau des
+ * opérations reste COLLÉE SOUS l'en-tête quand elle sort de l'écran par le haut (cf. `.jour-separateur td`
+ * dans style.css), et il faut donc savoir où il s'arrête. Zéro quand l'en-tête n'est pas figé (écran étroit).
+ * Relue à chaque changement de page, d'onglet ou de taille de fenêtre.
+ */
+(function suivreHauteurEntete() {
+  let prevu = false;
+  const maj = () => {
+    prevu = false;
+    const entete = document.querySelector("section.active .page-entete");
+    let px = entete && getComputedStyle(entete).position === "sticky" ? entete.offsetHeight : 0;
+    // Écran étroit : la barre de navigation est elle-même collée en haut, pleine largeur — l'en-tête de la
+    // page ne l'est plus, mais la barre masquerait la date : on se colle sous elle.
+    const barre = document.querySelector("header");
+    if (barre && getComputedStyle(barre).position === "sticky" && barre.offsetWidth > window.innerWidth * 0.9) {
+      px += barre.offsetHeight;
+    }
+    document.documentElement.style.setProperty("--entete-hauteur", `${px}px`);
+  };
+  const planifier = () => {
+    if (prevu) return;
+    prevu = true;
+    requestAnimationFrame(maj);
+  };
+  window.addEventListener("resize", planifier);
+  const principal = document.querySelector("main");
+  if (principal) {
+    new MutationObserver(planifier).observe(principal, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden"],
+    });
+  }
+  planifier();
+})();
 
 /* ---------- Vue des avoirs (onglets) ---------- */
 
@@ -2216,8 +2360,10 @@ function loadParametresGeneraux() {
   // Les parcours proposés dépendent des extensions allumées (cf. tutoriel.js,
   // parcoursDisponibles) : on les relit à chaque passage ici.
   if (typeof renderTutorielsParametres === "function") renderTutorielsParametres();
-  // Le plan de l'app suit les extensions allumées : même raison, même rappel.
-  if (typeof renderPlanApplication === "function") renderPlanApplication();
+  // Le découpage des mois sur le salaire se lit en base (cf. dashboard-avenir.js).
+  if (typeof dbrChargerReglageSalaire === "function") dbrChargerReglageSalaire();
+  if (typeof dbrChargerReglageSeuil === "function") dbrChargerReglageSeuil();
+  if (typeof dbrChargerReglageProjete === "function") dbrChargerReglageProjete();
   chargerEtatSauvegarde();
 }
 
@@ -2330,7 +2476,23 @@ function monnaiePreferee(ids) {
   return liste.length > 0 ? liste[0] : null;
 }
 
+// LE RÉGLAGE DU MOIS (calendaire / salarial) se lit UNE FOIS, avant tout calcul de période : presque tous les
+// chargeurs d'écran passent par `refreshMonnaies`, qui l'attend (cf. MOIS_SALARIAL).
+let reglageMoisPromesse = null;
+
+function assurerReglageMois() {
+  if (!reglageMoisPromesse) {
+    reglageMoisPromesse = (async () => {
+      const reglage = await lirePreference("dashboard.decoupage-salaire");
+      MOIS_SALARIAL.actif = !!(reglage && reglage.actif);
+      MOIS_SALARIAL.jour = (reglage && reglage.jour) || 31;
+    })();
+  }
+  return reglageMoisPromesse;
+}
+
 async function refreshMonnaies() {
+  await assurerReglageMois();
   state.monnaies = await apiFetch("/monnaies");
   if (state.couleursConversions === undefined) {
     const attributions = await lirePreference(CLE_COULEURS_CONVERSIONS);
@@ -3630,7 +3792,7 @@ async function loadEcartVariations(contexte = null) {
               : `<span class="hint">${t("Sans libellé")}</span>`
           }${
             ligne.categorie_nom
-              ? ` <i class="ecart-categorie">${escapeHtml(libelleCategorie(ligne.categorie_nom))}</i>`
+              ? ` <i class="ecart-categorie">${categorieSouligneeHtml(ligne.categorie_nom)}</i>`
               : ""
           }</td>
           <td>${escapeHtml(ligne.compte_nom)}</td>
@@ -3872,6 +4034,93 @@ function couleurCategorie(couleurIndex) {
   if (couleurIndex === COULEUR_INDEX_ENTREE) return "var(--couleur-entree)";
   if (couleurIndex === COULEUR_INDEX_VIREMENT) return "var(--compte-epargne)";
   return PALETTE_CATEGORIES[Math.abs(couleurIndex) % PALETTE_CATEGORIES.length];
+}
+
+/* ---------- LES SOUS-CATÉGORIES : nuances, emoji hérité, ordre en menus (migration 0103) ----------
+ *
+ * UNE SOUS-CATÉGORIE HÉRITE de la couleur et de l'emoji de son parent. Sa couleur est une NUANCE de celle du
+ * parent : même teinte, clarté différente — six rangs, jamais le ton du parent lui-même (qui est celui de sa part
+ * directe). Les teintes de la palette sont assez éloignées pour que les nuances de deux catégories ne se
+ * recouvrent pas : seule la clarté bouge, jamais la teinte.
+ */
+// Décalage de clarté (en points de luminosité HSL) de chaque rang de nuance : plus clair, plus foncé, en
+// alternance, du plus proche du ton du parent au plus éloigné. Les écarts entre rangs restent ≥ 10 points.
+const DECALAGES_NUANCES = [10, -10, 20, -20, 30, -30];
+const NB_NUANCES_CATEGORIE = DECALAGES_NUANCES.length;
+
+function hexVersHsl(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+
+/** Les nuances (hex ou `hsl()`) d'une couleur de la palette, dans l'ordre des rangs. */
+function nuancesDeCategorie(couleurIndex) {
+  if (couleurIndex < 0) return DECALAGES_NUANCES.map(() => couleurCategorie(couleurIndex));
+  const { h, s, l } = hexVersHsl(PALETTE_CATEGORIES[Math.abs(couleurIndex) % PALETTE_CATEGORIES.length]);
+  return DECALAGES_NUANCES.map((decalage) => {
+    const clarte = Math.min(Math.max(l + decalage, 14), 90);
+    return `hsl(${h.toFixed(0)} ${s.toFixed(0)}% ${clarte.toFixed(0)}%)`;
+  });
+}
+
+/** La couleur d'une catégorie : la teinte de la palette, ou — pour une sous-catégorie — sa nuance. */
+function couleurDeCategorie(categorie) {
+  if (!categorie) return couleurCategorie(0);
+  if (categorie.parent_id != null) {
+    const nuances = nuancesDeCategorie(categorie.couleur_index ?? 0);
+    return nuances[(categorie.couleur_nuance ?? 0) % nuances.length];
+  }
+  return couleurCategorie(categorie.couleur_index ?? 0);
+}
+
+/** L'emoji d'une catégorie : le sien, sinon celui de son parent (une sous-catégorie en hérite). */
+function iconeDeCategorie(categorie) {
+  if (!categorie) return null;
+  if (categorie.icone) return categorie.icone;
+  if (categorie.parent_id != null) {
+    const parent = state.categories.find((c) => c.id === categorie.parent_id);
+    return parent ? parent.icone || null : null;
+  }
+  return null;
+}
+
+/**
+ * Les catégories dans l'ordre d'un MENU : chaque parent suivi de ses sous-catégories, qui portent `niveau: 1`
+ * (le libellé les retire en retrait, cf. `libelleCategorieMenu`). L'ordre des parents et celui des enfants
+ * sont ceux de la liste donnée ; une sous-catégorie dont le parent n'y figure pas (éteint, filtré) reste là,
+ * seule.
+ */
+function categoriesEnHierarchie(categories) {
+  const ids = new Set(categories.map((c) => c.id));
+  const resultat = [];
+  categories
+    .filter((c) => c.parent_id == null || !ids.has(c.parent_id))
+    .forEach((c) => {
+      resultat.push({ ...c, niveau: c.parent_id != null ? 1 : 0 });
+      categories.filter((f) => f.parent_id === c.id).forEach((f) => resultat.push({ ...f, niveau: 1 }));
+    });
+  return resultat;
+}
+
+/** Le libellé d'une catégorie dans un menu : « ↳ Essence » pour une sous-catégorie. */
+function libelleCategorieMenu(categorie) {
+  return `${categorie.niveau ? "↳ " : ""}${libelleCategorie(categorie.nom)}`;
 }
 
 /** La couleur d'une barre, d'une tranche ou d'une ligne de légende : la sienne
@@ -4275,7 +4524,13 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
     ${corps}
     <button type="button" class="histo-bulle-lien" data-drill-through>${t(
       "Voir toutes les dépenses"
-    )}</button>`;
+    )}</button>${
+      // LE DÉTAIL D'UNE CATÉGORIE PARENT (page Budget seulement : `detail_possible` y est posé) — une fenêtre avec une
+      // jauge par sous-catégorie, un sélecteur de période et les opérations prises en compte.
+      depense.detail_possible
+        ? ` <button type="button" class="histo-bulle-lien" data-detail-categorie>${t("Détail de la catégorie")}</button>`
+        : ""
+    }`;
 }
 
 /**
@@ -4285,8 +4540,19 @@ function contenuInfobulleCategorie(depense, monnaieId, chiffres = {}) {
  * d'un histogramme large poussait la bulle hors de la page.
  */
 function placerInfobulleHistogramme(bulle, container, evenement) {
-  const cadre = container.getBoundingClientRect();
   const marge = 14;
+  // INFOBULLE LIBRE (barres du dashboard) : placée par rapport à la FENÊTRE, pas au cadre — le bloc est
+  // petit et rogné, elle n'y apparaîtrait que partiellement (cf. `.histo-bulle-libre`, en `fixed`).
+  if (bulle.classList.contains("histo-bulle-libre")) {
+    let x = evenement.clientX + marge;
+    let y = evenement.clientY + marge;
+    if (x + bulle.offsetWidth > window.innerWidth) x = evenement.clientX - bulle.offsetWidth - marge;
+    if (y + bulle.offsetHeight > window.innerHeight) y = evenement.clientY - bulle.offsetHeight - marge;
+    bulle.style.left = `${Math.max(0, x)}px`;
+    bulle.style.top = `${Math.max(0, y)}px`;
+    return;
+  }
+  const cadre = container.getBoundingClientRect();
   let x = evenement.clientX - cadre.left + marge;
   let y = evenement.clientY - cadre.top + marge;
   if (x + bulle.offsetWidth > cadre.width) {
@@ -4501,6 +4767,8 @@ function degelerInfobulle() {
   infobulleGelee.querySelector(".histo-bulle-gel-note")?.remove();
   infobulleGelee.classList.remove("histo-bulle-gelee");
   infobulleGelee.classList.remove("visible");
+  // La bulle de la courbe du dashboard se masque par l'attribut `hidden`, pas par `.visible`.
+  if (infobulleGelee.classList.contains("dbr-courbe-bulle")) infobulleGelee.hidden = true;
   infobulleGelee = null;
 }
 
@@ -4560,12 +4828,12 @@ document.addEventListener("click", (e) => {
  * `contenuPour(cible)` rend {depense, html} : la cible sait ce qu'elle décrit,
  * cette fonction ne le devine pas.
  */
-function attacherInfobulleCategorie(container, cibles, contenuPour) {
+function attacherInfobulleCategorie(container, cibles, contenuPour, options = {}) {
   const bulle = document.createElement("div");
   // `histo-bulle-interactive` : celle-ci porte un bouton, elle doit donc
   // recevoir la souris (cf. style.css, où .histo-bulle est en pointer-events:
   // none pour ne jamais s'interposer entre le curseur et le graphe).
-  bulle.className = "histo-bulle histo-bulle-interactive";
+  bulle.className = `histo-bulle histo-bulle-interactive${options.libre ? " histo-bulle-libre" : ""}`;
   bulle.setAttribute("role", "tooltip");
   container.appendChild(bulle);
 
@@ -4606,6 +4874,12 @@ function attacherInfobulleCategorie(container, cibles, contenuPour) {
       bulle
         .querySelector("[data-drill-through]")
         ?.addEventListener("click", fermerPuis(() => drillThroughCategorie(depense)));
+      bulle
+        .querySelector("[data-detail-categorie]")
+        ?.addEventListener(
+          "click",
+          fermerPuis(() => typeof ouvrirDetailCategorie === "function" && ouvrirDetailCategorie(depense))
+        );
       // DES ACTIONS À ELLE, pour une bulle qui n'est pas celle d'une catégorie
       // (une conversion vers une autre monnaie, cf. contenuInfobulleConversion) :
       // chaque bouton `data-action-bulle` appelle la fonction du même nom.
@@ -4751,6 +5025,32 @@ function motifHachure(couleur, prefixe) {
   };
 }
 
+/**
+ * Le tracé d'un RECTANGLE DONT SEULS CERTAINS COINS SONT ARRONDIS : `coins` = { hg, hd, bg, bd } (haut /
+ * bas, gauche / droite). Les barres empilées (le réel, le prévu, la période comparée hachurée) ne
+ * s'arrondissent qu'AUX DEUX EXTRÉMITÉS de la pile — jamais à la jonction entre deux morceaux, où un
+ * creux se verrait ; et deux barres collées côte à côte ne s'arrondissent que sur leurs bords extérieurs.
+ */
+function cheminBarre(x, y, largeur, hauteur, coins = {}, rayon = 3) {
+  const r = Math.max(0, Math.min(rayon, largeur / 2, hauteur / 2));
+  const hg = coins.hg ? r : 0;
+  const hd = coins.hd ? r : 0;
+  const bd = coins.bd ? r : 0;
+  const bg = coins.bg ? r : 0;
+  const arc = (rr, dx, dy) => (rr ? ` a${rr},${rr} 0 0 1 ${dx},${dy}` : "");
+  return (
+    `M${x + hg},${y} h${largeur - hg - hd}` +
+    arc(hd, hd, hd) +
+    ` v${hauteur - hd - bd}` +
+    arc(bd, -bd, bd) +
+    ` h${-(largeur - bd - bg)}` +
+    arc(bg, -bg, -bg) +
+    ` v${-(hauteur - bg - hg)}` +
+    arc(hg, hg, -hg) +
+    " Z"
+  );
+}
+
 function renderHistogrammeDepenses(depenses, monnaieId, container = null, options = {}) {
   // `options.comparaison` : les dépenses d'une SECONDE période, superposées
   // hachurées (cf. « LA PÉRIODE COMPARÉE »). `options.libelleCompare` la nomme
@@ -4803,51 +5103,136 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
       const centreX = margeCote + largeurBande * i + largeurBande / 2;
       const x = centreX - largeurBarre / 2;
 
+      // LES MORCEAUX D'UNE COLONNE, du bas vers le haut, en hauteurs au-dessus de la ligne de base :
+      // le réel (plein), ce qui est seulement prévu (transparent), puis la période comparée (hachurée).
+      const base = hauteur - margeBas;
       const hReel = d.total_reel * echelle;
-      const yReel = hauteur - margeBas - hReel;
+      const hCourante = Math.max(d.total_previsionnel, d.total_reel) * echelle;
+      const comparee = compareParNom.get(d.categorie);
+      const hCompare = comparee && comparee.total_previsionnel > 0 ? comparee.total_previsionnel * echelle : 0;
+      const motif = hCompare > 0 ? motifHachure(couleur, "hachure-histo") : null;
+      if (motif) motifs.push(motif.def);
 
-      let barrePrevisionnel = "";
-      let yHaut = yReel;
-      if (d.total_previsionnel > d.total_reel) {
-        const hDepasse = (d.total_previsionnel - d.total_reel) * echelle;
-        const yDepasse = yReel - hDepasse;
-        barrePrevisionnel = `<rect class="histo-fut" x="${x}" y="${yDepasse}" width="${largeurBarre}" height="${hDepasse}" fill="${couleur}" opacity="0.35" rx="3" />`;
-        yHaut = yDepasse;
+      const piecesCourantes = [{ bas: 0, haut: hReel, opacite: 1 }];
+      if (hCourante > hReel) piecesCourantes.push({ bas: hReel, haut: hCourante, opacite: 0.35 });
+      const comparaison = { bas: 0, haut: hCompare, compare: true };
+
+      // DEUX VALEURS TRÈS PROCHES (écart < 5 % de la plus grande) : superposées, les hachures ne
+      // couvriraient presque rien et l'écart ne se lirait plus. Elles passent côte à côte, collées
+      // (graphe « groupé »), chacune à sa propre hauteur.
+      const proche =
+        hCompare > 0 && Math.abs(hCompare - hCourante) < 0.05 * Math.max(hCompare, hCourante);
+      const largeurGroupe = proche ? Math.min(largeurBarre * 1.7, largeurBande * 0.85) : largeurBarre;
+      const xGroupe = centreX - largeurGroupe / 2;
+
+      // Les colonnes à dessiner : { x, largeur, pieces, gauche, droite } — `gauche` / `droite` disent
+      // si le bord correspondant est EXTÉRIEUR (donc arrondi) ou collé à une autre barre.
+      let colonnes;
+      if (proche) {
+        const moitie = largeurGroupe / 2;
+        colonnes = [
+          { x: xGroupe, largeur: moitie, pieces: piecesCourantes, gauche: true, droite: false },
+          { x: xGroupe + moitie, largeur: moitie, pieces: [comparaison], gauche: false, droite: true },
+        ];
+      } else {
+        let pieces = piecesCourantes;
+        if (hCompare > hCourante) {
+          // Comparée AU-DESSUS : la barre pleine reste telle quelle, les hachures ne couvrent que ce qui la
+          // dépasse.
+          pieces = [...piecesCourantes, { bas: hCourante, haut: hCompare, compare: true }];
+        } else if (hCompare > 0) {
+          // Comparée EN DESSOUS : hachurée en entier, et la barre pleine ne se voit plus qu'au-dessus
+          // d'elle.
+          pieces = [
+            comparaison,
+            ...piecesCourantes
+              .filter((pc) => pc.haut > hCompare)
+              .map((pc) => ({ ...pc, bas: Math.max(pc.bas, hCompare) })),
+          ];
+        }
+        colonnes = [{ x: xGroupe, largeur: largeurGroupe, pieces, gauche: true, droite: true }];
       }
+
+      // LA BARRE EMPILÉE (page Budget, `options.empiler`) : une catégorie PARENT qui a des sous-catégories sur
+      // la période dessine ses composantes l'une sur l'autre — sa part directe en bas, puis chaque sous-catégorie
+      // dans sa nuance —, séparées par un trait gris horizontal. Le dashboard garde sa barre simple. Pas de
+      // barre empilée quand on compare deux périodes : les hachures n'auraient plus de morceau où se poser.
+      const empilee = Boolean(options.empiler && !options.comparaison && d.composantes && d.composantes.length > 1);
+      const colonnesEmpilees = (() => {
+        if (!empilee) return "";
+        const morceaux = [];
+        let bas = 0;
+        d.composantes.forEach((c, rangC) => {
+          const hauteurReel = c.total_reel * echelle;
+          const hauteurTotale = Math.max(c.total_previsionnel, c.total_reel) * echelle;
+          const couleurC = c.direct ? couleur : nuancesDeCategorie(d.couleur_index ?? 0)[(c.couleur_nuance ?? 0) % NB_NUANCES_CATEGORIE];
+          if (hauteurReel > 0.01) morceaux.push({ bas, haut: bas + hauteurReel, couleur: couleurC, opacite: 1, composante: rangC });
+          if (hauteurTotale - hauteurReel > 0.01) {
+            morceaux.push({ bas: bas + hauteurReel, haut: bas + hauteurTotale, couleur: couleurC, opacite: 0.35, composante: rangC });
+          }
+          bas += hauteurTotale;
+        });
+        const traits = [];
+        let frontiere = 0;
+        d.composantes.forEach((c, rangC) => {
+          frontiere += Math.max(c.total_previsionnel, c.total_reel) * echelle;
+          if (rangC < d.composantes.length - 1 && frontiere > 0.01) {
+            traits.push(
+              `<rect class="histo-separateur" x="${xGroupe}" y="${base - frontiere - 1}" width="${largeurGroupe}" height="2" fill="var(--histo-separateur, #8b90a0)" />`
+            );
+          }
+        });
+        // Arrondi AUX EXTRÉMITÉS de la barre totale seulement : le dessous du premier morceau, le dessus du dernier.
+        const chemins = morceaux
+          .map((m, rang) => {
+            const coins = {
+              bg: rang === 0,
+              bd: rang === 0,
+              hg: rang === morceaux.length - 1,
+              hd: rang === morceaux.length - 1,
+            };
+            const chemin = cheminBarre(xGroupe, base - m.haut, largeurGroupe, m.haut - m.bas, coins);
+            return `<path class="histo-fut" d="${chemin}" fill="${m.couleur}"${m.opacite < 1 ? ` opacity="${m.opacite}"` : ""} />`;
+          })
+          .join("");
+        return chemins + traits.join("");
+      })();
+
+      const colonnesSvg = empilee ? colonnesEmpilees : colonnes
+        .map((col) => {
+          const pieces = col.pieces.filter((pc) => pc.haut - pc.bas > 0.01);
+          return pieces
+            .map((pc, rang) => {
+              // Arrondi AUX EXTRÉMITÉS de la pile seulement : le dessous du premier morceau, le dessus du
+              // dernier ; rien à la jonction.
+              const premier = rang === 0;
+              const dernier = rang === pieces.length - 1;
+              const coins = {
+                bg: premier && col.gauche,
+                bd: premier && col.droite,
+                hg: dernier && col.gauche,
+                hd: dernier && col.droite,
+              };
+              const chemin = cheminBarre(col.x, base - pc.haut, col.largeur, pc.haut - pc.bas, coins);
+              if (pc.compare) {
+                return `<path class="histo-fut histo-comparaison" d="${chemin}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
+              }
+              return `<path class="histo-fut" d="${chemin}" fill="${couleur}"${
+                pc.opacite < 1 ? ` opacity="${pc.opacite}"` : ""
+              } />`;
+            })
+            .join("");
+        })
+        .join("");
+      const yHaut = base - Math.max(hCourante, hCompare);
 
       let tickBudget = "";
       if (d.budget_alloue > 0) {
-        const yBudget = hauteur - margeBas - d.budget_alloue * echelle;
+        const yBudget = base - d.budget_alloue * echelle;
         // Rouge (couleur "critical", distincte de la palette catégorielle) :
         // signale une limite, pas une identité de catégorie.
-        tickBudget = `<rect class="histo-repere" x="${x}" y="${yBudget - 1.5}" width="${largeurBarre}" height="3" fill="var(--budget-line)" />`;
+        tickBudget = `<rect class="histo-repere" x="${xGroupe}" y="${yBudget - 1.5}" width="${largeurGroupe}" height="3" fill="var(--budget-line)" />`;
       }
-
-      // LA MÊME CATÉGORIE SUR LA PÉRIODE COMPARÉE. LA PLUS HAUTE DES DEUX
-      // VALEURS NE REMPLIT QUE CE QUI DÉPASSE DE L'AUTRE : la plus basse se lit
-      // entière dans son propre remplissage, et l'écart se lit à part, dans
-      // celui de la plus haute.
-      //   - comparée AU-DESSUS : la barre pleine reste telle quelle, les
-      //     hachures ne couvrent que le morceau qui la dépasse ;
-      //   - comparée EN DESSOUS : elle est hachurée en entier, et la barre
-      //     pleine ne se voit plus qu'au-dessus d'elle — un fond masque la
-      //     partie pleine qu'elle recouvre.
-      let barreComparee = "";
-      const comparee = compareParNom.get(d.categorie);
-      if (comparee && comparee.total_previsionnel > 0) {
-        const motif = motifHachure(couleur, "hachure-histo");
-        motifs.push(motif.def);
-        const hCompare = comparee.total_previsionnel * echelle;
-        const hCourante = d.total_previsionnel * echelle;
-        const base = hauteur - margeBas;
-        if (hCompare > hCourante) {
-          barreComparee = `<rect class="histo-fut histo-comparaison" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare - hCourante}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
-        } else {
-          barreComparee = `<rect class="histo-fut" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare}" fill="var(--bg-surface)" />
-          <rect class="histo-fut histo-comparaison" x="${x}" y="${base - hCompare}" width="${largeurBarre}" height="${hCompare}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
-        }
-      }
-
 
       const nom = libelleCategorie(d.categorie);
       const label = nom.length > 12 ? nom.slice(0, 11) + "…" : nom;
@@ -4866,9 +5251,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
       return `
         <g class="histo-barre" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" style="--retard:${i * 28}ms">
           ${zoneSurvol}
-          <rect class="histo-fut" x="${x}" y="${yReel}" width="${largeurBarre}" height="${hReel}" fill="${couleur}" rx="3" />
-          ${barrePrevisionnel}
-          ${barreComparee}
+          ${colonnesSvg}
           ${tickBudget}
           ${
             avecNoms
@@ -5617,20 +6000,19 @@ function bornesPeriode({ vue, annee, mois, semaine = null }) {
     const annees = dashboardPeriodesConnues.map((p) => p.annee);
     const repli = annee || new Date().getFullYear();
     return {
-      debut: `${annees.length ? Math.min(...annees) : repli}-01-01`,
-      fin: `${annees.length ? Math.max(...annees) : repli}-12-31`,
+      debut: bornesDuMois(annees.length ? Math.min(...annees) : repli, null).debut,
+      fin: bornesDuMois(annees.length ? Math.max(...annees) : repli, null).fin,
     };
   }
-  if (vue === "annee") return { debut: `${annee}-01-01`, fin: `${annee}-12-31` };
+  if (vue === "annee") return bornesDuMois(annee, null);
   if (semaine) {
     return {
       debut: `${annee}-${pad(mois)}-${pad(semaine.jour_debut)}`,
       fin: `${annee}-${pad(mois)}-${pad(semaine.jour_fin)}`,
     };
   }
-  // `new Date(annee, mois, 0)` : le dernier jour du mois demandé.
-  const dernierJour = new Date(annee, mois, 0).getDate();
-  return { debut: `${annee}-${pad(mois)}-01`, fin: `${annee}-${pad(mois)}-${pad(dernierJour)}` };
+  // Le mois du réglage : calendaire ou salarial (cf. bornesDuMois).
+  return bornesDuMois(annee, mois);
 }
 
 async function ouvrirFenetreMonnaieEteinte(
@@ -6293,6 +6675,97 @@ function contexteGraphesDashboard(depensesDuMois) {
 }
 
 /**
+ * LES DÉPENSES PAR CATÉGORIE DU DASHBOARD : une barre PARTIELLEMENT REMPLIE par catégorie, comme la barre du
+ * reste à vivre — sur deux colonnes, les barres les unes sur les autres.
+ *
+ *   - catégorie AVEC BUDGET : la barre est pleine au montant alloué (le remplissage = montant / budget) ;
+ *     au-delà, elle est pleine et se teinte d'avertissement ;
+ *   - catégorie SANS BUDGET : le maximum est une valeur `m` UNIQUE, partagée par toutes ces catégories : le
+ *     plus élevé des totaux de catégorie (remplissage = montant / m). La plus dépensée est donc pleine.
+ * Les colonnes de CONVERSION vers d'autres monnaies n'y figurent pas (les frais de virement, si).
+ * AUCUN DÉFILEMENT : si tout ne tient pas, seules les 8 barres au taux de remplissage le plus élevé restent.
+ * Plein = le réel, transparent = ce qui est seulement prévu (même convention que la jauge du reste).
+ * Mêmes infobulles et même surbrillance (`data-categorie`) que l'histogramme vertical.
+ */
+function renderBarresDepensesDashboard(depensesBrutes, monnaieId, container) {
+  if (!container) return;
+  container.innerHTML = "";
+  // Les conversions vers d'autres monnaies ne s'affichent pas ici (les frais de virement, eux, restent).
+  let depenses = depensesBrutes.filter((d) => !d.conversion);
+  // m : le plus élevé des totaux de catégorie, commun à toutes les catégories sans budget.
+  const m = Math.max(0, ...depenses.map((d) => d.total_previsionnel || 0));
+  if (!depenses.length) {
+    container.innerHTML = `<span class="hint">${t("Aucune dépense enregistrée.")}</span>`;
+    return;
+  }
+  const entier = (v) => formatMontant(Math.round(v), monnaieId).replace(/[.,]00(?=\D*$)/, "");
+  const maximumDe = (d) => (d.budget_alloue > 0 ? d.budget_alloue : m);
+  // Le TAUX DE REMPLISSAGE d'une barre (non plafonné : une catégorie qui dépasse son budget passe devant).
+  const ratio = (d) => (maximumDe(d) > 0 ? Math.max(d.total_previsionnel || 0, 0) / maximumDe(d) : 0);
+
+  const dessiner = (liste) => {
+    const lignes = liste.map((d, i) => {
+      const total = Math.max(d.total_previsionnel || 0, 0);
+      const reel = Math.min(Math.max(d.total_reel || 0, 0), total);
+      const pct = (v) => (maximumDe(d) > 0 ? Math.min(100, (v / maximumDe(d)) * 100) : 0);
+      const partReel = pct(reel);
+      const partPrevu = Math.min(pct(total) - partReel, 100 - partReel);
+      const depasse = d.budget_alloue > 0 && total > d.budget_alloue;
+      const valeur = d.budget_alloue > 0 ? `${entier(total)} / ${entier(d.budget_alloue)}` : entier(total);
+      return `
+      <div class="dbr-cat${depasse ? " dbr-cat-depasse" : ""}" data-index="${i}" data-categorie="${escapeHtml(d.categorie)}" style="--cat:${couleurBarre(d, i)}">
+        <span class="dbr-cat-nom">${escapeHtml(libelleCategorie(d.categorie))}</span>
+        <span class="dbr-cat-piste" aria-hidden="true">
+          <span class="dbr-cat-reel" style="width:${partReel}%"></span>
+          <span class="dbr-cat-prevu" style="width:${Math.max(partPrevu, 0)}%"></span>
+        </span>
+        <span class="dbr-cat-valeur">${escapeHtml(valeur)}</span>
+      </div>`;
+    });
+    // Deux colonnes, remplies l'une après l'autre : la première reçoit la moitié haute de la liste.
+    container.style.setProperty("--dbr-cat-rangees", String(Math.ceil(liste.length / 2)));
+    container.innerHTML = `<div class="dbr-cats">${lignes.join("")}</div>`;
+  };
+
+  dessiner(depenses);
+  // PAS DE CURSEUR DE DÉFILEMENT : si les barres ne tiennent pas dans le bloc, on ne garde que les
+  // HUIT dont le taux de remplissage est le plus élevé (les plus proches de leur maximum, ou au-delà).
+  if (depenses.length > DBR_BARRES_MAX && container.scrollHeight > container.clientHeight + 1) {
+    depenses = [...depenses].sort((a, b) => ratio(b) - ratio(a)).slice(0, DBR_BARRES_MAX);
+    dessiner(depenses);
+  }
+
+  attacherInfobulleCategorie(container, [...container.querySelectorAll(".dbr-cat")], (element) => {
+    const depense = depenses[Number(element.dataset.index)];
+    if (estColonneGrise(depense)) return contenuInfobulleConversion(depense, monnaieId);
+    return {
+      depense,
+      html: contenuInfobulleCategorie(depense, monnaieId, {
+        total: depense.total_previsionnel,
+        budget: depense.budget_alloue,
+        compareLibelle: null,
+        compareTotal: null,
+      }),
+    };
+  }, { libre: true });
+
+  // Si le bloc change de hauteur (fenêtre redimensionnée), on refait le calcul de ce qui tient.
+  container._dbrRedessiner = () => renderBarresDepensesDashboard(depensesBrutes, monnaieId, container);
+  if (!container._dbrObservateur && typeof ResizeObserver !== "undefined") {
+    let hauteur = container.clientHeight;
+    container._dbrObservateur = new ResizeObserver(() => {
+      if (container.clientHeight === hauteur) return;
+      hauteur = container.clientHeight;
+      container._dbrRedessiner?.();
+    });
+    container._dbrObservateur.observe(container);
+  }
+}
+
+/** Le nombre de barres gardées quand toutes ne tiennent pas (cf. renderBarresDepensesDashboard). */
+const DBR_BARRES_MAX = 8;
+
+/**
  * L'histogramme du dashboard — mois, semaine ou moyenne selon ce qui est
  * choisi.
  *
@@ -6304,14 +6777,9 @@ function contexteGraphesDashboard(depensesDuMois) {
 function renderHistogrammeDashboard(depensesDuMois, monnaieId) {
   const { depenses, parts } = contexteGraphesDashboard(depensesDuMois);
 
-  renderHistogrammeDepenses(
-    parts.retenues,
-    monnaieId,
-    document.getElementById("dashboard-histogramme"),
-    // EN VERSION COMPACTE sur le dashboard d'une page (cf. dashboard-avenir.js) : mêmes
-    // barres, mêmes infobulles, moins de hauteur.
-    typeof DBR_HISTOGRAMME !== "undefined" ? DBR_HISTOGRAMME : {}
-  );
+  // SUR LE DASHBOARD, DES BARRES PARTIELLEMENT REMPLIES, comme la barre du reste à vivre (cf.
+  // renderBarresDepensesDashboard). L'histogramme vertical reste celui de la page Budget et des projets.
+  renderBarresDepensesDashboard(parts.retenues, monnaieId, document.getElementById("dashboard-histogramme"));
   renderPieChartDepenses(
     depenses,
     monnaieId,
@@ -7730,10 +8198,93 @@ function assurerChampIconeCategorie() {
   return champIconeCategorie;
 }
 
+// La nuance choisie dans le formulaire (null = pas de choix : la première libre, ou celle de la catégorie).
+let nuanceChoisieCategorie = null;
+
+/**
+ * Les deux champs « sous-catégorie » du formulaire d'une catégorie (migration 0103) : le menu du PARENT, et —
+ * quand un parent est choisi — le choix de la NUANCE dans sa couleur. `categorie` est la catégorie éditée, ou null
+ * à la création. Ne se proposent comme parents que les catégories de premier niveau, ni elle-même, ni une catégorie
+ * qui porte déjà des sous-catégories quand on range celle-ci (le serveur refuse aussi : un seul niveau).
+ */
+function poserChampsSousCategorie(categorie) {
+  const menu = document.getElementById("categorie-parent");
+  if (!menu) return;
+  const aDesEnfants = categorie && state.categories.some((c) => c.parent_id === categorie.id);
+  const candidats = state.categories.filter(
+    (c) =>
+      c.parent_id == null &&
+      !c.est_virement &&
+      (!categorie || (c.id !== categorie.id && !!c.est_entree === !!categorie.est_entree))
+  );
+  menu.innerHTML = `<option value="">${escapeHtml(t("— aucune (catégorie de premier niveau) —"))}</option>`;
+  candidats.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = libelleCategorie(c.nom);
+    menu.appendChild(opt);
+  });
+  // Une catégorie qui porte des sous-catégories est un parent : elle ne se range pas sous une autre.
+  menu.disabled = !!aDesEnfants;
+  menu.title = aDesEnfants ? t("Cette catégorie porte déjà des sous-catégories : elle ne peut pas en devenir une.") : "";
+  menu.value = categorie && categorie.parent_id != null ? String(categorie.parent_id) : "";
+  nuanceChoisieCategorie = categorie && categorie.parent_id != null ? categorie.couleur_nuance ?? 0 : null;
+  menu.onchange = () => {
+    if (menu.value && nuanceChoisieCategorie === null) nuanceChoisieCategorie = premiereNuanceLibre(Number(menu.value), categorie);
+    majChoixNuance(categorie);
+  };
+  majChoixNuance(categorie);
+}
+
+/** La première nuance de la famille du parent que ses autres enfants n'occupent pas. */
+function premiereNuanceLibre(parentId, categorie) {
+  const prises = new Set(
+    state.categories
+      .filter((c) => c.parent_id === parentId && (!categorie || c.id !== categorie.id))
+      .map((c) => c.couleur_nuance)
+  );
+  for (let n = 0; n < NB_NUANCES_CATEGORIE; n++) if (!prises.has(n)) return n;
+  return 0;
+}
+
+/** Les pastilles de nuance du parent choisi : une par rang, celles de ses autres enfants grisées. */
+function majChoixNuance(categorie) {
+  const bloc = document.getElementById("categorie-nuance-bloc");
+  const conteneur = document.getElementById("categorie-nuance");
+  const parentId = Number(document.getElementById("categorie-parent").value) || null;
+  bloc.style.display = parentId ? "" : "none";
+  conteneur.innerHTML = "";
+  if (!parentId) return;
+  const parent = state.categories.find((c) => c.id === parentId);
+  if (!parent) return;
+  const nuances = nuancesDeCategorie(parent.couleur_index ?? 0);
+  const prises = new Map(
+    state.categories
+      .filter((c) => c.parent_id === parentId && (!categorie || c.id !== categorie.id))
+      .map((c) => [c.couleur_nuance, c.nom])
+  );
+  nuances.forEach((couleur, rang) => {
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    bouton.className = "nuance-pastille";
+    bouton.style.background = couleur;
+    bouton.classList.toggle("choisie", rang === nuanceChoisieCategorie);
+    const frere = prises.get(rang);
+    bouton.disabled = frere !== undefined;
+    bouton.title = frere !== undefined ? t("Déjà prise par « {nom} »", { nom: frere }) : t("Nuance {n}", { n: rang + 1 });
+    bouton.addEventListener("click", () => {
+      nuanceChoisieCategorie = rang;
+      majChoixNuance(categorie);
+    });
+    conteneur.appendChild(bouton);
+  });
+}
+
 function resetCategorieForm() {
   fermerFormulaireEnLigne("form-categorie");
   assurerChampIconeCategorie().poser(null);
   document.getElementById("categorie-id").value = "";
+  poserChampsSousCategorie(null);
   document.getElementById("categorie-nom").value = "";
   document.getElementById("categorie-nom").disabled = false;
   document.getElementById("categorie-nom").title = "";
@@ -7825,6 +8376,7 @@ function fillCategorieForm(categorie, ancre) {
   ouvrirFormulaireEnLigne("form-categorie", "form-categorie-titre", ancre);
   assurerChampIconeCategorie().poser(categorie.icone);
   document.getElementById("categorie-id").value = categorie.id;
+  poserChampsSousCategorie(categorie);
   const champNom = document.getElementById("categorie-nom");
   champNom.value = categorie.nom;
   // LE NOM EST MODIFIABLE, sauf « Autres » : elle est retrouvée par son nom
@@ -7879,9 +8431,11 @@ function renderCategories() {
   // Cf. loadComptes : le formulaire peut être posé dans ce tableau.
   fermerFormulaireEnLigne("form-categorie");
   body.innerHTML = "";
-  state.categories.forEach((c) => {
+  // Les sous-catégories sous leur parent, en retrait (migration 0103).
+  categoriesEnHierarchie(state.categories).forEach((c) => {
     const tr = document.createElement("tr");
     tr.dataset.id = c.id;
+    if (c.niveau) tr.classList.add("categorie-enfant");
     // UNE CATÉGORIE ÉTEINTE RESTE LISTÉE ICI, barrée : c'est la ligne d'où on
     // la rallume. Ailleurs — menus de saisie, règles, page Budget — elle a
     // disparu, et sa barre d'histogramme ne subsiste que sur les périodes où
@@ -8024,22 +8578,47 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
         });
       }
       // L'ICÔNE, SEULEMENT SI ELLE A CHANGÉ (même raison que la case d'entrée : une route à part).
-      const icone = champIconeCategorie.lire();
+      const icone = assurerChampIconeCategorie().lire();
       if ((icone || null) !== ((avant && avant.icone) || null)) {
         await apiFetch(`/categories/${id}/icone`, {
           method: "PUT",
           body: JSON.stringify({ icone }),
         });
       }
+      // LE RANGEMENT SOUS UN PARENT, puis la NUANCE — chacun SEULEMENT s'il a changé (deux routes à part).
+      const parentChoisi = document.getElementById("categorie-parent").value;
+      const parentId = parentChoisi ? Number(parentChoisi) : null;
+      if (parentId !== ((avant && avant.parent_id) ?? null)) {
+        await apiFetch(`/categories/${id}/parent`, {
+          method: "PUT",
+          body: JSON.stringify({ parent_id: parentId }),
+        });
+      }
+      if (parentId !== null && nuanceChoisieCategorie !== null && nuanceChoisieCategorie !== ((avant && avant.couleur_nuance) ?? null)) {
+        await apiFetch(`/categories/${id}/nuance`, {
+          method: "PUT",
+          body: JSON.stringify({ couleur_nuance: nuanceChoisieCategorie }),
+        });
+      }
       showMessage(t("Catégorie modifiée"), "success");
     } else {
       const nomInput = document.getElementById("categorie-nom");
+      const parentChoisi = document.getElementById("categorie-parent").value;
       const creee = await apiFetch("/categories", {
         method: "POST",
-        body: JSON.stringify({ nom: nomInput.value }),
+        body: JSON.stringify({ nom: nomInput.value, parent_id: parentChoisi ? Number(parentChoisi) : null }),
       });
+      if (parentChoisi && nuanceChoisieCategorie !== null && nuanceChoisieCategorie !== creee.couleur_nuance) {
+        await apiFetch(`/categories/${creee.id}/nuance`, {
+          method: "PUT",
+          body: JSON.stringify({ couleur_nuance: nuanceChoisieCategorie }),
+        });
+      }
       // La route de création ne prend que le nom : l'icône choisie se pose juste après.
-      const icone = champIconeCategorie.lire();
+      // `assurerChampIconeCategorie` et non la variable : elle est nulle tant que le formulaire
+      // n'a pas été ouvert / réinitialisé une fois (d'où « Cannot read properties of null »,
+      // alors que la catégorie, déjà créée, bloquait ensuite le second essai — doublon).
+      const icone = assurerChampIconeCategorie().lire();
       if (icone) {
         await apiFetch(`/categories/${creee.id}/icone`, {
           method: "PUT",
@@ -10125,12 +10704,14 @@ function wireEditDeleteButtons(body) {
 // même jour. Dès que le tri est autre, `colonnesOperations` la fait apparaître
 // à la place indiquée par POSITION_DATE_OPERATIONS.
 const COLONNES_OPERATIONS = {
-  classique: ["Nature", "Montant", "Compte", "Catégorie", "Statut", "Actions"],
+  // LA CATÉGORIE EST LA PREMIÈRE COLONNE (classique et remboursable) : sa puce (couleur + emoji) et la
+  // bande de la ligne se lisent d'abord, avant le nom de l'opération.
+  classique: ["Catégorie", "Nature", "Montant", "Compte", "Statut", "Actions"],
   remboursable: [
+    "Catégorie",
     "Nature",
     "Montant",
     "Compte",
-    "Catégorie",
     "Montant à rembourser",
     "Reste à rembourser",
     "Actions",
@@ -10147,10 +10728,11 @@ const COLONNES_OPERATIONS = {
 // situe l'opération (quel compte, quand) avant de lire ce qui la classe. Et c'est
 // la place qu'occupe la catégorie masquée d'un drill-through (cf.
 // `drillActif`) : la date s'y lit à peu près là où l'œil attendait la catégorie.
-// C'est un INDEX DE CELLULE, dans la ligne construite SANS la date.
+// C'est un INDEX DE CELLULE, dans la ligne construite SANS la date, catégorie comprise (cf.
+// `positionDateOperations` quand elle est masquée).
 const POSITION_DATE_OPERATIONS = {
-  classique: 3,
-  remboursable: 3,
+  classique: 4,
+  remboursable: 4,
   remboursements: 3,
   virements: 4,
   prets: 3,
@@ -10314,6 +10896,16 @@ function triParDate(onglet) {
   return String(state.triSelections[onglet] || "").startsWith("date-");
 }
 
+// Les onglets dont la catégorie ouvre la ligne (cf. COLONNES_OPERATIONS).
+const ONGLETS_CATEGORIE_EN_TETE = new Set(["classique", "remboursable"]);
+
+/** L'index de la cellule de date dans une LIGNE : un cran de moins quand la catégorie, première cellule,
+ *  est masquée par un drill-through. */
+function positionDateOperations(onglet) {
+  const position = POSITION_DATE_OPERATIONS[onglet] ?? 0;
+  return ONGLETS_CATEGORIE_EN_TETE.has(onglet) && drillActif(onglet) ? position - 1 : position;
+}
+
 /**
  * Les colonnes d'un onglet : la DATE y est (entre le compte et la catégorie)
  * quand le tri ne l'est pas, et la CATÉGORIE n'y est plus quand on arrive d'un
@@ -10365,7 +10957,7 @@ function avecCelluleDate(noeud, dateIso, onglet, complement = "") {
   // `complement` : ce qui se lit juste après la date — « [3 mois] » pour une
   // dépense amortie dans un drill-through (cf. renderClassiques).
   if (complement) td.textContent += ` ${complement}`;
-  tr.insertBefore(td, tr.children[POSITION_DATE_OPERATIONS[onglet] ?? 0] || null);
+  tr.insertBefore(td, tr.children[positionDateOperations(onglet)] || null);
   return noeud;
 }
 
@@ -10497,6 +11089,12 @@ function celluleCategorieOperation(op) {
   );
 }
 
+/** Le liseré de couleur d'une part de découpe : celui de sa catégorie (cf. `.decoupe-detail-liste li`). */
+function couleurPartDecoupe(part) {
+  const categorie = categorieConnue(part.categorie_id);
+  return categorie ? ` class="avec-categorie" style="--cat:${couleurDeCategorie(categorie)}"` : "";
+}
+
 /**
  * La ligne repliée qui détaille les parts. Un `<tr>` à part et non un bloc
  * dans la cellule : c'est le seul moyen de lui laisser toute la largeur du
@@ -10514,8 +11112,8 @@ function ligneDetailDecoupe(op, nbColonnes) {
   const parts = op.decoupes
     .map(
       (part) =>
-        `<li><span class="decoupe-detail-categorie">${escapeHtml(
-          nomCategorie(part.categorie_id)
+        `<li${couleurPartDecoupe(part)}><span class="decoupe-detail-categorie">${categorieHtml(
+          part.categorie_id
         )}</span>` +
         `<span class="decoupe-detail-montant">${formatMontant(
           part.montant,
@@ -10565,6 +11163,7 @@ function ligneDetailNote(op, nbColonnes) {
 
 // Complète la cellule "Nature" avec l'indicateur de note quand il y en a une.
 function celluleNature(op) {
+  // PAS D'EMOJI ICI : la catégorie ouvre la ligne (cf. COLONNES_OPERATIONS), sa puce porte déjà l'emoji.
   return op.notes ? `${op.nature} ${indicateurNote(op)}` : op.nature;
 }
 
@@ -10575,12 +11174,13 @@ function renderClassiques(liste) {
   const sansCategorie = drillActif("classique");
   const construireLigne = (op) => {
     const tr = document.createElement("tr");
+    marquerCategorieOperation(tr, op);
     if (op.decoupes && op.decoupes.length > 0) tr.classList.add("operation-decoupee");
     tr.innerHTML = `
+      ${sansCategorie ? "" : `<td>${celluleCategorieOperation(op)}</td>`}
       <td>${celluleNature(op)}</td>
       <td>${celluleMontantOperation(op, "classique")}</td>
       <td>${compteHtml(op.compte_id)}</td>
-      ${sansCategorie ? "" : `<td>${celluleCategorieOperation(op)}</td>`}
       <td>${statutLabel(op.statut)}</td>
       <td>
         <button data-action="edit" data-id="${op.id}">${t("Modifier")}</button>
@@ -10616,11 +11216,12 @@ function renderRemboursables(liste) {
     );
     const tr = document.createElement("tr");
     if (rowClass) tr.className = rowClass;
+    marquerCategorieOperation(tr, op);
     tr.innerHTML = `
+      <td>${categorieHtml(op.categorie_id)}</td>
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
       <td>${compteHtml(op.compte_id)}</td>
-      <td>${categorieHtml(op.categorie_id)}</td>
       <td class="montant neutre">${formatMontant(op.montant_du, op.monnaie_id)}</td>
       <td>${cellHtml}</td>
       <td>
@@ -10650,6 +11251,7 @@ function renderRemboursements(liste) {
         .map((o) => `${o.nature} (${formatMontant(o.montant_lien, op.monnaie_id)})`)
         .join(", ") || "-";
     const tr = document.createElement("tr");
+    marquerCategorieOperation(tr, op);
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
@@ -10830,6 +11432,7 @@ function renderPrets(liste) {
     );
     const tr = document.createElement("tr");
     if (rowClass) tr.className = rowClass;
+    marquerCategorieOperation(tr, op);
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
@@ -10862,6 +11465,7 @@ function renderRemboursementPrets(liste) {
         .map((o) => `${o.nature} (${formatMontant(o.montant_lien, op.monnaie_id)})`)
         .join(", ") || "-";
     const tr = document.createElement("tr");
+    marquerCategorieOperation(tr, op);
     tr.innerHTML = `
       <td>${celluleNature(op)}</td>
       <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
@@ -11023,9 +11627,12 @@ const operationsPeriode = { annee: null, mois: null, vue: "mois", niveau: "mois"
 function operationDansPeriode(op) {
   if (operationsPeriode.vue === "tout") return true;
   if (!operationsPeriode.annee) return true;
-  const [annee, mois] = op.date.split("-").map(Number);
-  if (annee !== operationsPeriode.annee) return false;
-  return operationsPeriode.vue === "annee" || mois === operationsPeriode.mois;
+  // LE MOIS DU RÉGLAGE : une fenêtre de dates (calendaire ou salarial), pas le mois civil de l'opération.
+  const { debut, fin } = bornesDuMois(
+    operationsPeriode.annee,
+    operationsPeriode.vue === "annee" ? null : operationsPeriode.mois
+  );
+  return op.date >= debut && op.date <= fin;
 }
 
 /* ---------- Filtrage par propriétés, un panneau par onglet ----------
@@ -14116,7 +14723,6 @@ async function executerPrevisualisation({ conserver = false } = {}) {
       importLignesSelectionnees.clear();
       Object.keys(importLigneOverrides).forEach((k) => delete importLigneOverrides[k]);
       importLignesSupprimees.clear();
-      reinitialiserVirementsImport();
     }
     ligneApercuEnEdition = null;
     // La veille sur les virements repart de zéro : ses verdicts portent sur les
@@ -14986,7 +15592,7 @@ async function finaliserDetectionImport(detection, colonnes, lignes = null) {
   document.getElementById("import-lignes-pied").value = lignes ? lignes.pied : detection.lignes_pied || 0;
   updateResumeLignesEntete();
   // UNE NOUVELLE LECTURE COMMENCE : les catégories, le compte et le contrôle se redemandent sur elle.
-  ["categories", "compte", "virements", "controle"].forEach((id) => importParcours.proposees.delete(id));
+  ["categories", "compte", "controle"].forEach((id) => importParcours.proposees.delete(id));
   importCompteDemande = false;
   // Plus de tableau de détection à rouvrir derrière : le fichier va être relu avec ces colonnes, et
   // c'est le tableau des correspondances qui s'ouvrira à la fin de la relecture.
@@ -15176,16 +15782,18 @@ async function ouvrirEtapeChamps() {
  *                            ou seule quand le fichier écrit un mot que le preset ne connaît pas ;
  *   2    les catégories    : les catégories de la banque que l'app ne connaît pas encore ;
  *   3    les comptes       : où va le relevé, les comptes qu'il nomme, ses devises (« Comptes & Monnaies ») ;
- *   3bis les virements     : le compte de l'autre jambe de chaque virement interne (cf. « LES VIREMENTS
- *                            INTERNES DE L'IMPORT ») ;
  *   4    le contrôle       : le contrôle avant import, dans la page, quand il signale quelque chose (lignes
  *                            mal lues, solde qui ne tombe pas juste, dates ou montants hors norme) ;
  *   puis « Importer ».
  *
+ * LE COMPTE EN FACE DES VIREMENTS INTERNES N'A PLUS D'ÉTAPE : il se renseigne dans la page de l'import, une
+ * fois le reste réglé (« Modifier » sur chaque ligne) ; l'import reste bloqué tant qu'il manque
+ * (`virementIncomplet`).
+ *
  * L'UTILISATEUR EST PORTÉ À LA PREMIÈRE ÉTAPE QUI DEMANDE QUELQUE CHOSE (`ouvrirSuiteImport`) ; celles qui
  * n'ont rien à demander sont sautées, et chaque fenêtre rend la main au parcours en se fermant. Chaque étape
  * s'ouvre d'office une seule fois par fichier (`importParcours.proposees`). Rien à valider nulle part : rien ne
- * s'ouvre. LE GRAPHE MONTRE TOUJOURS TOUTES LES ÉTAPES, 1bis et 3bis comprises : une étape franchie est verte,
+ * s'ouvre. LE GRAPHE MONTRE TOUJOURS TOUTES LES ÉTAPES, 1bis comprise : une étape franchie est verte,
  * une étape sans objet est « sautée » - pour ne pas faire croire qu'on a presque fini.
  */
 const PROPRIETES_A_MOTS_CLES = ["sens", "statut"];
@@ -15195,25 +15803,9 @@ const ETAPES_IMPORT = [
   { id: "mots-cles", numero: "1bis", nom: "Mots-clés" },
   { id: "categories", numero: "2", nom: "Catégories" },
   { id: "compte", numero: "3", nom: "Comptes" },
-  { id: "virements", numero: "3bis", nom: "Virements internes" },
   { id: "controle", numero: "4", nom: "Contrôle" },
   { id: "importer", numero: "✓", nom: "Importer" },
 ];
-
-/**
- * L'ÉTAPE 3bis, « VIREMENTS INTERNES » : des virements que l'import lira n'ont pas encore leur compte en face
- * - ceux qu'une catégorie bancaire rattachée à « Virements internes » a faits à l'étape 2, et ceux d'une règle
- * ou d'un reclassement (cf. `lignesVirementsEnFace`). Elle vient APRÈS les comptes (étape 3) : le compte du
- * fichier est alors connu, et il est exclu des choix. La fenêtre : « LES VIREMENTS INTERNES DE L'IMPORT ».
- */
-function etapeVirementsInternesADemander() {
-  return !!importApercu && lignesVirementsEnFace().some((l) => l.compte_id_autre == null);
-}
-
-/** La fenêtre de l'étape 3bis, ouverte par le parcours ; rend vrai quand elle s'est ouverte. */
-function ouvrirEtapeVirementsInternes() {
-  return ouvrirVirementsImport({ chaine: true });
-}
 
 /** L'étape 3 a-t-elle quelque chose à demander ? (Le compte du fichier, des noms de comptes, des devises, ou
  *  l'extension « Monnaies » à allumer.) */
@@ -15238,9 +15830,8 @@ function etapeControleADemander() {
 
 /** Une étape APRÈS celle qu'on montre : sautée d'avance quand on sait déjà qu'elle n'aura rien à demander.
  *  Tant que les colonnes ne sont pas validées (étapes 1 et 1bis), seules la 1bis (aucune colonne Sens ou État
- *  choisie) et la 3bis se savent sautées : le reste dépend de la lecture qui vient. */
+ *  choisie) se sait sautée : le reste dépend de la lecture qui vient. */
 function etapeSauteeDAvance(id, courante) {
-  if (id === "virements") return !etapeVirementsInternesADemander();
   if (id === "importer") return false;
   if (id === "mots-cles") {
     return courante === "champs" && !detColonnes.some((e) => PROPRIETES_A_MOTS_CLES.includes(e.choix));
@@ -15268,7 +15859,6 @@ function etapeEncoreOuverte(id) {
       monnaies.some((nom) => !importMappingMonnaies[nom])
     );
   }
-  if (id === "virements") return etapeVirementsInternesADemander();
   return false;
 }
 
@@ -15349,11 +15939,6 @@ async function ouvrirSuiteImport() {
   }
   // 3. Les comptes (et les monnaies).
   if (ouvrirChoixCompteImport()) return;
-  // 3bis. Les virements internes.
-  if (!importParcours.proposees.has("virements") && etapeVirementsInternesADemander()) {
-    importParcours.proposees.add("virements");
-    if (ouvrirEtapeVirementsInternes()) return;
-  }
   // 4. Le contrôle.
   finirParcoursImport();
 }
@@ -16297,518 +16882,6 @@ async function validerChoixCompteImport() {
   });
 })();
 
-/* ---------- LES VIREMENTS INTERNES DE L'IMPORT (étape 3bis) ----------
- *
- * Un virement interne a DEUX jambes, une par compte, et le relevé n'en décrit qu'une : celle du compte du
- * fichier. Tant que l'autre compte n'est pas désigné, la ligne ne s'importe pas (`virementIncomplet`). Cette
- * fenêtre le demande, UNE CARTE PAR LIGNE : la date, le libellé, le montant, et le sens en clair - le compte
- * du fichier « envoie vers… » (jambe sortante : on demande le compte qui reçoit) ou « reçoit de… » (jambe
- * entrante : celui qui envoie), d'après le signe du montant, où la colonne « Sens » et le choix débit/crédit
- * sont déjà (cf. `jambeDuFichierLigne`). Le compte du fichier n'est jamais sur la molette.
- *
- * QUELLES LIGNES : tous les virements que l'import lira sans compte en face - ceux que la catégorie
- * « Virements internes » a faits (étape 2), et aussi ceux d'une règle ou d'un reclassement, que le même
- * blocage retient. Pas une ligne mal lue, refusée par la banque, déclarée comme un virement déjà en base, ni
- * une jambe reconnue (elle a son propre « Oui / Non »).
- *
- * L'APPLICATION DEVINE, ELLE NE CHOISIT PAS : le compte du dernier virement en base parti du même compte,
- * dans le même sens, sous le même libellé (`POST /import/comptes-en-face`), ou celui qu'on vient de confirmer
- * sur une carte de même libellé du fichier - en « Suggestion », en tête de la molette, à confirmer comme le
- * reste. L'encadré violet crée un compte sur place (`demanderCreationCompte`) : il rejoint chaque molette en
- * violet, et devient le choix de la carte courante, à confirmer.
- *
- * RIEN N'EST NEUF CÔTÉ SERVEUR À LA CONFIRMATION : les choix partent dans `comptes_en_face` (numéro de ligne
- * -> compte de l'autre jambe), que le serveur applique quand la retouche de la ligne n'en désigne pas un. À
- * l'écran, ils se reposent sur l'aperçu par `appliquerComptesEnFace` (aussi après une relecture qui garde les
- * choix), sans rien défaire de ce qui a été confirmé avant.
- */
-// Numéro de ligne -> compte de l'autre jambe, CONFIRMÉ. Vidé à chaque nouvel aperçu (cf. executerPrevisualisation).
-const importComptesEnFace = {};
-// L'état des cartes du fichier : numéro de ligne -> { choix, manuel, propose }.
-const virCartes = {};
-// Les propositions du serveur, par numéro de ligne (cf. `virDemanderPropositions`).
-const virPropositions = {};
-// Les comptes créés dans la fenêtre pendant CE fichier : violets et en tête de chaque molette.
-const virNouveaux = new Set();
-let virLignes = [];
-let virCourante = -1;
-// La fenêtre a été ouverte par le parcours : la fermer rend la main à l'étape suivante (le contrôle).
-let virChaine = false;
-
-function virOuvert() {
-  return document.getElementById("modale-virements-import").style.display !== "none";
-}
-
-/** Les virements que l'import lira et qui attendent - ou ont reçu dans cette fenêtre - leur compte en face. */
-function lignesVirementsEnFace() {
-  return lignesLuesParImport().filter(
-    (l) =>
-      typeOperationLigne(l) === "virement" &&
-      !ligneMalLue(l) &&
-      !ligneRefuseeParStatut(l) &&
-      !ligneDeclareeVirementConnu(l) &&
-      jambeDeLigne(l) == null &&
-      (l.compte_id_autre == null || importComptesEnFace[l.ligne] != null)
-  );
-}
-
-/** Pose les comptes en face confirmés sur les lignes de l'aperçu qui sont (encore) des virements. Une
- *  retouche de la ligne qui désigne elle-même l'autre compte garde la main, comme côté serveur. */
-function appliquerComptesEnFace() {
-  if (!importApercu) return;
-  importApercu.lignes.forEach((ligne) => {
-    const compteId = importComptesEnFace[ligne.ligne];
-    if (compteId == null || typeOperationLigne(ligne) !== "virement") return;
-    const retouche = importLigneOverrides[ligne.ligne];
-    if (retouche && retouche.compte_id_autre != null) return;
-    ligne.compte_id_autre = compteId;
-  });
-}
-
-function virNormaliser(texte) {
-  return String(texte || "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
-}
-
-function virLigne(n) {
-  return (importApercu ? importApercu.lignes : []).find((l) => l.ligne === n) || null;
-}
-
-function virCarte(n) {
-  if (!virCartes[n]) {
-    const confirme = importComptesEnFace[n] ?? null;
-    virCartes[n] = { choix: confirme, manuel: false, propose: null };
-  }
-  return virCartes[n];
-}
-
-function virConfirmee(n) {
-  return importComptesEnFace[n] != null && importComptesEnFace[n] === virCarte(n).choix;
-}
-
-/** Les comptes de la molette : jamais celui du fichier. Les comptes créés ici d'abord (violets), puis la
- *  suggestion (jaune), puis les autres. */
-function virOptions(n) {
-  const ligne = virLigne(n);
-  const carte = virCarte(n);
-  const comptes = comptesProposables(carte.choix).filter((c) => !ligne || c.id !== ligne.compte_id);
-  const nouveaux = comptes.filter((c) => virNouveaux.has(c.id) && c.id !== carte.propose);
-  const propose = comptes.filter((c) => c.id === carte.propose);
-  const autres = comptes.filter((c) => !virNouveaux.has(c.id) && c.id !== carte.propose);
-  return [
-    ...nouveaux.map((c) => ({ id: c.id, nom: c.nom, niveau: "nouvelle" })),
-    ...propose.map((c) => ({ id: c.id, nom: c.nom, niveau: "suggestion" })),
-    ...autres.map((c) => ({ id: c.id, nom: c.nom, niveau: "choix" })),
-  ];
-}
-
-function virStatut(n) {
-  const carte = virCarte(n);
-  if (carte.choix != null && carte.choix === carte.propose) return { cle: "suggestions", texte: t("Suggestion") };
-  if (carte.choix != null && (carte.manuel || virConfirmee(n))) return { cle: "choix", texte: t("Ton choix") };
-  return { cle: "choix", texte: t("À classer") };
-}
-
-/** Le sens en clair : ce que fait le compte du fichier, et donc ce que la molette désigne. */
-function virSensTexte(ligne) {
-  const compte = ligne.compte_id != null ? nomCompte(ligne.compte_id) : ligne.nom_banque_compte || t("Ce relevé");
-  const jambe = jambeDuFichierLigne(ligne);
-  if (jambe === "sortante") return t("{compte} envoie vers…", { compte });
-  if (jambe === "entrante") return t("{compte} reçoit de…", { compte });
-  return t("Compte en face de {compte} :", { compte });
-}
-
-/** Le même sens, en HTML : le verbe (« envoie », « reçoit », et leurs traductions) en bleu, pour qu'on voie
- *  d'un coup d'œil dans quel sens va chaque virement. Le verbe est le mot qui suit le nom du compte. */
-function virSensHtml(ligne) {
-  const texte = virSensTexte(ligne);
-  if (!jambeDuFichierLigne(ligne)) return escapeHtml(texte);
-  const compte = ligne.compte_id != null ? nomCompte(ligne.compte_id) : ligne.nom_banque_compte || t("Ce relevé");
-  const debut = texte.indexOf(compte);
-  if (debut < 0) return escapeHtml(texte);
-  const apres = debut + compte.length;
-  const verbe = texte.slice(apres).match(/^(\s*)(\S+)/);
-  if (!verbe) return escapeHtml(texte);
-  const fin = apres + verbe[0].length;
-  return (
-    escapeHtml(texte.slice(0, apres) + verbe[1]) +
-    `<span class="vir-sens-verbe">${escapeHtml(verbe[2])}</span>` +
-    escapeHtml(texte.slice(fin))
-  );
-}
-
-function virMontantHtml(ligne) {
-  if (ligne.montant_signe != null) return formatMontant(ligne.montant_signe, ligne.monnaie_id);
-  if (ligne.montant_envoye != null) return formatMontant(-Math.abs(ligne.montant_envoye), ligne.monnaie_envoyee_id);
-  return ligne.montant != null ? formatMontant(ligne.montant, ligne.monnaie_id) : "";
-}
-
-function virCarteHtml(n, i) {
-  const ligne = virLigne(n);
-  const carte = virCarte(n);
-  const options = virOptions(n);
-  const statut = virStatut(n);
-  const confirmee = virConfirmee(n);
-  const roue = options.length
-    ? options
-        .map(
-          (o) => `<div class="corr-roue-option corr-roue-${o.niveau} ${
-            o.id === carte.choix ? "corr-roue-choisie" : ""
-          }" role="option" data-id="${o.id}" aria-selected="${o.id === carte.choix}">${escapeHtml(o.nom)}</div>`
-        )
-        .join("")
-    : `<div class="corr-roue-option corr-roue-vide" aria-disabled="true">${escapeHtml(t("Aucun compte pour l'instant"))}</div>`;
-  return `
-    <section class="corr-colonne vir-carte ${confirmee ? "corr-confirmee" : ""}" data-corr-i="${i}" tabindex="-1">
-      <div>
-        <div class="corr-banque" title="${escapeHtml(ligne.nature || "")}">${escapeHtml(ligne.nature || "—")}</div>
-        <div class="vir-carte-ligne">
-          <span class="hint">${ligne.date ? formatDateCourte(ligne.date) : ""}</span>
-          <span class="corr-operation-montant">${virMontantHtml(ligne)}</span>
-        </div>
-        <div class="vir-sens">${virSensHtml(ligne)}</div>
-        <span class="corr-statut corr-statut-${statut.cle}" data-corr-statut>${escapeHtml(statut.texte)}</span>
-      </div>
-      <div class="corr-roue-cadre">
-        <div class="corr-roue" role="listbox" tabindex="0"
-             aria-label="${escapeHtml(virSensTexte(ligne))}">${roue}</div>
-      </div>
-      <button type="button" class="primary corr-confirmer" data-corr-confirmer="${i}" ${options.length ? "" : "disabled"}><span data-corr-libelle>${
-        confirmee ? escapeHtml(t("Confirmée")) : escapeHtml(t("Confirmer"))
-      }</span> <kbd data-corr-touche>(${escapeHtml(libelleCombo(toucheImport("confirmer")))})</kbd></button>
-    </section>`;
-}
-
-function virColonne(i) {
-  return document.querySelector(`#virements-import-board [data-corr-i="${i}"]`);
-}
-
-function virCentrerRoue(i, doux) {
-  const colonne = virColonne(i);
-  if (!colonne) return;
-  const roue = colonne.querySelector(".corr-roue");
-  const rang = Math.max(0, [...roue.children].findIndex((o) => o.classList.contains("corr-roue-choisie")));
-  roue.scrollTo({ top: rang * CORR_HAUTEUR_OPTION, behavior: doux ? "smooth" : "auto" });
-}
-
-function virMajCompteur() {
-  const restantes = virLignes.filter((n) => !virConfirmee(n)).length;
-  document.getElementById("virements-import-compteur").textContent = restantes
-    ? t("{n} virement(s) à confirmer", { n: restantes })
-    : t("Tout est confirmé.");
-  document.getElementById("btn-virements-import-suggestions").disabled = !virLignes.some(
-    (n) => !virConfirmee(n) && virCarte(n).propose != null && virCarte(n).choix === virCarte(n).propose
-  );
-}
-
-function renderVirementsImport() {
-  const board = document.getElementById("virements-import-board");
-  board.innerHTML = virLignes.map((n, i) => virCarteHtml(n, i)).join("");
-  virLignes.forEach((n, i) => virCentrerRoue(i, false));
-  if (virCourante >= 0) virColonne(virCourante)?.classList.add("corr-courante");
-  virMajCompteur();
-}
-
-function virDefinirCourante(i, { focus = false } = {}) {
-  virCourante = i;
-  document
-    .querySelectorAll("#virements-import-board .corr-colonne")
-    .forEach((c) => c.classList.toggle("corr-courante", Number(c.dataset.corrI) === i));
-  const colonne = virColonne(i);
-  if (!colonne) return;
-  colonne.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-  if (focus) colonne.querySelector(".corr-roue").focus({ preventScroll: true });
-}
-
-function virMajCarte(i) {
-  const n = virLignes[i];
-  const colonne = virColonne(i);
-  if (!colonne) return;
-  const carte = virCarte(n);
-  colonne.querySelectorAll(".corr-roue-option").forEach((o) => {
-    const choisie = Number(o.dataset.id) === carte.choix;
-    o.classList.toggle("corr-roue-choisie", choisie);
-    o.setAttribute("aria-selected", String(choisie));
-  });
-  const statut = virStatut(n);
-  const pastille = colonne.querySelector("[data-corr-statut]");
-  pastille.className = `corr-statut corr-statut-${statut.cle}`;
-  pastille.textContent = statut.texte;
-  const confirmee = virConfirmee(n);
-  colonne.classList.toggle("corr-confirmee", confirmee);
-  colonne.querySelector("[data-corr-libelle]").textContent = confirmee ? t("Confirmée") : t("Confirmer");
-}
-
-/** Un autre compte sur la molette : la carte redemande une confirmation. */
-function virChoisir(i, id, { defiler = true } = {}) {
-  const n = virLignes[i];
-  const compteId = Number(id);
-  if (n == null || !Number.isFinite(compteId)) return;
-  const carte = virCarte(n);
-  if (compteId === carte.choix) return;
-  carte.choix = compteId;
-  carte.manuel = true;
-  virRetirerConfirmation(n);
-  virMajCarte(i);
-  if (defiler) virCentrerRoue(i, true);
-  virMajCompteur();
-  document.getElementById("virements-import-erreur").style.display = "none";
-}
-
-function virRetirerConfirmation(n) {
-  if (importComptesEnFace[n] == null) return;
-  delete importComptesEnFace[n];
-  const ligne = virLigne(n);
-  const retouche = importLigneOverrides[n];
-  if (ligne && !(retouche && retouche.compte_id_autre != null)) ligne.compte_id_autre = null;
-}
-
-/** Le compte confirmé sur une carte devient la SUGGESTION des cartes de même libellé, même compte et même
- *  sens qui n'ont encore rien : un virement mensuel s'écrit souvent pareil d'un mois à l'autre. */
-function virProposerAuxSemblables(n) {
-  const source = virLigne(n);
-  if (!source) return;
-  const cle = virNormaliser(source.nature);
-  if (!cle) return;
-  virLignes.forEach((m, k) => {
-    if (m === n || virConfirmee(m)) return;
-    const autre = virLigne(m);
-    const carte = virCarte(m);
-    if (!autre || carte.manuel || carte.propose != null) return;
-    if (virNormaliser(autre.nature) !== cle || autre.compte_id !== source.compte_id) return;
-    if (jambeDuFichierLigne(autre) !== jambeDuFichierLigne(source)) return;
-    carte.propose = importComptesEnFace[n];
-    carte.choix = carte.propose;
-    const colonne = virColonne(k);
-    if (colonne) {
-      colonne.outerHTML = virCarteHtml(m, k);
-      virCentrerRoue(k, false);
-    }
-  });
-}
-
-function virAppliquer() {
-  appliquerComptesEnFace();
-  renderImportApercu();
-}
-
-function virProchaineNonConfirmee(apres) {
-  const suivante = virLignes.findIndex((n, k) => k > apres && !virConfirmee(n));
-  return suivante !== -1 ? suivante : virLignes.findIndex((n) => !virConfirmee(n));
-}
-
-function virConfirmer(i) {
-  if (i < 0 || i >= virLignes.length) return;
-  const n = virLignes[i];
-  const carte = virCarte(n);
-  if (carte.choix == null) {
-    // Rien de choisi : la ligne centrée de la molette est le choix (cf. brancherMolettes).
-    const premiere = virOptions(n)[0];
-    if (!premiere) return;
-    carte.choix = premiere.id;
-    carte.manuel = true;
-  }
-  importComptesEnFace[n] = carte.choix;
-  virMajCarte(i);
-  virProposerAuxSemblables(n);
-  virAppliquer();
-  virMajCompteur();
-  if (virCourante >= 0) virColonne(virCourante)?.classList.add("corr-courante");
-  const cible = virProchaineNonConfirmee(i);
-  if (cible === -1) {
-    fermerEtapeVirementsInternes();
-    return;
-  }
-  virDefinirCourante(cible, { focus: true });
-}
-
-function virConfirmerSuggestions() {
-  virLignes.forEach((n, i) => {
-    const carte = virCarte(n);
-    if (virConfirmee(n) || carte.propose == null || carte.choix !== carte.propose) return;
-    importComptesEnFace[n] = carte.choix;
-    virMajCarte(i);
-  });
-  virAppliquer();
-  virMajCompteur();
-  const premiere = virLignes.findIndex((n) => !virConfirmee(n));
-  if (premiere === -1) fermerEtapeVirementsInternes();
-  else virDefinirCourante(premiere, { focus: true });
-}
-
-/** « Valider les comptes » : chaque carte doit être confirmée - sinon, « Plus tard ». */
-function validerEtapeVirementsInternes() {
-  const premiere = virLignes.findIndex((n) => !virConfirmee(n));
-  if (premiere !== -1) {
-    const erreur = document.getElementById("virements-import-erreur");
-    erreur.textContent = t("Choisis un compte pour chaque virement, ou reviens-y plus tard.");
-    erreur.style.display = "";
-    virDefinirCourante(premiere, { focus: true });
-    return;
-  }
-  fermerEtapeVirementsInternes();
-}
-
-/** L'encadré violet : comme celui de l'étape 3, il ouvre la fenêtre de création d'un compte. */
-function virCreerHtml() {
-  return `<details class="corr-creer" data-vir-creer>
-      <summary>${escapeHtml(t("Aucun compte ne correspond ? Crée le tien"))}</summary>
-    </details>`;
-}
-
-async function virCreerCompte() {
-  const courante = virCourante;
-  const compte = await demanderCreationCompte();
-  const encadre = document.querySelector("#virements-import-creer details");
-  if (encadre) encadre.open = false;
-  if (!compte) return;
-  virNouveaux.add(compte.id);
-  // Créé pour la carte courante : il en devient le choix - à confirmer.
-  const n = virLignes[Math.max(0, courante)];
-  if (n != null) {
-    const carte = virCarte(n);
-    carte.choix = compte.id;
-    carte.manuel = true;
-    virRetirerConfirmation(n);
-  }
-  renderVirementsImport();
-  virDefinirCourante(Math.max(0, courante), { focus: true });
-  updateImportCompteDefautVisibility();
-}
-
-/** Les suggestions du serveur, demandées à l'ouverture. Elles ne touchent ni une carte confirmée ni un choix
- *  fait à la main. Un échec ne dit rien : la fenêtre marche sans. */
-async function virDemanderPropositions() {
-  const demandes = virLignes
-    .map(virLigne)
-    .filter((l) => l && l.compte_id != null && virPropositions[l.ligne] === undefined)
-    .map((l) => ({ ligne: l.ligne, compte_id: l.compte_id, nature: l.nature || "", jambe: jambeDuFichierLigne(l) }));
-  if (!demandes.length) return;
-  let propositions = {};
-  try {
-    propositions = (await apiFetch("/import/comptes-en-face", {
-      method: "POST",
-      body: JSON.stringify({ lignes: demandes }),
-    })).propositions || {};
-  } catch (err) {
-    return;
-  }
-  demandes.forEach((d) => {
-    virPropositions[d.ligne] = propositions[d.ligne] ?? propositions[String(d.ligne)] ?? null;
-  });
-  if (!virOuvert()) return;
-  let change = false;
-  virLignes.forEach((n) => {
-    const carte = virCarte(n);
-    const propose = virPropositions[n];
-    if (propose == null || carte.manuel || virConfirmee(n)) return;
-    carte.propose = propose;
-    carte.choix = propose;
-    change = true;
-  });
-  if (!change) return;
-  const courante = virCourante;
-  renderVirementsImport();
-  virDefinirCourante(Math.max(0, courante), { focus: virOuvert() });
-}
-
-/** Ouvre la fenêtre (depuis le parcours, `chaine`, ou depuis le bouton de la page) ; rend vrai si elle s'est
- *  ouverte. */
-function ouvrirVirementsImport({ chaine = false } = {}) {
-  if (!importApercu || tutorielEnCours()) return false;
-  // LES ENTRANTS D'ABORD, PUIS LES SORTANTS (puis ceux dont le sens est inconnu), chacun dans l'ordre du fichier.
-  const rangSens = (l) => ({ entrante: 0, sortante: 1 })[jambeDuFichierLigne(l)] ?? 2;
-  virLignes = lignesVirementsEnFace()
-    .map((l, i) => ({ l, i }))
-    .sort((a, b) => rangSens(a.l) - rangSens(b.l) || a.i - b.i)
-    .map(({ l }) => l.ligne);
-  if (!virLignes.length) return false;
-  virChaine = chaine === true;
-  importParcours.vues.add("virements");
-  virLignes.forEach((n) => {
-    const carte = virCarte(n);
-    if (carte.propose == null && virPropositions[n] != null) carte.propose = virPropositions[n];
-    if (carte.choix == null && carte.propose != null) carte.choix = carte.propose;
-  });
-  document.getElementById("virements-import-creer").innerHTML = virCreerHtml();
-  document.getElementById("virements-import-erreur").style.display = "none";
-  majAideFleches();
-  majEtapesImport("modale-virements-import", "virements");
-  virCourante = Math.max(0, virLignes.findIndex((n) => !virConfirmee(n)));
-  renderVirementsImport();
-  noterOuvertureFenetreImport("modale-virements-import");
-  document.getElementById("modale-virements-import").style.display = "";
-  document.body.classList.add("modale-ouverte");
-  virDefinirCourante(virCourante, { focus: true });
-  virDemanderPropositions();
-  return true;
-}
-
-/** Fermée (validée, « Plus tard », la croix, Échap) : ouverte par le parcours, elle lui rend la main - le
- *  contrôle (étape 4). Les virements sans compte en face bloquent l'import comme avant. */
-function fermerEtapeVirementsInternes() {
-  document.getElementById("modale-virements-import").style.display = "none";
-  document.body.classList.remove("modale-ouverte");
-  virCourante = -1;
-  if (importApercu) virAppliquer();
-  majBoutonVirementsImport();
-  const chaine = virChaine;
-  virChaine = false;
-  if (chaine) ouvrirSuiteImport();
-}
-
-/** Le bouton de la page qui rouvre la fenêtre, tant qu'un virement attend son compte en face. */
-function majBoutonVirementsImport() {
-  const bouton = document.getElementById("btn-import-virements-internes");
-  if (!bouton) return;
-  bouton.style.display =
-    importApercu && lignesVirementsEnFace().some((l) => l.compte_id_autre == null) ? "" : "none";
-}
-
-/** Un nouvel aperçu (pas une relecture qui garde les choix) : tout ce que la fenêtre savait repart. */
-function reinitialiserVirementsImport() {
-  [importComptesEnFace, virCartes, virPropositions].forEach((objet) =>
-    Object.keys(objet).forEach((k) => delete objet[k])
-  );
-  virNouveaux.clear();
-  virLignes = [];
-}
-
-(function initVirementsImport() {
-  document.getElementById("btn-virements-import-fermer").addEventListener("click", fermerEtapeVirementsInternes);
-  document.getElementById("btn-virements-import-plus-tard").addEventListener("click", fermerEtapeVirementsInternes);
-  document.getElementById("btn-virements-import-valider").addEventListener("click", validerEtapeVirementsInternes);
-  document.getElementById("btn-virements-import-suggestions").addEventListener("click", virConfirmerSuggestions);
-  document.getElementById("btn-import-virements-internes").addEventListener("click", () => ouvrirVirementsImport());
-  document.getElementById("virements-import-creer").addEventListener("click", (e) => {
-    if (!e.target.closest("[data-vir-creer] summary")) return;
-    e.preventDefault();
-    virCreerCompte();
-  });
-  brancherMolettes(document.getElementById("virements-import-board"), {
-    courante: () => virCourante,
-    definirCourante: virDefinirCourante,
-    choisir: (i, id, options) => virChoisir(i, id, options),
-    valeur: (i) => virCarte(virLignes[i]).choix,
-    nombre: () => virLignes.length,
-    confirmer: virConfirmer,
-  });
-  document.addEventListener("keydown", (e) => {
-    if (!virOuvert() || toucheAvantOuverture(e, "modale-virements-import")) return;
-    // Une fenêtre de création ouverte par-dessus garde ses touches.
-    if (document.getElementById("modale-guide-compte").style.display !== "none") return;
-    if (comboEvenementImport(e) === toucheImport("confirmer")) {
-      e.preventDefault();
-      virConfirmer(virCourante);
-    } else if (e.key === "Escape") {
-      fermerEtapeVirementsInternes();
-    }
-  });
-})();
-
 /**
  * LA DÉTECTION SE PROPOSE D'ELLE-MÊME quand la lecture actuelle ne donne
  * presque rien : plus de la moitié des lignes en erreur, c'est le signe d'un
@@ -17495,8 +17568,6 @@ function appliquerMappingsLocalement() {
       }
     });
   });
-  // Les comptes en face confirmés à l'étape 3bis, sur les lignes qui sont (encore) des virements.
-  appliquerComptesEnFace();
 }
 
 
@@ -17827,7 +17898,6 @@ function corrAppliquer() {
   appliquerMappingsLocalement();
   renderImportMappings();
   renderImportApercu();
-  // Une catégorie rattachée à « Virements internes » (ou détachée) décide si l'étape 3bis aura lieu.
   if (corrOuvert()) majEtapesImport("modale-correspondances", "categories");
 }
 
@@ -21124,7 +21194,6 @@ function compterLignes(lignes, predicat) {
 // sélection -- une sélection non vide bloque la confirmation, et elles y sont
 // pré-inscrites à l'analyse (cf. analyserFichierImport).
 function updateBtnImportConfirmerEtat() {
-  majBoutonVirementsImport();
   const btn = document.getElementById("btn-import-confirmer");
   if (!importApercu) {
     btn.disabled = true;
@@ -21279,13 +21348,6 @@ document.getElementById("btn-import-confirmer").addEventListener("click", async 
       comptes,
       monnaies,
       lignes: importLigneOverrides,
-      // L'étape 3bis : le compte de l'autre jambe, pour les lignes qui sont encore des virements.
-      comptes_en_face: Object.fromEntries(
-        Object.entries(importComptesEnFace).filter(([n]) => {
-          const ligne = virLigne(Number(n));
-          return ligne && typeOperationLigne(ligne) === "virement";
-        })
-      ),
       lignes_supprimees: lignesSupprimeesPourCeConfirm,
       // Une LISTE DE REFUS, et non d'acceptations : le rapprochement a lieu par
       // défaut (cf. le panneau « Dépenses prévues reconnues »).
@@ -22382,7 +22444,6 @@ const FENETRES_A_TOUCHES_PROPRES = new Set([
   "modale-mots-cles",
   "modale-correspondances",
   "modale-compte-import",
-  "modale-virements-import",
 ]);
 
 /** La boîte de la fenêtre modale ouverte, s'il y en a une. */

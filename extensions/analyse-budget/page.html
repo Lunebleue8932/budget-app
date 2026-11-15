@@ -56,21 +56,18 @@
 
   <div id="sous-section-budget-budget" class="sous-section active">
 
+    <!-- LA ZONE DU HAUT, EN DEUX COLONNES : à gauche les monnaies, le budget du mois, puis la période ; à
+         droite les cartes, qui COMMENCENT AU NIVEAU DES MONNAIES pour pousser les graphes le moins possible vers
+         le bas. LA PÉRIODE EST EN DERNIER, juste au-dessus des graphes : avec l'outil de comparaison ouvert, la
+         période de référence reste sous les yeux. -->
+    <div class="ab-haut">
+    <div class="ab-haut-gauche">
     <!-- LES MONNAIES EN ONGLETS, comme au dashboard (cf. abMonnaiesProposees). -->
     <div class="sous-onglets" id="ab-monnaies"></div>
-    <!-- LA PÉRIODE SE CHOISIT DANS L'ARBRE QUE LE DASHBOARD PORTAIT : Tout > année > mois >
-         semaines (creerArbrePeriode, `avecSemaines`). Le dashboard d'une page ne remonte plus
-         le temps ; c'est ici qu'on relit une période passée. -->
-    <div id="ab-periode" class="ab-periode"></div>
 
     <!-- ---------- LE BUDGET DU MOIS ---------- -->
     <h3>Budget du mois<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budget-total">i</i></h3>
 
-    <!-- LE RÉGLAGE SE PORTE COMME UN FILTRE, hors formulaire : un <input> hors
-         <form> ne reçoit AUCUN style de l'application (`form input` ne descend
-         que dans un formulaire), et l'envelopper ferait recharger la page à la
-         moindre touche Entrée. C'est la forme qu'il avait déjà sur le camembert,
-         reprise telle quelle — elle n'était pas le problème, sa PLACE l'était. -->
     <div class="reglage-ligne ab-budget-total-reglage">
       <label for="ab-budget-total">Montant du budget</label>
       <input type="number" id="ab-budget-total" step="0.01" min="0" />
@@ -80,6 +77,46 @@
            n'y a jamais été posé, et passerait pour une saisie oubliée. -->
       <span class="badge-aucun" id="ab-budget-total-herite" hidden>hérité</span>
       <button type="button" class="primary" id="btn-ab-budget-total">Enregistrer</button>
+    </div>
+
+    <!-- LA PÉRIODE SE CHOISIT DANS L'ARBRE QUE LE DASHBOARD PORTAIT : Tout > année > mois >
+         semaines (creerArbrePeriode, `avecSemaines`). Le dashboard d'une page ne remonte plus
+         le temps ; c'est ici qu'on relit une période passée. -->
+    <div id="ab-periode" class="ab-periode"></div>
+    </div>
+
+    <!-- LES QUATRE CARTES DE LA PÉRIODE, EN PETIT, à droite du sélecteur de période et du budget du mois
+         pour que les deux graphiques se voient dès l'ouverture de la page. Venues du dashboard avec ses deux graphiques : ce que
+         la période COÛTE et RAPPORTE (les deux totaux et leur différence, la variation
+         attribuée), puis ce qui est PASSÉ sur les comptes (la variation brute, en jaune) et la
+         porte du détail de leur écart. Mêmes chiffres, mêmes infobulles : ils viennent de la
+         même réponse `/dashboard` que les barres juste en dessous (cf. abRenderFlux). -->
+    <div class="flux-periode ab-flux-compact" id="ab-flux">
+      <div class="flux-carte">
+        <div class="flux-label">Total Entrées<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-entrees">i</i></div>
+        <div class="flux-valeur positif" id="ab-total-entrees">-</div>
+      </div>
+      <div class="flux-carte">
+        <div class="flux-label">Total Dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-depenses">i</i></div>
+        <div class="flux-valeur negatif" id="ab-total-sorties">-</div>
+      </div>
+      <!-- LES DEUX VARIATIONS, UNE SEULE CARTE : séparées au milieu, chaque côté porte son nom. La
+           première est la différence des deux totaux ci-dessus, la seconde ce qui est PASSÉ sur les
+           comptes ; l'écart entre elles s'explique par le bouton sous la seconde. -->
+      <div class="flux-carte flux-carte-variations">
+        <div class="flux-variation-cote">
+          <div class="flux-label" id="ab-variation-attribuee-label">Variation attribuée au mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-attribuee-au-mois">i</i></div>
+          <div class="flux-valeur" id="ab-variation-attribuee">-</div>
+        </div>
+        <div class="flux-variation-cote">
+          <div class="flux-label" id="ab-variation-label">Variation sur le mois brute<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-sur-le-mois-brute">i</i></div>
+          <div class="flux-valeur flux-valeur-brute" id="ab-variation">-</div>
+          <div class="flux-carte-actions" id="ab-ecart-actions">
+            <button type="button" id="btn-ab-ecart-variations" style="display:none">D'où vient l'écart ?</button>
+          </div>
+        </div>
+      </div>
+    </div>
     </div>
 
     <!-- ---------- LES DEUX GRAPHES DU DASHBOARD, FACE AU BUDGET ----------
@@ -97,32 +134,6 @@
          elle). Seule la comparée a ses propres listes. -->
     <h3>Tes dépenses face au budget<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.graphes">i</i></h3>
 
-    <!-- LES QUATRE CARTES DE LA PÉRIODE, venues du dashboard avec ses deux graphiques : ce que
-         la période COÛTE et RAPPORTE (les deux totaux et leur différence, la variation
-         attribuée), puis ce qui est PASSÉ sur les comptes (la variation brute, en jaune) et la
-         porte du détail de leur écart. Mêmes chiffres, mêmes infobulles : ils viennent de la
-         même réponse `/dashboard` que les barres juste en dessous (cf. abRenderFlux). -->
-    <div class="flux-periode" id="ab-flux">
-      <div class="flux-carte">
-        <div class="flux-label">Total Entrées<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-entrees">i</i></div>
-        <div class="flux-valeur positif" id="ab-total-entrees">-</div>
-      </div>
-      <div class="flux-carte">
-        <div class="flux-label">Total Dépenses<i class="info-bulle" tabindex="0" data-info-cle="noyau.total-depenses">i</i></div>
-        <div class="flux-valeur negatif" id="ab-total-sorties">-</div>
-      </div>
-      <div class="flux-carte">
-        <div class="flux-label" id="ab-variation-attribuee-label">Variation attribuée au mois<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-attribuee-au-mois">i</i></div>
-        <div class="flux-valeur" id="ab-variation-attribuee">-</div>
-      </div>
-      <div class="flux-carte">
-        <div class="flux-label" id="ab-variation-label">Variation sur le mois brute<i class="info-bulle" tabindex="0" data-info-cle="noyau.variation-sur-le-mois-brute">i</i></div>
-        <div class="flux-valeur flux-valeur-brute" id="ab-variation">-</div>
-        <div class="flux-carte-actions" id="ab-ecart-actions">
-          <button type="button" id="btn-ab-ecart-variations" style="display:none">D'où vient l'écart ?</button>
-        </div>
-      </div>
-    </div>
     <div class="selecteur-contexte ab-contexte ab-graphes-periode">
       <label class="ab-comparer" for="ab-comparer">
         <input type="checkbox" id="ab-comparer" />
@@ -267,6 +278,22 @@
       </label>
     </div>
 
+    <!-- ---------- LE RESTE À VIVRE ----------
+         Le bloc « Reste pour finir le mois » du dashboard, en plus détaillé : les mêmes chiffres (même
+         calcul, cf. service_solde_previsionnel.reste_a_vivre), la jauge, puis de quoi PLANIFIER — ce
+         qu'on dépense en moyenne et son écart-type, la marge sur le rythme sûr, la fin de période et
+         son point bas dans la plage, et le jour où le solde passerait sous zéro. -->
+    <h3>Reste à vivre<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.reste-a-vivre">i</i></h3>
+    <div class="selecteur-contexte ab-contexte">
+      <label for="ab-rv-vue">Période
+        <select id="ab-rv-vue">
+          <option value="mois">Mois en cours</option>
+          <option value="annee">Année en cours</option>
+        </select>
+      </label>
+    </div>
+    <div class="dbr-bloc dbr-reste ab-rv" id="ab-rv"></div>
+
     <!-- ---------- LE SOLDE PRÉVISIONNEL ----------
          La courbe du solde des comptes courants — le « Solde total » du
          dashboard, étiré dans le temps : le passé réel, puis chaque échéance
@@ -309,7 +336,14 @@
           </select>
         </label>
       </div>
-      <details class="ab-sp-exclusions">
+
+    </div>
+
+    <!-- L'EXCLUSION DE LA DÉPENSE MOYENNE se règle ICI, toujours visible (et plus derrière « Prévision avancée ») :
+         c'est la même dépense moyenne que celle du dashboard (courbe de prévision, point bas, rythme sûr) et du bloc
+         « Reste à vivre ». Exclure une catégorie — une charge fixe, par exemple — la sort de la moyenne ET de
+         l'écart-type. Une catégorie parente entraîne ses sous-catégories. -->
+      <details class="ab-sp-exclusions ab-sp-exclusions-visibles">
         <summary>Exclure de la moyenne<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.solde-previsionnel-exclusions">i</i></summary>
         <div class="ab-sp-exclusions-corps">
           <fieldset id="ab-sp-exclure-categories"><legend>Catégories</legend></fieldset>
@@ -317,13 +351,18 @@
         </div>
         <p class="hint" id="ab-sp-exclusions-manuelles" hidden></p>
       </details>
-    </div>
-
     <div id="ab-sp-doublons"></div>
     <div class="histogramme-cadre ab-sp-cadre">
       <div id="ab-sp-graphe"></div>
       <div class="ab-sp-bulle" id="ab-sp-bulle" hidden></div>
     </div>
+    <div class="ab-sp-legende" id="ab-sp-legende">
+      <span><i class="dbr-trait"></i>Réel</span>
+      <span><i class="dbr-trait dbr-trait-projete"></i>Prévision</span>
+      <span class="ab-sp-legende-avancee" hidden><i class="dbr-trait-plage"></i>Plage ± σ·√k</span>
+      <span><i class="dbr-trait dbr-trait-rythme"></i>Rythme sûr</span>
+    </div>
+    <div class="ab-sp-calcul" id="ab-sp-calcul" hidden></div>
     <p class="hint" id="ab-sp-resume"></p>
     <details class="ab-sp-echeances" id="ab-sp-echeances-bloc" hidden>
       <summary id="ab-sp-echeances-titre"></summary>
@@ -360,5 +399,21 @@
     <h3>Budgets par catégorie<i class="info-bulle" tabindex="0" data-info-cle="analyse-budget.budgets-categories">i</i></h3>
 
     <div id="ab-budgets-categories" class="ab-budgets-categories"></div>
+  </div>
+
+  <!-- ===== LE DÉTAIL D'UNE CATÉGORIE PARENT : une fenêtre (detail-categorie.js, préfixe `abdc`), ouverte depuis
+       l'infobulle d'une barre, d'une tranche ou d'une ligne de légende. Même forme que la fenêtre d'une monnaie
+       éteinte : jauge en demi-anneau par sous-catégorie, sélecteur de période, opérations prises en compte. ===== -->
+  <div id="ab-modale-detail-categorie" class="modale-fond" style="display:none" role="presentation">
+    <div class="modale modale-monnaie-eteinte" role="dialog" aria-modal="true" aria-labelledby="abdc-titre">
+      <div class="epargne-entete">
+        <h2 id="abdc-titre"></h2>
+        <button type="button" id="btn-abdc-fermer" class="epargne-fermer" title="Fermer" aria-label="Fermer">&times;</button>
+      </div>
+      <!-- LE SÉLECTEUR DE PÉRIODE DE LA PAGE BUDGET (creerArbrePeriode : Année > mois), sans « Tout » ni les
+           semaines que la fenêtre ne sait pas lire. -->
+      <div id="abdc-periode" class="abdc-periode"></div>
+      <div id="abdc-corps"></div>
+    </div>
   </div>
 </section>

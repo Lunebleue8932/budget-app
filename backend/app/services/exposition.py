@@ -318,3 +318,48 @@ def valider_composition(
                 f"les poids somment {total:g} % alors que la couverture annoncée est de {couverture_pct:g} %"
             )
     return avertissements
+
+
+# ---------- Les parts d'un titre sur un axe ----------
+#
+# REMONTÉ de l'extension « Vue d'ensemble des placements » (`service_vue_ensemble`, qui les ré-exporte
+# sous leurs anciens noms) : l'évolution du portefeuille par axe (services/evolution_portefeuille) doit
+# découper un titre EXACTEMENT comme les camemberts — deux écrans qui répartissent un ETF autrement se
+# contrediraient à la première comparaison.
+
+
+def parts_eclatees(un_titre, axe: str, par_isin: dict, par_id: Optional[dict] = None) -> list:
+    """L'ETF ÉCLATÉ PAR SA COMPOSITION (migration 0076), quand il n'a pas de répartition à lui sur cet
+    axe : chaque ISIN du dictionnaire apporte sa propre répartition, au prorata de son poids dans l'ETF.
+    Un composant inconnu de la base, ou sans répartition, n'apporte rien ; ce qui manque reste « non
+    renseigné » (cf. `parts_du_titre`). Un seul niveau : un ETF cité dans la composition d'un autre ne
+    s'éclate pas à son tour."""
+    cumul: dict = {}
+    for isin, poids in (un_titre.composition or {}).items():
+        composant = composant_de(isin, par_isin, par_id)
+        if composant is None or composant.id == un_titre.id:
+            continue
+        for e in composant.repartition(axe):
+            etiquette, part = cumul.get(e.type_titre_id, (e.etiquette, 0.0))
+            cumul[e.type_titre_id] = (etiquette, part + (poids / 100.0) * (e.poids_pct / 100.0))
+    return list(cumul.values())
+
+
+def parts_du_titre(un_titre, axe: str, par_isin: Optional[dict] = None, par_id: Optional[dict] = None) -> list:
+    """Les `(étiquette, part)` d'un titre sur un axe, la part étant une fraction de 1.
+
+    L'enveloppe : une étiquette, 100 %. Les axes d'exposition : une ligne par étiquette de la
+    répartition, plus le RÉSIDU (étiquette `None`) quand elle ne couvre pas tout. Un titre sans aucune
+    répartition est entièrement « non renseigné » — sauf un ETF qui porte une composition : il s'éclate
+    alors sur ses composants. Ce qui est renseigné sur le titre lui-même passe toujours avant."""
+    if un_titre is None:
+        return [(None, 1.0)]
+    if axe == "enveloppe":
+        return [(un_titre.type_titre, 1.0)]
+    parts = [(e.etiquette, e.poids_pct / 100.0) for e in un_titre.repartition(axe)]
+    if not parts and un_titre.composition and (par_isin or par_id):
+        parts = parts_eclatees(un_titre, axe, par_isin or {}, par_id)
+    residu = 1.0 - sum(part for _, part in parts)
+    if residu > 1e-9:
+        parts.append((None, residu))
+    return parts

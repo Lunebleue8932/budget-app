@@ -149,3 +149,32 @@ def rafraichir_titre(titre_id: int, db: Session = Depends(get_db)):
             detail=f"« {titre.nom_affiche} » n'a pas de lien : ajoute-en un d'abord.",
         )
     return _reponse(db, service_cours.rafraichir(db, [titre]))
+
+
+@router.post("/historique")
+def recuperer_historique_tout(db: Session = Depends(get_db)):
+    """Les anciennes valeurs des titres suivis, lues sur leur page de cotation quand elle les publie
+    (Yahoo Finance seulement) : de quoi tracer l'évolution du portefeuille loin dans le passé. Les
+    titres sans lien sont ignorés ; ceux dont la page ne publie rien sont rapportés en erreur, sans
+    empêcher les autres."""
+    resultats = service_cours.recuperer_historique(db, service_cours.titres_suivis(db))
+    return {
+        "reussis": sum(1 for r in resultats if r["ok"]),
+        "echecs": sum(1 for r in resultats if not r["ok"]),
+        "ajoutes": sum(r["ajoutes"] for r in resultats),
+        "resultats": resultats,
+    }
+
+
+@router.post("/titres/{titre_id}/historique")
+def recuperer_historique_titre(titre_id: int, db: Session = Depends(get_db)):
+    titre = _get_titre_ou_404(db, titre_id)
+    if not titre.url_cours:
+        raise HTTPException(
+            status_code=400,
+            detail=f"« {titre.nom_affiche} » n'a pas de lien : ajoute-en un d'abord.",
+        )
+    resultat = service_cours.recuperer_historique(db, [titre])[0]
+    if not resultat["ok"]:
+        raise HTTPException(status_code=400, detail=resultat["erreur"])
+    return resultat

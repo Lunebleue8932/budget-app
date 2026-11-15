@@ -20,6 +20,9 @@ def create_categorie(categorie: schemas.CategorieCreate, db: Session = Depends(g
     if crud.get_categorie_by_nom(db, categorie.nom) is not None:
         raise HTTPException(status_code=409, detail="Une catégorie avec ce nom existe déjà")
     _refuser_doublon_des_virements(db, categorie.nom)
+    erreur = crud.erreur_parent_categorie(db, None, categorie.parent_id)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
     return crud.create_categorie(db, categorie)
 
 
@@ -124,6 +127,10 @@ def set_budget_categorie(
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
     _refuser_si_virements(db_categorie, "elle n'a pas d'enveloppe")
     _valider_monnaie(db, monnaie_id)
+    # LA SOMME DES BUDGETS DES SOUS-CATÉGORIES RESTE ≤ À CELUI DU PARENT (migration 0103).
+    erreur = crud.erreur_budget_sous_categories(db, db_categorie, annee, mois, monnaie_id, updates.montant)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
     crud.set_budget_categorie(db, categorie_id, annee, mois, monnaie_id, updates.montant)
     return schemas.BudgetMensuelRead(
         annee=annee,
@@ -191,7 +198,56 @@ def set_entree_categorie(
         raise HTTPException(status_code=404, detail="Catégorie introuvable")
     if updates.est_entree:
         _refuser_si_virements(db_categorie, "elle n'est pas une catégorie d'entrée")
+    # Le sens d'une sous-catégorie est celui de son parent, et un parent qui a des enfants ne change pas de
+    # sens sans eux : on range d'abord les sous-catégories ailleurs (migration 0103).
+    if bool(updates.est_entree) != bool(db_categorie.est_entree):
+        if db_categorie.parent_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Une sous-catégorie a le sens de son parent : change celui du parent, ou remonte-la d'abord.",
+            )
+        if crud.enfants_de(db, db_categorie.id):
+            raise HTTPException(
+                status_code=409,
+                detail="Cette catégorie porte des sous-catégories : remonte-les d'abord avant de changer son sens.",
+            )
     return crud.set_categorie_est_entree(db, db_categorie, updates.est_entree)
+
+
+@router.put("/{categorie_id}/parent", response_model=schemas.CategorieRead)
+def set_parent_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieParentUpdate,
+    db: Session = Depends(get_db),
+):
+    """Range une catégorie sous un parent (ou la remonte au premier niveau avec `null`) — migration 0103.
+
+    UN SEUL NIVEAU : un parent n'a pas de parent, un enfant n'a pas d'enfants. Rangée, elle hérite de la
+    teinte de son parent et prend la première nuance libre ; remontée, elle reprend une couleur à elle."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    erreur = crud.erreur_parent_categorie(db, db_categorie, updates.parent_id)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.set_categorie_parent(db, db_categorie, updates.parent_id)
+
+
+@router.put("/{categorie_id}/nuance", response_model=schemas.CategorieRead)
+def set_nuance_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieNuanceUpdate,
+    db: Session = Depends(get_db),
+):
+    """La nuance d'une sous-catégorie dans la couleur de son parent (migration 0103) : deux sous-catégories
+    d'un même parent n'ont jamais la même, et aucune ne sort de la famille de son parent."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    erreur = crud.erreur_nuance_categorie(db, db_categorie, updates.couleur_nuance)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.set_categorie_nuance(db, db_categorie, updates.couleur_nuance)
 
 
 @router.put("/{categorie_id}/icone", response_model=schemas.CategorieRead)

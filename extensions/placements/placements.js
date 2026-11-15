@@ -16,17 +16,17 @@
  * les autres doivent exister au moment où on les référence.
  */
 
-// Dernier détail chargé (compte affiché) : sert à borner une vente à ce qui est
-// réellement détenu, sans redemander au serveur à chaque frappe.
-let placementDetail = null;
+// Les détails de TOUS les comptes d'investissement (`GET /placements/{id}`), chargés d'un coup : l'onglet
+// principal en montre les possessions, l'historique en réunit les mouvements, et un achat ou une vente se
+// borne à ce que le compte choisi détient réellement — sans redemander au serveur à chaque frappe.
+let placementsDetails = [];
+// La liste des comptes (`GET /placements`) : ce qui alimente les menus de compte.
+let placementsComptes = [];
 
-// L'onglet actif de la page : un compte (false) ou le catalogue des titres
-// (true). Déclaré ICI, en tête, et non près des fonctions qui le lisent : un
-// `let` n'existe pas avant sa ligne de déclaration, et `loadPlacements` l'écrit
-// avant de dessiner les onglets. Vit hors de `state` — le noyau ne le lit jamais.
-let vueTitres = false;
-// L'onglet « Configuration » (enveloppes, classes, zones, secteurs) : exclusif avec les deux autres vues.
-let vueConfiguration = false;
+// L'onglet actif de la page : portefeuille, titres, operations, analyse ou parametres. Déclaré ICI, en tête,
+// et non près des fonctions qui le lisent : un `let` n'existe pas avant sa ligne de déclaration, et
+// `loadPlacements` l'écrit avant de dessiner les onglets. Vit hors de `state` — le noyau ne le lit jamais.
+let placementsOnglet = "portefeuille";
 
 /** La case « Afficher les titres archivés » est-elle cochée ? */
 function voirTitresArchives() {
@@ -413,7 +413,7 @@ function renderTitresSuivis() {
         });
         showMessage(t("Cours mis à jour"), "success");
         await refreshTitres();
-        if (state.placementCompteId) await loadPlacementDetail(state.placementCompteId);
+        await placementsRecharger();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -482,7 +482,7 @@ function renderTitresSuivis() {
           "success"
         );
         await refreshTitres();
-        if (state.placementCompteId) await loadPlacementDetail(state.placementCompteId);
+        await placementsRecharger();
       } catch (err) {
         showMessage(err.message, "error");
       }
@@ -554,12 +554,12 @@ function renderTitresSuivis() {
 }
 
 async function loadPlacements() {
-  // On rouvre toujours la page sur le portefeuille, jamais sur le volet d'import
-  // laissé ouvert d'une visite précédente (cf. import-placements.js).
-  // …SAUF quand la flèche du pop-up « Informations à renseigner » vient d'y mener
-  // (cf. implOuvertureDemandee, import-placements.js) : le volet d'import reste alors.
-  if (typeof afficherVuePlacements === "function") {
-    afficherVuePlacements(typeof implOuvertureDemandee !== "undefined" && implOuvertureDemandee);
+  // La flèche du pop-up « Informations à renseigner » vient parfois d'envoyer ici pour OUVRIR l'import
+  // (cf. implOuvertureDemandee, import-placements.js) : l'onglet « Paramètres » s'ouvre alors sur lui.
+  if (typeof implOuvertureDemandee !== "undefined" && implOuvertureDemandee) {
+    placementsOnglet = "parametres";
+    placementsParam = "import";
+    placementsChargerImport = true;
   }
   try {
     await refreshMonnaies();
@@ -570,35 +570,33 @@ async function loadPlacements() {
     await refreshTypesTitre();
     await refreshTitres();
     const comptes = await apiFetch("/placements");
-
-    const contenu = document.getElementById("placements-contenu");
+    placementsComptes = comptes;
     document.getElementById("placements-aucun-compte").style.display =
       comptes.length === 0 ? "" : "none";
-    // `disponible` mémorise ce que cette ligne vient de décider, pour que le
-    // basculement d'onglet ne rallume pas un volet qui n'a aucun compte à
-    // montrer (cf. majVueTitres).
-    contenu.dataset.disponible = comptes.length === 0 ? "0" : "1";
-    contenu.style.display = comptes.length === 0 ? "none" : "";
 
-    if (comptes.length === 0) {
-      // SANS AUCUN COMPTE, le catalogue reste seul à l'écran : c'est là qu'on
-      // crée ses premiers titres, et le masquer laisserait une page vide alors
-      // qu'il y a quelque chose à y faire.
-      vueTitres = true;
-      renderPlacementsOnglets(comptes);
+    // SANS AUCUN COMPTE, il n'y a ni possessions, ni opérations, ni évolution à montrer : le catalogue des
+    // titres (c'est là qu'on crée ses premiers titres) et les paramètres restent seuls.
+    if (comptes.length === 0 && PLACEMENTS_ONGLETS_DE_COMPTE.includes(placementsOnglet)) {
+      placementsOnglet = "titres";
+    }
+    if (comptes.length > 0) {
+      const champDate = document.getElementById("operation-titre-date");
+      if (!champDate.value) champDate.value = new Date().toISOString().slice(0, 10);
+      // Le compte choisi dans le formulaire survit à un rechargement tant qu'il existe encore.
+      if (!comptes.some((c) => c.compte_id === state.placementCompteId)) {
+        state.placementCompteId = comptes[0].compte_id;
+      }
+    } else {
       state.placementCompteId = null;
-      return;
     }
-
-    const champDate = document.getElementById("operation-titre-date");
-    if (!champDate.value) champDate.value = new Date().toISOString().slice(0, 10);
-
-    // Le compte affiché survit à un rechargement tant qu'il existe encore.
-    if (!comptes.some((c) => c.compte_id === state.placementCompteId)) {
-      state.placementCompteId = comptes[0].compte_id;
-    }
-    renderPlacementsOnglets(comptes);
-    await loadPlacementDetail(state.placementCompteId);
+    // UN DÉTAIL PAR COMPTE, demandés d'un coup : les possessions de tous les comptes sont sur le même écran.
+    placementsDetails = await Promise.all(comptes.map((c) => apiFetch(`/placements/${c.compte_id}`)));
+    renderPlacementsOnglets();
+    renderPossessions();
+    placementsRemplirMenusOperations();
+    renderMouvementsTitres();
+    majResumeOperationTitre();
+    placementsMajVue();
   } catch (err) {
     showMessage(err.message, "error");
   }
@@ -606,106 +604,179 @@ async function loadPlacements() {
 
 /* ---------- Les onglets de la page ----------
  *
- * CE QU'ILS CHOISISSENT : ce qu'on regarde. Un compte — son portefeuille, ses
- * mouvements — ou LE CATALOGUE DES TITRES, qui n'appartient à aucun compte
- * puisque le même ETF peut être détenu sur plusieurs.
+ * CINQ ONGLETS, DU PLUS CONSULTÉ AU PLUS RARE :
+ *   Portefeuille  — l'évolution de la valeur du portefeuille entier, et les possessions de TOUS les
+ *                   comptes d'investissement (un bloc par compte) ;
+ *   Titres suivis — le catalogue, en onglet à part entière : on y revient souvent pour les cours ;
+ *   Opérations    — acheter / vendre, et l'historique de tous les comptes, organisé comme la page
+ *                   Opérations du noyau ;
+ *   Analyse       — l'évolution séparée par compte, enveloppe, classe d'actif, zone ou secteur ;
+ *   Paramètres    — Configuration (enveloppes, classes, zones, secteurs, gestion des fonds), import
+ *                   d'opérations et import de compositions. On les règle une fois ; ils se rangent à droite.
  *
- * Le catalogue était auparavant déroulé sous le détail du compte affiché : il
- * fallait traverser les KPI, les détentions, le formulaire d'achat et
- * l'historique pour arriver à « Ajouter un titre ». C'est pourtant la partie
- * qu'on règle une fois puis qu'on ne rouvre que rarement — elle n'avait rien à
- * faire sur le chemin de ce qu'on consulte tous les jours.
- *
- * « Titres » EST TOUJOURS LE DERNIER, après les comptes : les onglets se lisent
- * du plus fréquent au plus rare.
+ * Les comptes ne sont plus des onglets : le portefeuille les réunit.
  */
 
-function renderPlacementsOnglets(comptes) {
+const PLACEMENTS_ONGLETS = [
+  { cle: "portefeuille", libelle: "Portefeuille", panneau: "placements-portefeuille" },
+  // « Vue d'ensemble » s'intercale ici : c'est l'écran de l'extension « Vue d'ensemble des placements »
+  // (renderPlacementsOnglets le pose, s'il est actif) — il n'a pas de panneau dans cette page.
+  { cle: "analyse", libelle: "Analyse", panneau: "placements-analyse" },
+  { cle: "titres", libelle: "Titres suivis", panneau: "placements-titres" },
+  { cle: "operations", libelle: "Opérations", panneau: "placements-operations" },
+  { cle: "parametres", libelle: "Paramètres", panneau: "placements-parametres" },
+];
+
+// Ceux qui n'ont rien à dire sans compte d'investissement.
+const PLACEMENTS_ONGLETS_DE_COMPTE = ["portefeuille", "operations", "analyse"];
+
+function placementsOngletActif() {
+  return placementsOnglet;
+}
+
+function renderPlacementsOnglets() {
   const barre = document.getElementById("placements-onglets");
   barre.innerHTML = "";
-
-  const activer = (btn) =>
-    [...barre.children].forEach((b) => b.classList.toggle("active", b === btn));
-
-  comptes.forEach((compte) => {
+  PLACEMENTS_ONGLETS.forEach((onglet) => {
+    if (placementsComptes.length === 0 && PLACEMENTS_ONGLETS_DE_COMPTE.includes(onglet.cle)) return;
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = compte.compte_nom;
-    if (!vueTitres && !vueConfiguration && compte.compte_id === state.placementCompteId) {
-      btn.classList.add("active");
-    }
-    btn.addEventListener("click", async () => {
-      state.placementCompteId = compte.compte_id;
-      vueTitres = false;
-      vueConfiguration = false;
-      activer(btn);
-      majVueTitres();
-      await loadPlacementDetail(compte.compte_id);
-    });
+    btn.id = `placements-onglet-${onglet.cle}`;
+    btn.dataset.onglet = onglet.cle;
+    btn.textContent = t(onglet.libelle);
+    btn.addEventListener("click", () => placementsOuvrirOnglet(onglet.cle));
     barre.appendChild(btn);
+    // LE DEUXIÈME ONGLET : la vue d'ensemble (camemberts d'exposition), écran d'une autre extension. Il ouvre
+    // sa page ; `ongletActif` garde « Vue des avoirs » allumé dans la barre du haut.
+    if (onglet.cle === "portefeuille" && BudgetApp.extensions.estActive("investing-overview")) {
+      const vue = document.createElement("button");
+      vue.type = "button";
+      vue.id = "placements-onglet-vue-ensemble";
+      vue.dataset.onglet = "vue-ensemble";
+      vue.textContent = t("Vue d'ensemble");
+      vue.addEventListener("click", () => switchSection("investing-overview", { ongletActif: "comptes-globale" }));
+      barre.appendChild(vue);
+    }
   });
-
-  const btnTitres = document.createElement("button");
-  btnTitres.type = "button";
-  btnTitres.id = "placements-onglet-titres";
-  btnTitres.textContent = t("Titres suivis");
-  if (vueTitres) btnTitres.classList.add("active");
-  btnTitres.addEventListener("click", () => {
-    vueTitres = true;
-    vueConfiguration = false;
-    activer(btnTitres);
-    majVueTitres();
-  });
-  barre.appendChild(btnTitres);
-
-  // « Titres suivis » et « Configuration » se rangent À DROITE de la barre (cf. placements.css) : ce
-  // ne sont pas des comptes qu'on détient, et le contraste les met à part.
-  const btnConfig = document.createElement("button");
-  btnConfig.type = "button";
-  btnConfig.id = "placements-onglet-configuration";
-  btnConfig.textContent = t("Configuration");
-  if (vueConfiguration) btnConfig.classList.add("active");
-  btnConfig.addEventListener("click", () => {
-    vueConfiguration = true;
-    vueTitres = false;
-    activer(btnConfig);
-    majVueTitres();
-  });
-  barre.appendChild(btnConfig);
-
-  majVueTitres();
 }
 
-/**
- * Montre le volet de l'onglet actif.
- *
- * `#placements-contenu` reste masqué tant qu'aucun compte de placements
- * n'existe (cf. loadPlacements) : on ne le rallume donc que si l'appelant
- * l'avait allumé. Le catalogue, lui, a du sens même sans aucun compte — c'est
- * là qu'on crée ses premiers titres.
- */
-function majVueTitres() {
-  const contenu = document.getElementById("placements-contenu");
-  const titres = document.getElementById("placements-titres");
-  const configuration = document.getElementById("placements-configuration");
-  if (!titres) return;
-  titres.style.display = vueTitres ? "" : "none";
-  if (configuration) configuration.style.display = vueConfiguration ? "" : "none";
-  if (contenu && contenu.dataset.disponible === "1") {
-    contenu.style.display = vueTitres || vueConfiguration ? "none" : "";
+function placementsOuvrirOnglet(cle) {
+  placementsOnglet = cle;
+  if (cle === "parametres" && placementsParam === "import") placementsChargerImport = true;
+  placementsMajVue();
+}
+
+/** Montre le panneau de l'onglet actif, allume son bouton, et lance ce qui se dessine à l'écran. */
+function placementsMajVue() {
+  PLACEMENTS_ONGLETS.forEach((onglet) => {
+    const panneau = document.getElementById(onglet.panneau);
+    if (panneau) panneau.style.display = onglet.cle === placementsOnglet ? "" : "none";
+  });
+  document
+    .querySelectorAll("#placements-onglets button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.onglet === placementsOnglet));
+  // Les graphes se mesurent sur leur cadre : ils ne se dessinent qu'une fois leur panneau affiché.
+  if (placementsOnglet === "portefeuille" && typeof evoRendrePrincipal === "function") evoRendrePrincipal();
+  if (placementsOnglet === "analyse" && typeof evoRendreAnalyse === "function") evoRendreAnalyse();
+  if (placementsOnglet === "parametres") placementsMajParametres();
+}
+
+/* ---------- « Paramètres » : Configuration · Import d'opérations · Import de compositions ---------- */
+
+let placementsParam = "configuration";
+
+const PLACEMENTS_PANNEAUX_PARAM = {
+  configuration: "placements-parametres-configuration",
+  import: "placements-vue-import",
+  compositions: "placements-parametres-compositions",
+};
+
+/** Ouvre « Paramètres » sur un de ses panneaux (utilisé aussi par l'import quand on y est envoyé). */
+function placementsOuvrirParametres(panneau) {
+  placementsOnglet = "parametres";
+  placementsParam = panneau;
+  placementsChargerImport = true;
+  placementsMajVue();
+}
+
+// L'import ne recharge ses données qu'à l'OUVERTURE de son panneau, jamais à chaque redessin de la page :
+// un aperçu en cours de relecture ne doit pas être effacé par un achat enregistré entre-temps.
+let placementsChargerImport = false;
+
+function placementsMajParametres() {
+  Object.entries(PLACEMENTS_PANNEAUX_PARAM).forEach(([cle, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = cle === placementsParam ? "" : "none";
+  });
+  document
+    .querySelectorAll("#placements-param-onglets button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.param === placementsParam));
+  // L'import charge ses données à chaque ouverture, comme quand il avait son propre volet.
+  if (placementsParam === "import" && placementsChargerImport && typeof ouvrirImportPlacements === "function") {
+    placementsChargerImport = false;
+    ouvrirImportPlacements();
   }
 }
 
-async function loadPlacementDetail(compteId) {
-  try {
-    placementDetail = await apiFetch(`/placements/${compteId}`);
-    renderPlacementKpis(placementDetail.par_monnaie);
-    renderDetentions(placementDetail.detentions);
-    renderMouvementsTitres(placementDetail.operations);
-    majResumeOperationTitre();
-  } catch (err) {
-    showMessage(err.message, "error");
-  }
+document.querySelectorAll("#placements-param-onglets button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    placementsParam = btn.dataset.param;
+    placementsChargerImport = true;
+    placementsMajParametres();
+  });
+});
+
+// Le lien bleu de l'onglet principal : l'évolution du portefeuille, séparée par propriété.
+document
+  .getElementById("placements-lien-analyse")
+  .addEventListener("click", () => placementsOuvrirOnglet("analyse"));
+
+// Un graphe se mesure sur son cadre : il se redessine quand la fenêtre change de taille.
+let placementsTimerRedim = null;
+window.addEventListener("resize", () => {
+  clearTimeout(placementsTimerRedim);
+  placementsTimerRedim = setTimeout(() => {
+    if (placementsOnglet === "portefeuille" && typeof evoRendrePrincipal === "function") evoRendrePrincipal();
+    if (placementsOnglet === "analyse" && typeof evoRendreAnalyse === "function") evoRendreAnalyse();
+  }, 200);
+});
+
+/** Recharge les comptes (après un achat, une vente, une suppression) puis redessine ce qui en dépend. */
+async function placementsRecharger() {
+  const comptes = await apiFetch("/placements");
+  placementsComptes = comptes;
+  placementsDetails = await Promise.all(comptes.map((c) => apiFetch(`/placements/${c.compte_id}`)));
+  renderPossessions();
+  renderMouvementsTitres();
+  majResumeOperationTitre();
+  placementsMajVue();
+}
+
+/* ---------- Les possessions : un bloc par compte ---------- */
+
+function renderPossessions() {
+  placementsAssurerMenuColonnes();
+  const conteneur = document.getElementById("placements-possessions");
+  if (!conteneur) return;
+  conteneur.innerHTML = "";
+  placementsDetails.forEach((detail) => {
+    const bloc = document.createElement("div");
+    bloc.className = "placements-compte";
+    bloc.innerHTML = `
+      <h4 class="placements-compte-nom">${escapeHtml(detail.compte_nom)}</h4>
+      <div class="placements-compte-kpis"></div>
+      <table class="placements-detentions-table">
+        <thead><tr class="placements-detentions-entete"></tr></thead>
+        <tbody class="placements-detentions"></tbody>
+      </table>`;
+    conteneur.appendChild(bloc);
+    renderPlacementKpis(detail.par_monnaie, bloc.querySelector(".placements-compte-kpis"));
+    renderDetentions(
+      detail.detentions,
+      bloc.querySelector(".placements-detentions"),
+      bloc.querySelector(".placements-detentions-entete")
+    );
+  });
 }
 
 /**
@@ -714,15 +785,14 @@ async function loadPlacementDetail(compteId) {
  * que sur un compte multi-devises — sinon il n'apprend rien, le symbole étant
  * déjà sur chaque montant.
  */
-function renderPlacementKpis(parMonnaie) {
-  const conteneur = document.getElementById("placements-kpis");
+function renderPlacementKpis(parMonnaie, conteneur) {
   conteneur.innerHTML = "";
   const plusieurs = parMonnaie.length > 1;
   parMonnaie.forEach((bloc) => {
     const plusValue = bloc.valorisation - bloc.montant_investi;
     // Une plus-value nulle n'est pas un gain : ni vert, ni rouge (cf.
     // classeMontant dans app.js).
-    const signe = classeMontant(plusValue, plusValue > 0 ? "positif" : "negatif");
+    const signe = classePlusValue(plusValue);
     const titre = plusieurs ? `<h4>${escapeHtml(bloc.monnaie_nom)}</h4>` : "";
     const grille = document.createElement("div");
     grille.innerHTML = `
@@ -803,11 +873,19 @@ const PLACEMENTS_COLONNES_DETENTIONS = [
   { cle: "cours", libelle: "Cours", defaut: true },
   { cle: "valorisation", libelle: "Valorisation", defaut: true },
   { cle: "plus_value", libelle: "+/- value", defaut: true },
+  // LA +/- VALUE EN POURCENTAGE du capital investi : éteinte au départ, comme les colonnes « d'histoire ».
+  { cle: "plus_value_pct", libelle: "+/- value (%)", defaut: false },
 ];
 
 let placementsColonnesDetentionsVisibles = new Set(
   PLACEMENTS_COLONNES_DETENTIONS.filter((c) => c.defaut).map((c) => c.cle)
 );
+
+/** LA COULEUR D'UNE PLUS-VALUE (ou d'une performance) : vert pour un gain, ORANGE pour une perte, ni l'un ni
+ *  l'autre pour un résultat nul — en valeur comme en pourcentage, partout dans « Placements financiers ». */
+function classePlusValue(valeur) {
+  return classeMontantGlobal(valeur); // la règle est celle du noyau (app.js)
+}
 
 /** La cellule d'une colonne pour une détention. Un seul endroit qui sait ce que
  *  chaque colonne montre — l'en-tête, lui, ne connaît que des libellés. */
@@ -833,15 +911,24 @@ function placementsCelluleDetention(cle, d) {
       // Une plus-value nulle n'est ni un gain ni une perte : blanc, et sans
       // signe (cf. classeMontant / montantEstNul dans app.js).
       const nulle = montantEstNul(d.plus_value_latente);
-      const signe = classeMontant(
-        d.plus_value_latente,
-        d.plus_value_latente > 0 ? "entree" : "sortie"
-      );
+      const signe = classePlusValue(d.plus_value_latente);
       const prefixe = nulle ? "" : d.plus_value_latente > 0 ? "+" : "−";
       return `<td><span class="montant ${signe}">${prefixe}${formatMontant(
         Math.abs(d.plus_value_latente),
         d.monnaie_id
       )}</span></td>`;
+    }
+    case "plus_value_pct": {
+      // Sans capital investi (titre reçu gratuitement, prix de revient nul), un pourcentage n'a pas de sens.
+      if (!d.montant_investi) return '<td class="hint">—</td>';
+      const pct = (d.plus_value_latente / d.montant_investi) * 100;
+      const nulle = Math.abs(pct) < 0.005;
+      const signe = classePlusValue(d.plus_value_latente);
+      const prefixe = nulle ? "" : pct > 0 ? "+" : "−";
+      return `<td><span class="montant ${signe}">${prefixe}${Math.abs(pct).toLocaleString("fr-FR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} %</span></td>`;
     }
     default:
       return "<td></td>";
@@ -876,21 +963,18 @@ function placementsAssurerMenuColonnes() {
         choisies.add(c.cle)
       );
       placementsColonnesDetentionsVisibles = choisies;
-      renderDetentions(placementDetail ? placementDetail.detentions : []);
+      renderPossessions();
     },
   });
 }
 
-function renderDetentions(detentions) {
-  const body = document.getElementById("placements-detentions");
-  const entete = document.getElementById("placements-detentions-entete");
+function renderDetentions(detentions, body, entete) {
   if (!body || !entete) return;
 
   const colonnes = PLACEMENTS_COLONNES_DETENTIONS.filter((c) =>
     placementsColonnesDetentionsVisibles.has(c.cle)
   );
   entete.innerHTML = colonnes.map((c) => `<th>${escapeHtml(t(c.libelle))}</th>`).join("");
-  placementsAssurerMenuColonnes();
 
   body.innerHTML = "";
   if (detentions.length === 0) {
@@ -908,18 +992,96 @@ function renderDetentions(detentions) {
   });
 }
 
-function renderMouvementsTitres(operations) {
-  const body = document.getElementById("placements-mouvements");
-  body.innerHTML = "";
+/* ---------- L'historique des opérations : tous les comptes, comme la page Opérations ---------- */
+
+/** Les mouvements de tous les comptes, du plus récent au plus ancien, chacun avec son compte. */
+function placementsTousLesMouvements() {
+  return placementsDetails
+    .flatMap((detail) =>
+      detail.operations.map((op) => ({ ...op, compte_id: detail.compte_id, compte_nom: detail.compte_nom }))
+    )
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+}
+
+/** Les menus du formulaire d'achat et des filtres de l'historique (comptes, titres). */
+function placementsRemplirMenusOperations() {
+  const garder = (el, fabriquer) => _refillPreservingSelection(el, fabriquer);
+  garder(document.getElementById("operation-titre-compte"), (el) => {
+    el.innerHTML = "";
+    placementsComptes.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.compte_id;
+      opt.textContent = c.compte_nom;
+      el.appendChild(opt);
+    });
+    if (state.placementCompteId) el.value = state.placementCompteId;
+  });
+  garder(document.getElementById("placements-ops-compte"), (el) => {
+    el.innerHTML = `<option value="">${escapeHtml(t("Tous"))}</option>`;
+    placementsComptes.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.compte_id;
+      opt.textContent = c.compte_nom;
+      el.appendChild(opt);
+    });
+  });
+  garder(document.getElementById("placements-ops-titre"), (el) => {
+    el.innerHTML = `<option value="">${escapeHtml(t("Tous"))}</option>`;
+    const noms = new Map();
+    placementsTousLesMouvements().forEach((op) => noms.set(op.titre_id, op.titre_nom));
+    [...noms.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1], "fr"))
+      .forEach(([id, nom]) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = nom;
+        el.appendChild(opt);
+      });
+  });
+}
+
+function placementsMouvementPasseLeFiltre(op) {
+  const compte = document.getElementById("placements-ops-compte").value;
+  const sens = document.getElementById("placements-ops-sens").value;
+  const titre = document.getElementById("placements-ops-titre").value;
+  const periode = document.getElementById("placements-ops-periode").value;
+  if (compte && String(op.compte_id) !== compte) return false;
+  if (sens && op.sens !== sens) return false;
+  if (titre && String(op.titre_id) !== titre) return false;
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  if (periode === "annee" && op.date.slice(0, 4) !== aujourdhui.slice(0, 4)) return false;
+  if (periode === "mois" && op.date.slice(0, 7) !== aujourdhui.slice(0, 7)) return false;
+  return true;
+}
+
+function renderMouvementsTitres() {
+  const table = document.getElementById("placements-ops-table");
+  if (!table) return;
+  table.querySelectorAll("tbody").forEach((corps) => corps.remove());
+  const operations = placementsTousLesMouvements().filter(placementsMouvementPasseLeFiltre);
   if (operations.length === 0) {
-    body.innerHTML = `<tr><td colspan="7" class="hint">${t("Aucun mouvement.")}</td></tr>`;
+    const vide = document.createElement("tbody");
+    vide.className = "jour-groupe";
+    vide.innerHTML = `<tr><td colspan="7" class="hint">${t("Aucun mouvement.")}</td></tr>`;
+    table.appendChild(vide);
     return;
   }
+  // UN <tbody> PAR JOURNÉE, comme le tableau des opérations du noyau (cf. app.js, renderListeOperations) : la
+  // date, collée sous l'en-tête, reste bornée à sa journée.
+  let corps = null;
+  let jourCourant = null;
   operations.forEach((op) => {
+    if (op.date !== jourCourant) {
+      jourCourant = op.date;
+      corps = document.createElement("tbody");
+      corps.className = "jour-groupe";
+      corps.appendChild(ligneSeparatriceJour(op.date, 7));
+      table.appendChild(corps);
+    }
     const estAchat = op.sens === "achat";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${formatDate(op.date)}</td>
+      <td>${escapeHtml(op.compte_nom)}</td>
       <td><span class="badge-${estAchat ? "partiel" : "total"}">${estAchat ? "Achat" : "Vente"}</span></td>
       <td>${escapeHtml(op.titre_nom)}</td>
       <td>${formatQuantite(op.quantite)}</td>
@@ -929,16 +1091,16 @@ function renderMouvementsTitres(operations) {
         <button data-action="supprimer-mouvement" data-id="${op.id}" class="danger">${t("Supprimer")}</button>
       </td>
     `;
-    body.appendChild(tr);
+    corps.appendChild(tr);
   });
 
-  body.querySelectorAll("button[data-action='supprimer-mouvement']").forEach((btn) => {
+  table.querySelectorAll("button[data-action='supprimer-mouvement']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm(t("Supprimer ce mouvement ? Le solde du compte sera recalculé."))) return;
       try {
         await apiFetch(`/placements/operations/${btn.dataset.id}`, { method: "DELETE" });
         showMessage(t("Mouvement supprimé"), "success");
-        await loadPlacementDetail(state.placementCompteId);
+        await placementsRecharger();
         // Le titre peut repasser de « possédés » à « non possédés », ou l'inverse.
         await refreshTitres();
       } catch (err) {
@@ -948,9 +1110,16 @@ function renderMouvementsTitres(operations) {
   });
 }
 
+["placements-ops-compte", "placements-ops-sens", "placements-ops-titre", "placements-ops-periode"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", renderMouvementsTitres);
+});
+
+/** Ce que le compte choisi détient d'un titre : la borne d'une vente. */
 function quantiteDetenue(titreId) {
-  if (!placementDetail) return 0;
-  const detention = placementDetail.detentions.find((d) => d.titre_id === titreId);
+  const compteId = Number(document.getElementById("operation-titre-compte").value);
+  const detail = placementsDetails.find((d) => d.compte_id === compteId);
+  if (!detail) return 0;
+  const detention = detail.detentions.find((d) => d.titre_id === titreId);
   return detention ? detention.quantite : 0;
 }
 
@@ -1003,13 +1172,15 @@ document.querySelectorAll("#operation-titre-sens-boutons button").forEach((btn) 
   });
 });
 
-["operation-titre-titre", "operation-titre-quantite", "operation-titre-prix"].forEach((id) => {
+["operation-titre-compte", "operation-titre-titre", "operation-titre-quantite", "operation-titre-prix"].forEach((id) => {
   document.getElementById(id).addEventListener("input", majResumeOperationTitre);
 });
 
 document.getElementById("form-achat-vente").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!state.placementCompteId) return;
+  const compteId = Number(document.getElementById("operation-titre-compte").value);
+  if (!compteId) return;
+  state.placementCompteId = compteId;
   const payload = {
     titre_id: Number(document.getElementById("operation-titre-titre").value),
     sens: document.getElementById("operation-titre-sens").value,
@@ -1018,14 +1189,14 @@ document.getElementById("form-achat-vente").addEventListener("submit", async (e)
     date: document.getElementById("operation-titre-date").value,
   };
   try {
-    await apiFetch(`/placements/${state.placementCompteId}/operations`, {
+    await apiFetch(`/placements/${compteId}/operations`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
     showMessage(payload.sens === "achat" ? "Achat enregistré" : "Vente enregistrée", "success");
     document.getElementById("operation-titre-quantite").value = "";
     document.getElementById("operation-titre-prix").value = "";
-    await loadPlacementDetail(state.placementCompteId);
+    await placementsRecharger();
     // Un premier achat ou une vente qui solde la ligne change le bloc du titre dans
     // « Titres suivis » (possédés / non possédés).
     await refreshTitres();
@@ -1221,8 +1392,7 @@ async function ajouterTotauxPlacementsSurCartes() {
         '<img src="/img/magnifying_glass_logo.svg" alt="" width="16" height="16" />';
       lien.addEventListener("click", () => {
         state.placementCompteId = compte.compte_id;
-        vueTitres = false;
-        vueConfiguration = false;
+        placementsOnglet = "portefeuille";
         switchSection("comptes-globale", { sousSection: "comptes-globale-placements" });
       });
       carte.appendChild(lien);

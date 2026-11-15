@@ -608,3 +608,248 @@
 .ab-periode {
   margin: 0.4rem 0 1rem;
 }
+
+/* LA RANGÉE DU HAUT : les monnaies, le budget du mois puis la période à gauche, les cartes de
+   la période en petit à droite — qui commencent au niveau des monnaies. Elles étaient posées entre le budget et les graphiques, qu'il
+   fallait faire défiler pour voir ; sur cette rangée, les deux graphiques apparaissent dès
+   l'ouverture. Sous 1000 px de large, les cartes passent dessous. */
+.ab-haut {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 28rem);
+  gap: 1.2rem;
+  align-items: stretch;
+  margin-bottom: 0.6rem;
+}
+
+.ab-haut-gauche {
+  min-width: 0;
+}
+
+.ab-haut-gauche h3 {
+  margin-top: 0.4rem;
+}
+
+/* TROIS CARTES EMPILÉES (entrées, dépenses, les deux variations fusionnées), qui se partagent toute la
+   hauteur de la rangée : elle est celle de la colonne de gauche (période et budget du mois), les cartes
+   grandissent donc pour la remplir. Même classes que celles du dashboard (`.flux-carte`), donc même
+   infobulle et mêmes couleurs ; seules les mesures changent. */
+.flux-periode.ab-flux-compact {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+  align-self: stretch;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.ab-flux-compact .flux-carte {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.5rem 0.8rem;
+}
+
+/* Les cartes des totaux (entrées, dépenses) : le titre et la valeur CENTRÉS. */
+.ab-flux-compact .flux-carte:not(.flux-carte-variations) {
+  align-items: center;
+  text-align: center;
+}
+
+.ab-flux-compact .flux-label {
+  font-size: 0.66rem;
+  margin-bottom: 0.15rem;
+}
+
+.ab-flux-compact .flux-valeur {
+  font-size: 1.15rem;
+}
+
+/* LA CARTE DES VARIATIONS : deux moitiés, un filet au milieu pour les distinguer. */
+.ab-flux-compact .flux-carte-variations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  align-items: center;
+}
+
+.flux-variation-cote {
+  min-width: 0;
+}
+
+.flux-variation-cote + .flux-variation-cote {
+  margin-left: 0.8rem;
+  padding-left: 0.8rem;
+  border-left: 1px solid var(--border);
+}
+
+.ab-flux-compact .flux-carte-actions:not(:empty) {
+  margin-top: 0.25rem;
+}
+
+.ab-flux-compact .flux-carte-actions button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1000px) {
+  .ab-haut {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* LA PLAGE de la prévision avancée (± σ·√k), sous la courbe : translucide, sans contour, et qui ne
+   reçoit pas la souris (le survol du graphe en lit la position). */
+.ab-sp-plage {
+  fill: var(--accent-light);
+  fill-opacity: 0.16;
+  stroke: none;
+  pointer-events: none;
+}
+
+/* Le rythme sûr : le trait vert du dashboard, en pointillé. */
+.ab-sp-rythme {
+  fill: none;
+  stroke: var(--positif);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.ab-sp-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0.35rem 0 0.2rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.ab-sp-legende[hidden],
+.ab-sp-legende [hidden] {
+  display: none;
+}
+
+/* ---------- Le reste à vivre ---------- */
+
+.ab-rv {
+  margin-bottom: 1rem;
+}
+
+.ab-rv.dbr-alerte .ab-rv-alerte {
+  color: var(--badge-remboursable-text);
+}
+
+.ab-rv .dbr-reste-chiffres {
+  flex-wrap: wrap;
+}
+
+/* De quoi planifier : une grille de petites cartes, qui se serre sur un écran étroit. */
+.ab-rv-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.ab-rv-carte {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  min-width: 0;
+}
+
+.ab-rv-detail {
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* Les chiffres de la plage, en clair sous le graphe (hors infobulle). */
+.ab-sp-calcul {
+  margin: 0.4rem 0 0.2rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  font-size: 0.8rem;
+}
+
+.ab-sp-calcul[hidden] {
+  display: none;
+}
+
+.ab-sp-calcul-titre {
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+}
+
+.ab-sp-calcul-ligne {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ab-sp-calcul-ligne span {
+  color: var(--text-muted);
+}
+
+.ab-sp-calcul-formule {
+  margin-top: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+
+/* ---------- Le détail d'une catégorie parent (detail-categorie.js) ---------- */
+.abdc-periode {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.abdc-haut {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.abdc-jauge svg {
+  display: block;
+  max-width: 100%;
+}
+
+.abdc-composantes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 14rem;
+}
+
+.abdc-composante {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.88rem;
+}
+
+.abdc-composante-montant {
+  font-weight: 600;
+}
+
+.abdc-table {
+  width: 100%;
+}
+
+/* Une sous-catégorie, sous son parent : en retrait. */
+.ab-budget-enfant .ab-budget-nom {
+  padding-left: 1.6rem;
+}

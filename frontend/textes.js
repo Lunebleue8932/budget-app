@@ -122,7 +122,13 @@ const TEXTES = {
 
   /* ----- Le dashboard d'une page (cf. dashboard-avenir.js) ----- */
   "noyau.reste-periode":
-    "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là. Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.",
+    "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là, en tenant compte de ce que tu dépenses en moyenne (la courbe « Prévision »). Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.",
+  "noyau.decoupage-salaire":
+    "Un salaire reçu en fin de mois sert en réalité à vivre le mois suivant. Avec « Le salaire de fin de mois compte pour le mois suivant », une entrée prévue à partir du jour choisi (le dernier jour du mois par défaut) ne compte pas dans « Reste pour finir le mois » du dashboard : ni dans le reste, ni dans le point bas, ni dans la courbe. Le rythme sûr, lui, tient toujours compte de ce salaire : jusqu'à son arrivée, tu vis sur ce que tu as. // Par défaut, le calendrier fait foi : rien ne change.",
+  "noyau.seuil-securite":
+    "Le niveau sous lequel tu ne veux pas descendre (jamais négatif) : il se trace en pointillés jaunes sur la courbe de prévision du dashboard, et le rythme sûr se calcule dessus — ce que tu peux dépenser par jour sans passer sous ce seuil. À zéro (par défaut), il coïncide avec la droite blanche, celle du solde nul.",
+  "noyau.projete-depense-moyenne":
+    "Le « Projeté au … » du dashboard compte les prévisionnelles jusqu'à la fin du mois. Par défaut il n'y ajoute rien. Avec ce réglage, il retranche aussi ce que tu dépenses en moyenne par jour d'ici là (la même dépense moyenne que la courbe « Prévision » et la page Prévisions).",
   "noyau.depenses-periode":
     "Les entrées et les dépenses attribuées à la période, et leur différence. L'histogramme détaille les dépenses par catégorie. // Le camembert, la comparaison de périodes et les mois passés se trouvent dans la page Budget.",
   "noyau.repartition-des-avoirs":
@@ -232,6 +238,8 @@ const TEXTES = {
     "Leur date est passée et elles sont toujours prévisionnelles : la vraie ligne n'a pas encore été importée, ou n'a pas été reconnue. Tant qu'elles le restent, elles comptent dans ton solde projeté mais pas dans ton solde réel.",
   "analyse-budget.solde-previsionnel":
     "Où en sera le solde de tes comptes courants, jour après jour : le passé réel en trait plein, puis chaque échéance prévisionnelle à sa date, en pointillés. Le dernier point est le « Solde total » du dashboard à la même date.",
+  "analyse-budget.reste-a-vivre":
+    "Le bloc « Reste pour finir le mois » du dashboard, en plus détaillé : les mêmes chiffres, calculés de la même façon. -- LE POINT BAS est le plus bas par où ton solde passera, LE RYTHME SÛR ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée. -- DE QUOI PLANIFIER : ta dépense moyenne et son écart-type, la marge qu'ils laissent sur le rythme sûr, la fin de période et le point bas dans la plage (± σ·√k après k jours), et le jour où ton solde passerait sous zéro.",
   "analyse-budget.solde-previsionnel-avancee":
     "Ajoute à chaque jour ce que tu dépenses en moyenne, d'après tes dépenses passées. -- Les échéances déjà prévues ne sont pas touchées : la moyenne couvre le reste de la vie courante. -- Un loyer prévu ET présent dans l'historique serait compté deux fois : l'application te le signale, c'est toi qui décides.",
   "analyse-budget.solde-previsionnel-exclusions":
@@ -303,6 +311,8 @@ const TEXTES = {
     "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.",
   "noyau.categorie-entree":
     "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
+  "noyau.sous-categories":
+    "Range cette catégorie sous une autre (un seul niveau : une sous-catégorie n'a pas de sous-catégories). Elle hérite de la couleur de son parent — à la nuance près, que tu choisis — et de son emoji tant que tu ne lui en donnes pas un. Le dashboard continue d'afficher par catégorie parent ; la page Budget empile les sous-catégories dans la barre du parent. Pour le reste (opérations, règles, budgets, filtres), une sous-catégorie est une catégorie comme les autres.",
   "noyau.icone-categorie":
     "Un emoji affiché devant le nom de la catégorie dans les listes. Choisis-en un dans la grille, ou colle le tien. La pastille qui l'entoure a la couleur de la catégorie dans l'histogramme : elle est fixée à la création et ne se choisit pas ici.",
   "noyau.icone-compte":
@@ -1304,13 +1314,6 @@ Object.assign(TEXTES, {
     "L'app ne trouve aucun Preset adapté à la lecture du fichier. Veux-tu en créer un nouveau ?",
   "noyau.guide-import-preset":
     "Ton fichier ne ressemble pas à ce que lit le preset sélectionné. Réponds au pop-up : /bold(Oui) change de preset (ou en crée un), /bold(Non) garde le tien. Rien n'est importé pour autant.",
-});
-/* ----- L'étape 3bis de l'import : les virements internes (branche import-virements, 2026-10-21) ----- */
-Object.assign(TEXTES, {
-  "noyau.import-virements-internes":
-    "Ces lignes sont des virements entre tes propres comptes, mais ton relevé n'en montre qu'un côté. Pour chacune, choisis l'autre compte : celui qui reçoit l'argent quand ce compte l'envoie, celui qui l'envoie quand ce compte le reçoit. L'application propose le compte de tes virements précédents au même libellé : rien n'est retenu sans ta confirmation. // /bold(Plus tard) laisse ces lignes en attente : l'import reste bloqué tant qu'il leur manque un compte.",
-  "noyau.guide-import-virements":
-    "Ton relevé ne montre qu'un côté de chaque virement interne. Sur chaque carte, choisis l'autre compte du virement (ou crée-le dans l'encadré violet), puis confirme.",
 });
 /* ----- Les indices, « Calquer sur un indice » et « Gestion des fonds » (2026-10-24) ----- */
 Object.assign(TEXTES, {

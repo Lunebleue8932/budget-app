@@ -113,7 +113,7 @@ def listes(
     aujourdhui: Optional[date_type] = None,
 ) -> dict:
     aujourdhui = aujourdhui or date_type.today()
-    horizon = soldes.horizon_reste(vue, aujourdhui)
+    horizon = soldes.horizon_reste(vue, aujourdhui, soldes.lire_decoupage_salaire(db))
     prochaines, total = prochaines_previsionnelles(db, monnaie_id, aujourdhui, horizon)
     return {
         "horizon": horizon,

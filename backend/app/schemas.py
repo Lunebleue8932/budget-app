@@ -163,6 +163,19 @@ class CompteRead(CompteBase):
     couleur_index: Optional[int] = None
 
 
+class CategorieParentUpdate(BaseModel):
+    """Le rangement d'une catégorie (migration 0103) : l'identifiant de son parent, ou null pour la remonter au
+    premier niveau. Une route à part, comme les autres réglages d'une catégorie."""
+
+    parent_id: Optional[int] = None
+
+
+class CategorieNuanceUpdate(BaseModel):
+    """La nuance d'une sous-catégorie dans la couleur de son parent (null = la première libre)."""
+
+    couleur_nuance: Optional[int] = None
+
+
 class CategorieIconeUpdate(BaseModel):
     """L'icône d'une catégorie (migration 0101) : un emoji, ou null pour la retirer. Une route à part
     comme le reste des réglages d'une catégorie (`CategorieUpdate` ne fait que renommer)."""
@@ -174,6 +187,8 @@ class CategorieIconeUpdate(BaseModel):
 
 class CategorieCreate(BaseModel):
     nom: str = Field(min_length=1)
+    # Une SOUS-CATÉGORIE de celle-ci (migration 0103) ; None = catégorie de premier niveau.
+    parent_id: Optional[int] = None
 
 
 class CategorieUpdate(BaseModel):
@@ -198,6 +213,10 @@ class CategorieRead(BaseModel):
     couleur_index: int = 0
     # L'icône choisie à la main (cf. models.Categorie.icone, migration 0101) ; NULL = aucune.
     icone: Optional[str] = None
+    # SOUS-CATÉGORIES (migration 0103) : l'identifiant du parent (None pour une catégorie de premier niveau) et
+    # la nuance de l'enfant dans la couleur de son parent (None = la première libre).
+    parent_id: Optional[int] = None
+    couleur_nuance: Optional[int] = None
     # OBJECTIF DE RÉPARTITION en % des dépenses de la période, 0 = aucun (cf.
     # models.Categorie.objectif_pourcentage). Rien du serveur ne le compare à
     # quoi que ce soit : c'est le camembert du dashboard qui le pose à côté de
@@ -756,8 +775,31 @@ class DepenseTopRead(BaseModel):
     nombre: int = 1
 
 
+class ComposanteCategorie(BaseModel):
+    """Une COMPOSANTE de la barre d'une catégorie parent (migration 0103) : la catégorie parent elle-même (les
+    dépenses rangées directement sous elle, `direct`) ou l'une de ses sous-catégories. La page Budget les empile
+    dans la barre du parent ; le dashboard, lui, ne lit que la barre."""
+
+    categorie_id: Optional[int] = None
+    categorie: str
+    direct: bool = False
+    total_reel: float = 0.0
+    total_previsionnel: float = 0.0
+    budget_alloue: float = 0.0
+    couleur_index: int = 0
+    # Le rang dans la famille de nuances du parent (None pour le parent lui-même).
+    couleur_nuance: Optional[int] = None
+    icone: Optional[str] = None
+
+
 class DepenseParCategorie(BaseModel):
     categorie: str
+    # L'identifiant de la catégorie (None pour une barre qui n'en est pas une : frais, intérêts) et son emoji
+    # EFFECTIF — celui de son parent quand une sous-catégorie n'a pas le sien (migration 0103).
+    categorie_id: Optional[int] = None
+    icone: Optional[str] = None
+    # Les composantes de la barre d'un PARENT qui a des sous-catégories actives sur la période ; vide sinon.
+    composantes: list[ComposanteCategorie] = Field(default_factory=list)
     total_reel: float
     total_previsionnel: float
     budget_alloue: float
@@ -878,7 +920,11 @@ class RestePeriodeRead(BaseModel):
     horizon: date_type
     solde_actuel: float = 0.0
     entrees_prevues: float = 0.0
+    # Ce que le réglage « le salaire de fin de mois vit le mois suivant » a écarté (0 par défaut).
+    entrees_reportees: float = 0.0
     sorties_prevues: float = 0.0
+    # Ce qui est déjà sorti des comptes courants depuis le début de la période (cf. services/soldes).
+    sorties_reelles: float = 0.0
     reste_libre: float = 0.0
     point_bas: PointBasRead
     prochaine_entree: Optional[ProchaineEntreeRead] = None
@@ -900,6 +946,20 @@ class PointCourbeResteRead(BaseModel):
     solde: float
     montant: Optional[float] = None
     libelle: Optional[str] = None
+    # Seulement sur la courbe de prévision : la demi-largeur de la plage (± un écart-type).
+    ecart: Optional[float] = None
+
+
+class EstimationDepensesRead(BaseModel):
+    """Ce qui a produit la courbe de prévision : la dépense moyenne et son écart-type, par jour et par
+    semaine, sur une fenêtre d'historique de `jours` jours (cf. services/moyenne_depenses)."""
+
+    cadence: str = "jour"
+    moyenne_jour: float = 0.0
+    moyenne_semaine: float = 0.0
+    ecart_type_jour: float = 0.0
+    ecart_type_semaine: float = 0.0
+    jours: int = 0
 
 
 class CourbeResteRead(BaseModel):
@@ -910,6 +970,11 @@ class CourbeResteRead(BaseModel):
     horizon: date_type
     reels: list[PointCourbeResteRead] = Field(default_factory=list)
     projetes: list[PointCourbeResteRead] = Field(default_factory=list)
+    # Les deux estimations (cf. services/soldes.courbe_reste) : le projeté moins la dépense moyenne,
+    # et le projeté moins le rythme sûr jusqu'à la prochaine entrée.
+    prevision: list[PointCourbeResteRead] = Field(default_factory=list)
+    rythme: list[PointCourbeResteRead] = Field(default_factory=list)
+    estimation: Optional[EstimationDepensesRead] = None
 
 
 class LigneListeDashboardRead(BaseModel):

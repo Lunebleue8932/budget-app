@@ -11,6 +11,7 @@ from . import models, schemas
 from .constants import (
     id_colonne_dummy_regle,
     COULEUR_INDEX_ENTREE,
+    NB_NUANCES_CATEGORIE,
     COULEUR_INDEX_VIREMENT,
     CATEGORIE_AUTRES,
     CATEGORIE_ENTREES_ARGENT,
@@ -296,7 +297,14 @@ def _prochain_couleur_index(db: Session) -> int:
     retrouver de la même couleur alors que la palette avait de la place. Le plus
     petit index libre garantit qu'une couleur n'est reprise QUE si celle qui la
     portait a disparu — la règle que cette colonne existe pour tenir."""
-    pris = {index for (index,) in db.query(models.Categorie.couleur_index).all()}
+    # Une sous-catégorie PARTAGE l'index de son parent (elle n'en occupe pas un de plus : sa couleur est une
+    # nuance de celle du parent, cf. migration 0103).
+    pris = {
+        index
+        for (index,) in db.query(models.Categorie.couleur_index).filter(
+            models.Categorie.parent_id.is_(None)
+        )
+    }
     index = 0
     while index in pris:
         index += 1
@@ -345,17 +353,180 @@ def poser_categories_par_defaut_base_neuve(db: Session) -> list[str]:
     return ajoutees
 
 
+def erreur_parent_categorie(
+    db: Session, db_categorie: Optional[models.Categorie], parent_id: Optional[int]
+) -> Optional[str]:
+    """Le message d'erreur si ce parent est refusé, None sinon. `db_categorie` est None à la CRÉATION.
+
+    LES RÈGLES, ET RIEN D'AUTRE : un parent a plusieurs enfants et pas de parent ; un enfant n'a qu'un parent et
+    pas d'enfants — UN SEUL NIVEAU. D'où : pas soi-même pour parent, pas un parent qui a déjà un parent, pas
+    une catégorie qui porte des enfants pour enfant. Ni la catégorie des virements internes (elle n'a ni barre
+    ni budget) ni une catégorie d'un autre sens (une catégorie d'entrée ne se range que sous une catégorie
+    d'entrée) ne font de parent ou d'enfant."""
+    if parent_id is None:
+        return None
+    parent = get_categorie(db, parent_id)
+    if parent is None:
+        return "La catégorie parente n'existe pas."
+    if db_categorie is not None and parent.id == db_categorie.id:
+        return "Une catégorie ne peut pas être sa propre sous-catégorie."
+    if parent.parent_id is not None:
+        return f"« {parent.nom} » est déjà une sous-catégorie : il n'y a qu'un niveau de sous-catégories."
+    if parent.est_virement or (db_categorie is not None and db_categorie.est_virement):
+        return "La catégorie des virements internes n'a pas de sous-catégories."
+    if db_categorie is not None:
+        if db.query(models.Categorie).filter(models.Categorie.parent_id == db_categorie.id).first():
+            return f"« {db_categorie.nom} » porte déjà des sous-catégories : elle ne peut pas en devenir une."
+        if bool(db_categorie.est_entree) != bool(parent.est_entree):
+            return "Une catégorie d'entrée ne se range que sous une catégorie d'entrée (et inversement)."
+    return None
+
+
+def _nuance_libre(db: Session, parent_id: int, sauf_id: Optional[int] = None) -> int:
+    """La première nuance de la famille du parent que ses autres enfants n'occupent pas (0 si tout est pris :
+    on ne bloque pas une création, l'utilisateur ajuste)."""
+    requete = db.query(models.Categorie.couleur_nuance).filter(models.Categorie.parent_id == parent_id)
+    if sauf_id is not None:
+        requete = requete.filter(models.Categorie.id != sauf_id)
+    prises = {n for (n,) in requete if n is not None}
+    for nuance in range(NB_NUANCES_CATEGORIE):
+        if nuance not in prises:
+            return nuance
+    return 0
+
+
 def create_categorie(db: Session, categorie: schemas.CategorieCreate) -> models.Categorie:
     ordre_max = db.query(func.max(models.Categorie.ordre)).scalar() or 0
+    parent = get_categorie(db, categorie.parent_id) if categorie.parent_id else None
     db_categorie = models.Categorie(
         nom=categorie.nom,
         ordre=ordre_max + 1,
-        couleur_index=_prochain_couleur_index(db),
+        # UNE SOUS-CATÉGORIE HÉRITE de la teinte et du sens de son parent, et prend la première nuance libre.
+        couleur_index=parent.couleur_index if parent else _prochain_couleur_index(db),
+        parent_id=parent.id if parent else None,
+        est_entree=bool(parent.est_entree) if parent else False,
     )
     db.add(db_categorie)
+    db.flush()
+    if parent:
+        db_categorie.couleur_nuance = _nuance_libre(db, parent.id, sauf_id=db_categorie.id)
     db.commit()
     db.refresh(db_categorie)
     return db_categorie
+
+
+def set_categorie_parent(
+    db: Session, db_categorie: models.Categorie, parent_id: Optional[int]
+) -> models.Categorie:
+    """Range une catégorie sous un parent, ou la remonte au premier niveau avec None.
+
+    RANGÉE, elle prend la teinte du parent et la première nuance libre. REMONTÉE, elle reprend le plus petit
+    index de palette libre (comme une catégorie neuve) et perd sa nuance : sa couleur redevient la sienne. Les
+    opérations, règles et budgets d'une catégorie ne bougent jamais — seul son rangement change."""
+    parent = get_categorie(db, parent_id) if parent_id else None
+    db_categorie.parent_id = parent.id if parent else None
+    if parent:
+        db_categorie.couleur_index = parent.couleur_index
+        db_categorie.couleur_nuance = _nuance_libre(db, parent.id, sauf_id=db_categorie.id)
+    else:
+        db_categorie.couleur_nuance = None
+        db.flush()
+        db_categorie.couleur_index = (
+            COULEUR_INDEX_ENTREE if db_categorie.est_entree else _prochain_couleur_index(db)
+        )
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
+def erreur_nuance_categorie(
+    db: Session, db_categorie: models.Categorie, nuance: Optional[int]
+) -> Optional[str]:
+    """Le message d'erreur si cette nuance est refusée : seule une sous-catégorie en a une, dans les bornes de
+    la famille, et que SES FRÈRES n'occupent pas (deux sous-catégories d'un même parent ne se confondent pas)."""
+    if nuance is None:
+        return None
+    if db_categorie.parent_id is None:
+        return "Seule une sous-catégorie a une nuance : sa couleur est celle de son parent."
+    if nuance < 0 or nuance >= NB_NUANCES_CATEGORIE:
+        return f"La nuance doit être comprise entre 0 et {NB_NUANCES_CATEGORIE - 1}."
+    frere = (
+        db.query(models.Categorie)
+        .filter(
+            models.Categorie.parent_id == db_categorie.parent_id,
+            models.Categorie.id != db_categorie.id,
+            models.Categorie.couleur_nuance == nuance,
+        )
+        .first()
+    )
+    if frere is not None:
+        return f"Cette nuance est déjà celle de « {frere.nom} » : choisis-en une autre."
+    return None
+
+
+def set_categorie_nuance(
+    db: Session, db_categorie: models.Categorie, nuance: Optional[int]
+) -> models.Categorie:
+    db_categorie.couleur_nuance = (
+        nuance if nuance is not None else _nuance_libre(db, db_categorie.parent_id, db_categorie.id)
+    )
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
+def enfants_de(db: Session, categorie_id: int) -> list[models.Categorie]:
+    return (
+        db.query(models.Categorie)
+        .filter(models.Categorie.parent_id == categorie_id)
+        .order_by(models.Categorie.ordre)
+        .all()
+    )
+
+
+def erreur_budget_sous_categories(
+    db: Session,
+    db_categorie: models.Categorie,
+    annee: int,
+    mois: int,
+    monnaie_id: int,
+    montant: float,
+) -> Optional[str]:
+    """Le message d'erreur si ce budget fait passer les sous-catégories AU-DESSUS de leur parent, None sinon.
+
+    LA SOMME DES BUDGETS DES SOUS-CATÉGORIES EST INFÉRIEURE OU ÉGALE à celui du parent — jamais une égalité
+    forcée : on peut encore ranger une dépense dans la catégorie parent elle-même, et le reste de son budget
+    est pour elle. Vérifié sur les valeurs EN VIGUEUR ce mois-là (héritage compris), des deux côtés : poser
+    un budget d'enfant qui dépasse le parent, ET baisser le parent sous la somme de ses enfants."""
+    tolerance = 1e-6
+    if db_categorie.parent_id is not None:
+        parent = db_categorie.parent
+        budget_parent = get_budget_categorie(db, parent.id, annee, mois, monnaie_id)
+        freres = sum(
+            get_budget_categorie(db, f.id, annee, mois, monnaie_id)
+            for f in enfants_de(db, parent.id)
+            if f.id != db_categorie.id
+        )
+        if montant > 0 and freres + montant > budget_parent + tolerance:
+            if budget_parent <= tolerance:
+                return (
+                    f"« {parent.nom} » n'a pas de budget ce mois-ci : pose-le d'abord, "
+                    "celui d'une sous-catégorie s'y inscrit."
+                )
+            return (
+                f"La somme des budgets des sous-catégories de « {parent.nom} » ({freres + montant:.2f}) "
+                f"dépasserait le sien ({budget_parent:.2f})."
+            )
+        return None
+    enfants = enfants_de(db, db_categorie.id)
+    if enfants:
+        somme = sum(get_budget_categorie(db, e.id, annee, mois, monnaie_id) for e in enfants)
+        if somme > montant + tolerance:
+            return (
+                f"Ses sous-catégories ont déjà {somme:.2f} de budget : celui de « {db_categorie.nom} » "
+                "ne peut pas descendre en dessous."
+            )
+    return None
 
 
 def erreur_objectif_pourcentage(
@@ -818,6 +989,14 @@ def set_categorie_est_entree(
 
 
 def delete_categorie(db: Session, db_categorie: models.Categorie) -> None:
+    # SES SOUS-CATÉGORIES SONT LIBÉRÉES, jamais emportées : elles remontent au premier niveau, avec une
+    # couleur à elles (cf. set_categorie_parent).
+    for enfant in enfants_de(db, db_categorie.id):
+        enfant.parent_id = None
+        enfant.couleur_nuance = None
+        db.flush()
+        enfant.couleur_index = _prochain_couleur_index(db)
+        db.flush()
     db.delete(db_categorie)
     db.commit()
 
@@ -2817,6 +2996,7 @@ def create_titre(
     if classe_actif_id:
         # Une classe unique est une répartition à 100 % (migration 0076).
         poser_repartition(db, titre, AxeTitre.classe.value, [(classe_actif_id, 100.0)])
+    noter_cours_du_titre(db, titre.id, date_type.today(), valeur, "manuel")
     db.commit()
     db.refresh(titre)
     return titre
@@ -2850,6 +3030,9 @@ def update_titre(
     if nom_affichage is not None:
         titre.nom_affichage = nom_affichage.strip() or None
     if valeur is not None:
+        # Un cours saisi à la main : le dernier connu change, et l'historique en garde la trace du jour.
+        if valeur != titre.valeur:
+            noter_cours_du_titre(db, titre.id, date_type.today(), valeur, "manuel")
         titre.valeur = valeur
     if monnaie_id is not None:
         titre.monnaie_id = monnaie_id
@@ -2920,9 +3103,52 @@ def enregistrer_cours_en_ligne(
     """
     titre.valeur = valeur
     titre.cours_maj_le = horodatage
+    noter_cours_du_titre(db, titre.id, horodatage.date(), valeur, "en_ligne")
     db.commit()
     db.refresh(titre)
     return titre
+
+
+def noter_cours_du_titre(
+    db: Session, titre_id: int, jour: date_type, valeur: float, source: str
+) -> None:
+    """Range le cours d'UN JOUR dans l'historique (`cours_titre`, migration 0102) : la paire (titre,
+    date) porte une seule valeur, relire le même jour la remplace. Ne commit pas : l'appelant écrit
+    souvent le dernier cours dans la même transaction. Un cours nul n'est pas un cours (c'est la
+    valeur d'un titre jamais coté) : il n'entre pas dans l'historique."""
+    if not valeur or valeur <= 0:
+        return
+    ligne = (
+        db.query(models.CoursTitre)
+        .filter(models.CoursTitre.titre_id == titre_id, models.CoursTitre.date == jour)
+        .first()
+    )
+    if ligne is None:
+        db.add(models.CoursTitre(titre_id=titre_id, date=jour, valeur=valeur, source=source))
+    else:
+        ligne.valeur = valeur
+        ligne.source = source
+
+
+def enregistrer_historique_cours(
+    db: Session, titre_id: int, points: list[tuple[date_type, float]], source: str = "historique"
+) -> int:
+    """Range une série de cours passés lus sur une page de cotation. Les jours déjà connus par une
+    lecture du jour ou une saisie à la main ne sont PAS écrasés : l'historique complète, il ne corrige
+    pas ce qu'on a vu ou saisi soi-même. Rend le nombre de jours ajoutés."""
+    existants = {
+        jour
+        for (jour,) in db.query(models.CoursTitre.date).filter(models.CoursTitre.titre_id == titre_id)
+    }
+    ajoutes = 0
+    for jour, valeur in points:
+        if jour in existants or not valeur or valeur <= 0:
+            continue
+        db.add(models.CoursTitre(titre_id=titre_id, date=jour, valeur=valeur, source=source))
+        existants.add(jour)
+        ajoutes += 1
+    db.commit()
+    return ajoutes
 
 
 def etf_qui_citent(db: Session, titre: models.TitrePossede) -> list[models.TitrePossede]:
@@ -4681,4 +4907,10 @@ def set_preference_interface(db: Session, cle: str, valeur):
     else:
         ligne.valeur = valeur
     db.commit()
+    # Le réglage du mois salarial est LU PAR TOUS LES FILTRES DE PÉRIODE (cf. soldes.bornes_periode) :
+    # on le rend partagé dès qu'il change.
+    from .services import soldes as _soldes
+
+    if cle == _soldes.CLE_DECOUPAGE_SALAIRE:
+        _soldes.rafraichir_jour_salaire(db)
     return ligne.valeur

@@ -283,7 +283,9 @@ def test_un_solde_negatif_met_le_rythme_a_zero_et_leve_l_alerte(db_session, comp
     assert reste["solde_actuel"] == pytest.approx(-200.0)
     assert reste["rythme_sur"] == 0.0
     assert reste["alerte"] is True
-    assert reste["point_bas"]["montant"] == pytest.approx(-200.0)
+    # Le point bas se calcule sur la PRÉVISION (le projeté moins la dépense moyenne) : il ne peut pas être
+    # plus haut que le solde d'aujourd'hui.
+    assert reste["point_bas"]["montant"] <= -200.0 + 1e-6
     assert reste["reste_libre"] == pytest.approx(1700.0)
 
 
@@ -391,8 +393,9 @@ def test_la_courbe_finit_sur_le_reste_libre(db_session, comptes):
     assert courbe["horizon"] == FIN_NOVEMBRE
     assert courbe["projetes"][-1]["solde"] == pytest.approx(reste["reste_libre"])
     assert courbe["reels"][-1] == {"date": AUJOURDHUI, "solde": pytest.approx(reste["solde_actuel"])}
-    # Le plus bas de la courbe est le point bas annoncé.
-    assert min(p["solde"] for p in courbe["projetes"]) == pytest.approx(reste["point_bas"]["montant"])
+    # Le plus bas de la courbe « prévision » (le projeté moins la dépense moyenne) est le point bas annoncé.
+    futur = [p for p in courbe["prevision"] if p["date"] >= AUJOURDHUI]
+    assert min(p["solde"] for p in futur) == pytest.approx(reste["point_bas"]["montant"])
 
 
 def test_le_passe_de_la_courbe_ne_compte_que_le_reel(db_session, comptes):

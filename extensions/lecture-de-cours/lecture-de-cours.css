@@ -9,13 +9,14 @@
  * une valeur recopiée ici cesserait de le suivre au premier ajustement.
  */
 
-/* La barre de mise à jour, sous le titre de la page. */
+/* La colonne des cours, à droite du titre de la page : les deux boutons l'un sous l'autre, puis le compte
+   rendu de la dernière lecture, alignés au bord droit. */
 .pw-barre {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin: 0 0 1.25rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  margin-left: auto;
 }
 
 /* Le compte rendu ne pousse pas la mise en page quand il s'allonge. */

@@ -582,3 +582,69 @@ def lire_cours(url: str) -> Cours:
     """Le cours publié par cette page, ou `CoursIllisible` avec le pourquoi."""
     url = _verifier_url(url)
     return source_de(url)["lire"](url)
+
+
+# ---------- L'historique des cours ----------
+#
+# LES ANCIENNES VALEURS, « SI POSSIBLE ». Seule Yahoo les publie sous une forme qu'on sache lire sans
+# deviner : la même API de graphique que pour le cours du jour, avec une période plus longue. Google
+# Finance et Boursorama n'écrivent leur courbe que dans du JavaScript qui change sans prévenir, et le
+# balisage schema.org ne porte jamais qu'un prix : pour ces sources l'historique n'est PAS lisible, et on
+# le dit (`CoursIllisible`) plutôt que d'inventer une courbe. Le cours du jour, lui, continue de s'écrire
+# jour après jour à chaque relecture (cf. crud.noter_cours_du_titre) : l'historique se construit alors
+# tout seul.
+
+
+@dataclass(frozen=True)
+class HistoriqueCours:
+    """Une série de cours de clôture : `points` = [(date, valeur)], du plus ancien au plus récent."""
+
+    points: list
+    devise: Optional[str] = None
+    source: str = ""
+
+
+def lire_historique(url: str, periode: str = "5y") -> HistoriqueCours:
+    """Les cours de clôture passés que la page de cotation publie, ou `CoursIllisible` avec le pourquoi.
+
+    `periode` : l'écriture de Yahoo (`1y`, `5y`, `10y`, `max`)."""
+    from datetime import datetime, timedelta, timezone
+
+    url = _verifier_url(url)
+    source = source_de(url)
+    if source["id"] != "yahoo":
+        raise CoursIllisible(
+            f"{source['nom']} ne publie pas ses anciens cours sous une forme lisible : l'historique "
+            "ne se récupère que depuis une page Yahoo Finance. Le cours du jour, lui, s'enregistre "
+            "à chaque mise à jour."
+        )
+    symbole = _symbole_du_chemin(url)
+    if not symbole or symbole in ("quote", "quotes"):
+        raise CoursIllisible(
+            "Lien Yahoo incomplet : il doit désigner un titre, par exemple "
+            "https://finance.yahoo.com/quote/AI.PA"
+        )
+    brut = telecharger(
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbole}"
+        f"?range={periode}&interval=1d"
+    )
+    try:
+        resultat = json.loads(brut)["chart"]["result"][0]
+        horodatages = resultat["timestamp"]
+        clotures = resultat["indicators"]["quote"][0]["close"]
+        meta = resultat.get("meta", {})
+    except (json.JSONDecodeError, KeyError, TypeError, IndexError) as exc:
+        raise CoursIllisible(
+            f"Yahoo ne publie pas d'historique pour « {symbole} » (ou a changé de format)"
+        ) from exc
+
+    decalage = timedelta(seconds=int(meta.get("gmtoffset") or 0))
+    points = []
+    for horodatage, cloture in zip(horodatages, clotures):
+        if cloture is None or cloture <= 0:
+            continue  # Yahoo laisse des trous (jour férié local) : un trou n'est pas un cours nul
+        jour = (datetime.fromtimestamp(horodatage, tz=timezone.utc) + decalage).date()
+        points.append((jour, float(cloture)))
+    if not points:
+        raise CoursIllisible(f"Yahoo ne rend aucun cours passé pour « {symbole} »")
+    return HistoriqueCours(points=points, devise=meta.get("currency"), source="yahoo")

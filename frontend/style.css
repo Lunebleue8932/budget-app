@@ -442,15 +442,6 @@ header h1 {
    IL NE RESSEMBLE PAS À UN ONGLET, délibérément : pas de fond au repos, un
    texte discret et une flèche qui dit qu'on quitte l'application. */
 .barre-feedback {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.7rem;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  text-decoration: none;
   transition: color 0.15s, background 0.15s;
 }
 
@@ -462,11 +453,87 @@ header h1 {
   font-size: 0.9em;
 }
 
-.barre-feedback:hover,
-.barre-feedback:focus-visible {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+
+/* LES TROIS BOUTONS DU BAS DE LA BARRE : Mindmap (gris), Découvrir l'app (bleu), Feedback (violet). Une
+   seule forme — un cadre, un texte en gras —, trois couleurs. `margin-top: auto` pousse le groupe au pied
+   de la colonne ; le retour garde sa flèche « ↗ » de lien sortant. */
+.barre-bas {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.barre-bouton {
+  --barre-couleur: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--barre-couleur);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--barre-couleur) 10%, transparent);
+  color: var(--barre-couleur);
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.barre-bouton:hover,
+.barre-bouton:focus-visible {
+  background: color-mix(in srgb, var(--barre-couleur) 20%, transparent);
+  color: var(--barre-couleur);
   outline: none;
+}
+
+.barre-mindmap {
+  --barre-couleur: var(--text-muted);
+}
+
+.barre-decouvrir {
+  --barre-couleur: var(--accent-light);
+}
+
+.barre-feedback {
+  --barre-couleur: var(--violet-creer);
+}
+
+/* Les fenêtres du bas de la barre. */
+.modale.modale-decouvrir {
+  max-width: 22rem;
+}
+
+.modale-decouvrir .epargne-entete {
+  margin-bottom: 0.9rem;
+}
+
+/* L'adresse du lien extérieur, en toutes lettres : monospace, qui se coupe où il faut. */
+.modale-lien-externe {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-alt);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--violet-creer);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.modale.modale-mindmap {
+  max-width: min(1180px, 96vw);
+}
+
+.modale-mindmap .plan-app {
+  max-height: 72vh;
 }
 
 /* LE POP-UP DE L'IMPORT, sous la dernière page : une carte discrète, à l'accent de
@@ -665,11 +732,16 @@ main {
     border-bottom: none;
   }
 
-  /* En rangée, « tout en bas » ne veut plus rien dire : le lien reprend
-     simplement sa place au bout de la ligne. */
-  .barre-feedback {
+  /* En rangée, « tout en bas » ne veut plus rien dire : les trois boutons du bas reprennent
+     simplement leur place au bout de la ligne. */
+  .barre-bas {
     margin-top: 0;
     margin-left: auto;
+    flex-direction: row;
+  }
+
+  .barre-bouton {
+    width: auto;
   }
 }
 
@@ -869,6 +941,8 @@ h4 {
    force à la règle d'à côté est une couleur que quelqu'un finira par reperdre
    en ajoutant une troisième règle. */
 .flux-valeur-brute {
+  /* L'EXCEPTION : la variation brute reste en jaune, fixe — elle ne prononce aucun jugement (cf. app.js). Les
+     autres différences, entrées, dépenses et plus-values se colorent (vert / orange, signe compris). */
   color: var(--badge-remboursable-text);
 }
 
@@ -1115,12 +1189,14 @@ tr.negatif {
   white-space: nowrap;
 }
 
-.montant.entree { color: var(--positif); }
-/* UNE DÉPENSE EST ORANGE : le gris était trop discret pour se distinguer d'un
-   montant neutre. Le vert des entrées et cet orange disent la direction ; le
-   rouge reste réservé à ce qui demande vraiment un regard (un dépassement, un
-   solde négatif). */
-.montant.sortie { color: var(--depense); }
+/* SEUL LE SIGNE EST COLORÉ, le chiffre reste de la couleur du texte : le vert
+   (entrée) et l'orange (sortie) disent la direction sans teinter tout le
+   tableau ; le rouge reste réservé à ce qui demande vraiment un regard (un
+   dépassement, un solde négatif). `montantHtml` pose le signe dans `.montant-signe`. */
+.montant.entree,
+.montant.sortie { color: var(--text-primary); }
+.montant.entree .montant-signe { color: var(--positif); }
+.montant.sortie .montant-signe { color: var(--depense); }
 .montant.neutre { color: var(--text-secondary); }
 
 /* Liseré latéral : état de règlement d'une dépense remboursable / d'un prêt
@@ -1351,6 +1427,40 @@ select option.option-creer {
   line-height: 1;
   background: color-mix(in srgb, var(--puce) 22%, transparent);
   box-shadow: inset 0 0 0 1.5px var(--puce);
+}
+
+/* UNE CATÉGORIE SANS PUCE : son nom souligné à sa couleur (cf. categorieSouligneeHtml). */
+.categorie-soulignee {
+  --puce: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--puce);
+  text-decoration-thickness: 2px;
+  /* UN TRAIT UNIQUE, TOUJOURS SOUS LES LETTRES : sans `skip-ink: none` le navigateur coupe le trait autour
+     des jambages (g, p, y, q) et le souligné se lit en morceaux ; le décalage le garde sous leur pied. */
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.3em;
+}
+
+/* LA PAGE OPÉRATIONS : la bande de la catégorie à gauche de la ligne (même forme que le liseré des
+   remboursements et des prêts, dont elle se range juste à côté), puis son emoji avant le nom. */
+.table-operations tr.avec-categorie td:first-child {
+  box-shadow: inset 4px 0 0 var(--cat);
+}
+
+.table-operations tr.avec-categorie.tr-aucun td:first-child {
+  box-shadow: inset 4px 0 0 var(--cat), inset 8px 0 0 var(--badge-remboursable-text);
+}
+
+.table-operations tr.avec-categorie.tr-partiel td:first-child {
+  box-shadow: inset 4px 0 0 var(--cat), inset 8px 0 0 var(--badge-pret-text);
+}
+
+.table-operations tr.avec-categorie.tr-total td:first-child {
+  box-shadow: inset 4px 0 0 var(--cat), inset 8px 0 0 var(--badge-ok-text);
+}
+
+.table-operations tr.avec-categorie td:first-child {
+  padding-left: 1rem;
 }
 
 /* LE CHAMP « ICÔNE » DES FORMULAIRES */
@@ -2506,6 +2616,12 @@ form .operation-cases input[type="checkbox"] {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.1s ease-out, visibility 0.1s;
+}
+
+/* L'infobulle des barres du dashboard n'est pas confinée à son encadré : elle se place dans la fenêtre. */
+.histo-bulle.histo-bulle-libre {
+  position: fixed;
+  z-index: 200;
 }
 
 .histo-bulle.visible {
@@ -5093,40 +5209,32 @@ a.lien-chemin:hover {
   padding: 0.25rem 0.3rem;
 }
 
-/* La transition porte sur la largeur seule : le champ garde son padding, donc
-   sa hauteur, et la barre de navigation ne tressaute pas à l'ouverture. */
+/* LE CHAMP DE LA BARRE N'EST PLUS UN CHAMP DE SAISIE : en lecture seule, toujours visible, il ouvre la
+   fenêtre de recherche (cf. recherche-globale.js) au clic. D'où le curseur « main » et l'absence de
+   caret. */
 .recherche input {
-  width: 0;
-  padding: 0.35rem 0;
-  border: 1px solid transparent;
+  flex: 1 1 6rem;
+  width: auto;
+  min-width: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-surface-alt);
   color: var(--text-primary);
   font-family: inherit;
   font-size: 0.85rem;
-  transition: width 0.15s ease-out, padding 0.15s ease-out;
+  cursor: pointer;
+  caret-color: transparent;
 }
 
+.recherche input:hover,
 .recherche input:focus {
   outline: none;
-}
-
-/* OUVERT, LE CHAMP PREND CE QUI RESTE DE LA LIGNE plutôt qu'une largeur fixe :
-   dans la barre latérale il s'arrête au bord de la colonne, et sur la rangée du
-   haut des écrans étroits il garde la largeur qu'il avait. `min-width` est ce
-   qui l'empêche de se réduire à rien quand les chevrons apparaissent. */
-.recherche.recherche-ouverte input,
-.recherche input:focus {
-  flex: 1 1 8rem;
-  width: auto;
-  min-width: 7rem;
-  max-width: 15rem;
-  padding: 0.35rem 0.55rem;
-  border-color: var(--border);
-}
-
-.recherche.recherche-ouverte input:focus {
   border-color: var(--accent);
+}
+
+.recherche .recherche-effacer {
+  padding: 0.25rem 0.3rem;
 }
 
 .recherche-resultat {
@@ -5236,6 +5344,13 @@ mark.recherche-marque-courante {
   background: var(--bg-page);
   border: none;
   padding: 0;
+  /* LA DERNIÈRE DATE SORTIE PAR LE HAUT RESTE COLLÉE sous l'en-tête figé, jusqu'à ce que la date suivante
+     arrive et la remplace (elles ont le même fond : la suivante recouvre la précédente). Collant sur la
+     cellule — une ligne ne l'est pas partout — dans un tableau que rien ne rogne. `--entete-hauteur` est
+     posée par app.js (suivreHauteurEntete). */
+  position: sticky;
+  top: calc(var(--entete-hauteur, 0px) - 1px);
+  z-index: 5;
 }
 
 /* Le séparateur ne réagit pas au survol : ce n'est pas une opération. */
@@ -5863,6 +5978,13 @@ body.modale-ouverte {
   padding: 0 0 0 1.5rem;
 }
 
+/* Les parts d'une dépense découpée portent la couleur de leur catégorie (liseré à gauche) et sa puce
+   (couleur + emoji) : on les reconnaît comme les lignes du tableau. */
+.decoupe-detail-liste li.avec-categorie {
+  border-left: 4px solid var(--cat);
+  padding-left: 0.6rem;
+}
+
 .decoupe-detail-liste li {
   display: flex;
   justify-content: space-between;
@@ -6409,86 +6531,41 @@ td.apercu-col-hors-fichier {
 }
 
 /* ---------- Le plan de l'application (cf. plan-app.js) ----------
-   UNE CARTE MENTALE À L'HORIZONTALE : le nom de l'app à gauche, ses pages dans une colonne
-   à sa droite, puis leurs onglets, puis les parties d'un onglet. Les liens sont des filets
-   dessinés par les <li> eux-mêmes (un trait vers le nœud, une barre verticale entre
-   frères), sans image ni SVG : le plan suit donc le thème et le nombre de pages. Sur une
-   fenêtre étroite il défile, il ne se replie pas. */
+   UN GRAPHE À LA MANIÈRE D'OBSIDIAN : le Dashboard au centre, les autres pages autour, leurs
+   onglets puis leurs parties de plus en plus loin. Les pastilles sont posées en absolu à
+   l'endroit que le script a calculé (leur centre), les liens sont des traits SVG dessinés
+   dessous : le plan suit donc le thème et le nombre de pages. Sur une fenêtre étroite il
+   défile, il ne se replie pas. */
 .plan-app {
-  overflow-x: auto;
+  overflow: auto;
   padding: 0.5rem 0 1rem;
 }
 
-.plan-arbre {
-  display: flex;
-  align-items: center;
-  width: max-content;
-}
-
-.plan-racine {
-  padding: 0.55rem 1rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-
-.plan-enfants {
-  list-style: none;
-  margin: 0 0 0 1.6rem;
-  padding: 0;
+.plan-graphe {
   position: relative;
+  margin: 0 auto;
 }
 
-/* Le trait qui relie le parent à la barre verticale de ses enfants. */
-.plan-enfants::before {
-  content: "";
+.plan-liens {
   position: absolute;
-  left: -1.6rem;
-  top: 50%;
-  width: 1.6rem;
-  border-top: 1px solid var(--border);
+  inset: 0;
+  pointer-events: none;
 }
 
-.plan-enfants > li {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 0.2rem 0 0.2rem 1.6rem;
+.plan-liens line {
+  stroke: var(--border);
+  stroke-width: 1.2;
+  transition: stroke 0.15s;
 }
 
-/* Un trait vers le nœud, et une barre qui rejoint les frères. */
-.plan-enfants > li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 1.6rem;
-  border-top: 1px solid var(--border);
-}
-
-.plan-enfants > li::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-left: 1px solid var(--border);
-}
-
-.plan-enfants > li:first-child::after {
-  top: 50%;
-}
-
-.plan-enfants > li:last-child::after {
-  bottom: 50%;
-}
-
-.plan-enfants > li:only-child::after {
-  display: none;
+.plan-liens line.plan-lien-actif {
+  stroke: var(--accent-light);
+  stroke-width: 1.8;
 }
 
 .plan-noeud {
+  position: absolute;
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -6506,9 +6583,24 @@ td.apercu-col-hors-fichier {
 .plan-noeud:hover {
   border-color: var(--accent-light);
   color: var(--accent-light);
+  z-index: 1;
 }
 
-/* Trois niveaux, de plus en plus discrets : la page, son onglet, la partie de l'onglet. */
+/* Quatre niveaux, de plus en plus discrets : le dashboard, la page, son onglet, la partie de l'onglet. */
+.plan-centre {
+  padding: 0.65rem 1.3rem;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.plan-centre:hover {
+  color: #fff;
+  border-color: var(--accent-light);
+}
+
 .plan-page {
   border-color: var(--accent-light);
   font-weight: 600;
@@ -6518,6 +6610,7 @@ td.apercu-col-hors-fichier {
   border-style: dashed;
   background: none;
   color: var(--text-secondary);
+  font-size: 0.82rem;
 }
 
 .notice-titre-actions {
@@ -8074,9 +8167,6 @@ body.sandbox-occupee .pastille-sandbox-bouton {
   outline: none;
 }
 
-.barre-demo + .barre-feedback {
-  margin-top: 0.25rem;
-}
 
 .barre-demo button {
   flex: 1;
@@ -8189,7 +8279,7 @@ body.sandbox-occupee .pastille-sandbox-bouton {
 
 /* ---------- LE PARCOURS DE L'IMPORT : le graphe des étapes, en tête de chaque fenêtre ----------
  *
- * Un rond par étape (1, 1bis, 2, 3, 3bis, 4, puis « Importer ») et une flèche entre deux, TOUTES TOUJOURS
+ * Un rond par étape (1, 1bis, 2, 3, 4, puis « Importer ») et une flèche entre deux, TOUTES TOUJOURS
  * DESSINÉES. GRIS par défaut ; VERT à mesure qu'on avance : les étapes faites, et celle que la fenêtre montre
  * (cernée d'un halo). Une étape sans objet est « sautée » (en pointillés, barrée : cf. plus bas). */
 .import-etapes {
@@ -8473,78 +8563,6 @@ button.preset-propose {
   gap: 0.5rem;
 }
 
-/* ---------- L'ÉTAPE 3bis DE L'IMPORT : LES VIREMENTS INTERNES (2026-10-21) ---------- */
-
-/* Une carte par virement : la date et le montant sur une ligne, puis le sens en clair. */
-.vir-carte-ligne {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-top: 0.15rem;
-}
-
-.vir-sens {
-  margin: 0.35rem 0 0.4rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-/* LE RÉCAPITULATIF DE TES CHOIX : le fichier à gauche, les correspondances à droite (un quart de la page),
-   repliées. Sous 900 px, l'un sous l'autre. */
-#import-recapitulatif-contenu {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr);
-  gap: 1.25rem;
-  align-items: start;
-}
-
-#import-recapitulatif-contenu > #import-apercu-fichier-bloc {
-  min-width: 0;
-}
-
-.import-recap-droite {
-  min-width: 0;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.import-recap-droite > div > .toggle-titre:first-child {
-  margin-top: 0;
-}
-
-/* Une colonne étroite : le nom du fichier au-dessus de sa liste. */
-.import-recap-droite .import-mapping-row {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.35rem;
-}
-
-.import-recap-droite .import-mapping-row select {
-  width: 100%;
-}
-
-@media (max-width: 900px) {
-  #import-recapitulatif-contenu {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* 3bis : le verbe du sens (« envoie », « reçoit ») ressort en bleu. */
-.vir-sens-verbe {
-  color: var(--accent-light);
-}
-
-/* UNE PAGE, DEUX SECTIONS. « Remboursements » (dépenses remboursables + remboursements reçus) et « Prêts »
-   (prêts reçus + remboursements de prêts) ont UN SEUL en-tête : le tri, les filtres et l'arbre de période
-   de la première section valent pour les deux. Ceux de la section compagnon restent dans le DOM (les filtres
-   se propagent par nom de champ, cf. propagerFiltreAuxAutresOnglets) mais ne s'affichent pas. */
-.sous-section-compagnon > .tri,
-.sous-section-compagnon > .filtres-repli,
-.sous-section-compagnon > .operations-periode {
-  display: none;
-}
-
 /* ---------- Extension « Renommages » dans l'aperçu d'import ---------- */
 /* L'ancien libellé, sous le nouveau nom : gris, italique, entre parenthèses, un peu plus petit. */
 .import-nature-ancienne {
@@ -8677,6 +8695,17 @@ button.preset-propose {
   padding: 0.28rem 0.6rem;
   font-size: 0.78rem;
   white-space: nowrap;
+}
+
+/* TOUS LES BOUTONS QUI MÈNENT QUELQUE PART ont leur texte en bleu — ceux du dashboard et ceux que
+   les extensions y posent (« Suivi → », « Voir le projet → ») —, pour se distinguer des boutons
+   qui agissent. */
+.dbr-nav,
+.dbr-nav-discret,
+#flux-remboursements-actions button,
+.dbr-epingles .projet-voir,
+.dbr-epingles-plus {
+  color: var(--accent-light);
 }
 
 .dbr-nav-discret {
@@ -8871,18 +8900,43 @@ button.preset-propose {
 .dbr-jauge {
   display: flex;
   flex: none;
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
   overflow: hidden;
   background: var(--bg-surface-alt);
 }
 
+/* LA JAUGE SE LIT COMME UNE JAUGE, EN TROIS PARTS : en bleu plein ce qui est déjà dépensé, en bleu
+   plus transparent ce qui est prévu (qu'on peut survoler), en gris transparent ce qui reste libre. */
 .dbr-jauge-sorties {
-  background: var(--depense);
+  background: var(--accent);
+}
+
+.dbr-jauge-prevu {
+  background: color-mix(in srgb, var(--accent) 38%, transparent);
+  cursor: help;
+}
+
+.dbr-jauge-prevu:hover {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* La part prévue est survolée : les prévisionnelles qu'elle compte se détachent dans la liste. */
+.dbr-surligne-prevues .dbr-ligne.dbr-ligne-comptee {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ... et leur texte passe en BLANC classique (le gris des prévisionnelles les ferait s'effacer sur le fond
+   bleuté) ; le signe des montants garde sa couleur. Pas de liseré à gauche : il gênait la lecture de la date. */
+.dbr-surligne-prevues .dbr-ligne.dbr-ligne-comptee,
+.dbr-surligne-prevues .dbr-ligne.dbr-ligne-comptee.operation-previsionnelle > :not(.dbr-ligne-montant),
+.dbr-surligne-prevues .dbr-ligne.dbr-ligne-comptee.operation-previsionnelle > :not(.dbr-ligne-montant) *:not(.montant-signe) {
+  /* `!important` : la convention des prévisionnelles (gris italique) l'est aussi, plus haut. */
+  color: var(--text-primary) !important;
 }
 
 .dbr-jauge-libre {
-  background: var(--accent);
+  background: color-mix(in srgb, var(--text-muted) 35%, transparent);
 }
 
 .dbr-jauge-legende {
@@ -8914,8 +8968,9 @@ button.preset-propose {
   margin-right: 0.35rem;
 }
 
-.dbr-puce-sorties { background: var(--depense); }
-.dbr-puce-libre { background: var(--accent); }
+.dbr-puce-sorties { background: var(--accent); }
+.dbr-puce-prevu { background: color-mix(in srgb, var(--accent) 38%, transparent); }
+.dbr-puce-libre { background: color-mix(in srgb, var(--text-muted) 35%, transparent); }
 
 .dbr-trait {
   display: inline-block;
@@ -8927,6 +8982,11 @@ button.preset-propose {
 
 .dbr-trait-projete {
   border-top-style: dashed;
+}
+
+.dbr-trait-rythme {
+  border-top-style: dashed;
+  border-top-color: var(--positif);
 }
 
 /* LA COURBE PREND CE QUI RESTE, 70 px au moins : c'est elle qui rend la page élastique. Le
@@ -8964,6 +9024,53 @@ button.preset-propose {
   box-shadow: var(--shadow-flottant);
   font-size: 0.74rem;
   white-space: nowrap;
+}
+
+/* L'infobulle de la plage : un titre, des lignes « libellé valeur », une note. Sur plusieurs lignes,
+   chacune ne se coupe pas. */
+.dbr-courbe-bulle .dbr-bulle-titre {
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.dbr-courbe-bulle .dbr-bulle-libelle {
+  color: var(--text-muted);
+}
+
+.dbr-courbe-bulle .dbr-bulle-note {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+/* FIGÉE (touche de gel), l'infobulle de la courbe reçoit la souris : son lien devient cliquable. Sinon elle
+   l'ignore — elle suit le pointeur et ne doit rien cacher du graphe. */
+.dbr-courbe-bulle.histo-bulle-gelee {
+  pointer-events: auto;
+}
+
+/* La dépense moyenne de la légende : discrète, à la suite des traits. */
+.dbr-courbe-moyenne {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le lien vers la page Prévisions : bleu et souligné. */
+.dbr-courbe-bulle .dbr-bulle-lien-page {
+  color: var(--accent-light);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* La plage dans la légende : un petit rectangle translucide. */
+.dbr-trait-plage {
+  display: inline-block;
+  width: 1.1rem;
+  height: 0.55rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent-light) 26%, transparent);
 }
 
 /* ---------- « Dépenses de la période », en compact ---------- */
@@ -9012,12 +9119,74 @@ button.preset-propose {
 /* L'HISTOGRAMME DU NOYAU, sans son cadre (le bloc en est déjà un) et à hauteur réduite —
    c'est `renderHistogrammeDashboard` qui lui passe sa hauteur compacte. */
 .histogramme-cadre.dbr-histogramme {
-  flex: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
   margin: 0.2rem 0 0;
   padding: 0;
   border: none;
   background: none;
   box-shadow: none;
+}
+
+/* LES DÉPENSES PAR CATÉGORIE, en barres partiellement remplies : deux colonnes, les barres les unes sur
+   les autres (la grille se remplit par colonne, `--dbr-cat-rangees` rangées chacune). */
+.dbr-cats {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--dbr-cat-rangees, 4), auto);
+  grid-template-columns: 1fr 1fr;
+  gap: 0.28rem 1.4rem;
+}
+
+.dbr-cat {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 30%) 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.74rem;
+  cursor: default;
+}
+
+.dbr-cat-nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* La piste : fond gris translucide ; le plein (le réel) puis le transparent (le prévu) la remplissent. */
+.dbr-cat-piste {
+  display: flex;
+  height: 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.dbr-cat-reel {
+  background: var(--cat);
+}
+
+.dbr-cat-prevu {
+  background: color-mix(in srgb, var(--cat) 38%, transparent);
+}
+
+.dbr-cat-valeur {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+/* Budget dépassé : la valeur prend la couleur d'avertissement de l'application. */
+.dbr-cat-depasse .dbr-cat-valeur {
+  color: var(--budget-line);
+}
+
+.dbr-cat.survolee .dbr-cat-nom {
+  color: var(--text-primary);
 }
 
 /* ---------- Les deux listes : cinq lignes, hauteurs égales ---------- */
@@ -9052,6 +9221,13 @@ button.preset-propose {
 
 .dbr-ligne:hover {
   background: var(--bg-surface-hover);
+}
+
+/* LA FIN DE LA PÉRIODE, dans la liste des prévisionnelles : le filet qui sépare la dernière de la
+   période de la première qui la suit est GRIS, plus épais que les filets de lignes. Sa place suit le mois
+   du réglage (calendaire ou salarial) : l'horizon vient du serveur (cf. listes_dashboard). */
+.dbr-ligne.dbr-ligne-periode-suivante {
+  border-top: 3px solid var(--text-muted);
 }
 
 .dbr-ligne-date {
@@ -9238,7 +9414,7 @@ button.preset-propose {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-surface-alt);
-  color: var(--text-primary);
+  color: var(--accent-light);
   font-size: 0.72rem;
   white-space: nowrap;
   text-decoration: none;
@@ -9342,4 +9518,220 @@ button.preset-propose {
   .dbr-reste-chiffres {
     flex-wrap: wrap;
   }
+}
+
+/* Le réglage « Découpage des mois sur le salaire » : le menu, puis le jour quand le salaire compte. */
+.reglage-salaire {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.reglage-salaire label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.reglage-salaire input[type="number"] {
+  width: 4.5rem;
+  text-align: right;
+}
+
+/* ---------- La fenêtre de recherche (cf. recherche-globale.js) ----------
+   Au milieu de l'écran, en haut : un voile gris LÉGER et sans flou, la page reste lisible derrière, pour
+   que ouvrir la recherche ne donne pas l'impression d'avoir changé d'écran. */
+.modale-fond.modale-recherche-fond {
+  /* LE GRISAGE du reste de l'écran : moins foncé que celui des autres fenêtres (0,72), un peu plus que du
+     simple voile. La fenêtre, elle, est pleine. */
+  background: rgba(18, 22, 30, 0.34);
+  backdrop-filter: none;
+  /* EN HAUT, JAMAIS AU MILIEU : la barre de saisie ne doit pas bouger quand la liste s'allonge ou se
+     raccourcit — seul ce qui est dessous change de hauteur. */
+  align-items: flex-start;
+  padding-top: 9vh;
+}
+
+.modale-recherche {
+  width: min(44rem, 94vw);
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  padding: 0.8rem 0.9rem 0.6rem;
+}
+
+.recherche-fenetre-barre {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.15rem 0.2rem 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.recherche-fenetre-loupe {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.recherche-fenetre-barre input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1.05rem;
+  outline: none;
+  padding: 0.15rem 0;
+}
+
+.recherche-fenetre-compte {
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.recherche-liste {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+/* Chaque ligne entre en glissant : les résultats « arrivent » l'un après l'autre. */
+.recherche-ligne,
+.recherche-groupe,
+.recherche-reste {
+  animation: recherche-arrivee 0.2s ease-out both;
+}
+
+@keyframes recherche-arrivee {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.recherche-groupe {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0.55rem 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.recherche-ligne {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  padding: 0.38rem 0.55rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.recherche-ligne.selectionnee {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.recherche-ligne-texte {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le chemin, à droite : Section/Onglet/Partie, discret, qui se coupe avant le texte. */
+.recherche-ligne-chemin {
+  flex: 0 1 38%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+/* La partie trouvée : en jaune. */
+mark.recherche-fenetre-marque {
+  background: rgba(250, 204, 21, 0.55);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.recherche-reste {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.recherche-fenetre-aide {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-size: 0.7rem;
+}
+
+
+/* ---------- LES MONTANTS GLOBAUX : vert pour un gain, orange pour une perte ----------
+   Le chiffre ENTIER est coloré (signe compris) : plus-values (valeur ou pourcentage), totaux des projets… Les
+   montants d'opérations, eux, ne colorent que leur signe (`.montant-signe`). `!important` écrase la teinte des
+   classes voisines (`.montant.*`, `.kpi-valeur`). Posées par `classeMontantGlobal` (app.js). */
+.pv-gain,
+.pv-gain .montant-signe {
+  color: var(--positif) !important;
+}
+
+.pv-perte,
+.pv-perte .montant-signe {
+  color: var(--depense) !important;
+}
+
+
+/* ---------- LES SOUS-CATÉGORIES (migration 0103) ---------- */
+/* Une sous-catégorie se range sous son parent, en retrait. */
+tr.categorie-enfant td:nth-child(2) {
+  padding-left: 2.2rem;
+}
+
+/* Le choix de la nuance : une pastille par rang, celle qui est prise par une catégorie sœur est grisée. */
+.nuances-choix {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.nuance-pastille {
+  width: 1.6rem;
+  height: 1.6rem;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.nuance-pastille.choisie {
+  border-color: var(--text-primary);
+}
+
+.nuance-pastille:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }

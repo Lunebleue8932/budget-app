@@ -11,7 +11,8 @@
     ],
     "js": [
       "analyse-budget.js",
-      "solde-previsionnel.js"
+      "solde-previsionnel.js",
+      "detail-categorie.js"
     ]
   },
   "navigation": {

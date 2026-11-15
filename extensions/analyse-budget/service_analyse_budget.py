@@ -23,10 +23,10 @@ LES TROIS QUESTIONS :
 from datetime import date as date_type
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, aliased
 
-from app import models
+from app import crud, models
 from app.constants import (
     TYPE_COMPTE_EPARGNE,
     TYPES_COMPTE_HORS_COURANT,
@@ -160,7 +160,11 @@ def _somme_jambes_epargne(
     compte_face = aliased(models.Compte)
     type_face = aliased(models.TypeCompte)
 
-    if mois is None:
+    if soldes.jour_salaire_partage() is not None:
+        # Mois SALARIAL : une fenêtre de dates (cf. soldes.bornes_periode).
+        debut_p, fin_p = soldes.bornes_periode(annee, mois)
+        filtre_date = and_(jambe.date >= debut_p, jambe.date <= fin_p)
+    elif mois is None:
         filtre_date = func.strftime("%Y", jambe.date) == f"{annee:04d}"
     else:
         filtre_date = func.strftime("%Y-%m", jambe.date) == f"{annee:04d}-{mois:02d}"
@@ -377,4 +381,91 @@ def depenses_d_une_categorie(
         "annee": annee,
         "periodes": periodes,
         "masquees": masquees,
+    }
+
+
+
+# ---------- Le détail d'une catégorie PARENT (fenêtre « Détail » de la page Budget) ----------
+
+
+def detail_categorie(
+    db: Session, categorie_id: int, annee: int, mois: Optional[int], monnaie_id: int
+) -> Optional[dict]:
+    """Tout ce que la fenêtre de détail d'une catégorie affiche, pour UNE période (un mois, ou l'année si
+    `mois` est None) et UNE monnaie : les opérations prises en compte, le budget, et les composantes de la jauge.
+
+    LA JAUGE ET LA LISTE LISENT LES MÊMES CHOSES QUE LA PAGE : les composantes (la part directe du parent, puis
+    chaque sous-catégorie) sont celles de la barre du graphe (`soldes.regrouper_par_parent`), et les opérations sont
+    celles que lit un objectif par catégorie (`lignes_depenses.lignes_detaillees`) — le reste à charge, la part
+    amortie de la fenêtre — de la catégorie ET de ses sous-catégories. Une sous-catégorie n'a pas cette fenêtre :
+    elle se règle et se lit comme une catégorie normale.
+
+    Rend None si la catégorie n'existe pas ou n'est pas de premier niveau."""
+    from app.services import lignes_depenses
+
+    categorie = db.get(models.Categorie, categorie_id)
+    if categorie is None or categorie.parent_id is not None:
+        return None
+    debut, fin = soldes.bornes_periode(annee, mois)
+    famille = [categorie] + crud.enfants_de(db, categorie.id)
+
+    lignes = soldes.get_depenses_par_categorie(db, annee, mois, monnaie_id)
+    barre = next(
+        (
+            ligne
+            for ligne in soldes.regrouper_par_parent(db, lignes, annee, mois, monnaie_id)
+            if ligne.get("categorie_id") == categorie.id
+        ),
+        None,
+    )
+    budget = barre["budget_alloue"] if barre else soldes._budget_alloue_periode(
+        db, categorie.id, annee, mois, monnaie_id
+    )
+    if barre and barre.get("composantes"):
+        composantes = barre["composantes"]
+    else:
+        composantes = [
+            {
+                "categorie_id": categorie.id,
+                "categorie": categorie.nom,
+                "direct": True,
+                "total_reel": barre["total_reel"] if barre else 0.0,
+                "total_previsionnel": barre["total_previsionnel"] if barre else 0.0,
+                "budget_alloue": budget,
+                "couleur_index": categorie.couleur_index,
+                "couleur_nuance": None,
+                "icone": categorie.icone,
+            }
+        ]
+    operations = []
+    for membre in famille:
+        for operation, retenu in lignes_depenses.lignes_detaillees(db, debut, fin, monnaie_id, membre.id):
+            operations.append(
+                {
+                    "id": operation.id,
+                    "date": operation.date,
+                    "nature": operation.nature,
+                    "montant": retenu,
+                    "montant_brut": operation.montant,
+                    "categorie_id": membre.id,
+                    "categorie": membre.nom,
+                    "compte_id": operation.compte_id,
+                }
+            )
+    operations.sort(key=lambda o: (o["date"], o["id"]), reverse=True)
+    return {
+        "categorie_id": categorie.id,
+        "categorie": categorie.nom,
+        "icone": categorie.icone,
+        "couleur_index": categorie.couleur_index,
+        "monnaie_id": monnaie_id,
+        "annee": annee,
+        "mois": mois,
+        "date_debut": debut,
+        "date_fin": fin,
+        "budget_alloue": budget,
+        "total_reel": sum(c["total_reel"] for c in composantes),
+        "total_previsionnel": sum(c["total_previsionnel"] for c in composantes),
+        "composantes": composantes,
+        "operations": operations,
     }

@@ -35,7 +35,7 @@ def coefficients_des_monnaies(kpis, coefficients: dict) -> dict:
     }
 
 
-def _reste_agrege(db, kpis, coefficients: dict):
+def _reste_agrege(db, kpis, coefficients: dict, vue: str = "mois"):
     """Le bloc « Reste pour finir le mois », toutes monnaies ramenées à une seule.
 
     LE RESTE SE CONVERTIT COMME `reste_a_rembourser` : l'oublier ne ferait pas
@@ -53,7 +53,13 @@ def _reste_agrege(db, kpis, coefficients: dict):
     if avec_reste is None or not retenus:
         return None
     return schemas.RestePeriodeRead(
-        **soldes.reste_periode(db, retenus, avec_reste.horizon, avec_reste.aujourdhui)
+        **soldes.reste_periode(
+            db,
+            retenus,
+            avec_reste.horizon,
+            avec_reste.aujourdhui,
+            debut=soldes.debut_reste(vue, avec_reste.aujourdhui, soldes.lire_decoupage_salaire(db)),
+        )
     )
 
 
@@ -110,6 +116,11 @@ def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
         depense.categorie,
         {
             "categorie": depense.categorie,
+            # L'identifiant et l'emoji suivent la catégorie d'une monnaie à l'autre (migration 0103) ; les
+            # composantes d'un parent (ses sous-catégories) sont fondues comme les catégories, par nom.
+            "categorie_id": getattr(depense, "categorie_id", None),
+            "icone": getattr(depense, "icone", None),
+            "_composantes": {},
             "total_reel": 0.0,
             "total_previsionnel": 0.0,
             "budget_alloue": 0.0,
@@ -131,6 +142,14 @@ def _categorie_agregee(accumulateur: dict, depense, coefficient: float) -> None:
     ligne["total_reel"] += depense.total_reel * coefficient
     ligne["total_previsionnel"] += depense.total_previsionnel * coefficient
     ligne["budget_alloue"] += depense.budget_alloue * coefficient
+    for composante in getattr(depense, "composantes", []) or []:
+        fondue = ligne["_composantes"].setdefault(
+            composante.categorie,
+            {**composante.model_dump(), "total_reel": 0.0, "total_previsionnel": 0.0, "budget_alloue": 0.0},
+        )
+        fondue["total_reel"] += composante.total_reel * coefficient
+        fondue["total_previsionnel"] += composante.total_previsionnel * coefficient
+        fondue["budget_alloue"] += composante.budget_alloue * coefficient
     ligne["top_depenses"].extend(
         schemas.DepenseTopRead(
             nature=top.nature,
@@ -241,7 +260,7 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
     # moins ce que je dois, et le convertir à part le ferait diverger de ses
     # deux composantes à l'arrondi.
     agrege.reste_a_rembourser = agrege.reste_a_recevoir - agrege.reste_a_rendre
-    agrege.reste = _reste_agrege(db, brut.kpis, coefficients)
+    agrege.reste = _reste_agrege(db, brut.kpis, coefficients, vue)
     agrege.top_entrees = _classer_top(top_entrees)
     agrege.top_sorties = _classer_top(top_sorties)
 
@@ -251,6 +270,8 @@ def dashboard_agrege(db, annee, mois, vue: str, vers_monnaie_id: int):
         # deux listes déjà triées mises bout à bout ne le sont plus.
         ligne["top_depenses"].sort(key=lambda top: top.montant, reverse=True)
         ligne["top_depenses"] = ligne["top_depenses"][:3]
+    for ligne in categories.values():
+        ligne["composantes"] = list(ligne.pop("_composantes").values())
     agrege.depenses_par_categorie = [
         schemas.DepenseParCategorie(**ligne)
         for ligne in sorted(

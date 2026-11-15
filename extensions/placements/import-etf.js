@@ -111,12 +111,12 @@ function ietfFermer() {
 
 function ietfPoserBouton() {
   if (ietfEl("btn-ietf-ouvrir")) return;
-  const actions = document.querySelector("#placements-vue-principale .placements-titre-actions");
+  const actions = document.getElementById("placements-param-compositions-actions");
   if (!actions) return;
   const bouton = document.createElement("button");
   bouton.type = "button";
   bouton.id = "btn-ietf-ouvrir";
-  bouton.className = "placements-titre-action";
+  bouton.className = "primary";
   bouton.textContent = t("Importer des compositions");
   bouton.addEventListener("click", () => ietfOuvrir());
   actions.appendChild(bouton);

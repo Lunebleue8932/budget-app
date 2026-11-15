@@ -5260,7 +5260,116 @@ Object.assign(TRADUCTIONS.en, {
   "Voir le projet": "View project",
   "Suivi": "Tracking",
   "Astuces": "Tips",
-  "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là. Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.": "What will be left in your current accounts at the end of the period, once every planned transaction has gone through. This is CASH: a spread expense counts in full on its payment date, and the budget plays no part. // The low point is the lowest balance until then. The safe pace is what you can spend per day without going below zero before the next inflow.",
+  "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là, en tenant compte de ce que tu dépenses en moyenne (la courbe « Prévision »). Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.": "What will be left in your current accounts at the end of the period, once every planned transaction has gone through. This is CASH: a spread expense counts in full on its payment date, and the budget plays no part. // The low point is the lowest balance until then, counting what you spend on average (the “Forecast” curve). The safe pace is what you can spend per day without going below zero before the next inflow.",
   "Les entrées et les dépenses attribuées à la période, et leur différence. L'histogramme détaille les dépenses par catégorie. // Le camembert, la comparaison de périodes et les mois passés se trouvent dans la page Budget.": "Income and spending attributed to the period, and their difference. The histogram breaks spending down by category. // The pie chart, period comparison and past months are on the Budget page.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le dashboard sur une page
+
+// >>> TRADUCTIONS AJOUTÉES : barre latérale, courbe du reste et découpage sur le salaire
+Object.assign(TRADUCTIONS.en, {
+  "Variation brute sur le mois": "Gross change for the month",
+  "Prévision": "Forecast",
+  "Solde des comptes courants : réel, prévision et rythme sûr": "Current accounts balance: actual, forecast and safe pace",
+  "Découvrir l'app": "Discover the app",
+  "Mindmap": "Mindmap",
+  "Découpage des mois sur le salaire": "Splitting months on salary",
+  "Mois du calendrier": "Calendar months",
+  "Le salaire de fin de mois compte pour le mois suivant": "End-of-month salary counts for the following month",
+  "à partir du jour": "from day",
+  "Réglage enregistré.": "Setting saved.",
+  "Un salaire reçu en fin de mois sert en réalité à vivre le mois suivant. Avec « Le salaire de fin de mois compte pour le mois suivant », une entrée prévue à partir du jour choisi (le dernier jour du mois par défaut) ne compte pas dans « Reste pour finir le mois » du dashboard : ni dans le reste, ni dans le point bas, ni dans la courbe. Le rythme sûr, lui, tient toujours compte de ce salaire : jusqu'à son arrivée, tu vis sur ce que tu as. // Par défaut, le calendrier fait foi : rien ne change.": "A salary received at the end of the month actually pays for the following month. With “End-of-month salary counts for the following month”, an expected income from the chosen day (the last day of the month by default) is left out of the dashboard’s “Left to finish the month”: not in the balance left, not in the low point, not in the curve. The safe pace still counts that salary: until it arrives, you live on what you have. // By default the calendar rules: nothing changes.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : barre latérale, courbe du reste et découpage sur le salaire
+
+// >>> TRADUCTIONS AJOUTÉES : lien externe du feedback et jauge du reste
+Object.assign(TRADUCTIONS.en, {
+  "Ouvrir un lien externe ?": "Open an external link?",
+  "Le formulaire de retour est un site extérieur à l'application : il s'ouvrira dans ton navigateur.": "The feedback form is a website outside the app: it will open in your browser.",
+  "Ouvrir le lien": "Open the link",
+  "Dépensé": "Spent",
+  "Prévu": "Planned",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : lien externe du feedback et jauge du reste
+
+// >>> TRADUCTIONS AJOUTÉES : plage de la prévision
+Object.assign(TRADUCTIONS.en, {
+  "Plage ± σ": "Range ± σ",
+  "Solde estimé": "Estimated balance",
+  "Plage": "Range",
+  "Dépense moyenne": "Average spending",
+  "Écart-type": "Standard deviation",
+  "/ semaine": "/ week",
+  "± σ·√k (k = jours écoulés), σ calculé sur {n} jours d'historique": "± σ·√k (k = days elapsed), σ computed over {n} days of history",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : plage de la prévision
+
+// >>> TRADUCTIONS AJOUTÉES : fenêtre de recherche
+Object.assign(TRADUCTIONS.en, {
+  "Rechercher…": "Search…",
+  "Rechercher dans l'application (Ctrl+F)": "Search the app (Ctrl+F)",
+  "Rechercher dans l'application": "Search the app",
+  "Rechercher dans l'application…": "Search the app…",
+  "Effacer la recherche": "Clear the search",
+  "Dans cette page": "In this page",
+  "Ailleurs dans l'application": "Elsewhere in the app",
+  "… et {n} autres dans cette page : les chevrons de la barre les parcourent": "… and {n} more in this page: the arrows in the sidebar step through them",
+  "… et {n} autres ailleurs : précise le terme": "… and {n} more elsewhere: narrow the term down",
+  "↑ ↓ pour choisir · Entrée pour ouvrir · Échap pour fermer": "↑ ↓ to choose · Enter to open · Esc to close",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : fenêtre de recherche
+
+// >>> TRADUCTIONS AJOUTÉES : page Prévisions
+Object.assign(TRADUCTIONS.en, {
+  "Reste à vivre": "Left to live on",
+  "Période": "Period",
+  "Mois en cours": "Current month",
+  "Année en cours": "Current year",
+  "Plage ± σ·√k": "Range ± σ·√k",
+  "Aucune donnée à afficher.": "No data to show.",
+  "Marge sur le rythme sûr": "Margin over the safe pace",
+  "Tu dépenses en moyenne moins que le rythme sûr.": "On average you spend less than the safe pace.",
+  "Tu dépenses en moyenne plus que le rythme sûr.": "On average you spend more than the safe pace.",
+  "Fin de période (prévision)": "End of period (forecast)",
+  "Point bas probable": "Likely low point",
+  "prévision : {montant}": "forecast: {montant}",
+  "Sous zéro, selon la prévision": "Below zero, per the forecast",
+  "Sous zéro, dans le cas pessimiste": "Below zero, in the pessimistic case",
+  "jamais d'ici là": "not by then",
+  "bas de la plage ± σ·√k": "low edge of the ± σ·√k range",
+  "sur {n} jours d'historique": "over {n} days of history",
+  "Écart-type : {montant} par {unite}": "Standard deviation: {montant} per {unite}",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : page Prévisions
+// >>> TRADUCTIONS AJOUTÉES : lien Prévisions
+Object.assign(TRADUCTIONS.en, {
+  "Plus de détails dans la page": "More details in the page",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : calcul de la plage
+Object.assign(TRADUCTIONS.en, {
+  "Calcul de la plage": "Range calculation",
+  "Historique": "History",
+  "{n} jours": "{n} days",
+  "semaines": "weeks",
+  "Plage = prévision ± σ·√k : σ est l'écart-type de la dépense par {unite}, k le nombre de {unites} écoulés depuis aujourd'hui.": "Range = forecast ± σ·√k: σ is the standard deviation of spending per {unite}, k the number of {unites} elapsed since today.",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : salaire
+Object.assign(TRADUCTIONS.en, {
+  "31 = le dernier jour du mois": "31 = the last day of the month",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : seuil de sécurité
+Object.assign(TRADUCTIONS.en, {
+  "Seuil de sécurité": "Safety threshold",
+  "0 = sur la droite blanche": "0 = on the white line",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : projeté
+Object.assign(TRADUCTIONS.en, {
+  "Projeté de fin de mois": "End-of-month projection",
+  "Sans la dépense moyenne par jour": "Without the average daily spending",
+  "Avec la dépense moyenne par jour": "With the average daily spending",
+  "0 = sur la droite blanche ; jamais négatif": "0 = on the white line; never negative",
+});
+// <<< FIN

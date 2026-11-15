@@ -4484,7 +4484,116 @@ Object.assign(TRADUCTIONS.pt, {
   "Voir le projet": "Ver projeto",
   "Suivi": "Acompanhar",
   "Astuces": "Dicas",
-  "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là. Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.": "O que vai sobrar nas suas contas correntes no fim do período, depois que todas as transações previstas passarem. É CAIXA: uma despesa diluída conta inteira na data do pagamento, e o orçamento não entra. // O ponto mais baixo é o menor saldo até lá. O ritmo seguro é o que você pode gastar por dia sem ficar abaixo de zero antes da próxima entrada.",
+  "Ce qu'il restera sur tes comptes courants à la fin de la période, une fois toutes les opérations prévisionnelles passées. C'est du CASH : une dépense amortie compte en entier à sa date de paiement, et le budget n'intervient pas. // Le point bas est le solde le plus bas d'ici là, en tenant compte de ce que tu dépenses en moyenne (la courbe « Prévision »). Le rythme sûr est ce que tu peux dépenser par jour sans passer sous zéro avant la prochaine entrée d'argent.": "O que vai sobrar nas suas contas correntes no fim do período, depois que todas as transações previstas passarem. É CAIXA: uma despesa diluída conta inteira na data do pagamento, e o orçamento não entra. // O ponto mais baixo é o menor saldo até lá, contando o que você gasta em média (a curva “Previsão”). O ritmo seguro é o que você pode gastar por dia sem ficar abaixo de zero antes da próxima entrada.",
   "Les entrées et les dépenses attribuées à la période, et leur différence. L'histogramme détaille les dépenses par catégorie. // Le camembert, la comparaison de périodes et les mois passés se trouvent dans la page Budget.": "As entradas e as despesas atribuídas ao período, e a diferença entre elas. O histograma detalha as despesas por categoria. // O gráfico de pizza, a comparação de períodos e os meses anteriores ficam na página Orçamento.",
 });
 // <<< FIN DES TRADUCTIONS AJOUTÉES : le dashboard sur une page
+
+// >>> TRADUCTIONS AJOUTÉES : barre latérale, courbe du reste et découpage sur le salaire
+Object.assign(TRADUCTIONS.pt, {
+  "Variation brute sur le mois": "Variação bruta no mês",
+  "Prévision": "Previsão",
+  "Solde des comptes courants : réel, prévision et rythme sûr": "Saldo das contas correntes: real, previsão e ritmo seguro",
+  "Découvrir l'app": "Conhecer o app",
+  "Mindmap": "Mindmap",
+  "Découpage des mois sur le salaire": "Divisão dos meses pelo salário",
+  "Mois du calendrier": "Meses do calendário",
+  "Le salaire de fin de mois compte pour le mois suivant": "O salário do fim do mês conta para o mês seguinte",
+  "à partir du jour": "a partir do dia",
+  "Réglage enregistré.": "Configuração salva.",
+  "Un salaire reçu en fin de mois sert en réalité à vivre le mois suivant. Avec « Le salaire de fin de mois compte pour le mois suivant », une entrée prévue à partir du jour choisi (le dernier jour du mois par défaut) ne compte pas dans « Reste pour finir le mois » du dashboard : ni dans le reste, ni dans le point bas, ni dans la courbe. Le rythme sûr, lui, tient toujours compte de ce salaire : jusqu'à son arrivée, tu vis sur ce que tu as. // Par défaut, le calendrier fait foi : rien ne change.": "Um salário recebido no fim do mês serve, na prática, para viver o mês seguinte. Com “O salário do fim do mês conta para o mês seguinte”, uma entrada prevista a partir do dia escolhido (o último dia do mês por padrão) não entra no “Sobra para fechar o mês” do painel: nem na sobra, nem no ponto mais baixo, nem na curva. O ritmo seguro, ele, continua contando esse salário: até ele chegar, você vive do que tem. // Por padrão, vale o calendário: nada muda.",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : barre latérale, courbe du reste et découpage sur le salaire
+
+// >>> TRADUCTIONS AJOUTÉES : lien externe du feedback et jauge du reste
+Object.assign(TRADUCTIONS.pt, {
+  "Ouvrir un lien externe ?": "Abrir um link externo?",
+  "Le formulaire de retour est un site extérieur à l'application : il s'ouvrira dans ton navigateur.": "O formulário de feedback é um site externo ao aplicativo: ele abrirá no seu navegador.",
+  "Ouvrir le lien": "Abrir o link",
+  "Dépensé": "Gasto",
+  "Prévu": "Previsto",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : lien externe du feedback et jauge du reste
+
+// >>> TRADUCTIONS AJOUTÉES : plage de la prévision
+Object.assign(TRADUCTIONS.pt, {
+  "Plage ± σ": "Faixa ± σ",
+  "Solde estimé": "Saldo estimado",
+  "Plage": "Faixa",
+  "Dépense moyenne": "Gasto médio",
+  "Écart-type": "Desvio padrão",
+  "/ semaine": "/ semana",
+  "± σ·√k (k = jours écoulés), σ calculé sur {n} jours d'historique": "± σ·√k (k = dias decorridos), σ calculado em {n} dias de histórico",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : plage de la prévision
+
+// >>> TRADUCTIONS AJOUTÉES : fenêtre de recherche
+Object.assign(TRADUCTIONS.pt, {
+  "Rechercher…": "Pesquisar…",
+  "Rechercher dans l'application (Ctrl+F)": "Pesquisar no app (Ctrl+F)",
+  "Rechercher dans l'application": "Pesquisar no app",
+  "Rechercher dans l'application…": "Pesquisar no app…",
+  "Effacer la recherche": "Limpar a pesquisa",
+  "Dans cette page": "Nesta página",
+  "Ailleurs dans l'application": "Em outro lugar do app",
+  "… et {n} autres dans cette page : les chevrons de la barre les parcourent": "… e mais {n} nesta página: as setas da barra lateral os percorrem",
+  "… et {n} autres ailleurs : précise le terme": "… e mais {n} em outro lugar: refine o termo",
+  "↑ ↓ pour choisir · Entrée pour ouvrir · Échap pour fermer": "↑ ↓ para escolher · Enter para abrir · Esc para fechar",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : fenêtre de recherche
+
+// >>> TRADUCTIONS AJOUTÉES : page Prévisions
+Object.assign(TRADUCTIONS.pt, {
+  "Reste à vivre": "Resta para viver",
+  "Période": "Período",
+  "Mois en cours": "Mês atual",
+  "Année en cours": "Ano atual",
+  "Plage ± σ·√k": "Faixa ± σ·√k",
+  "Aucune donnée à afficher.": "Nenhum dado para mostrar.",
+  "Marge sur le rythme sûr": "Margem sobre o ritmo seguro",
+  "Tu dépenses en moyenne moins que le rythme sûr.": "Em média você gasta menos que o ritmo seguro.",
+  "Tu dépenses en moyenne plus que le rythme sûr.": "Em média você gasta mais que o ritmo seguro.",
+  "Fin de période (prévision)": "Fim do período (previsão)",
+  "Point bas probable": "Ponto baixo provável",
+  "prévision : {montant}": "previsão: {montant}",
+  "Sous zéro, selon la prévision": "Abaixo de zero, pela previsão",
+  "Sous zéro, dans le cas pessimiste": "Abaixo de zero, no caso pessimista",
+  "jamais d'ici là": "não até lá",
+  "bas de la plage ± σ·√k": "limite inferior da faixa ± σ·√k",
+  "sur {n} jours d'historique": "em {n} dias de histórico",
+  "Écart-type : {montant} par {unite}": "Desvio padrão: {montant} por {unite}",
+});
+// <<< FIN DES TRADUCTIONS AJOUTÉES : page Prévisions
+// >>> TRADUCTIONS AJOUTÉES : lien Prévisions
+Object.assign(TRADUCTIONS.pt, {
+  "Plus de détails dans la page": "Mais detalhes na página",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : calcul de la plage
+Object.assign(TRADUCTIONS.pt, {
+  "Calcul de la plage": "Cálculo da faixa",
+  "Historique": "Histórico",
+  "{n} jours": "{n} dias",
+  "semaines": "semanas",
+  "Plage = prévision ± σ·√k : σ est l'écart-type de la dépense par {unite}, k le nombre de {unites} écoulés depuis aujourd'hui.": "Faixa = previsão ± σ·√k: σ é o desvio padrão do gasto por {unite}, k o número de {unites} decorridos desde hoje.",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : salaire
+Object.assign(TRADUCTIONS.pt, {
+  "31 = le dernier jour du mois": "31 = o último dia do mês",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : seuil de sécurité
+Object.assign(TRADUCTIONS.pt, {
+  "Seuil de sécurité": "Limite de segurança",
+  "0 = sur la droite blanche": "0 = sobre a linha branca",
+});
+// <<< FIN
+// >>> TRADUCTIONS AJOUTÉES : projeté
+Object.assign(TRADUCTIONS.pt, {
+  "Projeté de fin de mois": "Projeção de fim de mês",
+  "Sans la dépense moyenne par jour": "Sem a despesa média por dia",
+  "Avec la dépense moyenne par jour": "Com a despesa média por dia",
+  "0 = sur la droite blanche ; jamais négatif": "0 = sobre a linha branca; nunca negativo",
+});
+// <<< FIN

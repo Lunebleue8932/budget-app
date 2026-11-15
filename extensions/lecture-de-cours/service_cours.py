@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from app import crud, models
 
-from source_cours import Cours, CoursIllisible, lire_cours
+from source_cours import Cours, CoursIllisible, lire_cours, lire_historique
 
 # Quatre lectures de front : assez pour qu'un portefeuille d'une dizaine de
 # lignes se rafraîchisse en une poignée de secondes, assez peu pour ne pas
@@ -258,3 +258,43 @@ def _lire(titre_id: int, url: str):
         return titre_id, None, str(exc)
     except Exception as exc:  # noqa: BLE001 — un site hostile ne casse pas l'app
         return titre_id, None, f"Lecture impossible ({type(exc).__name__})"
+
+
+# ---------- L'historique ----------
+
+
+def recuperer_historique(db: Session, titres: list[models.TitrePossede], periode: str = "5y") -> list[dict]:
+    """Lit, pour chacun de ces titres, les anciens cours que sa page publie, et les range dans
+    l'historique (`cours_titre`). Même philosophie que `rafraichir` : un échec n'est jamais fatal, chaque
+    titre est rapporté séparément, et les lectures partent en parallèle quand les écritures restent en
+    série. Les jours déjà connus ne sont pas écrasés (cf. crud.enregistrer_historique_cours)."""
+    if not titres:
+        return []
+    plan = [(titre.id, titre.url_cours) for titre in titres]
+
+    def lire(tache):
+        titre_id, url = tache
+        try:
+            return titre_id, lire_historique(url, periode), None
+        except CoursIllisible as exc:
+            return titre_id, None, str(exc)
+        except Exception as exc:  # noqa: BLE001 — un site hostile ne casse pas l'app
+            return titre_id, None, f"Lecture impossible ({type(exc).__name__})"
+
+    with ThreadPoolExecutor(max_workers=LECTURES_SIMULTANEES) as executeur:
+        lus = list(executeur.map(lire, plan))
+
+    par_id = {titre.id: titre for titre in titres}
+    rapport = []
+    for titre_id, historique, erreur in lus:
+        titre = par_id[titre_id]
+        ligne = {"titre_id": titre.id, "titre_nom": titre.nom_affiche, "ok": False, "ajoutes": 0, "erreur": erreur}
+        if erreur is None:
+            conflit = ecart_de_devise(Cours(valeur=1.0, devise=historique.devise), titre.monnaie)
+            if conflit is not None:
+                ligne["erreur"] = conflit
+            else:
+                ligne["ok"] = True
+                ligne["ajoutes"] = crud.enregistrer_historique_cours(db, titre.id, historique.points)
+        rapport.append(ligne)
+    return rapport

@@ -782,7 +782,7 @@ function objRenderDetail(data) {
         <td class="operation-date">${formatDateCourte(op.date)}${mois}</td>
         <td>${escapeHtml(op.nature)}</td>
         <td>${nomCompte(op.compte_id)}</td>
-        <td>${op.decoupee ? t("Découpée") : nomCategorie(op.categorie_id)}</td>
+        <td>${op.decoupee ? t("Découpée") : categorieSouligneeHtml(op.categorie_id)}</td>
         <td>${objCelluleRetenu(op)}</td>
       </tr>`;
     })

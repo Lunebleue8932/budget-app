@@ -204,9 +204,14 @@ def db_session():
     # L'euro (migration 0021) : la monnaie à laquelle sont rattachées toutes
     # les données qui n'en désignent pas explicitement une autre.
     crud.seed_monnaie_initiale(session)
+    # Le mois salarial est un état PARTAGÉ (cf. soldes.bornes_periode) : chaque test repart du calendrier.
+    from app.services import soldes as _soldes_etat
+
+    _soldes_etat.definir_jour_salaire(None)
     try:
         yield session
     finally:
+        _soldes_etat.definir_jour_salaire(None)
         session.close()
         engine.dispose()
 

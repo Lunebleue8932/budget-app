@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..constants import TYPES_COMPTE_HORS_COURANT, Sens
 from ..database import get_db
-from ..services import cascade, listes_dashboard, periode_tout, placements, soldes
+from ..services import cascade, listes_dashboard, moyenne_depenses, periode_tout, placements, soldes
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -33,14 +33,19 @@ def set_note(payload: schemas.NoteDashboardUpdate, db: Session = Depends(get_db)
     return schemas.NoteDashboardRead(contenu=note.contenu, modifie_le=note.modifie_le)
 
 
+def _mois_par_defaut(annee: Optional[int], mois: Optional[int], aujourdhui: date) -> tuple[int, Optional[int]]:
+    """L'année et le mois demandés, ou ceux du mois EN COURS — calendaire ou salarial selon le réglage
+    (cf. soldes.mois_de) : avec une coupure le dernier jour du mois, le 30 novembre est déjà en décembre."""
+    annee_courante, mois_courant = soldes.mois_de(aujourdhui)
+    return (annee if annee is not None else annee_courante), (mois if mois is not None else mois_courant)
+
+
 def _periode_demandee(annee: Optional[int], mois: Optional[int]) -> tuple[int, int]:
     """Le mois demandé, ou le mois courant. Les trois routes du budget total
     partagent cette résolution : elles écrivent et relisent la MÊME case, et
     deux façons de deviner la période auraient fini par les faire diverger d'un
     mois au passage de minuit du 31."""
-    aujourdhui = date.today()
-    annee_resolue = annee if annee is not None else aujourdhui.year
-    mois_resolu = mois if mois is not None else aujourdhui.month
+    annee_resolue, mois_resolu = _mois_par_defaut(annee, mois, date.today())
     if mois_resolu < 1 or mois_resolu > 12:
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
     return annee_resolue, mois_resolu
@@ -139,7 +144,7 @@ def get_ecart_variations(
     variations s'y calculent sur douze mois, leur écart aussi.
     """
     aujourdhui = date.today()
-    annee = annee if annee is not None else aujourdhui.year
+    annee = annee if annee is not None else soldes.mois_de(aujourdhui)[0]
     if mois is not None and (mois < 1 or mois > 12):
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
     if tout:
@@ -171,9 +176,7 @@ def get_depenses_semaines(
     cinquante-deux barres ne serait plus un histogramme, et « la moyenne des
     semaines du mois » n'aurait plus de mois.
     """
-    aujourdhui = date.today()
-    annee = annee if annee is not None else aujourdhui.year
-    mois = mois if mois is not None else aujourdhui.month
+    annee, mois = _mois_par_defaut(annee, mois, date.today())
     if mois < 1 or mois > 12:
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
 
@@ -221,9 +224,7 @@ def get_moyenne_periode(
         raise HTTPException(
             status_code=400, detail="vue doit être 'mois', 'annee' ou 'tout'"
         )
-    aujourdhui = date.today()
-    annee = annee if annee is not None else aujourdhui.year
-    mois = mois if mois is not None else aujourdhui.month
+    annee, mois = _mois_par_defaut(annee, mois, date.today())
     if mois < 1 or mois > 12:
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
     crud.generer_occurrences_recurrentes(db)
@@ -239,13 +240,13 @@ def _bornes_vue(vue: str, annee: Optional[int], mois: Optional[int]):
     if vue == "tout":
         return None, None
     aujourdhui = date.today()
-    annee = annee if annee is not None else aujourdhui.year
+    annee = annee if annee is not None else soldes.mois_de(aujourdhui)[0]
     if vue == "annee":
-        return date(annee, 1, 1), date(annee, 12, 31)
-    mois = mois if mois is not None else aujourdhui.month
+        return soldes.bornes_periode(annee, None)
+    mois = mois if mois is not None else soldes.mois_de(aujourdhui)[1]
     if mois < 1 or mois > 12:
         raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
-    return date(annee, mois, 1), soldes.fin_de_periode(annee, mois)
+    return soldes.bornes_periode(annee, mois)
 
 
 @router.get("/cascade", response_model=schemas.CascadeMonnaie)
@@ -421,7 +422,7 @@ def get_dashboard(
         )
 
     aujourdhui = date.today()
-    annee = annee if annee is not None else aujourdhui.year
+    annee = annee if annee is not None else soldes.mois_de(aujourdhui)[0]
     # « TOUT » EST LA SOMME DES VUES ANNUELLES (cf. services/periode_tout) : les
     # agrégats sont ceux de `ToutesLesAnnees`, qui ont les noms de `soldes`, et le
     # reste de cette route ne distingue pas les deux. Les soldes se projettent
@@ -437,7 +438,7 @@ def get_dashboard(
     elif vue == "annee":
         mois = None
     else:
-        mois = mois if mois is not None else aujourdhui.month
+        mois = mois if mois is not None else soldes.mois_de(aujourdhui)[1]
         if mois < 1 or mois > 12:
             raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
 
@@ -448,7 +449,7 @@ def get_dashboard(
     crud.generer_occurrences_recurrentes(db)
 
     comptes_soldes = soldes.get_soldes_comptes(
-        db, date_fin=fin_projection or soldes.fin_de_periode(annee, mois)
+        db, date_fin=fin_projection or soldes.fin_periode_affichee(annee, mois)
     )
     comptes_read = [
         schemas.CompteSoldeRead(
@@ -469,9 +470,29 @@ def get_dashboard(
         )
         for item in comptes_soldes
     ]
+    valorisation_placements = placements.valorisation_totale(db)
     totaux = soldes.calculer_totaux_par_monnaie(
-        comptes_soldes, valorisation_placements=placements.valorisation_totale(db)
+        comptes_soldes, valorisation_placements=valorisation_placements
     )
+
+    # LE « PROJETÉ AU … » SUIT LE MOIS SALARIAL, PAS LE MOIS CALENDAIRE. En mois salarial (réglage du
+    # dashboard), le mois courant finit la veille de la coupure : l'étiquette du KPI porte déjà cette
+    # date (`reste.horizon`), et le chiffre doit y être borné aussi — sinon il comptait jusqu'au dernier
+    # jour du mois calendaire (des prévisionnelles du mois suivant, ou celles d'après la coupure absentes).
+    # Seul le total projeté du KPI change : la liste des comptes reste bornée à la fin du mois affiché.
+    jour_salaire = soldes.lire_decoupage_salaire(db)
+    horizon_reste = soldes.horizon_reste(vue, aujourdhui, jour_salaire)
+    projete_courant_salarial: Optional[dict] = None
+    if (
+        vue == "mois"
+        and jour_salaire is not None
+        and (annee, mois) == soldes.mois_de(aujourdhui)
+        and horizon_reste != soldes.fin_periode_affichee(annee, mois)
+    ):
+        projete_courant_salarial = soldes.calculer_totaux_par_monnaie(
+            soldes.get_soldes_comptes(db, date_fin=horizon_reste),
+            valorisation_placements=valorisation_placements,
+        )
 
     # Un onglet par monnaie effectivement portée par un compte : les monnaies
     # créées mais jamais utilisées n'encombrent pas le dashboard. L'ordre est
@@ -497,11 +518,30 @@ def get_dashboard(
     # LE « RESTE » EST TOUJOURS RELATIF À AUJOURD'HUI, quels que soient l'année et
     # le mois demandés : seule la vue (mois / année) déplace son horizon (cf.
     # services/soldes.reste_periode).
-    horizon_reste = soldes.horizon_reste(vue, aujourdhui)
+    # EN MOIS SALARIAL (réglage du dashboard), la période du reste suit le salaire : elle finit la veille de la
+    # coupure (cf. soldes.periode_salariale).
+    # (`jour_salaire` et `horizon_reste` sont lus plus haut, avec le total projeté.)
+
+    # « PROJETÉ » AVEC OU SANS LA DÉPENSE MOYENNE PAR JOUR (réglage de Paramètres généraux, sans par défaut) :
+    # avec, on retranche ce qu'on dépense en moyenne d'ici la date du projeté (le même calcul que la courbe
+    # « Prévision »). Seule une date à venir est concernée.
+    avec_depense_moyenne = soldes.lire_projete_avec_depense_moyenne(db)
+    fin_projete = (
+        horizon_reste
+        if projete_courant_salarial is not None
+        else (fin_projection or soldes.fin_periode_affichee(annee, mois))
+    )
 
     kpis = []
     for monnaie in monnaies:
         totaux_monnaie = totaux.get(monnaie.id, {})
+        projete_courant = (projete_courant_salarial or totaux).get(monnaie.id, {}).get(
+            "solde_projete_courant", 0.0
+        )
+        if avec_depense_moyenne and fin_projete > aujourdhui:
+            projete_courant -= moyenne_depenses.estimation_depenses(
+                db, {monnaie.id: 1.0}, aujourdhui, fin_projete
+            )["cumul"].get(fin_projete, 0.0)
         reste = reste_a_rembourser.get(monnaie.id, {})
         # Un seul appel pour les trois flux : les recalculer séparément
         # ouvrirait la porte à une variation qui ne vaut pas entrées − sorties.
@@ -516,7 +556,7 @@ def get_dashboard(
                 monnaie_nom=monnaie.nom,
                 monnaie_symbole=monnaie.symbole,
                 solde_total_courant=totaux_monnaie.get("solde_total_courant", 0.0),
-                solde_projete_courant=totaux_monnaie.get("solde_projete_courant", 0.0),
+                solde_projete_courant=projete_courant,
                 total_avoirs=totaux_monnaie.get("total_avoirs", 0.0),
                 valorisation_placements=totaux_monnaie.get("valorisation_placements", 0.0),
                 total_entrees=flux["entrees"],
@@ -539,12 +579,26 @@ def get_dashboard(
                     if mois is not None
                     else True
                 ),
+                # PAR CATÉGORIE PARENT (migration 0103) : les sous-catégories sont fondues dans leur parent — le
+                # dashboard ne change pas —, et leurs composantes servent à la page Budget (barres empilées).
                 depenses_par_categorie=[
                     schemas.DepenseParCategorie(**item)
-                    for item in agregats.get_depenses_par_categorie(db, annee, mois, monnaie.id)
+                    for item in soldes.regrouper_par_parent(
+                        db,
+                        agregats.get_depenses_par_categorie(db, annee, mois, monnaie.id),
+                        annee,
+                        mois,
+                        monnaie.id,
+                    )
                 ],
                 reste=schemas.RestePeriodeRead(
-                    **soldes.reste_periode(db, {monnaie.id: 1.0}, horizon_reste, aujourdhui)
+                    **soldes.reste_periode(
+                        db,
+                        {monnaie.id: 1.0},
+                        horizon_reste,
+                        aujourdhui,
+                        debut=soldes.debut_reste(vue, aujourdhui, jour_salaire),
+                    )
                 ),
             )
         )

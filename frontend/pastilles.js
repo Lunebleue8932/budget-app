@@ -50,9 +50,46 @@ function categorieHtml(categorieId) {
   const categorie = state.categories.find((c) => c.id === categorieId);
   if (!categorie) return escapeHtml(nomCategorie(categorieId));
   return (
-    `<span class="avec-puce">${puceHtml(couleurCategorie(categorie.couleur_index ?? 0), categorie.icone)}` +
+    `<span class="avec-puce">${puceHtml(couleurDeCategorie(categorie), iconeDeCategorie(categorie))}` +
     `${escapeHtml(libelleCategorie(categorie.nom))}</span>`
   );
+}
+
+/** Une catégorie retrouvée par son identifiant (nombre) ou par son nom (texte). */
+function categorieConnue(categorie) {
+  if (categorie == null) return null;
+  return (
+    state.categories.find((c) => (typeof categorie === "number" ? c.id === categorie : c.nom === categorie)) || null
+  );
+}
+
+/**
+ * LE NOM D'UNE CATÉGORIE, SOULIGNÉ À SA COULEUR — pour les écrans où la puce n'a pas sa place (listes du
+ * dashboard, tableaux des prévisions, des impôts, des objectifs). Sur la page Opérations, c'est la puce qui
+ * parle (cf. `categorieHtml`). Accepte un identifiant ou un nom ; sans catégorie connue, le texte tel quel.
+ */
+function categorieSouligneeHtml(categorie) {
+  if (categorie == null) return "-";
+  const connue = categorieConnue(categorie);
+  if (!connue) {
+    return escapeHtml(typeof categorie === "number" ? nomCategorie(categorie) : libelleCategorie(categorie));
+  }
+  return (
+    `<span class="categorie-soulignee" style="--puce:${couleurDeCategorie(connue)}">` +
+    `${escapeHtml(libelleCategorie(connue.nom))}</span>`
+  );
+}
+
+/**
+ * LA BANDE ET L'EMOJI DE LA CATÉGORIE, en tête d'une ligne de la page Opérations : la bande est un liseré
+ * à gauche de la première cellule (même forme que celui des remboursements et des prêts, qui se range
+ * juste à côté), l'emoji se pose devant le nom (cf. `celluleNature`). Sans catégorie, rien.
+ */
+function marquerCategorieOperation(tr, op) {
+  const categorie = categorieConnue(op.categorie_id);
+  if (!categorie) return;
+  tr.classList.add("avec-categorie");
+  tr.style.setProperty("--cat", couleurDeCategorie(categorie));
 }
 
 /** Le nom d'un compte, précédé de sa puce — rien devant tant qu'on n'a choisi ni couleur ni icône. */

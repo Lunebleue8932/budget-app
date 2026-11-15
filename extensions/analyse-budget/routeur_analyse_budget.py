@@ -152,6 +152,40 @@ def lire_depenses_categorie(
 # ---------- Le solde prévisionnel ----------
 
 
+@router.get("/detail-categorie")
+def lire_detail_categorie(
+    categorie_id: int,
+    monnaie_id: int,
+    annee: Optional[int] = None,
+    mois: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Le détail d'une catégorie PARENT sur un mois (ou l'année, sans `mois`) : sa jauge, son budget, et les
+    opérations prises en compte (cf. service_analyse_budget.detail_categorie). 404 pour une sous-catégorie : le
+    détail n'existe que pour les catégories de premier niveau."""
+    _monnaie_ou_404(db, monnaie_id)
+    if mois is not None and not 1 <= mois <= 12:
+        raise HTTPException(status_code=400, detail="mois doit être entre 1 et 12")
+    detail = service.detail_categorie(db, categorie_id, _annee_demandee(annee), mois, monnaie_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Catégorie de premier niveau introuvable")
+    return detail
+
+
+@router.get("/reste-a-vivre", response_model=schemas_ab.ResteAVivreRead)
+def lire_reste_a_vivre(
+    monnaie_id: int,
+    vue: str = Query("mois", pattern="^(mois|annee)$"),
+    db: Session = Depends(get_db),
+):
+    """Le bloc « Reste pour finir le mois » du dashboard, pour UNE monnaie, avec sa courbe (réel, prévision
+    et sa plage ± σ·√k, rythme sûr) et de quoi planifier. Les mêmes briques que le dashboard : la page
+    Prévisions en est le prolongement, pas un second calcul."""
+    _monnaie_ou_404(db, monnaie_id)
+    crud.generer_occurrences_recurrentes(db)
+    return service_solde.reste_a_vivre(db, monnaie_id, vue)
+
+
 @router.get("/solde-previsionnel", response_model=schemas_ab.SoldePrevisionnelRead)
 def lire_solde_previsionnel(
     monnaie_id: int,

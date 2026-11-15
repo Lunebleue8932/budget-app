@@ -180,6 +180,26 @@ class Categorie(Base):
     # n'a ni barre, ni part de camembert, ni enveloppe, ni objectif de répartition.
     est_virement = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
+    # LES SOUS-CATÉGORIES (migration 0103) : une simple relation parent → enfant. Un parent a plusieurs
+    # enfants et n'a pas de parent ; un enfant n'a qu'un parent et pas d'enfants (UN SEUL NIVEAU : le serveur
+    # le garantit, cf. crud.erreur_parent_categorie). NULL = catégorie de premier niveau, ce que sont toutes
+    # celles d'avant. Supprimer le parent libère ses enfants (SET NULL côté base, et crud.delete_categorie les
+    # détache) : ils ne disparaissent pas avec lui.
+    #
+    # ELLES SE COMPORTENT COMME DES CATÉGORIES NORMALES — opérations, règles, budgets, objectifs, filtres, menus —
+    # à deux exceptions près : le DASHBOARD affiche par catégorie PARENT (les enfants y sont fondus dans leur
+    # parent), et la page Budget empile les enfants dans la barre de leur parent (cf. soldes.regrouper_par_parent).
+    parent_id = Column(
+        Integer, ForeignKey("categorie.id", ondelete="SET NULL"), nullable=True
+    )
+    # LA NUANCE D'UN ENFANT : un rang dans la liste des nuances de la couleur de son parent (cf. frontend,
+    # `nuancesDeCategorie`). NULL = la première nuance libre parmi ses frères, choisie à la création. L'enfant
+    # n'a JAMAIS de couleur à lui hors de cette famille : il hérite de la teinte du parent, et deux familles
+    # de nuances ne se recouvrent pas. Son emoji (`icone`) hérite aussi du parent tant qu'il est NULL.
+    couleur_nuance = Column(Integer, nullable=True)
+
+    parent = relationship("Categorie", remote_side=[id], foreign_keys=[parent_id])
+
     @property
     def mots_cles(self) -> list:
         """Les mots-clés en vigueur (les siens, sinon les livrés)."""
@@ -1164,6 +1184,36 @@ class ExpositionTitre(Base):
         CheckConstraint("poids_pct > 0 AND poids_pct <= 100", name="ck_exposition_titre_poids"),
         UniqueConstraint("titre_id", "axe", "type_titre_id", name="uq_exposition_titre"),
         Index("ix_exposition_titre_titre_id", "titre_id"),
+    )
+
+
+class CoursTitre(Base):
+    """Le cours d'un titre UN JOUR DONNÉ (migration 0102) : la paire (titre, date) et sa valeur.
+
+    `titre_possede.valeur` reste le DERNIER cours connu, celui qui valorise le portefeuille d'aujourd'hui ;
+    cette table garde tous les autres. Elle sert à une seule chose : valoriser le portefeuille à une date
+    PASSÉE (cf. services/evolution_portefeuille), pour en tracer l'évolution. Aucun solde, aucune plus-value
+    latente du jour n'en dépend.
+
+    D'OÙ VIENT UNE LIGNE (`source`) : « manuel » (un cours saisi à la main), « en_ligne » (relu sur une page
+    de cotation par l'extension « Lecture de cours ») ou « historique » (les anciennes valeurs que cette même
+    page publie). Une seule valeur par jour et par titre : relire le même jour la remplace.
+    """
+
+    __tablename__ = "cours_titre"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    titre_id = Column(
+        Integer, ForeignKey("titre_possede.id", ondelete="CASCADE"), nullable=False
+    )
+    date = Column(Date, nullable=False)
+    valeur = Column(Float, nullable=False)
+    source = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("titre_id", "date", name="uq_cours_titre_titre_date"),
+        CheckConstraint("valeur >= 0", name="ck_cours_titre_valeur_positive"),
+        Index("ix_cours_titre_titre_id_date", "titre_id", "date"),
     )
 
 

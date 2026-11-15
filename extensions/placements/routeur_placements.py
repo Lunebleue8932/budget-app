@@ -1,9 +1,12 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
 from app.constants import SensTitre
 from app.database import get_db
+from app.services import evolution_portefeuille as evolution_portefeuille_service
 from app.services import placements, soldes
 
 router = APIRouter(prefix="/placements", tags=["placements"])
@@ -96,6 +99,42 @@ def list_placements(db: Session = Depends(get_db)):
         schemas.PlacementCompteRead(**_lire_compte(db, compte, soldes_espece))
         for compte in placements.get_comptes_placement(db)
     ]
+
+
+@router.get("/evolution")
+def evolution_portefeuille(
+    monnaie_id: Optional[int] = None,
+    axe: str = "total",
+    compte_ids: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """L'évolution de la valorisation du portefeuille, découpée selon `axe` (`total`, `compte`,
+    `enveloppe`, `classe`, `zone`, `secteur`), dans UNE monnaie — la première détenue si elle n'est pas
+    nommée. `compte_ids` : « 3,5 », pour ne regarder que ces comptes. Une réponse par monnaie détenue
+    figure dans `monnaies`, de quoi dessiner les onglets.
+
+    DÉCLARÉE AVANT `/{compte_id}` : sans cela, « evolution » serait pris pour un identifiant de compte."""
+    if axe not in evolution_portefeuille_service.AXES:
+        raise HTTPException(status_code=400, detail=f"Axe inconnu : « {axe} »")
+    detenues = evolution_portefeuille_service.monnaies_detenues(db)
+    if monnaie_id is None and detenues:
+        monnaie_id = detenues[0]
+    ids = None
+    if compte_ids:
+        try:
+            ids = [int(x) for x in compte_ids.split(",") if x.strip()]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="compte_ids : liste d'entiers") from exc
+    monnaies = {m.id: m for m in crud.get_monnaies(db)}
+    if monnaie_id is None:
+        return {"monnaies": [], "monnaie_id": None, "axe": axe, "dates": [], "total": [], "series": []}
+    resultat = evolution_portefeuille_service.evolution(db, monnaie_id, axe, ids)
+    resultat["monnaies"] = [
+        {"id": m_id, "nom": monnaies[m_id].nom, "symbole": monnaies[m_id].symbole}
+        for m_id in detenues
+        if m_id in monnaies
+    ]
+    return resultat
 
 
 @router.get("/{compte_id}", response_model=schemas.PlacementDetailRead)

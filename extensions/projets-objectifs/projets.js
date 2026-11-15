@@ -94,14 +94,15 @@ function totauxHtml(totaux) {
     .map((total) => {
       const solde = total.solde ?? (total.entrees || 0) - (total.depenses || 0);
       const signe = montantEstNul(solde) ? "" : solde < 0 ? "−" : "+";
-      const classe = classeMontant(solde, solde < 0 ? "sortie" : "entree");
+      // UN TOTAL DE PROJET EST UN MONTANT GLOBAL : chiffre et signe colorés (vert / orange).
+      const classe = classeMontantGlobal(solde);
       const detail = t("Entrées : {entrees} · Sorties : {sorties}", {
         entrees: formatMontant(total.entrees || 0, total.monnaie_id),
         sorties: formatMontant(total.depenses || 0, total.monnaie_id),
       });
       return `
       <div class="projet-total" title="${escapeHtml(detail)}">
-        <span class="projet-total-solde montant ${classe}">${signe}${formatMontant(
+        <span class="projet-total-solde ${classe}">${signe}${formatMontant(
           Math.abs(solde),
           total.monnaie_id
         )}</span>
@@ -127,11 +128,11 @@ function totauxCartesHtml(totaux) {
     .map((total) => {
       const solde = total.solde;
       const signe = montantEstNul(solde) ? "" : solde < 0 ? "−" : "+";
-      const classe = classeMontant(solde, solde < 0 ? "sortie" : "entree");
+      const classe = classeMontantGlobal(solde);
       return `
       <div class="kpi-card projet-bilan">
         <div class="kpi-label">${escapeHtml(t("Entrées − dépenses"))}<i class="info-bulle" tabindex="0" data-info-cle="projets.bilan">i</i></div>
-        <div class="kpi-valeur montant ${classe}">${signe}${formatMontant(Math.abs(solde), total.monnaie_id)}</div>
+        <div class="kpi-valeur ${classe}">${signe}${formatMontant(Math.abs(solde), total.monnaie_id)}</div>
         <div class="kpi-sous-texte">${escapeHtml(
           t("Entrées : {entrees} · Sorties : {sorties}", {
             entrees: formatMontant(total.entrees || 0, total.monnaie_id),
@@ -1015,10 +1016,11 @@ function ouvrirSelecteurProjet() {
     "categories",
     "projet-filtre-categories",
     t("Catégories"),
-    state.categories.map((c) => ({
+    // Les sous-catégories sous leur parent, en retrait, à la couleur de leur nuance (migration 0103).
+    categoriesEnHierarchie(state.categories).map((c) => ({
       cle: c.id,
-      libelle: libelleCategorie(c.nom),
-      couleur: couleurCategorie(c.couleur_index ?? 0),
+      libelle: libelleCategorieMenu(c),
+      couleur: couleurDeCategorie(c),
     }))
   );
   chercherCandidatsProjet();
@@ -1122,7 +1124,9 @@ function renderCandidatsProjet() {
 }
 
 function majSelectionProjet() {
-  const nombre = projetSelection.size;
+  // LE COMPTEUR COMPTE DES LIGNES, pas des jambes : un virement interne (deux opérations
+  // dans `projetSelection`) ne compte qu'une fois, comme la ligne unique qu'il occupe.
+  const nombre = projetCandidats.filter((c) => c.ids.some((id) => projetSelection.has(id))).length;
   document.getElementById("projet-selection-nombre").textContent = nombre;
   document.getElementById("btn-projet-verser").disabled = nombre === 0;
 }

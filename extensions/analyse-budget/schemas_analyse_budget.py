@@ -10,6 +10,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app import schemas as core_schemas
+
 
 class EpargnePeriodeRead(BaseModel):
     """Ce qu'on a mis de côté sur une période, dans une monnaie.
@@ -125,6 +127,8 @@ class PointSoldeRead(BaseModel):
     # Vrai jusqu'à aujourd'hui inclus : le solde RÉEL, déjà vécu. Faux après : le
     # prévisionnel. L'écran trace les deux différemment.
     passe: bool
+    # La demi-largeur de la plage autour de la prévision avancée (± σ·√k), sur le futur seulement.
+    ecart: Optional[float] = None
 
 
 class EcheanceRead(BaseModel):
@@ -150,6 +154,10 @@ class MoyenneDepensesRead(BaseModel):
     cadence: str = "jour"
     par_jour: float = 0.0
     par_semaine: float = 0.0
+    # L'écart-type de la dépense par jour et par semaine : la plage tracée autour de la prévision est
+    # ± σ·√k après k jours (ou semaines) — comme sur le dashboard.
+    ecart_type_jour: float = 0.0
+    ecart_type_semaine: float = 0.0
     total: float = 0.0
     jours: int = 0
     nombre_operations: int = 0
@@ -214,3 +222,35 @@ class DepensesCategorieRead(BaseModel):
     periodes: list[DepensePeriodeRead] = Field(default_factory=list)
     # Combien de périodes ont été écartées faute de la moindre opération dans la catégorie.
     masquees: int = 0
+
+
+class PointPlanificationRead(BaseModel):
+    date: date_type
+    montant: float
+
+
+class PlanificationRead(BaseModel):
+    """De quoi planifier, en plus de ce que montre le dashboard (cf. service_solde_previsionnel.planification)."""
+
+    moyenne_jour: float = 0.0
+    ecart_type_jour: float = 0.0
+    cadence: str = "jour"
+    jours_historique: int = 0
+    marge_rythme: float = 0.0
+    solde_fin: Optional[float] = None
+    solde_fin_bas: Optional[float] = None
+    solde_fin_haut: Optional[float] = None
+    point_bas_prevision: Optional[PointPlanificationRead] = None
+    point_bas_pessimiste: Optional[PointPlanificationRead] = None
+    sous_zero_prevision: Optional[date_type] = None
+    sous_zero_pessimiste: Optional[date_type] = None
+
+
+class ResteAVivreRead(BaseModel):
+    """Le « reste pour finir le mois » du dashboard, pour une monnaie, et sa planification."""
+
+    monnaie_id: int
+    vue: str
+    reste: core_schemas.RestePeriodeRead
+    courbe: core_schemas.CourbeResteRead
+    planification: PlanificationRead
