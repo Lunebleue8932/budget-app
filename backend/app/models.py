@@ -197,6 +197,16 @@ class Categorie(Base):
     # n'a JAMAIS de couleur à lui hors de cette famille : il hérite de la teinte du parent, et deux familles
     # de nuances ne se recouvrent pas. Son emoji (`icone`) hérite aussi du parent tant qu'il est NULL.
     couleur_nuance = Column(Integer, nullable=True)
+    # UNE NOTE LIBRE (migration 0104), comme celle d'une opération : pourquoi cette catégorie existe, ce qu'on y range,
+    # ce qu'on n'y range pas. Du texte que l'application ne lit jamais : aucun calcul n'en dépend.
+    notes = Column(String, nullable=True)
+    # UN DOSSIER DE CATÉGORIES (migration 0105) : une catégorie PARENT, sans aucune opération affectée, qui ne sert
+    # plus qu'à REGROUPER ses sous-catégories. Elle n'est plus proposée là où l'on CLASSE (formulaire d'opération,
+    # parts d'une découpe, règles, correspondances et suggestions de l'import — cf. crud.erreur_categorie_eteinte,
+    # que le serveur applique comme à une catégorie éteinte), mais reste lue partout ailleurs : elle peut encore
+    # porter un budget, et sa barre empile ses enfants. Le serveur refuse de la poser tant qu'elle porte des
+    # opérations, et la retire d'elle-même quand sa dernière sous-catégorie la quitte (cf. crud.erreur_dossier_categorie).
+    est_dossier = Column(Boolean, nullable=False, default=False, server_default=sa_false())
 
     parent = relationship("Categorie", remote_side=[id], foreign_keys=[parent_id])
 

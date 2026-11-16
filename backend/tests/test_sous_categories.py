@@ -208,3 +208,63 @@ def test_le_detail_d_une_categorie_parent(db_session):
     assert {c["categorie"] for c in detail["composantes"]} == {"Transports", "Essence"}
     # Une sous-catégorie n'a pas de fenêtre de détail.
     assert service.detail_categorie(db, essence.id, aujourdhui.year, aujourdhui.month, monnaie) is None
+
+
+def test_changer_la_couleur_echange_avec_la_categorie_qui_la_porte(db_session):
+    db = db_session
+    crud.delete_categorie(db, crud.get_categorie_by_nom(db, "Réparation & entretien"))  # libère la couleur 3
+    a = _categorie(db, "Transports")
+    b = _categorie(db, "Loisirs 2")
+    b.couleur_index = 3  # la seule à porter cette couleur
+    db.commit()
+    enfant = _categorie(db, "Essence", a.id)
+    ancienne_a = a.couleur_index
+    cible = b.couleur_index % 8  # les index se lisent modulo la palette
+    assert crud.erreur_couleur_categorie(db, a, cible) is None
+    crud.set_categorie_couleur(db, a, cible)
+    db.refresh(b)
+    db.refresh(enfant)
+    # Les deux ont échangé leurs couleurs, et la sous-catégorie suit la teinte de son parent.
+    assert a.couleur_index == cible and b.couleur_index == ancienne_a
+    assert enfant.couleur_index == cible
+
+
+def test_une_couleur_libre_se_pose_sans_echange(db_session):
+    db = db_session
+    # Deux catégories du décor inutilisées libèrent des couleurs.
+    for nom in ("Réparation & entretien", "Vêtements & équipement sport"):
+        crud.delete_categorie(db, crud.get_categorie_by_nom(db, nom))
+    a = _categorie(db, "Transports")
+    autres = {c.couleur_index for c in crud.get_categories(db) if c.id != a.id and c.parent_id is None}
+    libre = next(i for i in range(8) if i not in {x % 8 for x in autres} | {a.couleur_index % 8})
+    crud.set_categorie_couleur(db, a, libre)
+    assert a.couleur_index == libre
+    # Aucune autre catégorie n'a bougé.
+    assert {c.couleur_index for c in crud.get_categories(db) if c.id != a.id and c.parent_id is None} == autres
+
+
+def test_la_couleur_est_refusee_pour_une_sous_categorie_une_entree_ou_hors_palette(db_session):
+    db = db_session
+    parent = _categorie(db, "Transports")
+    enfant = _categorie(db, "Essence", parent.id)
+    assert crud.erreur_couleur_categorie(db, enfant, 2) is not None
+    assert crud.erreur_couleur_categorie(db, crud.get_categorie_virements(db), 2) is not None
+    entree = crud.get_categorie_by_nom(db, "Entrées d'argent")
+    assert crud.erreur_couleur_categorie(db, entree, 2) is not None
+    assert crud.erreur_couleur_categorie(db, parent, 8) is not None
+    assert crud.erreur_couleur_categorie(db, parent, -1) is not None
+
+
+def test_la_note_d_une_categorie(db_session):
+    db = db_session
+    categorie = _categorie(db, "Transports")
+    assert categorie.notes is None
+    lue = routeur_categories.set_notes_categorie(
+        categorie.id, schemas.CategorieNotesUpdate(notes="  tout ce qui touche à la voiture  "), db
+    )
+    assert lue.notes == "tout ce qui touche à la voiture"
+    # Un texte vide la retire ; renommer ne l'efface pas.
+    crud.rename_categorie(db, categorie, "Voiture")
+    assert crud.get_categorie(db, categorie.id).notes == "tout ce qui touche à la voiture"
+    routeur_categories.set_notes_categorie(categorie.id, schemas.CategorieNotesUpdate(notes="   "), db)
+    assert crud.get_categorie(db, categorie.id).notes is None

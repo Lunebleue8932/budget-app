@@ -1383,16 +1383,33 @@ function fillCategoriesSelect(selectEl, categories, { keepFirst = false } = {}) 
   selectEl.innerHTML = "";
   if (firstOption) selectEl.appendChild(firstOption);
   // Les sous-catégories sous leur parent, en retrait (migration 0103).
+  const dossiersTitres = new Set();
   categoriesEnHierarchie(categories).forEach((c) => {
+    // LES SOUS-CATÉGORIES D'UN DOSSIER (migration 0105) : le dossier n'est pas proposé, mais il reste leur TITRE —
+    // une ligne grisée, non choisissable, pour qu'elles ne pendent pas sous la catégorie d'avant.
+    if (c.niveau && c.parent_id != null && !dossiersTitres.has(c.parent_id) && !categories.some((x) => x.id === c.parent_id)) {
+      const dossier = (state.categories || []).find((x) => x.id === c.parent_id);
+      if (dossier && dossier.est_dossier) {
+        dossiersTitres.add(dossier.id);
+        const titre = document.createElement("option");
+        titre.value = "";
+        titre.disabled = true;
+        titre.classList.add("option-dossier");
+        poserOptionCategorie(titre, { ...dossier, niveau: 0 });
+        selectEl.appendChild(titre);
+      }
+    }
     const opt = document.createElement("option");
     opt.value = c.id;
     // Par `libelleCategorie` comme partout ailleurs : les catégories livrées
     // ont un équivalent anglais, celles que l'utilisateur crée ressortent
     // inchangées. Un menu qui resterait en français sous une interface anglaise
     // se lirait comme un oubli.
-    opt.textContent = libelleCategorieMenu(c);
+    // Puce (emoji + couleur) et nom en blanc : dessinés par `ameliorerSelectCategorie`.
+    poserOptionCategorie(opt, c);
     selectEl.appendChild(opt);
   });
+  ameliorerSelectCategorie(selectEl);
 }
 
 function nomCompte(compteId) {
@@ -2585,13 +2602,52 @@ async function refreshCategories() {
   // catégories de dépense : les quatre anciennes catégories « système » sont
   // devenues des types, plus rien à filtrer ici.
   state.categories = await apiFetch("/categories");
-  document.querySelectorAll(".filtre-select-categorie").forEach((filtreCategorie) => {
-    _refillPreservingSelection(filtreCategorie, (el) => {
-      const tousOption = el.firstElementChild;
-      fillCategoriesSelect(el, state.categories, { keepFirst: true });
-      el.insertBefore(tousOption, el.firstChild);
-    });
+  // LES FILTRES DE CATÉGORIES (page Opérations) sont des menus à cocher : on les redessine avec la liste.
+  document.querySelectorAll(".filtre-categories-valeur").forEach(majMenuFiltreCategories);
+}
+
+/** Les identifiants cochés dans le champ caché d'un filtre de catégories (« 3,5 » → ["3", "5"]). */
+function idsFiltreCategories(valeur) {
+  return valeur ? valeur.split(",").filter(Boolean) : [];
+}
+
+/**
+ * (Re)dessine le menu à cocher d'un filtre de catégories d'après son champ caché. PLUSIEURS CATÉGORIES se cochent à
+ * la fois ; aucune cochée veut dire « toutes ». Chaque ligne porte l'emoji et la pastille de couleur de la catégorie,
+ * les sous-catégories sous leur parent. Un changement écrit les identifiants dans le champ et déclenche son
+ * événement `change` : toute la mécanique des filtres (propagation, bandeau, rendu) le lit comme avant.
+ */
+function majMenuFiltreCategories(champ) {
+  const conteneur = champ.closest(".filtre-categories-champ")?.querySelector(".filtre-categories-menu");
+  if (!conteneur) return;
+  const coches = new Set(idsFiltreCategories(champ.value).map(Number));
+  const texteBouton = (choisies) =>
+    choisies.size === 0
+      ? t("Toutes")
+      : choisies.size === 1
+        ? libelleCategorie((state.categories.find((c) => c.id === [...choisies][0]) || {}).nom || "")
+        : t("{n} catégories", { n: choisies.size });
+  creerMenuCases(conteneur, {
+    libelle: texteBouton(coches),
+    options: categoriesEnHierarchie(state.categories).map((c) => ({
+      cle: c.id,
+      libelle: libelleCategorieAvecIcone(c),
+      couleur: couleurDeCategorie(c),
+    })),
+    coches,
+    onChange: (choisies) => {
+      champ.value = [...choisies].sort((a, b) => a - b).join(",");
+      const bouton = conteneur.querySelector(".filtre-menu-bouton");
+      bouton.textContent = `${texteBouton(choisies)} ▾`;
+      bouton.classList.toggle("filtre-actif", choisies.size > 0);
+      champ.dispatchEvent(new Event("change", { bubbles: true }));
+    },
   });
+  const bouton = conteneur.querySelector(".filtre-menu-bouton");
+  if (bouton) {
+    bouton.textContent = `${texteBouton(coches)} ▾`;
+    bouton.classList.toggle("filtre-actif", coches.size > 0);
+  }
 }
 
 /* ---------- CRÉER UN COMPTE OU UNE CATÉGORIE SUR PLACE ----------
@@ -4118,6 +4174,127 @@ function categoriesEnHierarchie(categories) {
   return resultat;
 }
 
+/** Le libellé d'une catégorie avec son EMOJI : « ↳ 🚗 Essence » (le « ↳ » pour une sous-catégorie, rien sans emoji). */
+function libelleCategorieAvecIcone(categorie) {
+  const icone = iconeDeCategorie(categorie);
+  return `${categorie.niveau ? "↳ " : ""}${icone ? `${icone} ` : ""}${libelleCategorie(categorie.nom)}`;
+}
+
+/**
+ * Une `<option>` de catégorie. Le texte natif (nom, avec « ↳ » pour une sous-catégorie) sert de repli ; ce qu'on VOIT est
+ * dessiné par `ameliorerSelectCategorie` (puce à la couleur de la catégorie, emoji dedans, nom en blanc). `data-categorie`
+ * relie l'option à sa catégorie.
+ */
+function poserOptionCategorie(option, categorie) {
+  option.textContent = `${categorie.niveau ? "↳ " : ""}${libelleCategorie(categorie.nom)}`;
+  option.dataset.categorie = categorie.id;
+}
+
+/**
+ * LE SÉLECTEUR DE CATÉGORIE, EN RICHE : le `<select>` natif ne peut pas dessiner une puce, et c'est elle que la page
+ * Opérations montre devant chaque catégorie — un anneau à la couleur de la catégorie qui entoure son emoji (un disque
+ * plein quand elle n'en a pas), puis le nom, en blanc. Ce menu REMPLACE l'affichage du `<select>` sans le supprimer :
+ * le `<select>` reste dans la page, masqué, et c'est lui qui porte la valeur — tout le code qui le lit (`.value`,
+ * l'événement `change`, `_refillPreservingSelection`) continue de marcher tel quel. Le menu se resynchronise quand
+ * les options changent, quand la valeur est posée à la main et quand le select est activé ou désactivé. Idempotent.
+ */
+function ameliorerSelectCategorie(select) {
+  if (!select || select.dataset.riche === "1") return;
+  if (!select.isConnected) {
+    // Un select qu'on remplit avant de le poser dans la page : on attend qu'il y soit.
+    select._essaisRiche = (select._essaisRiche || 0) + 1;
+    if (select._essaisRiche < 40) requestAnimationFrame(() => ameliorerSelectCategorie(select));
+    return;
+  }
+  select.dataset.riche = "1";
+  const hote = document.createElement("div");
+  hote.className = "select-riche";
+  const bouton = document.createElement("button");
+  bouton.type = "button";
+  bouton.className = "select-riche-bouton";
+  bouton.setAttribute("aria-haspopup", "listbox");
+  const panneau = document.createElement("div");
+  panneau.className = "select-riche-panneau";
+  panneau.hidden = true;
+  panneau.setAttribute("role", "listbox");
+  hote.append(bouton, panneau);
+  select.insertAdjacentElement("afterend", hote);
+  select.classList.add("select-riche-natif");
+
+  const contenuOption = (option) => {
+    const categorie = option.dataset.categorie
+      ? state.categories.find((c) => c.id === Number(option.dataset.categorie))
+      : null;
+    if (!categorie) return `<span class="select-riche-texte">${escapeHtml(option.textContent)}</span>`;
+    const niveau = option.textContent.startsWith("↳ ") ? "↳ " : "";
+    return (
+      `${niveau}${puceHtml(couleurDeCategorie(categorie), iconeDeCategorie(categorie))}` +
+      `<span class="select-riche-texte">${escapeHtml(libelleCategorie(categorie.nom))}</span>`
+    );
+  };
+
+  const rafraichirBouton = () => {
+    const option = select.options[select.selectedIndex];
+    bouton.innerHTML = `${option ? contenuOption(option) : ""}<span class="select-riche-fleche" aria-hidden="true">▾</span>`;
+    bouton.disabled = select.disabled;
+  };
+  const reconstruire = () => {
+    panneau.innerHTML = "";
+    [...select.options].forEach((option) => {
+      const ligne = document.createElement("div");
+      ligne.className = "select-riche-option";
+      ligne.setAttribute("role", "option");
+      ligne.dataset.valeur = option.value;
+      if (option.classList.contains("option-creer")) ligne.classList.add("option-creer");
+      ligne.innerHTML = contenuOption(option);
+      // Le TITRE d'un dossier de catégories (cf. fillCategoriesSelect) : visible, grisé, jamais choisi.
+      if (option.disabled) {
+        ligne.classList.add("option-groupe");
+        panneau.appendChild(ligne);
+        return;
+      }
+      ligne.addEventListener("click", () => {
+        select.value = option.value;
+        panneau.hidden = true;
+        bouton.setAttribute("aria-expanded", "false");
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      panneau.appendChild(ligne);
+    });
+    rafraichirBouton();
+  };
+
+  // La valeur posée À LA MAIN (`select.value = …`) ne déclenche aucun événement : on s'accroche au setter.
+  const descripteur = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+  Object.defineProperty(select, "value", {
+    configurable: true,
+    get() {
+      return descripteur.get.call(this);
+    },
+    set(valeur) {
+      descripteur.set.call(this, valeur);
+      rafraichirBouton();
+    },
+  });
+  select.addEventListener("change", rafraichirBouton);
+  new MutationObserver(reconstruire).observe(select, { childList: true, subtree: true, attributes: true });
+
+  bouton.addEventListener("click", () => {
+    const ouvrir = panneau.hidden;
+    // Un seul menu ouvert à la fois.
+    document.querySelectorAll(".select-riche-panneau").forEach((p) => (p.hidden = true));
+    panneau.hidden = !ouvrir;
+    bouton.setAttribute("aria-expanded", String(ouvrir));
+  });
+  document.addEventListener("click", (e) => {
+    if (!hote.contains(e.target)) {
+      panneau.hidden = true;
+      bouton.setAttribute("aria-expanded", "false");
+    }
+  });
+  reconstruire();
+}
+
 /** Le libellé d'une catégorie dans un menu : « ↳ Essence » pour une sous-catégorie. */
 function libelleCategorieMenu(categorie) {
   return `${categorie.niveau ? "↳ " : ""}${libelleCategorie(categorie.nom)}`;
@@ -5026,6 +5203,22 @@ function motifHachure(couleur, prefixe) {
 }
 
 /**
+ * LES HACHURES DU PRÉVU : ce qui est seulement PRÉVU dans une barre se dessine à la COULEUR NORMALE de la catégorie
+ * (ou de sa nuance), mais hachuré — et non plus en transparence, qu'on aurait pu prendre pour une nuance de plus entre
+ * deux sous-catégories. Hachures dans l'autre sens et plus fines que celles de la période comparée (cf. `motifHachure`).
+ */
+function motifHachurePrevu(couleur, prefixe = "hachure-prevu") {
+  const id = `${prefixe}-${compteurMotifsHachure++}`;
+  return {
+    id,
+    def: `<pattern id="${id}" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(-45)">
+        <rect width="5" height="5" fill="${couleur}" opacity="0.14" />
+        <rect width="2.2" height="5" fill="${couleur}" />
+      </pattern>`,
+  };
+}
+
+/**
  * Le tracé d'un RECTANGLE DONT SEULS CERTAINS COINS SONT ARRONDIS : `coins` = { hg, hd, bg, bd } (haut /
  * bas, gauche / droite). Les barres empilées (le réel, le prévu, la période comparée hachurée) ne
  * s'arrondissent qu'AUX DEUX EXTRÉMITÉS de la pile — jamais à la jonction entre deux morceaux, où un
@@ -5114,7 +5307,10 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
       if (motif) motifs.push(motif.def);
 
       const piecesCourantes = [{ bas: 0, haut: hReel, opacite: 1 }];
-      if (hCourante > hReel) piecesCourantes.push({ bas: hReel, haut: hCourante, opacite: 0.35 });
+      // Le PRÉVU est hachuré à la couleur normale (cf. motifHachurePrevu), et non plus transparent.
+      const motifPrevu = hCourante > hReel ? motifHachurePrevu(couleur) : null;
+      if (motifPrevu) motifs.push(motifPrevu.def);
+      if (hCourante > hReel) piecesCourantes.push({ bas: hReel, haut: hCourante, opacite: 1, prevu: true });
       const comparaison = { bas: 0, haut: hCompare, compare: true };
 
       // DEUX VALEURS TRÈS PROCHES (écart < 5 % de la plus grande) : superposées, les hachures ne
@@ -5166,9 +5362,12 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
           const hauteurReel = c.total_reel * echelle;
           const hauteurTotale = Math.max(c.total_previsionnel, c.total_reel) * echelle;
           const couleurC = c.direct ? couleur : nuancesDeCategorie(d.couleur_index ?? 0)[(c.couleur_nuance ?? 0) % NB_NUANCES_CATEGORIE];
-          if (hauteurReel > 0.01) morceaux.push({ bas, haut: bas + hauteurReel, couleur: couleurC, opacite: 1, composante: rangC });
+          if (hauteurReel > 0.01) morceaux.push({ bas, haut: bas + hauteurReel, couleur: couleurC, fill: couleurC, composante: rangC });
           if (hauteurTotale - hauteurReel > 0.01) {
-            morceaux.push({ bas: bas + hauteurReel, haut: bas + hauteurTotale, couleur: couleurC, opacite: 0.35, composante: rangC });
+            // Le prévu d'une composante : hachuré à SA couleur (nuance comprise).
+            const motifC = motifHachurePrevu(couleurC);
+            motifs.push(motifC.def);
+            morceaux.push({ bas: bas + hauteurReel, haut: bas + hauteurTotale, couleur: couleurC, fill: `url(#${motifC.id})`, composante: rangC });
           }
           bas += hauteurTotale;
         });
@@ -5192,7 +5391,7 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
               hd: rang === morceaux.length - 1,
             };
             const chemin = cheminBarre(xGroupe, base - m.haut, largeurGroupe, m.haut - m.bas, coins);
-            return `<path class="histo-fut" d="${chemin}" fill="${m.couleur}"${m.opacite < 1 ? ` opacity="${m.opacite}"` : ""} />`;
+            return `<path class="histo-fut" d="${chemin}" fill="${m.fill}" />`;
           })
           .join("");
         return chemins + traits.join("");
@@ -5217,9 +5416,9 @@ function renderHistogrammeDepenses(depenses, monnaieId, container = null, option
               if (pc.compare) {
                 return `<path class="histo-fut histo-comparaison" d="${chemin}" fill="url(#${motif.id})" stroke="${couleur}" stroke-width="1" />`;
               }
-              return `<path class="histo-fut" d="${chemin}" fill="${couleur}"${
-                pc.opacite < 1 ? ` opacity="${pc.opacite}"` : ""
-              } />`;
+              return `<path class="histo-fut" d="${chemin}" fill="${
+                pc.prevu && motifPrevu ? `url(#${motifPrevu.id})` : couleur
+              }" />`;
             })
             .join("");
         })
@@ -6428,13 +6627,26 @@ async function drillThroughCategorie(depense) {
   document.querySelector('#operations-sous-nav button[data-sous-section="classique"]')?.click();
 
   const panneau = document.getElementById("filtres-classique");
-  panneau.querySelector('[data-filtre="categorieId"]').value = categorie.id;
+  // UNE BARRE DE PARENT COMPTE SES SOUS-CATÉGORIES : le filtre coche le parent ET ses enfants (les composantes de la
+  // barre), sans quoi la liste n'additionnerait pas au total de la barre.
+  const idsFiltre = [
+    ...new Set(
+      depense.composantes && depense.composantes.length
+        ? depense.composantes.map((c) => c.categorie_id).filter((x) => x != null)
+        : [categorie.id]
+    ),
+  ]
+    .sort((a, b) => a - b)
+    .join(",");
+  const champCategorie = panneau.querySelector('[data-filtre="categorieId"]');
+  champCategorie.value = idsFiltre;
+  majMenuFiltreCategories(champCategorie);
   panneau.querySelector('[data-filtre="dateDebut"]').value = debut;
   panneau.querySelector('[data-filtre="dateFin"]').value = fin;
   // LE CONTEXTE DU DRILL-THROUGH, posé APRÈS les filtres qu'il décrit : tant que
   // les trois champs valent ce qu'on vient d'y mettre, l'écran sait d'où il
   // vient (cf. drillActif).
-  state.drillOperations = { onglet: "classique", categorieId: String(categorie.id), debut, fin };
+  state.drillOperations = { onglet: "classique", categorieId: idsFiltre, debut, fin };
   // PAR MONTANT DÉCROISSANT : c'est la suite du top 3 de l'infobulle d'où l'on
   // vient. C'est le MÊME geste que de choisir ce tri dans le menu — l'état ET le
   // menu bougent, puis le rendu repart (la date quitte alors les séparateurs et
@@ -8198,6 +8410,42 @@ function assurerChampIconeCategorie() {
   return champIconeCategorie;
 }
 
+// La couleur choisie dans le formulaire pour une catégorie de premier niveau (null = pas de changement).
+let couleurChoisieCategorie = null;
+
+/** Les pastilles de la palette : celle de la catégorie est cerclée, celles d'autres catégories portent leur nom. */
+function majChoixCouleurCategorie(categorie) {
+  const bloc = document.getElementById("categorie-couleur-bloc");
+  const conteneur = document.getElementById("categorie-couleur");
+  // Ni une sous-catégorie (nuance), ni une entrée, ni les virements (couleurs fixes), ni une création.
+  const modifiable =
+    !!categorie && categorie.parent_id == null && !categorie.est_entree && !categorie.est_virement;
+  bloc.style.display = modifiable ? "" : "none";
+  conteneur.innerHTML = "";
+  if (!modifiable) return;
+  const parIndex = new Map(
+    state.categories
+      .filter((c) => c.parent_id == null && c.id !== categorie.id && !c.est_entree && !c.est_virement)
+      .map((c) => [c.couleur_index % PALETTE_CATEGORIES.length, c.nom])
+  );
+  const courant = (couleurChoisieCategorie ?? categorie.couleur_index) % PALETTE_CATEGORIES.length;
+  PALETTE_CATEGORIES.forEach((couleur, index) => {
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    bouton.className = "nuance-pastille";
+    bouton.style.background = couleur;
+    bouton.classList.toggle("choisie", index === courant);
+    const prise = parIndex.get(index);
+    bouton.title = prise ? t("Prise par « {nom} » : les deux échangent leurs couleurs", { nom: prise }) : t("Couleur {n}", { n: index + 1 });
+    if (prise) bouton.classList.add("prise");
+    bouton.addEventListener("click", () => {
+      couleurChoisieCategorie = index;
+      majChoixCouleurCategorie(categorie);
+    });
+    conteneur.appendChild(bouton);
+  });
+}
+
 // La nuance choisie dans le formulaire (null = pas de choix : la première libre, ou celle de la catégorie).
 let nuanceChoisieCategorie = null;
 
@@ -8210,6 +8458,8 @@ let nuanceChoisieCategorie = null;
 function poserChampsSousCategorie(categorie) {
   const menu = document.getElementById("categorie-parent");
   if (!menu) return;
+  couleurChoisieCategorie = null;
+  majChoixCouleurCategorie(categorie);
   const aDesEnfants = categorie && state.categories.some((c) => c.parent_id === categorie.id);
   const candidats = state.categories.filter(
     (c) =>
@@ -8284,6 +8534,8 @@ function resetCategorieForm() {
   fermerFormulaireEnLigne("form-categorie");
   assurerChampIconeCategorie().poser(null);
   document.getElementById("categorie-id").value = "";
+  document.getElementById("categorie-notes").value = "";
+  document.getElementById("categorie-notes-bloc").style.display = "none";
   poserChampsSousCategorie(null);
   document.getElementById("categorie-nom").value = "";
   document.getElementById("categorie-nom").disabled = false;
@@ -8292,6 +8544,8 @@ function resetCategorieForm() {
   document.getElementById("categorie-entree-bloc").style.display = "none";
   document.getElementById("categorie-virements-info").style.display = "none";
   document.getElementById("categorie-entree").checked = false;
+  document.getElementById("categorie-dossier-bloc").style.display = "none";
+  document.getElementById("categorie-dossier").checked = false;
   document.getElementById("categorie-mots-cles-bloc").style.display = "none";
   motsClesCategorieLivres = true;
   document.getElementById("form-categorie-titre").textContent = t("Ajouter une catégorie");
@@ -8376,6 +8630,8 @@ function fillCategorieForm(categorie, ancre) {
   ouvrirFormulaireEnLigne("form-categorie", "form-categorie-titre", ancre);
   assurerChampIconeCategorie().poser(categorie.icone);
   document.getElementById("categorie-id").value = categorie.id;
+  document.getElementById("categorie-notes").value = categorie.notes || "";
+  document.getElementById("categorie-notes-bloc").style.display = "";
   poserChampsSousCategorie(categorie);
   const champNom = document.getElementById("categorie-nom");
   champNom.value = categorie.nom;
@@ -8394,6 +8650,12 @@ function fillCategorieForm(categorie, ancre) {
   document.getElementById("categorie-entree-bloc").style.display = categorie.est_virement ? "none" : "";
   document.getElementById("categorie-virements-info").style.display = categorie.est_virement ? "" : "none";
   document.getElementById("categorie-entree").checked = !!categorie.est_entree;
+  // « DOSSIER DE CATÉGORIES » (migration 0105) : proposé à une catégorie de premier niveau qui a des
+  // sous-catégories, ou qui en est déjà un (pour l'en sortir). Le serveur juge le reste (aucune opération affectée).
+  const aDesSousCategories = state.categories.some((c) => c.parent_id === categorie.id);
+  document.getElementById("categorie-dossier-bloc").style.display =
+    categorie.parent_id == null && !categorie.est_virement && (aDesSousCategories || categorie.est_dossier) ? "" : "none";
+  document.getElementById("categorie-dossier").checked = !!categorie.est_dossier;
   // Les mots-clés : l'éditeur ne s'initialise qu'ici, à la première ouverture (cf. la note sur
   // `assurerEditeurRapprochement` : un éditeur déclaré trop tôt atteint des `const` de ce fichier
   // dans leur zone morte).
@@ -8455,16 +8717,20 @@ function renderCategories() {
     const deleteAction = protegee
       ? ""
       : `<button data-action="delete" data-id="${c.id}" class="danger">${t("Supprimer")}</button>`;
-
     tr.innerHTML = `
       <td class="drag-handle" title="${t("Glisser pour réordonner")}">⠿</td>
       <td>${categorieHtml(c.id)}${
+        // LA NOTE : le même pictogramme que sur une opération, qui déplie la ligne dessous.
+        c.notes ? ` ${indicateurNote(c)}` : ""
+      }${
         // UNE PASTILLE ET PAS UNE COLONNE : une colonne « Entrée ? » aurait
         // écrit vingt fois « non » pour dire une fois « oui ». Ce qui se voit
         // doit être ce qui a été décidé — même règle que la colonne d'objectifs
         // d'avant, vide plutôt que remplie de zéros.
         c.est_entree ? `<span class="badge-aucun">${t("entrée")}</span>` : ""
-      }${c.est_virement ? `<span class="badge-aucun">${t("virements")}</span>` : ""}</td>
+      }${c.est_virement ? `<span class="badge-aucun">${t("virements")}</span>` : ""}${
+        c.est_dossier ? `<span class="badge-aucun">${t("dossier")}</span>` : ""
+      }</td>
       <!-- « Modifier » répète le double-clic, mais se voit ; « Éteindre » est dans le formulaire. -->
       <td><button data-action="edit" data-id="${c.id}">${t("Modifier")}</button> ${deleteAction}</td>
     `;
@@ -8472,6 +8738,8 @@ function renderCategories() {
     // copiable.
     rendreDeplacableParPoignee(tr, ".drag-handle");
     body.appendChild(tr);
+    // La ligne repliée qui montre le texte de la note (cf. `indicateurNote`, `ligneDetailNote`).
+    if (c.notes) body.appendChild(ligneDetailNote(c, 3));
   });
 
   const editerCategorie = (id, ligne) => {
@@ -8585,6 +8853,21 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
           body: JSON.stringify({ icone }),
         });
       }
+      // LA NOTE, SEULEMENT SI ELLE A CHANGÉ (une route à part : renommer ne doit jamais l'effacer).
+      const notes = document.getElementById("categorie-notes").value.trim();
+      if (notes !== ((avant && avant.notes) || "")) {
+        await apiFetch(`/categories/${id}/notes`, {
+          method: "PUT",
+          body: JSON.stringify({ notes: notes || null }),
+        });
+      }
+      // LA COULEUR, SEULEMENT SI ELLE A CHANGÉ (une route à part ; une autre catégorie qui la portait prend l'ancienne).
+      if (couleurChoisieCategorie !== null && avant && couleurChoisieCategorie !== avant.couleur_index % PALETTE_CATEGORIES.length) {
+        await apiFetch(`/categories/${id}/couleur`, {
+          method: "PUT",
+          body: JSON.stringify({ couleur_index: couleurChoisieCategorie }),
+        });
+      }
       // LE RANGEMENT SOUS UN PARENT, puis la NUANCE — chacun SEULEMENT s'il a changé (deux routes à part).
       const parentChoisi = document.getElementById("categorie-parent").value;
       const parentId = parentChoisi ? Number(parentChoisi) : null;
@@ -8598,6 +8881,14 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
         await apiFetch(`/categories/${id}/nuance`, {
           method: "PUT",
           body: JSON.stringify({ couleur_nuance: nuanceChoisieCategorie }),
+        });
+      }
+      // LE DOSSIER, SEULEMENT S'IL A CHANGÉ (une route à part ; le serveur refuse tant qu'une opération l'occupe).
+      const dossier = document.getElementById("categorie-dossier").checked;
+      if (dossier !== !!(avant && avant.est_dossier)) {
+        await apiFetch(`/categories/${id}/dossier`, {
+          method: "PUT",
+          body: JSON.stringify({ est_dossier: dossier }),
         });
       }
       showMessage(t("Catégorie modifiée"), "success");
@@ -8636,6 +8927,307 @@ document.getElementById("form-categorie").addEventListener("submit", async (e) =
 
 document.getElementById("categorie-annuler").addEventListener("click", resetCategorieForm);
 
+/* ---------- MIGRER DES OPÉRATIONS D'UNE CATÉGORIE VERS UNE AUTRE ----------
+ *
+ * UN POP-UP QUI REPREND L'ÉCRAN DES OPÉRATIONS : les mêmes filtres que l'onglet « Opérations classiques » (nature,
+ * montants, dates, compte, catégories à cocher, découpée, statut, récurrente, amortie, frais) et le MÊME jugement
+ * (`operationCorrespondFiltres`) — une opération passe ici exactement quand elle passerait là-bas. On y coche les
+ * opérations (ou « Tout sélectionner », qui prend TOUT ce que les filtres laissent), on choisit la catégorie de
+ * destination, et le serveur range le lot (POST /operations/changer-categorie).
+ *
+ * LA SÉLECTION NE SURVIT PAS AUX FILTRES : une opération qu'un filtre vient de masquer est décochée. Migrer ce
+ * qu'on ne voit plus serait exactement le geste qu'on ne peut pas relire avant de le faire.
+ *
+ * LES OPÉRATIONS QUE LE SERVEUR REFUSE sont listées avec leur raison, au lieu de disparaître en silence : un
+ * changement de sens (dépense ↔ entrée), une découpe sans part dans une catégorie cochée, une opération déjà là.
+ */
+async function ouvrirModaleMigrationOperations(sourceId = null) {
+  if (document.getElementById("modale-migration-operations")) return;
+  let operations;
+  const chargerOperations = async () =>
+    (await apiFetch("/operations")).filter((op) => TYPES_CATEGORIE_LIBRE.has(op.type_code));
+  try {
+    await Promise.all([refreshComptes(), refreshMonnaies(), refreshCategories()]);
+    operations = await chargerOperations();
+  } catch (err) {
+    showMessage(err.message, "error");
+    return;
+  }
+
+  const fond = document.createElement("div");
+  fond.id = "modale-migration-operations";
+  fond.className = "modale-fond";
+  fond.setAttribute("role", "presentation");
+  const plusieursMonnaies = (state.monnaies || []).length > 1;
+  fond.innerHTML = `
+    <div class="modale modale-migration" role="dialog" aria-modal="true" aria-labelledby="migration-titre">
+      <div class="epargne-entete">
+        <h2 id="migration-titre">${t("Migrer des opérations")}</h2>
+        <button type="button" class="epargne-fermer" data-migration="fermer"
+                title="${escapeHtml(t("Fermer"))}" aria-label="${escapeHtml(t("Fermer"))}">&times;</button>
+      </div>
+      <p class="modale-texte">${t(
+        "Filtre comme sur la page Opérations, coche les opérations à déplacer (ou « Tout sélectionner »), puis choisis la catégorie de destination."
+      )}</p>
+      <div class="filtres" id="migration-filtres">
+        <label>${t("Nature")}<input type="text" data-filtre="nature" placeholder="${escapeHtml(t("contient…"))}" /></label>
+        <label>${t("Montant min")}<input type="number" step="0.01" min="0" data-filtre="montantMin" placeholder="ex. 50" /></label>
+        <label>${t("Montant max")}<input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" /></label>
+        <div class="filtre-categories-champ">
+          <span class="filtre-categories-titre">${t("Catégorie")}</span>
+          <div class="filtre-categories-menu"></div>
+          <input type="hidden" class="filtre-categories-valeur" data-filtre="categorieId" />
+        </div>
+        <label>${t("Du")}<input type="date" data-filtre="dateDebut" /></label>
+        <label>${t("Au")}<input type="date" data-filtre="dateFin" /></label>
+        <label>${t("Compte")}<select class="filtre-select-compte" data-filtre="compteId"><option value="">${t("Tous")}</option></select></label>
+        ${
+          plusieursMonnaies
+            ? `<label>${t("Monnaie")}<select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">${t("Toutes")}</option></select></label>`
+            : ""
+        }
+        <label>${t("Découpée")}<select data-filtre="decoupe"><option value="">${t("Peu importe")}</option><option value="oui">${t("Oui")}</option><option value="non">${t("Non")}</option></select></label>
+        <label>${t("Statut")}<select class="filtre-select-statut" data-filtre="statut"><option value="">${t("Tous")}</option></select></label>
+        <label>${t("Récurrente")}<select data-filtre="recurrente"><option value="">${t("Peu importe")}</option><option value="oui">${t("Oui")}</option><option value="non">${t("Non")}</option></select></label>
+        <label>${t("Amortie")}<select data-filtre="amortie"><option value="">${t("Peu importe")}</option><option value="oui">${t("Oui")}</option><option value="non">${t("Non")}</option></select></label>
+        <label>${t("Comporte des frais ?")}<select data-filtre="frais"><option value="">${t("Peu importe")}</option><option value="oui">${t("Oui")}</option><option value="non">${t("Non")}</option></select></label>
+        <div class="filtres-actions"><button type="button" data-migration="reinitialiser">${t("Réinitialiser")}</button></div>
+      </div>
+      <div class="migration-barre">
+        <label class="migration-tout"><input type="checkbox" data-migration="tout" /> <span>${t("Tout sélectionner")}</span></label>
+        <span class="migration-compteur" data-migration="compteur"></span>
+      </div>
+      <div class="migration-liste" data-migration="liste"></div>
+      <div class="migration-ignorees" data-migration="ignorees" hidden></div>
+      <div class="migration-pied">
+        <label class="migration-destination">${t("Migrer vers")}
+          <select data-migration="destination"><option value="">${t("— choisir une catégorie —")}</option></select>
+        </label>
+        <button type="button" class="primary" data-migration="migrer" disabled>${t("Migrer")}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(fond);
+  document.body.classList.add("modale-ouverte");
+
+  const panneau = fond.querySelector("#migration-filtres");
+  const liste = fond.querySelector("[data-migration='liste']");
+  const caseTout = fond.querySelector("[data-migration='tout']");
+  const compteur = fond.querySelector("[data-migration='compteur']");
+  const boutonMigrer = fond.querySelector("[data-migration='migrer']");
+  const destination = fond.querySelector("[data-migration='destination']");
+  const zoneIgnorees = fond.querySelector("[data-migration='ignorees']");
+
+  // Les menus des filtres : mêmes sources que ceux de la page Opérations.
+  const statut = panneau.querySelector(".filtre-select-statut");
+  const tousStatuts = statut.firstElementChild;
+  fillSelect(statut, state.meta.statuts, { labels: statutLabel });
+  statut.insertBefore(tousStatuts, statut.firstChild);
+  statut.value = "";
+  const menuCompte = panneau.querySelector(".filtre-select-compte");
+  const tousComptes = menuCompte.firstElementChild;
+  fillComptesSelect(menuCompte, state.comptes, { keepFirst: true });
+  menuCompte.insertBefore(tousComptes, menuCompte.firstChild);
+  menuCompte.value = "";
+  const menuMonnaie = panneau.querySelector(".filtre-select-monnaie");
+  if (menuMonnaie) {
+    (state.monnaies || []).forEach((m) => menuMonnaie.appendChild(new Option(`${m.nom} (${m.symbole})`, String(m.id))));
+  }
+  const champCategories = panneau.querySelector(".filtre-categories-valeur");
+  champCategories.value = sourceId !== null ? String(sourceId) : "";
+  majMenuFiltreCategories(champCategories);
+
+  // La destination : les catégories où l'on peut ranger (ni éteinte, ni dossier, ni virements), hors la source.
+  fillCategoriesSelect(
+    destination,
+    categoriesProposables().filter((c) => !c.est_virement && c.id !== sourceId),
+    { keepFirst: true }
+  );
+
+  const selection = new Set();
+  let visibles = [];
+
+  const lireFiltres = () => {
+    const filtres = {};
+    panneau.querySelectorAll("[data-filtre]").forEach((el) => (filtres[el.dataset.filtre] = el.value.trim()));
+    return filtres;
+  };
+
+  const majSelection = () => {
+    compteur.textContent = t("{n} sélectionnée(s) sur {total}", { n: selection.size, total: visibles.length });
+    caseTout.checked = visibles.length > 0 && selection.size === visibles.length;
+    caseTout.indeterminate = selection.size > 0 && selection.size < visibles.length;
+    caseTout.disabled = visibles.length === 0;
+    boutonMigrer.disabled = selection.size === 0 || !destination.value;
+  };
+
+  const ligneHtml = (op) => {
+    const categories =
+      op.decoupes && op.decoupes.length
+        ? `${t("Découpée")} : ${op.decoupes.map((p) => categorieHtml(p.categorie_id)).join(" ")}`
+        : categorieHtml(op.categorie_id);
+    return `<tr data-id="${op.id}"${op.statut === "prévisionnel" ? ' class="operation-previsionnelle"' : ""}>
+      <td class="migration-case"><input type="checkbox" data-id="${op.id}"${selection.has(op.id) ? " checked" : ""} /></td>
+      <td class="operation-date">${formatDateCourte(op.date)}</td>
+      <td>${categories}</td>
+      <td>${escapeHtml(op.nature || "")}</td>
+      <td>${montantHtml(op.montant, op.sens, op.monnaie_id)}</td>
+      <td>${compteHtml(op.compte_id)}</td>
+      <td>${statutLabel(op.statut)}</td>
+    </tr>`;
+  };
+
+  // Les champs remplis passent en bleu, comme sur la page Opérations (cf. majResumeFiltres).
+  const marquerFiltresRemplis = () => {
+    panneau.querySelectorAll("[data-filtre]").forEach((champ) => {
+      champ.classList.toggle("filtre-rempli", champ.value.trim() !== "");
+    });
+  };
+
+  const rendre = () => {
+    const filtres = lireFiltres();
+    visibles = operations.filter((op) => operationCorrespondFiltres(op, "classique", filtres));
+    const ids = new Set(visibles.map((op) => op.id));
+    [...selection].forEach((id) => {
+      if (!ids.has(id)) selection.delete(id);
+    });
+    liste.innerHTML = visibles.length
+      ? `<table class="table-operations"><thead><tr><th></th><th>${t("Date")}</th><th>${t("Catégorie")}</th><th>${t(
+          "Nature"
+        )}</th><th>${t("Montant")}</th><th>${t("Compte")}</th><th>${t("Statut")}</th></tr></thead>
+        <tbody class="jour-groupe">${visibles.map(ligneHtml).join("")}</tbody></table>`
+      : `<p class="hint">${t("Aucune opération ne correspond aux filtres.")}</p>`;
+    marquerFiltresRemplis();
+    majSelection();
+  };
+
+  // LES LISTES DÉROULANTES RESTENT DANS L'ÉCRAN : celle du filtre de catégories et celle de la destination se
+  // posent sous leur bouton ; s'il n'y a pas assez de place en dessous (et plus au-dessus), elles s'ouvrent
+  // AU-DESSUS ; si elles dépasseraient à droite, elles s'alignent sur le bord droit de leur bouton. La boîte du
+  // pop-up ne les rogne pas (cf. .modale-migration, overflow visible) : elles peuvent déborder de ses bords.
+  const placerPanneau = (panneau) => {
+    panneau.classList.remove("panneau-haut", "panneau-droite");
+    const ancre = panneau.parentElement.getBoundingClientRect();
+    let zone = panneau.getBoundingClientRect();
+    if (zone.bottom > window.innerHeight - 8) {
+      const placeDessus = ancre.top - 8;
+      const placeDessous = window.innerHeight - ancre.bottom - 8;
+      if (placeDessus > placeDessous) panneau.classList.add("panneau-haut");
+    }
+    zone = panneau.getBoundingClientRect();
+    if (zone.right > window.innerWidth - 8) panneau.classList.add("panneau-droite");
+  };
+  const placerPanneaux = () =>
+    fond
+      .querySelectorAll(".filtre-categories-panneau:not([hidden]), .select-riche-panneau:not([hidden])")
+      .forEach(placerPanneau);
+  // Après le clic qui ouvre (leurs propres écouteurs ont alors déjà montré le panneau) et au redimensionnement.
+  fond.addEventListener("click", () => setTimeout(placerPanneaux, 0));
+  window.addEventListener("resize", placerPanneaux);
+
+  const fermer = () => {
+    window.removeEventListener("resize", placerPanneaux);
+    document.removeEventListener("keydown", surTouche);
+    fond.remove();
+    document.body.classList.remove("modale-ouverte");
+  };
+  const surTouche = (e) => {
+    if (e.key === "Escape") fermer();
+  };
+  document.addEventListener("keydown", surTouche);
+  fond.addEventListener("mousedown", (e) => {
+    if (e.target === fond) fermer();
+  });
+  fond.querySelector("[data-migration='fermer']").addEventListener("click", fermer);
+
+  panneau.addEventListener("input", rendre);
+  panneau.addEventListener("change", rendre);
+  fond.querySelector("[data-migration='reinitialiser']").addEventListener("click", () => {
+    panneau.querySelectorAll("[data-filtre]").forEach((champ) => (champ.value = ""));
+    majMenuFiltreCategories(champCategories);
+    rendre();
+  });
+
+  caseTout.addEventListener("change", () => {
+    selection.clear();
+    if (caseTout.checked) visibles.forEach((op) => selection.add(op.id));
+    liste.querySelectorAll("input[data-id]").forEach((c) => (c.checked = selection.has(Number(c.dataset.id))));
+    majSelection();
+  });
+  liste.addEventListener("change", (e) => {
+    const caseOperation = e.target.closest("input[data-id]");
+    if (!caseOperation) return;
+    const id = Number(caseOperation.dataset.id);
+    if (caseOperation.checked) selection.add(id);
+    else selection.delete(id);
+    majSelection();
+  });
+  // Un clic n'importe où sur la ligne coche la case : la cible à viser est large.
+  liste.addEventListener("click", (e) => {
+    if (e.target.closest("input, button, a")) return;
+    const ligne = e.target.closest("tr[data-id]");
+    const caseOperation = ligne && ligne.querySelector("input[data-id]");
+    if (!caseOperation) return;
+    caseOperation.checked = !caseOperation.checked;
+    caseOperation.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  destination.addEventListener("change", majSelection);
+
+  boutonMigrer.addEventListener("click", async () => {
+    const cible = state.categories.find((c) => c.id === Number(destination.value));
+    if (!cible || selection.size === 0) return;
+    const message = t("Migrer {n} opération(s) vers « {categorie} » ?", {
+      n: selection.size,
+      categorie: libelleCategorie(cible.nom),
+    });
+    if (!confirm(message)) return;
+    boutonMigrer.disabled = true;
+    try {
+      const resultat = await apiFetch("/operations/changer-categorie", {
+        method: "POST",
+        body: JSON.stringify({
+          operation_ids: [...selection],
+          categorie_id: cible.id,
+          // Les catégories cochées dans le filtre : seules les parts qui y sont changent, pour une opération découpée.
+          sources: idsFiltreCategories(champCategories.value).map(Number),
+        }),
+      });
+      showMessage(
+        t("{n} opération(s) migrée(s) vers « {categorie} »", {
+          n: resultat.migrees,
+          categorie: libelleCategorie(cible.nom),
+        }),
+        resultat.migrees > 0 ? "success" : "error"
+      );
+      zoneIgnorees.hidden = resultat.ignorees.length === 0;
+      zoneIgnorees.innerHTML = resultat.ignorees.length
+        ? `<strong>${t("{n} opération(s) non migrée(s)", { n: resultat.ignorees.length })}</strong><ul>${resultat.ignorees
+            .map((o) => `<li>${escapeHtml(o.nature || `#${o.id}`)} — ${escapeHtml(traduireMessageServeur(o.raison))}</li>`)
+            .join("")}</ul>`
+        : "";
+      operations = await chargerOperations();
+      selection.clear();
+      rendre();
+    } catch (err) {
+      showMessage(traduireMessageServeur(err.message), "error");
+      majSelection();
+    }
+  });
+
+  rendre();
+}
+
+// Même format que « + Ajouter une opération » : un bloc cliquable, aussi au clavier (Entrée ou Espace).
+(() => {
+  const bouton = document.getElementById("btn-migrer-operations");
+  bouton.addEventListener("click", () => ouvrirModaleMigrationOperations());
+  bouton.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      ouvrirModaleMigrationOperations();
+    }
+  });
+})();
+
 /* ---------- Opérations ---------- */
 
 /**
@@ -8669,7 +9261,9 @@ function comptesEligibles(type, conserve = null) {
  *  ramène à son type d'avant (cf. `basculerSelonCategorie`). */
 function categoriesEligibles(type, conserve = null) {
   if (!TYPES_CATEGORIE_LIBRE.has(type) && type !== "virement") return [];
-  return state.categories.filter((c) => c.active !== false || c.id === conserve);
+  // UN DOSSIER DE CATÉGORIES (migration 0105) NE CLASSE RIEN : jamais proposé, même « conservé » (il n'a, par
+  // construction, aucune opération qui le portait). Ses sous-catégories, elles, le sont.
+  return state.categories.filter((c) => !c.est_dossier && (c.active !== false || c.id === conserve));
 }
 
 /** LA catégorie des virements internes (migration 0090), reconnue à son drapeau, jamais à son
@@ -8690,7 +9284,9 @@ function comptesProposables(conserve = null) {
 }
 
 function categoriesProposables(conserve = null) {
-  return state.categories.filter((c) => c.active !== false || c.id === conserve);
+  // Ni un dossier de catégories (migration 0105), qui ne classe rien : ni dans les menus d'une règle, ni dans les
+  // correspondances et les lignes d'aperçu de l'import.
+  return state.categories.filter((c) => !c.est_dossier && (c.active !== false || c.id === conserve));
 }
 
 function compteParId(compteId) {
@@ -11770,17 +12366,17 @@ function operationCorrespondFiltres(op, onglet, f, budget = false) {
       // filtrée. Comparer seulement `categorie_id`, NULL pour elle, la faisait
       // disparaître de tout filtre par catégorie.
       if (f.categorieId) {
-        const dansUnePart = (op.decoupes || []).some(
-          (part) => String(part.categorie_id) === f.categorieId
-        );
-        if (String(op.categorie_id) !== f.categorieId && !dansUnePart) return false;
+        // PLUSIEURS CATÉGORIES (« 3,5 ») : l'opération passe si SA catégorie, ou celle d'une de ses parts, est cochée.
+        const cochees = new Set(idsFiltreCategories(f.categorieId));
+        const dansUnePart = (op.decoupes || []).some((part) => cochees.has(String(part.categorie_id)));
+        if (!cochees.has(String(op.categorie_id)) && !dansUnePart) return false;
       }
       const estDecoupee = (op.decoupes || []).length > 0;
       if (!correspondBool(f.decoupe, estDecoupee)) return false;
       return true;
     }
     case "remboursable":
-      if (f.categorieId && String(op.categorie_id) !== f.categorieId) return false;
+      if (f.categorieId && !idsFiltreCategories(f.categorieId).includes(String(op.categorie_id))) return false;
       return true;
     case "remboursements":
     case "remboursement-prets": {
@@ -12529,6 +13125,7 @@ function propagerFiltreAuxAutresOnglets(champ, ongletSource) {
       return;
     }
     cible.value = champ.value;
+    if (cible.classList.contains("filtre-categories-valeur")) majMenuFiltreCategories(cible);
     majResumeFiltres(onglet);
     touches.push(onglet);
   });
@@ -12562,6 +13159,7 @@ document.querySelectorAll(".btn-reset-filtres-onglet").forEach((bouton) => {
       .querySelectorAll(`#filtres-${onglet} [data-filtre]`)
       .forEach((champ) => {
         champ.value = "";
+        if (champ.classList.contains("filtre-categories-valeur")) majMenuFiltreCategories(champ);
         // Le filtre se retire PARTOUT : il valait pour tous les onglets.
         propagerFiltreAuxAutresOnglets(champ, onglet);
       });
@@ -20533,12 +21131,13 @@ function creerLigneApercuEdition(ligne, infoTypeSection) {
       label.textContent = t("Catégorie");
       selectCategorie = document.createElement("select");
       const vi = categorieVirements();
-      categoriesProposables(categorieEdition).forEach((c) => {
+      categoriesEnHierarchie(categoriesProposables(categorieEdition)).forEach((c) => {
         const opt = document.createElement("option");
         opt.value = c.id;
-        opt.textContent = libelleCategorie(c.nom);
+        poserOptionCategorie(opt, c);
         selectCategorie.appendChild(opt);
       });
+      ameliorerSelectCategorie(selectCategorie);
       // Une ligne venant d'un type sans catégorie n'en a aucune à
       // présélectionner : le premier choix de la liste fera l'affaire.
       if (info.virement && vi) {

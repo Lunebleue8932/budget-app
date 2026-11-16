@@ -170,6 +170,56 @@ class CategorieParentUpdate(BaseModel):
     parent_id: Optional[int] = None
 
 
+class CategorieDossierUpdate(BaseModel):
+    """Le drapeau « dossier de catégories » (migration 0105), isolé comme le drapeau d'entrée : renommer ne doit
+    jamais le changer."""
+
+    est_dossier: bool
+
+
+class ChangerCategorieLot(BaseModel):
+    """Le déplacement d'un lot d'opérations vers une autre catégorie (page Catégories, « Migrer des opérations »).
+
+    `sources` : les catégories que l'écran a COCHÉES dans son filtre. Elles ne servent qu'aux opérations DÉCOUPÉES,
+    qui n'ont pas de catégorie propre : seule la part qui est dans l'une d'elles change de catégorie."""
+
+    operation_ids: list[int] = Field(min_length=1)
+    categorie_id: int
+    sources: list[int] = Field(default_factory=list)
+
+
+class OperationIgnoree(BaseModel):
+    id: int
+    nature: Optional[str] = None
+    raison: str
+
+
+class ChangerCategorieLotResultat(BaseModel):
+    migrees: int
+    ignorees: list[OperationIgnoree] = Field(default_factory=list)
+
+
+class CategorieNotesUpdate(BaseModel):
+    """La note d'une catégorie (migration 0104) : du texte libre, ou null (ou vide) pour la retirer."""
+
+    notes: Optional[str] = None
+
+    @field_validator("notes")
+    @classmethod
+    def _notes_propres(cls, valeur):
+        if valeur is None:
+            return None
+        valeur = valeur.strip()
+        return valeur or None
+
+
+class CategorieCouleurUpdate(BaseModel):
+    """La couleur d'une catégorie de premier niveau : un index de la palette (0 à 7). Une autre catégorie qui
+    porte déjà cette couleur prend l'ancienne — jamais deux catégories de la même couleur."""
+
+    couleur_index: int
+
+
 class CategorieNuanceUpdate(BaseModel):
     """La nuance d'une sous-catégorie dans la couleur de son parent (null = la première libre)."""
 
@@ -217,6 +267,11 @@ class CategorieRead(BaseModel):
     # la nuance de l'enfant dans la couleur de son parent (None = la première libre).
     parent_id: Optional[int] = None
     couleur_nuance: Optional[int] = None
+    # La note libre de la catégorie (migration 0104) ; NULL = aucune.
+    notes: Optional[str] = None
+    # UN DOSSIER DE CATÉGORIES (cf. models.Categorie.est_dossier, migration 0105) : ne classe plus d'opération,
+    # regroupe seulement ses sous-catégories. Les menus de saisie et l'import ne la proposent pas.
+    est_dossier: bool = False
     # OBJECTIF DE RÉPARTITION en % des dépenses de la période, 0 = aucun (cf.
     # models.Categorie.objectif_pourcentage). Rien du serveur ne le compare à
     # quoi que ce soit : c'est le camembert du dashboard qui le pose à côté de

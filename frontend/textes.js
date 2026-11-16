@@ -311,6 +311,12 @@ const TEXTES = {
     "Choisis un dossier de ton ordinateur (un autre disque, un dossier synchronisé, une clé…) : l'app y range elle-même une copie complète de ta base au démarrage, puis au plus une fois par jour tant qu'elle reste ouverte. -- Les 30 copies les plus récentes sont gardées ; les plus anciennes sont supprimées, et seulement celles que l'app a faites. -- Pour restaurer : Base de données → « Basculer sur ce fichier », et choisis la copie voulue. -- Évite le dossier de l'application : une mise à jour le remplace.",
   "noyau.categorie-entree":
     "Te permet de marquer des catégories comme étant des entrées d'argent. Elles n'apparaissent pas sur l'histogramme et ne portent pas de budget.",
+  "noyau.categorie-dossier":
+    "Pour une catégorie parent qui n'a aucune opération : elle ne sert plus qu'à regrouper ses sous-catégories. Elle n'est plus proposée pour classer une opération, ni dans les correspondances, les règles et les suggestions de l'import. Elle peut encore porter un budget. Si elle porte encore des opérations, migre-les d'abord vers une autre catégorie (bouton « Migrer des opérations »).",
+  "noyau.notes-categorie":
+    "Une note libre sur la catégorie : pourquoi elle existe, ce que tu y ranges, ce que tu n'y ranges pas. L'application ne la lit jamais. Un petit pictogramme à côté du nom dans la liste la déplie.",
+  "noyau.couleur-categorie":
+    "La couleur de la catégorie dans les graphiques. Si une autre catégorie porte déjà celle que tu choisis, les deux échangent leurs couleurs : il n'y a jamais deux catégories de la même couleur. Ses sous-catégories gardent la même teinte (à leur nuance près).",
   "noyau.sous-categories":
     "Range cette catégorie sous une autre (un seul niveau : une sous-catégorie n'a pas de sous-catégories). Elle hérite de la couleur de son parent — à la nuance près, que tu choisis — et de son emoji tant que tu ne lui en donnes pas un. Le dashboard continue d'afficher par catégorie parent ; la page Budget empile les sous-catégories dans la barre du parent. Pour le reste (opérations, règles, budgets, filtres), une sous-catégorie est une catégorie comme les autres.",
   "noyau.icone-categorie":

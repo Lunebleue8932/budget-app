@@ -316,3 +316,88 @@ def test_un_titre_avec_une_seule_valeur_en_base_n_a_pas_d_historique(db_session)
     )
     assert resultat["historique"] is True
     assert resultat["series"][0]["historique"] is True
+
+
+# ---------- LES ACHATS ET VENTES MARQUÉS SUR LA COURBE ----------
+
+
+def _scenario_achats(db):
+    compte = _compte(db)
+    titre = crud.create_titre(db, "Air Liquide", get_monnaie_id(db), 0.0)
+    _achat(db, compte, titre, 10, 100.0, date(2026, 7, 1))
+    crud.enregistrer_historique_cours(
+        db, titre.id, [(date(2026, 7, 2), 110.0), (date(2026, 7, 3), 110.0), (date(2026, 7, 4), 121.0)]
+    )
+    _achat(db, compte, titre, 10, 110.0, date(2026, 7, 3))
+    return compte, titre
+
+
+def test_un_achat_est_marque_avec_son_montant_et_son_effet(db_session):
+    db = db_session
+    _scenario_achats(db)
+    resultat = evolution_portefeuille.evolution(
+        db, get_monnaie_id(db), "total", aujourdhui=date(2026, 7, 4)
+    )
+    evenements = {e["date"]: e for e in resultat["evenements"]}
+    assert set(evenements) == {"2026-07-01", "2026-07-03"}
+    second = evenements["2026-07-03"]
+    assert second["achats"] == pytest.approx(1100.0) and second["ventes"] == 0.0
+    assert [ligne["quantite"] for ligne in second["lignes"]] == [10]
+    # Valeur avant (10 titres à 110) 1 100 ; après (20 à 110) 2 200 : l'achat ajoute 1 100, soit +100 %.
+    assert second["effet_valeur"] == pytest.approx(1100.0)
+    assert second["effet_pct_valeur"] == pytest.approx(1.0)
+    # Le rang désigne bien l'étape de la grille.
+    assert resultat["dates"][second["rang"]] == "2026-07-03"
+
+
+def test_le_pourcentage_investi_isole_l_effet_du_mouvement(db_session):
+    db = db_session
+    _scenario_achats(db)
+    resultat = evolution_portefeuille.evolution(
+        db, get_monnaie_id(db), "titre", aujourdhui=date(2026, 7, 4)
+    )
+    serie = resultat["series"][0]
+    evenements = {e["date"]: e for e in serie["evenements"]}
+    # Au 3 juillet, le cours du jour est 110 : avant l'achat valeur 1 100 / investi 1 000 (+10 %) ; après 2 200 /
+    # 2 100 (+4,76 %) — l'achat, fait au cours du marché, a dilué la plus-value latente de 5,24 points.
+    assert evenements["2026-07-03"]["pct_investi"] == pytest.approx(2200 / 2100 - 1 - 0.10)
+    # Le premier achat n'a pas de « avant » : rien à comparer.
+    assert evenements["2026-07-01"]["pct_investi"] is None
+
+
+def test_une_vente_est_marquee_et_sort_le_montant_vendu(db_session):
+    db = db_session
+    compte, titre = _scenario_achats(db)
+    _vente(db, compte, titre, 5, 120.0, date(2026, 7, 4))
+    resultat = evolution_portefeuille.evolution(
+        db, get_monnaie_id(db), "total", aujourdhui=date(2026, 7, 4)
+    )
+    evenement = [e for e in resultat["evenements"] if e["date"] == "2026-07-04"][0]
+    assert evenement["ventes"] == pytest.approx(600.0) and evenement["achats"] == 0.0
+    assert evenement["lignes"][0]["sens"] == "vente"
+
+
+def test_une_ligne_partiellement_allouee_porte_sa_part_et_son_montant_alloue(db_session):
+    db = db_session
+    compte = _compte(db)
+    titre = crud.create_titre(db, "ETF Monde", get_monnaie_id(db), 0.0)
+    _achat(db, compte, titre, 10, 100.0, date(2026, 7, 1))
+    # La répartition (60 % / 40 %) est celle du titre ; on la simule sur l'axe zone.
+    from app.services import exposition
+
+    d = exposition
+    original = d.parts_du_titre
+    try:
+        d.parts_du_titre = lambda *a, **k: [(None, 0.4)]
+        resultat = evolution_portefeuille.evolution(
+            db, get_monnaie_id(db), "zone", aujourdhui=date(2026, 7, 3)
+        )
+    finally:
+        d.parts_du_titre = original
+    evenement = resultat["series"][0]["evenements"][0]
+    assert evenement["achats_total"] == pytest.approx(1000.0)
+    assert evenement["achats"] == pytest.approx(400.0)
+    ligne = evenement["lignes"][0]
+    assert ligne["part"] == pytest.approx(0.4) and ligne["montant_alloue"] == pytest.approx(400.0)
+    # Le total du portefeuille, lui, garde le montant entier.
+    assert resultat["evenements"][0]["achats"] == pytest.approx(1000.0)

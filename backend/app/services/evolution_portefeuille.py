@@ -141,6 +141,10 @@ def evolution(
     }
 
     jours = _grille(min(m.operation.date for m in mouvements), aujourdhui)
+    # LES ACHATS ET VENTES, étape par étape : `evenements_series[cle][rang]` et `evenements_total[rang]` (cf.
+    # `_noter_evenement`). L'écran en fait des barres verticales sur les graphes d'analyse.
+    evenements_series: dict = {}
+    evenements_total: dict = {}
     quantites: dict[tuple[int, int], float] = {}
     # Le COÛT des titres encore détenus, par (compte, titre) — le « montant investi » : prix de revient moyen
     # pondéré, comme `placements._replier_mouvements` (une vente sort le coût dans la même proportion que la
@@ -165,8 +169,11 @@ def evolution(
         # la veille). C'est le cœur de la PERFORMANCE : elle ne compte que l'évolution du cours des titres,
         # jamais l'argent ajouté ou retiré par un achat ou une vente.
         avant = dict(quantites)
+        couts_avant = dict(couts)
+        appliques = []
         while suivant < len(mouvements) and mouvements[suivant].operation.date <= jour:
             m = mouvements[suivant]
+            appliques.append(m)
             cle = (m.operation.compte_id, m.titre_id)
             delta = m.quantite if m.sens == SensTitre.achat else -m.quantite
             if m.sens == SensTitre.achat:
@@ -207,6 +214,11 @@ def evolution(
                     cle, nom = cle_nom(compte_id, titre_id, etiquette)
                     du_jour.setdefault(cle, [nom, 0.0, 0.0])
                     gains_jour[cle] = gains_jour.get(cle, 0.0) + quantite * (apres_prix - avant_prix) * part
+        if appliques:
+            _noter_evenements(
+                rang, jour, appliques, avant, couts_avant, du_jour, cours, parts_par_titre, cle_nom,
+                par_id, comptes, evenements_series, evenements_total,
+            )
         for cle, (nom, valeur, investi) in du_jour.items():
             ligne = series.setdefault(
                 cle,
@@ -228,6 +240,7 @@ def evolution(
         ligne["gain_cumule"], ligne["rendement_cumule"] = _performance(ligne["valeurs"], ligne.pop("gains"))
         ligne["rendement_investi"] = _rendement_sur_investi(ligne["valeurs"], ligne["investis"])
         ligne["historique"] = any(nb_cours.get(t, 0) >= 2 for t in titres_de_serie.get(ligne["cle"], ()))
+        ligne["evenements"] = [e for _, e in sorted(evenements_series.get(ligne["cle"], {}).items())]
     classees = sorted(series.values(), key=lambda s: s["valeurs"][-1], reverse=True)
     gains_total = [sum(ligne_gain) for ligne_gain in zip(*[_deriver(s["gain_cumule"]) for s in classees])] if classees else []
     gain_cumule, rendement_cumule = _performance(total, gains_total)
@@ -243,8 +256,92 @@ def evolution(
         "historique": any(nb_cours.get(t, 0) >= 2 for t in titre_ids),
         "investi": total_investi,
         "rendement_investi": _rendement_sur_investi(total, total_investi),
+        # Les achats et ventes du portefeuille entier, par étape de la grille (cf. `_noter_evenements`).
+        "evenements": [e for _, e in sorted(evenements_total.items())],
         "series": classees,
     }
+
+
+def _noter_evenements(
+    rang, jour, appliques, avant, couts_avant, du_jour, cours, parts_par_titre, cle_nom, par_id, comptes,
+    evenements_series, evenements_total,
+) -> None:
+    """Range les achats et ventes d'UNE étape de la grille : un événement pour le portefeuille entier, un par
+    série (élément de l'axe) touchée.
+
+    UN ÉVÉNEMENT dit : le montant acheté et vendu (`achats`, `ventes`), ce que ça a changé, et les lignes
+    responsables (`lignes`). Une ligne est `quantité × prix` du mouvement ; quand le titre n'appartient qu'EN PARTIE
+    à l'élément (un ETF « Monde » sur la zone « Europe »), la ligne porte sa `part` et son `montant_alloue`, et
+    l'événement garde aussi les totaux non alloués (`achats_total`, `ventes_total`).
+
+    CE QUE CHANGE UN ACHAT OU UNE VENTE se mesure en comparant l'après à l'avant AU COURS DU JOUR (donc sans la
+    variation du cours, qui n'est pas son fait) :
+      - `effet_valeur` : valeur après − valeur avant les mouvements, et `effet_pct_valeur` rapporté à la valeur avant ;
+      - `pct_investi` : variation, en points de rendement, du rapport valeur / montant investi (rendement après −
+        rendement avant) — None quand l'un des deux n'existe pas (première position, tout vendu).
+    La performance des cours, elle, ne bouge jamais : un mouvement n'y entre pas."""
+    valeur_avant: dict = {}
+    investi_avant: dict = {}
+    for (compte_id, titre_id), quantite in avant.items():
+        if quantite <= placements.EPSILON_QUANTITE:
+            continue
+        prix = _cours_au(cours[titre_id], jour)
+        if prix is None:
+            continue
+        for etiquette, part in parts_par_titre[titre_id]:
+            cle, _nom = cle_nom(compte_id, titre_id, etiquette)
+            valeur_avant[cle] = valeur_avant.get(cle, 0.0) + quantite * prix * part
+            investi_avant[cle] = investi_avant.get(cle, 0.0) + couts_avant.get((compte_id, titre_id), 0.0) * part
+
+    total = evenements_total.setdefault(
+        rang,
+        {"rang": rang, "date": jour.isoformat(), "achats": 0.0, "ventes": 0.0, "lignes": []},
+    )
+    for m in appliques:
+        prix = m.prix_unitaire if m.prix_unitaire and m.prix_unitaire > 0 else (_cours_au(cours[m.titre_id], m.operation.date) or 0.0)
+        montant = m.quantite * prix
+        achat = m.sens == SensTitre.achat
+        titre = par_id.get(m.titre_id)
+        base = {
+            "date": m.operation.date.isoformat(),
+            "titre": titre.nom_affiche if titre else str(m.titre_id),
+            "compte": comptes.get(m.operation.compte_id, str(m.operation.compte_id)),
+            "sens": "achat" if achat else "vente",
+            "quantite": m.quantite,
+            "prix": prix,
+            "montant": montant,
+        }
+        total["achats" if achat else "ventes"] += montant
+        total["lignes"].append({**base, "part": 1.0, "montant_alloue": montant})
+        for etiquette, part in parts_par_titre[m.titre_id]:
+            cle, _nom = cle_nom(m.operation.compte_id, m.titre_id, etiquette)
+            evt = evenements_series.setdefault(cle, {}).setdefault(
+                rang,
+                {
+                    "rang": rang, "date": jour.isoformat(), "achats": 0.0, "ventes": 0.0,
+                    "achats_total": 0.0, "ventes_total": 0.0, "lignes": [],
+                },
+            )
+            evt["achats" if achat else "ventes"] += montant * part
+            evt["achats_total" if achat else "ventes_total"] += montant
+            evt["lignes"].append({**base, "part": part, "montant_alloue": montant * part})
+
+    total_avant = sum(valeur_avant.values())
+    total_apres = sum(v for _, v, _ in du_jour.values())
+    total["effet_valeur"] = total_apres - total_avant
+    total["effet_pct_valeur"] = (total["effet_valeur"] / total_avant) if total_avant > 1e-9 else None
+    for cle, par_rang in evenements_series.items():
+        evt = par_rang.get(rang)
+        if evt is None or "effet_valeur" in evt:
+            continue
+        v_avant = valeur_avant.get(cle, 0.0)
+        i_avant = investi_avant.get(cle, 0.0)
+        _, v_apres, i_apres = du_jour.get(cle, (None, 0.0, 0.0))
+        evt["effet_valeur"] = v_apres - v_avant
+        evt["effet_pct_valeur"] = ((v_apres - v_avant) / v_avant) if v_avant > 1e-9 else None
+        r_avant = (v_avant / i_avant - 1.0) if i_avant > 1e-9 else None
+        r_apres = (v_apres / i_apres - 1.0) if i_apres > 1e-9 else None
+        evt["pct_investi"] = (r_apres - r_avant) if r_avant is not None and r_apres is not None else None
 
 
 def _rendement_sur_investi(valeurs: list[float], investis: list[float]) -> list[Optional[float]]:

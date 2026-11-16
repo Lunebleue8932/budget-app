@@ -42,8 +42,12 @@ function evoRogner(reponse, periode) {
     reponse.dates.findIndex((d) => d >= limite),
     0
   );
+  // Les achats et ventes suivent la fenêtre : leur rang est celui de la grille entière, décalé comme les courbes.
+  const evtDecales = (liste) =>
+    (liste || []).filter((e) => e.rang >= premier).map((e) => ({ ...e, rang: e.rang - premier }));
   return {
     ...reponse,
+    evenements: evtDecales(reponse.evenements),
     dates: reponse.dates.slice(premier),
     total: reponse.total.slice(premier),
     gain_cumule: (reponse.gain_cumule || []).slice(premier),
@@ -53,6 +57,7 @@ function evoRogner(reponse, periode) {
     rendement_investi: (reponse.rendement_investi || []).slice(premier),
     series: reponse.series.map((s) => ({
       ...s,
+      evenements: evtDecales(s.evenements),
       valeurs: s.valeurs.slice(premier),
       investis: (s.investis || []).slice(premier),
       rendement_investi: (s.rendement_investi || []).slice(premier),
@@ -130,7 +135,7 @@ function evoDessiner(
   conteneur,
   dates,
   serie,
-  { monnaieId, hauteur = 220, couleur = "var(--accent-light)", pourcentage = false }
+  { monnaieId, hauteur = 220, couleur = "var(--accent-light)", pourcentage = false, evenements = [], evtMode = "valeur" }
 ) {
   if (!conteneur) return;
   // EN POURCENTAGE (`pourcentage`), les valeurs sont des fractions (0,12 = +12 %) et peuvent être nulles là où
@@ -193,6 +198,16 @@ function evoDessiner(
     ? `<line x1="${marge.gauche}" y1="${y(0).toFixed(1)}" x2="${largeur - marge.droite}" y2="${y(0).toFixed(1)}" stroke="var(--text-muted)" stroke-dasharray="4 3" />`
     : "";
 
+  // LES ACHATS ET VENTES : une barre verticale rouge en pointillés à leur date (cf. evoTexteEvenement).
+  const evts = (evenements || []).filter((e) => e.rang >= 0 && e.rang < dates.length);
+  const barresEvt = evts
+    .map((e, k) => {
+      const cx = x(e.rang).toFixed(1);
+      return `<line class="evo-evt" x1="${cx}" x2="${cx}" y1="${marge.haut}" y2="${hauteur - marge.bas}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 3" />
+        <line class="evo-evt-zone" data-evt="${k}" x1="${cx}" x2="${cx}" y1="${marge.haut}" y2="${hauteur - marge.bas}" stroke="transparent" stroke-width="12" style="pointer-events:stroke;cursor:pointer" />`;
+    })
+    .join("");
+
   conteneur.classList.add("evo-cadre");
   conteneur.innerHTML = `
     <svg viewBox="0 0 ${largeur} ${hauteur}" width="${largeur}" height="${hauteur}" xmlns="http://www.w3.org/2000/svg" role="img"
@@ -205,22 +220,61 @@ function evoDessiner(
             `<polyline fill="none" stroke="${couleur}" stroke-width="2" stroke-linejoin="round" points="${seg.join(" ")}" />`
         )
         .join("")}
+      ${barresEvt}
       <line class="evo-curseur" y1="${marge.haut}" y2="${hauteur - marge.bas}" stroke="var(--text-muted)" stroke-dasharray="3 3" style="display:none" />
       <circle class="evo-point" r="3.5" fill="${couleur}" style="display:none" />
     </svg>
-    <div class="evo-bulle" hidden></div>`;
+    <div class="evo-bulle" hidden></div>
+    <div class="evo-bulle evo-bulle-evt" hidden></div>`;
 
   const svg = conteneur.querySelector("svg");
   const curseur = conteneur.querySelector(".evo-curseur");
   const pastille = conteneur.querySelector(".evo-point");
-  const bulle = conteneur.querySelector(".evo-bulle");
+  const bulle = conteneur.querySelector(".evo-bulle:not(.evo-bulle-evt)");
+  const bulleEvt = conteneur.querySelector(".evo-bulle-evt");
   const cacher = () => {
     curseur.style.display = "none";
     pastille.style.display = "none";
     bulle.hidden = true;
   };
+  // L'INFOBULLE D'UN ACHAT / D'UNE VENTE reste ouverte tant que le pointeur est sur la barre OU sur elle-même :
+  // elle porte un bouton, qu'on doit pouvoir atteindre. Elle se ferme un instant après la sortie.
+  let minuterieEvt = null;
+  const fermerEvtPlusTard = () => {
+    clearTimeout(minuterieEvt);
+    minuterieEvt = setTimeout(() => (bulleEvt.hidden = true), 300);
+  };
+  const montrerEvt = (k) => {
+    clearTimeout(minuterieEvt);
+    const evt = evts[k];
+    const contexte = { nom: serie.nom, monnaieId, mode: evtMode };
+    bulleEvt.innerHTML = evoTexteEvenement(evt, contexte);
+    bulleEvt.hidden = false;
+    bulleEvt.querySelector("[data-evt-detail]")?.addEventListener("click", () => evoOuvrirDetailEvenement(evt, contexte));
+    const rect = svg.getBoundingClientRect();
+    const gauche = (x(evt.rang) / largeur) * rect.width;
+    // À droite de la barre ; à gauche quand l'infobulle sortirait du cadre.
+    const aDroite = gauche + 10 + bulleEvt.offsetWidth <= rect.width;
+    bulleEvt.style.left = `${Math.max(aDroite ? gauche + 10 : gauche - bulleEvt.offsetWidth - 10, 0)}px`;
+    bulleEvt.style.top = `${Math.max(Math.min(10, rect.height - bulleEvt.offsetHeight), 0)}px`;
+  };
+  conteneur.querySelectorAll(".evo-evt-zone").forEach((zone) => {
+    zone.addEventListener("mouseenter", () => {
+      cacher();
+      montrerEvt(Number(zone.dataset.evt));
+    });
+    zone.addEventListener("mouseleave", fermerEvtPlusTard);
+  });
+  bulleEvt.addEventListener("mouseenter", () => clearTimeout(minuterieEvt));
+  bulleEvt.addEventListener("mouseleave", fermerEvtPlusTard);
+
   svg.addEventListener("mouseleave", cacher);
   svg.addEventListener("mousemove", (e) => {
+    // Sur une barre d'achat / de vente, c'est SON infobulle qui parle : pas celle du point le plus proche.
+    if (e.target.closest && e.target.closest(".evo-evt-zone")) {
+      cacher();
+      return;
+    }
     const rect = svg.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * largeur;
     // Le point le plus proche en abscisse (parmi ceux qui ont une valeur).
@@ -246,6 +300,134 @@ function evoDessiner(
     bulle.style.left = `${Math.min(Math.max(gauche + 10, 0), rect.width - bulle.offsetWidth)}px`;
     bulle.style.top = `${Math.max((cy / hauteur) * rect.height - 40, 0)}px`;
   });
+}
+
+/** « +3,1 pts » : une variation de pourcentage, en points. */
+function evoPoints(fraction) {
+  if (fraction === null || fraction === undefined) return "—";
+  const signe = Math.abs(fraction) < 0.00005 ? "" : fraction > 0 ? "+" : "−";
+  return `${signe}${(Math.abs(fraction) * 100).toLocaleString("fr-FR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} pts`;
+}
+
+/**
+ * LE TEXTE DE L'INFOBULLE D'UN ACHAT / D'UNE VENTE (barre rouge en pointillés). `mode` dit quelle courbe est tracée :
+ *   - « valeur » (courbe en montant) : l'effet sur la valeur, en montant et en % de la valeur d'avant ;
+ *   - « investi » (valeur / montant investi) : la variation du pourcentage due au seul mouvement, en points ;
+ *   - « cours » (performance des cours) : aucune — un achat ou une vente n'y entre jamais.
+ * Quand une ligne n'appartient qu'EN PARTIE à l'élément (un ETF sur une zone ou un secteur), le montant total ET le
+ * montant alloué sont donnés, avec la part.
+ */
+function evoTexteEvenement(evt, { nom, monnaieId, mode }) {
+  const lignes = [`<strong>${escapeHtml(formatDate(evt.date))}</strong>`];
+  const montantEtAlloue = (libelle, alloue, total) => {
+    if (!(alloue > 0.005 || total > 0.005)) return;
+    const partiel = total !== undefined && Math.abs(total - alloue) > 0.005;
+    lignes.push(
+      partiel
+        ? `${escapeHtml(libelle)} : ${formatMontant(total, monnaieId)} ${escapeHtml(t("au total"))}, ${formatMontant(
+            alloue,
+            monnaieId
+          )} ${escapeHtml(t("alloués à"))} « ${escapeHtml(nom)} » (${(total > 0 ? (alloue / total) * 100 : 0).toLocaleString("fr-FR", {
+            maximumFractionDigits: 1,
+          })} %)`
+        : `${escapeHtml(libelle)} : ${formatMontant(alloue, monnaieId)}`
+    );
+  };
+  montantEtAlloue(t("Achat"), evt.achats, evt.achats_total);
+  montantEtAlloue(t("Vente"), evt.ventes, evt.ventes_total);
+  if (mode === "cours") {
+    lignes.push(`<span class="evo-evt-note">${escapeHtml(t("Sans effet sur la performance des cours"))}</span>`);
+  } else if (mode === "investi") {
+    lignes.push(
+      evt.pct_investi === null || evt.pct_investi === undefined
+        ? `<span class="evo-evt-note">${escapeHtml(t("Pas de pourcentage avant ce mouvement"))}</span>`
+        : `${escapeHtml(t("Variation due au mouvement"))} : ${evoValeurColoree(evoPoints(evt.pct_investi), evt.pct_investi)}`
+    );
+  } else {
+    const pct = evt.effet_pct_valeur;
+    lignes.push(
+      `${escapeHtml(t("Effet sur la valeur"))} : ${evoValeurColoree(
+        `${evt.effet_valeur > 0.005 ? "+" : evt.effet_valeur < -0.005 ? "−" : ""}${formatMontant(Math.abs(evt.effet_valeur), monnaieId)}${
+          pct === null || pct === undefined ? "" : ` (${evoPourcentage(pct)})`
+        }`,
+        evt.effet_valeur
+      )}`
+    );
+  }
+  lignes.push(
+    `<button type="button" class="evo-evt-bouton" data-evt-detail>${escapeHtml(t("Voir les lignes concernées"))}</button>`
+  );
+  return lignes.join("<br>");
+}
+
+/** La fenêtre qui liste CHAQUE ligne (achat ou vente) responsable du changement : date, titre, compte, quantité, prix,
+ *  montant ; et, pour une ligne partiellement attribuée à l'élément, sa part et le montant alloué. */
+function evoOuvrirDetailEvenement(evt, { nom, monnaieId }) {
+  document.getElementById("evo-modale-evenement")?.remove();
+  const partielle = evt.lignes.some((l) => Math.abs(l.part - 1) > 1e-6);
+  const fond = document.createElement("div");
+  fond.id = "evo-modale-evenement";
+  fond.className = "modale-fond";
+  fond.setAttribute("role", "presentation");
+  const lignes = evt.lignes
+    .map(
+      (l) => `<tr>
+        <td>${escapeHtml(formatDateCourte(l.date))}</td>
+        <td>${escapeHtml(l.titre)}</td>
+        <td>${escapeHtml(l.compte)}</td>
+        <td>${escapeHtml(t(l.sens === "achat" ? "Achat" : "Vente"))}</td>
+        <td class="montant">${l.quantite.toLocaleString("fr-FR", { maximumFractionDigits: 4 })}</td>
+        <td class="montant">${formatMontant(l.prix, monnaieId)}</td>
+        <td class="montant">${formatMontant(l.montant, monnaieId)}</td>
+        ${
+          partielle
+            ? `<td class="montant">${(l.part * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</td>
+               <td class="montant">${formatMontant(l.montant_alloue, monnaieId)}</td>`
+            : ""
+        }
+      </tr>`
+    )
+    .join("");
+  fond.innerHTML = `
+    <div class="modale modale-evenement" role="dialog" aria-modal="true" aria-labelledby="evo-evt-titre">
+      <div class="epargne-entete">
+        <h2 id="evo-evt-titre">${escapeHtml(t("Achats et ventes du"))} ${escapeHtml(formatDate(evt.date))}</h2>
+        <button type="button" class="epargne-fermer" data-evo-fermer title="${escapeHtml(t("Fermer"))}" aria-label="${escapeHtml(
+          t("Fermer")
+        )}">&times;</button>
+      </div>
+      <p class="modale-texte">${escapeHtml(nom)}${
+        partielle
+          ? ` — ${escapeHtml(t("certains titres n'appartiennent qu'en partie à cet élément : leur part et le montant alloué sont indiqués."))}`
+          : ""
+      }</p>
+      <div class="evo-evt-liste"><table>
+        <thead><tr><th>${escapeHtml(t("Date"))}</th><th>${escapeHtml(t("Titre"))}</th><th>${escapeHtml(t("Compte"))}</th><th>${escapeHtml(
+          t("Sens")
+        )}</th><th>${escapeHtml(t("Quantité"))}</th><th>${escapeHtml(t("Prix"))}</th><th>${escapeHtml(t("Montant"))}</th>${
+          partielle ? `<th>${escapeHtml(t("Part"))}</th><th>${escapeHtml(t("Alloué"))}</th>` : ""
+        }</tr></thead>
+        <tbody>${lignes}</tbody>
+      </table></div>
+    </div>`;
+  document.body.appendChild(fond);
+  document.body.classList.add("modale-ouverte");
+  const fermer = () => {
+    document.removeEventListener("keydown", surTouche);
+    fond.remove();
+    document.body.classList.remove("modale-ouverte");
+  };
+  const surTouche = (e) => {
+    if (e.key === "Escape") fermer();
+  };
+  document.addEventListener("keydown", surTouche);
+  fond.addEventListener("mousedown", (e) => {
+    if (e.target === fond) fermer();
+  });
+  fond.querySelector("[data-evo-fermer]").addEventListener("click", fermer);
 }
 
 /** Les onglets de monnaie et de période, posés dans `conteneur` ; `onChange` est rappelé à chaque choix. */
@@ -421,7 +603,7 @@ function evoRendreGraphes() {
       totalCadre,
       rogne.dates,
       { nom: t("Total du portefeuille"), valeurs: rogne.total },
-      { monnaieId: reponse.monnaie_id }
+      { monnaieId: reponse.monnaie_id, evenements: rogne.evenements, evtMode: "valeur" }
     );
   }
   grille.innerHTML = "";
@@ -502,6 +684,8 @@ function evoRendreGraphes() {
       hauteur: 170,
       couleur: evoCouleur(rang),
       pourcentage: true,
+      evenements: serie.evenements,
+      evtMode: EVO.mesure,
     });
   });
 }

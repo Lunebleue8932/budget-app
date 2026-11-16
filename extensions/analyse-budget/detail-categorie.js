@@ -93,12 +93,20 @@ function abdcJaugeSvg(d) {
   const rayon = 120;
   const epaisseur = 30;
   const point = (t) => [cx + rayon * Math.cos(Math.PI * (1 - t)), cy - rayon * Math.sin(Math.PI * (1 - t))];
-  const arc = (t0, t1, couleur, opacite = 1) => {
+  // LE PRÉVU est hachuré à la couleur de la tranche (cf. motifHachurePrevu, app.js), jamais transparent.
+  const motifs = [];
+  const arc = (t0, t1, couleur, opacite = 1, prevu = false) => {
     if (t1 - t0 < 0.0005) return "";
     const [x0, y0] = point(t0);
     const [x1, y1] = point(t1);
+    let trait = couleur;
+    if (prevu) {
+      const motif = motifHachurePrevu(couleur);
+      motifs.push(motif.def);
+      trait = `url(#${motif.id})`;
+    }
     return `<path d="M${x0.toFixed(2)},${y0.toFixed(2)} A${rayon},${rayon} 0 0 1 ${x1.toFixed(2)},${y1.toFixed(2)}"
-      fill="none" stroke="${couleur}" stroke-width="${epaisseur}" ${opacite < 1 ? `opacity="${opacite}"` : ""} />`;
+      fill="none" stroke="${trait}" stroke-width="${epaisseur}" ${opacite < 1 ? `opacity="${opacite}"` : ""} />`;
   };
   const total = Math.max(d.total_previsionnel, d.total_reel);
   const rempli = d.budget_alloue > 0 && total < d.budget_alloue ? total / d.budget_alloue : 1;
@@ -112,7 +120,7 @@ function abdcJaugeSvg(d) {
     const couleur = abdcCouleur(c, d.couleur_index);
     const reel = poids[i] > 0 ? c.total_reel / poids[i] : 0;
     morceaux += arc(curseur, curseur + part * reel, couleur, 1);
-    morceaux += arc(curseur + part * reel, curseur + part, couleur, 0.35);
+    morceaux += arc(curseur + part * reel, curseur + part, couleur, 1, true);
     curseur += part;
     // Un filet entre deux tranches : à la couleur de la fenêtre, pour les détacher.
     if (i < d.composantes.length - 1 && part > 0.0005) {
@@ -130,6 +138,7 @@ function abdcJaugeSvg(d) {
       : t("Pas de budget");
   return `<svg viewBox="0 0 ${largeur} ${hauteur}" width="${largeur}" height="${hauteur}" role="img"
       aria-label="${escapeHtml(t("Jauge de la catégorie"))}" xmlns="http://www.w3.org/2000/svg">
+      <defs>${motifs.join("")}</defs>
       ${morceaux}
       <text x="${cx}" y="${cy - 22}" text-anchor="middle" font-size="22" font-weight="600" fill="var(--text-primary)">${escapeHtml(
         formatMontant(total, d.monnaie_id)

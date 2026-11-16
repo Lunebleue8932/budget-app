@@ -2504,7 +2504,10 @@ def _resoudre_ligne(
         # obsolète, il doit redemander.
         if categorie_id is not None:
             categorie_choisie = crud.get_categorie(db, categorie_id)
-            if categorie_choisie is not None and not categorie_choisie.active:
+            # UN DOSSIER DE CATÉGORIES NON PLUS (migration 0105) : il ne classe rien, ses sous-catégories le font.
+            if categorie_choisie is not None and (
+                not categorie_choisie.active or categorie_choisie.est_dossier
+            ):
                 categorie_id = None
 
         if categorie_id is None:
@@ -3296,7 +3299,18 @@ def elements_eteints(db) -> tuple[dict, dict]:
     return comptes, categories
 
 
-def _erreur_eteints(ligne: schemas.ImportLigne, comptes: dict, categories: dict) -> Optional[str]:
+def dossiers_de_categories(db) -> dict:
+    """{id: nom} des catégories traitées comme un DOSSIER (migration 0105) : elles ne classent rien, à l'import
+    comme dans le formulaire d'opération."""
+    return {
+        categorie.id: categorie.nom
+        for categorie in db.query(models.Categorie).filter(models.Categorie.est_dossier.is_(True))
+    }
+
+
+def _erreur_eteints(
+    ligne: schemas.ImportLigne, comptes: dict, categories: dict, dossiers: Optional[dict] = None
+) -> Optional[str]:
     """Ce qu'une ligne désigne et qui est ÉTEINT (cf. models.Compte.actif).
 
     L'IMPORT EST UNE ÉCRITURE COMME UNE AUTRE, et c'est tout l'enjeu : ce que le
@@ -3316,6 +3330,8 @@ def _erreur_eteints(ligne: schemas.ImportLigne, comptes: dict, categories: dict)
     for categorie_id in ids_categories:
         if categorie_id in categories:
             motifs.append(f"la catégorie « {categories[categorie_id]} » est éteinte")
+        elif dossiers and categorie_id in dossiers:
+            motifs.append(f"« {dossiers[categorie_id]} » est un dossier de catégories (pas de sous-catégorie choisie)")
     # Un virement vers son propre compte éteint dirait deux fois la même chose.
     uniques = list(dict.fromkeys(motifs))
     return ", ".join(uniques) if uniques else None
@@ -3965,6 +3981,7 @@ def confirmer(
     # formulaire d'opération refuse, un relevé ne doit pas le faire entrer par
     # la porte de derrière.
     comptes_eteints, categories_eteintes = elements_eteints(db)
+    categories_dossiers = dossiers_de_categories(db)
 
     operations_creees = 0
     lignes_ignorees = []
@@ -4064,7 +4081,7 @@ def confirmer(
                 continue
 
         manques = _erreur_ligne(ligne, contexte.categorie_virements_id)
-        eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes)
+        eteints = _erreur_eteints(ligne, comptes_eteints, categories_eteintes, categories_dossiers)
         ligne = ligne.model_copy(
             update={
                 "erreur": ", ".join(m for m in (manques, eteints, erreur_frais) if m) or None

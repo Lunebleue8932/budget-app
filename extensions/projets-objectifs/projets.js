@@ -1019,7 +1019,7 @@ function ouvrirSelecteurProjet() {
     // Les sous-catégories sous leur parent, en retrait, à la couleur de leur nuance (migration 0103).
     categoriesEnHierarchie(state.categories).map((c) => ({
       cle: c.id,
-      libelle: libelleCategorieMenu(c),
+      libelle: libelleCategorieAvecIcone(c),
       couleur: couleurDeCategorie(c),
     }))
   );

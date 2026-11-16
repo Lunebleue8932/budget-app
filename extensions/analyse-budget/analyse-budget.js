@@ -828,7 +828,7 @@ async function abRenderCategorie() {
     // Les sous-catégories sous leur parent, en retrait (migration 0103) : ce sont des catégories comme les autres ici.
     options: categoriesEnHierarchie(categories).map((c) => ({
       cle: c.id,
-      libelle: libelleCategorieMenu(c),
+      libelle: libelleCategorieAvecIcone(c),
       couleur: couleurDeCategorie(c),
     })),
     onChange: (choix) => {
@@ -1120,7 +1120,10 @@ function abRenderBudgetsCategories() {
       return `
       <div class="ab-budget-ligne${c.niveau ? " ab-budget-enfant" : ""}" data-id="${c.id}">
         <div class="ab-budget-nom">
-          ${escapeHtml(libelleCategorieMenu(c))}
+          ${
+            // LA PUCE DE LA CATÉGORIE (sa couleur d'histogramme, son emoji) devant le nom ; « ↳ » pour une sous-catégorie.
+            `${c.niveau ? "↳ " : ""}${categorieHtml(c.id)}`
+          }
           ${
             budget.montant > 0 && !budget.explicite
               ? `<span class="badge-aucun">${t("hérité")}</span>`
@@ -1129,6 +1132,7 @@ function abRenderBudgetsCategories() {
         </div>
         <div class="ab-budget-curseur">
           <input type="range" data-champ="montant" min="0" max="${butee}" step="${pas}"
+                 style="accent-color:${couleurDeCategorie(c)}"
                  value="${Math.min(montant, butee)}"
                  aria-label="${t("Budget de la catégorie")}" />
           <input type="number" data-champ="montant" step="0.01" min="0"

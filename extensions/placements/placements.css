@@ -466,3 +466,35 @@
   border: 1px dashed var(--border);
   border-radius: 6px;
 }
+
+/* ---------- Les achats et ventes marqués sur les graphes d'analyse ----------
+ *
+ * Une barre rouge en pointillés à la date d'un achat ou d'une vente ; son infobulle, contrairement à celle du point
+ * le plus proche, reçoit le pointeur : elle porte un bouton qui ouvre la liste des lignes concernées. */
+.evo-bulle.evo-bulle-evt {
+  pointer-events: auto;
+  white-space: normal;
+  min-width: 14rem;
+  max-width: 24rem;
+  border-color: #ef4444;
+  line-height: 1.45;
+}
+
+.evo-evt-note {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.evo-evt-bouton {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.modale.modale-evenement {
+  max-width: 62rem;
+}
+
+.evo-evt-liste {
+  overflow-x: auto;
+}

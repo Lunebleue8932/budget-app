@@ -243,7 +243,7 @@ async function impOuvrirSelecteur() {
     t("Catégories"),
     categoriesEnHierarchie(state.categories.filter((c) => c.est_entree)).map((c) => ({
       cle: c.id,
-      libelle: libelleCategorieMenu(c),
+      libelle: libelleCategorieAvecIcone(c),
       couleur: couleurDeCategorie(c),
     }))
   );

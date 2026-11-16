@@ -1,0 +1,293 @@
+% Formules des courbes d'analyse des placements financiers (Budget App).
+% Compilation : pdflatex formules-courbes-analyse-placements.tex   (deux passes pour la table des matières)
+%           ou : xelatex  formules-courbes-analyse-placements.tex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{bleu}{HTML}{1D4ED8}
+\definecolor{fond}{HTML}{EFF6FF}
+
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{bleu}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\large\bfseries\color{bleu}}{\thesubsection}{0.6em}{}
+
+% Un encadré de formules.
+\usepackage[most]{tcolorbox}
+\newtcolorbox{formules}{colback=fond,colframe=bleu,boxrule=0.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,before skip=8pt,after skip=8pt}
+
+\setlist[itemize]{itemsep=2pt,topsep=3pt}
+
+\newcommand{\avant}{\mathrm{avant}}
+
+\title{\textbf{\color{bleu}Courbes d'analyse des placements financiers}\\[4pt]
+  \large Formules de calcul exactes des deux mesures du menu \og Courbes par élément \fg}
+\date{}
+\author{}
+
+\begin{document}
+\maketitle
+
+\noindent\textit{Sources : \texttt{backend/app/services/evolution\_portefeuille.py} (calcul serveur) et
+\texttt{extensions/placements/evolution.js} (rebasage sur la période affichée).}
+
+\medskip
+\noindent L'onglet Analyse trace d'abord la \textbf{valeur brute du portefeuille} (courbe du total), puis, quand un
+\og Séparer par \fg{} est actif, \textbf{un graphe par élément} selon l'une des deux mesures ci-dessous.
+
+\tableofcontents
+
+% ---------------------------------------------------------------------------
+\section{Éléments communs aux deux mesures}
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{12.6cm}@{}}
+\toprule
+\textbf{Notation} & \textbf{Définition}\\
+\midrule
+$P(j)$ & Dernier cours connu du titre à la date $j$ ou avant. Sources, de la plus à la moins fiable : l'historique des
+ cours (table \texttt{cours\_titre}), puis les prix des mouvements (achats et ventes), puis le cours actuel pour
+ aujourd'hui. Avant son premier cours connu, un titre n'a pas de valeur.\\[3pt]
+$Q(j)$ & Quantité détenue à la date $j$, déroulée depuis les mouvements (achat $+$, vente $-$), jamais négative.\\[3pt]
+$\mathrm{part}$ & Poids du titre dans l'élément tracé. Vaut $1$ pour les axes total, compte et titre ; pour
+ enveloppe, classe, zone et secteur, c'est le poids d'exposition du titre (un ETF \og Monde \fg{} se répartit entre
+ plusieurs zones), \textbf{sans renormalisation}.\\[3pt]
+$V(j)$ & Valeur de l'élément à la date $j$.\\[3pt]
+Grille de dates & Tous les jours tant qu'il y a au plus $200$ points, sinon un pas régulier ; le dernier point est
+ toujours aujourd'hui. Une \og étape \fg{} est un pas de cette grille, pas forcément un jour.\\[3pt]
+Monnaie & Un graphe par monnaie : deux monnaies ne s'additionnent jamais.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{formules}
+\[
+V(j)\;=\;\sum_{\text{titres}} Q(j)\times P(j)\times \mathrm{part}
+\]
+\end{formules}
+
+% ---------------------------------------------------------------------------
+\section{Mesure \og Valeur$(t)$ / montant investi$(t)$ \fg{} (choix par défaut)}
+
+C'est la \textbf{plus-value latente en pourcentage}, celle des indicateurs de l'onglet Portefeuille. Ce n'est pas un
+rendement pondéré par le temps.
+
+\begin{formules}
+\[
+\boxed{\;\mathrm{rendement}(t)\;=\;\frac{V(t)}{I(t)}\;-\;1\;}
+\]
+\end{formules}
+
+$I(t)$ est le \textbf{montant investi} : le coût des titres encore détenus, au prix de revient moyen pondéré, tenu par
+couple (compte, titre). Il évolue ainsi à chaque mouvement :
+
+\begin{formules}
+\begin{align*}
+\text{Achat :}\quad & I \;\leftarrow\; I + q_{\text{achetée}}\times \mathrm{prix}_{\text{unitaire}}\\[2pt]
+\text{Vente :}\quad & I \;\leftarrow\; I\times\Bigl(1-\min\bigl(1\,;\,q_{\text{vendue}}\,/\,q_{\text{détenue avant la vente}}\bigr)\Bigr)
+\end{align*}
+\end{formules}
+
+\begin{itemize}
+  \item Quand la quantité détenue devient nulle, $I$ est remis à $0$.
+  \item Si $I(t)\le 10^{-9}$ (rien d'investi à cette date), il n'y a pas de dénominateur : la valeur est \og vide \fg{}
+        et la courbe est \textbf{interrompue}.
+  \item Le choix de la période (1 mois, 6 mois, 1 an, Tout) découpe simplement la courbe : \textbf{aucun rebasage},
+        chaque point reste $V/I-1$ à sa propre date.
+  \item Le texte sous la carte affiche la plus-value latente $V-I$ (montant), puis le pourcentage, puis
+        \og investi $I$ \fg.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Mesure \og Cours \fg{} (performance des cours seuls)}
+
+Elle ne retient que l'effet de la variation des cours : \textbf{l'argent ajouté ou retiré par un achat ou une vente
+n'y entre jamais}. C'est un rendement pondéré par le temps (\emph{time-weighted}).
+
+\subsection*{a) Gain de chaque étape $k$}
+
+Avec $j_k$ la date de l'étape, $j_{k-1}$ la précédente et $Q_{\avant}$ la quantité détenue \emph{avant} les
+mouvements de l'étape :
+
+\begin{formules}
+\[
+\boxed{\;g_k\;=\;\sum Q_{\avant}\times\bigl(P(j_k)-P(j_{k-1})\bigr)\times \mathrm{part}\;}
+\]
+\end{formules}
+
+Un achat du jour n'a donc rien gagné, et une vente du jour a gagné jusqu'à la veille.
+
+\subsection*{b) Gain cumulé et rendement chaîné}
+
+Avec $V_{i-1}$ la valeur de la série à l'étape précédente :
+
+\begin{formules}
+\[
+G_k\;=\;\sum_{i\le k} g_i
+\qquad\qquad
+R_k\;=\;\prod_{i\le k}\Bigl(1+\frac{g_i}{V_{i-1}}\Bigr)-1
+\]
+\end{formules}
+
+\begin{itemize}
+  \item Si $V_{i-1}\le 10^{-9}$ (la série n'existait pas la veille), le facteur de l'étape vaut $1$, soit $0\,\%$.
+        Au tout premier point la base est $0$ : $R_0=0$.
+  \item Pour le \textbf{total} du portefeuille, le gain d'une étape est la somme des gains des séries, et le
+        rendement se chaîne avec la valeur totale de la veille comme base.
+\end{itemize}
+
+\subsection*{c) Courbe affichée : rebasée au début de la fenêtre}
+
+Avec $d$ le premier point visible :
+
+\begin{formules}
+\[
+\boxed{\;\mathrm{courbe}(k)\;=\;\frac{1+R_k}{1+R_d}-1\;}
+\]
+\end{formules}
+
+\subsection*{d) Texte \og Performance des cours \fg{} sur la fenêtre}
+
+\begin{formules}
+\[
+\mathrm{gain}=G_{\mathrm{fin}}-G_d
+\qquad\qquad
+\mathrm{pourcentage}=\frac{1+R_{\mathrm{fin}}}{1+R_d}-1
+\]
+\end{formules}
+
+% ---------------------------------------------------------------------------
+\section{Comment choisir entre les deux}
+
+\begin{center}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{6.0cm}>{\raggedright\arraybackslash}p{6.0cm}@{}}
+\toprule
+ & \textbf{Valeur$(t)$ / investi$(t)$} & \textbf{Cours (performance)}\\
+\midrule
+Question posée & \og Où en est ma plus-value sur ce que j'ai mis dans cet élément ? \fg
+ & \og Les cours de mes titres ont-ils monté ou baissé, indépendamment de mes achats et ventes ? \fg\\[3pt]
+Sensible aux achats / ventes & Oui : le prix d'achat fixe le coût $I$. & Non : seuls les cours comptent.\\[3pt]
+Rebasage sur la période & Non. & Oui : $0\,\%$ au premier point visible.\\[3pt]
+Calcul & Rapport de deux niveaux à la même date. & Produit des rendements d'étape (chaîné).\\[3pt]
+Trou dans la courbe & Quand rien n'est investi. & Jamais ; une étape sans base compte $0\,\%$.\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ---------------------------------------------------------------------------
+\section{Exemple chiffré (un seul titre, axe \og Titre individuel \fg)}
+
+Scénario : on achète $10$ titres à $100\,€$, le cours monte à $110\,€$, on en achète $10$ de plus à $110\,€$, puis le
+cours monte de nouveau de $10\,\%$ ($121\,€$).
+
+\begin{center}
+\small
+\begin{tabular}{@{}cllrrr@{}}
+\toprule
+\textbf{Étape} & \textbf{Événement} & \textbf{Cours} & $Q$ & $V$ & $I$\\
+\midrule
+0 & Achat de 10 à 100\,€ & 100 & 10 & 1\,000 & 1\,000\\
+1 & Le cours monte & 110 & 10 & 1\,100 & 1\,000\\
+2 & Achat de 10 à 110\,€ & 110 & 20 & 2\,200 & 2\,100\\
+3 & Le cours monte de 10\,\% & 121 & 20 & 2\,420 & 2\,100\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Mesure \og Valeur / investi \fg{} à l'étape 3}
+\begin{formules}
+\[
+\frac{2\,420}{2\,100}-1 \;=\; \mathbf{+15{,}24\,\%}\qquad(\text{plus-value latente : }320\,€)
+\]
+\end{formules}
+
+\subsection*{Mesure \og Cours \fg{} à l'étape 3}
+\begin{center}
+\small
+\begin{tabular}{@{}cccccrr@{}}
+\toprule
+\textbf{Étape} & $Q_{\avant}$ & $g_k$ & Base $V_{k-1}$ & Facteur & $G_k$ & $R_k$\\
+\midrule
+0 & --- & 0 & 0 & 1 & 0 & $0\,\%$\\
+1 & 10 & $10\times(110-100)=100$ & 1\,000 & $1+100/1\,000=1{,}10$ & 100 & $+10\,\%$\\
+2 & 10 & $10\times(110-110)=0$ & 1\,100 & $1{,}00$ & 100 & $+10\,\%$\\
+3 & 20 & $20\times(121-110)=220$ & 2\,200 & $1+220/2\,200=1{,}10$ & 320 & $+21\,\%$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{formules}
+\[
+R_3 \;=\; 1{,}10\times 1{,}00\times 1{,}10-1 \;=\; \mathbf{+21\,\%}\qquad(G_3=320\,€)
+\]
+\end{formules}
+
+\begin{itemize}
+  \item Les deux mesures diffèrent ($15{,}24\,\%$ contre $21\,\%$) parce que le second achat a été fait à un cours
+        déjà monté : il alourdit le montant investi, mais pas la performance des cours.
+  \item \textbf{Rebasage.} Si la fenêtre affichée commence à l'étape 2 ($R_d=+10\,\%$), la courbe \og Cours \fg{}
+        vaut $0\,\%$ à l'étape 2, puis $1{,}21/1{,}10-1=\mathbf{+10\,\%}$ à l'étape 3. La mesure \og Valeur / investi
+        \fg{} reste à $+15{,}24\,\%$ : elle ne se rebase pas.
+  \item \textbf{Vente.} Si l'on vendait ensuite $5$ titres à $120\,€$ : le coût passe de $2\,100$ à
+        $2\,100\times(1-5/20)=1\,575\,€$, la quantité tombe à $15$, $V=15\times120=1\,800\,€$ et
+        \og Valeur / investi \fg{} $=1\,800/1\,575-1=\mathbf{+14{,}29\,\%}$.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Les barres rouges : achats et ventes}
+
+Sur les graphes d'analyse, une \textbf{barre verticale rouge en pointillés} marque chaque étape de la grille où au
+moins un achat ou une vente a eu lieu. Son infobulle donne le montant acheté et vendu ; un bouton ouvre la liste de
+chaque ligne responsable.
+
+L'effet d'un mouvement se mesure en comparant l'\emph{après} à l'\emph{avant}, \textbf{au cours du jour} (la variation
+du cours n'est pas le fait du mouvement). Avec $V^{-}$ et $I^{-}$ la valeur et le montant investi juste avant les
+mouvements de l'étape, $V^{+}$ et $I^{+}$ juste après :
+
+\begin{formules}
+\[
+\text{effet sur la valeur} = V^{+}-V^{-}
+\qquad
+\text{en \%} = \frac{V^{+}-V^{-}}{V^{-}}
+\]
+\[
+\text{variation due au mouvement (en points)} \;=\; \Bigl(\frac{V^{+}}{I^{+}}-1\Bigr)-\Bigl(\frac{V^{-}}{I^{-}}-1\Bigr)
+\]
+\end{formules}
+
+\begin{itemize}
+  \item Courbe en montant (total) : l'infobulle donne l'effet sur la valeur, en montant et en \%.
+  \item Mesure \og Valeur / investi \fg{} : elle donne la variation due au mouvement, en points de pourcentage
+        (absente pour une première position : il n'y a pas de pourcentage avant).
+  \item Mesure \og Cours \fg{} : le mouvement est \textbf{sans effet} sur la performance des cours, par construction.
+  \item Une ligne qui n'appartient qu'en partie à l'élément (ETF réparti sur des zones ou des secteurs) affiche son
+        montant total, sa part et le \textbf{montant alloué} ($\text{montant}\times\mathrm{part}$).
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Cas particuliers}
+
+\begin{itemize}
+  \item \textbf{Sans historique de cours} : un élément qui a moins de deux cours rangés en base n'a pas de courbe,
+        seulement la carte \og Pas d'historique de valeurs disponible \fg. Les prix des mouvements servent à tracer
+        mais ne comptent pas comme historique.
+  \item \textbf{Titre individuel} : seuls les titres cochés sont tracés ; mêmes formules, titre par titre.
+  \item \textbf{Axes enveloppe, classe, zone, secteur} : un titre est réparti selon ses poids d'exposition
+        ($\mathrm{part}$) ; ce qui n'est pas renseigné tombe dans \og Non renseigné \fg, sans renormaliser.
+\end{itemize}
+
+\end{document}

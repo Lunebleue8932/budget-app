@@ -1109,9 +1109,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label data-extension-greffe="monnaies" style="display:none">Monnaie
-            <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
-          </label>
+          <!-- LE FILTRE DE CATÉGORIES SE COCHE : plusieurs catégories à la fois, avec leur emoji et leur couleur (menu à
+               cocher du noyau, `creerMenuCases`). La valeur est portée par le champ caché : les identifiants cochés,
+               séparés par des virgules ; vide = toutes. -->
+          <div class="filtre-categories-champ">
+            <span class="filtre-categories-titre">Catégorie</span>
+            <div class="filtre-categories-menu"></div>
+            <input type="hidden" class="filtre-categories-valeur" data-filtre="categorieId" />
+          </div>
           <label>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
@@ -1121,8 +1126,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Compte
             <select class="filtre-select-compte" data-filtre="compteId"><option value="">Tous</option></select>
           </label>
-          <label>Catégorie
-            <select class="filtre-select-categorie" data-filtre="categorieId"><option value="">Toutes</option></select>
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
+            <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Découpée
             <select data-filtre="decoupe"><option value="">Peu importe</option><option value="oui">Oui</option><option value="non">Non</option></select>
@@ -1177,9 +1182,14 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Montant max
             <input type="number" step="0.01" min="0" data-filtre="montantMax" placeholder="ex. 500" />
           </label>
-          <label data-extension-greffe="monnaies" style="display:none">Monnaie
-            <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
-          </label>
+          <!-- LE FILTRE DE CATÉGORIES SE COCHE : plusieurs catégories à la fois, avec leur emoji et leur couleur (menu à
+               cocher du noyau, `creerMenuCases`). La valeur est portée par le champ caché : les identifiants cochés,
+               séparés par des virgules ; vide = toutes. -->
+          <div class="filtre-categories-champ">
+            <span class="filtre-categories-titre">Catégorie</span>
+            <div class="filtre-categories-menu"></div>
+            <input type="hidden" class="filtre-categories-valeur" data-filtre="categorieId" />
+          </div>
           <label>Du
             <input type="date" data-filtre="dateDebut" />
           </label>
@@ -1189,8 +1199,8 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <label>Compte
             <select class="filtre-select-compte" data-filtre="compteId"><option value="">Tous</option></select>
           </label>
-          <label>Catégorie
-            <select class="filtre-select-categorie" data-filtre="categorieId"><option value="">Toutes</option></select>
+          <label data-extension-greffe="monnaies" style="display:none">Monnaie
+            <select class="filtre-select-monnaie" data-filtre="monnaieId"><option value="">Toutes</option></select>
           </label>
           <label>Statut
             <select class="filtre-select-statut" data-filtre="statut"><option value="">Tous</option></select>
@@ -2147,6 +2157,19 @@ relancer Marie pour les 40 € du restaurant"></textarea>
           <!-- LES SOUS-CATÉGORIES (migration 0103) : une catégorie peut être rangée sous un parent (un seul
                niveau). Elle en hérite la couleur — à la NUANCE près, qu'on choisit ci-dessous — et l'emoji tant
                qu'elle n'a pas le sien. Vide : catégorie de premier niveau. -->
+          <!-- LA NOTE (migration 0104) : comme celle d'une opération, une note libre — pourquoi cette catégorie existe,
+               ce qu'on y range. Masquée à la création : une note se prend après coup. -->
+          <label id="categorie-notes-bloc" class="full-width" style="display:none">
+            Notes<i class="info-bulle" tabindex="0" data-info-cle="noyau.notes-categorie">i</i>
+            <textarea id="categorie-notes" rows="3" placeholder="ex. tout ce qui touche à la voiture, hors assurance"></textarea>
+          </label>
+          <!-- LA COULEUR (catégorie de premier niveau, ni entrée ni virements) : une pastille par couleur de la
+               palette ; choisir une couleur déjà prise l'ÉCHANGE avec l'autre catégorie (jamais deux de la même
+               couleur). Une sous-catégorie, elle, choisit sa nuance ci-dessous. -->
+          <div class="full-width" id="categorie-couleur-bloc" style="display:none">
+            <span class="champ-titre">Couleur<i class="info-bulle" tabindex="0" data-info-cle="noyau.couleur-categorie">i</i></span>
+            <div id="categorie-couleur" class="nuances-choix"></div>
+          </div>
           <label class="full-width" id="categorie-parent-bloc">Catégorie parente<i class="info-bulle" tabindex="0" data-info-cle="noyau.sous-categories">i</i>
             <select id="categorie-parent"></select>
           </label>
@@ -2168,6 +2191,16 @@ relancer Marie pour les 40 € du restaurant"></textarea>
             <label>
               <input type="checkbox" id="categorie-entree" />
               <span>Catégorie d'entrée<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-entree">i</i></span>
+            </label>
+          </div>
+          <!-- UN DOSSIER DE CATÉGORIES (migration 0105) : une catégorie PARENT sans opération, qui ne sert plus qu'à
+               regrouper ses sous-catégories. Proposée seulement à une catégorie de premier niveau qui a déjà des
+               sous-catégories (ou qui est déjà un dossier, pour pouvoir l'en sortir) ; le serveur refuse si une
+               opération l'occupe encore. -->
+          <div class="full-width operation-cases" id="categorie-dossier-bloc" style="display:none">
+            <label>
+              <input type="checkbox" id="categorie-dossier" />
+              <span>Traiter comme un dossier de catégories<i class="info-bulle" tabindex="0" data-info-cle="noyau.categorie-dossier">i</i></span>
             </label>
           </div>
           <!-- LES MOTS-CLÉS (migration 0085) : ce qui fait proposer cette catégorie à l'import quand
@@ -2201,6 +2234,12 @@ relancer Marie pour les 40 € du restaurant"></textarea>
         </form>
         </div>
         </details>
+        <!-- MIGRER DES OPÉRATIONS (cf. ouvrirModaleMigrationOperations) : sous le repli d'ajout, au même format que
+             « + Ajouter une opération ». Ouvre un pop-up qui reprend l'écran des opérations, avec les mêmes filtres,
+             pour en ranger un lot dans une autre catégorie. -->
+        <div class="migrer-operations" id="btn-migrer-operations" role="button" tabindex="0">
+          Migrer des opérations
+        </div>
       </div>
 
       <!-- COMPTES -->

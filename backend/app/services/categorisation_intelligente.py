@@ -280,7 +280,12 @@ def classer(db: Session, libelle_banque: str, natures: Optional[list[str]] = Non
     libelle = normaliser(libelle_banque)
     if not libelle:
         return []
-    categories = db.query(models.Categorie).filter(models.Categorie.active.is_(True)).all()
+    # Ni une catégorie éteinte ni un DOSSIER de catégories (migration 0105) : aucune ne classe plus rien.
+    categories = (
+        db.query(models.Categorie)
+        .filter(models.Categorie.active.is_(True), models.Categorie.est_dossier.is_(False))
+        .all()
+    )
     autres = livres().autres
     resultats = []
     candidats_par_categorie: dict = {}

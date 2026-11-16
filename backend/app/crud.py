@@ -12,6 +12,7 @@ from .constants import (
     id_colonne_dummy_regle,
     COULEUR_INDEX_ENTREE,
     NB_NUANCES_CATEGORIE,
+    NB_COULEURS_PALETTE,
     COULEUR_INDEX_VIREMENT,
     CATEGORIE_AUTRES,
     CATEGORIE_ENTREES_ARGENT,
@@ -182,11 +183,15 @@ def categorie_de_repli(db: Session, entree: bool) -> Optional[models.Categorie]:
     « Autres » seulement s'il n'y en a aucune."""
     if entree:
         protegee = get_categorie_by_nom(db, CATEGORIE_ENTREES_ARGENT)
-        if protegee is not None and protegee.active and protegee.est_entree:
+        if protegee is not None and protegee.active and protegee.est_entree and not protegee.est_dossier:
             return protegee
         autre_entree = (
             db.query(models.Categorie)
-            .filter(models.Categorie.est_entree.is_(True), models.Categorie.active.is_(True))
+            .filter(
+                models.Categorie.est_entree.is_(True),
+                models.Categorie.active.is_(True),
+                models.Categorie.est_dossier.is_(False),
+            )
             .order_by(models.Categorie.id)
             .first()
         )
@@ -424,6 +429,7 @@ def set_categorie_parent(
     index de palette libre (comme une catégorie neuve) et perd sa nuance : sa couleur redevient la sienne. Les
     opérations, règles et budgets d'une catégorie ne bougent jamais — seul son rangement change."""
     parent = get_categorie(db, parent_id) if parent_id else None
+    ancien_parent_id = db_categorie.parent_id
     db_categorie.parent_id = parent.id if parent else None
     if parent:
         db_categorie.couleur_index = parent.couleur_index
@@ -434,6 +440,114 @@ def set_categorie_parent(
         db_categorie.couleur_index = (
             COULEUR_INDEX_ENTREE if db_categorie.est_entree else _prochain_couleur_index(db)
         )
+    db.flush()
+    if ancien_parent_id is not None and ancien_parent_id != db_categorie.parent_id:
+        _lever_dossier_si_sans_enfant(db, ancien_parent_id)
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
+def _lever_dossier_si_sans_enfant(db: Session, categorie_id: int) -> None:
+    """UN DOSSIER SANS SOUS-CATÉGORIE N'EN EST PLUS UN (migration 0105) : il ne regrouperait plus rien, et comme
+    il ne reçoit pas d'opération il n'aurait plus aucune raison d'exister. Le drapeau tombe quand sa dernière
+    sous-catégorie le quitte ou est supprimée ; la catégorie, elle, redevient une catégorie ordinaire."""
+    parent = get_categorie(db, categorie_id)
+    if parent is not None and parent.est_dossier and not enfants_de(db, categorie_id):
+        parent.est_dossier = False
+
+
+def erreur_dossier_categorie(
+    db: Session, db_categorie: models.Categorie, est_dossier: bool
+) -> Optional[str]:
+    """Le message d'erreur si cette catégorie ne peut pas devenir un dossier, None sinon (migration 0105).
+
+    LES CONDITIONS : une catégorie de PREMIER niveau (un dossier regroupe, il ne se range pas), qui a au moins une
+    sous-catégorie (sinon il ne regroupe rien), qui n'est pas celle des virements internes, et qui n'a AUCUNE
+    opération affectée — ni directement, ni comme part d'une opération découpée : ces opérations n'auraient plus
+    de catégorie qu'on puisse choisir. Les retirer (ou les migrer) est le préalable. Le retour à une catégorie
+    ordinaire est toujours permis."""
+    if not est_dossier:
+        return None
+    if db_categorie.est_virement:
+        return "La catégorie des virements internes n'est pas un dossier."
+    if db_categorie.parent_id is not None:
+        return f"« {db_categorie.nom} » est une sous-catégorie : un dossier est une catégorie de premier niveau."
+    if not enfants_de(db, db_categorie.id):
+        return f"« {db_categorie.nom} » n'a aucune sous-catégorie : il n'y aurait rien à regrouper."
+    directes = (
+        db.query(models.Operation).filter(models.Operation.categorie_id == db_categorie.id).count()
+    )
+    en_parts = (
+        db.query(models.OperationDecoupe)
+        .filter(models.OperationDecoupe.categorie_id == db_categorie.id)
+        .count()
+    )
+    if directes or en_parts:
+        total = directes + en_parts
+        return (
+            f"« {db_categorie.nom} » porte encore {total} opération(s) : migre-les d'abord vers une "
+            "autre catégorie (bouton « Migrer des opérations »)."
+        )
+    return None
+
+
+def set_categorie_dossier(
+    db: Session, db_categorie: models.Categorie, est_dossier: bool
+) -> models.Categorie:
+    """Pose ou retire le drapeau « dossier ». RIEN D'AUTRE NE CHANGE : ni son budget, ni ses enfants, ni sa couleur."""
+    db_categorie.est_dossier = bool(est_dossier)
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
+def erreur_couleur_categorie(
+    db: Session, db_categorie: models.Categorie, couleur_index: int
+) -> Optional[str]:
+    """Le message d'erreur si cette couleur est refusée, None sinon.
+
+    Seule une catégorie de PREMIER NIVEAU qui n'est ni une entrée ni celle des virements choisit sa couleur : les
+    deux dernières ont une couleur fixe (cf. COULEUR_INDEX_ENTREE / COULEUR_INDEX_VIREMENT), et une sous-catégorie
+    hérite de la teinte de son parent — elle ne règle que sa NUANCE."""
+    if db_categorie.parent_id is not None:
+        return "Une sous-catégorie a la teinte de son parent : change celle du parent, ou choisis sa nuance."
+    if db_categorie.est_entree or db_categorie.est_virement:
+        return "La couleur de cette catégorie est fixe."
+    if couleur_index < 0 or couleur_index >= NB_COULEURS_PALETTE:
+        return f"La couleur doit être comprise entre 0 et {NB_COULEURS_PALETTE - 1}."
+    return None
+
+
+def set_categorie_couleur(
+    db: Session, db_categorie: models.Categorie, couleur_index: int
+) -> models.Categorie:
+    """Pose la couleur d'une catégorie de premier niveau. DEUX CATÉGORIES NE PARTAGENT JAMAIS UNE COULEUR : si
+    une autre catégorie de premier niveau porte déjà celle-ci, les deux ÉCHANGENT leurs couleurs. Les
+    sous-catégories suivent la teinte de leur parent, dans un sens comme dans l'autre."""
+    ancienne = db_categorie.couleur_index
+    # LES COULEURS SE COMPARENT MODULO LA PALETTE : une base de plus de huit catégories a des index au-delà (ils
+    # reprennent la palette en boucle), et deux d'entre eux peuvent déjà avoir la même teinte.
+    if couleur_index != ancienne % NB_COULEURS_PALETTE:
+        autre = (
+            db.query(models.Categorie)
+            .filter(
+                models.Categorie.parent_id.is_(None),
+                models.Categorie.id != db_categorie.id,
+                models.Categorie.couleur_index >= 0,
+                models.Categorie.couleur_index % NB_COULEURS_PALETTE == couleur_index,
+            )
+            .first()
+        )
+        db_categorie.couleur_index = couleur_index
+        db.query(models.Categorie).filter(models.Categorie.parent_id == db_categorie.id).update(
+            {"couleur_index": couleur_index}
+        )
+        if autre is not None:
+            autre.couleur_index = ancienne
+            db.query(models.Categorie).filter(models.Categorie.parent_id == autre.id).update(
+                {"couleur_index": ancienne}
+            )
     db.commit()
     db.refresh(db_categorie)
     return db_categorie
@@ -470,6 +584,17 @@ def set_categorie_nuance(
     db_categorie.couleur_nuance = (
         nuance if nuance is not None else _nuance_libre(db, db_categorie.parent_id, db_categorie.id)
     )
+    db.commit()
+    db.refresh(db_categorie)
+    return db_categorie
+
+
+def set_categorie_notes(
+    db: Session, db_categorie: models.Categorie, notes: Optional[str]
+) -> models.Categorie:
+    """Pose (ou retire, avec None) la note d'une catégorie (migration 0104). Une route à part, comme l'icône :
+    renommer une catégorie ne doit jamais effacer sa note."""
+    db_categorie.notes = notes
     db.commit()
     db.refresh(db_categorie)
     return db_categorie
@@ -924,6 +1049,98 @@ def migrer_operations_vers_autres(db: Session, categorie_a_supprimer: models.Cat
     db.commit()
 
 
+def changer_categorie_en_lot(
+    db: Session,
+    operation_ids: list[int],
+    cible: models.Categorie,
+    sources: list[int],
+) -> schemas.ChangerCategorieLotResultat:
+    """Range les opérations désignées dans la catégorie `cible` — le geste « Migrer des opérations » de la page
+    Catégories. La cible a déjà été jugée par la route (existante, allumée, ni dossier ni virements).
+
+    CHAQUE OPÉRATION PASSE PAR `update_operation`, comme une modification à la main : le sens, l'étiquette
+    « à déclarer » et les liens de remboursement se recalculent d'après la nouvelle catégorie, au lieu d'une
+    réécriture brute de la colonne qui laisserait des opérations incohérentes.
+
+    CE QUI EST IGNORÉ, et dit (jamais en silence) :
+      - une opération d'un type qui n'a pas de catégorie à choisir (virement, prêt, règlement…) ;
+      - UN CHANGEMENT DE SENS : une dépense vers une catégorie d'entrée, ou l'inverse. Le sens est une colonne lue par
+        tous les soldes ; la basculer en lot ferait bouger des soldes déjà rapprochés d'un relevé, sans que rien
+        l'annonce (même raison que pour la case « catégorie d'entrée », cf. routers/categories) ;
+      - une opération déjà dans la cible.
+
+    UNE OPÉRATION DÉCOUPÉE n'a pas de catégorie propre : seule la part qui est dans l'une des `sources` (les
+    catégories cochées dans le filtre de l'écran) change de catégorie, et fusionne avec la part de la cible s'il y
+    en a déjà une. Quand toutes ses parts se retrouvent dans la même catégorie, elle redevient une opération simple
+    (une découpe compte au moins deux parts, cf. erreur_decoupes)."""
+    from .constants import TYPES_AVEC_CATEGORIE_LIBRE
+
+    sources_ids = set(sources)
+    migrees = 0
+    ignorees: list[schemas.OperationIgnoree] = []
+
+    def ignorer(operation: models.Operation, raison: str) -> None:
+        ignorees.append(
+            schemas.OperationIgnoree(id=operation.id, nature=operation.nature, raison=raison)
+        )
+
+    for operation_id in dict.fromkeys(operation_ids):
+        operation = get_operation(db, operation_id)
+        if operation is None:
+            ignorees.append(
+                schemas.OperationIgnoree(id=operation_id, nature=None, raison="Opération introuvable.")
+            )
+            continue
+        if TypeOperation(operation.type_code) not in TYPES_AVEC_CATEGORIE_LIBRE:
+            ignorer(operation, "Ce type d'opération n'a pas de catégorie à choisir.")
+            continue
+
+        if operation.decoupes:
+            if cible.est_entree:
+                ignorer(
+                    operation,
+                    "Découpée : ses parts sont des dépenses, la catégorie de destination est une catégorie d'entrée.",
+                )
+                continue
+            if not any(part.categorie_id in sources_ids for part in operation.decoupes):
+                ignorer(operation, "Découpée : aucune de ses parts n'est dans une catégorie choisie.")
+                continue
+            fusion: dict[int, float] = {}
+            for part in operation.decoupes:
+                destination = cible.id if part.categorie_id in sources_ids else part.categorie_id
+                fusion[destination] = fusion.get(destination, 0.0) + part.montant
+            if sorted(p.categorie_id for p in operation.decoupes) == sorted(fusion):
+                ignorer(operation, "Déjà dans cette catégorie.")
+                continue
+            if len(fusion) == 1:
+                updates = schemas.OperationUpdate(categorie_id=cible.id, decoupes=[])
+            else:
+                updates = schemas.OperationUpdate(
+                    decoupes=[
+                        schemas.DecoupeInput(categorie_id=categorie_id, montant=montant)
+                        for categorie_id, montant in fusion.items()
+                    ]
+                )
+        else:
+            if operation.categorie_id == cible.id:
+                ignorer(operation, "Déjà dans cette catégorie.")
+                continue
+            if (operation.sens == Sens.entree) != bool(cible.est_entree):
+                ignorer(
+                    operation,
+                    "Sens différent : cette opération est "
+                    + ("une entrée" if operation.sens == Sens.entree else "une dépense")
+                    + f", « {cible.nom} » est "
+                    + ("une catégorie d'entrée." if cible.est_entree else "une catégorie de dépense."),
+                )
+                continue
+            updates = schemas.OperationUpdate(categorie_id=cible.id)
+
+        update_operation(db, operation, updates)
+        migrees += 1
+    return schemas.ChangerCategorieLotResultat(migrees=migrees, ignorees=ignorees)
+
+
 def set_categorie_mots_cles(
     db: Session, db_categorie: models.Categorie, mots_cles: Optional[list]
 ) -> models.Categorie:
@@ -991,6 +1208,7 @@ def set_categorie_est_entree(
 def delete_categorie(db: Session, db_categorie: models.Categorie) -> None:
     # SES SOUS-CATÉGORIES SONT LIBÉRÉES, jamais emportées : elles remontent au premier niveau, avec une
     # couleur à elles (cf. set_categorie_parent).
+    ancien_parent_id = db_categorie.parent_id
     for enfant in enfants_de(db, db_categorie.id):
         enfant.parent_id = None
         enfant.couleur_nuance = None
@@ -998,6 +1216,9 @@ def delete_categorie(db: Session, db_categorie: models.Categorie) -> None:
         enfant.couleur_index = _prochain_couleur_index(db)
         db.flush()
     db.delete(db_categorie)
+    db.flush()
+    if ancien_parent_id is not None:
+        _lever_dossier_si_sans_enfant(db, ancien_parent_id)
     db.commit()
 
 
@@ -1380,7 +1601,15 @@ def erreur_compte_eteint(
 def erreur_categorie_eteinte(
     categorie: Optional[models.Categorie], precedent_id: Optional[int] = None
 ) -> Optional[str]:
-    """La phrase à rendre si cette catégorie est éteinte, ou None."""
+    """La phrase à rendre si cette catégorie est éteinte — ou si c'est un DOSSIER, qui ne classe rien —, ou None.
+
+    UN DOSSIER (migration 0105) EST REFUSÉ AVANT LE `precedent_id` : il n'a, par construction, aucune opération
+    qui le portait déjà, et le laisser passer sous prétexte qu'il est « là où il est » rouvrirait la porte."""
+    if categorie is not None and categorie.est_dossier:
+        return (
+            f"« {categorie.nom} » est un dossier de catégories : elle ne reçoit pas d'opération, "
+            "choisis une de ses sous-catégories."
+        )
     if categorie is None or categorie.active or categorie.id == precedent_id:
         return None
     return (

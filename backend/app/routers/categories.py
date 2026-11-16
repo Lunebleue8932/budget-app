@@ -233,6 +233,59 @@ def set_parent_categorie(
     return crud.set_categorie_parent(db, db_categorie, updates.parent_id)
 
 
+@router.put("/{categorie_id}/dossier", response_model=schemas.CategorieRead)
+def set_dossier_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieDossierUpdate,
+    db: Session = Depends(get_db),
+):
+    """« Traiter comme un dossier de catégories » (migration 0105).
+
+    UNE CATÉGORIE PARENT SANS AUCUNE OPÉRATION peut ne plus servir qu'à REGROUPER ses sous-catégories : plus
+    proposée là où l'on classe (menus d'opération, parts d'une découpe, règles, correspondances et suggestions de
+    l'import), mais toujours lue partout ailleurs — elle peut encore porter un budget, et sa barre empile ses
+    enfants. 400 avec la raison quand elle ne s'y prête pas (une opération l'occupe, aucune sous-catégorie…) ;
+    la retirer est toujours permis."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    erreur = crud.erreur_dossier_categorie(db, db_categorie, updates.est_dossier)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.set_categorie_dossier(db, db_categorie, updates.est_dossier)
+
+
+@router.put("/{categorie_id}/notes", response_model=schemas.CategorieRead)
+def set_notes_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieNotesUpdate,
+    db: Session = Depends(get_db),
+):
+    """La note libre d'une catégorie (migration 0104) : `null` ou un texte vide la retire."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return crud.set_categorie_notes(db, db_categorie, updates.notes)
+
+
+@router.put("/{categorie_id}/couleur", response_model=schemas.CategorieRead)
+def set_couleur_categorie(
+    categorie_id: int,
+    updates: schemas.CategorieCouleurUpdate,
+    db: Session = Depends(get_db),
+):
+    """Change la couleur d'une catégorie de premier niveau (index de palette). Si une autre catégorie la porte,
+    elles ÉCHANGENT leurs couleurs : l'histogramme n'a jamais deux barres de la même teinte. Ses sous-catégories
+    suivent (même teinte, leurs nuances)."""
+    db_categorie = crud.get_categorie(db, categorie_id)
+    if db_categorie is None:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    erreur = crud.erreur_couleur_categorie(db, db_categorie, updates.couleur_index)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.set_categorie_couleur(db, db_categorie, updates.couleur_index)
+
+
 @router.put("/{categorie_id}/nuance", response_model=schemas.CategorieRead)
 def set_nuance_categorie(
     categorie_id: int,

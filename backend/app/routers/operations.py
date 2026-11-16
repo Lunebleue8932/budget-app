@@ -205,6 +205,9 @@ def _valider_decoupes(db: Session, code: str, montant: float, decoupes) -> None:
             raise HTTPException(
                 status_code=400, detail=crud.ERREUR_PART_VIREMENTS.format(nom=categorie.nom)
             )
+        # Ni un dossier de catégories (migration 0105) : il ne classe rien, ses sous-catégories le font.
+        if categorie.est_dossier:
+            raise HTTPException(status_code=400, detail=crud.erreur_categorie_eteinte(categorie))
 
 
 def _valider_amortissement(
@@ -405,6 +408,22 @@ def valider_creation_operation(
 
     # Même raison pour la découpe : sa validité dépend du type et du montant.
     _valider_decoupes(db, code, operation.montant, operation.decoupes)
+
+
+@router.post("/changer-categorie", response_model=schemas.ChangerCategorieLotResultat)
+def changer_categorie_en_lot(payload: schemas.ChangerCategorieLot, db: Session = Depends(get_db)):
+    """Range un lot d'opérations dans une autre catégorie (page Catégories, « Migrer des opérations »).
+
+    LA CIBLE EST JUGÉE UNE FOIS, ICI, comme pour une saisie à la main : elle doit exister, ne pas être la catégorie
+    des virements, ni éteinte, ni un dossier de catégories. Les opérations, elles, sont jugées une à une
+    (cf. crud.changer_categorie_en_lot) : celles qui ne peuvent pas bouger sont rendues avec leur raison, sans
+    faire échouer les autres."""
+    cible = _valider_categorie(db, payload.categorie_id)
+    _refuser_categorie_virements(cible)
+    erreur = crud.erreur_categorie_eteinte(cible)
+    if erreur:
+        raise HTTPException(status_code=400, detail=erreur)
+    return crud.changer_categorie_en_lot(db, payload.operation_ids, cible, payload.sources)
 
 
 @router.post("", response_model=schemas.OperationRead, status_code=status.HTTP_201_CREATED)

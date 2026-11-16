@@ -1059,3 +1059,8 @@ CLASSES_ACTIF_INITIALES = [
 # d'une sous-catégorie dans cette famille va de 0 à NB_NUANCES_CATEGORIE - 1 (cf. frontend, `nuancesDeCategorie`).
 # Six, c'est le plus de sous-catégories qu'un parent peut porter.
 NB_NUANCES_CATEGORIE = 6
+
+
+# La taille de la palette des catégories (frontend `PALETTE_CATEGORIES`) : le choix d'une couleur va de 0 à
+# NB_COULEURS_PALETTE - 1. Les index au-delà (une base de plus de huit catégories) reprennent la palette en boucle.
+NB_COULEURS_PALETTE = 8
